@@ -1,0 +1,2 @@
+- [User Profile](user_ismail.md) — School owner in Japan, building ERP for Indonesian school, prefers pragmatic MVP
+- [MVP Scope Decisions](project_mvp_scope.md) — Trimmed scope: attendance + payroll + CSV + payslip, deferred multi-tenant/leave/PWA

@@ -1,0 +1,19 @@
+# env files — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Next.js
+.next/
+out/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+
+# Prisma
+prisma/migrations/*.sql.bak
+
+/src/generated/prisma
