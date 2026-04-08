@@ -131,7 +131,7 @@ export default function EmployeeDetailPage() {
         </TabsList>
 
         <TabsContent value="profile">
-          <Card className="p-6 max-w-2xl space-y-4 mt-4">
+          <Card className="p-6 max-w-2xl space-y-5 mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Kode</Label><Input value={e.kode} disabled /></div>
               <div><Label>Nama</Label><Input value={e.nama} onChange={(ev) => setEmployee({ ...e, nama: ev.target.value })} /></div>

@@ -1,0 +1,78 @@
+/**
+ * Branded HTML email template for salary slip delivery.
+ * Uses An Nisaa' brand colors: teal #5DB4B8, dark #1A2E2F
+ * Inline styles for email client compatibility.
+ */
+export function salarySlipEmailHtml({
+  employeeName,
+  period,
+  netPay,
+  appUrl,
+  isStaging = false,
+}: {
+  employeeName: string;
+  period: string;
+  netPay: string;
+  appUrl: string;
+  isStaging?: boolean;
+}): string {
+  return `
+<!DOCTYPE html>
+<html lang="id">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#F7FAFA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  ${isStaging ? '<div style="background:#F4D03F;color:#1A2E2F;text-align:center;padding:8px;font-size:12px;font-weight:600;">⚠ STAGING — Email ini dikirim ke alamat pengujian</div>' : ''}
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;padding:32px 16px;">
+    <tr><td>
+      <!-- Header -->
+      <div style="background:#5DB4B8;border-radius:12px 12px 0 0;padding:24px 28px;text-align:center;">
+        <h1 style="margin:0;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.5px;">
+          An Nisaa' Sekolahku
+        </h1>
+        <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:12px;">
+          Pendidikan Anak Usia Dini Islam Terpadu
+        </p>
+      </div>
+
+      <!-- Body -->
+      <div style="background:#FFFFFF;padding:28px;border:1px solid #E5E2DE;border-top:none;border-radius:0 0 12px 12px;">
+
+        <p style="margin:0 0 20px;color:#1A2E2F;font-size:15px;">
+          Assalamu'alaikum, <strong>${employeeName}</strong>
+        </p>
+
+        <p style="margin:0 0 20px;color:#57534E;font-size:14px;line-height:1.6;">
+          Slip gaji Anda untuk periode <strong>${period}</strong> telah tersedia. Berikut ringkasan penggajian Anda:
+        </p>
+
+        <!-- Net Pay Box -->
+        <div style="background:#F7FAFA;border:1px solid #5DB4B8;border-radius:8px;padding:20px;text-align:center;margin:0 0 24px;">
+          <p style="margin:0 0 4px;color:#57534E;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Gaji Bersih</p>
+          <p style="margin:0;color:#1A2E2F;font-size:28px;font-weight:700;font-family:monospace;">${netPay}</p>
+        </div>
+
+        <!-- CTA Button -->
+        <div style="text-align:center;margin:0 0 24px;">
+          <a href="${appUrl}/teacher/slips" style="display:inline-block;background:#5DB4B8;color:#FFFFFF;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:14px;font-weight:600;">
+            Lihat &amp; Unduh Slip Gaji
+          </a>
+        </div>
+
+        <p style="margin:0 0 8px;color:#57534E;font-size:13px;line-height:1.5;">
+          Slip gaji lengkap dalam format PDF juga terlampir pada email ini.
+        </p>
+
+        <hr style="border:none;border-top:1px solid #E5E2DE;margin:20px 0;">
+
+        <p style="margin:0;color:#9B9BB0;font-size:11px;line-height:1.5;">
+          Dokumen resmi — An Nisaa' Sekolahku<br>
+          Taman Aster, Bekasi · Metland Cibitung<br>
+          Email ini dikirim secara otomatis oleh sistem penggajian.
+        </p>
+      </div>
+    </td></tr>
+  </table>
+</body>
+</html>`.trim();
+}
