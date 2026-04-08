@@ -42,7 +42,7 @@ export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
 
   try {
     const { error } = await resend.emails.send({
-      from: "An Nisaa' ERP <noreply@annisaa.sch.id>",
+      from: process.env.RESEND_FROM_EMAIL || "An Nisaa' ERP <onboarding@resend.dev>",
       to: params.to,
       subject,
       html,
