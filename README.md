@@ -47,7 +47,7 @@ Teacher attendance tracking and payroll management system for **An Nisaa' Sekola
 | Database | 25 real users, 24 employees | 3 test users, 2 test employees |
 | Admin | redacted-admin@example.test | redacted-admin@example.test |
 | Teachers | Real teacher emails | redacted-admin@example.test, redacted-parent@example.test |
-| Emails | Sent to actual recipients | All redirected to `STAGING_EMAIL_OVERRIDE` |
+| Emails | Sent to real teacher emails | Sent to test teacher emails only |
 | Banner | None | Yellow "STAGING" banner at top |
 
 ---
@@ -167,7 +167,6 @@ cp .env.example .env
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | — | Staging anon key | Production anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Staging service key | Production service key |
 | `RESEND_API_KEY` | — | Resend API key | Resend API key |
-| `STAGING_EMAIL_OVERRIDE` | — | redacted-admin@example.test | — (not set) |
 
 ---
 

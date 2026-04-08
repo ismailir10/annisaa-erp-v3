@@ -42,8 +42,6 @@ export async function POST(
   }
 
   const tenant = await prisma.tenant.findUnique({ where: { id: payroll.tenantId } });
-  const emailOverride = process.env.STAGING_EMAIL_OVERRIDE;
-  const isStaging = !!emailOverride;
 
   let sent = 0;
   let failed = 0;
@@ -55,8 +53,6 @@ export async function POST(
       errors.push(`${item.employee.nama}: tidak ada email`);
       continue;
     }
-
-    const recipientEmail = isStaging ? emailOverride! : item.employee.email;
 
     try {
       // Generate PDF for this employee
@@ -86,22 +82,20 @@ export async function POST(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pdfBuffer = await renderToBuffer(React.createElement(SalarySlipPdf, { data: slipData }) as any);
 
-      // Send email with PDF attachment
+      // Send email with PDF attachment to the employee's actual email
       const result = await sendSalarySlipEmail({
-        to: recipientEmail,
+        to: item.employee.email,
         employeeName: item.employee.nama,
         period: `${payroll.periodStart} s/d ${payroll.periodEnd}`,
         netPay: formatRupiah(item.netAmount),
         pdfBuffer: new Uint8Array(pdfBuffer),
         pdfFilename: `slip-gaji-${item.employee.kode}-${payroll.periodStart}.pdf`,
-        isStaging,
       });
 
-      // Log to EmailLog
       await prisma.emailLog.create({
         data: {
-          to: recipientEmail,
-          subject: `${isStaging ? "[STAGING] " : ""}Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}`,
+          to: item.employee.email,
+          subject: `Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}`,
           template: "salary_slip",
           status: result.sent ? "SENT" : (result.error ? "FAILED" : "SENT"),
           error: result.error ?? null,
@@ -116,7 +110,7 @@ export async function POST(
 
       await prisma.emailLog.create({
         data: {
-          to: recipientEmail,
+          to: item.employee.email,
           subject: `Slip Gaji ${payroll.periodStart}`,
           template: "salary_slip",
           status: "FAILED",
@@ -126,17 +120,10 @@ export async function POST(
     }
   }
 
-  // Update payroll status
   await prisma.payrollRun.update({
     where: { id },
     data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
   });
 
-  return NextResponse.json({
-    sent,
-    failed,
-    total: payroll.items.length,
-    errors: errors.length > 0 ? errors : undefined,
-    ...(isStaging ? { note: `Mode staging: semua email dikirim ke ${emailOverride}` } : {}),
-  });
+  return NextResponse.json({ sent, failed, total: payroll.items.length, errors: errors.length > 0 ? errors : undefined });
 }
