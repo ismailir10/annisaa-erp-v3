@@ -104,7 +104,7 @@ export default function SalaryComponentsPage() {
         description="Konfigurasi komponen pendapatan dan potongan"
         actions={
           <Button onClick={openNew} size="sm">
-            <Plus size={16} className="mr-1.5" /> Tambah
+            <Plus size={16} className="mr-1.5" /> Tambah Komponen
           </Button>
         }
       />

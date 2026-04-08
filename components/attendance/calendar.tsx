@@ -19,7 +19,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
   LEAVE: { bg: "bg-[#0EA5E9]", text: "text-white", label: "Izin" },
   HOLIDAY: { bg: "bg-[#8B5CF6]", text: "text-white", label: "Libur" },
   HALF_DAY: { bg: "bg-[#FFB020]", text: "text-white", label: "Setengah Hari" },
-  PRESENT_NO_CHECKOUT: { bg: "bg-[#FFB020]", text: "text-white", label: "Hadir (No Checkout)" },
+  PRESENT_NO_CHECKOUT: { bg: "bg-[#FFB020]", text: "text-white", label: "Hadir Tanpa Pulang" },
 };
 
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];

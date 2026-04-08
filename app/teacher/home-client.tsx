@@ -173,8 +173,8 @@ export function TeacherHomeClient({
                   : hasCheckedOut
                   ? "Selesai ✓"
                   : hasCheckedIn
-                  ? "CHECK OUT"
-                  : "CHECK IN"}
+                  ? "PULANG"
+                  : "MASUK"}
               </motion.button>
             )}
           </AnimatePresence>
@@ -184,8 +184,8 @@ export function TeacherHomeClient({
           {hasCheckedOut
             ? "Anda sudah pulang hari ini"
             : hasCheckedIn
-            ? "Ketuk untuk check out"
-            : "Ketuk untuk mencatat kehadiran"}
+            ? "Ketuk untuk mencatat kepulangan"
+            : "Ketuk untuk mulai absensi"}
         </p>
 
         {/* GPS info */}
