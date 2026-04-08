@@ -15,6 +15,7 @@ import {
   CalendarDays,
   Coins,
   LogOut,
+  CalendarOff,
   Menu,
   X,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Karyawan", href: "/admin/employees", icon: Users },
   { label: "Kehadiran", href: "/admin/attendance", icon: CalendarCheck },
+  { label: "Pengajuan Cuti", href: "/admin/leave", icon: CalendarOff },
   { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
 ];
 

@@ -97,14 +97,37 @@ model Employee {
   bankName      String?
   bpjsEnrolled  Boolean @default(false)
 
+  // Leave balances (reset annually)
+  leaveBalanceAnnual Int @default(12)
+  leaveBalanceSick   Int @default(14)
+
   tenant            Tenant                @relation(fields: [tenantId], references: [id])
   campus            Campus                @relation(fields: [campusId], references: [id])
   user              User?
   salaryValues      EmployeeSalaryValue[]
   attendanceRecords AttendanceRecord[]
   payrollItems      PayrollItem[]
+  leaveRequests     LeaveRequest[]
 
   @@unique([tenantId, kode])
+}
+
+// ── LEAVE ────────────────────────────────────────────────────
+model LeaveRequest {
+  id          String   @id @default(cuid())
+  employeeId  String
+  leaveType   String   // ANNUAL | SICK | PERMISSION | OTHER
+  startDate   String   // YYYY-MM-DD
+  endDate     String   // YYYY-MM-DD
+  days        Int      // Calculated duration
+  reason      String
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNote  String?
+  createdAt   DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id])
 }
 
 // ── SALARY COMPONENT ─────────────────────────────────────────
