@@ -30,6 +30,10 @@ export async function POST(
     return NextResponse.json({ error: "Payroll belum disetujui" }, { status: 400 });
   }
 
+  // Staging: override all email recipients to test email
+  const emailOverride = process.env.STAGING_EMAIL_OVERRIDE;
+  const isStaging = !!emailOverride;
+
   let sent = 0;
   let failed = 0;
 
@@ -39,14 +43,15 @@ export async function POST(
       continue;
     }
 
+    const recipientEmail = isStaging ? emailOverride : item.employee.email;
+
     // TODO: Replace with actual Resend email when configured
-    // For now, just log the email
     await prisma.emailLog.create({
       data: {
-        to: item.employee.email,
-        subject: `Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}`,
+        to: recipientEmail!,
+        subject: `${isStaging ? "[STAGING] " : ""}Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}`,
         template: "salary_slip",
-        status: "SENT", // Simulated
+        status: "SENT", // Simulated until Resend is configured
       },
     });
     sent++;
@@ -57,5 +62,10 @@ export async function POST(
     data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
   });
 
-  return NextResponse.json({ sent, failed, total: payroll.items.length });
+  return NextResponse.json({
+    sent,
+    failed,
+    total: payroll.items.length,
+    ...(isStaging ? { note: `Staging mode: all emails sent to ${emailOverride}` } : {}),
+  });
 }
