@@ -1,5 +1,5 @@
 # School ERP — Teacher Attendance & Payroll System
-**Version**: 8.0 · **Status**: MVP Final · **Date**: 2026-04-07
+**Version**: 9.0 · **Status**: v1 Shipped, Planning v2 · **Date**: 2026-04-08
 
 ---
 
@@ -1405,4 +1405,117 @@ Seeded from "Hari Libur" sheet. 35+ holidays for 2024-2026.
 
 ---
 
-**End of PRD v8.0**
+## 19. v1 Completion Status (2026-04-08)
+
+### What Was Shipped
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Auth (Google OAuth + Magic Link) | ✅ Shipped | Supabase Auth, auto-create User on first login |
+| Campus CRUD | ✅ Shipped | GPS capture, employee count |
+| Org Config | ✅ Shipped | Working days, hours, grace, payroll period |
+| Holiday Calendar | ✅ Shipped | 2026 Indonesia holidays (23 days) |
+| Salary Components (13) | ✅ Shipped | Enable/disable, sort order |
+| Employee CRUD | ✅ Shipped | Auto-generated codes, position dropdown |
+| Employee Salary Values | ✅ Shipped | Per-component editor |
+| Teacher Check-in/out | ✅ Shipped | GPS as documentation, PRESENT/LATE status |
+| Teacher Attendance Calendar | ✅ Shipped | Color-coded monthly view |
+| Teacher Profile | ✅ Shipped | Read-only, logout button |
+| Teacher Salary Slips | ✅ Shipped | View + download PDF |
+| Admin Attendance (Today) | ✅ Shipped | Stats + employee table + override |
+| Admin Attendance (Monthly) | ✅ Shipped | Full grid, click-to-override |
+| Attendance Override | ✅ Shipped | LEAVE status with reason |
+| Payroll Draft Generation | ✅ Shipped | All calc types, working days engine |
+| Attendance Variables | ✅ Shipped | Overtime, outdoor, holiday worked, DC |
+| Payroll Review + Adjust | ✅ Shipped | Line-by-line with notes |
+| Payroll Approve | ✅ Shipped | Locks attendance |
+| BSI CSV Export | ✅ Shipped | Excluded employees shown |
+| PDF Salary Slip + Email | ✅ Shipped | Branded PDF, Resend integration |
+
+### Infrastructure Shipped
+
+| Item | Status |
+|------|--------|
+| Production (Vercel + Supabase Mumbai) | ✅ Live |
+| Staging (Vercel Preview + Supabase Tokyo) | ✅ Live |
+| Separate databases (staging ≠ production) | ✅ |
+| GitHub Actions CI (lint, typecheck, test) | ✅ |
+| Staging-first workflow (SOP documented) | ✅ |
+| Security: rate limiting, tenant isolation, security headers | ✅ |
+| Security: payroll access control (own slips only, no drafts) | ✅ |
+| Unit tests: 12 (payroll engine + working days) | ✅ |
+| An Nisaa' branding (logo, teal palette, favicon) | ✅ |
+
+### What Was Deferred from MVP (→ v2 candidates)
+
+| Feature | Original Priority | Reason Deferred |
+|---------|------------------|-----------------|
+| Leave management (request/approve/balance) | P0 in v7 | Scope cut — admin override to LEAVE covers MVP |
+| Multi-tenant / Super Admin | P0 in v7 | Single tenant sufficient for MVP |
+| GPS enforcement (radius check) | P0 in v7 | GPS as documentation only, simpler |
+| In-app notifications (bell/badge) | P0 in v7 | Email covers critical path |
+| Offline / PWA | Decision D-18 | GPS not blocking removes main use case |
+| Payroll reopen workflow | ADM-18 | Create new run instead |
+| Bulk CSV import (employees/holidays) | ADM-6 | Seed script + single entry sufficient |
+| Teacher profile editing | TCH-9 | Read-only profile shipped |
+| Manual payment recording with receipts | ADM-16 | Deferred — admin tracks offline |
+
+---
+
+## 20. v2 Roadmap (For Discussion)
+
+### v2.0 — Daily Operations Enhancement
+
+**Goal**: Make the system robust for daily use by 24 teachers across 2 campuses.
+
+| # | Feature | Priority | Effort | Why |
+|---|---------|----------|--------|-----|
+| 1 | **Leave management** | P0 | Large | Teachers request leave, admin approves, balance tracked automatically. Currently admin manually overrides to LEAVE. |
+| 2 | **E2E regression tests (Playwright)** | P0 | Medium | Critical paths need automated testing before each release. |
+| 3 | **Payroll history comparison** | P1 | Small | Admin needs to compare current vs previous period — catch anomalies. |
+| 4 | **Employee attendance history (admin)** | P1 | Small | Admin needs per-employee attendance view over months — currently only monthly grid. |
+| 5 | **Export attendance to CSV** | P1 | Small | Admin reporting for school records. |
+| 6 | **Bulk holiday import** | P1 | Small | Adding 23 holidays one by one is tedious — CSV upload. |
+| 7 | **Dashboard: recent payroll summary** | P2 | Small | Quick glance at last payroll totals on dashboard. |
+
+### v2.1 — Teacher Experience
+
+| # | Feature | Priority | Effort | Why |
+|---|---------|----------|--------|-----|
+| 8 | **Teacher profile editing** | P1 | Small | Let teachers update phone, emergency contact. |
+| 9 | **Check-in reminder notification** | P2 | Medium | Push/email if teacher hasn't checked in by 08:00. |
+| 10 | **Salary slip history search** | P2 | Small | Filter slips by date range, download batch. |
+| 11 | **Attendance streak/stats** | P2 | Small | Gamification — show perfect attendance months. |
+
+### v2.2 — Multi-Campus & Scale
+
+| # | Feature | Priority | Effort | Why |
+|---|---------|----------|--------|-----|
+| 12 | **GPS soft warning** | P1 | Medium | Show distance from campus on check-in (never block, just inform). |
+| 13 | **Multi-admin support** | P1 | Medium | One admin per campus, super-admin across all. |
+| 14 | **Payroll reopen (24h window)** | P2 | Medium | Allow corrections within 24 hours of approval. |
+| 15 | **Audit log viewer** | P2 | Medium | Admin can see all payroll/attendance changes with who/when/why. |
+
+### v3.0 — Platform
+
+| # | Feature | Priority | Effort | Why |
+|---|---------|----------|--------|-----|
+| 16 | **Multi-tenant** | P1 | Large | Other schools can use the system. Super Admin portal. |
+| 17 | **WhatsApp notifications** | P2 | Medium | Indonesia's primary messaging — more reliable than email. |
+| 18 | **PWA / offline support** | P2 | Large | Teachers with poor connectivity. |
+| 19 | **Biometric integration** | P3 | Large | Replace GPS with fingerprint devices. |
+| 20 | **General accounting integration** | P3 | Large | Connect payroll to school accounting system. |
+
+### Suggested v2 Sprint Priority
+
+If starting v2 tomorrow, I'd recommend this order:
+
+1. **E2E tests** (P0) — protect everything we built
+2. **Leave management** (P0) — most-requested missing feature
+3. **Payroll comparison + employee attendance history** (P1) — admin QoL
+4. **Bulk holiday import** (P1) — operational efficiency
+5. **Teacher profile editing** (P1) — teacher autonomy
+
+---
+
+**End of PRD v9.0**
