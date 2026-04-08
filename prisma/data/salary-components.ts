@@ -1,0 +1,15 @@
+export const salaryComponents = [
+  { code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: true, sortOrder: 1 },
+  { code: "tunjangan_jabatan", label: "Tunjangan Jabatan", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: 2 },
+  { code: "tunjangan_gt", label: "Tunjangan GT", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: 3 },
+  { code: "bpjs_perusahaan", label: "BPJS Perusahaan", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: 4 },
+  { code: "tunjangan_transport", label: "Tunjangan Transport", category: "INCOME", calcType: "ATTENDANCE_BASED", isProRated: false, sortOrder: 5 },
+  { code: "tunjangan_msk", label: "Tunjangan Masuk", category: "INCOME", calcType: "ATTENDANCE_BASED", isProRated: false, sortOrder: 6 },
+  { code: "insentif_outdoor", label: "Insentif Outdoor", category: "INCOME", calcType: "ATTENDANCE_BASED", isProRated: false, sortOrder: 7 },
+  { code: "insentif_libur", label: "Insentif Libur", category: "INCOME", calcType: "ATTENDANCE_BASED", isProRated: false, sortOrder: 8 },
+  { code: "insentif_3m", label: "Insentif 3M", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: 9 },
+  { code: "insentif_dc", label: "Insentif DC", category: "INCOME", calcType: "ATTENDANCE_BASED", isProRated: false, sortOrder: 10 },
+  { code: "insentif_dll", label: "Insentif Lain-lain", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: 11 },
+  { code: "deduksi_bpjs", label: "BPJS Karyawan", category: "DEDUCTION", calcType: "FIXED", isProRated: false, sortOrder: 12 },
+  { code: "deduksi_dplk_dll", label: "DPLK & Lainnya", category: "DEDUCTION", calcType: "FIXED", isProRated: false, sortOrder: 13 },
+];

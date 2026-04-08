@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ── TENANT (single for MVP, prepared for multi-tenant) ──────
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+
+  users       User[]
+  campuses    Campus[]
+  employees   Employee[]
+  holidays    Holiday[]
+  orgConfig   OrgConfig?
+  salaryDefs  SalaryComponentDef[]
+  payrollRuns PayrollRun[]
+}
+
+// ── USER ─────────────────────────────────────────────────────
+model User {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  email       String    @unique
+  role        String
+  employeeId  String?   @unique
+  name        String?
+  lastLoginAt DateTime?
+
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+}
+
+// ── CAMPUS ───────────────────────────────────────────────────
+model Campus {
+  id       String  @id @default(cuid())
+  tenantId String
+  name     String
+  address  String?
+  lat      Float?
+  lng      Float?
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  employees Employee[]
+}
+
+// ── ORG CONFIG ───────────────────────────────────────────────
+model OrgConfig {
+  id                    String @id @default(cuid())
+  tenantId              String @unique
+  workingDays           String
+  workStartTime         String @default("07:00")
+  workEndTime           String @default("16:00")
+  gracePeriodMinutes    Int    @default(15)
+  timezone              String @default("Asia/Jakarta")
+  payrollPeriodStartDay Int    @default(21)
+  payrollPeriodEndDay   Int    @default(20)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+// ── HOLIDAY ──────────────────────────────────────────────────
+model Holiday {
+  id        String  @id @default(cuid())
+  tenantId  String
+  date      String
+  name      String
+  type      String
+  isHalfDay Boolean @default(false)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, date])
+}
+
+// ── EMPLOYEE ─────────────────────────────────────────────────
+model Employee {
+  id            String  @id @default(cuid())
+  tenantId      String
+  kode          String
+  nama          String
+  formalName    String?
+  email         String
+  noHp          String?
+  jabatan       String
+  campusId      String
+  hireDate      String
+  status        String  @default("ACTIVE")
+  bankAccountNo String?
+  bankName      String?
+  bpjsEnrolled  Boolean @default(false)
+
+  tenant            Tenant                @relation(fields: [tenantId], references: [id])
+  campus            Campus                @relation(fields: [campusId], references: [id])
+  user              User?
+  salaryValues      EmployeeSalaryValue[]
+  attendanceRecords AttendanceRecord[]
+  payrollItems      PayrollItem[]
+
+  @@unique([tenantId, kode])
+}
+
+// ── SALARY COMPONENT ─────────────────────────────────────────
+model SalaryComponentDef {
+  id         String  @id @default(cuid())
+  tenantId   String
+  code       String
+  label      String
+  category   String
+  calcType   String
+  isProRated Boolean @default(false)
+  isEnabled  Boolean @default(true)
+  sortOrder  Int     @default(0)
+
+  tenant       Tenant                @relation(fields: [tenantId], references: [id])
+  values       EmployeeSalaryValue[]
+  payrollLines PayrollItemLine[]
+
+  @@unique([tenantId, code])
+}
+
+model EmployeeSalaryValue {
+  id             String @id @default(cuid())
+  employeeId     String
+  componentDefId String
+  value          Float  @default(0)
+
+  employee     Employee           @relation(fields: [employeeId], references: [id])
+  componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
+
+  @@unique([employeeId, componentDefId])
+}
+
+// ── ATTENDANCE ───────────────────────────────────────────────
+model AttendanceRecord {
+  id               String   @id @default(cuid())
+  employeeId       String
+  date             String
+  checkInTime      DateTime?
+  checkOutTime     DateTime?
+  checkInLat       Float?
+  checkInLng       Float?
+  checkOutLat      Float?
+  checkOutLng      Float?
+  status           String
+  isManualOverride Boolean  @default(false)
+  overrideReason   String?
+  overriddenBy     String?
+  overriddenAt     DateTime?
+  isLocked         Boolean  @default(false)
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, date])
+}
+
+// ── PAYROLL ──────────────────────────────────────────────────
+model PayrollRun {
+  id             String    @id @default(cuid())
+  tenantId       String
+  periodStart    String
+  periodEnd      String
+  actualWorkDays Int
+  status         String    @default("DRAFT")
+  createdBy      String
+  approvedBy     String?
+  approvedAt     DateTime?
+  exportedAt     DateTime?
+  slipsSentAt    DateTime?
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  items  PayrollItem[]
+}
+
+model PayrollItem {
+  id           String @id @default(cuid())
+  payrollRunId String
+  employeeId   String
+  grossAmount  Float  @default(0)
+  deductions   Float  @default(0)
+  netAmount    Float  @default(0)
+
+  overtimeHours     Float @default(0)
+  outdoorDays       Int   @default(0)
+  holidayWorkedDays Int   @default(0)
+  dcDays            Int   @default(0)
+
+  payrollRun PayrollRun      @relation(fields: [payrollRunId], references: [id])
+  employee   Employee        @relation(fields: [employeeId], references: [id])
+  lines      PayrollItemLine[]
+}
+
+model PayrollItemLine {
+  id               String @id @default(cuid())
+  payrollItemId    String
+  componentDefId   String
+  labelSnapshot    String
+  categorySnapshot String
+  calculatedAmount Float  @default(0)
+  adjustmentAmount Float  @default(0)
+  adjustmentNote   String?
+  finalAmount      Float  @default(0)
+
+  payrollItem  PayrollItem        @relation(fields: [payrollItemId], references: [id])
+  componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
+}
+
+// ── EMAIL LOG ────────────────────────────────────────────────
+model EmailLog {
+  id       String   @id @default(cuid())
+  to       String
+  subject  String
+  template String
+  status   String   @default("PENDING")
+  error    String?
+  sentAt   DateTime @default(now())
+}
