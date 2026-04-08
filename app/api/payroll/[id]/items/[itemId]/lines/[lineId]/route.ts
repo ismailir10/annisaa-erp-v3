@@ -31,7 +31,9 @@ export async function PUT(
   const adjustmentAmount = parseFloat(body.adjustmentAmount) || 0;
 
   const line = await prisma.payrollItemLine.findUnique({ where: { id: lineId } });
-  if (!line) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!line || line.payrollItemId !== itemId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const finalAmount = line.calculatedAmount + adjustmentAmount;
 
