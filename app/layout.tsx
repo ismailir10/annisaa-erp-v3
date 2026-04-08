@@ -17,8 +17,15 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "School ERP — An Nisaa' Sekolahku",
-  description: "Teacher Attendance & Payroll Management System",
+  title: "An Nisaa' Sekolahku — Sistem Kehadiran & Penggajian",
+  description: "Sistem manajemen kehadiran guru dan penggajian untuk An Nisaa' Sekolahku",
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 function StagingBanner() {
