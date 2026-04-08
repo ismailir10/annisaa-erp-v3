@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Agent skill files and worktrees — not project code
+    ".agents/**",
+    ".agent-skills/**",
+    ".claude/**",
   ]),
 ]);
 

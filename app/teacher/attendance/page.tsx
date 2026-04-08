@@ -25,6 +25,7 @@ export default function TeacherAttendancePage() {
     setLoading(false);
   }, [month, year]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
   function handleMonthChange(m: number, y: number) {
