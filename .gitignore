@@ -15,5 +15,16 @@ node_modules/
 
 # Prisma
 prisma/migrations/*.sql.bak
+lib/generated/prisma
 
-/src/generated/prisma
+# SQLite dev database
+dev.db
+dev.db-journal
+prisma/dev.db
+
+# Vitest
+coverage/
+
+# IDE
+.vscode/
+.idea/
