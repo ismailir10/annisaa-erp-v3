@@ -67,6 +67,7 @@ export default function PayrollDetailPage() {
     setLoading(false);
   }, [id]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   function openVars(item: PayrollItem) {

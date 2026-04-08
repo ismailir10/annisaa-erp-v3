@@ -53,6 +53,7 @@ export default function MonthlyAttendancePage() {
     setLoading(false);
   }, [month, year, campusId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const daysInMonth = new Date(year, month, 0).getDate();

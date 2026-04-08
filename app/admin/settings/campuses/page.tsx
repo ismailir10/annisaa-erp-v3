@@ -43,6 +43,7 @@ export default function CampusesPage() {
     setLoading(false);
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchCampuses(); }, []);
 
   function openNew() {
