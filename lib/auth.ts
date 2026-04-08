@@ -51,22 +51,10 @@ export async function getSession(): Promise<SessionUser | null> {
           },
         });
       } else {
-        // Only create admin if email is in the allow-list
-        const adminEmails = (process.env.ADMIN_EMAILS ?? "").split(",").map(e => e.trim()).filter(Boolean);
-        if (adminEmails.includes(authUser.email)) {
-          const tenant = await prisma.tenant.findFirst();
-          if (tenant) {
-            user = await prisma.user.create({
-              data: {
-                tenantId: tenant.id,
-                email: authUser.email,
-                role: "SCHOOL_ADMIN",
-                name: authUser.user_metadata?.full_name ?? authUser.email.split("@")[0],
-              },
-            });
-          }
-        }
-        // If email is not in admin list and not an employee, deny access (return null)
+        // Not an employee and no existing User record → deny access
+        // Admins must be pre-created in the database (via seed or manual DB insert)
+        // No auto-promotion — this prevents unauthorized access
+        return null;
       }
     }
 
