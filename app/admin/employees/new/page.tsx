@@ -67,7 +67,7 @@ export default function NewEmployeePage() {
       </div>
       <PageHeader title="Tambah Karyawan" description="Kode karyawan akan digenerate otomatis" />
 
-      <Card className="p-6 max-w-2xl space-y-4">
+      <Card className="p-6 max-w-2xl space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2 sm:col-span-1"><Label>Nama *</Label><Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} placeholder="Redacted Employee" /></div>
           <div className="col-span-2 sm:col-span-1"><Label>Nama Formal</Label><Input value={form.formalName} onChange={(e) => setForm({ ...form, formalName: e.target.value })} placeholder="Redacted Employee SPd.I" /></div>
