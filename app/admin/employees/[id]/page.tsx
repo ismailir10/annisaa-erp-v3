@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -128,6 +128,7 @@ export default function EmployeeDetailPage() {
         <TabsList>
           <TabsTrigger value="profile">Profil</TabsTrigger>
           <TabsTrigger value="salary">Gaji</TabsTrigger>
+          <TabsTrigger value="attendance">Kehadiran</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -206,7 +207,89 @@ export default function EmployeeDetailPage() {
             </div>
           </Card>
         </TabsContent>
+
+        <TabsContent value="attendance">
+          <EmployeeAttendanceTab employeeId={id} />
+        </TabsContent>
       </Tabs>
     </>
+  );
+}
+
+// Attendance tab component
+function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [data, setData] = useState<{ records: Array<{ date: string; status: string; checkInTime: string | null; checkOutTime: string | null }>; summary: { present: number; late: number; absent: number; leave: number } } | null>(null);
+  const [attLoading, setAttLoading] = useState(false);
+
+  const fetchAttendance = useCallback(async () => {
+    setAttLoading(true);
+    const res = await fetch(`/api/employees/${employeeId}/attendance?month=${month}&year=${year}`);
+    setData(await res.json());
+    setAttLoading(false);
+  }, [employeeId, month, year]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchAttendance(); }, [fetchAttendance]);
+
+  const monthLabel = new Date(year, month - 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+
+  return (
+    <Card className="p-6 max-w-2xl mt-4">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground">←</button>
+        <span className="text-sm font-semibold capitalize">{monthLabel}</span>
+        <button onClick={() => { if (month === 12) { setMonth(1); setYear(year + 1); } else setMonth(month + 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground">→</button>
+      </div>
+
+      {attLoading ? (
+        <div className="h-40 bg-muted rounded-lg animate-pulse" />
+      ) : data ? (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {[
+              { label: "Hadir", value: data.summary.present, color: "text-[#00B37E]" },
+              { label: "Terlambat", value: data.summary.late, color: "text-[#FF8C00]" },
+              { label: "Tidak Hadir", value: data.summary.absent, color: "text-[#FF3B3B]" },
+              { label: "Cuti", value: data.summary.leave, color: "text-[#0EA5E9]" },
+            ].map((s) => (
+              <div key={s.label} className="text-center">
+                <p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-[10px] text-muted-foreground">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Daily records */}
+          <div className="space-y-1">
+            {data.records.map((r) => {
+              const statusColors: Record<string, string> = {
+                PRESENT: "bg-[#00B37E]", LATE: "bg-[#FF8C00]", ABSENT: "bg-[#FF3B3B]",
+                LEAVE: "bg-[#0EA5E9]", HOLIDAY: "bg-[#8B5CF6]", PRESENT_NO_CHECKOUT: "bg-[#FFB020]",
+              };
+              const formatTime = (t: string | null) => t ? new Date(t).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--";
+              return (
+                <div key={r.date} className="flex items-center justify-between py-1.5 text-xs border-b border-border/50 last:border-0">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${statusColors[r.status] ?? "bg-muted"}`} />
+                    <span className="font-currency text-muted-foreground w-20">
+                      {new Date(r.date + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", weekday: "short" })}
+                    </span>
+                  </div>
+                  <span className="font-currency">{formatTime(r.checkInTime)} — {formatTime(r.checkOutTime)}</span>
+                  <span className="text-[10px] w-16 text-right">{r.status}</span>
+                </div>
+              );
+            })}
+            {data.records.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-8">Tidak ada data kehadiran untuk bulan ini.</p>
+            )}
+          </div>
+        </>
+      ) : null}
+    </Card>
   );
 }

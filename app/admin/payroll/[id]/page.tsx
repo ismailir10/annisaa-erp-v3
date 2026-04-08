@@ -60,10 +60,26 @@ export default function PayrollDetailPage() {
 
   const [approving, setApproving] = useState(false);
   const [sending, setSending] = useState(false);
+  const [comparison, setComparison] = useState<Record<string, number> | null>(null);
+  const [prevPeriod, setPrevPeriod] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const res = await fetch(`/api/payroll/${id}`);
-    setData(await res.json());
+    const [payRes, compRes] = await Promise.all([
+      fetch(`/api/payroll/${id}`),
+      fetch(`/api/payroll/compare?current=${id}`),
+    ]);
+    setData(await payRes.json());
+    try {
+      const comp = await compRes.json();
+      if (comp?.comparison) {
+        const map: Record<string, number> = {};
+        for (const c of comp.comparison) {
+          if (c.delta !== null) map[c.employeeId] = c.delta;
+        }
+        setComparison(map);
+        setPrevPeriod(comp.previousPeriod);
+      }
+    } catch { /* no comparison available */ }
     setLoading(false);
   }, [id]);
 
@@ -177,6 +193,13 @@ export default function PayrollDetailPage() {
         </Card>
       </div>
 
+      {/* Comparison note */}
+      {prevPeriod && (
+        <p className="text-xs text-muted-foreground mb-4">
+          Dibandingkan dengan periode sebelumnya: {prevPeriod}
+        </p>
+      )}
+
       {/* Employee items */}
       <div className="space-y-1">
         {data.items.map((item) => {
@@ -198,7 +221,14 @@ export default function PayrollDetailPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {!item.employee.bankAccountNo && <Badge variant="outline" className="text-[10px] text-status-late">Tanpa Rekening</Badge>}
-                  <span className="font-currency text-sm font-bold">{formatRp(item.netAmount)}</span>
+                  <div className="text-right">
+                    <span className="font-currency text-sm font-bold">{formatRp(item.netAmount)}</span>
+                    {comparison?.[item.employee.id] !== undefined && (
+                      <p className={`font-currency text-[10px] ${comparison[item.employee.id] >= 0 ? "text-[#00B37E]" : "text-[#FF3B3B]"}`}>
+                        {comparison[item.employee.id] >= 0 ? "+" : ""}{formatRp(comparison[item.employee.id])}
+                      </p>
+                    )}
+                  </div>
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </div>
               </button>

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
-import { UserCheck, Clock, UserX, CalendarDays, Pencil } from "lucide-react";
+import { UserCheck, Clock, UserX, CalendarDays, Pencil, Download } from "lucide-react";
 import { motion } from "framer-motion";
 
 type EmployeeAttendance = {
@@ -88,9 +88,14 @@ export default function AttendancePage() {
         title="Kehadiran Hari Ini"
         description={new Date(date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         actions={
-          <Link href="/admin/attendance/monthly">
-            <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
+              <Download size={14} className="mr-1.5" /> Ekspor CSV
+            </Button>
+            <Link href="/admin/attendance/monthly">
+              <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
+            </Link>
+          </div>
         }
       />
 
