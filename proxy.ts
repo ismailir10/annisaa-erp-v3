@@ -15,21 +15,26 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/logo")
   ) {
+    // Still refresh Supabase session on public routes if configured
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return await updateSession(request);
+    }
     return NextResponse.next();
   }
 
-  // Demo mode: if demo cookie is present, allow through without Supabase check
-  const demoEmail = request.cookies.get(DEMO_COOKIE)?.value;
-  if (demoEmail) {
-    return NextResponse.next();
-  }
-
-  // Supabase auth: if configured, delegate to Supabase session check
+  // Supabase auth takes PRIORITY over demo cookie
+  // This prevents demo cookie from bypassing Supabase auth in production
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return await updateSession(request);
   }
 
-  // Fallback: no session → redirect to login
+  // Demo mode fallback (only when Supabase is NOT configured)
+  const demoCookie = request.cookies.get(DEMO_COOKIE)?.value;
+  if (demoCookie) {
+    return NextResponse.next();
+  }
+
+  // No session → redirect to login
   return NextResponse.redirect(new URL("/", request.url));
 }
 

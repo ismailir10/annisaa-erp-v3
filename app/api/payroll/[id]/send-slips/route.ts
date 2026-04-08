@@ -120,10 +120,13 @@ export async function POST(
     }
   }
 
-  await prisma.payrollRun.update({
-    where: { id },
-    data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
-  });
+  // Only mark as SLIPS_SENT if at least one email succeeded
+  if (sent > 0) {
+    await prisma.payrollRun.update({
+      where: { id },
+      data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
+    });
+  }
 
   return NextResponse.json({ sent, failed, total: payroll.items.length, errors: errors.length > 0 ? errors : undefined });
 }

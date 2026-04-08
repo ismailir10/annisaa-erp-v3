@@ -24,6 +24,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Period start and end required" }, { status: 400 });
   }
 
+  // Prevent duplicate payroll runs for the same period
+  const existingRun = await prisma.payrollRun.findFirst({
+    where: { tenantId: session.tenantId, periodStart, periodEnd },
+  });
+  if (existingRun) {
+    return NextResponse.json(
+      { error: "Penggajian untuk periode ini sudah ada", id: existingRun.id },
+      { status: 409 }
+    );
+  }
+
   // Get org config
   const orgConfig = await prisma.orgConfig.findUnique({
     where: { tenantId: session.tenantId },

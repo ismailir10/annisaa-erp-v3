@@ -32,6 +32,13 @@ export async function PUT(
   }
 
   const { id } = await params;
+
+  // Verify tenant ownership before any mutation
+  const existing = await prisma.employee.findUnique({ where: { id } });
+  if (!existing || existing.tenantId !== session.tenantId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const body = await req.json();
 
   // Deactivate
