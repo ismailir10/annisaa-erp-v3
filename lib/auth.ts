@@ -51,18 +51,22 @@ export async function getSession(): Promise<SessionUser | null> {
           },
         });
       } else {
-        // Check if this is the admin email
-        const tenant = await prisma.tenant.findFirst();
-        if (tenant) {
-          user = await prisma.user.create({
-            data: {
-              tenantId: tenant.id,
-              email: authUser.email,
-              role: "SCHOOL_ADMIN",
-              name: authUser.user_metadata?.full_name ?? authUser.email.split("@")[0],
-            },
-          });
+        // Only create admin if email is in the allow-list
+        const adminEmails = (process.env.ADMIN_EMAILS ?? "").split(",").map(e => e.trim()).filter(Boolean);
+        if (adminEmails.includes(authUser.email)) {
+          const tenant = await prisma.tenant.findFirst();
+          if (tenant) {
+            user = await prisma.user.create({
+              data: {
+                tenantId: tenant.id,
+                email: authUser.email,
+                role: "SCHOOL_ADMIN",
+                name: authUser.user_metadata?.full_name ?? authUser.email.split("@")[0],
+              },
+            });
+          }
         }
+        // If email is not in admin list and not an employee, deny access (return null)
       }
     }
 
