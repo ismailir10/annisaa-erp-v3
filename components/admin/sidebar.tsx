@@ -9,7 +9,6 @@ import {
   Users,
   CalendarCheck,
   Banknote,
-  Settings,
   Building2,
   Clock,
   CalendarDays,

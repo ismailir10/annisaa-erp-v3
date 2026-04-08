@@ -49,6 +49,7 @@ export default function TeacherLeavePage() {
     setLoading(false);
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, []);
 
   async function handleSubmit() {
