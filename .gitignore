@@ -28,3 +28,4 @@ coverage/
 # IDE
 .vscode/
 .idea/
+.claude/worktrees/
