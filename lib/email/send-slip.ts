@@ -12,12 +12,11 @@ export type SendSlipParams = {
   netPay: string;
   pdfBuffer: Buffer | Uint8Array;
   pdfFilename: string;
-  isStaging?: boolean;
 };
 
 /**
  * Send salary slip email with PDF attachment via Resend.
- * Returns true if sent, false if simulated (no API key).
+ * Returns { sent: true } if delivered, { sent: false } if simulated (no API key).
  */
 export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
   sent: boolean;
@@ -30,10 +29,9 @@ export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
     period: params.period,
     netPay: params.netPay,
     appUrl,
-    isStaging: params.isStaging,
   });
 
-  const subject = `${params.isStaging ? "[STAGING] " : ""}Slip Gaji ${params.period} — An Nisaa' Sekolahku`;
+  const subject = `Slip Gaji ${params.period} — An Nisaa' Sekolahku`;
 
   if (!resend) {
     console.log(`[EMAIL SIMULATED] To: ${params.to} | Subject: ${subject}`);

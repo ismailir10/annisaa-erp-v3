@@ -8,21 +8,17 @@ export function salarySlipEmailHtml({
   period,
   netPay,
   appUrl,
-  isStaging = false,
 }: {
   employeeName: string;
   period: string;
   netPay: string;
   appUrl: string;
-  isStaging?: boolean;
 }): string {
   return `
 <!DOCTYPE html>
 <html lang="id">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background-color:#F7FAFA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  ${isStaging ? '<div style="background:#F4D03F;color:#1A2E2F;text-align:center;padding:8px;font-size:12px;font-weight:600;">⚠ STAGING — Email ini dikirim ke alamat pengujian</div>' : ''}
-
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;padding:32px 16px;">
     <tr><td>
       <!-- Header -->
