@@ -1518,4 +1518,82 @@ If starting v2 tomorrow, I'd recommend this order:
 
 ---
 
+## Product Roadmap — Phases 2–6
+
+Phase 1 (Teacher Attendance & Payroll) is complete. The following phases extend the platform toward a full school management system.
+
+---
+
+### Phase 2: Core Structure
+
+**Goal:** Model the school's academic organization so future features have a proper data foundation.
+
+| Model | Description |
+|-------|-------------|
+| `AcademicYear` | e.g. "2025/2026", with start/end dates and status: `PLANNING` / `ACTIVE` / `ARCHIVED` |
+| `Program` | An Nisaa' has 4 programs: **Day Care**, **TKIT**, **Kelompok Bermain**, **Pop Up Class** |
+| `ClassSection` | e.g. "TKIT A" — belongs to a Program + AcademicYear, has capacity, homeroom teacher, campus |
+
+Note: Pop Up Class is session-based (not semester-based) and needs a separate `ProgramSession` model with date, capacity, and per-session fee.
+
+---
+
+### Phase 3: Teacher Assignment
+
+**Goal:** Link teachers (Employee records) to the classes they teach.
+
+| Model | Description |
+|-------|-------------|
+| `TeachingAssignment` | Links `Employee` → `ClassSection`, with role (homeroom / subject) and effective dates |
+
+This bridges Phase 1 (payroll) with Phase 2 (programs), enabling per-class workload visibility and future program-specific pay rules.
+
+---
+
+### Phase 4: Student Management
+
+**Goal:** Track students and their enrollment across programs and years.
+
+| Model | Description |
+|-------|-------------|
+| `Student` | Student profile — name, date of birth, parent contacts, notes |
+| `StudentEnrollment` | Links `Student` → `ClassSection` (and therefore to Program + AcademicYear), with status and enrollment date |
+
+Parent contact info lives on Student. Multiple guardians supported.
+
+---
+
+### Phase 5: Fee Structure & Invoicing
+
+**Goal:** Define tuition/fee structures per program and generate invoices per student.
+
+| Model | Description |
+|-------|-------------|
+| `FeeComponentDef` | Mirrors `SalaryComponentDef` — row-based, flexible fee types (tuition, registration, activity, etc.) |
+| `ProgramFeeStructure` | Defines which fee components apply to a Program for a given AcademicYear, with amounts |
+| `Invoice` | Generated per student per billing period, with line items and total due |
+
+Invoices are generated from the fee structure at enrollment or period start. Manual adjustments (discounts, waivers) are supported per line.
+
+---
+
+### Phase 6: Payment Collection (Xendit)
+
+**Goal:** Collect fees digitally via payment links, starting with Pop Up Class.
+
+**Approach:**
+1. Generate a Xendit Checkout Session per `Invoice`
+2. Share payment link with parent (WhatsApp / email)
+3. Xendit webhook confirms payment → marks invoice as paid
+4. Reconciliation dashboard for admin
+
+**Rollout order:**
+1. **Pop Up Class first** — per-session payments, simpler scope, immediate revenue impact
+2. **Recurring tuition** — TKIT / KB / Day Care monthly billing
+3. **Registration & other fees** — one-off invoices
+
+**Key integrations:** Xendit Checkout Session API, webhook endpoint, payment status tracking, BSI reconciliation export.
+
+---
+
 **End of PRD v9.0**
