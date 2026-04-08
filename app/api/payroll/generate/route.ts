@@ -3,8 +3,15 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { calculateWorkingDays } from "@/lib/payroll/working-days";
 import { calculatePayroll, SalaryComponent } from "@/lib/payroll/engine";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 2 payroll generations per minute
+  const { success } = rateLimit(`payroll:${getClientIp(req)}`, 2, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
+  }
+
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -149,7 +149,7 @@ export default function MonthlyAttendancePage() {
                             className={`w-5 h-5 rounded-sm inline-block ${
                               record ? STATUS_COLORS[record.status] ?? "bg-muted" : isWeekend ? "bg-muted/30" : ""
                             } ${record?.isLocked ? "opacity-50 cursor-not-allowed" : "hover:ring-1 hover:ring-primary cursor-pointer"}`}
-                            title={record ? record.status : isWeekend ? "Weekend" : "No record"}
+                            title={record ? record.status : isWeekend ? "Akhir Pekan" : "Tidak ada data"}
                           />
                         </td>
                       );

@@ -72,7 +72,7 @@ export default function NewPayrollPage() {
           Sistem akan menghitung hari kerja aktual, kehadiran per karyawan, dan semua komponen gaji.
         </p>
         <Button onClick={handleGenerate} disabled={loading} className="w-full">
-          {loading ? "Memproses..." : "Generate Draft"}
+          {loading ? "Memproses..." : "Buat Draft Penggajian"}
         </Button>
       </Card>
     </>

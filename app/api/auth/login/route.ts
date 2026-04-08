@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 
-// Demo-only login endpoint — will be removed when Supabase Auth is active
+// Demo-only login — disabled when Supabase Auth is configured
 export async function POST(req: NextRequest) {
-  const { userId } = await req.json();
+  // Block in production — only allow when Supabase is not configured
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return NextResponse.json(
+      { error: "Demo login disabled. Use Supabase Auth." },
+      { status: 403 }
+    );
+  }
 
+  const { userId } = await req.json();
   if (!userId) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
   }
@@ -15,7 +22,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Set demo session cookie
   const cookieStore = await cookies();
   cookieStore.set("school-erp-session", userId, {
     httpOnly: true,

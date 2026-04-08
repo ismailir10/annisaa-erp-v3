@@ -117,7 +117,7 @@ export default function HolidaysPage() {
         description={`${holidays.length} hari libur terdaftar`}
         actions={
           <Button onClick={openNew} size="sm">
-            <Plus size={16} className="mr-1.5" /> Tambah
+            <Plus size={16} className="mr-1.5" /> Tambah Hari Libur
           </Button>
         }
       />

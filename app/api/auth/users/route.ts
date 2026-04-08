@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-// Demo-only: list all users for login selector
-// Remove when switching to Supabase Auth
+// Demo-only: list users for login selector — disabled when Supabase is configured
 export async function GET() {
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return NextResponse.json(
+      { error: "Demo user list disabled. Use Supabase Auth." },
+      { status: 403 }
+    );
+  }
+
   const users = await prisma.user.findMany({
     select: {
       id: true,

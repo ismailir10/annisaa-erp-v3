@@ -221,7 +221,7 @@ function LoginPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-white font-medium text-sm truncate">{user.name ?? user.email}</p>
-                        <p className="text-[#8AACAD] text-xs">School Admin</p>
+                        <p className="text-[#8AACAD] text-xs">Admin Sekolah</p>
                       </div>
                       {loginLoading === user.id && <Loader2 size={16} className="text-white animate-spin" />}
                     </motion.button>
