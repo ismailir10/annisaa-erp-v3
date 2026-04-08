@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CalendarDays, Wallet } from "lucide-react";
+import { Home, CalendarDays, Wallet, UserCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 const tabs = [
-  { label: "Home", href: "/teacher", icon: Home },
+  { label: "Beranda", href: "/teacher", icon: Home },
   { label: "Kehadiran", href: "/teacher/attendance", icon: CalendarDays },
-  { label: "Gaji", href: "/teacher/slips", icon: Wallet },
+  { label: "Slip Gaji", href: "/teacher/slips", icon: Wallet },
+  { label: "Profil", href: "/teacher/profile", icon: UserCircle },
 ];
 
 export function BottomNav() {

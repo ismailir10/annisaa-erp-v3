@@ -117,7 +117,7 @@ export default function CampusesPage() {
         description="Kelola lokasi kampus/cabang sekolah"
         actions={
           <Button onClick={openNew} size="sm">
-            <Plus size={16} className="mr-1.5" /> Tambah
+            <Plus size={16} className="mr-1.5" /> Tambah Kampus
           </Button>
         }
       />

@@ -102,7 +102,8 @@ export default function EmployeesPage() {
         <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-16 bg-card rounded-lg animate-pulse" />)}</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          <p>Tidak ada karyawan ditemukan</p>
+          <p className="text-sm">Tidak ada karyawan ditemukan.</p>
+          <p className="text-xs mt-1">Coba ubah filter pencarian atau tambahkan karyawan baru.</p>
         </div>
       ) : (
         <div className="space-y-1">
@@ -130,7 +131,7 @@ export default function EmployeesPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {!e.bankAccountNo && <Badge variant="outline" className="text-[10px] text-status-late">No Bank</Badge>}
+                  {!e.bankAccountNo && <Badge variant="outline" className="text-[10px] text-status-late">Tanpa Rekening</Badge>}
                   <Badge
                     variant="secondary"
                     className={`text-[10px] ${e.status === "ACTIVE" ? "bg-status-present-subtle text-[#00875A]" : "bg-muted text-muted-foreground"}`}

@@ -25,9 +25,23 @@ export async function GET(
 
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Access control: admin can see all, teacher can only see own
+  // PAYROLL SECURITY: Strict access control
+  // 1. Teachers can ONLY see their own slip
   if (session.role === "TEACHER" && item.employee.id !== session.employeeId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Akses ditolak — Anda hanya dapat melihat slip gaji Anda sendiri" }, { status: 403 });
+  }
+
+  // 2. Admin must belong to same tenant
+  if (session.role === "SCHOOL_ADMIN" && item.payrollRun.tenantId !== session.tenantId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // 3. No draft slips — teachers should never see unfinished payroll
+  if (session.role === "TEACHER") {
+    const fullRun = await prisma.payrollRun.findUnique({ where: { id: item.payrollRunId } });
+    if (fullRun?.status === "DRAFT") {
+      return NextResponse.json({ error: "Slip gaji belum tersedia" }, { status: 403 });
+    }
   }
 
   const tenant = await prisma.tenant.findUnique({ where: { id: item.payrollRun.tenantId } });
