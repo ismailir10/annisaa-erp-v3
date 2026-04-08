@@ -137,7 +137,7 @@ export default function PayrollDetailPage() {
   }
 
   if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
-  if (!data) return <p>Tidak ditemukan</p>;
+  if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p><p className="text-xs mt-1">Silakan kembali ke daftar penggajian.</p></div>;
 
   const totalGross = data.items.reduce((s, i) => s + i.grossAmount, 0);
   const totalDed = data.items.reduce((s, i) => s + i.deductions, 0);
@@ -196,7 +196,7 @@ export default function PayrollDetailPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {!item.employee.bankAccountNo && <Badge variant="outline" className="text-[10px] text-status-late">No Bank</Badge>}
+                  {!item.employee.bankAccountNo && <Badge variant="outline" className="text-[10px] text-status-late">Tanpa Rekening</Badge>}
                   <span className="font-currency text-sm font-bold">{formatRp(item.netAmount)}</span>
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </div>

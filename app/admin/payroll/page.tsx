@@ -40,7 +40,7 @@ export default function PayrollListPage() {
         description="Riwayat penggajian"
         actions={
           <Link href="/admin/payroll/new">
-            <Button size="sm"><Plus size={16} className="mr-1.5" /> Buat Baru</Button>
+            <Button size="sm"><Plus size={16} className="mr-1.5" /> Buat Penggajian</Button>
           </Link>
         }
       />
@@ -50,7 +50,7 @@ export default function PayrollListPage() {
       ) : runs.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-lg">Belum ada penggajian</p>
-          <p className="text-sm mt-1">Buat penggajian pertama Anda</p>
+          <p className="text-sm mt-1">Mulai dengan mengklik &ldquo;Buat Baru&rdquo; untuk membuat penggajian pertama.</p>
         </div>
       ) : (
         <div className="space-y-2">

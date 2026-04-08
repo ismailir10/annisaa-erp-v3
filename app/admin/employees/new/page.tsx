@@ -39,7 +39,7 @@ export default function NewEmployeePage() {
 
   async function handleSubmit() {
     if (!form.nama || !form.email || !form.jabatan || !form.campusId || !form.hireDate) {
-      toast.error("Lengkapi semua field wajib"); return;
+      toast.error("Mohon lengkapi: Nama, Email, Jabatan, Kampus, dan Tanggal Masuk"); return;
     }
     setSaving(true);
     const res = await fetch("/api/employees", {
@@ -74,7 +74,7 @@ export default function NewEmployeePage() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="redacted@example.test" /></div>
-          <div><Label>No. HP</Label><Input value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} placeholder="08xx" /></div>
+          <div><Label>No. HP</Label><Input value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} placeholder="Contoh: 081234567890" /></div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>

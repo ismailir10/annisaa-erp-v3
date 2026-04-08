@@ -33,7 +33,8 @@ export default function TeacherSlipsPage() {
         <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-20 bg-card rounded-xl animate-pulse" />)}</div>
       ) : slips.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
-          <p>Belum ada slip gaji</p>
+          <p className="text-sm">Belum ada slip gaji tersedia.</p>
+          <p className="text-xs mt-1">Slip gaji akan muncul setelah penggajian disetujui oleh admin.</p>
         </div>
       ) : (
         <div className="space-y-3">

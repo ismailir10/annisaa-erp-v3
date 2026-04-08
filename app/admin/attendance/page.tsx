@@ -152,7 +152,7 @@ export default function AttendancePage() {
                 <button
                   onClick={() => openOverride(ea)}
                   className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground"
-                  title="Override"
+                  title="Ubah Status Kehadiran"
                 >
                   <Pencil size={13} />
                 </button>
