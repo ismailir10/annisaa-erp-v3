@@ -1,4 +1,4 @@
-import { calculateWorkingDays, countAttendanceDays } from "./working-days";
+import { countAttendanceDays } from "./working-days";
 
 export type SalaryComponent = {
   id: string;

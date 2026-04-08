@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { PageHeader } from "@/components/admin/page-header";
-import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
