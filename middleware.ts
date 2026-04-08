@@ -1,27 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
 const SESSION_COOKIE = "school-erp-session";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const sessionId = request.cookies.get(SESSION_COOKIE)?.value;
 
-  // Public routes — no auth needed
+  // Public routes
   if (
     pathname === "/" ||
+    pathname.startsWith("/auth") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon")
+    pathname.startsWith("/favicon") ||
+    pathname.startsWith("/logo")
   ) {
+    // Still refresh Supabase session on public routes
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      return await updateSession(request);
+    }
     return NextResponse.next();
   }
 
-  // No session → redirect to login
+  // If Supabase is configured, use Supabase middleware
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return await updateSession(request);
+  }
+
+  // Demo mode fallback: simple cookie check
+  const sessionId = request.cookies.get(SESSION_COOKIE)?.value;
   if (!sessionId) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Role-based routing is checked server-side in layouts
   return NextResponse.next();
 }
 

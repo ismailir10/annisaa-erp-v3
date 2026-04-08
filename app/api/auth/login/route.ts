@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createSession } from "@/lib/auth";
+import { cookies } from "next/headers";
 
+// Demo-only login endpoint — will be removed when Supabase Auth is active
 export async function POST(req: NextRequest) {
   const { userId } = await req.json();
 
@@ -14,15 +15,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  await createSession(user.id);
+  // Set demo session cookie
+  const cookieStore = await cookies();
+  cookieStore.set("school-erp-session", userId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  });
 
-  // Update last login
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
   });
 
   const redirectUrl = user.role === "SCHOOL_ADMIN" ? "/admin" : "/teacher";
-
   return NextResponse.json({ ok: true, role: user.role, redirectUrl });
 }
