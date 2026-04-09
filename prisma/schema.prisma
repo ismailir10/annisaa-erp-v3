@@ -112,12 +112,27 @@ model Employee {
   tenant            Tenant                @relation(fields: [tenantId], references: [id])
   campus            Campus                @relation(fields: [campusId], references: [id])
   user              User?
-  salaryValues      EmployeeSalaryValue[]
-  attendanceRecords AttendanceRecord[]
-  payrollItems      PayrollItem[]
-  leaveRequests     LeaveRequest[]
+  salaryValues         EmployeeSalaryValue[]
+  attendanceRecords    AttendanceRecord[]
+  payrollItems         PayrollItem[]
+  leaveRequests        LeaveRequest[]
+  teachingAssignments  TeachingAssignment[]
 
   @@unique([tenantId, kode])
+}
+
+// ── TEACHING ASSIGNMENT ──────────────────────────────────────
+model TeachingAssignment {
+  id             String @id @default(cuid())
+  employeeId     String
+  classSectionId String
+  role           String @default("HOMEROOM") // HOMEROOM | ASSISTANT
+  createdAt      DateTime @default(now())
+
+  employee     Employee     @relation(fields: [employeeId], references: [id])
+  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+
+  @@unique([employeeId, classSectionId])
 }
 
 // ── LEAVE ────────────────────────────────────────────────────
@@ -304,11 +319,12 @@ model ClassSection {
   capacity        Int     @default(20)
   campusId        String
 
-  tenant       Tenant       @relation(fields: [tenantId], references: [id])
-  program      Program      @relation(fields: [programId], references: [id])
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
-  campus       Campus       @relation(fields: [campusId], references: [id])
-  enrollments  StudentEnrollment[]
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  program             Program              @relation(fields: [programId], references: [id])
+  academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id])
+  campus              Campus               @relation(fields: [campusId], references: [id])
+  enrollments         StudentEnrollment[]
+  teachingAssignments TeachingAssignment[]
 }
 
 // ── STUDENT ──────────────────────────────────────────────────
