@@ -15,17 +15,18 @@ model Tenant {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
 
-  users         User[]
-  campuses      Campus[]
-  employees     Employee[]
-  holidays      Holiday[]
-  orgConfig     OrgConfig?
-  salaryDefs    SalaryComponentDef[]
-  payrollRuns   PayrollRun[]
-  academicYears AcademicYear[]
-  programs      Program[]
-  sections      ClassSection[]
-  sessions      ProgramSession[]
+  users           User[]
+  campuses        Campus[]
+  employees       Employee[]
+  holidays        Holiday[]
+  orgConfig       OrgConfig?
+  salaryDefs      SalaryComponentDef[]
+  payrollRuns     PayrollRun[]
+  academicYears   AcademicYear[]
+  programs        Program[]
+  classSections   ClassSection[]
+  students        Student[]
+  admissions      Admission[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -51,10 +52,9 @@ model Campus {
   lat      Float?
   lng      Float?
 
-  tenant    Tenant         @relation(fields: [tenantId], references: [id])
-  employees Employee[]
-  programs  Program[]
-  sections  ClassSection[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  employees     Employee[]
+  classSections ClassSection[]
 }
 
 // ── ORG CONFIG ───────────────────────────────────────────────
@@ -241,74 +241,6 @@ model PayrollItemLine {
   componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
 }
 
-// ── ACADEMIC STRUCTURE ───────────────────────────────────────
-model AcademicYear {
-  id        String  @id @default(cuid())
-  tenantId  String
-  name      String  // e.g. "2025/2026"
-  startDate String  // YYYY-MM-DD
-  endDate   String  // YYYY-MM-DD
-  status    String  @default("PLANNING") // PLANNING | ACTIVE | ARCHIVED
-
-  tenant   Tenant         @relation(fields: [tenantId], references: [id])
-  sections ClassSection[]
-
-  @@unique([tenantId, name])
-}
-
-model Program {
-  id          String  @id @default(cuid())
-  tenantId    String
-  campusId    String?
-  code        String  // e.g. "DCARE", "KB", "TKIT", "POPUP"
-  name        String  // e.g. "D'Care", "Kelompok Bermain"
-  description String?
-  ageMinMonths Int    @default(0)  // age in months
-  ageMaxMonths Int    @default(72) // age in months
-  type        String  @default("SEMESTER") // SEMESTER | YEAR_ROUND | SESSION
-
-  tenant   Tenant         @relation(fields: [tenantId], references: [id])
-  campus   Campus?        @relation(fields: [campusId], references: [id])
-  sections ClassSection[]
-  sessions ProgramSession[]
-
-  @@unique([tenantId, code])
-}
-
-model ClassSection {
-  id             String  @id @default(cuid())
-  tenantId       String
-  programId      String
-  academicYearId String
-  campusId       String
-  name           String  // e.g. "TKIT A", "D'Care Pagi"
-  capacity       Int     @default(20)
-
-  tenant       Tenant       @relation(fields: [tenantId], references: [id])
-  program      Program      @relation(fields: [programId], references: [id])
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
-  campus       Campus       @relation(fields: [campusId], references: [id])
-
-  @@unique([tenantId, academicYearId, name])
-}
-
-model ProgramSession {
-  id        String  @id @default(cuid())
-  tenantId  String
-  programId String
-  title     String  // e.g. "Sensory Play — April Batch"
-  date      String  // YYYY-MM-DD
-  timeStart String  // "09:00"
-  timeEnd   String  // "11:00"
-  capacity  Int     @default(15)
-  fee       Float   @default(0)
-  notes     String?
-  status    String  @default("OPEN") // OPEN | FULL | CANCELLED
-
-  tenant  Tenant  @relation(fields: [tenantId], references: [id])
-  program Program @relation(fields: [programId], references: [id])
-}
-
 // ── EMAIL LOG ────────────────────────────────────────────────
 model EmailLog {
   id       String   @id @default(cuid())
@@ -318,4 +250,136 @@ model EmailLog {
   status   String   @default("PENDING")
   error    String?
   sentAt   DateTime @default(now())
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 2: Academic Structure + Student Management
+// ══════════════════════════════════════════════════════════════
+
+// ── ACADEMIC YEAR ────────────────────────────────────────────
+model AcademicYear {
+  id        String @id @default(cuid())
+  tenantId  String
+  name      String // "2025/2026"
+  startDate String // YYYY-MM-DD
+  endDate   String // YYYY-MM-DD
+  status    String @default("PLANNING") // PLANNING | ACTIVE | ARCHIVED
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  classSections ClassSection[]
+
+  @@unique([tenantId, name])
+}
+
+// ── PROGRAM ──────────────────────────────────────────────────
+model Program {
+  id          String  @id @default(cuid())
+  tenantId    String
+  code        String  // "DCARE", "KB", "TKIT", "POPUP"
+  name        String  // "Day Care", "Kelompok Bermain", etc.
+  description String?
+  type        String  // SEMESTER | YEAR_ROUND | SESSION
+  ageMin      Int?    // Minimum age in months
+  ageMax      Int?    // Maximum age in months
+  isActive    Boolean @default(true)
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  classSections ClassSection[]
+  admissions    Admission[]
+
+  @@unique([tenantId, code])
+}
+
+// ── CLASS SECTION ────────────────────────────────────────────
+model ClassSection {
+  id              String  @id @default(cuid())
+  tenantId        String
+  programId       String
+  academicYearId  String
+  name            String  // "TKIT A", "KB Aster", "D'Care Metland"
+  capacity        Int     @default(20)
+  campusId        String
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  program      Program      @relation(fields: [programId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  campus       Campus       @relation(fields: [campusId], references: [id])
+  enrollments  StudentEnrollment[]
+}
+
+// ── STUDENT ──────────────────────────────────────────────────
+model Student {
+  id          String  @id @default(cuid())
+  tenantId    String
+  name        String
+  nickname    String?
+  dateOfBirth String? // YYYY-MM-DD
+  gender      String? // L | P
+  address     String?
+  photoUrl    String?
+  notes       String?
+  metadata    String? // JSON for custom fields (hobby, blood type, allergies, etc.)
+  status      String  @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  guardians   Guardian[]
+  enrollments StudentEnrollment[]
+  admission   Admission?
+}
+
+// ── GUARDIAN ─────────────────────────────────────────────────
+model Guardian {
+  id           String  @id @default(cuid())
+  studentId    String
+  name         String
+  relationship String  // AYAH | IBU | WALI | OTHER
+  phone        String?
+  email        String?
+  whatsapp     String?
+  isPrimary    Boolean @default(false) // Primary billing contact
+
+  student Student @relation(fields: [studentId], references: [id])
+}
+
+// ── STUDENT ENROLLMENT ───────────────────────────────────────
+model StudentEnrollment {
+  id             String   @id @default(cuid())
+  studentId      String
+  classSectionId String
+  enrollDate     String   // YYYY-MM-DD
+  status         String   @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+
+  @@unique([studentId, classSectionId])
+}
+
+// ── ADMISSION ────────────────────────────────────────────────
+model Admission {
+  id               String   @id @default(cuid())
+  tenantId         String
+  childName        String
+  childAge         String?  // e.g., "4 tahun"
+  childGender      String?  // L | P
+  dateOfBirth      String?  // YYYY-MM-DD
+  parentName       String
+  parentPhone      String?
+  parentEmail      String?
+  parentWhatsapp   String?
+  programId        String?  // Program of interest
+  campusPreference String?  // Campus ID
+  source           String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER
+  status           String   @default("INQUIRY") // INQUIRY | VISIT_SCHEDULED | VISITED | ADMITTED | REGISTERED | CANCELLED
+  notes            String?
+  followUpDate     String?  // YYYY-MM-DD
+  studentId        String?  @unique // Linked when converted to student
+  createdAt        DateTime @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  program Program? @relation(fields: [programId], references: [id])
+  student Student? @relation(fields: [studentId], references: [id])
 }
