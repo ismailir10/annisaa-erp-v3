@@ -301,10 +301,11 @@ model Program {
   ageMax      Int?    // Maximum age in months
   isActive    Boolean @default(true)
 
-  tenant         Tenant               @relation(fields: [tenantId], references: [id])
-  classSections  ClassSection[]
-  admissions     Admission[]
-  feeStructures  ProgramFeeStructure[]
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  classSections       ClassSection[]
+  admissions          Admission[]
+  feeStructures       ProgramFeeStructure[]
+  assessmentTemplates AssessmentTemplate[]
 
   @@unique([tenantId, code])
 }
@@ -349,6 +350,7 @@ model Student {
   admission   Admission?
   invoices           Invoice[]
   studentAttendances StudentAttendance[]
+  assessments        StudentAssessment[]
 }
 
 // ── GUARDIAN ─────────────────────────────────────────────────
@@ -517,4 +519,71 @@ model StudentAttendance {
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
   @@unique([studentId, date])
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 7: Report Cards / Assessments
+// ══════════════════════════════════════════════════════════════
+
+model AssessmentTemplate {
+  id            String @id @default(cuid())
+  tenantId      String
+  programId     String
+  name          String // "Laporan Perkembangan Semester 1"
+  type          String @default("SEMESTER") // SEMESTER | QUARTERLY | MONTHLY
+  isActive      Boolean @default(true)
+
+  program    Program              @relation(fields: [programId], references: [id])
+  categories AssessmentCategory[]
+  assessments StudentAssessment[]
+}
+
+model AssessmentCategory {
+  id         String @id @default(cuid())
+  templateId String
+  name       String // "Perkembangan Motorik Halus"
+  sortOrder  Int    @default(0)
+
+  template   AssessmentTemplate     @relation(fields: [templateId], references: [id])
+  indicators AssessmentIndicator[]
+}
+
+model AssessmentIndicator {
+  id          String @id @default(cuid())
+  categoryId  String
+  description String // "Dapat memegang pensil dengan benar"
+  sortOrder   Int    @default(0)
+
+  category AssessmentCategory       @relation(fields: [categoryId], references: [id])
+  scores   StudentAssessmentScore[]
+}
+
+model StudentAssessment {
+  id          String    @id @default(cuid())
+  studentId   String
+  templateId  String
+  period      String    // "Semester 1 2025/2026"
+  status      String    @default("DRAFT") // DRAFT | PUBLISHED
+  createdBy   String
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  student  Student              @relation(fields: [studentId], references: [id])
+  template AssessmentTemplate   @relation(fields: [templateId], references: [id])
+  scores   StudentAssessmentScore[]
+
+  @@unique([studentId, templateId, period])
+}
+
+model StudentAssessmentScore {
+  id           String  @id @default(cuid())
+  assessmentId String
+  indicatorId  String
+  score        String? // BB | MB | BSH | BSB
+  notes        String?
+
+  assessment StudentAssessment   @relation(fields: [assessmentId], references: [id])
+  indicator  AssessmentIndicator @relation(fields: [indicatorId], references: [id])
+
+  @@unique([assessmentId, indicatorId])
 }
