@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
 
     if (!invoiceId) {
       console.error("[XENDIT WEBHOOK] No reference_id in webhook data");
-      return NextResponse.json({ error: "Missing reference_id" }, { status: 400 });
+      // Return 200 to prevent Xendit from retrying
+      return NextResponse.json({ ok: false, error: "Missing reference_id" });
     }
 
     // Find invoice by ID (reference_id = invoice.id)
@@ -37,12 +38,20 @@ export async function POST(req: NextRequest) {
 
     if (!invoice) {
       console.error(`[XENDIT WEBHOOK] Invoice not found: ${invoiceId}`);
-      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+      // Return 200 — don't make Xendit retry for a missing invoice
+      return NextResponse.json({ ok: false, error: "Invoice not found" });
     }
 
     if (invoice.status === "PAID") {
-      // Already paid — idempotent, return success
       return NextResponse.json({ ok: true, message: "Already paid" });
+    }
+
+    // Idempotency: check if this payment was already recorded
+    const existingPayment = await prisma.payment.findFirst({
+      where: { invoiceId: invoice.id, reference: paymentId ?? data.payment_session_id },
+    });
+    if (existingPayment) {
+      return NextResponse.json({ ok: true, message: "Payment already recorded" });
     }
 
     // Record payment
