@@ -34,6 +34,7 @@ export default function InvoiceDetailPage() {
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [payForm, setPayForm] = useState({ amount: "", method: "CASH", reference: "", notes: "" });
   const [paying, setPaying] = useState(false);
+  const [creatingXendit, setCreatingXendit] = useState(false);
 
   const fetchInvoice = useCallback(async () => {
     const res = await fetch(`/api/invoices/${id}`);
@@ -58,6 +59,26 @@ export default function InvoiceDetailPage() {
     setPaying(false);
   }
 
+  async function handleCreateXenditLink() {
+    setCreatingXendit(true);
+    const res = await fetch("/api/xendit/create-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceId: id }),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      toast.success("Link pembayaran berhasil dibuat");
+      if (d.paymentUrl) navigator.clipboard.writeText(d.paymentUrl);
+      toast.info("Link disalin ke clipboard — kirim via WhatsApp");
+      fetchInvoice();
+    } else {
+      const d = await res.json();
+      toast.error(d.error || "Gagal membuat link pembayaran");
+    }
+    setCreatingXendit(false);
+  }
+
   if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
   if (!invoice) return <div className="text-center py-20 text-muted-foreground">Tagihan tidak ditemukan.</div>;
 
@@ -79,9 +100,16 @@ export default function InvoiceDetailPage() {
           <div className="flex gap-2">
             <StatusBadge status={invoice.status} />
             {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
-              <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
-                <CreditCard size={14} className="mr-1" /> Catat Pembayaran
-              </Button>
+              <>
+                {!invoice.xenditPaymentUrl && (
+                  <Button size="sm" variant="outline" onClick={handleCreateXenditLink} disabled={creatingXendit}>
+                    {creatingXendit ? "Membuat..." : "Buat Link Xendit"}
+                  </Button>
+                )}
+                <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
+                  <CreditCard size={14} className="mr-1" /> Catat Pembayaran
+                </Button>
+              </>
             )}
           </div>
         }
