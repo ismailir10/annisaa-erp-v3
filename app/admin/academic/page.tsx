@@ -20,6 +20,8 @@ type AcademicYear = { id: string; name: string; startDate: string; endDate: stri
 type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; isActive: boolean; _count: { classSections: number } };
 type ClassSection = { id: string; name: string; capacity: number; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
 type Campus = { id: string; name: string };
+type Employee = { id: string; nama: string; kode: string; jabatan: string };
+type Assignment = { id: string; role: string; employee: { nama: string; kode: string; jabatan: string } };
 
 export default function AcademicPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
@@ -36,6 +38,41 @@ export default function AcademicPage() {
   const [programForm, setProgramForm] = useState({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" });
   const [sectionForm, setSectionForm] = useState({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" });
   const [saving, setSaving] = useState(false);
+
+  // Teacher assignment
+  const [assignDialog, setAssignDialog] = useState(false);
+  const [assignForm, setAssignForm] = useState({ classSectionId: "", className: "", employeeId: "" });
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [classAssignments, setClassAssignments] = useState<Assignment[]>([]);
+  const [assignSaving, setAssignSaving] = useState(false);
+
+  async function loadAssignments(classSectionId: string) {
+    const [empRes, assRes] = await Promise.all([
+      fetch("/api/employees?status=ACTIVE"),
+      fetch(`/api/teaching-assignments?classSectionId=${classSectionId}`),
+    ]);
+    setEmployees(await empRes.json());
+    setClassAssignments(await assRes.json());
+  }
+
+  async function handleAssignTeacher() {
+    if (!assignForm.employeeId) { toast.error("Pilih guru"); return; }
+    setAssignSaving(true);
+    const res = await fetch("/api/teaching-assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employeeId: assignForm.employeeId, classSectionId: assignForm.classSectionId }),
+    });
+    if (res.ok) { toast.success("Guru ditugaskan"); loadAssignments(assignForm.classSectionId); setAssignForm({ ...assignForm, employeeId: "" }); }
+    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
+    setAssignSaving(false);
+  }
+
+  async function handleRemoveAssignment(assignmentId: string) {
+    await fetch(`/api/teaching-assignments/${assignmentId}`, { method: "DELETE" });
+    toast.success("Penugasan dihapus");
+    loadAssignments(assignForm.classSectionId);
+  }
 
   async function fetchAll() {
     const [y, p, s, c] = await Promise.all([
@@ -173,17 +210,24 @@ export default function AcademicPage() {
             <div className="space-y-2">
               {sections.map((s, i) => (
                 <motion.div key={s.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                  <Card className="p-4 flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold">{s.name}</p>
-                        <Badge variant="outline" className="text-[10px]">{s.program.name}</Badge>
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold">{s.name}</p>
+                          <Badge variant="outline" className="text-[10px]">{s.program.name}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{s.academicYear.name} · {s.campus.name}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{s.academicYear.name} · {s.campus.name}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-currency text-sm font-bold">{s._count.enrollments}/{s.capacity}</p>
-                      <p className="text-[10px] text-muted-foreground">murid</p>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="font-currency text-sm font-bold">{s._count.enrollments}/{s.capacity}</p>
+                          <p className="text-[10px] text-muted-foreground">murid</p>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => { setAssignForm({ classSectionId: s.id, className: s.name, employeeId: "" }); setAssignDialog(true); loadAssignments(s.id); }}>
+                          <Plus size={12} className="mr-1" /> Guru
+                        </Button>
+                      </div>
                     </div>
                   </Card>
                 </motion.div>
@@ -272,6 +316,51 @@ export default function AcademicPage() {
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>
             <Button onClick={saveSection} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Teacher Dialog */}
+      <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Guru Pengajar — {assignForm.className}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Current assignments */}
+            {classAssignments.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Guru Saat Ini</p>
+                {classAssignments.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">{a.employee.nama}</p>
+                      <p className="text-[10px] text-muted-foreground">{a.employee.jabatan} · {a.role === "HOMEROOM" ? "Wali Kelas" : "Pendamping"}</p>
+                    </div>
+                    <Button size="sm" variant="ghost" className="text-destructive h-7" onClick={() => handleRemoveAssignment(a.id)}>Hapus</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add new assignment */}
+            <div className="pt-2 border-t border-border">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tambah Guru</p>
+              <FormField label="Pilih Guru">
+                <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
+                  <SelectContent>
+                    {employees
+                      .filter(e => !classAssignments.some(a => a.employee.kode === e.kode))
+                      .map(e => <SelectItem key={e.id} value={e.id}>{e.nama} ({e.jabatan})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <Button size="sm" className="mt-2" onClick={handleAssignTeacher} disabled={assignSaving}>
+                {assignSaving ? "Menugaskan..." : "Tugaskan Guru"}
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose><Button variant="outline">Tutup</Button></DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>
