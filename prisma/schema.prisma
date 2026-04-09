@@ -27,6 +27,8 @@ model Tenant {
   classSections   ClassSection[]
   students        Student[]
   admissions      Admission[]
+  feeDefs         FeeComponentDef[]
+  invoices        Invoice[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -265,8 +267,9 @@ model AcademicYear {
   endDate   String // YYYY-MM-DD
   status    String @default("PLANNING") // PLANNING | ACTIVE | ARCHIVED
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
-  classSections ClassSection[]
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  classSections  ClassSection[]
+  feeStructures  ProgramFeeStructure[]
 
   @@unique([tenantId, name])
 }
@@ -283,9 +286,10 @@ model Program {
   ageMax      Int?    // Maximum age in months
   isActive    Boolean @default(true)
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
-  classSections ClassSection[]
-  admissions    Admission[]
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  classSections  ClassSection[]
+  admissions     Admission[]
+  feeStructures  ProgramFeeStructure[]
 
   @@unique([tenantId, code])
 }
@@ -326,6 +330,7 @@ model Student {
   guardians   Guardian[]
   enrollments StudentEnrollment[]
   admission   Admission?
+  invoices    Invoice[]
 }
 
 // ── GUARDIAN ─────────────────────────────────────────────────
@@ -382,4 +387,94 @@ model Admission {
   tenant  Tenant   @relation(fields: [tenantId], references: [id])
   program Program? @relation(fields: [programId], references: [id])
   student Student? @relation(fields: [studentId], references: [id])
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 3: Fee Structure + Invoicing
+// ══════════════════════════════════════════════════════════════
+
+// ── FEE COMPONENT DEFINITION ─────────────────────────────────
+model FeeComponentDef {
+  id         String  @id @default(cuid())
+  tenantId   String
+  code       String  // e.g., "spp", "uang_pangkal", "seragam"
+  label      String  // e.g., "SPP Bulanan", "Uang Pangkal"
+  category   String  // TUITION | REGISTRATION | ACTIVITY | MATERIAL | OTHER
+  isRecurring Boolean @default(true)  // monthly vs one-time
+  isEnabled  Boolean @default(true)
+  sortOrder  Int     @default(0)
+
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  feeStructures  ProgramFeeStructure[]
+  invoiceLines   InvoiceLine[]
+
+  @@unique([tenantId, code])
+}
+
+// ── PROGRAM FEE STRUCTURE ────────────────────────────────────
+model ProgramFeeStructure {
+  id              String @id @default(cuid())
+  programId       String
+  academicYearId  String
+  feeComponentId  String
+  amount          Float  @default(0)
+  notes           String?
+
+  program      Program         @relation(fields: [programId], references: [id])
+  academicYear AcademicYear    @relation(fields: [academicYearId], references: [id])
+  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
+
+  @@unique([programId, academicYearId, feeComponentId])
+}
+
+// ── INVOICE ──────────────────────────────────────────────────
+model Invoice {
+  id            String    @id @default(cuid())
+  tenantId      String
+  studentId     String
+  invoiceNumber String    // Auto-generated: INV-2026-0001
+  periodLabel   String    // "April 2026" or "Semester 1 2025/2026"
+  dueDate       String    // YYYY-MM-DD
+  totalDue      Float     @default(0)
+  totalPaid     Float     @default(0)
+  status        String    @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
+  createdBy     String
+  sentAt        DateTime?
+  paidAt        DateTime?
+  xenditSessionId  String?  // Xendit checkout session ID
+  xenditPaymentUrl String?  // Xendit hosted checkout URL
+  createdAt     DateTime  @default(now())
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  student  Student       @relation(fields: [studentId], references: [id])
+  lines    InvoiceLine[]
+  payments Payment[]
+}
+
+// ── INVOICE LINE ─────────────────────────────────────────────
+model InvoiceLine {
+  id              String @id @default(cuid())
+  invoiceId       String
+  feeComponentId  String
+  labelSnapshot   String
+  amount          Float  @default(0)
+  adjustmentAmount Float @default(0)
+  adjustmentNote  String?
+  finalAmount     Float  @default(0)
+
+  invoice      Invoice         @relation(fields: [invoiceId], references: [id])
+  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
+}
+
+// ── PAYMENT ──────────────────────────────────────────────────
+model Payment {
+  id             String   @id @default(cuid())
+  invoiceId      String
+  amount         Float
+  method         String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
+  reference      String?  // Bank transfer ref or Xendit payment ID
+  notes          String?
+  paidAt         DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
 }

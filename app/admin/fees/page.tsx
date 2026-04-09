@@ -1,0 +1,232 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { PageHeader } from "@/components/admin/page-header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Plus, Coins, Save } from "lucide-react";
+import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { formatRupiah } from "@/lib/format";
+
+type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
+type Program = { id: string; code: string; name: string };
+type AcademicYear = { id: string; name: string; status: string };
+type FeeStructure = { id: string; feeComponentId: string; amount: number; notes: string | null; feeComponent: FeeComponent };
+
+const CATEGORY_LABELS: Record<string, string> = { TUITION: "SPP", REGISTRATION: "Pendaftaran", ACTIVITY: "Kegiatan", MATERIAL: "Bahan", OTHER: "Lainnya" };
+
+export default function FeesPage() {
+  const [components, setComponents] = useState<FeeComponent[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [years, setYears] = useState<AcademicYear[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [componentDialog, setComponentDialog] = useState(false);
+  const [form, setForm] = useState({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: "0" });
+  const [saving, setSaving] = useState(false);
+
+  // Fee structure state
+  const [selectedProgram, setSelectedProgram] = useState("");
+  const [selectedYear, setSelectedYear] = useState("");
+  const [structures, setStructures] = useState<FeeStructure[]>([]);
+  const [structureAmounts, setStructureAmounts] = useState<Record<string, number>>({});
+  const [structureLoading, setStructureLoading] = useState(false);
+  const [structureSaving, setStructureSaving] = useState(false);
+
+  async function fetchAll() {
+    const [c, p, y] = await Promise.all([
+      fetch("/api/fee-components").then(r => r.json()),
+      fetch("/api/programs").then(r => r.json()),
+      fetch("/api/academic-years").then(r => r.json()),
+    ]);
+    setComponents(c); setPrograms(p); setYears(y);
+    setLoading(false);
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchAll(); }, []);
+
+  async function saveComponent() {
+    setSaving(true);
+    const res = await fetch("/api/fee-components", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, sortOrder: parseInt(form.sortOrder) }) });
+    if (res.ok) { toast.success("Komponen biaya ditambahkan"); setComponentDialog(false); fetchAll(); }
+    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
+    setSaving(false);
+  }
+
+  async function toggleComponent(c: FeeComponent) {
+    await fetch(`/api/fee-components/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isEnabled: !c.isEnabled }) });
+    fetchAll();
+  }
+
+  async function fetchStructure() {
+    if (!selectedProgram || !selectedYear) return;
+    setStructureLoading(true);
+    const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
+    const data: FeeStructure[] = await res.json();
+    setStructures(data);
+    const amounts: Record<string, number> = {};
+    for (const s of data) amounts[s.feeComponentId] = s.amount;
+    setStructureAmounts(amounts);
+    setStructureLoading(false);
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { fetchStructure(); }, [selectedProgram, selectedYear]);
+
+  async function saveStructure() {
+    setStructureSaving(true);
+    const fees = components.filter(c => c.isEnabled).map(c => ({ feeComponentId: c.id, amount: structureAmounts[c.id] ?? 0 }));
+    const res = await fetch("/api/fee-structure", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ programId: selectedProgram, academicYearId: selectedYear, fees }) });
+    if (res.ok) { toast.success("Struktur biaya disimpan"); fetchStructure(); }
+    else toast.error("Gagal menyimpan");
+    setStructureSaving(false);
+  }
+
+  if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
+
+  return (
+    <>
+      <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
+
+      <Tabs defaultValue="components">
+        <TabsList>
+          <TabsTrigger value="components">Komponen Biaya</TabsTrigger>
+          <TabsTrigger value="structure">Struktur per Program</TabsTrigger>
+        </TabsList>
+
+        {/* Fee Components */}
+        <TabsContent value="components">
+          <div className="flex justify-end mb-4 mt-4">
+            <Button size="sm" onClick={() => { setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) }); setComponentDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Komponen
+            </Button>
+          </div>
+          {components.length === 0 ? (
+            <EmptyState icon={Coins} title="Belum ada komponen biaya" description="Tambahkan komponen seperti SPP, Uang Pangkal, Seragam" actionLabel="Tambah Komponen" onAction={() => setComponentDialog(true)} />
+          ) : (
+            <div className="space-y-1">
+              {components.map((c, i) => (
+                <motion.div key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }}>
+                  <div className={`flex items-center justify-between p-3 bg-card border border-border rounded-lg ${!c.isEnabled ? "opacity-50" : ""}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="font-currency text-xs text-muted-foreground w-6 text-right">{c.sortOrder}</span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{c.label}</span>
+                          <Badge variant="outline" className="text-[10px] font-currency">{c.code}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABELS[c.category] ?? c.category}</Badge>
+                          <span className="text-[10px] text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Switch checked={c.isEnabled} onCheckedChange={() => toggleComponent(c)} />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Fee Structure per Program */}
+        <TabsContent value="structure">
+          <div className="flex gap-3 mt-4 mb-4">
+            <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
+              <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+              <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+
+          {!selectedProgram || !selectedYear ? (
+            <Card className="p-8 text-center text-muted-foreground"><p className="text-sm">Pilih program dan tahun ajaran untuk mengatur biaya.</p></Card>
+          ) : structureLoading ? (
+            <div className="animate-pulse h-40 bg-card rounded-xl" />
+          ) : (
+            <Card className="p-6">
+              <div className="space-y-3">
+                {components.filter(c => c.isEnabled).map(c => (
+                  <div key={c.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                    <div>
+                      <p className="text-sm font-medium">{c.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</p>
+                    </div>
+                    <div className="w-40">
+                      <Input
+                        type="number"
+                        value={structureAmounts[c.id] ?? 0}
+                        onChange={e => setStructureAmounts({ ...structureAmounts, [c.id]: parseFloat(e.target.value) || 0 })}
+                        className="font-currency text-right"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                <p className="text-sm font-semibold">Total Bulanan: <span className="font-currency text-primary">{formatRupiah(Object.values(structureAmounts).reduce((s, v) => s + v, 0))}</span></p>
+                <Button onClick={saveStructure} disabled={structureSaving}>
+                  <Save size={14} className="mr-1.5" /> {structureSaving ? "Menyimpan..." : "Simpan Struktur"}
+                </Button>
+              </div>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Add Component Dialog */}
+      <Dialog open={componentDialog} onOpenChange={setComponentDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Tambah Komponen Biaya</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Kode" required><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></FormField>
+              <FormField label="Label" required><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></FormField>
+            </div>
+            <FormField label="Kategori">
+              <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TUITION">SPP</SelectItem>
+                  <SelectItem value="REGISTRATION">Pendaftaran</SelectItem>
+                  <SelectItem value="ACTIVITY">Kegiatan</SelectItem>
+                  <SelectItem value="MATERIAL">Bahan</SelectItem>
+                  <SelectItem value="OTHER">Lainnya</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Urutan"><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></FormField>
+              <FormField label="Tipe">
+                <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Bulanan (berulang)</SelectItem>
+                    <SelectItem value="false">Sekali bayar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <Button onClick={saveComponent} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
