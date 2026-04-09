@@ -325,6 +325,7 @@ model ClassSection {
   campus              Campus               @relation(fields: [campusId], references: [id])
   enrollments         StudentEnrollment[]
   teachingAssignments TeachingAssignment[]
+  studentAttendances  StudentAttendance[]
 }
 
 // ── STUDENT ──────────────────────────────────────────────────
@@ -346,7 +347,8 @@ model Student {
   guardians   Guardian[]
   enrollments StudentEnrollment[]
   admission   Admission?
-  invoices    Invoice[]
+  invoices           Invoice[]
+  studentAttendances StudentAttendance[]
 }
 
 // ── GUARDIAN ─────────────────────────────────────────────────
@@ -493,4 +495,26 @@ model Payment {
   paidAt         DateTime @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id])
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 6: Student Attendance
+// ══════════════════════════════════════════════════════════════
+
+model StudentAttendance {
+  id             String   @id @default(cuid())
+  studentId      String
+  classSectionId String
+  date           String   // YYYY-MM-DD
+  status         String   @default("PRESENT") // PRESENT | ABSENT | SICK | PERMISSION
+  checkInTime    DateTime?
+  checkOutTime   DateTime?
+  checkedInBy    String?  // Employee ID who marked attendance
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+
+  @@unique([studentId, date])
 }
