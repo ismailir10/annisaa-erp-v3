@@ -69,10 +69,36 @@ export default function InvoicesPage() {
     setGenerateDialog(true);
   }
 
+  const [sending, setSending] = useState(false);
+  const [sendResults, setSendResults] = useState<{ studentName: string; invoiceNumber: string; paymentUrl: string }[] | null>(null);
+
+  async function handleSendInvoices() {
+    const draftIds = invoices.filter(i => i.status === "DRAFT").map(i => i.id);
+    if (draftIds.length === 0) { toast.error("Tidak ada tagihan DRAFT untuk dikirim"); return; }
+    if (!confirm(`Kirim ${draftIds.length} tagihan? Link pembayaran Xendit akan dibuat untuk setiap tagihan.`)) return;
+
+    setSending(true);
+    const res = await fetch("/api/xendit/create-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceIds: draftIds }),
+    });
+    const d = await res.json();
+    if (d.created > 0) {
+      toast.success(`${d.created} link pembayaran berhasil dibuat`);
+      setSendResults(d.results);
+    }
+    if (d.failed > 0) toast.error(`${d.failed} tagihan gagal`);
+    if (d.errors?.length) d.errors.forEach((e: string) => console.error(e));
+    fetchData();
+    setSending(false);
+  }
+
   // Stats
   const totalDue = invoices.reduce((s, i) => s + i.totalDue, 0);
   const totalPaid = invoices.reduce((s, i) => s + i.totalPaid, 0);
   const paidCount = invoices.filter(i => i.status === "PAID").length;
+  const draftCount = invoices.filter(i => i.status === "DRAFT").length;
   const pendingCount = invoices.filter(i => ["DRAFT", "SENT"].includes(i.status)).length;
 
   return (
@@ -81,9 +107,16 @@ export default function InvoicesPage() {
         title="Tagihan"
         description={`${invoices.length} tagihan`}
         actions={
-          <Button size="sm" onClick={openGenerateDialog}>
-            <Plus size={14} className="mr-1.5" /> Buat Tagihan Bulanan
-          </Button>
+          <div className="flex gap-2">
+            {draftCount > 0 && (
+              <Button size="sm" onClick={handleSendInvoices} disabled={sending}>
+                {sending ? "Mengirim..." : `Kirim ${draftCount} Tagihan`}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={openGenerateDialog}>
+              <Plus size={14} className="mr-1.5" /> Buat Tagihan
+            </Button>
+          </div>
         }
       />
 
@@ -175,6 +208,42 @@ export default function InvoicesPage() {
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>
             <Button onClick={handleGenerate} disabled={generating}>{generating ? "Membuat..." : "Buat Tagihan"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Results Dialog — shows payment links for WhatsApp sharing */}
+      <Dialog open={!!sendResults} onOpenChange={(o) => !o && setSendResults(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Link Pembayaran Berhasil Dibuat</DialogTitle>
+            <DialogDescription>Salin link di bawah dan kirim ke orang tua via WhatsApp</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto space-y-3 py-2">
+            {sendResults?.map((r, i) => (
+              <div key={i} className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{r.studentName}</p>
+                    <p className="text-[10px] text-muted-foreground font-currency">{r.invoiceNumber}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(r.paymentUrl); toast.success(`Link ${r.studentName} disalin`); }}>
+                    Salin Link
+                  </Button>
+                </div>
+                <p className="text-[10px] text-primary mt-1 break-all">{r.paymentUrl}</p>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              const allLinks = sendResults?.map(r => `${r.studentName}: ${r.paymentUrl}`).join("\n") ?? "";
+              navigator.clipboard.writeText(allLinks);
+              toast.success("Semua link disalin");
+            }}>
+              Salin Semua Link
+            </Button>
+            <DialogClose><Button>Selesai</Button></DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>
