@@ -4,10 +4,11 @@ import { prisma } from "./db";
 export type SessionUser = {
   id: string;
   email: string;
-  role: "SCHOOL_ADMIN" | "TEACHER";
+  role: "SCHOOL_ADMIN" | "TEACHER" | "GUARDIAN";
   name: string | null;
   tenantId: string | null;
   employeeId: string | null;
+  guardianId: string | null;
 };
 
 /**
@@ -51,10 +52,25 @@ export async function getSession(): Promise<SessionUser | null> {
           },
         });
       } else {
-        // Not an employee and no existing User record → deny access
-        // Admins must be pre-created in the database (via seed or manual DB insert)
-        // No auto-promotion — this prevents unauthorized access
-        return null;
+        // Check if there's a guardian with this email
+        const guardian = await prisma.guardian.findFirst({
+          where: { email: authUser.email },
+          include: { student: { select: { tenantId: true } } },
+        });
+
+        if (guardian) {
+          user = await prisma.user.create({
+            data: {
+              tenantId: guardian.student.tenantId,
+              email: authUser.email,
+              role: "GUARDIAN",
+              name: guardian.name,
+            },
+          });
+        } else {
+          // Not an employee, not a guardian, no existing User → deny access
+          return null;
+        }
       }
     }
 
@@ -66,6 +82,13 @@ export async function getSession(): Promise<SessionUser | null> {
       data: { lastLoginAt: new Date() },
     });
 
+    // For guardian users, find their guardian ID
+    let guardianId: string | null = null;
+    if (user.role === "GUARDIAN") {
+      const guardian = await prisma.guardian.findFirst({ where: { email: user.email } });
+      guardianId = guardian?.id ?? null;
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -73,9 +96,9 @@ export async function getSession(): Promise<SessionUser | null> {
       name: user.name,
       tenantId: user.tenantId,
       employeeId: user.employeeId,
+      guardianId,
     };
   } catch {
-    // Fallback to demo mode if Supabase is not reachable
     return getDemoSession();
   }
 }
@@ -100,5 +123,6 @@ async function getDemoSession(): Promise<SessionUser | null> {
     name: user.name,
     tenantId: user.tenantId,
     employeeId: user.employeeId,
+    guardianId: null,
   };
 }
