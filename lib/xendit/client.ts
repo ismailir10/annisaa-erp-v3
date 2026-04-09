@@ -6,6 +6,14 @@
 
 const XENDIT_API_URL = "https://api.xendit.co";
 
+/** Convert Indonesian phone number to E.164 format (+62xxx) */
+function formatPhoneE164(phone: string): string {
+  const cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("62")) return `+${cleaned}`;
+  if (cleaned.startsWith("0")) return `+62${cleaned.slice(1)}`;
+  return `+62${cleaned}`;
+}
+
 function getAuthHeader(): string {
   const apiKey = process.env.XENDIT_API_KEY;
   if (!apiKey) throw new Error("XENDIT_API_KEY not configured");
@@ -55,7 +63,7 @@ export async function createXenditSession(
       reference_id: `cust_${params.referenceId}`,
       type: "INDIVIDUAL",
       ...(params.customerEmail && { email: params.customerEmail }),
-      ...(params.customerPhone && { mobile_number: params.customerPhone }),
+      ...(params.customerPhone && { mobile_number: formatPhoneE164(params.customerPhone) }),
       individual_detail: {
         given_names: params.customerName,
       },

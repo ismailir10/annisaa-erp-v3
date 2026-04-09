@@ -6,18 +6,23 @@ const DEMO_COOKIE = "school-erp-session";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Public routes — always allow
+  // Fully public routes — NO auth check at all (external webhooks, payment pages)
+  if (
+    pathname.startsWith("/api/xendit/webhook") ||
+    pathname.startsWith("/payment/")
+  ) {
+    return NextResponse.next();
+  }
+
+  // Public routes — allow but still refresh Supabase session if present
   if (
     pathname === "/" ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/xendit/webhook") ||
-    pathname.startsWith("/payment/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/logo")
   ) {
-    // Still refresh Supabase session on public routes if configured
     if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
       return await updateSession(request);
     }
@@ -25,7 +30,6 @@ export async function proxy(request: NextRequest) {
   }
 
   // Supabase auth takes PRIORITY over demo cookie
-  // This prevents demo cookie from bypassing Supabase auth in production
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return await updateSession(request);
   }

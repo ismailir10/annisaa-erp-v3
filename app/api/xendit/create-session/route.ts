@@ -33,10 +33,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tagihan sudah lunas atau dibatalkan" }, { status: 400 });
   }
 
-  // If already has a Xendit session, return existing URL
-  if (invoice.xenditPaymentUrl) {
-    return NextResponse.json({ paymentUrl: invoice.xenditPaymentUrl, existing: true });
-  }
+  // If already has a Xendit session, allow re-creation (sessions expire after 30 min)
+  // Admin can always create a new session — old URL becomes invalid automatically
 
   const remaining = invoice.totalDue - invoice.totalPaid;
   if (remaining <= 0) {
