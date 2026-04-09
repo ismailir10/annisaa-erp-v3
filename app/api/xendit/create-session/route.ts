@@ -3,82 +3,105 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { createXenditSession } from "@/lib/xendit/client";
 
-// Create Xendit Checkout Session for an invoice
+/**
+ * Create Xendit Checkout Sessions — single or bulk.
+ * Bulk: admin clicks "Kirim Tagihan" → creates sessions for all selected invoices.
+ * Mirrors the payroll "Kirim Slip" flow.
+ */
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { invoiceId } = await req.json();
-  if (!invoiceId) {
-    return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
+  const body = await req.json();
+  const invoiceIds: string[] = body.invoiceIds ?? (body.invoiceId ? [body.invoiceId] : []);
+
+  if (invoiceIds.length === 0) {
+    return NextResponse.json({ error: "Pilih minimal satu tagihan" }, { status: 400 });
   }
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    include: {
-      student: {
-        include: { guardians: { where: { isPrimary: true }, take: 1 } },
-      },
-      lines: true,
-    },
-  });
-
-  if (!invoice || invoice.tenantId !== session.tenantId) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  if (invoice.status === "PAID" || invoice.status === "CANCELLED") {
-    return NextResponse.json({ error: "Tagihan sudah lunas atau dibatalkan" }, { status: 400 });
-  }
-
-  // If already has a Xendit session, allow re-creation (sessions expire after 30 min)
-  // Admin can always create a new session — old URL becomes invalid automatically
-
-  const remaining = invoice.totalDue - invoice.totalPaid;
-  if (remaining <= 0) {
-    return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });
-  }
-
-  const guardian = invoice.student.guardians[0];
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
 
-  try {
-    const xenditSession = await createXenditSession({
-      referenceId: invoice.id,
-      amount: remaining,
-      description: `${invoice.invoiceNumber} — ${invoice.student.name} — ${invoice.periodLabel}`,
-      customerName: guardian?.name ?? invoice.student.name,
-      customerEmail: guardian?.email ?? undefined,
-      customerPhone: guardian?.whatsapp ?? guardian?.phone ?? undefined,
-      successReturnUrl: `${appUrl}/payment/success?invoice=${invoice.id}`,
-      cancelReturnUrl: `${appUrl}/payment/cancel?invoice=${invoice.id}`,
-      items: invoice.lines.map((line) => ({
-        name: line.labelSnapshot,
-        quantity: 1,
-        price: line.finalAmount,
-      })),
-    });
+  let created = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  const results: { studentName: string; invoiceNumber: string; paymentUrl: string }[] = [];
 
-    // Save session ID and payment URL to invoice
-    await prisma.invoice.update({
+  for (const invoiceId of invoiceIds) {
+    const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
-      data: {
-        xenditSessionId: xenditSession.id,
-        xenditPaymentUrl: xenditSession.payment_link_url,
-        status: invoice.status === "DRAFT" ? "SENT" : invoice.status,
-        sentAt: invoice.sentAt ?? new Date(),
+      include: {
+        student: { include: { guardians: { where: { isPrimary: true }, take: 1 } } },
+        lines: true,
       },
     });
 
-    return NextResponse.json({
-      paymentUrl: xenditSession.payment_link_url,
-      sessionId: xenditSession.id,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    console.error("[XENDIT] Create session failed:", msg);
-    return NextResponse.json({ error: `Gagal membuat link pembayaran: ${msg}` }, { status: 500 });
+    if (!invoice || invoice.tenantId !== session.tenantId) {
+      errors.push(`Tagihan tidak ditemukan`);
+      failed++;
+      continue;
+    }
+
+    if (invoice.status === "PAID" || invoice.status === "CANCELLED") {
+      failed++;
+      continue; // Skip silently
+    }
+
+    const remaining = invoice.totalDue - invoice.totalPaid;
+    if (remaining <= 0) {
+      failed++;
+      continue;
+    }
+
+    const guardian = invoice.student.guardians[0];
+
+    try {
+      const xenditSession = await createXenditSession({
+        referenceId: invoice.id,
+        amount: remaining,
+        description: `${invoice.invoiceNumber} — ${invoice.student.name} — ${invoice.periodLabel}`,
+        customerName: guardian?.name ?? invoice.student.name,
+        customerEmail: guardian?.email ?? undefined,
+        customerPhone: guardian?.whatsapp ?? guardian?.phone ?? undefined,
+        successReturnUrl: `${appUrl}/payment/success?invoice=${invoice.id}`,
+        cancelReturnUrl: `${appUrl}/payment/cancel?invoice=${invoice.id}`,
+        expiryDays: 7,
+        items: invoice.lines.map((line) => ({
+          name: line.labelSnapshot,
+          quantity: 1,
+          price: line.finalAmount,
+        })),
+      });
+
+      await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          xenditSessionId: xenditSession.id,
+          xenditPaymentUrl: xenditSession.payment_link_url,
+          status: "SENT",
+          sentAt: new Date(),
+        },
+      });
+
+      results.push({
+        studentName: invoice.student.name,
+        invoiceNumber: invoice.invoiceNumber,
+        paymentUrl: xenditSession.payment_link_url,
+      });
+      created++;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      errors.push(`${invoice.student.name}: ${msg}`);
+      failed++;
+    }
   }
+
+  return NextResponse.json({
+    created,
+    failed,
+    total: invoiceIds.length,
+    results,
+    errors: errors.length > 0 ? errors : undefined,
+  });
 }

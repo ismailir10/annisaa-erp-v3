@@ -15,14 +15,14 @@ function formatPhoneE164(phone: string): string {
 }
 
 function getAuthHeader(): string {
-  const apiKey = process.env.XENDIT_API_KEY;
-  if (!apiKey) throw new Error("XENDIT_API_KEY not configured");
-  // Xendit uses Basic Auth with API key as username, empty password
+  const apiKey = process.env.XENDIT_SECRET_KEY;
+  if (!apiKey) throw new Error("XENDIT_SECRET_KEY not configured");
+  // Xendit uses Basic Auth with secret key as username, empty password
   return "Basic " + Buffer.from(apiKey + ":").toString("base64");
 }
 
 export type CreateSessionParams = {
-  referenceId: string; // Our invoice ID
+  referenceId: string;
   amount: number;
   description: string;
   customerName: string;
@@ -30,6 +30,7 @@ export type CreateSessionParams = {
   customerPhone?: string;
   successReturnUrl: string;
   cancelReturnUrl: string;
+  expiryDays?: number; // Default 7 days
   items?: { name: string; quantity: number; price: number }[];
 };
 
@@ -47,7 +48,12 @@ export type CreateSessionResponse = {
 export async function createXenditSession(
   params: CreateSessionParams
 ): Promise<CreateSessionResponse> {
-  const body = {
+  // Set expiry to N days from now (default 7)
+  const expiryDays = params.expiryDays ?? 7;
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + expiryDays);
+
+  const body: Record<string, unknown> = {
     reference_id: params.referenceId,
     session_type: "PAY",
     mode: "PAYMENT_LINK",
@@ -59,6 +65,7 @@ export async function createXenditSession(
     description: params.description,
     success_return_url: params.successReturnUrl,
     cancel_return_url: params.cancelReturnUrl,
+    expires_at: expiresAt.toISOString(),
     customer: {
       reference_id: `cust_${params.referenceId}`,
       type: "INDIVIDUAL",
@@ -68,18 +75,20 @@ export async function createXenditSession(
         given_names: params.customerName,
       },
     },
-    ...(params.items && {
-      items: params.items.map((item) => ({
-        reference_id: `item_${item.name.toLowerCase().replace(/\s+/g, "_")}`,
-        name: item.name,
-        type: "DIGITAL_PRODUCT",
-        category: "EDUCATION",
-        net_unit_amount: Math.round(item.price),
-        quantity: item.quantity,
-        currency: "IDR",
-      })),
-    }),
   };
+
+  // Add items if provided
+  if (params.items?.length) {
+    body.items = params.items.map((item, idx) => ({
+      reference_id: `item_${idx}`,
+      name: item.name,
+      type: "DIGITAL_PRODUCT",
+      category: "EDUCATION",
+      net_unit_amount: Math.round(item.price),
+      quantity: item.quantity,
+      currency: "IDR",
+    }));
+  }
 
   const response = await fetch(`${XENDIT_API_URL}/sessions`, {
     method: "POST",
@@ -92,7 +101,7 @@ export async function createXenditSession(
 
   if (!response.ok) {
     const error = await response.json();
-    console.error("[XENDIT ERROR] Create session failed:", error);
+    console.error("[XENDIT ERROR] Create session failed:", JSON.stringify(error));
     throw new Error(error.message || `Xendit API error: ${response.status}`);
   }
 
