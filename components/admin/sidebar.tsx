@@ -33,6 +33,8 @@ const academicItems = [
   { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
   { label: "Siswa", href: "/admin/students", icon: Users },
   { label: "Pendaftaran", href: "/admin/admissions", icon: Banknote },
+  { label: "Biaya", href: "/admin/fees", icon: Coins },
+  { label: "Tagihan", href: "/admin/invoices", icon: Banknote },
 ];
 
 const settingsItems = [
