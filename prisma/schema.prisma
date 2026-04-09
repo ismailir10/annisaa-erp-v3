@@ -15,13 +15,17 @@ model Tenant {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
 
-  users       User[]
-  campuses    Campus[]
-  employees   Employee[]
-  holidays    Holiday[]
-  orgConfig   OrgConfig?
-  salaryDefs  SalaryComponentDef[]
-  payrollRuns PayrollRun[]
+  users         User[]
+  campuses      Campus[]
+  employees     Employee[]
+  holidays      Holiday[]
+  orgConfig     OrgConfig?
+  salaryDefs    SalaryComponentDef[]
+  payrollRuns   PayrollRun[]
+  academicYears AcademicYear[]
+  programs      Program[]
+  sections      ClassSection[]
+  sessions      ProgramSession[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -47,8 +51,10 @@ model Campus {
   lat      Float?
   lng      Float?
 
-  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
   employees Employee[]
+  programs  Program[]
+  sections  ClassSection[]
 }
 
 // ── ORG CONFIG ───────────────────────────────────────────────
@@ -233,6 +239,74 @@ model PayrollItemLine {
 
   payrollItem  PayrollItem        @relation(fields: [payrollItemId], references: [id])
   componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
+}
+
+// ── ACADEMIC STRUCTURE ───────────────────────────────────────
+model AcademicYear {
+  id        String  @id @default(cuid())
+  tenantId  String
+  name      String  // e.g. "2025/2026"
+  startDate String  // YYYY-MM-DD
+  endDate   String  // YYYY-MM-DD
+  status    String  @default("PLANNING") // PLANNING | ACTIVE | ARCHIVED
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  sections ClassSection[]
+
+  @@unique([tenantId, name])
+}
+
+model Program {
+  id          String  @id @default(cuid())
+  tenantId    String
+  campusId    String?
+  code        String  // e.g. "DCARE", "KB", "TKIT", "POPUP"
+  name        String  // e.g. "D'Care", "Kelompok Bermain"
+  description String?
+  ageMinMonths Int    @default(0)  // age in months
+  ageMaxMonths Int    @default(72) // age in months
+  type        String  @default("SEMESTER") // SEMESTER | YEAR_ROUND | SESSION
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  campus   Campus?        @relation(fields: [campusId], references: [id])
+  sections ClassSection[]
+  sessions ProgramSession[]
+
+  @@unique([tenantId, code])
+}
+
+model ClassSection {
+  id             String  @id @default(cuid())
+  tenantId       String
+  programId      String
+  academicYearId String
+  campusId       String
+  name           String  // e.g. "TKIT A", "D'Care Pagi"
+  capacity       Int     @default(20)
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  program      Program      @relation(fields: [programId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  campus       Campus       @relation(fields: [campusId], references: [id])
+
+  @@unique([tenantId, academicYearId, name])
+}
+
+model ProgramSession {
+  id        String  @id @default(cuid())
+  tenantId  String
+  programId String
+  title     String  // e.g. "Sensory Play — April Batch"
+  date      String  // YYYY-MM-DD
+  timeStart String  // "09:00"
+  timeEnd   String  // "11:00"
+  capacity  Int     @default(15)
+  fee       Float   @default(0)
+  notes     String?
+  status    String  @default("OPEN") // OPEN | FULL | CANCELLED
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  program Program @relation(fields: [programId], references: [id])
 }
 
 // ── EMAIL LOG ────────────────────────────────────────────────
