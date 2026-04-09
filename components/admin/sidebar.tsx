@@ -29,6 +29,12 @@ const navItems = [
   { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
 ];
 
+const academicItems = [
+  { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
+  { label: "Siswa", href: "/admin/students", icon: Users },
+  { label: "Pendaftaran", href: "/admin/admissions", icon: Banknote },
+];
+
 const settingsItems = [
   { label: "Kampus", href: "/admin/settings/campuses", icon: Building2 },
   { label: "Jam Kerja", href: "/admin/settings/config", icon: Clock },
@@ -99,6 +105,20 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 ? pathname === "/admin"
                 : pathname.startsWith(item.href)
             }
+          />
+        ))}
+
+        {/* Academic section */}
+        <div className="pt-4 pb-1">
+          <p className="px-3 text-[10px] uppercase tracking-widest text-[#8AACAD] font-semibold">
+            Akademik
+          </p>
+        </div>
+        {academicItems.map((item) => (
+          <NavLink
+            key={item.href}
+            item={item}
+            isActive={pathname.startsWith(item.href)}
           />
         ))}
 
