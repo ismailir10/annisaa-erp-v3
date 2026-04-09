@@ -1,5 +1,5 @@
 # School ERP — Teacher Attendance & Payroll System
-**Version**: 9.0 · **Status**: v1 Shipped, Planning v2 · **Date**: 2026-04-08
+**Version**: 10.0 · **Status**: v1 Shipped, Roadmap Approved · **Date**: 2026-04-09
 
 ---
 
@@ -1462,13 +1462,13 @@ Seeded from "Hari Libur" sheet. 35+ holidays for 2024-2026.
 
 ---
 
-## 20. Roadmap
+## 20. Roadmap (Approved 2026-04-09)
 
 ### Guiding Principle
 
-> **Don't build Module B until Module A is battle-tested.**
-> An ERP that handles money must be proven correct with real usage before adding complexity.
-> Build brick by brick. Each phase must be stable before the next begins.
+> **Build brick by brick. Each phase must be stable before the next begins.**
+> Don't overthink non-essentials, but don't skip essentials either.
+> The PRD is the single source of truth for all product decisions.
 
 ### Current State (April 2026)
 
@@ -1510,146 +1510,105 @@ Phase 1 (Attendance + Payroll) is **built but not yet used by real teachers.** T
 
 ---
 
-### Phase 2: Academic Structure (FOUNDATION)
+### Pre-Phase 2: Design System Hardening (1 day)
 
-**Goal:** Model the school's organization so student and fee features have proper data foundation.
-
-> **Why before students?** You can't enroll a student without a Program and ClassSection. This is pure data modeling — no complex features, just CRUD.
-
-**An Nisaa's Programs** (from annisaasekolahku.com):
-
-| Program | Ages | Type | Notes |
-|---------|------|------|-------|
-| D'Care (Daycare) | 0-6 | Year-round, daily | Since 2010, full day care |
-| Kelompok Bermain (Play Group) | 2-4 | Semester-based | Prep for TK |
-| TKIT/RA (Taman Kanak-Kanak Islam Terpadu) | 4-6 | Semester-based | Main program, Al-Quran + academics |
-| Pop Up Class | 6mo-4yr | Session-based | Tematik: sensory play, art & craft, music |
-
-**Data Models:**
-
-| Model | Fields | Notes |
-|-------|--------|-------|
-| `AcademicYear` | name ("2025/2026"), startDate, endDate, status (PLANNING/ACTIVE/ARCHIVED) | One active at a time |
-| `Program` | code, name, description, ageMin, ageMax, type (SEMESTER/YEAR_ROUND/SESSION), campusId | Maps to An Nisaa's 4 programs |
-| `ClassSection` | name ("TKIT A"), programId, academicYearId, capacity, campusId | Where students are enrolled |
-| `ProgramSession` | programId, date, time, capacity, fee | **Pop Up Class only** — per-session scheduling + pricing |
-
-**What this enables:** "Show me all TKIT classes for 2025/2026 at Taman Aster" — foundation for enrollment, scheduling, fees.
-
-**Effort:** Small-Medium (CRUD pages, no complex logic)
+Reusable components: `DataTable`, `FormField`, `StatusBadge`, `EmptyState`, `ConfirmDialog`, `formatRupiah()`. Metadata JSON field on core entities for custom data.
 
 ---
 
-### Phase 3: Student Management (ENROLL)
+### Phase 2: Academic Structure + Students + Admissions (2-3 weeks)
 
-**Goal:** Track students and their enrollment across programs and years.
+**Goal:** Programs, classes, student admission pipeline, registration, enrollment, user management.
 
-| Model | Fields | Notes |
-|-------|--------|-------|
-| `Student` | name, dateOfBirth, gender, address, photo | Core student profile |
-| `Guardian` | name, relationship, phone, email, whatsapp | Parent/guardian contacts, multiple per student |
-| `StudentEnrollment` | studentId, classSectionId, enrollDate, status (ACTIVE/GRADUATED/WITHDRAWN) | Links student to class (and therefore to program + year) |
+**Models:** AcademicYear, Program (D'Care/KB/TKIT/Pop Up Class), ClassSection, Student, Guardian, StudentEnrollment, Admission
 
-**Key Features:**
-- Student CRUD with guardian contacts
-- Enrollment into ClassSections
-- Student list per class/program
-- Simple student search by name/class
-- Promotion: move students to next year's class
+**Admission Pipeline:** INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → REGISTERED → ENROLLED → ACTIVE
 
-**What this enables:** "How many students in TKIT A this year?" "Who are the parents of this student?"
+**User Management:** Invite users, manage roles, deactivate access.
 
-**Effort:** Medium (CRUD + enrollment logic)
+**Exit criteria:** Admin can track admissions, register students, enroll in classes, manage user access.
 
 ---
 
-### Phase 4: Fee Structure & Invoicing (BILLING)
+### Phase 3: Fee Structure + Invoicing (2-3 weeks)
 
-**Goal:** Define fees per program and generate invoices per student.
+**Goal:** Define fees per program, generate invoices, record payments. Pattern reuse: FeeComponentDef mirrors SalaryComponentDef, Invoice mirrors PayrollRun.
 
-> **Pattern reuse:** Fee components mirror salary components (row-based, flexible). Invoice generation mirrors payroll generation. Same architecture, different direction (money in vs money out).
+**Models:** FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment
 
-| Model | Fields | Notes |
-|-------|--------|-------|
-| `FeeComponentDef` | code, label, category (TUITION/REGISTRATION/ACTIVITY/OTHER), amount | Like SalaryComponentDef but for student fees |
-| `ProgramFeeStructure` | programId, academicYearId, feeComponentDefId, amount | Which fees apply to which program |
-| `Invoice` | studentId, periodStart, periodEnd, totalDue, status (DRAFT/SENT/PAID/OVERDUE/CANCELLED) | Per-student per-period bill |
-| `InvoiceLine` | invoiceId, feeComponentDefId, amount, adjustmentAmount, adjustmentNote | Line items with manual adjustment |
-
-**Key Features:**
-- Define fee structure per program per year
-- Generate invoices (monthly for regular programs, per-session for Pop Up Class)
-- Invoice dashboard: overdue, paid, pending
-- Manual adjustments: discounts, waivers, scholarships
-- PDF invoice for parents
-
-**Effort:** Medium-Large (mirrors payroll complexity)
+**Exit criteria:** Admin generates monthly invoices for all enrolled students, records manual payments, sends invoice PDF.
 
 ---
 
-### Phase 5: Payment Collection — Xendit (COLLECT)
+### Phase 4: Xendit Payment Automation (2 weeks)
 
-**Goal:** Collect fees digitally via Xendit payment links.
+**Goal:** Replace admin's manual Xendit dashboard with automated checkout links via Session API (`session_type: PAY`, `mode: PAYMENT_LINK`).
 
-**Approach:** Use [Xendit Checkout Session API](https://docs.xendit.co/docs/how-payment-sessions-work) — Xendit-hosted payment page, supports VA, QRIS, e-wallets.
+**Rollout:** Monthly tuition first → registration fees → activity fees.
 
-**Rollout order (start simplest, expand):**
-
-1. **Pop Up Class first** — per-session payment, parent pays immediately via payment link
-   - Admin creates ProgramSession → system generates Invoice → creates Xendit Checkout Session → shares link via WhatsApp
-   - Xendit webhook confirms payment → invoice marked PAID
-
-2. **Monthly tuition (TKIT / KB / D'Care)** — recurring invoices
-   - System generates monthly invoices → sends payment links to parents
-   - Track payment status, send reminders for overdue
-
-3. **Registration & other fees** — one-off invoices
-   - Ad-hoc invoices for events, activities, uniforms
-
-**Key integrations:**
-- Xendit Checkout Session API (create session per invoice)
-- Webhook endpoint (payment confirmation)
-- Payment status tracking + reconciliation dashboard
-- BSI export for manual reconciliation
-
-**Supported payment methods (Indonesia):**
-- Virtual Account (BCA, BRI, Mandiri, BSI)
-- QRIS (all e-wallets)
-- E-wallets (OVO, DANA, ShopeePay)
-
-**Effort:** Large (external API integration, webhooks, reconciliation)
+**Exit criteria:** Admin clicks "Kirim Pembayaran" → Xendit link → parent pays → invoice auto-marked PAID.
 
 ---
 
-### Phase 6: Future Expansion
+### Phase 5: Teacher Assignment (1 week)
 
-These are strategic directions, not committed features. Build only when there's real demand.
+**Goal:** Link teachers to classes. Required before student attendance.
 
-| Feature | When | Why |
-|---------|------|-----|
-| Multi-admin (one per campus) | When campus autonomy needed | Currently single admin is sufficient |
-| Parent portal | After fee collection works | Parents view invoices, attendance, announcements |
-| WhatsApp notifications (via Fonnte/Wablas) | When email isn't reaching parents | Indonesia's primary channel |
-| Multi-tenant (other schools) | If there's commercial demand | Requires Super Admin, onboarding flow |
-| PWA / offline support | If connectivity is a real problem | Monitor teacher check-in success rates first |
-| Audit log viewer | When accountability questions arise | Track all changes with who/when/why |
+**Model:** TeachingAssignment (employeeId → classSectionId, role: HOMEROOM/ASSISTANT)
+
+**Exit criteria:** Teachers assigned to classes, teacher sees assigned class on dashboard.
 
 ---
 
-### Build Order Visualization
+### Phase 6: Student Attendance (2 weeks)
+
+**Goal:** Teachers mark student attendance. Essential for D'Care (parent drop-off/pickup).
+
+**Model:** StudentAttendance (studentId, date, status, checkInTime, checkOutTime, checkedInBy)
+
+**Exit criteria:** Teacher marks attendance for their class, admin sees student attendance dashboard.
+
+---
+
+### Phase 7: Report Cards / Assessments (2-3 weeks)
+
+**Goal:** Developmental assessment using BB/MB/BSH/BSB scale (Kurikulum 2013 PAUD).
+
+**Models:** AssessmentTemplate, AssessmentCategory, AssessmentIndicator, StudentAssessment, StudentAssessmentScore
+
+**Exit criteria:** Teacher fills assessment, admin publishes, PDF report card generated.
+
+---
+
+### Phase 8: Parent Portal (2-3 weeks)
+
+**Goal:** Self-service for parents — invoices, payment (Xendit), attendance, report cards.
+
+**Auth:** Guardian login via Supabase (GUARDIAN role).
+
+**Exit criteria:** Parent logs in, views invoices, pays via Xendit, views child attendance + report cards.
+
+---
+
+### Phase 9+ (Future, build on demand)
+
+| Feature | Trigger |
+|---------|---------|
+| Pop Up Class scheduling + registration | When program is actively running |
+| WhatsApp notifications (Fonnte/Wablas) | When email isn't reaching parents |
+| Multi-admin per campus | When one admin can't handle both campuses |
+| Multi-tenant | When other schools want the system |
+
+---
+
+### Build Order
 
 ```
-Phase 1A ──→ Phase 1B ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5
-Onboard      Leave Mgmt   Academic    Students     Fees &       Xendit
-Teachers     + Polish      Structure   + Enroll     Invoicing    Payments
-
-NOW          After 1st    After 3     After        After fee    Start w/
-             payroll      payroll     academic     structure    Pop Up
-             cycle        cycles      structure               Class
+Track A (Billing):  Phase 2 → Phase 3 → Phase 4
+Track B (Academic): Phase 2 → Phase 5 → Phase 6 → Phase 7
+Phase 8 (Parent Portal) combines both tracks.
 ```
-
-Each phase has clear **exit criteria** — don't move to the next until the current one is stable and used.
 
 ---
 
-**End of PRD v9.0**
+**End of PRD v10.0**
