@@ -134,15 +134,27 @@ export default function AcademicPage() {
           {years.length === 0 ? (
             <EmptyState title="Belum ada tahun ajaran" description="Tambahkan tahun ajaran untuk memulai" actionLabel="Tambah" onAction={() => setYearDialog(true)} />
           ) : (
-            <div className="space-y-2">
-              {years.map((y) => (
-                <Card key={y.id} className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold">{y.name}</p>
-                    <p className="text-xs text-muted-foreground">{y.startDate} — {y.endDate}</p>
-                  </div>
-                  <StatusBadge status={y.status} />
-                </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {years.map((y, i) => (
+                <motion.div key={y.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                  <Card className="p-5 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <GraduationCap size={18} className="text-primary" />
+                      </div>
+                      <StatusBadge status={y.status} />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight">{y.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(y.startDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                      {" — "}
+                      {new Date(y.endDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                    <div className="flex items-center gap-2 mt-3 text-[10px] text-muted-foreground">
+                      <span>{sections.filter(s => s.academicYear.name === y.name).length} kelas</span>
+                    </div>
+                  </Card>
+                </motion.div>
               ))}
             </div>
           )}
