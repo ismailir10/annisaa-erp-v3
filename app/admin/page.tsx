@@ -32,7 +32,7 @@ export default async function AdminDashboard() {
     // Attendance trend: last 7 weekdays
     (async () => {
       const days: { date: string; present: number; late: number; absent: number }[] = [];
-      let d = new Date(today);
+      const d = new Date(today);
       let count = 0;
       while (count < 7) {
         d.setDate(d.getDate() - 1);
