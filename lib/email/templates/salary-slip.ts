@@ -23,6 +23,7 @@ export function salarySlipEmailHtml({
     <tr><td>
       <!-- Header -->
       <div style="background:#5DB4B8;border-radius:12px 12px 0 0;padding:24px 28px;text-align:center;">
+        <img src="${appUrl}/logo.png" alt="An Nisaa'" width="48" height="48" style="border-radius:12px;margin-bottom:8px;" />
         <h1 style="margin:0;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.5px;">
           An Nisaa' Sekolahku
         </h1>

@@ -70,8 +70,10 @@ export async function POST(
 
     try {
       // Generate PDF for this employee
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
       const slipData: SlipData = {
         schoolName: tenant?.name ?? "An Nisaa' Sekolahku",
+        logoUrl: `${appUrl}/logo.png`,
         period: `${payroll.periodStart} s/d ${payroll.periodEnd}`,
         employeeName: item.employee.formalName ?? item.employee.nama,
         employeeCode: item.employee.kode,
