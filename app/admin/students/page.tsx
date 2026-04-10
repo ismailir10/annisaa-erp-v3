@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
@@ -137,6 +139,7 @@ const columns: ColumnDef<Student>[] = [
 // ------------------------------------------------------------------
 
 export default function StudentsPage() {
+  const router = useRouter();
   const [data, setData] = useState<Student[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -215,6 +218,22 @@ export default function StudentsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
+  const columnsWithActions = useMemo<ColumnDef<Student>[]>(
+    () => [
+      ...columns,
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <DataTableRowActions
+            onView={() => router.push(`/admin/students/${row.original.id}`)}
+          />
+        ),
+      },
+    ],
+    [router],
+  );
+
   return (
     <>
       <PageHeader
@@ -258,7 +277,7 @@ export default function StudentsPage() {
       />
 
       <DataTable
-        columns={columns}
+        columns={columnsWithActions}
         data={data}
         pagination={pagination}
         onPageChange={handlePageChange}

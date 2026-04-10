@@ -9,14 +9,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil } from "lucide-react";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 type Component = {
@@ -145,23 +145,19 @@ export default function SalaryComponentsPage() {
       ),
     },
     {
-      id: "enabled",
-      header: "Aktif",
-      cell: ({ row }) => (
-        <Switch
-          checked={row.original.isEnabled}
-          onCheckedChange={() => toggleEnabled(row.original)}
-        />
-      ),
-    },
-    {
       id: "actions",
       header: "",
-      cell: ({ row }) => (
-        <button onClick={() => openEdit(row.original)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
-          <Pencil size={13} />
-        </button>
-      ),
+      cell: ({ row }) => {
+        const c = row.original;
+        return (
+          <DataTableRowActions
+            onEdit={() => openEdit(c)}
+            isActive={c.isEnabled}
+            onDeactivate={() => toggleEnabled(c)}
+            onActivate={() => toggleEnabled(c)}
+          />
+        );
+      },
     },
   ];
 

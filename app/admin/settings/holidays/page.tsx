@@ -16,7 +16,8 @@ import { FormField } from "@/components/ui/form-field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -132,14 +133,17 @@ export default function HolidaysPage() {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <div className="flex gap-1">
-          <button onClick={() => openEdit(row.original)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
-            <Pencil size={13} />
-          </button>
-          <button onClick={() => setDeleteTarget(row.original)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-            <Trash2 size={13} />
-          </button>
-        </div>
+        <DataTableRowActions
+          onEdit={() => openEdit(row.original)}
+          extraActions={[
+            {
+              label: "Hapus",
+              icon: <Trash2 size={14} />,
+              destructive: true,
+              onClick: () => setDeleteTarget(row.original),
+            },
+          ]}
+        />
       ),
     },
   ];
