@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     ".agents/**",
     ".agent-skills/**",
     ".claude/**",
+    "artifacts/**",
+    "scripts/**",
   ]),
 ]);
 
