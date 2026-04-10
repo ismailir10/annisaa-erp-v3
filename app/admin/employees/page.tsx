@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/admin/stat-card";
@@ -122,6 +124,7 @@ const columns: ColumnDef<Employee>[] = [
 // ------------------------------------------------------------------
 
 export default function EmployeesPage() {
+  const router = useRouter();
   const [data, setData] = useState<Employee[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -202,6 +205,22 @@ export default function EmployeesPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
+  const columnsWithActions = useMemo<ColumnDef<Employee>[]>(
+    () => [
+      ...columns,
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <DataTableRowActions
+            onView={() => router.push(`/admin/employees/${row.original.id}`)}
+          />
+        ),
+      },
+    ],
+    [router],
+  );
+
   // Build campus filter options dynamically
   const campusOptions = [
     { value: "all", label: "Semua Kampus" },
@@ -261,7 +280,7 @@ export default function EmployeesPage() {
       />
 
       <DataTable
-        columns={columns}
+        columns={columnsWithActions}
         data={data}
         pagination={pagination}
         onPageChange={handlePageChange}

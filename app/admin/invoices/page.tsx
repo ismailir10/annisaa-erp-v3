@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,7 +26,7 @@ import {
 import { FormField } from "@/components/ui/form-field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatCard } from "@/components/admin/stat-card";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 
@@ -137,6 +139,7 @@ const columns: ColumnDef<Invoice>[] = [
 // ------------------------------------------------------------------
 
 export default function InvoicesPage() {
+  const router = useRouter();
   const [data, setData] = useState<Invoice[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -150,6 +153,8 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const [voidTarget, setVoidTarget] = useState<Invoice | null>(null);
 
   // Dialog state
   const [generateDialog, setGenerateDialog] = useState(false);
@@ -292,6 +297,51 @@ export default function InvoicesPage() {
     setSending(false);
   }
 
+  async function handleVoidInvoice() {
+    if (!voidTarget) return;
+    const res = await fetch(`/api/invoices/${voidTarget.id}/void`, { method: "POST" });
+    if (res.ok) {
+      toast.success("Tagihan dibatalkan");
+      setVoidTarget(null);
+      fetchInvoices();
+    } else {
+      const d = await res.json();
+      toast.error(d.error || "Gagal membatalkan tagihan");
+    }
+  }
+
+  const columnsWithActions = useMemo<ColumnDef<Invoice>[]>(
+    () => [
+      ...columns,
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const inv = row.original;
+          const canVoid = inv.status === "DRAFT" || inv.status === "SENT";
+          return (
+            <DataTableRowActions
+              onView={() => router.push(`/admin/invoices/${inv.id}`)}
+              extraActions={
+                canVoid
+                  ? [
+                      {
+                        label: "Batalkan",
+                        icon: <Ban size={14} />,
+                        destructive: true,
+                        onClick: () => setVoidTarget(inv),
+                      },
+                    ]
+                  : undefined
+              }
+            />
+          );
+        },
+      },
+    ],
+    [router],
+  );
+
   // Stats from current page data (approximate — for exact stats, use a separate API)
   const draftCount = data.filter((i) => i.status === "DRAFT").length;
 
@@ -346,7 +396,7 @@ export default function InvoicesPage() {
       />
 
       <DataTable
-        columns={columns}
+        columns={columnsWithActions}
         data={data}
         pagination={pagination}
         onPageChange={handlePageChange}
@@ -366,6 +416,16 @@ export default function InvoicesPage() {
         description={`Kirim ${draftCount} tagihan? Link pembayaran Xendit akan dibuat untuk setiap tagihan.`}
         onConfirm={handleSendInvoices}
         confirmLabel="Ya, Kirim"
+      />
+
+      {/* Void Confirmation */}
+      <ConfirmDialog
+        open={!!voidTarget}
+        onOpenChange={(o) => !o && setVoidTarget(null)}
+        title="Batalkan Tagihan"
+        description={`Batalkan tagihan ${voidTarget?.invoiceNumber} untuk ${voidTarget?.student.name}? Tindakan ini tidak dapat dikembalikan.`}
+        onConfirm={handleVoidInvoice}
+        confirmLabel="Ya, Batalkan"
       />
 
       {/* Generate Dialog */}
