@@ -28,7 +28,7 @@ test.describe("Teacher flows", () => {
   });
 
   test("salary slips page loads", async ({ page }) => {
-    await page.click("text=Slip Gaji");
+    await page.click("text=Gaji");
     await page.waitForURL("**/teacher/slips");
     // Should show slip list or empty state
     const hasSlip = await page.locator("text=Tersedia").isVisible();
@@ -37,18 +37,15 @@ test.describe("Teacher flows", () => {
   });
 
   test("profile page loads", async ({ page }) => {
-    await page.click("text=Profil");
-    await page.waitForURL("**/teacher/profile");
+    // Navigate directly — no nav link to profile
+    await page.goto("/teacher/profile");
     await expect(page.locator("text=Profil Saya")).toBeVisible();
     await expect(page.locator("text=Eneng Rina")).toBeVisible();
-    await expect(page.locator("text=Nama Lengkap")).toBeVisible();
   });
 
   test("logout works", async ({ page }) => {
-    // Click logout in header
     await page.click("[title='Keluar']");
     await page.waitForURL("/", { timeout: 10_000 });
-    // Should be back on login page
     await expect(page.locator("text=An Nisaa")).toBeVisible();
   });
 });

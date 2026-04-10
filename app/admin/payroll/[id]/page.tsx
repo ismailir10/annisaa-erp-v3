@@ -33,8 +33,8 @@ type PayrollData = {
   items: PayrollItem[];
 };
 
-function formatRp(n: number) {
-  return "Rp " + Math.round(n).toLocaleString("id-ID");
+function formatRp(n: number | string) {
+  return "Rp " + Math.round(Number(n)).toLocaleString("id-ID");
 }
 
 export default function PayrollDetailPage() {
@@ -156,9 +156,9 @@ export default function PayrollDetailPage() {
   if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
   if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p><p className="text-xs mt-1">Silakan kembali ke daftar penggajian.</p></div>;
 
-  const totalGross = data.items.reduce((s, i) => s + i.grossAmount, 0);
-  const totalDed = data.items.reduce((s, i) => s + i.deductions, 0);
-  const totalNet = data.items.reduce((s, i) => s + i.netAmount, 0);
+  const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
+  const totalDed = data.items.reduce((s, i) => s + Number(i.deductions), 0);
+  const totalNet = data.items.reduce((s, i) => s + Number(i.netAmount), 0);
   const noBank = data.items.filter((i) => !i.employee.bankAccountNo);
   const isDraft = data.status === "DRAFT";
   const isApproved = ["APPROVED", "EXPORTED", "SLIPS_SENT"].includes(data.status);
@@ -320,7 +320,7 @@ export default function PayrollDetailPage() {
             <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRp(lineModal?.line.calculatedAmount ?? 0)}</span></p>
             <div><Label>Penyesuaian (+ atau -)</Label><Input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></div>
             <div><Label>Catatan *</Label><Textarea value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></div>
-            <p className="text-sm">Final: <span className="font-currency font-bold text-[#5DB4B8]">{formatRp((lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
+            <p className="text-sm">Final: <span className="font-currency font-bold text-[#5DB4B8]">{formatRp(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>

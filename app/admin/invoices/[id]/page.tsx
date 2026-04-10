@@ -83,7 +83,7 @@ export default function InvoiceDetailPage() {
   if (!invoice) return <div className="text-center py-20 text-muted-foreground">Tagihan tidak ditemukan.</div>;
 
   const guardian = invoice.student.guardians[0];
-  const remaining = invoice.totalDue - invoice.totalPaid;
+  const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
 
   return (
     <>

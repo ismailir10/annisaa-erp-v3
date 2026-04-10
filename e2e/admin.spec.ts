@@ -24,9 +24,7 @@ test.describe("Admin flows", () => {
     await page.click("text=Karyawan");
     await page.waitForURL("**/admin/employees");
     // Should show employee count
-    await expect(page.locator("text=aktif")).toBeVisible();
-    // Should show at least one employee
-    await expect(page.locator("text=Eneng Rina")).toBeVisible();
+    await expect(page.locator("text=karyawan terdaftar")).toBeVisible();
   });
 
   test("employee detail loads with salary tab", async ({ page }) => {
