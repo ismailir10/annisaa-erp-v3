@@ -5,6 +5,7 @@ import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
 import { createAdmissionSchema } from "@/lib/validations/admission";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -44,6 +45,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { success } = rateLimit(`create-admission:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

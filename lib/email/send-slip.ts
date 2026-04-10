@@ -40,7 +40,7 @@ export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
 
   try {
     const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "An Nisaa' ERP <onboarding@resend.dev>",
+      from: process.env.RESEND_FROM_EMAIL ?? (() => { throw new Error("RESEND_FROM_EMAIL not set — configure a verified domain"); })(),
       to: params.to,
       subject,
       html,

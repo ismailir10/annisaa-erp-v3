@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
@@ -38,6 +39,7 @@ export default function EmployeeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingSalary, setSavingSalary] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -82,7 +84,6 @@ export default function EmployeeDetailPage() {
   }
 
   async function handleDeactivate() {
-    if (!confirm("Nonaktifkan karyawan ini?")) return;
     await fetch(`/api/employees/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -115,7 +116,7 @@ export default function EmployeeDetailPage() {
         description={`${e.kode} · ${e.jabatan} · ${e.campus.name}`}
         actions={
           e.status === "ACTIVE" ? (
-            <Button variant="outline" size="sm" onClick={handleDeactivate} className="text-destructive hover:text-destructive">
+            <Button variant="outline" size="sm" onClick={() => setDeactivateOpen(true)} className="text-destructive hover:text-destructive">
               Nonaktifkan
             </Button>
           ) : (
@@ -212,6 +213,15 @@ export default function EmployeeDetailPage() {
           <EmployeeAttendanceTab employeeId={id} />
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={deactivateOpen}
+        onOpenChange={setDeactivateOpen}
+        title="Nonaktifkan Karyawan"
+        description={`Nonaktifkan ${employee.nama}? Karyawan tidak bisa login dan tidak masuk penggajian berikutnya.`}
+        onConfirm={handleDeactivate}
+        confirmLabel="Nonaktifkan"
+      />
     </>
   );
 }
