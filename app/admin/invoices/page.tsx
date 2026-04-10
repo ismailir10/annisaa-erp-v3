@@ -6,6 +6,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -59,7 +60,9 @@ type Pagination = {
 const columns: ColumnDef<Invoice>[] = [
   {
     id: "student",
-    header: "Siswa",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Siswa" />
+    ),
     cell: ({ row }) => {
       const inv = row.original;
       return (
@@ -121,7 +124,9 @@ const columns: ColumnDef<Invoice>[] = [
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
 ];
@@ -142,6 +147,8 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Dialog state
   const [generateDialog, setGenerateDialog] = useState(false);
@@ -167,8 +174,8 @@ export default function InvoicesPage() {
       const params = new URLSearchParams({
         page: String(pagination.page),
         pageSize: String(pagination.pageSize),
-        sortField: "createdAt",
-        sortOrder: "desc",
+        sortBy,
+        sortOrder,
       });
       if (search) params.set("search", search);
       if (statusFilter !== "all") params.set("status", statusFilter);
@@ -182,7 +189,7 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, search, statusFilter]);
+  }, [pagination.page, pagination.pageSize, search, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchInvoices();
@@ -203,6 +210,12 @@ export default function InvoicesPage() {
 
   const handlePageSizeChange = useCallback((pageSize: number) => {
     setPagination((p) => ({ ...p, page: 1, pageSize }));
+  }, []);
+
+  const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    setSortBy(field);
+    setSortOrder(order);
+    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   function openGenerateDialog() {
@@ -314,6 +327,8 @@ export default function InvoicesPage() {
         pagination={pagination}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        onSortChange={handleSortChange}
+        defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
         emptyTitle="Belum ada tagihan"
         emptyDescription="Buat tagihan bulanan untuk semua siswa aktif"

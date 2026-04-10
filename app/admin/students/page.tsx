@@ -6,9 +6,11 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Users } from "lucide-react";
+import { formatDateShort } from "@/lib/format";
 
 // ------------------------------------------------------------------
 // Types
@@ -21,6 +23,7 @@ type Student = {
   dateOfBirth: string | null;
   gender: string | null;
   status: string;
+  createdAt: string;
   guardians: { name: string; phone: string | null }[];
   enrollments: {
     classSection: { name: string; program: { name: string } };
@@ -41,7 +44,9 @@ type Pagination = {
 const columns: ColumnDef<Student>[] = [
   {
     accessorKey: "name",
-    header: "Nama",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Nama" />
+    ),
     cell: ({ row }) => {
       const s = row.original;
       return (
@@ -107,8 +112,21 @@ const columns: ColumnDef<Student>[] = [
     },
   },
   {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Terdaftar" />
+    ),
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground">
+        {formatDateShort(row.original.createdAt.split("T")[0])}
+      </span>
+    ),
+  },
+  {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
 ];
@@ -128,6 +146,8 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -135,8 +155,8 @@ export default function StudentsPage() {
       const params = new URLSearchParams({
         page: String(pagination.page),
         pageSize: String(pagination.pageSize),
-        sortField: "name",
-        sortOrder: "asc",
+        sortBy,
+        sortOrder,
       });
       if (search) params.set("search", search);
       if (status !== "all") params.set("status", status);
@@ -150,7 +170,7 @@ export default function StudentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, search, status]);
+  }, [pagination.page, pagination.pageSize, search, status, sortBy, sortOrder]);
 
   // Fetch on mount and when deps change
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,6 +192,12 @@ export default function StudentsPage() {
 
   const handlePageSizeChange = useCallback((pageSize: number) => {
     setPagination((p) => ({ ...p, page: 1, pageSize }));
+  }, []);
+
+  const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    setSortBy(field);
+    setSortOrder(order);
+    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   return (
@@ -215,6 +241,8 @@ export default function StudentsPage() {
         pagination={pagination}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        onSortChange={handleSortChange}
+        defaultSort={{ field: "name", order: "asc" }}
         loading={loading}
         emptyTitle="Belum ada siswa terdaftar"
         emptyDescription="Mulai dengan mendaftarkan siswa baru atau konversi dari pendaftaran."
