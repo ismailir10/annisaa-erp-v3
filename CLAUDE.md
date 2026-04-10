@@ -1,47 +1,13 @@
-# School ERP - Project Instructions
+# School ERP — Operating Manual
 
-## Project Overview
+> **Read this file completely before making any changes.** This is the single source of truth for all AI development sessions.
 
-**Project**: School ERP - Teacher Attendance & Payroll System
-**Primary User**: An Nisaa' Sekolahku (Indonesia - 2 campuses, ~24 teachers)
-**Goal**: Replace manual Google Sheets + Apps Script with a modern web-based system
-**PRD**: See `prd.md` v8.0 — trimmed MVP scope
+## Project
 
-## Agent Skills Integration
+**An Nisaa' School ERP** — school management system for An Nisaa' Sekolahku, an Islamic PAUD/TKIT in Bekasi, Indonesia. 2 campuses, 40+ teachers, 500+ students. SaaS-ready architecture (single tenant MVP, multi-tenant foundation).
 
-This project uses [agent-skills](https://github.com/addyosmani/agent-skills) for production-grade engineering workflows. Skills are located in `.agent-skills/`.
-
-### Workflow Commands
-
-Follow this development lifecycle:
-1. `/spec` - Define requirements (prd.md is our spec)
-2. `/plan` - Break down work into atomic tasks
-3. `/build` - Implement features incrementally
-4. `/test` - Verify functionality
-5. `/review` - Quality gates
-6. `/code-simplify` - Reduce complexity
-7. `/ship` - Deploy to production
-
-### Key Skills to Reference
-
-| Phase | Skill | Path |
-|-------|-------|------|
-| Define | spec-driven-development | `.agent-skills/skills/spec-driven-development/` |
-| Plan | planning-and-task-breakdown | `.agent-skills/skills/planning-and-task-breakdown/` |
-| Build | incremental-implementation | `.agent-skills/skills/incremental-implementation/` |
-| Build | frontend-ui-engineering | `.agent-skills/skills/frontend-ui-engineering/` |
-| Build | api-and-interface-design | `.agent-skills/skills/api-and-interface-design/` |
-| Build | test-driven-development | `.agent-skills/skills/test-driven-development/` |
-| Verify | debugging-and-error-recovery | `.agent-skills/skills/debugging-and-error-recovery/` |
-| Review | code-review-and-quality | `.agent-skills/skills/code-review-and-quality/` |
-| Review | security-and-hardening | `.agent-skills/skills/security-and-hardening/` |
-| Ship | git-workflow-and-versioning | `.agent-skills/skills/git-workflow-and-versioning/` |
-
-### Agent Personas
-
-- **Code Reviewer** (`.agent-skills/agents/code-reviewer.md`) - For code review
-- **Test Engineer** (`.agent-skills/agents/test-engineer.md`) - For test strategy
-- **Security Auditor** (`.agent-skills/agents/security-auditor.md`) - For security review
+**Production:** [annisaa-erp-v3.vercel.app](https://annisaa-erp-v3.vercel.app)
+**Repo:** [github.com/ismailir10/annisaa-erp-v3](https://github.com/ismailir10/annisaa-erp-v3)
 
 ## Tech Stack
 
@@ -49,65 +15,199 @@ Follow this development lifecycle:
 |-------|------------|
 | Framework | Next.js 15 (App Router) |
 | Language | TypeScript (strict) |
-| Database | Supabase PostgreSQL (Singapore) |
-| ORM | Prisma |
+| Database | Supabase PostgreSQL |
+| ORM | Prisma 7 |
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
-| UI Framework | Shadcn UI (Radix primitives) |
-| Styling | Tailwind CSS + CSS variables for design tokens |
-| Fonts | Plus Jakarta Sans (variable) + JetBrains Mono |
-| Animation | Framer Motion (complex) + CSS transitions (simple) |
+| UI | Shadcn UI + TanStack Table |
+| Styling | Tailwind CSS + CSS variables |
+| Fonts | Plus Jakarta Sans + JetBrains Mono |
+| Payment | Xendit Checkout Session API |
 | Email | Resend |
 | PDF | @react-pdf/renderer |
 | Hosting | Vercel |
-| E2E Testing | Playwright |
-| Unit Testing | Vitest |
+| CI | GitHub Actions |
+| Testing | Vitest (unit) + Playwright (E2E) |
 
-## Design Direction — Revolut-Inspired
+---
 
-**NOT generic admin panel.** Every screen should feel like a premium fintech tool.
+## 6 Modules
 
-### Key Design Rules
-- **Dark sidebar** (`#0D0D12`) + clean white content area
-- **Plus Jakarta Sans** — Indonesian-origin geometric sans-serif (NOT Inter, NOT Roboto)
-- **JetBrains Mono** for currency amounts and codes
-- **One accent color**: `#0066FF` (Revolut blue) — no pastel rainbows
-- **Generous whitespace** — let content breathe
-- **Numbers are heroes** — large, monospaced, prominent on dashboards
-- **Mobile-first for teachers** — bottom nav (3 tabs: Home, Attendance, Slips)
-- **Staggered reveal animations** on page load
-- **Skeleton loading states** — no blank screens
+| Module | Domain | Key Models |
+|--------|--------|------------|
+| **core** | Auth, tenant, config | Tenant, User, Campus, OrgConfig, Holiday, EmailLog |
+| **hr** | Staff management | Employee, SalaryComponentDef, PayrollRun, PayrollItem, AttendanceRecord, LeaveRequest |
+| **academic** | School structure | AcademicYear, Program, ClassSection, TeachingAssignment |
+| **students** | Student lifecycle | Student, Guardian, StudentEnrollment, Admission |
+| **finance** | Fees & payments | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
+| **learning** | Academic outcomes | StudentAttendance, AssessmentTemplate, AssessmentCategory, StudentAssessment |
 
-### What to Avoid
-- Generic Inter/Roboto/Arial fonts
-- Purple gradients on white backgrounds
-- Cookie-cutter admin templates
-- Timid, evenly-distributed color palettes
-- Static, lifeless interfaces
+**Parent Portal** = view across students + finance + learning (not a module).
 
-Use Shadcn UI components as base, customize with our design tokens. Only write custom CSS when Shadcn doesn't cover the need.
+### 3 Portals
 
-## Core Principles
+| Portal | Route | Role |
+|--------|-------|------|
+| Admin | `/admin` | SCHOOL_ADMIN |
+| Teacher | `/teacher` | TEACHER |
+| Parent | `/parent` | GUARDIAN |
 
-1. **Flexibility First** - Salary components are row-based, configurable by admin
-2. **Single Tenant MVP** - tenantId in models for future multi-tenant, but single school for now
-3. **Indonesia-Specific** - Payroll 21st-20th, BSI bank format, Asia/Jakarta timezone
-4. **Mobile-First for Teachers** - Check-in on phones, responsive design
-5. **GPS as Documentation** - Capture location, never block check-in
+---
 
-## MVP Scope (20 features)
+## Development Workflow
 
-Core loop: Teacher Check-in → Admin Reviews Attendance → Payroll → BSI CSV → PDF Slips → Email
+### Agent Skills Lifecycle
 
-**Deferred to v2**: Multi-tenant, GPS enforcement, leave management, in-app notifications, offline/PWA, payroll reopen, bulk import, teacher profile editing.
+Follow [agent-skills](https://github.com/addyosmani/agent-skills) (`.agent-skills/`):
 
-## Coding Standards
+```
+/spec → /plan → /build → /test → /review → /ship
+```
 
-- TypeScript strict mode
-- Follow incremental-implementation skill: small slices, working software at every step
-- Comprehensive audit trails for payroll operations
-- Tests for payroll calculation engine (critical path)
+| Phase | Skill | Do |
+|-------|-------|----|
+| Define | `spec-driven-development` | Write spec BEFORE code. Surface assumptions. |
+| Plan | `planning-and-task-breakdown` | Atomic tasks with acceptance criteria. |
+| Build | `incremental-implementation` | One vertical slice at a time. Test each. |
+| Build | `frontend-ui-engineering` | Shadcn components. Follow UI standards. |
+| Build | `api-and-interface-design` | Pagination, Zod, standard responses. |
+| Test | `test-driven-development` | Tests for critical paths. |
+| Review | `code-review-and-quality` | Code Reviewer persona before merge. |
+| Review | `security-and-hardening` | Security Auditor for auth/tenant. |
+| Simplify | `code-simplification` | Reduce complexity after feature complete. |
+| Ship | `git-workflow-and-versioning` | PR staging→main. |
 
-## Artifacts
+**Personas** (`.agent-skills/agents/`): Code Reviewer, Test Engineer, Security Auditor.
 
-- `artifacts/Slip Gaji Annisaa' Sekolahku (Master) (1).xlsx` - Current payroll spreadsheet (source of truth for seed data)
-- `artifacts/annisaa-salary-slip-sender.md` - Existing Apps Script for PDF generation
+### Git Rules
+
+1. Work on `staging` branch only
+2. Push → Vercel preview auto-deploys
+3. Test on preview URL
+4. PR: `staging` → `main`
+5. CI must pass (lint + typecheck + test)
+6. **NEVER** push directly to `main`
+
+### Before Every Commit
+
+```bash
+npm run build && npx vitest run
+```
+
+---
+
+## UI Standards
+
+### Rule: Shadcn FIRST. Never build custom when Shadcn has it.
+
+| Need | Use | NEVER |
+|------|-----|-------|
+| Data list | `<DataTable>` | Custom card loops |
+| Status | `<StatusBadge>` | Inline `<Badge>` with hardcoded colors |
+| Empty list | `<EmptyState>` | Plain `<p>` |
+| Confirm | `<ConfirmDialog>` | `window.confirm()` |
+| Form field | `<FormField>` | Raw `<Label>` + `<Input>` |
+| Loading | Shadcn `<Skeleton>` | `animate-pulse` divs |
+| Currency | `formatRupiah()` | Inline formatting |
+| Date | `formatDate()` / `formatDateShort()` | Inline `.toLocaleDateString()` |
+
+### DataTable Standard
+
+Any list >10 items: use `<DataTable>` with server-side pagination, column sorting, search, status filter.
+
+### Brand
+
+| Token | Value |
+|-------|-------|
+| Primary | `#5DB4B8` (teal) |
+| Sidebar | `#1A2E2F` (dark teal) |
+| Success | `#00B37E` |
+| Warning | `#FF8C00` |
+| Error | `#FF3B3B` |
+
+---
+
+## API Standards
+
+### GET Lists
+
+Support: `?page=1&pageSize=20&search=X&sortBy=field&sortOrder=asc&status=Y`
+
+Use: `lib/api/pagination.ts`, `lib/api/response.ts`
+
+Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
+
+### Mutations (POST/PUT/DELETE)
+
+1. `getSession()` → auth check
+2. `session.role` → role check
+3. `tenantId` → tenant ownership
+4. Zod validation → reject bad input
+5. Structured errors: `{ error: "message" }`
+
+---
+
+## Security
+
+1. Every mutation: `getSession()` + role + tenant
+2. Rate limiting on writes (`lib/rate-limit.ts`)
+3. Zod validation on all inputs (`lib/validations/`)
+4. No Float for money — Decimal only
+5. Audit trail on financial models
+6. Teacher sees only own data
+7. Parent sees only own child
+8. Xendit webhook: verify `x-callback-token`
+
+---
+
+## File Structure
+
+```
+app/admin/          22 admin pages
+app/teacher/        6 teacher pages
+app/parent/         4 parent pages
+app/api/            69 API routes (organized by domain)
+components/ui/      25+ Shadcn + custom components
+lib/                Business logic, utilities, API helpers
+lib/api/            Shared pagination, validation, response
+lib/validations/    Zod schemas per domain
+lib/payroll/        Payroll calculation engine
+lib/xendit/         Xendit API client
+lib/email/          Resend integration
+prisma/             Schema + seed data
+docs/               Roadmap, decisions
+```
+
+---
+
+## Environments
+
+| Env | Branch | DB | URL |
+|-----|--------|-----|-----|
+| Local | any | `supabase start` | localhost:3000 |
+| Staging | `staging` | Supabase Tokyo | Vercel preview |
+| Production | `main` | Supabase Mumbai | annisaa-erp-v3.vercel.app |
+
+---
+
+## Testing
+
+```bash
+npx vitest run        # Unit tests
+npx playwright test   # E2E tests
+npm run build         # Build check
+npm run lint          # Lint
+```
+
+Run ALL before every commit.
+
+---
+
+## Key Documents
+
+| Doc | Purpose |
+|-----|---------|
+| `CLAUDE.md` | This file — AI operating manual |
+| `prd.md` | Product specification |
+| `README.md` | Setup guide |
+| `docs/roadmap.md` | Future plans |
+| `docs/decisions.md` | Architecture decisions |
