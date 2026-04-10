@@ -2,8 +2,8 @@
  * Format number as Indonesian Rupiah.
  * Single source of truth — use this everywhere instead of inline formatters.
  */
-export function formatRupiah(amount: number): string {
-  return "Rp " + Math.round(amount).toLocaleString("id-ID");
+export function formatRupiah(amount: number | string): string {
+  return "Rp " + Math.round(Number(amount)).toLocaleString("id-ID");
 }
 
 /**

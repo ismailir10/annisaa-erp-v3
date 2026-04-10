@@ -133,11 +133,16 @@ export function getBreadcrumbs(
             { label: item.label },
           ];
         }
-        // On a sub-page (e.g. /admin/employees/[id])
+        // On a sub-page — detect context from path suffix
+        const suffix = pathname.slice(item.href.length + 1); // e.g. "new", "monthly", "[id]"
+        let subLabel = "Detail";
+        if (suffix === "new") subLabel = "Tambah";
+        else if (suffix === "monthly") subLabel = "Bulanan";
+
         return [
           { label: group.label },
           { label: item.label, href: item.href },
-          { label: "Detail" },
+          { label: subLabel },
         ];
       }
     }
