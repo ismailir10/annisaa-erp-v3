@@ -6,6 +6,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -38,7 +39,10 @@ type Pagination = {
 const columns: ColumnDef<PayrollRun>[] = [
   {
     id: "period",
-    header: "Periode",
+    accessorKey: "periodStart",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Periode" />
+    ),
     cell: ({ row }) => {
       const run = row.original;
       return (
@@ -69,7 +73,9 @@ const columns: ColumnDef<PayrollRun>[] = [
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
 ];
@@ -88,6 +94,8 @@ export default function PayrollListPage() {
   });
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("periodStart");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const fetchRuns = useCallback(async () => {
     setLoading(true);
@@ -95,8 +103,8 @@ export default function PayrollListPage() {
       const params = new URLSearchParams({
         page: String(pagination.page),
         pageSize: String(pagination.pageSize),
-        sortField: "periodStart",
-        sortOrder: "desc",
+        sortBy,
+        sortOrder,
       });
       if (statusFilter !== "all") params.set("status", statusFilter);
 
@@ -109,7 +117,7 @@ export default function PayrollListPage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, statusFilter]);
+  }, [pagination.page, pagination.pageSize, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchRuns();
@@ -121,6 +129,12 @@ export default function PayrollListPage() {
 
   const handlePageSizeChange = useCallback((pageSize: number) => {
     setPagination((p) => ({ ...p, page: 1, pageSize }));
+  }, []);
+
+  const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    setSortBy(field);
+    setSortOrder(order);
+    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   return (
@@ -164,6 +178,8 @@ export default function PayrollListPage() {
         pagination={pagination}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        onSortChange={handleSortChange}
+        defaultSort={{ field: "periodStart", order: "desc" }}
         loading={loading}
         emptyTitle="Belum ada penggajian"
         emptyDescription="Mulai dengan membuat penggajian baru."

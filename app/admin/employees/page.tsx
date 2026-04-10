@@ -6,6 +6,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,9 @@ type Pagination = {
 const columns: ColumnDef<Employee>[] = [
   {
     accessorKey: "nama",
-    header: "Nama",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Nama" />
+    ),
     cell: ({ row }) => {
       const e = row.original;
       return (
@@ -72,7 +75,9 @@ const columns: ColumnDef<Employee>[] = [
   },
   {
     accessorKey: "jabatan",
-    header: "Jabatan",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Jabatan" />
+    ),
     cell: ({ row }) => (
       <span className="text-sm">{row.original.jabatan}</span>
     ),
@@ -104,7 +109,9 @@ const columns: ColumnDef<Employee>[] = [
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
 ];
@@ -126,6 +133,8 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("");
   const [campusFilter, setCampusFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("nama");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Fetch campuses once
   useEffect(() => {
@@ -141,8 +150,8 @@ export default function EmployeesPage() {
       const params = new URLSearchParams({
         page: String(pagination.page),
         pageSize: String(pagination.pageSize),
-        sortField: "nama",
-        sortOrder: "asc",
+        sortBy,
+        sortOrder,
       });
       if (search) params.set("search", search);
       if (campusFilter !== "all") params.set("campusId", campusFilter);
@@ -157,7 +166,7 @@ export default function EmployeesPage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, search, campusFilter, statusFilter]);
+  }, [pagination.page, pagination.pageSize, search, campusFilter, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchEmployees();
@@ -174,6 +183,12 @@ export default function EmployeesPage() {
 
   const handlePageSizeChange = useCallback((pageSize: number) => {
     setPagination((p) => ({ ...p, page: 1, pageSize }));
+  }, []);
+
+  const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    setSortBy(field);
+    setSortOrder(order);
+    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   // Build campus filter options dynamically
@@ -233,6 +248,8 @@ export default function EmployeesPage() {
         pagination={pagination}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        onSortChange={handleSortChange}
+        defaultSort={{ field: "nama", order: "asc" }}
         loading={loading}
         emptyTitle="Belum ada karyawan"
         emptyDescription="Tambahkan karyawan baru untuk memulai."

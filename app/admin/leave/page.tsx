@@ -5,6 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,8 @@ export default function AdminLeavePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("PENDING");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Review dialog
   const [reviewTarget, setReviewTarget] = useState<LeaveRequest | null>(null);
@@ -86,8 +89,8 @@ export default function AdminLeavePage() {
       const params = new URLSearchParams({
         page: String(pagination.page),
         pageSize: String(pagination.pageSize),
-        sortField: "createdAt",
-        sortOrder: "desc",
+        sortBy,
+        sortOrder,
       });
       if (search) params.set("search", search);
       if (statusFilter !== "all") params.set("status", statusFilter);
@@ -101,7 +104,7 @@ export default function AdminLeavePage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, search, statusFilter]);
+  }, [pagination.page, pagination.pageSize, search, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchRequests();
@@ -122,6 +125,12 @@ export default function AdminLeavePage() {
 
   const handlePageSizeChange = useCallback((pageSize: number) => {
     setPagination((p) => ({ ...p, page: 1, pageSize }));
+  }, []);
+
+  const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    setSortBy(field);
+    setSortOrder(order);
+    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   function openReview(req: LeaveRequest, action: "approve" | "reject") {
@@ -160,7 +169,9 @@ export default function AdminLeavePage() {
   const columns: ColumnDef<LeaveRequest>[] = [
     {
       id: "employee",
-      header: "Karyawan",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Karyawan" />
+      ),
       cell: ({ row }) => {
         const r = row.original;
         return (
@@ -214,7 +225,9 @@ export default function AdminLeavePage() {
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
@@ -282,6 +295,8 @@ export default function AdminLeavePage() {
         pagination={pagination}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        onSortChange={handleSortChange}
+        defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
         emptyTitle="Tidak ada pengajuan cuti"
         emptyDescription="Pengajuan cuti dari guru akan muncul di sini."
