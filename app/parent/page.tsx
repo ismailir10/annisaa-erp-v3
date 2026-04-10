@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import Link from "next/link";
-import { CreditCard, CalendarDays, GraduationCap } from "lucide-react";
+import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { formatRupiah } from "@/lib/format";
 
 export default async function ParentDashboard() {
   const session = await getSession();
@@ -32,7 +34,15 @@ export default async function ParentDashboard() {
   });
 
   if (!guardian) {
-    return <div className="text-center py-16 text-muted-foreground">Data tidak ditemukan. Hubungi admin sekolah.</div>;
+    return (
+      <div className="py-16">
+        <EmptyState
+          icon={AlertCircle}
+          title="Data tidak ditemukan"
+          description="Hubungi admin sekolah untuk menghubungkan akun Anda."
+        />
+      </div>
+    );
   }
 
   const student = guardian.student;
@@ -74,7 +84,7 @@ export default async function ParentDashboard() {
             <p className="text-xs font-medium">Tagihan</p>
             {totalUnpaid > 0 && (
               <p className="font-currency text-xs text-destructive mt-1">
-                Rp {Math.round(totalUnpaid).toLocaleString("id-ID")}
+                {formatRupiah(totalUnpaid)}
               </p>
             )}
           </Card>
@@ -106,7 +116,7 @@ export default async function ParentDashboard() {
                     <p className="text-[10px] text-muted-foreground">{inv.invoiceNumber}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-currency text-sm font-bold">Rp {Math.round(Number(inv.totalDue) - Number(inv.totalPaid)).toLocaleString("id-ID")}</p>
+                    <p className="font-currency text-sm font-bold">{formatRupiah(Number(inv.totalDue) - Number(inv.totalPaid))}</p>
                     <StatusBadge status={inv.status} />
                   </div>
                 </Card>

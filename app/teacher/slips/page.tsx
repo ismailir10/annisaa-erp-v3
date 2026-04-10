@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Download, FileText } from "lucide-react";
-import { formatRupiah } from "@/lib/format";
+import { formatRupiah, formatDateShort } from "@/lib/format";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card as StatWrapper } from "@/components/ui/card";
 
 type SlipItem = {
@@ -52,7 +53,7 @@ export default function TeacherSlipsPage() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 bg-card rounded-xl animate-pulse" />
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
           ))}
         </div>
       ) : slips.length === 0 ? (
@@ -68,7 +69,7 @@ export default function TeacherSlipsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">
-                    {slip.payrollRun.periodStart} — {slip.payrollRun.periodEnd}
+                    {formatDateShort(slip.payrollRun.periodStart)} — {formatDateShort(slip.payrollRun.periodEnd)}
                   </p>
                   <p className="font-currency text-lg font-bold mt-1 text-primary">
                     {formatRupiah(Number(slip.netAmount))}

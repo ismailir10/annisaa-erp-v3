@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Users, Check, Save } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Assignment = {
   id: string;
@@ -36,13 +37,14 @@ export default function ClassAttendancePage() {
       setAssignments(d);
       if (d.length > 0) setSelectedClass(d[0].classSection.id);
       setLoading(false);
-    });
+    }).catch(() => { setLoading(false); });
   }, []);
 
   // Load students when class or date changes
   const loadStudents = useCallback(async () => {
     if (!selectedClass) return;
     const res = await fetch(`/api/student-attendance?classSectionId=${selectedClass}&date=${date}`);
+    if (!res.ok) return;
     const data: StudentRecord[] = await res.json();
     setStudents(data);
     // Initialize statuses from existing records
@@ -91,7 +93,15 @@ export default function ClassAttendancePage() {
   const presentCount = Object.values(statuses).filter(s => s === "PRESENT").length;
   const absentCount = Object.values(statuses).filter(s => s === "ABSENT").length;
 
-  if (loading) return <div className="px-5 pt-6"><div className="animate-pulse h-40 bg-card rounded-xl" /></div>;
+  if (loading) return (
+    <div className="px-5 pt-6">
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+        ))}
+      </div>
+    </div>
+  );
 
   if (assignments.length === 0) {
     return (
@@ -123,11 +133,11 @@ export default function ClassAttendancePage() {
       {/* Summary */}
       <div className="flex gap-3 mb-4">
         <Card className="p-3 flex-1 text-center">
-          <p className="font-currency text-xl font-bold text-[#00B37E]">{presentCount}</p>
+          <p className="font-currency text-xl font-bold text-[var(--status-present)]">{presentCount}</p>
           <p className="text-[10px] text-muted-foreground">Hadir</p>
         </Card>
         <Card className="p-3 flex-1 text-center">
-          <p className="font-currency text-xl font-bold text-[#FF3B3B]">{absentCount}</p>
+          <p className="font-currency text-xl font-bold text-destructive">{absentCount}</p>
           <p className="text-[10px] text-muted-foreground">Tidak Hadir</p>
         </Card>
         <Card className="p-3 flex-1 text-center">
@@ -151,7 +161,7 @@ export default function ClassAttendancePage() {
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-                      status === "PRESENT" ? "bg-[#00B37E]" : status === "ABSENT" ? "bg-[#FF3B3B]" : status === "SICK" ? "bg-[#FF8C00]" : "bg-[#0EA5E9]"
+                      status === "PRESENT" ? "bg-[var(--status-present)]" : status === "ABSENT" ? "bg-destructive" : status === "SICK" ? "bg-[var(--status-late)]" : "bg-[var(--status-leave)]"
                     }`}>
                       {status === "PRESENT" ? <Check size={14} /> : s.student.name[0]}
                     </div>

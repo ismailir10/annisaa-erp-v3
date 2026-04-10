@@ -8,10 +8,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { GraduationCap } from "lucide-react";
 
 const SCORE_LABELS: Record<string, { label: string; color: string }> = {
-  BB: { label: "Belum Berkembang", color: "text-[#FF3B3B]" },
-  MB: { label: "Mulai Berkembang", color: "text-[#FF8C00]" },
-  BSH: { label: "Berkembang Sesuai Harapan", color: "text-[#00B37E]" },
-  BSB: { label: "Berkembang Sangat Baik", color: "text-[#5DB4B8]" },
+  BB: { label: "Belum Berkembang", color: "text-destructive" },
+  MB: { label: "Mulai Berkembang", color: "text-[var(--status-late)]" },
+  BSH: { label: "Berkembang Sesuai Harapan", color: "text-[var(--status-present)]" },
+  BSB: { label: "Berkembang Sangat Baik", color: "text-primary" },
 };
 
 export default async function ParentReportsPage() {
