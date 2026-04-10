@@ -135,24 +135,140 @@ npm run build && npx vitest run
 
 Any list >10 items: use `<DataTable>` with server-side pagination, column sorting, search, status filter.
 
-**Current gaps (Phase 1A):**
-- Column sorting: APIs support `sortBy`/`sortOrder` but frontend doesn't wire header clicks yet
-- Loading skeleton: no loading indicator during data fetch
-- Row click navigation: requires action button, should support row click → detail page
+**Every DataTable MUST have:**
+1. Sortable column headers (`DataTableColumnHeader`)
+2. Skeleton loading state (Shadcn `Skeleton`)
+3. Status filter (Aktif/Tidak Aktif at minimum)
+4. Action column with: **View button** + **⋮ dropdown** (Edit, Deactivate)
 
-### Shadcn Components to Add (Phase 1A)
+### DataTable Action Column Standard
 
-| Priority | Component | Use Case |
-|----------|-----------|----------|
-| P0 | `Skeleton` | Loading states on all data-fetching pages |
-| P0 | `AlertDialog` | Destructive confirms (delete, void) |
-| P1 | `Calendar` | Attendance calendar, date pickers |
-| P1 | `Progress` | Payroll processing, slip sending |
-| P1 | `Breadcrumb` | Detail page navigation hierarchy |
-| P1 | `Accordion` | Payroll item expansion |
-| P2 | `ScrollArea` | Long lists in modals/sheets |
-| P2 | `Drawer` | Mobile sidebar navigation |
-| P2 | `RadioGroup` | Form options with few choices |
+Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx`):
+- **Primary:** "Lihat" button (Eye icon) — visible, navigates to detail or opens Sheet
+- **Dropdown (⋮):** Edit, Deactivate/Activate — context-dependent actions
+- Never hard delete — always soft delete via status change
+
+```tsx
+// Standard action column definition:
+{
+  id: "actions",
+  cell: ({ row }) => (
+    <DataTableRowActions
+      onView={() => router.push(`/admin/students/${row.original.id}`)}
+      onEdit={() => setEditTarget(row.original)}
+      onDeactivate={() => setDeactivateTarget(row.original)}
+      isActive={row.original.status === "ACTIVE"}
+    />
+  ),
+}
+```
+
+---
+
+## CRUD Standard (Inspired by ERPNext)
+
+> Every entity in the system MUST support full CRUD. No create-only or read-only entities.
+
+### Every Entity Must Have:
+
+| Operation | UI Pattern | API Pattern |
+|-----------|-----------|-------------|
+| **Create** | Dialog form or `/new` page | `POST /api/{entity}` with Zod validation |
+| **Read** | DataTable (list) + Detail page/Sheet | `GET /api/{entity}` paginated, `GET /api/{entity}/[id]` |
+| **Update** | Edit dialog (same form as create, pre-filled) | `PUT /api/{entity}/[id]` with Zod validation |
+| **Deactivate** | ConfirmDialog via dropdown action | `PUT /api/{entity}/[id]` with `{ status: "INACTIVE" }` |
+
+### Soft Delete Standard
+
+- **NEVER hard delete records.** Use `status` field with `ACTIVE` / `INACTIVE`.
+- All list queries default to `WHERE status IN ('ACTIVE')` unless filter says otherwise.
+- DataTable status filter always includes "Semua Status", "Aktif", "Tidak Aktif".
+- Models that already have status: Employee, Student, Tenant.
+- Models that need status added: Guardian, ClassSection, FeeComponentDef.
+- Admission has its own pipeline (INQUIRY → REGISTERED → CANCELLED) — use that.
+
+### List Page Layout Standard
+
+Every admin list page follows this exact structure:
+```
+PageHeader (title + count + "Tambah" button)
+├── StatCards (3-4 key metrics, grid cols-2 lg:cols-4)
+├── DataTableToolbar (search + status filter + any domain filters)
+└── DataTable (sortable columns + standard action column)
+```
+
+### Detail Page Layout Standard
+
+```
+Back link ("← Kembali")
+PageHeader (title + description + action buttons)
+├── Summary Cards or Info Grid
+└── Content (tabs, or single section with related data)
+```
+
+### Edit Dialog Standard
+
+- Same form fields as create dialog, pre-filled with current values
+- Title: "Edit {EntityName}" (e.g., "Edit Siswa")
+- Save button: "Simpan" with loading state
+- Cancel button: "Batal"
+- On success: `toast.success()` + close dialog + refetch data
+
+---
+
+## Portal Consistency Standard
+
+> Admin, Teacher, and Parent portals MUST use the same Shadcn components and patterns.
+
+### All Portals Must Use:
+
+| Need | Use | NEVER |
+|------|-----|-------|
+| Data display | `DataTable` (if >10 items) or Card list (if <10) | Custom divs with `.map()` |
+| Status display | `StatusBadge` | Inline `Badge` with hardcoded colors |
+| Empty state | `EmptyState` component | Plain `<p>` or `<div>` |
+| Loading state | Shadcn `Skeleton` | `animate-pulse` divs |
+| Currency | `formatRupiah()` from `@/lib/format` | Inline `.toLocaleString()` |
+| Dates | `formatDate()` / `formatDateShort()` from `@/lib/format` | Inline `new Date().toLocaleDateString()` |
+| Time | `formatTime()` from `@/lib/format` | Inline formatting |
+| Colors | CSS variables (`text-primary`, `text-destructive`, etc.) | Hardcoded hex (`text-[#5DB4B8]`, `bg-[#00B37E]`) |
+| Errors | `toast.error()` from sonner | `alert()` or `console.error()` only |
+| Confirmations | `ConfirmDialog` | `window.confirm()` |
+| Forms | `FormField` + Zod validation | Raw `Label` + `Input` |
+
+### Portal Navigation Standard
+
+**Teacher Portal** (mobile-first, max-w-md):
+- Header: logo + school name + user name + logout button
+- Bottom nav: 5 tabs with icons + labels + active indicator
+- Content: centered `max-w-md`
+
+**Parent Portal** (mobile-first, max-w-md — MUST match teacher pattern):
+- Header: logo + school name + user name + logout button (same as teacher)
+- Bottom nav: 4 tabs (Beranda, Tagihan, Kehadiran, Rapor) with icons + active indicator
+- Content: centered `max-w-md` (NOT max-w-2xl — parents are mobile users)
+- Logout: accessible from header (same pattern as teacher)
+
+**Both portals MUST have:**
+- Active state on current tab (teal underline + icon color)
+- Logout button in header with `title="Keluar"` for accessibility
+- Framer Motion `layoutId` for smooth active indicator animation
+- Safe area padding for mobile (`safe-area-bottom` on bottom nav)
+
+### Error Handling Standard
+
+Every `fetch()` call MUST check response:
+```tsx
+const res = await fetch("/api/...");
+if (!res.ok) {
+  const err = await res.json().catch(() => ({}));
+  toast.error(err.error || "Terjadi kesalahan");
+  return;
+}
+const data = await res.json();
+```
+
+Never silently ignore errors: `.catch(() => {})` is forbidden.
 
 ### Brand
 
@@ -188,26 +304,56 @@ Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
 
 ## Security
 
-1. Every mutation: `getSession()` + role + tenant
-2. Rate limiting on writes (`lib/rate-limit.ts`)
-3. Zod validation on all inputs (`lib/validations/`)
-4. No Float for money — Decimal only
-5. Audit trail on financial models
-6. Teacher sees only own data
-7. Parent sees only own child
-8. Xendit webhook: verify `x-callback-token`
+### Every API Route Must:
+
+1. `getSession()` → auth check (return 401 if missing)
+2. `session.role` → role check (return 403 if wrong role)
+3. `tenantId` → tenant ownership on every query (never return cross-tenant data)
+4. Zod validation on all POST/PUT inputs (`lib/validations/`)
+5. Rate limiting on all write endpoints (`lib/rate-limit.ts`)
+6. `Number()` wrapper on all Decimal fields from Prisma (they come as strings)
+
+### Data Access Rules
+
+| Role | Access |
+|------|--------|
+| SCHOOL_ADMIN | All tenant data |
+| TEACHER | Own attendance, own slips, assigned classes only |
+| GUARDIAN | Own child's data only (invoices, attendance, reports) |
+
+### Security Checklist for New Routes
+
+- [ ] `getSession()` at top of handler
+- [ ] Role check: `session.role !== "SCHOOL_ADMIN"`
+- [ ] Tenant filter: `where: { tenantId: session.tenantId }`
+- [ ] Zod validation on request body
+- [ ] Rate limiting: `rateLimit()` on POST/PUT
+- [ ] `Number()` on any Decimal field used in arithmetic
+- [ ] Never hard delete — use status change
+- [ ] Xendit webhook: verify `x-callback-token`
 
 ---
 
 ## Current Phase
 
-**Phase 1A: UI Polish + Harden** (see `prd.md` Section 20 for full roadmap)
+**Phase 1A: Standardize + Harden** (see `prd.md` Section 20 for full roadmap)
 
-1. **1A.1 — DataTable Completion:** sorting, skeleton loading, row click navigation
-2. **1A.2 — Shadcn Gaps:** install missing components (Skeleton, AlertDialog, Calendar, etc.)
-3. **1A.3 — E2E Tests + Onboarding:** Playwright tests, email verification, teacher onboarding
+**Completed:**
+- Foundation refactor (Steps 1-6)
+- Shadcn sidebar + 62 components installed
+- DataTable on 12 pages with sorting + skeleton loading
+- Stat cards on all list pages
+- Security: tenant isolation fixes, rate limiting, email rate throttling
+- CI green (lint + typecheck + test)
 
-**Completed:** Foundation refactor (Steps 1-6), PostgreSQL migration, DataTable + paginated APIs, security hardening, UI standardization.
+**In Progress:**
+- CRUD completion: add edit + deactivate to all entities (see CRUD Standard above)
+- Portal consistency: standardize teacher/parent to match admin patterns
+- DataTableRowActions component for standard action column
+
+**Next (after first month of real usage):**
+- Audit logging for critical operations (payroll approve, attendance override, invoice void)
+- E2E tests for new CRUD flows
 
 ---
 

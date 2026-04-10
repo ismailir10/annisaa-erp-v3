@@ -2,18 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CalendarDays, CalendarOff, Wallet, School } from "lucide-react";
+import { Home, Receipt, CalendarDays, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
 
 const tabs = [
-  { label: "Beranda", href: "/teacher", icon: Home },
-  { label: "Kehadiran", href: "/teacher/attendance", icon: CalendarDays },
-  { label: "Kelas", href: "/teacher/class-attendance", icon: School },
-  { label: "Cuti", href: "/teacher/leave", icon: CalendarOff },
-  { label: "Gaji", href: "/teacher/slips", icon: Wallet },
+  { label: "Beranda", href: "/parent", icon: Home },
+  { label: "Tagihan", href: "/parent/invoices", icon: Receipt },
+  { label: "Kehadiran", href: "/parent/attendance", icon: CalendarDays },
+  { label: "Rapor", href: "/parent/reports", icon: BookOpen },
 ];
 
-export function BottomNav() {
+export function ParentBottomNav() {
   const pathname = usePathname();
 
   return (
@@ -21,8 +20,8 @@ export function BottomNav() {
       <div className="flex items-center justify-around h-16 max-w-md mx-auto">
         {tabs.map((tab) => {
           const isActive =
-            tab.href === "/teacher"
-              ? pathname === "/teacher"
+            tab.href === "/parent"
+              ? pathname === "/parent"
               : pathname.startsWith(tab.href);
           const Icon = tab.icon;
 
@@ -34,7 +33,7 @@ export function BottomNav() {
             >
               {isActive && (
                 <motion.div
-                  layoutId="bottom-nav-active"
+                  layoutId="parent-nav-active"
                   className="absolute -top-0 w-8 h-0.5 bg-primary rounded-full"
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
