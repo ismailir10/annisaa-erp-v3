@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronRight, LogOut, Settings } from "lucide-react";
 
 import {
@@ -27,7 +27,6 @@ import {
 import {
   adminNav,
   isItemActive,
-  getActiveGroup,
   type NavItem,
   type NavGroup,
 } from "@/config/admin-nav";
@@ -99,24 +98,10 @@ function CollapsibleNavGroup({
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Auto-expand the group containing the active route
-  useEffect(() => {
-    const activeGroup = getActiveGroup(pathname, adminNav.groups);
-    if (activeGroup) {
-      setOpenGroups((prev) => ({ ...prev, [activeGroup]: true }));
-    }
-
-    // Auto-expand settings if a settings route is active
-    const isSettingsActive = adminNav.settings.some((item) =>
-      isItemActive(pathname, item)
-    );
-    if (isSettingsActive) {
-      setSettingsOpen(true);
-    }
-  }, [pathname]);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
+    Object.fromEntries(adminNav.groups.map((g) => [g.id, true]))
+  );
+  const [settingsOpen, setSettingsOpen] = useState(true);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
