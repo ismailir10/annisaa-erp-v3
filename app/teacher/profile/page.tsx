@@ -38,7 +38,7 @@ export default async function TeacherProfilePage() {
           <h2 className="text-base font-semibold">{employee.nama}</h2>
           <div className="flex items-center gap-2 mt-1">
             <Badge variant="secondary" className="text-[10px] font-currency">{employee.kode}</Badge>
-            <Badge variant="secondary" className="text-[10px] bg-status-present-subtle text-[#00875A]">Aktif</Badge>
+            <Badge variant="secondary" className="text-[10px] bg-status-present-subtle text-status-present-text">Aktif</Badge>
           </div>
         </div>
       </div>

@@ -153,6 +153,8 @@ model LeaveRequest {
   createdAt   DateTime @default(now())
 
   employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, status, leaveType])
 }
 
 // ── SALARY COMPONENT ─────────────────────────────────────────
@@ -227,6 +229,8 @@ model PayrollRun {
 
   tenant Tenant        @relation(fields: [tenantId], references: [id])
   items  PayrollItem[]
+
+  @@index([tenantId, periodStart])
 }
 
 model PayrollItem {
@@ -389,6 +393,7 @@ model StudentEnrollment {
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
   @@unique([studentId, classSectionId])
+  @@index([classSectionId, status])
 }
 
 // ── ADMISSION ────────────────────────────────────────────────

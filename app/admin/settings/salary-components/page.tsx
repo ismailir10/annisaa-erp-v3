@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
-import { FormField } from "@/components/ui/form-field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
@@ -190,15 +190,18 @@ export default function SalaryComponentsPage() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             {!editing && (
-              <FormField label="Kode" required>
+              <Field>
+                <FieldLabel>Kode *</FieldLabel>
                 <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="tunjangan_baru" />
-              </FormField>
+              </Field>
             )}
-            <FormField label="Label" required>
+            <Field>
+              <FieldLabel>Label *</FieldLabel>
               <Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Tunjangan Baru" />
-            </FormField>
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Kategori">
+              <Field>
+                <FieldLabel>Kategori</FieldLabel>
                 <Select value={form.category} onValueChange={(v) => v && setForm({ ...form, category: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -206,8 +209,9 @@ export default function SalaryComponentsPage() {
                     <SelectItem value="DEDUCTION">Potongan</SelectItem>
                   </SelectContent>
                 </Select>
-              </FormField>
-              <FormField label="Tipe Kalkulasi">
+              </Field>
+              <Field>
+                <FieldLabel>Tipe Kalkulasi</FieldLabel>
                 <Select value={form.calcType} onValueChange={(v) => v && setForm({ ...form, calcType: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -216,11 +220,12 @@ export default function SalaryComponentsPage() {
                     <SelectItem value="ATTENDANCE_BASED">Berbasis Kehadiran</SelectItem>
                   </SelectContent>
                 </Select>
-              </FormField>
+              </Field>
             </div>
-            <FormField label="Urutan">
+            <Field>
+              <FieldLabel>Urutan</FieldLabel>
               <Input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} />
-            </FormField>
+            </Field>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={form.isProRated} onCheckedChange={(c) => setForm({ ...form, isProRated: !!c })} />
               Pro-rata (dihitung berdasarkan hari hadir)

@@ -58,6 +58,12 @@ export async function DELETE(
   });
   if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
 
+  // Verify guardian belongs to student
+  const guardian = await prisma.guardian.findFirst({
+    where: { id: guardianId, studentId },
+  });
+  if (!guardian) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   await prisma.guardian.delete({ where: { id: guardianId } });
 
   return NextResponse.json({ ok: true });

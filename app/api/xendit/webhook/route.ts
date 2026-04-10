@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   const callbackToken = req.headers.get("x-callback-token");
   const expectedToken = process.env.XENDIT_WEBHOOK_TOKEN;
 
-  if (expectedToken && callbackToken !== expectedToken) {
+  if (!expectedToken || callbackToken !== expectedToken) {
     console.error("[XENDIT WEBHOOK] Invalid callback token");
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }

@@ -4,6 +4,7 @@ import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
 import { holidays } from "./data/holidays";
+import { students } from "./data/students";
 
 const adapter = new PrismaLibSql({ url: "file:dev.db" });
 const prisma = new PrismaClient({ adapter });
@@ -12,6 +13,12 @@ async function main() {
   console.log("🌱 Seeding database...");
 
   // Clear existing data
+  await prisma.studentEnrollment.deleteMany();
+  await prisma.guardian.deleteMany();
+  await prisma.student.deleteMany();
+  await prisma.classSection.deleteMany();
+  await prisma.program.deleteMany();
+  await prisma.academicYear.deleteMany();
   await prisma.emailLog.deleteMany();
   await prisma.payrollItemLine.deleteMany();
   await prisma.payrollItem.deleteMany();
@@ -162,6 +169,104 @@ async function main() {
   }
   console.log(`✅ Employees: ${empCount}`);
   console.log(`✅ Salary values: ${empCount * salaryComponents.length}`);
+
+  // ── 7b. ACADEMIC YEAR, PROGRAMS, CLASS SECTIONS, STUDENTS ──
+
+  // 7b-1. Academic Year
+  const academicYear = await prisma.academicYear.create({
+    data: {
+      tenantId: tenant.id,
+      name: "2025/2026",
+      startDate: "2025-07-14",
+      endDate: "2026-06-20",
+      status: "ACTIVE",
+    },
+  });
+  console.log(`✅ Academic year: ${academicYear.name}`);
+
+  // 7b-2. Programs
+  const programDefs = [
+    { code: "DCARE", name: "Day Care", type: "YEAR_ROUND", ageMin: 24, ageMax: 36 },
+    { code: "KB", name: "Kelompok Bermain", type: "SEMESTER", ageMin: 36, ageMax: 60 },
+    { code: "TKIT", name: "TK Islam Terpadu", type: "SEMESTER", ageMin: 48, ageMax: 84 },
+    { code: "POPUP", name: "Pop Up Class", type: "SESSION", ageMin: 36, ageMax: 72 },
+  ];
+  const programMap: Record<string, string> = {};
+  for (const p of programDefs) {
+    const created = await prisma.program.create({
+      data: {
+        tenantId: tenant.id,
+        code: p.code,
+        name: p.name,
+        type: p.type,
+        ageMin: p.ageMin,
+        ageMax: p.ageMax,
+      },
+    });
+    programMap[p.code] = created.id;
+  }
+  console.log(`✅ Programs: ${programDefs.length}`);
+
+  // 7b-3. Class Sections
+  const classSectionDefs = [
+    { name: "TKIT A", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
+    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
+    { name: "KB Aster", programCode: "KB", campusSlug: "taman-aster", capacity: 15 },
+    { name: "KB Metland", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15 },
+    { name: "D'Care Aster", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10 },
+    { name: "POPUP Weekend", programCode: "POPUP", campusSlug: "taman-aster", capacity: 25 },
+  ];
+  const classSectionMap: Record<string, string> = {};
+  const classSectionKeys = ["TKIT_A", "TKIT_B", "KB_ASTER", "KB_METLAND", "DCARE", "POPUP"];
+  for (let i = 0; i < classSectionDefs.length; i++) {
+    const cs = classSectionDefs[i];
+    const created = await prisma.classSection.create({
+      data: {
+        tenantId: tenant.id,
+        programId: programMap[cs.programCode],
+        academicYearId: academicYear.id,
+        name: cs.name,
+        capacity: cs.capacity,
+        campusId: campusMap[cs.campusSlug],
+      },
+    });
+    classSectionMap[classSectionKeys[i]] = created.id;
+  }
+  console.log(`✅ Class sections: ${classSectionDefs.length}`);
+
+  // 7b-4. Students with Guardians and Enrollments
+  let studentCount = 0;
+  for (const s of students) {
+    await prisma.student.create({
+      data: {
+        tenantId: tenant.id,
+        name: s.name,
+        nickname: s.nickname,
+        dateOfBirth: s.dateOfBirth,
+        gender: s.gender,
+        address: s.address,
+        status: "ACTIVE",
+        guardians: {
+          create: s.guardians.map((g) => ({
+            name: g.name,
+            relationship: g.relationship,
+            phone: g.phone,
+            whatsapp: g.whatsapp,
+            isPrimary: g.isPrimary,
+          })),
+        },
+        enrollments: {
+          create: {
+            classSectionId: classSectionMap[s.classCode],
+            enrollDate: "2025-07-14",
+            status: "ACTIVE",
+          },
+        },
+      },
+    });
+    studentCount++;
+  }
+  console.log(`✅ Students: ${studentCount} (with guardians & enrollments)`);
 
   // ── 8. SEED ATTENDANCE RECORDS (last 30 days) ──────────────
   const today = new Date();

@@ -13,13 +13,13 @@ type AttendanceRecord = {
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  PRESENT: { bg: "bg-[#00B37E]", text: "text-white", label: "Hadir" },
-  LATE: { bg: "bg-[#FF8C00]", text: "text-white", label: "Terlambat" },
-  ABSENT: { bg: "bg-[#FF3B3B]", text: "text-white", label: "Tidak Hadir" },
-  LEAVE: { bg: "bg-[#0EA5E9]", text: "text-white", label: "Izin" },
-  HOLIDAY: { bg: "bg-[#8B5CF6]", text: "text-white", label: "Libur" },
-  HALF_DAY: { bg: "bg-[#FFB020]", text: "text-white", label: "Setengah Hari" },
-  PRESENT_NO_CHECKOUT: { bg: "bg-[#FFB020]", text: "text-white", label: "Hadir Tanpa Pulang" },
+  PRESENT: { bg: "bg-status-present", text: "text-white", label: "Hadir" },
+  LATE: { bg: "bg-status-late", text: "text-white", label: "Terlambat" },
+  ABSENT: { bg: "bg-status-absent", text: "text-white", label: "Tidak Hadir" },
+  LEAVE: { bg: "bg-status-leave", text: "text-white", label: "Izin" },
+  HOLIDAY: { bg: "bg-status-holiday", text: "text-white", label: "Libur" },
+  HALF_DAY: { bg: "bg-status-late", text: "text-white", label: "Setengah Hari" },
+  PRESENT_NO_CHECKOUT: { bg: "bg-status-late", text: "text-white", label: "Hadir Tanpa Pulang" },
 };
 
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -145,10 +145,10 @@ export function AttendanceCalendar({
       {/* Summary */}
       <div className="grid grid-cols-4 gap-3 mt-4 bg-card border border-border rounded-xl p-3">
         {[
-          { label: "Hadir", value: summary.present, color: "text-[#00B37E]" },
-          { label: "Terlambat", value: summary.late, color: "text-[#FF8C00]" },
-          { label: "Tidak Hadir", value: summary.absent, color: "text-[#FF3B3B]" },
-          { label: "Izin", value: summary.leave, color: "text-[#0EA5E9]" },
+          { label: "Hadir", value: summary.present, color: "text-status-present" },
+          { label: "Terlambat", value: summary.late, color: "text-status-late" },
+          { label: "Tidak Hadir", value: summary.absent, color: "text-destructive" },
+          { label: "Izin", value: summary.leave, color: "text-status-leave" },
         ].map((s) => (
           <div key={s.label} className="text-center">
             <p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p>

@@ -18,7 +18,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { FormField } from "@/components/ui/form-field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { StatCard } from "@/components/admin/stat-card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
@@ -406,38 +406,43 @@ export default function AdmissionsPage() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Nama Anak" required>
+              <Field>
+                <FieldLabel>Nama Anak *</FieldLabel>
                 <Input
                   value={form.childName}
                   onChange={(e) => setForm({ ...form, childName: e.target.value })}
                   placeholder="Aisyah"
                 />
-              </FormField>
-              <FormField label="Usia">
+              </Field>
+              <Field>
+                <FieldLabel>Usia</FieldLabel>
                 <Input
                   value={form.childAge}
                   onChange={(e) => setForm({ ...form, childAge: e.target.value })}
                   placeholder="4 tahun"
                 />
-              </FormField>
+              </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Nama Orang Tua" required>
+              <Field>
+                <FieldLabel>Nama Orang Tua *</FieldLabel>
                 <Input
                   value={form.parentName}
                   onChange={(e) => setForm({ ...form, parentName: e.target.value })}
                   placeholder="Ibu Fatimah"
                 />
-              </FormField>
-              <FormField label="WhatsApp">
+              </Field>
+              <Field>
+                <FieldLabel>WhatsApp</FieldLabel>
                 <Input
                   value={form.parentWhatsapp}
                   onChange={(e) => setForm({ ...form, parentWhatsapp: e.target.value })}
                   placeholder="081234567890"
                 />
-              </FormField>
+              </Field>
             </div>
-            <FormField label="Program Diminati">
+            <Field>
+              <FieldLabel>Program Diminati</FieldLabel>
               <Select
                 value={form.programId}
                 onValueChange={(v) => v && setForm({ ...form, programId: v })}
@@ -453,9 +458,10 @@ export default function AdmissionsPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </FormField>
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Sumber">
+              <Field>
+                <FieldLabel>Sumber</FieldLabel>
                 <Select
                   value={form.source}
                   onValueChange={(v) => v && setForm({ ...form, source: v })}
@@ -471,22 +477,24 @@ export default function AdmissionsPage() {
                     <SelectItem value="OTHER">Lainnya</SelectItem>
                   </SelectContent>
                 </Select>
-              </FormField>
-              <FormField label="Tanggal Follow Up">
+              </Field>
+              <Field>
+                <FieldLabel>Tanggal Follow Up</FieldLabel>
                 <Input
                   type="date"
                   value={form.followUpDate}
                   onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
                 />
-              </FormField>
+              </Field>
             </div>
-            <FormField label="Catatan">
+            <Field>
+              <FieldLabel>Catatan</FieldLabel>
               <Input
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 placeholder="Catatan tambahan..."
               />
-            </FormField>
+            </Field>
           </div>
           <DialogFooter>
             <DialogClose>

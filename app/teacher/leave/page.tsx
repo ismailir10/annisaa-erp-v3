@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -219,8 +219,8 @@ export default function TeacherLeavePage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <Label>Jenis Cuti</Label>
+            <Field>
+              <FieldLabel>Jenis Cuti</FieldLabel>
               <Select
                 value={form.leaveType}
                 onValueChange={(v) => v && setForm({ ...form, leaveType: v })}
@@ -239,34 +239,34 @@ export default function TeacherLeavePage() {
                   <SelectItem value="OTHER">Lainnya</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Tanggal Mulai</Label>
+              <Field>
+                <FieldLabel>Tanggal Mulai</FieldLabel>
                 <Input
                   type="date"
                   value={form.startDate}
                   onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                 />
-              </div>
-              <div>
-                <Label>Tanggal Selesai</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Tanggal Selesai</FieldLabel>
                 <Input
                   type="date"
                   value={form.endDate}
                   onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                 />
-              </div>
+              </Field>
             </div>
-            <div>
-              <Label>Alasan</Label>
+            <Field>
+              <FieldLabel>Alasan</FieldLabel>
               <Textarea
                 value={form.reason}
                 onChange={(e) => setForm({ ...form, reason: e.target.value })}
                 placeholder="Jelaskan alasan cuti Anda..."
                 rows={3}
               />
-            </div>
+            </Field>
           </div>
           <DialogFooter>
             <DialogClose>

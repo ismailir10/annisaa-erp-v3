@@ -23,7 +23,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { FormField } from "@/components/ui/form-field";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatCard } from "@/components/admin/stat-card";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, Ban } from "lucide-react";
@@ -112,7 +112,7 @@ const columns: ColumnDef<Invoice>[] = [
             {formatRupiah(Number(inv.totalDue))}
           </p>
           {Number(inv.totalPaid) > 0 && Number(inv.totalPaid) < Number(inv.totalDue) && (
-            <p className="font-currency text-[10px] text-[#00B37E]">
+            <p className="font-currency text-[10px] text-success">
               Dibayar: {formatRupiah(Number(inv.totalPaid))}
             </p>
           )}
@@ -438,21 +438,25 @@ export default function InvoicesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <FormField label="Periode" required help="Contoh: April 2026">
+            <Field>
+              <FieldLabel>Periode *</FieldLabel>
               <Input
                 value={genForm.periodLabel}
                 onChange={(e) => setGenForm({ ...genForm, periodLabel: e.target.value })}
                 placeholder="April 2026"
               />
-            </FormField>
-            <FormField label="Tanggal Jatuh Tempo" required>
+              <FieldDescription>Contoh: April 2026</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel>Tanggal Jatuh Tempo *</FieldLabel>
               <Input
                 type="date"
                 value={genForm.dueDate}
                 onChange={(e) => setGenForm({ ...genForm, dueDate: e.target.value })}
               />
-            </FormField>
-            <FormField label="Tahun Ajaran" required>
+            </Field>
+            <Field>
+              <FieldLabel>Tahun Ajaran *</FieldLabel>
               <Select
                 value={genForm.academicYearId}
                 onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
@@ -468,7 +472,7 @@ export default function InvoicesPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </FormField>
+            </Field>
           </div>
           <DialogFooter>
             <DialogClose>

@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { FormField } from "@/components/ui/form-field";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ArrowLeft, CreditCard, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
@@ -79,8 +81,8 @@ export default function InvoiceDetailPage() {
     setCreatingXendit(false);
   }
 
-  if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
-  if (!invoice) return <div className="text-center py-20 text-muted-foreground">Tagihan tidak ditemukan.</div>;
+  if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-48" /><Skeleton className="h-8 w-64" /><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><Skeleton className="h-64 lg:col-span-2" /><div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-32" /></div></div></div>;
+  if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia." />;
 
   const guardian = invoice.student.guardians[0];
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
@@ -134,8 +136,8 @@ export default function InvoiceDetailPage() {
           </div>
           <div className="border-t border-border mt-3 pt-3 space-y-1">
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Tagihan</span><span className="font-currency font-bold">{formatRupiah(invoice.totalDue)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Dibayar</span><span className="font-currency font-bold text-[#00B37E]">{formatRupiah(invoice.totalPaid)}</span></div>
-            {remaining > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Sisa</span><span className="font-currency font-bold text-[#FF3B3B]">{formatRupiah(remaining)}</span></div>}
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Dibayar</span><span className="font-currency font-bold text-status-present">{formatRupiah(invoice.totalPaid)}</span></div>
+            {remaining > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Sisa</span><span className="font-currency font-bold text-destructive">{formatRupiah(remaining)}</span></div>}
           </div>
         </Card>
 
@@ -174,7 +176,7 @@ export default function InvoiceDetailPage() {
                   <div key={p.id} className="border-b border-border/50 last:border-0 pb-2">
                     <div className="flex justify-between">
                       <Badge variant="outline" className="text-[10px]">{METHOD_LABELS[p.method] ?? p.method}</Badge>
-                      <span className="font-currency text-sm font-bold text-[#00B37E]">{formatRupiah(p.amount)}</span>
+                      <span className="font-currency text-sm font-bold text-status-present">{formatRupiah(p.amount)}</span>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       {new Date(p.paidAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
@@ -194,10 +196,13 @@ export default function InvoiceDetailPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <FormField label="Jumlah" required help={`Sisa tagihan: ${formatRupiah(remaining)}`}>
+            <Field>
+              <FieldLabel>Jumlah *</FieldLabel>
               <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
-            </FormField>
-            <FormField label="Metode Pembayaran">
+              <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel>Metode Pembayaran</FieldLabel>
               <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -207,13 +212,16 @@ export default function InvoiceDetailPage() {
                   <SelectItem value="OTHER">Lainnya</SelectItem>
                 </SelectContent>
               </Select>
-            </FormField>
-            <FormField label="Referensi" help="Nomor transfer, ID transaksi, dll.">
+            </Field>
+            <Field>
+              <FieldLabel>Referensi</FieldLabel>
               <Input value={payForm.reference} onChange={e => setPayForm({ ...payForm, reference: e.target.value })} placeholder="Opsional" />
-            </FormField>
-            <FormField label="Catatan">
+              <FieldDescription>Nomor transfer, ID transaksi, dll.</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel>Catatan</FieldLabel>
               <Input value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Opsional" />
-            </FormField>
+            </Field>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>

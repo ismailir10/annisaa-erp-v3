@@ -13,8 +13,9 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { FormField } from "@/components/ui/form-field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Save } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
@@ -96,7 +97,7 @@ export default function FeesPage() {
     setStructureSaving(false);
   }
 
-  if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
+  if (loading) return <Skeleton className="h-96 rounded-xl" />;
 
   const feeComponentColumns: ColumnDef<FeeComponent>[] = [
     {
@@ -190,7 +191,7 @@ export default function FeesPage() {
           {!selectedProgram || !selectedYear ? (
             <Card className="p-8 text-center text-muted-foreground"><p className="text-sm">Pilih program dan tahun ajaran untuk mengatur biaya.</p></Card>
           ) : structureLoading ? (
-            <div className="animate-pulse h-40 bg-card rounded-xl" />
+            <Skeleton className="h-40 rounded-xl" />
           ) : (
             <Card className="p-6">
               <div className="space-y-3">
@@ -229,10 +230,11 @@ export default function FeesPage() {
           <DialogHeader><DialogTitle>{editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Kode" required><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></FormField>
-              <FormField label="Label" required><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></FormField>
+              <Field><FieldLabel>Kode *</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
+              <Field><FieldLabel>Label *</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
             </div>
-            <FormField label="Kategori">
+            <Field>
+              <FieldLabel>Kategori</FieldLabel>
               <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -243,10 +245,11 @@ export default function FeesPage() {
                   <SelectItem value="OTHER">Lainnya</SelectItem>
                 </SelectContent>
               </Select>
-            </FormField>
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Urutan"><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></FormField>
-              <FormField label="Tipe">
+              <Field><FieldLabel>Urutan</FieldLabel><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
+              <Field>
+                <FieldLabel>Tipe</FieldLabel>
                 <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -254,7 +257,7 @@ export default function FeesPage() {
                     <SelectItem value="false">Sekali bayar</SelectItem>
                   </SelectContent>
                 </Select>
-              </FormField>
+              </Field>
             </div>
           </div>
           <DialogFooter>

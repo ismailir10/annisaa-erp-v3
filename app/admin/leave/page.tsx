@@ -20,7 +20,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Check, X, Clock, CheckCircle, XCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 
@@ -257,7 +257,7 @@ export default function AdminLeavePage() {
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[#00875A] border-[#00875A]/30 hover:bg-[#00875A]/10"
+              className="h-7 text-success border-success/30 hover:bg-success/10"
               onClick={() => openReview(r, "approve")}
             >
               <Check size={12} className="mr-1" /> Setuju
@@ -348,12 +348,12 @@ export default function AdminLeavePage() {
                 <strong>Alasan:</strong> {reviewTarget?.reason}
               </p>
             </div>
-            <div>
-              <Label>
+            <Field>
+              <FieldLabel>
                 {reviewAction === "approve"
                   ? "Catatan (opsional)"
                   : "Alasan penolakan *"}
-              </Label>
+              </FieldLabel>
               <Textarea
                 value={reviewNote}
                 onChange={(e) => setReviewNote(e.target.value)}
@@ -364,7 +364,7 @@ export default function AdminLeavePage() {
                 }
                 rows={2}
               />
-            </div>
+            </Field>
             {reviewAction === "approve" && (
               <p className="text-xs text-muted-foreground">
                 Menyetujui akan otomatis membuat record kehadiran LEAVE untuk tanggal

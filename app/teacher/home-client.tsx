@@ -159,7 +159,7 @@ export function TeacherHomeClient({
                     : hasCheckedIn
                     ? "bg-[var(--status-late)] hover:opacity-90"
                     : "bg-primary hover:opacity-90"
-                } ${loading ? "animate-pulse" : ""}`}
+                } ${loading ? "opacity-70" : ""}`}
               >
                 {loading
                   ? "..."

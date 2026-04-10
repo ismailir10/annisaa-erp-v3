@@ -10,7 +10,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId) {
-    return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { searchParams } = new URL(req.url);
