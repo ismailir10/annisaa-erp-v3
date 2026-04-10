@@ -31,7 +31,6 @@ export default function ClassAttendancePage() {
   const [saving, setSaving] = useState(false);
 
   // Load teacher's assigned classes
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     fetch("/api/teaching-assignments/my").then(r => r.json()).then(d => {
       setAssignments(d);

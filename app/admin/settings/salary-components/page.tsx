@@ -52,6 +52,7 @@ export default function SalaryComponentsPage() {
     setLoading(false);
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchComponents(); }, []);
 
   function openNew() {

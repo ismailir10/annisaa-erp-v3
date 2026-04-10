@@ -66,9 +66,7 @@ export default function TeacherLeavePage() {
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   async function handleSubmit() {
     if (!form.startDate || !form.endDate || !form.reason.trim()) {

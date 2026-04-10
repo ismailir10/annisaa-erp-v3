@@ -14,10 +14,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Plus, Coins, Save } from "lucide-react";
+import { Plus, Save } from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
 import { formatRupiah } from "@/lib/format";
 
 type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
@@ -39,7 +37,7 @@ export default function FeesPage() {
   // Fee structure state
   const [selectedProgram, setSelectedProgram] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
-  const [structures, setStructures] = useState<FeeStructure[]>([]);
+  const [, setStructures] = useState<FeeStructure[]>([]);
   const [structureAmounts, setStructureAmounts] = useState<Record<string, number>>({});
   const [structureLoading, setStructureLoading] = useState(false);
   const [structureSaving, setStructureSaving] = useState(false);

@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, UserCheck, UserX, Building2 } from "lucide-react";
+import { Plus, Users, UserCheck, UserX } from "lucide-react";
 
 // ------------------------------------------------------------------
 // Types
