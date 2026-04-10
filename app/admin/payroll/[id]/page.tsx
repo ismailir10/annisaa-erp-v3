@@ -2,17 +2,26 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ChevronDown, ChevronRight, Download, Send, Check, Pencil, Settings2 } from "lucide-react";
+import { ArrowLeft, Download, Send, Check, Pencil, Settings2, Eye } from "lucide-react";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import { formatRupiah } from "@/lib/format";
 import Link from "next/link";
 
 type PayrollLine = {
@@ -33,15 +42,13 @@ type PayrollData = {
   items: PayrollItem[];
 };
 
-function formatRp(n: number | string) {
-  return "Rp " + Math.round(Number(n)).toLocaleString("id-ID");
-}
-
 export default function PayrollDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expandedItem, setExpandedItem] = useState<string | null>(null);
+
+  // Detail sheet
+  const [detailItem, setDetailItem] = useState<PayrollItem | null>(null);
 
   // Modals
   const [varsModal, setVarsModal] = useState<PayrollItem | null>(null);
@@ -68,7 +75,13 @@ export default function PayrollDetailPage() {
       fetch(`/api/payroll/${id}`),
       fetch(`/api/payroll/compare?current=${id}`),
     ]);
-    setData(await payRes.json());
+    const payData = await payRes.json();
+    setData(payData);
+    // Refresh detail sheet if open
+    if (detailItem) {
+      const updated = payData.items?.find((i: PayrollItem) => i.id === detailItem.id);
+      if (updated) setDetailItem(updated);
+    }
     try {
       const comp = await compRes.json();
       if (comp?.comparison) {
@@ -81,9 +94,9 @@ export default function PayrollDetailPage() {
       }
     } catch { /* no comparison available */ }
     setLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   function openVars(item: PayrollItem) {
@@ -154,7 +167,7 @@ export default function PayrollDetailPage() {
   }
 
   if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
-  if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p><p className="text-xs mt-1">Silakan kembali ke daftar penggajian.</p></div>;
+  if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p></div>;
 
   const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
   const totalDed = data.items.reduce((s, i) => s + Number(i.deductions), 0);
@@ -162,6 +175,94 @@ export default function PayrollDetailPage() {
   const noBank = data.items.filter((i) => !i.employee.bankAccountNo);
   const isDraft = data.status === "DRAFT";
   const isApproved = ["APPROVED", "EXPORTED", "SLIPS_SENT"].includes(data.status);
+
+  const columns: ColumnDef<PayrollItem>[] = [
+    {
+      id: "nama",
+      accessorFn: (row) => row.employee.nama,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Karyawan" />
+      ),
+      cell: ({ row }) => {
+        const item = row.original;
+        return (
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <span className="text-primary text-xs font-bold">{item.employee.nama[0]}</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium">{item.employee.nama}</p>
+              <p className="text-[10px] text-muted-foreground">{item.employee.kode} · {item.employee.jabatan}</p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "grossAmount",
+      accessorFn: (row) => Number(row.grossAmount),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Pendapatan" />
+      ),
+      cell: ({ row }) => (
+        <span className="font-currency text-sm">{formatRupiah(row.original.grossAmount)}</span>
+      ),
+    },
+    {
+      id: "deductions",
+      accessorFn: (row) => Number(row.deductions),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Potongan" />
+      ),
+      cell: ({ row }) => (
+        <span className="font-currency text-sm text-destructive">{formatRupiah(row.original.deductions)}</span>
+      ),
+    },
+    {
+      id: "netAmount",
+      accessorFn: (row) => Number(row.netAmount),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Bersih" />
+      ),
+      cell: ({ row }) => {
+        const item = row.original;
+        const delta = comparison?.[item.employee.id];
+        return (
+          <div>
+            <span className="font-currency text-sm font-bold">{formatRupiah(item.netAmount)}</span>
+            {delta !== undefined && (
+              <p className={`font-currency text-[10px] ${delta >= 0 ? "text-[#00B37E]" : "text-[#FF3B3B]"}`}>
+                {delta >= 0 ? "+" : ""}{formatRupiah(delta)}
+              </p>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: "bank",
+      header: "Rekening",
+      cell: ({ row }) => {
+        if (!row.original.employee.bankAccountNo) {
+          return <Badge variant="outline" className="text-[10px] text-destructive">Belum diisi</Badge>;
+        }
+        return (
+          <span className="text-xs text-muted-foreground font-currency">
+            ••• {row.original.employee.bankAccountNo.slice(-4)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <Button size="sm" variant="ghost" onClick={() => setDetailItem(row.original)}>
+          <Eye size={14} className="mr-1" /> Detail
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -184,110 +285,91 @@ export default function PayrollDetailPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-lg font-bold mt-1">{formatRp(totalGross)}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-lg font-bold mt-1 text-destructive">{formatRp(totalDed)}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-[#5DB4B8]">{formatRp(totalNet)}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-lg font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-lg font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-[#5DB4B8]">{formatRupiah(totalNet)}</p></Card>
         <Card className="p-4"><p className="text-xs text-muted-foreground">Status</p>
-          <Badge variant="secondary" className={`mt-2 ${data.status === "DRAFT" ? "bg-muted" : "bg-status-present-subtle text-[#00875A]"}`}>{data.status}</Badge>
-          {noBank.length > 0 && <p className="text-[10px] text-status-late mt-1">{noBank.length} tanpa rekening</p>}
+          <StatusBadge status={data.status} />
+          {noBank.length > 0 && <p className="text-[10px] text-destructive mt-1">{noBank.length} tanpa rekening</p>}
         </Card>
       </div>
 
-      {/* Comparison note */}
       {prevPeriod && (
         <p className="text-xs text-muted-foreground mb-4">
           Dibandingkan dengan periode sebelumnya: {prevPeriod}
         </p>
       )}
 
-      {/* Employee items */}
-      <div className="space-y-1">
-        {data.items.map((item) => {
-          const isExpanded = expandedItem === item.id;
-          return (
-            <div key={item.id} className="bg-card border border-border rounded-lg overflow-hidden">
-              <button
-                onClick={() => setExpandedItem(isExpanded ? null : item.id)}
-                className="w-full flex items-center justify-between p-3 hover:bg-accent/30 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-primary text-xs font-bold">{item.employee.nama[0]}</span>
-                  </div>
-                  <div className="text-left min-w-0">
-                    <p className="text-sm font-medium truncate">{item.employee.nama}</p>
-                    <p className="text-[10px] text-muted-foreground">{item.employee.kode} · {item.employee.jabatan}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {!item.employee.bankAccountNo && <Badge variant="outline" className="text-[10px] text-status-late">Tanpa Rekening</Badge>}
-                  <div className="text-right">
-                    <span className="font-currency text-sm font-bold">{formatRp(item.netAmount)}</span>
-                    {comparison?.[item.employee.id] !== undefined && (
-                      <p className={`font-currency text-[10px] ${comparison[item.employee.id] >= 0 ? "text-[#00B37E]" : "text-[#FF3B3B]"}`}>
-                        {comparison[item.employee.id] >= 0 ? "+" : ""}{formatRp(comparison[item.employee.id])}
-                      </p>
-                    )}
-                  </div>
-                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </div>
-              </button>
+      {/* Employee DataTable */}
+      <DataTable
+        columns={columns}
+        data={data.items}
+        defaultSort={{ field: "nama", order: "asc" }}
+        emptyTitle="Tidak ada data karyawan"
+      />
 
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="px-3 pb-3 border-t border-border pt-3">
-                      {/* Variables button */}
-                      {isDraft && (
-                        <button onClick={() => openVars(item)} className="text-xs text-primary flex items-center gap-1 mb-3 hover:underline">
-                          <Settings2 size={12} /> Edit Variabel Kehadiran
-                        </button>
-                      )}
+      {/* Detail Sheet */}
+      <Sheet open={!!detailItem} onOpenChange={(o) => !o && setDetailItem(null)}>
+        <SheetContent className="sm:max-w-lg overflow-y-auto">
+          {detailItem && (
+            <>
+              <SheetHeader>
+                <SheetTitle>{detailItem.employee.nama}</SheetTitle>
+                <SheetDescription>
+                  {detailItem.employee.kode} · {detailItem.employee.jabatan}
+                </SheetDescription>
+              </SheetHeader>
 
-                      {/* Component lines */}
-                      <div className="space-y-1">
-                        {item.lines.map((line) => (
-                          <div key={line.id} className="flex items-center justify-between py-1.5 text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className={line.categorySnapshot === "INCOME" ? "text-foreground" : "text-destructive"}>
-                                {line.labelSnapshot}
-                              </span>
-                              {line.adjustmentAmount !== 0 && (
-                                <Badge variant="outline" className="text-[9px]">Adj</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-currency">{formatRp(line.finalAmount)}</span>
-                              {isDraft && (
-                                <button onClick={() => openLineAdj(item, line)} className="p-1 rounded hover:bg-accent text-muted-foreground">
-                                  <Pencil size={10} />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+              <div className="mt-6 space-y-4">
+                {/* Variables button */}
+                {isDraft && (
+                  <button onClick={() => openVars(detailItem)} className="text-xs text-primary flex items-center gap-1 hover:underline">
+                    <Settings2 size={12} /> Edit Variabel Kehadiran
+                  </button>
+                )}
+
+                {/* Component lines */}
+                <div className="space-y-1">
+                  {detailItem.lines.map((line) => (
+                    <div key={line.id} className="flex items-center justify-between py-2 text-xs border-b border-border last:border-0">
+                      <div className="flex items-center gap-2">
+                        <span className={line.categorySnapshot === "INCOME" ? "text-foreground" : "text-destructive"}>
+                          {line.labelSnapshot}
+                        </span>
+                        {Number(line.adjustmentAmount) !== 0 && (
+                          <Badge variant="outline" className="text-[9px]">Adj</Badge>
+                        )}
                       </div>
-
-                      {/* Item totals */}
-                      <div className="border-t border-border mt-2 pt-2 space-y-1 text-xs">
-                        <div className="flex justify-between"><span className="text-muted-foreground">Pendapatan</span><span className="font-currency font-medium">{formatRp(item.grossAmount)}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Potongan</span><span className="font-currency font-medium text-destructive">{formatRp(item.deductions)}</span></div>
-                        <div className="flex justify-between font-bold"><span>Bersih</span><span className="font-currency text-[#5DB4B8]">{formatRp(item.netAmount)}</span></div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-currency">{formatRupiah(line.finalAmount)}</span>
+                        {isDraft && (
+                          <button onClick={() => openLineAdj(detailItem, line)} className="p-1 rounded hover:bg-accent text-muted-foreground">
+                            <Pencil size={10} />
+                          </button>
+                        )}
                       </div>
                     </div>
-                  </motion.div>
+                  ))}
+                </div>
+
+                {/* Totals */}
+                <div className="border-t border-border pt-3 space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Pendapatan</span><span className="font-currency font-medium">{formatRupiah(detailItem.grossAmount)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Potongan</span><span className="font-currency font-medium text-destructive">{formatRupiah(detailItem.deductions)}</span></div>
+                  <div className="flex justify-between font-bold text-base"><span>Bersih</span><span className="font-currency text-[#5DB4B8]">{formatRupiah(detailItem.netAmount)}</span></div>
+                </div>
+
+                {/* Bank info */}
+                {detailItem.employee.bankAccountNo && (
+                  <div className="text-xs text-muted-foreground pt-2 border-t border-border">
+                    Transfer ke: {detailItem.employee.bankName} {detailItem.employee.bankAccountNo}
+                  </div>
                 )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
-      </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Variables Modal */}
       <Dialog open={!!varsModal} onOpenChange={(o) => !o && setVarsModal(null)}>
@@ -317,10 +399,10 @@ export default function PayrollDetailPage() {
             <DialogDescription>{lineModal?.line.labelSnapshot} — {lineModal?.item.employee.nama}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRp(lineModal?.line.calculatedAmount ?? 0)}</span></p>
+            <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
             <div><Label>Penyesuaian (+ atau -)</Label><Input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></div>
             <div><Label>Catatan *</Label><Textarea value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></div>
-            <p className="text-sm">Final: <span className="font-currency font-bold text-[#5DB4B8]">{formatRp(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
+            <p className="text-sm">Final: <span className="font-currency font-bold text-[#5DB4B8]">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>
@@ -339,8 +421,8 @@ export default function PayrollDetailPage() {
           <div className="py-2 space-y-2 text-sm">
             <p>Periode: {data.periodStart} — {data.periodEnd}</p>
             <p>Karyawan: {data.items.length}</p>
-            <p>Total Bersih: <span className="font-currency font-bold">{formatRp(totalNet)}</span></p>
-            {noBank.length > 0 && <p className="text-status-late">{noBank.length} karyawan tanpa rekening bank</p>}
+            <p>Total Bersih: <span className="font-currency font-bold">{formatRupiah(totalNet)}</span></p>
+            {noBank.length > 0 && <p className="text-destructive">{noBank.length} karyawan tanpa rekening bank</p>}
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>

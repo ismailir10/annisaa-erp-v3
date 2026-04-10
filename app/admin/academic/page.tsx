@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -113,6 +116,55 @@ export default function AcademicPage() {
     setSaving(false);
   }
 
+  const classColumns: ColumnDef<ClassSection>[] = [
+    {
+      accessorKey: "name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Kelas" />,
+      cell: ({ row }) => {
+        const s = row.original;
+        return (
+          <div>
+            <span className="text-sm font-semibold">{s.name}</span>
+            <p className="text-xs text-muted-foreground">{s.campus.name}</p>
+          </div>
+        );
+      },
+    },
+    {
+      id: "program",
+      accessorFn: (row) => row.program.name,
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Program" />,
+      cell: ({ row }) => <Badge variant="outline" className="text-[10px]">{row.original.program.name}</Badge>,
+    },
+    {
+      id: "academicYear",
+      accessorFn: (row) => row.academicYear.name,
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun Ajaran" />,
+      cell: ({ row }) => <span className="text-sm">{row.original.academicYear.name}</span>,
+    },
+    {
+      id: "enrollment",
+      accessorFn: (row) => row._count.enrollments,
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Murid" />,
+      cell: ({ row }) => (
+        <span className="font-currency text-sm">{row.original._count.enrollments}/{row.original.capacity}</span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <Button size="sm" variant="outline" onClick={() => {
+          setAssignForm({ classSectionId: row.original.id, className: row.original.name, employeeId: "" });
+          setAssignDialog(true);
+          loadAssignments(row.original.id);
+        }}>
+          <Plus size={12} className="mr-1" /> Guru
+        </Button>
+      ),
+    },
+  ];
+
   if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
 
   return (
@@ -205,36 +257,13 @@ export default function AcademicPage() {
               <Plus size={14} className="mr-1.5" /> Tambah Kelas
             </Button>
           </div>
-          {sections.length === 0 ? (
-            <EmptyState icon={Users} title="Belum ada kelas" description="Tambahkan kelas untuk program dan tahun ajaran tertentu" actionLabel="Tambah Kelas" onAction={() => setSectionDialog(true)} />
-          ) : (
-            <div className="space-y-2">
-              {sections.map((s, i) => (
-                <motion.div key={s.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold">{s.name}</p>
-                          <Badge variant="outline" className="text-[10px]">{s.program.name}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{s.academicYear.name} · {s.campus.name}</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="font-currency text-sm font-bold">{s._count.enrollments}/{s.capacity}</p>
-                          <p className="text-[10px] text-muted-foreground">murid</p>
-                        </div>
-                        <Button size="sm" variant="outline" onClick={() => { setAssignForm({ classSectionId: s.id, className: s.name, employeeId: "" }); setAssignDialog(true); loadAssignments(s.id); }}>
-                          <Plus size={12} className="mr-1" /> Guru
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          )}
+          <DataTable
+            columns={classColumns}
+            data={sections}
+            defaultSort={{ field: "name", order: "asc" }}
+            emptyTitle="Belum ada kelas"
+            emptyDescription="Tambahkan kelas untuk program dan tahun ajaran tertentu"
+          />
         </TabsContent>
       </Tabs>
 
