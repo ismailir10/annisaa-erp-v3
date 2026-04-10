@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -93,6 +96,40 @@ export default function FeesPage() {
 
   if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
 
+  const feeComponentColumns: ColumnDef<FeeComponent>[] = [
+    {
+      accessorKey: "sortOrder",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="#" />,
+      cell: ({ row }) => <span className="font-currency text-xs text-muted-foreground">{row.original.sortOrder}</span>,
+    },
+    {
+      accessorKey: "label",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Komponen" />,
+      cell: ({ row }) => {
+        const c = row.original;
+        return (
+          <div className={!c.isEnabled ? "opacity-50" : ""}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{c.label}</span>
+              <Badge variant="outline" className="text-[10px] font-currency">{c.code}</Badge>
+            </div>
+            <span className="text-[10px] text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "category",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Kategori" />,
+      cell: ({ row }) => <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABELS[row.original.category] ?? row.original.category}</Badge>,
+    },
+    {
+      id: "enabled",
+      header: "Aktif",
+      cell: ({ row }) => <Switch checked={row.original.isEnabled} onCheckedChange={() => toggleComponent(row.original)} />,
+    },
+  ];
+
   return (
     <>
       <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
@@ -110,32 +147,13 @@ export default function FeesPage() {
               <Plus size={14} className="mr-1.5" /> Tambah Komponen
             </Button>
           </div>
-          {components.length === 0 ? (
-            <EmptyState icon={Coins} title="Belum ada komponen biaya" description="Tambahkan komponen seperti SPP, Uang Pangkal, Seragam" actionLabel="Tambah Komponen" onAction={() => setComponentDialog(true)} />
-          ) : (
-            <div className="space-y-1">
-              {components.map((c, i) => (
-                <motion.div key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }}>
-                  <div className={`flex items-center justify-between p-3 bg-card border border-border rounded-lg ${!c.isEnabled ? "opacity-50" : ""}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="font-currency text-xs text-muted-foreground w-6 text-right">{c.sortOrder}</span>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{c.label}</span>
-                          <Badge variant="outline" className="text-[10px] font-currency">{c.code}</Badge>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABELS[c.category] ?? c.category}</Badge>
-                          <span className="text-[10px] text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <Switch checked={c.isEnabled} onCheckedChange={() => toggleComponent(c)} />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
+          <DataTable
+            columns={feeComponentColumns}
+            data={components}
+            defaultSort={{ field: "sortOrder", order: "asc" }}
+            emptyTitle="Belum ada komponen biaya"
+            emptyDescription="Tambahkan komponen seperti SPP, Uang Pangkal, Seragam"
+          />
         </TabsContent>
 
         {/* Fee Structure per Program */}
