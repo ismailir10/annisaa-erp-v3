@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { StatCard } from "@/components/admin/stat-card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, UserPlus, Users, PhoneCall, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
@@ -99,6 +101,8 @@ export default function AdmissionsPage() {
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAdmission, setEditingAdmission] = useState<Admission | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     childName: "",
@@ -189,14 +193,17 @@ export default function AdmissionsPage() {
       return;
     }
     setSaving(true);
-    const res = await fetch("/api/admissions", {
-      method: "POST",
+    const url = editingAdmission ? `/api/admissions/${editingAdmission.id}` : "/api/admissions";
+    const method = editingAdmission ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
     if (res.ok) {
-      toast.success("Pendaftaran berhasil dicatat");
+      toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran berhasil dicatat");
       setDialogOpen(false);
+      setEditingAdmission(null);
       fetchAdmissions();
     } else {
       const d = await res.json();
@@ -205,7 +212,19 @@ export default function AdmissionsPage() {
     setSaving(false);
   }
 
+  async function handleCancel() {
+    if (!cancelTarget) return;
+    const res = await fetch(`/api/admissions/${cancelTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "CANCELLED" }),
+    });
+    if (res.ok) { toast.success("Pendaftaran dibatalkan"); setCancelTarget(null); fetchAdmissions(); }
+    else toast.error("Gagal membatalkan");
+  }
+
   function openDialog() {
+    setEditingAdmission(null);
     setForm({
       childName: "",
       childAge: "",
@@ -293,17 +312,30 @@ export default function AdmissionsPage() {
     },
     {
       id: "actions",
-      header: "",
       cell: ({ row }) => {
         const a = row.original;
         if (a.studentId) {
           return <span className="text-xs text-muted-foreground">Sudah jadi siswa</span>;
         }
-        if (a.status === "CANCELLED") return null;
         return (
-          <Button size="sm" variant="outline" onClick={() => convertToStudent(a.id)}>
-            <UserPlus size={12} className="mr-1" /> Konversi
-          </Button>
+          <DataTableRowActions
+            onEdit={() => {
+              setEditingAdmission(a);
+              setForm({
+                childName: a.childName, childAge: a.childAge ?? "", childGender: a.childGender ?? "",
+                parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
+                parentEmail: "", programId: a.programId ?? "", source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
+              });
+              setDialogOpen(true);
+            }}
+            onDeactivate={a.status !== "CANCELLED" ? () => setCancelTarget(a) : undefined}
+            isActive={a.status !== "CANCELLED"}
+            extraActions={a.status !== "CANCELLED" ? [{
+              label: "Konversi ke Siswa",
+              icon: <UserPlus size={14} />,
+              onClick: () => convertToStudent(a.id),
+            }] : undefined}
+          />
         );
       },
     },
@@ -370,7 +402,7 @@ export default function AdmissionsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Catat Inquiry Baru</DialogTitle>
+            <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
@@ -466,6 +498,15 @@ export default function AdmissionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        onOpenChange={(o) => !o && setCancelTarget(null)}
+        title="Batalkan Pendaftaran"
+        description={`Batalkan pendaftaran "${cancelTarget?.childName}"? Status akan diubah menjadi CANCELLED.`}
+        onConfirm={handleCancel}
+        confirmLabel="Batalkan"
+      />
     </>
   );
 }

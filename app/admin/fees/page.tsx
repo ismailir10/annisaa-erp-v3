@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, Save } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
@@ -31,6 +32,7 @@ export default function FeesPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [loading, setLoading] = useState(true);
   const [componentDialog, setComponentDialog] = useState(false);
+  const [editingFee, setEditingFee] = useState<FeeComponent | null>(null);
   const [form, setForm] = useState({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: "0" });
   const [saving, setSaving] = useState(false);
 
@@ -57,8 +59,10 @@ export default function FeesPage() {
 
   async function saveComponent() {
     setSaving(true);
-    const res = await fetch("/api/fee-components", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, sortOrder: parseInt(form.sortOrder) }) });
-    if (res.ok) { toast.success("Komponen biaya ditambahkan"); setComponentDialog(false); fetchAll(); }
+    const url = editingFee ? `/api/fee-components/${editingFee.id}` : "/api/fee-components";
+    const method = editingFee ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, sortOrder: parseInt(form.sortOrder) }) });
+    if (res.ok) { toast.success(editingFee ? "Komponen diperbarui" : "Komponen biaya ditambahkan"); setComponentDialog(false); setEditingFee(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
     setSaving(false);
   }
@@ -126,6 +130,22 @@ export default function FeesPage() {
       header: "Aktif",
       cell: ({ row }) => <Switch checked={row.original.isEnabled} onCheckedChange={() => toggleComponent(row.original)} />,
     },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <DataTableRowActions
+          onEdit={() => {
+            const c = row.original;
+            setEditingFee(c);
+            setForm({ code: c.code, label: c.label, category: c.category, isRecurring: c.isRecurring, sortOrder: String(c.sortOrder) });
+            setComponentDialog(true);
+          }}
+          onDeactivate={row.original.isEnabled ? () => toggleComponent(row.original) : undefined}
+          onActivate={!row.original.isEnabled ? () => toggleComponent(row.original) : undefined}
+          isActive={row.original.isEnabled}
+        />
+      ),
+    },
   ];
 
   return (
@@ -141,7 +161,7 @@ export default function FeesPage() {
         {/* Fee Components */}
         <TabsContent value="components">
           <div className="flex justify-end mb-4 mt-4">
-            <Button size="sm" onClick={() => { setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) }); setComponentDialog(true); }}>
+            <Button size="sm" onClick={() => { setEditingFee(null); setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) }); setComponentDialog(true); }}>
               <Plus size={14} className="mr-1.5" /> Tambah Komponen
             </Button>
           </div>
@@ -206,7 +226,7 @@ export default function FeesPage() {
       {/* Add Component Dialog */}
       <Dialog open={componentDialog} onOpenChange={setComponentDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Tambah Komponen Biaya</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Kode" required><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></FormField>
