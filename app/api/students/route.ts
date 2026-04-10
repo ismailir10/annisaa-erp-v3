@@ -1,49 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { paginatedResponse } from "@/lib/api/response";
+import { validateBody } from "@/lib/api/validate";
+import { createStudentSchema } from "@/lib/validations/student";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  if (!session?.tenantId) return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
 
   const { searchParams } = new URL(req.url);
+  const { skip, take, page, pageSize } = parsePagination(searchParams);
+  const { orderBy } = parseSort(searchParams, "name", "asc");
   const search = searchParams.get("search") ?? "";
   const status = searchParams.get("status");
-  const classSectionId = searchParams.get("classSectionId");
 
-  const where: Record<string, unknown> = { tenantId: session.tenantId };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = { tenantId: session.tenantId };
   if (status && status !== "all") where.status = status;
   if (search) {
     where.OR = [
-      { name: { contains: search } },
-      { nickname: { contains: search } },
+      { name: { contains: search, mode: "insensitive" } },
+      { nickname: { contains: search, mode: "insensitive" } },
     ];
   }
 
-  let studentIds: string[] | undefined;
-  if (classSectionId) {
-    const enrollments = await prisma.studentEnrollment.findMany({
-      where: { classSectionId, status: "ACTIVE" },
-      select: { studentId: true },
-    });
-    studentIds = enrollments.map((e) => e.studentId);
-    where.id = { in: studentIds };
-  }
-
-  const students = await prisma.student.findMany({
-    where,
-    include: {
-      guardians: { where: { isPrimary: true }, take: 1 },
-      enrollments: {
-        where: { status: "ACTIVE" },
-        include: { classSection: { select: { name: true, program: { select: { name: true } } } } },
-        take: 1,
+  const [students, total] = await Promise.all([
+    prisma.student.findMany({
+      where,
+      skip,
+      take,
+      include: {
+        guardians: { where: { isPrimary: true }, take: 1 },
+        enrollments: {
+          where: { status: "ACTIVE" },
+          include: { classSection: { select: { name: true, program: { select: { name: true } } } } },
+          take: 1,
+        },
       },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy,
+    }),
+    prisma.student.count({ where }),
+  ]);
 
-  return NextResponse.json(students);
+  return NextResponse.json(paginatedResponse(students, total, page, pageSize));
 }
 
 export async function POST(req: NextRequest) {
@@ -52,36 +53,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
-  if (!body.name?.trim()) {
-    return NextResponse.json({ error: "Nama siswa wajib diisi" }, { status: 400 });
-  }
+  const result = await validateBody(createStudentSchema, await req.json());
+  if (result.error) return result.error;
+  const body = result.data;
 
   const student = await prisma.student.create({
     data: {
       tenantId: session.tenantId,
-      name: body.name.trim(),
-      nickname: body.nickname?.trim() || null,
-      dateOfBirth: body.dateOfBirth || null,
-      gender: body.gender || null,
-      address: body.address?.trim() || null,
-      notes: body.notes?.trim() || null,
+      name: body.name,
+      nickname: body.nickname ?? null,
+      dateOfBirth: body.dateOfBirth ?? null,
+      gender: body.gender ?? null,
+      address: body.address ?? null,
+      notes: body.notes ?? null,
       metadata: body.metadata ? JSON.stringify(body.metadata) : null,
     },
   });
 
-  // Create guardians if provided
   if (body.guardians?.length) {
     for (const g of body.guardians) {
       await prisma.guardian.create({
         data: {
           studentId: student.id,
-          name: g.name?.trim(),
-          relationship: g.relationship ?? "WALI",
-          phone: g.phone?.trim() || null,
-          email: g.email?.trim() || null,
-          whatsapp: g.whatsapp?.trim() || null,
-          isPrimary: g.isPrimary ?? false,
+          name: g.name,
+          relationship: g.relationship,
+          phone: g.phone ?? null,
+          email: g.email ?? null,
+          whatsapp: g.whatsapp ?? null,
+          isPrimary: g.isPrimary,
         },
       });
     }

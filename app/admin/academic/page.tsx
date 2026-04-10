@@ -48,10 +48,11 @@ export default function AcademicPage() {
 
   async function loadAssignments(classSectionId: string) {
     const [empRes, assRes] = await Promise.all([
-      fetch("/api/employees?status=ACTIVE"),
+      fetch("/api/employees?status=ACTIVE&pageSize=100"),
       fetch(`/api/teaching-assignments?classSectionId=${classSectionId}`),
     ]);
-    setEmployees(await empRes.json());
+    const empJson = await empRes.json();
+    setEmployees(empJson.data ?? empJson);
     setClassAssignments(await assRes.json());
   }
 

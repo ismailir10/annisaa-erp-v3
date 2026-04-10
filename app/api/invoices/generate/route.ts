@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Bulk generate monthly invoices for all active enrolled students
 export async function POST(req: NextRequest) {
+  // Rate limit: 3 invoice generations per minute
+  const { success } = rateLimit(`invoices-gen:${getClientIp(req)}`, 3, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
+  }
+
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -1,25 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { paginatedResponse } from "@/lib/api/response";
+import { validateBody } from "@/lib/api/validate";
+import { createAdmissionSchema } from "@/lib/validations/admission";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
-    return NextResponse.json([], { status: 403 });
+    return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
   }
 
   const { searchParams } = new URL(req.url);
+  const { skip, take, page, pageSize } = parsePagination(searchParams);
+  const { orderBy } = parseSort(searchParams, "createdAt", "desc");
   const status = searchParams.get("status");
+  const search = searchParams.get("search") ?? "";
 
-  const where: Record<string, unknown> = { tenantId: session.tenantId };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = { tenantId: session.tenantId };
   if (status && status !== "all") where.status = status;
+  if (search) {
+    where.OR = [
+      { childName: { contains: search, mode: "insensitive" } },
+      { parentName: { contains: search, mode: "insensitive" } },
+      { parentPhone: { contains: search, mode: "insensitive" } },
+    ];
+  }
 
-  const admissions = await prisma.admission.findMany({
-    where,
-    include: { program: { select: { name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
-  return NextResponse.json(admissions);
+  const [admissions, total] = await Promise.all([
+    prisma.admission.findMany({
+      where,
+      skip,
+      take,
+      include: { program: { select: { name: true } } },
+      orderBy,
+    }),
+    prisma.admission.count({ where }),
+  ]);
+
+  return NextResponse.json(paginatedResponse(admissions, total, page, pageSize));
 }
 
 export async function POST(req: NextRequest) {
@@ -28,10 +49,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
-  if (!body.childName?.trim() || !body.parentName?.trim()) {
-    return NextResponse.json({ error: "Nama anak dan nama orang tua wajib diisi" }, { status: 400 });
-  }
+  const result = await validateBody(createAdmissionSchema, await req.json());
+  if (result.error) return result.error;
+  const body = result.data;
 
   const admission = await prisma.admission.create({
     data: {

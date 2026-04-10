@@ -32,6 +32,12 @@ export async function PUT(req: NextRequest) {
 
   const body: { programId: string; academicYearId: string; fees: { feeComponentId: string; amount: number; notes?: string }[] } = await req.json();
 
+  // Verify tenant ownership of program and academic year
+  const program = await prisma.program.findFirst({ where: { id: body.programId, tenantId: session.tenantId } });
+  if (!program) return NextResponse.json({ error: "Program tidak ditemukan" }, { status: 404 });
+  const year = await prisma.academicYear.findFirst({ where: { id: body.academicYearId, tenantId: session.tenantId } });
+  if (!year) return NextResponse.json({ error: "Tahun ajaran tidak ditemukan" }, { status: 404 });
+
   for (const fee of body.fees) {
     await prisma.programFeeStructure.upsert({
       where: {

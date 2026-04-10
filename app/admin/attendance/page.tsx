@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Pencil, Download } from "lucide-react";
@@ -22,14 +22,7 @@ type EmployeeAttendance = {
 
 type Campus = { id: string; name: string };
 
-const STATUS_LABELS: Record<string, { label: string; class: string }> = {
-  PRESENT: { label: "Hadir", class: "bg-status-present-subtle text-[#00875A]" },
-  LATE: { label: "Terlambat", class: "bg-status-late-subtle text-[#B35C00]" },
-  ABSENT: { label: "Tidak Hadir", class: "bg-status-absent-subtle text-[#CC0000]" },
-  LEAVE: { label: "Izin", class: "bg-status-leave-subtle text-[#0369A1]" },
-  HALF_DAY: { label: "½ Hari", class: "bg-status-late-subtle text-[#B35C00]" },
-  PRESENT_NO_CHECKOUT: { label: "No Checkout", class: "bg-status-no-checkout-subtle text-[#B35C00]" },
-};
+// StatusBadge handles all status→color mappings centrally
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -146,11 +139,9 @@ export default function AttendancePage() {
                   {formatTime(ea.attendance?.checkInTime ?? null)}
                 </span>
                 {ea.attendance ? (
-                  <Badge variant="secondary" className={`text-[10px] ${STATUS_LABELS[ea.attendance.status]?.class ?? ""}`}>
-                    {STATUS_LABELS[ea.attendance.status]?.label ?? ea.attendance.status}
-                  </Badge>
+                  <StatusBadge status={ea.attendance.status} />
                 ) : (
-                  <Badge variant="secondary" className="text-[10px] bg-muted text-muted-foreground">—</Badge>
+                  <StatusBadge status="ABSENT" label="—" />
                 )}
                 <span className="font-currency text-xs text-muted-foreground hidden sm:block">
                   {formatTime(ea.attendance?.checkOutTime ?? null)}

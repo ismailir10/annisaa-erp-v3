@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import { sendSalarySlipEmail } from "@/lib/email/send-slip";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import React from "react";
 
 function formatRupiah(n: number): string {
@@ -14,6 +15,12 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Rate limit: 2 slip sends per minute
+  const { success } = rateLimit(`send-slips:${getClientIp(_req)}`, 2, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
+  }
+
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

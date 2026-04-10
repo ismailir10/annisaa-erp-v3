@@ -8,9 +8,21 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.tenantId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // Only TEACHER or SCHOOL_ADMIN can save scores
+  if (session.role !== "TEACHER" && session.role !== "SCHOOL_ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id } = await params;
+
+  // Verify assessment belongs to tenant via student
+  const assessment = await prisma.studentAssessment.findFirst({
+    where: { id, student: { tenantId: session.tenantId } },
+  });
+  if (!assessment) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
   const { scores, status } = await req.json();
   // scores: [{ indicatorId, score, notes }]
 
@@ -44,11 +56,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session) return NextResponse.json(null, { status: 401 });
+  if (!session?.tenantId) return NextResponse.json(null, { status: 401 });
 
   const { id } = await params;
-  const assessment = await prisma.studentAssessment.findUnique({
-    where: { id },
+
+  // Verify tenant ownership via student
+  const assessment = await prisma.studentAssessment.findFirst({
+    where: { id, student: { tenantId: session.tenantId } },
     include: {
       student: { select: { name: true, nickname: true } },
       template: {
@@ -64,5 +78,6 @@ export async function GET(
     },
   });
 
+  if (!assessment) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
   return NextResponse.json(assessment);
 }
