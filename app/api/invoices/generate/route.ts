@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     const invoiceNumber = `INV-${year}-${String(nextNum).padStart(4, "0")}`;
     nextNum++;
 
-    const totalDue = programFees.reduce((s, f) => s + f.amount, 0);
+    const totalDue = programFees.reduce((s, f) => s + Number(f.amount), 0);
 
     await prisma.invoice.create({
       data: {

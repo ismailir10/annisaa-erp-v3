@@ -69,10 +69,10 @@ export async function PUT(
 
   const result = calculateEmployeePayroll(
     components,
-    salaryValues.map((sv) => ({ componentDefId: sv.componentDefId, value: sv.value })),
+    salaryValues.map((sv) => ({ componentDefId: sv.componentDefId, value: Number(sv.value) })),
     daysPresent, daysLeave, payrollRun.actualWorkDays,
     {
-      overtimeHours: item.overtimeHours,
+      overtimeHours: Number(item.overtimeHours),
       outdoorDays: item.outdoorDays,
       holidayWorkedDays: item.holidayWorkedDays,
       dcDays: item.dcDays,

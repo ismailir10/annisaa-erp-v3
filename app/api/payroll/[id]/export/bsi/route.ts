@@ -40,7 +40,7 @@ export async function GET(
     .map((item) => ({
       bankAccountNo: item.employee.bankAccountNo!,
       nama: item.employee.nama,
-      netAmount: item.netAmount,
+      netAmount: Number(item.netAmount),
       description: `Gaji ${payroll.periodStart} - ${payroll.periodEnd}`,
     }));
 
