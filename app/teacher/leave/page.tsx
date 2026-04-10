@@ -21,6 +21,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Plus, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type LeaveBalance = {
   annual: { total: number; used: number; remaining: number };
@@ -147,8 +148,8 @@ export default function TeacherLeavePage() {
       {/* Request list */}
       {loading ? (
         <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <div key={i} className="h-20 bg-card rounded-xl animate-pulse" />
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
           ))}
         </div>
       ) : requests.length === 0 ? (

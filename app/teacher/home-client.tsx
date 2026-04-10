@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { formatTime } from "@/lib/format";
 
 type TodayRecord = {
   status: string;
@@ -99,15 +100,6 @@ export function TeacherHomeClient({
     year: "numeric",
   });
 
-  const formatTime = (iso: string | null) => {
-    if (!iso) return "--:--";
-    return new Date(iso).toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  };
-
   const greeting = time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam";
 
   return (
@@ -143,7 +135,7 @@ export function TeacherHomeClient({
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
-                className="w-36 h-36 rounded-full bg-[#00B37E] flex items-center justify-center"
+                className="w-36 h-36 rounded-full bg-[var(--status-present)] flex items-center justify-center"
               >
                 <motion.span
                   initial={{ scale: 0 }}
@@ -163,10 +155,10 @@ export function TeacherHomeClient({
                 disabled={hasCheckedOut || loading}
                 className={`w-36 h-36 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg transition-colors ${
                   hasCheckedOut
-                    ? "bg-[#00B37E] cursor-default"
+                    ? "bg-[var(--status-present)] cursor-default"
                     : hasCheckedIn
-                    ? "bg-[#FF8C00] hover:bg-[#E67E00]"
-                    : "bg-[#5DB4B8] hover:bg-[#4A9DA1]"
+                    ? "bg-[var(--status-late)] hover:opacity-90"
+                    : "bg-primary hover:opacity-90"
                 } ${loading ? "animate-pulse" : ""}`}
               >
                 {loading
@@ -222,9 +214,9 @@ export function TeacherHomeClient({
           <div>
             <p className="text-xs text-muted-foreground">Status</p>
             <p className="text-sm font-semibold mt-0.5">
-              {record?.status === "PRESENT" && <span className="text-[#00B37E]">Hadir</span>}
-              {record?.status === "LATE" && <span className="text-[#FF8C00]">Terlambat</span>}
-              {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-[#FFB020]">Hadir</span>}
+              {record?.status === "PRESENT" && <span className="text-[var(--status-present)]">Hadir</span>}
+              {record?.status === "LATE" && <span className="text-[var(--status-late)]">Terlambat</span>}
+              {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-[var(--status-late)]">Hadir</span>}
               {!record && <span className="text-muted-foreground">—</span>}
             </p>
           </div>

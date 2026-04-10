@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { AttendanceCalendar } from "@/components/attendance/calendar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type AttendanceRecord = {
   id: string;
@@ -21,6 +22,7 @@ export default function TeacherAttendancePage() {
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/attendance/my?month=${month}&year=${year}`);
+    if (!res.ok) { setLoading(false); return; }
     setRecords(await res.json());
     setLoading(false);
   }, [month, year]);
@@ -37,7 +39,11 @@ export default function TeacherAttendancePage() {
     <div className="px-5 pt-6 pb-4">
       <h1 className="text-lg font-bold mb-4">Kehadiran Saya</h1>
       {loading ? (
-        <div className="animate-pulse h-80 bg-card rounded-xl" />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
       ) : (
         <AttendanceCalendar
           records={records}
