@@ -282,6 +282,3 @@ export default function TeacherLeavePage() {
     </div>
   );
 }
-v>
-  );
-}
