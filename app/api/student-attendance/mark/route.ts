@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Mark attendance for multiple students at once (teacher submits class attendance)
 export async function POST(req: NextRequest) {
+  const { success } = rateLimit(`mark-attendance:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session?.employeeId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

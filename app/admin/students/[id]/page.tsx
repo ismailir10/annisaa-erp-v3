@@ -9,12 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { FormField } from "@/components/ui/form-field";
-import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -34,16 +37,16 @@ export default function StudentDetailPage() {
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Edit toggle
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", nickname: "", dateOfBirth: "", gender: "", address: "", notes: "" });
+  const [savingStudent, setSavingStudent] = useState(false);
+
   // Enroll dialog
   const [enrollDialog, setEnrollDialog] = useState(false);
   const [sections, setSections] = useState<ClassSection[]>([]);
   const [selectedSection, setSelectedSection] = useState("");
   const [enrolling, setEnrolling] = useState(false);
-
-  // Student edit dialog
-  const [editStudentDialog, setEditStudentDialog] = useState(false);
-  const [studentForm, setStudentForm] = useState({ name: "", nickname: "", dateOfBirth: "", gender: "", address: "", notes: "" });
-  const [savingStudent, setSavingStudent] = useState(false);
 
   // Guardian dialog
   const [guardianDialog, setGuardianDialog] = useState(false);
@@ -56,37 +59,35 @@ export default function StudentDetailPage() {
   const [deactivateOpen, setDeactivateOpen] = useState(false);
 
   const fetchStudent = useCallback(async () => {
-    const res = await fetch(`/api/students/${id}`);
-    if (res.ok) setStudent(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/students/${id}`);
+      if (!res.ok) { toast.error("Gagal memuat data siswa"); return; }
+      setStudent(await res.json());
+    } catch { toast.error("Terjadi kesalahan"); }
+    finally { setLoading(false); }
   }, [id]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchStudent(); }, [fetchStudent]);
 
-  // --- Student edit ---
-  function openEditStudent() {
+  // --- Edit toggle ---
+  function startEditing() {
     if (!student) return;
-    setStudentForm({
-      name: student.name,
-      nickname: student.nickname ?? "",
-      dateOfBirth: student.dateOfBirth ?? "",
-      gender: student.gender ?? "",
-      address: student.address ?? "",
-      notes: student.notes ?? "",
+    setEditForm({
+      name: student.name, nickname: student.nickname ?? "",
+      dateOfBirth: student.dateOfBirth ?? "", gender: student.gender ?? "",
+      address: student.address ?? "", notes: student.notes ?? "",
     });
-    setEditStudentDialog(true);
+    setIsEditing(true);
   }
 
   async function saveStudent() {
-    if (!studentForm.name.trim()) { toast.error("Nama wajib diisi"); return; }
+    if (!editForm.name.trim()) { toast.error("Nama wajib diisi"); return; }
     setSavingStudent(true);
     const res = await fetch(`/api/students/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(studentForm),
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
     });
-    if (res.ok) { toast.success("Data siswa diperbarui"); setEditStudentDialog(false); fetchStudent(); }
+    if (res.ok) { toast.success("Data siswa diperbarui"); setIsEditing(false); fetchStudent(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal menyimpan"); }
     setSavingStudent(false);
   }
@@ -107,9 +108,7 @@ export default function StudentDetailPage() {
   async function saveGuardian() {
     if (!guardianForm.name.trim()) { toast.error("Nama wali wajib diisi"); return; }
     setSavingGuardian(true);
-    const url = editingGuardian
-      ? `/api/students/${id}/guardians/${editingGuardian.id}`
-      : `/api/students/${id}/guardians`;
+    const url = editingGuardian ? `/api/students/${id}/guardians/${editingGuardian.id}` : `/api/students/${id}/guardians`;
     const method = editingGuardian ? "PUT" : "POST";
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(guardianForm) });
     if (res.ok) { toast.success(editingGuardian ? "Data wali diperbarui" : "Wali ditambahkan"); setGuardianDialog(false); fetchStudent(); }
@@ -126,18 +125,20 @@ export default function StudentDetailPage() {
 
   // --- Enroll ---
   async function openEnrollDialog() {
-    const res = await fetch("/api/class-sections");
-    setSections(await res.json());
-    setSelectedSection("");
-    setEnrollDialog(true);
+    try {
+      const res = await fetch("/api/class-sections");
+      if (!res.ok) { toast.error("Gagal memuat data kelas"); return; }
+      setSections(await res.json());
+      setSelectedSection("");
+      setEnrollDialog(true);
+    } catch { toast.error("Terjadi kesalahan"); }
   }
 
   async function handleEnroll() {
     if (!selectedSection) { toast.error("Pilih kelas"); return; }
     setEnrolling(true);
     const res = await fetch(`/api/students/${id}/enroll`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ classSectionId: selectedSection }),
     });
     if (res.ok) { toast.success("Siswa berhasil didaftarkan ke kelas"); setEnrollDialog(false); fetchStudent(); }
@@ -148,16 +149,22 @@ export default function StudentDetailPage() {
   // --- Deactivate ---
   async function handleDeactivate() {
     const res = await fetch(`/api/students/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "INACTIVE" }),
     });
     if (res.ok) { toast.success("Siswa dinonaktifkan"); setDeactivateOpen(false); fetchStudent(); }
     else toast.error("Gagal menonaktifkan");
   }
 
-  if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
-  if (!student) return <div className="text-center py-20 text-muted-foreground">Siswa tidak ditemukan.</div>;
+  if (loading) return (
+    <div className="space-y-4">
+      <Skeleton className="h-4 w-48" />
+      <Skeleton className="h-8 w-72" />
+      <Skeleton className="h-64" />
+      <Skeleton className="h-48" />
+    </div>
+  );
+  if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
 
   const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
   const metadata = student.metadata ? JSON.parse(student.metadata) : null;
@@ -176,9 +183,11 @@ export default function StudentDetailPage() {
         actions={
           <div className="flex gap-2">
             <StatusBadge status={student.status} />
-            <Button size="sm" variant="outline" onClick={openEditStudent}>
-              <Pencil size={14} className="mr-1" /> Edit
-            </Button>
+            {!isEditing && (
+              <Button size="sm" variant="outline" onClick={startEditing}>
+                <Pencil size={14} className="mr-1" /> Edit
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={openEnrollDialog}>
               <Plus size={14} className="mr-1" /> Daftarkan ke Kelas
             </Button>
@@ -191,80 +200,86 @@ export default function StudentDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Student Info */}
-        <Card className="p-5 lg:col-span-2">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Data Anak</h3>
+      {/* Summary Card — View/Edit toggle */}
+      <Card className="p-5 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data Anak</h3>
+          {isEditing && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={savingStudent}>
+                <X size={14} className="mr-1" /> Batal
+              </Button>
+              <Button size="sm" onClick={saveStudent} disabled={savingStudent}>
+                <Save size={14} className="mr-1" /> {savingStudent ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {isEditing ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field><FieldLabel>Nama Lengkap</FieldLabel><Input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></Field>
+            <Field><FieldLabel>Nama Panggilan</FieldLabel><Input value={editForm.nickname} onChange={e => setEditForm({ ...editForm, nickname: e.target.value })} /></Field>
+            <Field><FieldLabel>Tanggal Lahir</FieldLabel><Input type="date" value={editForm.dateOfBirth} onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })} /></Field>
+            <Field>
+              <FieldLabel>Jenis Kelamin</FieldLabel>
+              <Select value={editForm.gender || undefined} onValueChange={v => v && setEditForm({ ...editForm, gender: v })}>
+                <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="L">Laki-laki</SelectItem>
+                  <SelectItem value="P">Perempuan</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field className="sm:col-span-2"><FieldLabel>Alamat</FieldLabel><Textarea value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} rows={2} /></Field>
+            <Field className="sm:col-span-2"><FieldLabel>Catatan</FieldLabel><Textarea value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></Field>
+          </div>
+        ) : (
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-3">
               <User size={16} className="text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-[10px] text-muted-foreground">Nama Lengkap</p>
-                <p className="text-sm font-medium">{student.name}</p>
-              </div>
+              <div><p className="text-[10px] text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{student.name}</p></div>
             </div>
-            {student.nickname && (
-              <div>
-                <p className="text-[10px] text-muted-foreground">Nama Panggilan</p>
-                <p className="text-sm font-medium">{student.nickname}</p>
-              </div>
-            )}
-            {student.dateOfBirth && (
-              <div>
-                <p className="text-[10px] text-muted-foreground">Tanggal Lahir</p>
-                <p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}</p>
-              </div>
-            )}
-            {student.gender && (
-              <div>
-                <p className="text-[10px] text-muted-foreground">Jenis Kelamin</p>
-                <p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : "Perempuan"}</p>
-              </div>
-            )}
+            {student.nickname && <div><p className="text-[10px] text-muted-foreground">Nama Panggilan</p><p className="text-sm font-medium">{student.nickname}</p></div>}
+            {student.dateOfBirth && <div><p className="text-[10px] text-muted-foreground">Tanggal Lahir</p><p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}</p></div>}
+            {student.gender && <div><p className="text-[10px] text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : "Perempuan"}</p></div>}
             {student.address && (
               <div className="col-span-2 flex items-start gap-3">
                 <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Alamat</p>
-                  <p className="text-sm">{student.address}</p>
-                </div>
+                <div><p className="text-[10px] text-muted-foreground">Alamat</p><p className="text-sm">{student.address}</p></div>
               </div>
             )}
-            {student.notes && (
-              <div className="col-span-2">
-                <p className="text-[10px] text-muted-foreground">Catatan</p>
-                <p className="text-sm">{student.notes}</p>
-              </div>
-            )}
+            {student.notes && <div className="col-span-2"><p className="text-[10px] text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
           </div>
+        )}
 
-          {metadata && Object.keys(metadata).length > 0 && (
-            <>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Informasi Tambahan</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(metadata).map(([key, value]) => (
-                  <div key={key}>
-                    <p className="text-[10px] text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p>
-                    <p className="text-sm">{String(value)}</p>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </Card>
+        {!isEditing && metadata && Object.keys(metadata).length > 0 && (
+          <>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Informasi Tambahan</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(metadata).map(([key, value]) => (
+                <div key={key}><p className="text-[10px] text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p><p className="text-sm">{String(value)}</p></div>
+              ))}
+            </div>
+          </>
+        )}
+      </Card>
 
-        {/* Guardian + Enrollment */}
-        <div className="space-y-4">
-          {/* Guardians */}
-          <Card className="p-5">
+      {/* Tabs for related data */}
+      <Tabs defaultValue="guardians">
+        <TabsList>
+          <TabsTrigger value="guardians">Orang Tua / Wali</TabsTrigger>
+          <TabsTrigger value="enrollments">Riwayat Kelas</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="guardians">
+          <Card className="p-5 mt-2">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Orang Tua / Wali</h3>
-              <Button size="sm" variant="ghost" onClick={openAddGuardian}>
-                <Plus size={12} className="mr-1" /> Tambah
-              </Button>
+              <Button size="sm" variant="ghost" onClick={openAddGuardian}><Plus size={12} className="mr-1" /> Tambah</Button>
             </div>
             {student.guardians.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Belum ada data wali.</p>
+              <EmptyState title="Belum ada data wali" description="Tambahkan orang tua atau wali siswa." />
             ) : (
               <div className="space-y-3">
                 {student.guardians.map(g => (
@@ -290,24 +305,20 @@ export default function StudentDetailPage() {
               </div>
             )}
           </Card>
+        </TabsContent>
 
-          {/* Enrollments */}
-          <Card className="p-5">
+        <TabsContent value="enrollments">
+          <Card className="p-5 mt-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Riwayat Kelas</h3>
             {student.enrollments.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Belum terdaftar di kelas manapun.</p>
+              <EmptyState title="Belum terdaftar di kelas" description="Daftarkan siswa ke kelas melalui tombol di atas." />
             ) : (
               <div className="space-y-2">
                 {student.enrollments.map(e => (
                   <div key={e.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <GraduationCap size={14} className="text-primary" />
-                        <span className="text-sm font-medium">{e.classSection.name}</span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {e.classSection.program.name} · {e.classSection.academicYear.name} · {e.classSection.campus.name}
-                      </p>
+                      <div className="flex items-center gap-2"><GraduationCap size={14} className="text-primary" /><span className="text-sm font-medium">{e.classSection.name}</span></div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{e.classSection.program.name} · {e.classSection.academicYear.name} · {e.classSection.campus.name}</p>
                     </div>
                     <StatusBadge status={e.status} />
                   </div>
@@ -315,82 +326,32 @@ export default function StudentDetailPage() {
               </div>
             )}
           </Card>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
 
-      {/* Edit Student Dialog */}
-      <Dialog open={editStudentDialog} onOpenChange={setEditStudentDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Data Siswa</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Nama Lengkap" required>
-                <Input value={studentForm.name} onChange={e => setStudentForm({ ...studentForm, name: e.target.value })} />
-              </FormField>
-              <FormField label="Nama Panggilan">
-                <Input value={studentForm.nickname} onChange={e => setStudentForm({ ...studentForm, nickname: e.target.value })} />
-              </FormField>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Tanggal Lahir">
-                <Input type="date" value={studentForm.dateOfBirth} onChange={e => setStudentForm({ ...studentForm, dateOfBirth: e.target.value })} />
-              </FormField>
-              <FormField label="Jenis Kelamin">
-                <Select value={studentForm.gender || undefined} onValueChange={v => v && setStudentForm({ ...studentForm, gender: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="L">Laki-laki</SelectItem>
-                    <SelectItem value="P">Perempuan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormField>
-            </div>
-            <FormField label="Alamat">
-              <Textarea value={studentForm.address} onChange={e => setStudentForm({ ...studentForm, address: e.target.value })} rows={2} />
-            </FormField>
-            <FormField label="Catatan">
-              <Textarea value={studentForm.notes} onChange={e => setStudentForm({ ...studentForm, notes: e.target.value })} rows={2} />
-            </FormField>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={saveStudent} disabled={savingStudent}>{savingStudent ? "Menyimpan..." : "Simpan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Guardian Dialog (Add/Edit) */}
+      {/* Guardian Dialog */}
       <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingGuardian ? "Edit Wali" : "Tambah Wali"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Nama" required>
-                <Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" />
-              </FormField>
-              <FormField label="Hubungan">
+              <Field><FieldLabel>Nama *</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
+              <Field>
+                <FieldLabel>Hubungan</FieldLabel>
                 <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="AYAH">Ayah</SelectItem>
-                    <SelectItem value="IBU">Ibu</SelectItem>
-                    <SelectItem value="WALI">Wali</SelectItem>
-                    <SelectItem value="OTHER">Lainnya</SelectItem>
+                    <SelectItem value="AYAH">Ayah</SelectItem><SelectItem value="IBU">Ibu</SelectItem>
+                    <SelectItem value="WALI">Wali</SelectItem><SelectItem value="OTHER">Lainnya</SelectItem>
                   </SelectContent>
                 </Select>
-              </FormField>
+              </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="No. HP">
-                <Input value={guardianForm.phone} onChange={e => setGuardianForm({ ...guardianForm, phone: e.target.value })} placeholder="081234567890" />
-              </FormField>
-              <FormField label="WhatsApp">
-                <Input value={guardianForm.whatsapp} onChange={e => setGuardianForm({ ...guardianForm, whatsapp: e.target.value })} placeholder="081234567890" />
-              </FormField>
+              <Field><FieldLabel>No. HP</FieldLabel><Input value={guardianForm.phone} onChange={e => setGuardianForm({ ...guardianForm, phone: e.target.value })} placeholder="081234567890" /></Field>
+              <Field><FieldLabel>WhatsApp</FieldLabel><Input value={guardianForm.whatsapp} onChange={e => setGuardianForm({ ...guardianForm, whatsapp: e.target.value })} placeholder="081234567890" /></Field>
             </div>
-            <FormField label="Email">
-              <Input type="email" value={guardianForm.email} onChange={e => setGuardianForm({ ...guardianForm, email: e.target.value })} placeholder="email@example.com" />
-            </FormField>
+            <Field><FieldLabel>Email</FieldLabel><Input type="email" value={guardianForm.email} onChange={e => setGuardianForm({ ...guardianForm, email: e.target.value })} placeholder="email@example.com" /></Field>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>
@@ -404,18 +365,15 @@ export default function StudentDetailPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
           <div className="py-2">
-            <FormField label="Pilih Kelas" required>
+            <Field>
+              <FieldLabel>Pilih Kelas *</FieldLabel>
               <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)}>
                 <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
                 <SelectContent>
-                  {sections.map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})
-                    </SelectItem>
-                  ))}
+                  {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
                 </SelectContent>
               </Select>
-            </FormField>
+            </Field>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>
@@ -424,25 +382,8 @@ export default function StudentDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Deactivate Confirm */}
-      <ConfirmDialog
-        open={deactivateOpen}
-        onOpenChange={setDeactivateOpen}
-        title="Nonaktifkan Siswa"
-        description={`Nonaktifkan ${student.name}? Siswa tidak akan muncul di daftar aktif.`}
-        onConfirm={handleDeactivate}
-        confirmLabel="Nonaktifkan"
-      />
-
-      {/* Delete Guardian Confirm */}
-      <ConfirmDialog
-        open={!!deleteGuardianTarget}
-        onOpenChange={(o) => !o && setDeleteGuardianTarget(null)}
-        title="Hapus Wali"
-        description={`Hapus data wali "${deleteGuardianTarget?.name}"?`}
-        onConfirm={deleteGuardian}
-        confirmLabel="Hapus"
-      />
+      <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Siswa" description={`Nonaktifkan ${student.name}? Siswa tidak akan muncul di daftar aktif.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" />
+      <ConfirmDialog open={!!deleteGuardianTarget} onOpenChange={(o) => !o && setDeleteGuardianTarget(null)} title="Hapus Wali" description={`Hapus data wali "${deleteGuardianTarget?.name}"?`} onConfirm={deleteGuardian} confirmLabel="Hapus" />
     </>
   );
 }

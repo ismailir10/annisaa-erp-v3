@@ -16,7 +16,7 @@ import {
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
-import { FormField } from "@/components/ui/form-field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, GraduationCap, BookOpen, Users, Calendar } from "lucide-react";
@@ -366,10 +366,10 @@ export default function AcademicPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editingYear ? "Edit Tahun Ajaran" : "Tambah Tahun Ajaran"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <FormField label="Nama" required><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></FormField>
+            <Field><FieldLabel>Nama *</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Mulai"><Input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></FormField>
-              <FormField label="Selesai"><Input type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></FormField>
+              <Field><FieldLabel>Mulai</FieldLabel><Input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
+              <Field><FieldLabel>Selesai</FieldLabel><Input type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
             </div>
           </div>
           <DialogFooter>
@@ -385,11 +385,12 @@ export default function AcademicPage() {
           <DialogHeader><DialogTitle>{editingProgram ? "Edit Program" : "Tambah Program"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Kode" required><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></FormField>
-              <FormField label="Nama" required><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></FormField>
+              <Field><FieldLabel>Kode *</FieldLabel><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
+              <Field><FieldLabel>Nama *</FieldLabel><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
             </div>
-            <FormField label="Deskripsi"><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></FormField>
-            <FormField label="Tipe">
+            <Field><FieldLabel>Deskripsi</FieldLabel><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
+            <Field>
+              <FieldLabel>Tipe</FieldLabel>
               <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -398,10 +399,10 @@ export default function AcademicPage() {
                   <SelectItem value="SESSION">Per Sesi</SelectItem>
                 </SelectContent>
               </Select>
-            </FormField>
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Usia Min (bulan)"><Input type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></FormField>
-              <FormField label="Usia Max (bulan)"><Input type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></FormField>
+              <Field><FieldLabel>Usia Min (bulan)</FieldLabel><Input type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></Field>
+              <Field><FieldLabel>Usia Max (bulan)</FieldLabel><Input type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></Field>
             </div>
           </div>
           <DialogFooter>
@@ -416,26 +417,29 @@ export default function AcademicPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editingSection ? "Edit Kelas" : "Tambah Kelas"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <FormField label="Nama Kelas" required><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></FormField>
-            <FormField label="Program" required>
+            <Field><FieldLabel>Nama Kelas *</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
+            <Field>
+              <FieldLabel>Program *</FieldLabel>
               <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })}>
                 <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
                 <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
-            </FormField>
-            <FormField label="Tahun Ajaran" required>
+            </Field>
+            <Field>
+              <FieldLabel>Tahun Ajaran *</FieldLabel>
               <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })}>
                 <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
                 <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
               </Select>
-            </FormField>
-            <FormField label="Kampus" required>
+            </Field>
+            <Field>
+              <FieldLabel>Kampus *</FieldLabel>
               <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })}>
                 <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
                 <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
-            </FormField>
-            <FormField label="Kapasitas"><Input type="number" value={sectionForm.capacity} onChange={e => setSectionForm({ ...sectionForm, capacity: e.target.value })} /></FormField>
+            </Field>
+            <Field><FieldLabel>Kapasitas</FieldLabel><Input type="number" value={sectionForm.capacity} onChange={e => setSectionForm({ ...sectionForm, capacity: e.target.value })} /></Field>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>
@@ -465,7 +469,8 @@ export default function AcademicPage() {
             )}
             <div className="pt-2 border-t border-border">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tambah Guru</p>
-              <FormField label="Pilih Guru">
+              <Field>
+                <FieldLabel>Pilih Guru</FieldLabel>
                 <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })}>
                   <SelectTrigger><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
                   <SelectContent>
@@ -474,7 +479,7 @@ export default function AcademicPage() {
                       .map(e => <SelectItem key={e.id} value={e.id}>{e.nama} ({e.jabatan})</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </FormField>
+              </Field>
               <Button size="sm" className="mt-2" onClick={handleAssignTeacher} disabled={assignSaving}>
                 {assignSaving ? "Menugaskan..." : "Tugaskan Guru"}
               </Button>

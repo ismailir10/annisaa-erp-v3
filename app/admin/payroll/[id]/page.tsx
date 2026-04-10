@@ -9,7 +9,8 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -166,7 +167,7 @@ export default function PayrollDetailPage() {
     setSending(false);
   }
 
-  if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
+  if (loading) return <Skeleton className="h-96 w-full rounded-xl" />;
   if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p></div>;
 
   const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
@@ -231,7 +232,7 @@ export default function PayrollDetailPage() {
           <div>
             <span className="font-currency text-sm font-bold">{formatRupiah(item.netAmount)}</span>
             {delta !== undefined && (
-              <p className={`font-currency text-[10px] ${delta >= 0 ? "text-[#00B37E]" : "text-[#FF3B3B]"}`}>
+              <p className={`font-currency text-[10px] ${delta >= 0 ? "text-success" : "text-destructive"}`}>
                 {delta >= 0 ? "+" : ""}{formatRupiah(delta)}
               </p>
             )}
@@ -287,7 +288,7 @@ export default function PayrollDetailPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Card className="p-4"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-lg font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
         <Card className="p-4"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-lg font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-[#5DB4B8]">{formatRupiah(totalNet)}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
         <Card className="p-4"><p className="text-xs text-muted-foreground">Status</p>
           <StatusBadge status={data.status} />
           {noBank.length > 0 && <p className="text-[10px] text-destructive mt-1">{noBank.length} tanpa rekening</p>}
@@ -356,7 +357,7 @@ export default function PayrollDetailPage() {
                 <div className="border-t border-border pt-3 space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Pendapatan</span><span className="font-currency font-medium">{formatRupiah(detailItem.grossAmount)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Potongan</span><span className="font-currency font-medium text-destructive">{formatRupiah(detailItem.deductions)}</span></div>
-                  <div className="flex justify-between font-bold text-base"><span>Bersih</span><span className="font-currency text-[#5DB4B8]">{formatRupiah(detailItem.netAmount)}</span></div>
+                  <div className="flex justify-between font-bold text-base"><span>Bersih</span><span className="font-currency text-primary">{formatRupiah(detailItem.netAmount)}</span></div>
                 </div>
 
                 {/* Bank info */}
@@ -379,10 +380,10 @@ export default function PayrollDetailPage() {
             <DialogDescription>{varsModal?.employee.nama}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div><Label>Jam Lembur</Label><Input type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></div>
-            <div><Label>Hari Outdoor</Label><Input type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></div>
-            <div><Label>Hari Libur Kerja</Label><Input type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></div>
-            <div><Label>Hari DC</Label><Input type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></div>
+            <Field><FieldLabel>Jam Lembur</FieldLabel><Input type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel>Hari Outdoor</FieldLabel><Input type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel>Hari Libur Kerja</FieldLabel><Input type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel>Hari DC</FieldLabel><Input type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>
@@ -400,9 +401,9 @@ export default function PayrollDetailPage() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
-            <div><Label>Penyesuaian (+ atau -)</Label><Input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></div>
-            <div><Label>Catatan *</Label><Textarea value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></div>
-            <p className="text-sm">Final: <span className="font-currency font-bold text-[#5DB4B8]">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
+            <Field><FieldLabel>Penyesuaian (+ atau -)</FieldLabel><Input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
+            <Field><FieldLabel>Catatan *</FieldLabel><Textarea value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
+            <p className="text-sm">Final: <span className="font-currency font-bold text-primary">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>

@@ -113,7 +113,7 @@ npm run build && npx vitest run
 | Empty list | `<EmptyState>` | Plain `<p>` |
 | Confirm | `<ConfirmDialog>` | `window.confirm()` |
 | Destructive confirm | `<AlertDialog>` | `window.confirm()` for delete |
-| Form field | `<FormField>` | Raw `<Label>` + `<Input>` |
+| Form field | `<Field>` + `<FieldLabel>` + `<FieldDescription>` | Raw `<Label>` + `<Input>` or custom `<FormField>` |
 | Loading | `<Skeleton>` | `animate-pulse` divs |
 | Progress | `<Progress>` | Custom progress bars |
 | Accordion | `<Accordion>` | Custom expand/collapse |
@@ -200,19 +200,71 @@ PageHeader (title + count + "Tambah" button)
 ### Detail Page Layout Standard
 
 ```
-Back link ("← Kembali")
-PageHeader (title + description + action buttons)
-├── Summary Cards or Info Grid
-└── Content (tabs, or single section with related data)
+Back link ("← Kembali ke Daftar {Entity}")
+PageHeader (title + description + StatusBadge + action buttons)
+├── Summary Card (read-only info grid, 2-col)
+└── Tabs (if entity has multiple concerns)
+    ├── Tab 1: Primary related data
+    ├── Tab 2: Secondary data
+    └── Tab 3: History
 ```
 
-### Edit Dialog Standard
+### Edit Toggle Pattern (Detail Pages)
+
+- **View mode** (default): fields displayed as read-only text (label + value pairs)
+- Click **"Edit"** button in PageHeader → switches to **Edit mode**
+- Edit mode: same layout positions, values become `<Field>` + `<FieldLabel>` + `<Input>`
+- **Save** + **Cancel** (X) buttons appear in the card header
+- Cancel reverts to view mode (resets form state)
+- Nested entities (guardians, payments) still use **Dialog** for add/edit
+
+```tsx
+// Edit toggle pattern:
+const [isEditing, setIsEditing] = useState(false);
+const [editForm, setEditForm] = useState({ ... });
+
+// View mode: read-only text
+<div><p className="text-[10px] text-muted-foreground">Label</p><p className="text-sm font-medium">{value}</p></div>
+
+// Edit mode: Field + Input
+<Field><FieldLabel>Label</FieldLabel><Input value={editForm.field} onChange={...} /></Field>
+```
+
+### Form Field Standard
+
+Use Shadcn `Field` component (`components/ui/field.tsx`) — **never** raw `Label` + `Input` or custom `FormField`.
+
+```tsx
+import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field"
+
+<Field>
+  <FieldLabel>Nama Lengkap</FieldLabel>
+  <Input value={...} onChange={...} />
+  <FieldDescription>Optional help text</FieldDescription>
+  <FieldError>{error}</FieldError>
+</Field>
+```
+
+### Edit Dialog Standard (for nested entities)
 
 - Same form fields as create dialog, pre-filled with current values
-- Title: "Edit {EntityName}" (e.g., "Edit Siswa")
+- Title: "Edit {EntityName}" (e.g., "Edit Wali")
 - Save button: "Simpan" with loading state
 - Cancel button: "Batal"
 - On success: `toast.success()` + close dialog + refetch data
+
+### Color Standard
+
+**Never use hardcoded hex colors.** Use CSS variables defined in `globals.css`:
+
+| Need | Use | NEVER |
+|------|-----|-------|
+| Success/present | `text-status-present`, `bg-status-present` | `text-[#00B37E]` |
+| Warning/late | `text-status-late`, `text-warning` | `text-[#FF8C00]` |
+| Error/absent | `text-destructive`, `text-status-absent` | `text-[#FF3B3B]` |
+| Leave/info | `text-status-leave`, `text-info` | `text-[#0EA5E9]` |
+| Status text (badges) | `text-status-present-text` | `text-[#00875A]` |
+| Status backgrounds | `bg-status-present-subtle` | `bg-[#E6F9F1]` |
 
 ---
 

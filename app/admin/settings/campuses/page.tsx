@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
@@ -128,7 +129,7 @@ export default function CampusesPage() {
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[1, 2].map((i) => (
-            <div key={i} className="h-32 bg-card border border-border rounded-xl animate-pulse" />
+            <Skeleton key={i} className="h-32" />
           ))}
         </div>
       ) : (
@@ -183,23 +184,23 @@ export default function CampusesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <Label>Nama *</Label>
+            <Field>
+              <FieldLabel>Nama *</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" />
-            </div>
-            <div>
-              <Label>Alamat</Label>
+            </Field>
+            <Field>
+              <FieldLabel>Alamat</FieldLabel>
               <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Jl. Contoh No.1, Bekasi" />
-            </div>
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Latitude</Label>
+              <Field>
+                <FieldLabel>Latitude</FieldLabel>
                 <Input value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} placeholder="-6.2234" type="number" step="any" />
-              </div>
-              <div>
-                <Label>Longitude</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Longitude</FieldLabel>
                 <Input value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} placeholder="106.8432" type="number" step="any" />
-              </div>
+              </Field>
             </div>
             <Button variant="outline" size="sm" onClick={getCurrentLocation} type="button">
               <LocateFixed size={14} className="mr-1.5" /> Ambil Lokasi Saat Ini

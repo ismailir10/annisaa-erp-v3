@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { FormField } from "@/components/ui/form-field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -62,12 +62,13 @@ export default function NewStudentPage() {
         <Card className="p-6 space-y-5">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Data Anak</h3>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Nama Lengkap" required><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Aisyah Putri" /></FormField>
-            <FormField label="Nama Panggilan"><Input value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} placeholder="Aisyah" /></FormField>
+            <Field><FieldLabel>Nama Lengkap *</FieldLabel><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Aisyah Putri" /></Field>
+            <Field><FieldLabel>Nama Panggilan</FieldLabel><Input value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} placeholder="Aisyah" /></Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Tanggal Lahir"><Input type="date" value={form.dateOfBirth} onChange={e => setForm({ ...form, dateOfBirth: e.target.value })} /></FormField>
-            <FormField label="Jenis Kelamin">
+            <Field><FieldLabel>Tanggal Lahir</FieldLabel><Input type="date" value={form.dateOfBirth} onChange={e => setForm({ ...form, dateOfBirth: e.target.value })} /></Field>
+            <Field>
+              <FieldLabel>Jenis Kelamin</FieldLabel>
               <Select value={form.gender} onValueChange={v => v && setForm({ ...form, gender: v })}>
                 <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                 <SelectContent>
@@ -75,18 +76,19 @@ export default function NewStudentPage() {
                   <SelectItem value="P">Perempuan</SelectItem>
                 </SelectContent>
               </Select>
-            </FormField>
+            </Field>
           </div>
-          <FormField label="Alamat"><Textarea value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} rows={2} placeholder="Alamat lengkap" /></FormField>
-          <FormField label="Catatan"><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Alergi, kebutuhan khusus, dll." /></FormField>
+          <Field><FieldLabel>Alamat</FieldLabel><Textarea value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} rows={2} placeholder="Alamat lengkap" /></Field>
+          <Field><FieldLabel>Catatan</FieldLabel><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Alergi, kebutuhan khusus, dll." /></Field>
         </Card>
 
         {/* Guardian Info */}
         <Card className="p-6 space-y-5">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Data Orang Tua / Wali</h3>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Nama" required><Input value={guardian.name} onChange={e => setGuardian({ ...guardian, name: e.target.value })} placeholder="Ibu Fatimah" /></FormField>
-            <FormField label="Hubungan">
+            <Field><FieldLabel>Nama *</FieldLabel><Input value={guardian.name} onChange={e => setGuardian({ ...guardian, name: e.target.value })} placeholder="Ibu Fatimah" /></Field>
+            <Field>
+              <FieldLabel>Hubungan</FieldLabel>
               <Select value={guardian.relationship} onValueChange={v => v && setGuardian({ ...guardian, relationship: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -96,13 +98,13 @@ export default function NewStudentPage() {
                   <SelectItem value="OTHER">Lainnya</SelectItem>
                 </SelectContent>
               </Select>
-            </FormField>
+            </Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="No. HP"><Input value={guardian.phone} onChange={e => setGuardian({ ...guardian, phone: e.target.value })} placeholder="Contoh: 081234567890" /></FormField>
-            <FormField label="WhatsApp"><Input value={guardian.whatsapp} onChange={e => setGuardian({ ...guardian, whatsapp: e.target.value })} placeholder="Contoh: 081234567890" /></FormField>
+            <Field><FieldLabel>No. HP</FieldLabel><Input value={guardian.phone} onChange={e => setGuardian({ ...guardian, phone: e.target.value })} placeholder="Contoh: 081234567890" /></Field>
+            <Field><FieldLabel>WhatsApp</FieldLabel><Input value={guardian.whatsapp} onChange={e => setGuardian({ ...guardian, whatsapp: e.target.value })} placeholder="Contoh: 081234567890" /></Field>
           </div>
-          <FormField label="Email"><Input type="email" value={guardian.email} onChange={e => setGuardian({ ...guardian, email: e.target.value })} placeholder="email@contoh.com" /></FormField>
+          <Field><FieldLabel>Email</FieldLabel><Input type="email" value={guardian.email} onChange={e => setGuardian({ ...guardian, email: e.target.value })} placeholder="email@contoh.com" /></Field>
         </Card>
 
         <Button onClick={handleSubmit} disabled={saving} className="w-full">

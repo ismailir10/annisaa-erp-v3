@@ -69,21 +69,21 @@ export function DashboardClient({
                         initial={{ height: 0 }}
                         animate={{ height: `${absentH}%` }}
                         transition={{ delay: 0.4 + i * 0.05, duration: 0.4 }}
-                        className="w-full max-w-8 bg-[#FF3B3B]/20 rounded-t-sm"
+                        className="w-full max-w-8 bg-status-absent/20 rounded-t-sm"
                         title={`Tidak hadir: ${day.absent}`}
                       />
                       <motion.div
                         initial={{ height: 0 }}
                         animate={{ height: `${lateH}%` }}
                         transition={{ delay: 0.4 + i * 0.05, duration: 0.4 }}
-                        className="w-full max-w-8 bg-[#FF8C00]/30"
+                        className="w-full max-w-8 bg-status-late/30"
                         title={`Terlambat: ${day.late}`}
                       />
                       <motion.div
                         initial={{ height: 0 }}
                         animate={{ height: `${presentH}%` }}
                         transition={{ delay: 0.4 + i * 0.05, duration: 0.4 }}
-                        className="w-full max-w-8 bg-[#00B37E] rounded-b-sm"
+                        className="w-full max-w-8 bg-status-present rounded-b-sm"
                         title={`Hadir: ${day.present}`}
                       />
                     </div>
@@ -93,9 +93,9 @@ export function DashboardClient({
               })}
             </div>
             <div className="flex items-center gap-4 mt-3 text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#00B37E]" /> Hadir</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#FF8C00]/60" /> Terlambat</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#FF3B3B]/40" /> Tidak Hadir</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-present" /> Hadir</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-late/60" /> Terlambat</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-absent/40" /> Tidak Hadir</span>
             </div>
           </Card>
         </motion.div>
@@ -112,8 +112,8 @@ export function DashboardClient({
               {/* Pending leave */}
               <Link href="/admin/leave" className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#FF8C00]/10 flex items-center justify-center">
-                    <CalendarOff size={16} className="text-[#FF8C00]" />
+                  <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
+                    <CalendarOff size={16} className="text-warning" />
                   </div>
                   <div>
                     <p className="text-xs font-medium">Pengajuan Cuti</p>
@@ -121,7 +121,7 @@ export function DashboardClient({
                   </div>
                 </div>
                 {pendingLeave > 0 ? (
-                  <Badge className="bg-[#FF8C00] text-white text-[10px]">{pendingLeave}</Badge>
+                  <Badge className="bg-warning text-white text-[10px]">{pendingLeave}</Badge>
                 ) : (
                   <span className="text-[10px] text-muted-foreground">0</span>
                 )}

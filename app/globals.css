@@ -68,6 +68,19 @@
   --color-status-holiday-subtle: var(--status-holiday-subtle);
   --color-status-no-checkout: var(--status-no-checkout);
   --color-status-no-checkout-subtle: var(--status-no-checkout-subtle);
+
+  /* Status text colors */
+  --color-status-present-text: var(--status-present-text);
+  --color-status-late-text: var(--status-late-text);
+  --color-status-absent-text: var(--status-absent-text);
+  --color-status-leave-text: var(--status-leave-text);
+  --color-status-holiday-text: var(--status-holiday-text);
+  --color-status-no-checkout-text: var(--status-no-checkout-text);
+
+  /* Semantic colors */
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
 }
 
 /*
@@ -144,6 +157,19 @@
   --status-holiday-subtle: #F3E8FF;
   --status-no-checkout: #FFB020;
   --status-no-checkout-subtle: #FFF7E6;
+
+  /* Status text (darker shades for readability) */
+  --status-present-text: #00875A;
+  --status-late-text: #B35C00;
+  --status-absent-text: #CC0000;
+  --status-leave-text: #0369A1;
+  --status-holiday-text: #6B21A8;
+  --status-no-checkout-text: #B35C00;
+
+  /* Semantic */
+  --warning: #FF8C00;
+  --success: #00B37E;
+  --info: #0EA5E9;
 }
 
 @layer base {

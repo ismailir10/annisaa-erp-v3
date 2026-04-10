@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -75,7 +76,7 @@ export default function OrgConfigPage() {
     setSaving(false);
   }
 
-  if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
+  if (loading) return <Skeleton className="h-96 w-full rounded-xl" />;
 
   return (
     <>
@@ -83,8 +84,8 @@ export default function OrgConfigPage() {
 
       <Card className="p-6 max-w-2xl space-y-6">
         {/* Working days */}
-        <div>
-          <Label className="mb-3 block">Hari Kerja</Label>
+        <Field>
+          <FieldLabel>Hari Kerja</FieldLabel>
           <div className="flex flex-wrap gap-2">
             {DAYS.map((d) => (
               <label
@@ -103,42 +104,42 @@ export default function OrgConfigPage() {
               </label>
             ))}
           </div>
-        </div>
+        </Field>
 
         {/* Work hours */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>Jam Mulai</Label>
+          <Field>
+            <FieldLabel>Jam Mulai</FieldLabel>
             <Input type="time" value={form.workStartTime} onChange={(e) => setForm({ ...form, workStartTime: e.target.value })} />
-          </div>
-          <div>
-            <Label>Jam Selesai</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Jam Selesai</FieldLabel>
             <Input type="time" value={form.workEndTime} onChange={(e) => setForm({ ...form, workEndTime: e.target.value })} />
-          </div>
+          </Field>
         </div>
 
         {/* Grace period */}
-        <div>
-          <Label>Toleransi Keterlambatan (menit)</Label>
+        <Field>
+          <FieldLabel>Toleransi Keterlambatan (menit)</FieldLabel>
           <Input type="number" min="0" max="60" value={form.gracePeriodMinutes} onChange={(e) => setForm({ ...form, gracePeriodMinutes: e.target.value })} />
-        </div>
+        </Field>
 
         {/* Timezone */}
-        <div>
-          <Label>Zona Waktu</Label>
+        <Field>
+          <FieldLabel>Zona Waktu</FieldLabel>
           <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} />
-        </div>
+        </Field>
 
         {/* Payroll period */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>Tanggal Mulai Gaji</Label>
+          <Field>
+            <FieldLabel>Tanggal Mulai Gaji</FieldLabel>
             <Input type="number" min="1" max="31" value={form.payrollPeriodStartDay} onChange={(e) => setForm({ ...form, payrollPeriodStartDay: e.target.value })} />
-          </div>
-          <div>
-            <Label>Tanggal Selesai Gaji</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Tanggal Selesai Gaji</FieldLabel>
             <Input type="number" min="1" max="31" value={form.payrollPeriodEndDay} onChange={(e) => setForm({ ...form, payrollPeriodEndDay: e.target.value })} />
-          </div>
+          </Field>
         </div>
 
         <div className="pt-2">

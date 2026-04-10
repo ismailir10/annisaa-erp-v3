@@ -28,6 +28,13 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+
+  // Verify programId belongs to tenant
+  const program = await prisma.program.findFirst({
+    where: { id: body.programId, tenantId: session.tenantId },
+  });
+  if (!program) return NextResponse.json({ error: "Program tidak ditemukan" }, { status: 404 });
+
   const template = await prisma.assessmentTemplate.create({
     data: {
       tenantId: session.tenantId,

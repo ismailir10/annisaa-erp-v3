@@ -42,7 +42,7 @@ const columns: ColumnDef<InvoiceItem>[] = [
         <div>
           <span className="font-currency text-sm font-bold">{formatRupiah(inv.totalDue)}</span>
           {inv.totalPaid > 0 && inv.totalPaid < inv.totalDue && (
-            <p className="font-currency text-[10px] text-[#00B37E]">Dibayar: {formatRupiah(inv.totalPaid)}</p>
+            <p className="font-currency text-[10px] text-success">Dibayar: {formatRupiah(inv.totalPaid)}</p>
           )}
           {remaining > 0 && inv.status !== "DRAFT" && (
             <p className="font-currency text-[10px] text-destructive">Sisa: {formatRupiah(remaining)}</p>

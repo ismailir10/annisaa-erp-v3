@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
-import { FormField } from "@/components/ui/form-field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -187,13 +187,16 @@ export default function HolidaysPage() {
             <DialogDescription>Hari libur mempengaruhi perhitungan hari kerja</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <FormField label="Tanggal" required>
+            <Field>
+              <FieldLabel>Tanggal *</FieldLabel>
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-            </FormField>
-            <FormField label="Nama" required>
+            </Field>
+            <Field>
+              <FieldLabel>Nama *</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Hari Raya Idul Fitri" />
-            </FormField>
-            <FormField label="Tipe">
+            </Field>
+            <Field>
+              <FieldLabel>Tipe</FieldLabel>
               <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -202,7 +205,7 @@ export default function HolidaysPage() {
                   <SelectItem value="SCHOOL_CLOSURE">Penutupan Sekolah</SelectItem>
                 </SelectContent>
               </Select>
-            </FormField>
+            </Field>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={form.isHalfDay} onCheckedChange={(c) => setForm({ ...form, isHalfDay: !!c })} />
               Setengah hari
