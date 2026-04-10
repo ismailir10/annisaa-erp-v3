@@ -1,28 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { paginatedResponse } from "@/lib/api/response";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
-    return NextResponse.json([], { status: 403 });
+    return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
   }
 
   const { searchParams } = new URL(req.url);
+  const { skip, take, page, pageSize } = parsePagination(searchParams);
+  const { orderBy } = parseSort(searchParams, "createdAt", "desc");
   const status = searchParams.get("status");
   const studentId = searchParams.get("studentId");
+  const search = searchParams.get("search") ?? "";
 
-  const where: Record<string, unknown> = { tenantId: session.tenantId };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = { tenantId: session.tenantId };
   if (status && status !== "all") where.status = status;
   if (studentId) where.studentId = studentId;
+  if (search) {
+    where.OR = [
+      { invoiceNumber: { contains: search, mode: "insensitive" } },
+      { periodLabel: { contains: search, mode: "insensitive" } },
+      { student: { name: { contains: search, mode: "insensitive" } } },
+    ];
+  }
 
-  const invoices = await prisma.invoice.findMany({
-    where,
-    include: {
-      student: { select: { name: true, nickname: true } },
-      _count: { select: { payments: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  return NextResponse.json(invoices);
+  const [invoices, total] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      skip,
+      take,
+      include: {
+        student: { select: { name: true, nickname: true } },
+        _count: { select: { payments: true } },
+      },
+      orderBy,
+    }),
+    prisma.invoice.count({ where }),
+  ]);
+
+  return NextResponse.json(paginatedResponse(invoices, total, page, pageSize));
 }

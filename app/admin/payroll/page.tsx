@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
-import { motion } from "framer-motion";
+
+// ------------------------------------------------------------------
+// Types
+// ------------------------------------------------------------------
 
 type PayrollRun = {
   id: string;
@@ -18,57 +24,150 @@ type PayrollRun = {
   _count: { items: number };
 };
 
-const STATUS_MAP: Record<string, { label: string; class: string }> = {
-  DRAFT: { label: "Draft", class: "bg-muted text-muted-foreground" },
-  APPROVED: { label: "Disetujui", class: "bg-status-present-subtle text-[#00875A]" },
-  EXPORTED: { label: "Diekspor", class: "bg-status-leave-subtle text-[#0369A1]" },
-  SLIPS_SENT: { label: "Slip Terkirim", class: "bg-status-holiday-subtle text-[#6B21A8]" },
+type Pagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 };
 
+// ------------------------------------------------------------------
+// Columns
+// ------------------------------------------------------------------
+
+const columns: ColumnDef<PayrollRun>[] = [
+  {
+    id: "period",
+    header: "Periode",
+    cell: ({ row }) => {
+      const run = row.original;
+      return (
+        <Link
+          href={`/admin/payroll/${run.id}`}
+          className="group"
+        >
+          <span className="text-sm font-medium group-hover:text-primary transition-colors">
+            {run.periodStart} — {run.periodEnd}
+          </span>
+        </Link>
+      );
+    },
+  },
+  {
+    id: "employees",
+    header: "Karyawan",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original._count.items} orang</span>
+    ),
+  },
+  {
+    accessorKey: "actualWorkDays",
+    header: "Hari Kerja",
+    cell: ({ row }) => (
+      <span className="text-sm font-currency">{row.original.actualWorkDays} hari</span>
+    ),
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => <StatusBadge status={row.original.status} />,
+  },
+];
+
+// ------------------------------------------------------------------
+// Page
+// ------------------------------------------------------------------
+
 export default function PayrollListPage() {
-  const [runs, setRuns] = useState<PayrollRun[]>([]);
+  const [data, setData] = useState<PayrollRun[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0,
+  });
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const fetchRuns = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pagination.page),
+        pageSize: String(pagination.pageSize),
+        sortField: "periodStart",
+        sortOrder: "desc",
+      });
+      if (statusFilter !== "all") params.set("status", statusFilter);
+
+      const res = await fetch(`/api/payroll?${params}`);
+      const json = await res.json();
+      setData(json.data ?? []);
+      if (json.pagination) setPagination(json.pagination);
+    } catch (err) {
+      console.error("Failed to fetch payroll runs:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination.page, pagination.pageSize, statusFilter]);
 
   useEffect(() => {
-    fetch("/api/payroll").then((r) => r.json()).then((d) => { setRuns(d); setLoading(false); });
+    fetchRuns();
+  }, [fetchRuns]);
+
+  const handlePageChange = useCallback((page: number) => {
+    setPagination((p) => ({ ...p, page }));
+  }, []);
+
+  const handlePageSizeChange = useCallback((pageSize: number) => {
+    setPagination((p) => ({ ...p, page: 1, pageSize }));
   }, []);
 
   return (
     <>
       <PageHeader
         title="Penggajian"
-        description="Riwayat penggajian"
+        description={`${pagination.total} riwayat penggajian`}
         actions={
           <Link href="/admin/payroll/new">
-            <Button size="sm"><Plus size={16} className="mr-1.5" /> Buat Penggajian</Button>
+            <Button size="sm">
+              <Plus size={14} className="mr-1.5" /> Buat Penggajian
+            </Button>
           </Link>
         }
       />
 
-      {loading ? (
-        <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-16 bg-card rounded-lg animate-pulse" />)}</div>
-      ) : runs.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <p className="text-lg">Belum ada penggajian</p>
-          <p className="text-sm mt-1">Mulai dengan mengklik &ldquo;Buat Baru&rdquo; untuk membuat penggajian pertama.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {runs.map((run, i) => (
-            <motion.div key={run.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-              <Link href={`/admin/payroll/${run.id}`} className="flex items-center justify-between p-4 bg-card border border-border rounded-xl hover:border-primary/20 transition-colors">
-                <div>
-                  <p className="text-sm font-semibold">{run.periodStart} — {run.periodEnd}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{run._count.items} karyawan · {run.actualWorkDays} hari kerja</p>
-                </div>
-                <Badge variant="secondary" className={`text-[10px] ${STATUS_MAP[run.status]?.class ?? ""}`}>
-                  {STATUS_MAP[run.status]?.label ?? run.status}
-                </Badge>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
-      )}
+      <DataTableToolbar
+        filters={[
+          {
+            key: "status",
+            label: "Status",
+            value: statusFilter,
+            onChange: (v) => {
+              setStatusFilter(v);
+              setPagination((p) => ({ ...p, page: 1 }));
+            },
+            options: [
+              { value: "all", label: "Semua Status" },
+              { value: "DRAFT", label: "Draft" },
+              { value: "APPROVED", label: "Disetujui" },
+              { value: "EXPORTED", label: "Diekspor" },
+              { value: "SLIPS_SENT", label: "Slip Terkirim" },
+            ],
+          },
+        ]}
+      />
+
+      <DataTable
+        columns={columns}
+        data={data}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        loading={loading}
+        emptyTitle="Belum ada penggajian"
+        emptyDescription="Mulai dengan membuat penggajian baru."
+      />
     </>
   );
 }

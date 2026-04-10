@@ -18,6 +18,10 @@ export async function POST(
     return NextResponse.json({ error: "Kelas wajib dipilih" }, { status: 400 });
   }
 
+  // Verify student belongs to tenant
+  const student = await prisma.student.findFirst({ where: { id: studentId, tenantId: session.tenantId } });
+  if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
+
   // Check capacity
   const section = await prisma.classSection.findUnique({
     where: { id: classSectionId },

@@ -5,7 +5,8 @@ import { getSession } from "@/lib/auth";
 // Create or get student assessment
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.employeeId && session?.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (session.role !== "TEACHER" && session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -13,6 +14,10 @@ export async function POST(req: NextRequest) {
   if (!studentId || !templateId || !period) {
     return NextResponse.json({ error: "studentId, templateId, period wajib diisi" }, { status: 400 });
   }
+
+  // Verify student belongs to tenant
+  const student = await prisma.student.findFirst({ where: { id: studentId, tenantId: session.tenantId } });
+  if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
 
   // Find or create assessment
   let assessment = await prisma.studentAssessment.findUnique({

@@ -4,8 +4,17 @@ import { getSession } from "@/lib/auth";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
+
+  // Verify tenant ownership via program→tenant
+  const existing = await prisma.classSection.findFirst({
+    where: { id, program: { tenantId: session.tenantId } },
+  });
+  if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
   const body = await req.json();
   const section = await prisma.classSection.update({
     where: { id },
@@ -16,10 +25,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
+
+  // Verify tenant ownership via program→tenant
+  const existing = await prisma.classSection.findFirst({
+    where: { id, program: { tenantId: session.tenantId } },
+  });
+  if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
   const enrollCount = await prisma.studentEnrollment.count({ where: { classSectionId: id } });
-  if (enrollCount > 0) return NextResponse.json({ error: `Tidak bisa dihapus: ${enrollCount} siswa terdaftar` }, { status: 400 });
+  if (enrollCount > 0) {
+    return NextResponse.json({ error: `Tidak bisa dihapus: ${enrollCount} siswa terdaftar` }, { status: 400 });
+  }
+
   await prisma.classSection.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
