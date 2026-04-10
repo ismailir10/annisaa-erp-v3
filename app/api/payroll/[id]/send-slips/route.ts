@@ -54,7 +54,14 @@ export async function POST(
   let failed = 0;
   const errors: string[] = [];
 
-  for (const item of payroll.items) {
+  for (let idx = 0; idx < payroll.items.length; idx++) {
+    const item = payroll.items[idx];
+
+    // Throttle: 600ms between emails to stay under Resend's 2 req/sec limit
+    if (idx > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+
     if (!item.employee.email) {
       failed++;
       errors.push(`${item.employee.nama}: tidak ada email`);

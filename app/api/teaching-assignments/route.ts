@@ -10,7 +10,9 @@ export async function GET(req: NextRequest) {
   const classSectionId = searchParams.get("classSectionId");
   const employeeId = searchParams.get("employeeId");
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = {
+    employee: { tenantId: session.tenantId },
+  };
   if (classSectionId) where.classSectionId = classSectionId;
   if (employeeId) where.employeeId = employeeId;
 

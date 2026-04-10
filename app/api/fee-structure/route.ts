@@ -15,6 +15,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "programId and academicYearId required" }, { status: 400 });
   }
 
+  // Verify program and year belong to tenant
+  const program = await prisma.program.findFirst({ where: { id: programId, tenantId: session.tenantId } });
+  if (!program) return NextResponse.json([], { status: 404 });
+  const year = await prisma.academicYear.findFirst({ where: { id: academicYearId, tenantId: session.tenantId } });
+  if (!year) return NextResponse.json([], { status: 404 });
+
   const structures = await prisma.programFeeStructure.findMany({
     where: { programId, academicYearId },
     include: { feeComponent: true },

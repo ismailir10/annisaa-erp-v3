@@ -5,7 +5,7 @@ import { getSession } from "@/lib/auth";
 // Get student attendance for a class on a date
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session) return NextResponse.json([], { status: 401 });
+  if (!session?.tenantId) return NextResponse.json([], { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const classSectionId = searchParams.get("classSectionId");
@@ -13,6 +13,14 @@ export async function GET(req: NextRequest) {
 
   if (!classSectionId) {
     return NextResponse.json({ error: "classSectionId required" }, { status: 400 });
+  }
+
+  // Verify class section belongs to tenant
+  const classSection = await prisma.classSection.findFirst({
+    where: { id: classSectionId, tenantId: session.tenantId },
+  });
+  if (!classSection) {
+    return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
 
   // Get all enrolled students in this class

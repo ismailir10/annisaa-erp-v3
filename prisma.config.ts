@@ -9,6 +9,6 @@ export default defineConfig({
   },
   datasource: {
     // Use DIRECT_URL for migrations/schema push (bypasses pgbouncer)
-    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"] ?? "",
   },
 });

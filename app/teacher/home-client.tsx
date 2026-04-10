@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin } from "lucide-react";
+import { toast } from "sonner";
 
 type TodayRecord = {
   status: string;
@@ -80,7 +81,7 @@ export function TeacherHomeClient({
     } else {
       const data = await res.json();
       setSuccess(null);
-      alert(data.error || "Gagal");
+      toast.error(data.error || "Gagal");
     }
     setLoading(false);
   }
