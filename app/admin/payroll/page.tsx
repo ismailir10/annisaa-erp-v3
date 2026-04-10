@@ -8,8 +8,9 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
 
 // ------------------------------------------------------------------
 // Types
@@ -96,6 +97,21 @@ export default function PayrollListPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("periodStart");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [stats, setStats] = useState({ total: 0, draft: 0, approved: 0, slipsSent: 0 });
+
+  // Stats fetch once
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/payroll?pageSize=1&status=DRAFT").then(r => r.json()),
+      fetch("/api/payroll?pageSize=1&status=APPROVED").then(r => r.json()),
+      fetch("/api/payroll?pageSize=1&status=SLIPS_SENT").then(r => r.json()),
+    ]).then(([draft, approved, sent]) => {
+      const d = draft.pagination?.total ?? 0;
+      const a = approved.pagination?.total ?? 0;
+      const s = sent.pagination?.total ?? 0;
+      setStats({ total: d + a + s, draft: d, approved: a, slipsSent: s });
+    }).catch(() => {});
+  }, []);
 
   const fetchRuns = useCallback(async () => {
     setLoading(true);
@@ -150,6 +166,13 @@ export default function PayrollListPage() {
           </Link>
         }
       />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Total Penggajian" value={stats.total} icon={Banknote} color="primary" index={0} />
+        <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
+        <StatCard label="Disetujui" value={stats.approved} icon={FileCheck} color="success" index={2} />
+        <StatCard label="Slip Terkirim" value={stats.slipsSent} icon={Send} color="primary" index={3} />
+      </div>
 
       <DataTableToolbar
         filters={[
