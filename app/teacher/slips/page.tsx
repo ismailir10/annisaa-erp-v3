@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Banknote } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
+import { Card as StatWrapper } from "@/components/ui/card";
 
 type SlipItem = {
   id: string;
@@ -31,6 +32,22 @@ export default function TeacherSlipsPage() {
   return (
     <div className="px-5 pt-6 pb-4">
       <h1 className="text-lg font-bold mb-4">Slip Gaji</h1>
+
+      {/* Summary */}
+      {!loading && slips.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <StatWrapper className="p-3 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase">Slip Terakhir</p>
+            <p className="font-currency text-lg font-bold text-primary mt-1">
+              {formatRupiah(Number(slips[0]?.netAmount ?? 0))}
+            </p>
+          </StatWrapper>
+          <StatWrapper className="p-3 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase">Total Slip</p>
+            <p className="font-currency text-lg font-bold mt-1">{slips.length}</p>
+          </StatWrapper>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">
