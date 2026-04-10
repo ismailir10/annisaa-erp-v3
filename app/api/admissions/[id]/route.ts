@@ -13,11 +13,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const admission = await prisma.admission.update({
     where: { id },
     data: {
+      childName: body.childName?.trim() ?? existing.childName,
+      childAge: body.childAge?.trim() ?? existing.childAge,
+      childGender: body.childGender ?? existing.childGender,
+      parentName: body.parentName?.trim() ?? existing.parentName,
+      parentPhone: body.parentPhone?.trim() ?? existing.parentPhone,
+      parentWhatsapp: body.parentWhatsapp?.trim() ?? existing.parentWhatsapp,
+      parentEmail: body.parentEmail?.trim() ?? existing.parentEmail,
+      programId: body.programId ?? existing.programId,
+      source: body.source ?? existing.source,
       status: body.status ?? existing.status,
       notes: body.notes?.trim() ?? existing.notes,
       followUpDate: body.followUpDate ?? existing.followUpDate,
-      parentPhone: body.parentPhone?.trim() ?? existing.parentPhone,
-      parentWhatsapp: body.parentWhatsapp?.trim() ?? existing.parentWhatsapp,
     },
   });
   return NextResponse.json(admission);
