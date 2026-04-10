@@ -3,80 +3,120 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { ChevronRight, LogOut, Settings } from "lucide-react";
+
 import {
-  LayoutDashboard,
-  Users,
-  CalendarCheck,
-  Banknote,
-  Building2,
-  Clock,
-  CalendarDays,
-  Coins,
-  LogOut,
-  CalendarOff,
-  Menu,
-  X,
-} from "lucide-react";
-import { useState } from "react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  adminNav,
+  isItemActive,
+  getActiveGroup,
+  type NavItem,
+  type NavGroup,
+} from "@/config/admin-nav";
 
-const navItems = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Karyawan", href: "/admin/employees", icon: Users },
-  { label: "Kehadiran", href: "/admin/attendance", icon: CalendarCheck },
-  { label: "Pengajuan Cuti", href: "/admin/leave", icon: CalendarOff },
-  { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
-];
-
-const academicItems = [
-  { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
-  { label: "Siswa", href: "/admin/students", icon: Users },
-  { label: "Pendaftaran", href: "/admin/admissions", icon: Banknote },
-  { label: "Biaya", href: "/admin/fees", icon: Coins },
-  { label: "Tagihan", href: "/admin/invoices", icon: Banknote },
-];
-
-const settingsItems = [
-  { label: "Kampus", href: "/admin/settings/campuses", icon: Building2 },
-  { label: "Jam Kerja", href: "/admin/settings/config", icon: Clock },
-  { label: "Hari Libur", href: "/admin/settings/holidays", icon: CalendarDays },
-  { label: "Komponen Gaji", href: "/admin/settings/salary-components", icon: Coins },
-];
-
-function NavLink({
-  item,
-  isActive,
+function NavMenuItems({
+  items,
+  pathname,
 }: {
-  item: (typeof navItems)[0];
-  isActive: boolean;
+  items: NavItem[];
+  pathname: string;
 }) {
-  const Icon = item.icon;
   return (
-    <Link
-      href={item.href}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative ${
-        isActive
-          ? "bg-[#2A4344] text-white"
-          : "text-[#8AACAD] hover:text-white hover:bg-[#223838]"
-      }`}
-    >
-      {isActive && (
-        <motion.div
-          layoutId="sidebar-active"
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#5DB4B8] rounded-r-full"
-          transition={{ type: "spring", stiffness: 350, damping: 30 }}
-        />
-      )}
-      <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
-      <span>{item.label}</span>
-    </Link>
+    <SidebarMenu>
+      {items.map((item) => {
+        const Icon = item.icon;
+        const active = isItemActive(pathname, item);
+        return (
+          <SidebarMenuItem key={item.href}>
+            <SidebarMenuButton
+              render={<Link href={item.href} />}
+              isActive={active}
+              tooltip={item.label}
+            >
+              <Icon />
+              <span>{item.label}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
   );
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function CollapsibleNavGroup({
+  group,
+  pathname,
+  open,
+  onOpenChange,
+}: {
+  group: NavGroup;
+  pathname: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const GroupIcon = group.icon;
+
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <SidebarGroup>
+        <SidebarGroupLabel
+          render={
+            <CollapsibleTrigger className="flex w-full items-center gap-2" />
+          }
+        >
+          <GroupIcon className="size-4" />
+          <span>{group.label}</span>
+          <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+        </SidebarGroupLabel>
+        <CollapsibleContent>
+          <SidebarGroupContent>
+            <NavMenuItems items={group.items} pathname={pathname} />
+          </SidebarGroupContent>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
+  );
+}
+
+export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Auto-expand the group containing the active route
+  useEffect(() => {
+    const activeGroup = getActiveGroup(pathname, adminNav.groups);
+    if (activeGroup) {
+      setOpenGroups((prev) => ({ ...prev, [activeGroup]: true }));
+    }
+
+    // Auto-expand settings if a settings route is active
+    const isSettingsActive = adminNav.settings.some((item) =>
+      isItemActive(pathname, item)
+    );
+    if (isSettingsActive) {
+      setSettingsOpen(true);
+    }
+  }, [pathname]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -84,100 +124,103 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <Sidebar collapsible="icon">
       {/* Logo */}
-      <div className="px-4 py-5 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="An Nisaa'" width={36} height={36} className="rounded-lg" />
-          <div>
-            <p className="text-white font-semibold text-sm leading-tight">An Nisaa&apos;</p>
-            <p className="text-[#8AACAD] text-[11px]">Sekolahku</p>
-          </div>
-        </div>
-      </div>
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" render={<Link href="/admin" />}>
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
+                <Image
+                  src="/logo.png"
+                  alt="An Nisaa'"
+                  width={32}
+                  height={32}
+                  className="rounded-lg"
+                />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">An Nisaa&apos;</span>
+                <span className="truncate text-xs text-sidebar-foreground/70">
+                  Sekolahku
+                </span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-      {/* Main nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1" onClick={onNavigate}>
-        {navItems.map((item) => (
-          <NavLink
-            key={item.href}
-            item={item}
-            isActive={
-              item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href)
+      <SidebarContent>
+        {/* Dashboard — standalone */}
+        <SidebarGroup>
+          <SidebarMenu>
+            {adminNav.standalone.map((item) => {
+              const Icon = item.icon;
+              const active = isItemActive(pathname, item);
+              return (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    render={<Link href={item.href} />}
+                    isActive={active}
+                    tooltip={item.label}
+                  >
+                    <Icon />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        {/* Module groups — SDM, Akademik, Keuangan */}
+        {adminNav.groups.map((group) => (
+          <CollapsibleNavGroup
+            key={group.id}
+            group={group}
+            pathname={pathname}
+            open={openGroups[group.id] ?? false}
+            onOpenChange={(open) =>
+              setOpenGroups((prev) => ({ ...prev, [group.id]: open }))
             }
           />
         ))}
+      </SidebarContent>
 
-        {/* Academic section */}
-        <div className="pt-4 pb-1">
-          <p className="px-3 text-[10px] uppercase tracking-widest text-[#8AACAD] font-semibold">
-            Akademik
-          </p>
-        </div>
-        {academicItems.map((item) => (
-          <NavLink
-            key={item.href}
-            item={item}
-            isActive={pathname.startsWith(item.href)}
-          />
-        ))}
+      {/* Footer — Pengaturan + Logout */}
+      <SidebarFooter>
+        <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <SidebarGroup>
+            <SidebarGroupLabel
+              render={
+                <CollapsibleTrigger className="flex w-full items-center gap-2" />
+              }
+            >
+              <Settings className="size-4" />
+              <span>Pengaturan</span>
+              <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <NavMenuItems items={adminNav.settings} pathname={pathname} />
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
 
-        {/* Settings section */}
-        <div className="pt-4 pb-1">
-          <p className="px-3 text-[10px] uppercase tracking-widest text-[#8AACAD] font-semibold">
-            Pengaturan
-          </p>
-        </div>
-        {settingsItems.map((item) => (
-          <NavLink
-            key={item.href}
-            item={item}
-            isActive={pathname.startsWith(item.href)}
-          />
-        ))}
-      </nav>
+        <SidebarSeparator />
 
-      {/* Logout */}
-      <div className="px-3 pb-4 border-t border-white/5 pt-3">
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#8AACAD] hover:text-white hover:bg-[#223838] transition-colors w-full"
-        >
-          <LogOut size={18} strokeWidth={1.5} />
-          <span>Keluar</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-export function Sidebar() {
-  return (
-    <aside className="hidden lg:flex w-60 bg-[#1A2E2F] border-r border-white/5 flex-col fixed inset-y-0 left-0 z-30">
-      <SidebarContent />
-    </aside>
-  );
-}
-
-export function MobileNav() {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger className="lg:hidden p-2 text-muted-foreground hover:text-foreground">
-        <Menu size={22} />
-      </SheetTrigger>
-      <SheetContent side="left" className="w-60 p-0 bg-[#1A2E2F] border-white/5 [&>button]:hidden">
-        <button
-          onClick={() => setOpen(false)}
-          className="absolute top-4 right-4 text-[#8AACAD] hover:text-white z-50"
-        >
-          <X size={18} />
-        </button>
-        <SidebarContent onNavigate={() => setOpen(false)} />
-      </SheetContent>
-    </Sheet>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Keluar" onClick={handleLogout}>
+              <LogOut />
+              <span>Keluar</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
   );
 }

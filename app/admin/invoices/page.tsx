@@ -434,11 +434,3 @@ export default function InvoicesPage() {
     </>
   );
 }
-i</Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}

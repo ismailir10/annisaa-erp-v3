@@ -78,16 +78,3 @@ export default function TeacherSlipsPage() {
     </div>
   );
 }
-/pdf`, "_blank")}
-                  >
-                    <Download size={14} className="mr-1" /> PDF
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}

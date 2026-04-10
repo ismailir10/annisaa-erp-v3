@@ -1,5 +1,5 @@
 # School ERP — Teacher Attendance & Payroll System
-**Version**: 10.0 · **Status**: v1 Shipped, Roadmap Approved · **Date**: 2026-04-09
+**Version**: 11.0 · **Status**: v1 Shipped, Foundation Refactor Complete · **Date**: 2026-04-10
 
 ---
 
@@ -1462,7 +1462,7 @@ Seeded from "Hari Libur" sheet. 35+ holidays for 2024-2026.
 
 ---
 
-## 20. Roadmap (Approved 2026-04-09)
+## 20. Roadmap (Updated 2026-04-10)
 
 ### Guiding Principle
 
@@ -1472,23 +1472,63 @@ Seeded from "Hari Libur" sheet. 35+ holidays for 2024-2026.
 
 ### Current State (April 2026)
 
-Phase 1 (Attendance + Payroll) is **built but not yet used by real teachers.** The immediate priority is onboarding, real-world testing, and stabilizing before expanding.
+Phase 1 (Attendance + Payroll) is **built**. Foundation refactor is **complete** — PostgreSQL migration, DataTable component, paginated APIs, security hardening, Zod validation, UI standardization all done.
+
+**Immediate next:** UI polish (sorting, Shadcn gaps, loading states) → E2E tests → onboarding.
 
 ---
 
-### Phase 1A: Harden & Onboard (NOW)
+### Foundation Refactor (Complete ✅ — 2026-04-10)
 
-**Goal:** Get 24 real teachers using attendance daily and run at least 1 real payroll cycle.
+| # | Task | Status |
+|---|------|--------|
+| 1 | Rewrite CLAUDE.md (operating manual) | ✅ |
+| 2 | PostgreSQL migration + schema fixes (Decimal, indexes) | ✅ |
+| 3 | Shared API utilities (pagination, response, validate) + Zod schemas | ✅ |
+| 4 | DataTable component (TanStack Table + Shadcn) | ✅ |
+| 5 | Migrate 6 list pages to DataTable + 6 APIs paginated | ✅ |
+| 6 | Security review (tenant ownership 9 routes, rate limiting 5 routes, Zod) | ✅ |
+
+---
+
+### Phase 1A: UI Polish + Harden (NOW)
+
+**Goal:** Fill Shadcn gaps, finish DataTable features, add loading states, then E2E tests.
+
+#### 1A.1 — DataTable Completion
 
 | # | Task | Priority | Why |
 |---|------|----------|-----|
-| 1 | E2E regression tests (Playwright) | P0 | Protect core flows before real usage |
-| 2 | Verify Resend email delivery works (domain verified) | P0 | Salary slips must arrive |
-| 3 | Onboard teachers — send login instructions, test check-in | P0 | Nothing matters if nobody uses it |
-| 4 | Run first real payroll cycle (with admin supervision) | P0 | Verify calculations match old spreadsheet |
-| 5 | Collect feedback from admin + teachers after first month | P0 | Find bugs and UX issues |
+| 1 | Column sorting (click header → sortBy/sortOrder API params) | P0 | APIs support it, frontend doesn't wire it |
+| 2 | Loading skeleton in DataTable during fetch | P0 | No loading indicator currently |
+| 3 | Row click → detail page navigation | P1 | Currently requires action button click |
+| 4 | Column visibility toggle (hide/show columns) | P2 | TanStack supports it, nice-to-have |
 
-**Exit criteria:** 24 teachers check in daily for 1 month. 1 real payroll run. BSI CSV matches expected amounts. Slips emailed successfully.
+#### 1A.2 — Shadcn Component Gaps
+
+| # | Component | Where to Use | Priority |
+|---|-----------|-------------|----------|
+| 1 | `Skeleton` | All data-fetching pages (tables, cards, forms) | P0 |
+| 2 | `AlertDialog` | Destructive confirms (delete employee, void invoice) | P0 |
+| 3 | `Calendar` | Attendance calendar (replace custom), date pickers | P1 |
+| 4 | `Progress` | Payroll processing, slip sending progress | P1 |
+| 5 | `Breadcrumb` | Detail pages (Employees > John Doe > Salary) | P1 |
+| 6 | `Accordion` | Payroll item expansion (income/deduction breakdown) | P1 |
+| 7 | `ScrollArea` | Long lists in modals/sheets | P2 |
+| 8 | `Drawer` | Mobile sidebar navigation | P2 |
+| 9 | `RadioGroup` | Form options (status, type selects with few options) | P2 |
+
+#### 1A.3 — E2E Tests + Onboarding
+
+| # | Task | Priority | Why |
+|---|------|----------|-----|
+| 1 | E2E regression tests (Playwright) — critical paths | P0 | Protect core flows before real usage |
+| 2 | Verify Resend email delivery (domain verified) | P0 | Salary slips must arrive |
+| 3 | Onboard 24 teachers — login instructions, test check-in | P0 | Nothing matters if nobody uses it |
+| 4 | Run first real payroll cycle (admin supervision) | P0 | Verify calculations match old spreadsheet |
+| 5 | Collect feedback after first month | P0 | Find bugs and UX issues |
+
+**Exit criteria:** All DataTable columns sortable. Skeleton loading on all pages. E2E tests green. 24 teachers check in daily for 1 month. 1 real payroll run matches expected amounts.
 
 ---
 
@@ -1498,21 +1538,15 @@ Phase 1 (Attendance + Payroll) is **built but not yet used by real teachers.** T
 
 | # | Feature | Priority | Effort | Why |
 |---|---------|----------|--------|-----|
-| 6 | Leave management (request/approve/balance) | P0 | Large | Currently manual override — teachers need to request directly |
-| 7 | Payroll history comparison (current vs previous) | P1 | Small | Admin needs this every month |
-| 8 | Employee attendance history (per-person view) | P1 | Small | Admin needs per-teacher drill-down |
-| 9 | Bulk holiday import (CSV) | P1 | Small | 23 holidays one by one is painful |
-| 10 | Export attendance to CSV | P1 | Small | School reporting requirements |
-| 11 | Teacher profile editing (phone, emergency contact) | P1 | Small | Teacher autonomy |
-| 12 | Dashboard: recent payroll summary | P2 | Small | Quick admin glance |
+| 1 | Leave management (request/approve/balance) | P0 | Large | Currently manual override — teachers need to request directly |
+| 2 | Payroll history comparison (current vs previous) | P1 | Small | Admin needs this every month |
+| 3 | Employee attendance history (per-person view) | P1 | Small | Admin needs per-teacher drill-down |
+| 4 | Bulk holiday import (CSV) | P1 | Small | 23 holidays one by one is painful |
+| 5 | Export attendance to CSV | P1 | Small | School reporting requirements |
+| 6 | Teacher profile editing (phone, emergency contact) | P1 | Small | Teacher autonomy |
+| 7 | Dashboard: recent payroll summary | P2 | Small | Quick admin glance |
 
 **Exit criteria:** Leave management working. Admin can compare payroll periods. 3+ payroll cycles completed successfully.
-
----
-
-### Pre-Phase 2: Design System Hardening (1 day)
-
-Reusable components: `DataTable`, `FormField`, `StatusBadge`, `EmptyState`, `ConfirmDialog`, `formatRupiah()`. Metadata JSON field on core entities for custom data.
 
 ---
 
@@ -1611,4 +1645,40 @@ Phase 8 (Parent Portal) combines both tracks.
 
 ---
 
-**End of PRD v10.0**
+## 21. Architecture Decisions
+
+### ADR-001: PostgreSQL everywhere (not SQLite for local dev)
+**Date:** 2026-04-10 · **Status:** Done
+Switch from SQLite (local) + PostgreSQL (prod) to PostgreSQL everywhere using `supabase start` for local dev. SQLite forced String dates and Float amounts. PostgreSQL enables proper Decimal(15,2) and DateTime types.
+
+### ADR-002: Float → Decimal for monetary fields
+**Date:** 2026-04-10 · **Status:** Done
+All monetary fields use Decimal(15,2), not Float. Float causes rounding errors in financial calculations. At scale (24 employees × 13 components × 12 months = 3,744 calculations), errors accumulate.
+
+### ADR-003: Guardian model 1:1 → M:N
+**Date:** 2026-04-10 · **Status:** Planned (Phase 2)
+Change Guardian from 1:1 to M:N via GuardianStudent junction table. A parent with 2 children currently requires 2 Guardian records.
+
+### ADR-004: 6-module architecture
+**Date:** 2026-04-10 · **Status:** Done
+Organize code around 6 modules: core, hr, academic, students, finance, learning. Parent Portal is a view layer, not a module.
+
+### ADR-005: TanStack Table + Shadcn DataTable
+**Date:** 2026-04-10 · **Status:** Done
+Use TanStack Table (React Table v8) with Shadcn styling for all list pages. Server-side pagination, sorting, filtering.
+
+### ADR-006: Zod validation on all API inputs
+**Date:** 2026-04-10 · **Status:** Done
+Zod schemas for all POST/PUT inputs with shared validation wrapper. Consistent error messages.
+
+### ADR-007: Xendit Session API (not Invoice API)
+**Date:** 2026-04-08 · **Status:** Done
+Use Xendit Checkout Session API with PAYMENT_LINK mode. Supports all payment methods (VA, QRIS, e-wallets). 7-day expiry for parents.
+
+### ADR-008: An Nisaa' brand (not generic)
+**Date:** 2026-04-07 · **Status:** Done
+Use An Nisaa' brand colors (teal #5DB4B8) with Revolut-style layout (dark sidebar). Plus Jakarta Sans is Indonesian-origin font.
+
+---
+
+**End of PRD v11.0**
