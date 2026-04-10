@@ -35,10 +35,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Update invoice totals
   const allPayments = await prisma.payment.findMany({ where: { invoiceId } });
-  const totalPaid = allPayments.reduce((s, p) => s + p.amount, 0);
+  const totalPaid = allPayments.reduce((s, p) => s + Number(p.amount), 0);
 
   let newStatus = invoice.status;
-  if (totalPaid >= invoice.totalDue) {
+  if (totalPaid >= Number(invoice.totalDue)) {
     newStatus = "PAID";
   } else if (totalPaid > 0) {
     newStatus = "PARTIALLY_PAID";

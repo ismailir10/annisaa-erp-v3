@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     await prisma.payment.create({
       data: {
         invoiceId: invoice.id,
-        amount: amount ?? invoice.totalDue,
+        amount: amount ?? Number(invoice.totalDue),
         method: "XENDIT",
         reference: paymentId ?? data.payment_session_id,
         notes: `Xendit payment via ${data.channel_code ?? "checkout"}`,
@@ -67,9 +67,9 @@ export async function POST(req: NextRequest) {
 
     // Update invoice totals
     const allPayments = await prisma.payment.findMany({ where: { invoiceId: invoice.id } });
-    const totalPaid = allPayments.reduce((s, p) => s + p.amount, 0);
+    const totalPaid = allPayments.reduce((s, p) => s + Number(p.amount), 0);
 
-    const newStatus = totalPaid >= invoice.totalDue ? "PAID" : "PARTIALLY_PAID";
+    const newStatus = totalPaid >= Number(invoice.totalDue) ? "PAID" : "PARTIALLY_PAID";
 
     await prisma.invoice.update({
       where: { id: invoice.id },

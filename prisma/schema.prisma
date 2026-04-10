@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ── TENANT (single for MVP, prepared for multi-tenant) ──────
@@ -51,8 +51,8 @@ model Campus {
   tenantId String
   name     String
   address  String?
-  lat      Float?
-  lng      Float?
+  lat      Decimal? @db.Decimal(10, 8)
+  lng      Decimal? @db.Decimal(11, 8)
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   employees     Employee[]
@@ -119,6 +119,8 @@ model Employee {
   teachingAssignments  TeachingAssignment[]
 
   @@unique([tenantId, kode])
+  @@index([tenantId, status])
+  @@index([campusId])
 }
 
 // ── TEACHING ASSIGNMENT ──────────────────────────────────────
@@ -176,7 +178,7 @@ model EmployeeSalaryValue {
   id             String @id @default(cuid())
   employeeId     String
   componentDefId String
-  value          Float  @default(0)
+  value          Decimal @default(0) @db.Decimal(15, 2)
 
   employee     Employee           @relation(fields: [employeeId], references: [id])
   componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
@@ -191,10 +193,10 @@ model AttendanceRecord {
   date             String
   checkInTime      DateTime?
   checkOutTime     DateTime?
-  checkInLat       Float?
-  checkInLng       Float?
-  checkOutLat      Float?
-  checkOutLng      Float?
+  checkInLat       Decimal? @db.Decimal(10, 8)
+  checkInLng       Decimal? @db.Decimal(11, 8)
+  checkOutLat      Decimal? @db.Decimal(10, 8)
+  checkOutLng       Decimal? @db.Decimal(11, 8)
   status           String
   isManualOverride Boolean  @default(false)
   overrideReason   String?
@@ -205,6 +207,8 @@ model AttendanceRecord {
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, date])
+  @@index([date])
+  @@index([status])
 }
 
 // ── PAYROLL ──────────────────────────────────────────────────
@@ -229,11 +233,11 @@ model PayrollItem {
   id           String @id @default(cuid())
   payrollRunId String
   employeeId   String
-  grossAmount  Float  @default(0)
-  deductions   Float  @default(0)
-  netAmount    Float  @default(0)
+  grossAmount  Decimal @default(0) @db.Decimal(15, 2)
+  deductions   Decimal @default(0) @db.Decimal(15, 2)
+  netAmount    Decimal @default(0) @db.Decimal(15, 2)
 
-  overtimeHours     Float @default(0)
+  overtimeHours     Decimal @default(0) @db.Decimal(5, 2)
   outdoorDays       Int   @default(0)
   holidayWorkedDays Int   @default(0)
   dcDays            Int   @default(0)
@@ -249,10 +253,10 @@ model PayrollItemLine {
   componentDefId   String
   labelSnapshot    String
   categorySnapshot String
-  calculatedAmount Float  @default(0)
-  adjustmentAmount Float  @default(0)
+  calculatedAmount Decimal @default(0) @db.Decimal(15, 2)
+  adjustmentAmount Decimal @default(0) @db.Decimal(15, 2)
   adjustmentNote   String?
-  finalAmount      Float  @default(0)
+  finalAmount      Decimal @default(0) @db.Decimal(15, 2)
 
   payrollItem  PayrollItem        @relation(fields: [payrollItemId], references: [id])
   componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
@@ -351,6 +355,8 @@ model Student {
   invoices           Invoice[]
   studentAttendances StudentAttendance[]
   assessments        StudentAssessment[]
+
+  @@index([tenantId, status])
 }
 
 // ── GUARDIAN ─────────────────────────────────────────────────
@@ -365,6 +371,8 @@ model Guardian {
   isPrimary    Boolean @default(false) // Primary billing contact
 
   student Student @relation(fields: [studentId], references: [id])
+
+  @@index([email])
 }
 
 // ── STUDENT ENROLLMENT ───────────────────────────────────────
@@ -437,7 +445,7 @@ model ProgramFeeStructure {
   programId       String
   academicYearId  String
   feeComponentId  String
-  amount          Float  @default(0)
+  amount          Decimal @default(0) @db.Decimal(15, 2)
   notes           String?
 
   program      Program         @relation(fields: [programId], references: [id])
@@ -455,8 +463,8 @@ model Invoice {
   invoiceNumber String    // Auto-generated: INV-2026-0001
   periodLabel   String    // "April 2026" or "Semester 1 2025/2026"
   dueDate       String    // YYYY-MM-DD
-  totalDue      Float     @default(0)
-  totalPaid     Float     @default(0)
+  totalDue      Decimal   @default(0) @db.Decimal(15, 2)
+  totalPaid     Decimal   @default(0) @db.Decimal(15, 2)
   status        String    @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
   createdBy     String
   sentAt        DateTime?
@@ -469,6 +477,11 @@ model Invoice {
   student  Student       @relation(fields: [studentId], references: [id])
   lines    InvoiceLine[]
   payments Payment[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([studentId, status])
+  @@index([dueDate])
+  @@index([status])
 }
 
 // ── INVOICE LINE ─────────────────────────────────────────────
@@ -477,10 +490,10 @@ model InvoiceLine {
   invoiceId       String
   feeComponentId  String
   labelSnapshot   String
-  amount          Float  @default(0)
-  adjustmentAmount Float @default(0)
+  amount          Decimal @default(0) @db.Decimal(15, 2)
+  adjustmentAmount Decimal @default(0) @db.Decimal(15, 2)
   adjustmentNote  String?
-  finalAmount     Float  @default(0)
+  finalAmount     Decimal @default(0) @db.Decimal(15, 2)
 
   invoice      Invoice         @relation(fields: [invoiceId], references: [id])
   feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
@@ -490,7 +503,7 @@ model InvoiceLine {
 model Payment {
   id             String   @id @default(cuid())
   invoiceId      String
-  amount         Float
+  amount         Decimal @db.Decimal(15, 2)
   method         String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
   reference      String?  // Bank transfer ref or Xendit payment ID
   notes          String?
@@ -519,6 +532,8 @@ model StudentAttendance {
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
   @@unique([studentId, date])
+  @@index([classSectionId, date])
+  @@index([date])
 }
 
 // ══════════════════════════════════════════════════════════════

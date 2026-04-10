@@ -35,7 +35,7 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const finalAmount = line.calculatedAmount + adjustmentAmount;
+  const finalAmount = Number(line.calculatedAmount) + adjustmentAmount;
 
   await prisma.payrollItemLine.update({
     where: { id: lineId },
@@ -48,8 +48,8 @@ export async function PUT(
 
   // Recalculate item totals
   const allLines = await prisma.payrollItemLine.findMany({ where: { payrollItemId: itemId } });
-  const gross = allLines.filter(l => l.categorySnapshot === "INCOME").reduce((s, l) => s + l.finalAmount, 0);
-  const ded = allLines.filter(l => l.categorySnapshot === "DEDUCTION").reduce((s, l) => s + l.finalAmount, 0);
+  const gross = allLines.filter(l => l.categorySnapshot === "INCOME").reduce((s, l) => s + Number(l.finalAmount), 0);
+  const ded = allLines.filter(l => l.categorySnapshot === "DEDUCTION").reduce((s, l) => s + Number(l.finalAmount), 0);
 
   await prisma.payrollItem.update({
     where: { id: itemId },

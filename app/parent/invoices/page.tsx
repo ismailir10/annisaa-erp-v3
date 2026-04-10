@@ -32,7 +32,7 @@ export default async function ParentInvoicesPage() {
       ) : (
         <div className="space-y-3">
           {invoices.map(inv => {
-            const remaining = inv.totalDue - inv.totalPaid;
+            const remaining = Number(inv.totalDue) - Number(inv.totalPaid);
             return (
               <Card key={inv.id} className="p-4">
                 <div className="flex items-start justify-between">
@@ -40,8 +40,8 @@ export default async function ParentInvoicesPage() {
                     <p className="text-sm font-semibold">{inv.periodLabel}</p>
                     <p className="text-[10px] text-muted-foreground font-currency">{inv.invoiceNumber}</p>
                     <div className="mt-2 space-y-0.5 text-xs">
-                      <p>Total: <span className="font-currency font-medium">{formatRupiah(inv.totalDue)}</span></p>
-                      {inv.totalPaid > 0 && <p>Dibayar: <span className="font-currency text-[#00B37E]">{formatRupiah(inv.totalPaid)}</span></p>}
+                      <p>Total: <span className="font-currency font-medium">{formatRupiah(Number(inv.totalDue))}</span></p>
+                      {Number(inv.totalPaid) > 0 && <p>Dibayar: <span className="font-currency text-[#00B37E]">{formatRupiah(Number(inv.totalPaid))}</span></p>}
                       {remaining > 0 && <p>Sisa: <span className="font-currency text-destructive font-medium">{formatRupiah(remaining)}</span></p>}
                     </div>
                   </div>

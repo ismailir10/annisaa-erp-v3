@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       id: e.id,
       salaryValues: e.salaryValues.map((sv) => ({
         componentDefId: sv.componentDefId,
-        value: sv.value,
+        value: Number(sv.value),
       })),
       attendanceRecords: e.attendanceRecords.map((r) => ({ status: r.status })),
     })),

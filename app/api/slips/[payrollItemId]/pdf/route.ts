@@ -57,13 +57,13 @@ export async function GET(
     bankAccountNo: item.employee.bankAccountNo,
     incomeLines: item.lines
       .filter((l) => l.categorySnapshot === "INCOME")
-      .map((l) => ({ label: l.labelSnapshot, amount: l.finalAmount })),
+      .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
     deductionLines: item.lines
       .filter((l) => l.categorySnapshot === "DEDUCTION")
-      .map((l) => ({ label: l.labelSnapshot, amount: l.finalAmount })),
-    totalIncome: item.grossAmount,
-    totalDeductions: item.deductions,
-    netPay: item.netAmount,
+      .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
+    totalIncome: Number(item.grossAmount),
+    totalDeductions: Number(item.deductions),
+    netPay: Number(item.netAmount),
     generatedDate: new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
   };
 

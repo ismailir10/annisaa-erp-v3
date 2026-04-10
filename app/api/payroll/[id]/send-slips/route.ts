@@ -67,13 +67,13 @@ export async function POST(
         bankAccountNo: item.employee.bankAccountNo,
         incomeLines: item.lines
           .filter((l) => l.categorySnapshot === "INCOME")
-          .map((l) => ({ label: l.labelSnapshot, amount: l.finalAmount })),
+          .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
         deductionLines: item.lines
           .filter((l) => l.categorySnapshot === "DEDUCTION")
-          .map((l) => ({ label: l.labelSnapshot, amount: l.finalAmount })),
-        totalIncome: item.grossAmount,
-        totalDeductions: item.deductions,
-        netPay: item.netAmount,
+          .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
+        totalIncome: Number(item.grossAmount),
+        totalDeductions: Number(item.deductions),
+        netPay: Number(item.netAmount),
         generatedDate: new Date().toLocaleDateString("id-ID", {
           day: "numeric", month: "long", year: "numeric",
         }),
@@ -87,7 +87,7 @@ export async function POST(
         to: item.employee.email,
         employeeName: item.employee.nama,
         period: `${payroll.periodStart} s/d ${payroll.periodEnd}`,
-        netPay: formatRupiah(item.netAmount),
+        netPay: formatRupiah(Number(item.netAmount)),
         pdfBuffer: new Uint8Array(pdfBuffer),
         pdfFilename: `slip-gaji-${item.employee.kode}-${payroll.periodStart}.pdf`,
       });

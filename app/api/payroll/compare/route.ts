@@ -49,18 +49,19 @@ export async function GET(req: NextRequest) {
   const prevMap = new Map<string, number>();
   if (previous) {
     for (const item of previous.items) {
-      prevMap.set(item.employee.id, item.netAmount);
+      prevMap.set(item.employee.id, Number(item.netAmount));
     }
   }
 
   const comparison = current.items.map((item) => {
     const prevNet = prevMap.get(item.employee.id) ?? null;
-    const delta = prevNet !== null ? item.netAmount - prevNet : null;
+    const currentNet = Number(item.netAmount);
+    const delta = prevNet !== null ? currentNet - prevNet : null;
     return {
       employeeId: item.employee.id,
       nama: item.employee.nama,
       kode: item.employee.kode,
-      currentNet: item.netAmount,
+      currentNet,
       previousNet: prevNet,
       delta,
     };
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
     currentPeriod: `${current.periodStart} — ${current.periodEnd}`,
     previousPeriod: previous ? `${previous.periodStart} — ${previous.periodEnd}` : null,
     comparison,
-    totalCurrentNet: current.items.reduce((s, i) => s + i.netAmount, 0),
-    totalPreviousNet: previous ? previous.items.reduce((s, i) => s + i.netAmount, 0) : null,
+    totalCurrentNet: current.items.reduce((s, i) => s + Number(i.netAmount), 0),
+    totalPreviousNet: previous ? previous.items.reduce((s, i) => s + Number(i.netAmount), 0) : null,
   });
 }

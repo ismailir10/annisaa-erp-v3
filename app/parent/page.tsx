@@ -38,7 +38,7 @@ export default async function ParentDashboard() {
   const student = guardian.student;
   const enrollment = student.enrollments[0];
   const unpaidInvoices = student.invoices;
-  const totalUnpaid = unpaidInvoices.reduce((s, i) => s + (i.totalDue - i.totalPaid), 0);
+  const totalUnpaid = unpaidInvoices.reduce((s, i) => s + (Number(i.totalDue) - Number(i.totalPaid)), 0);
 
   return (
     <div className="space-y-6">
@@ -106,7 +106,7 @@ export default async function ParentDashboard() {
                     <p className="text-[10px] text-muted-foreground">{inv.invoiceNumber}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-currency text-sm font-bold">Rp {Math.round(inv.totalDue - inv.totalPaid).toLocaleString("id-ID")}</p>
+                    <p className="font-currency text-sm font-bold">Rp {Math.round(Number(inv.totalDue) - Number(inv.totalPaid)).toLocaleString("id-ID")}</p>
                     <StatusBadge status={inv.status} />
                   </div>
                 </Card>

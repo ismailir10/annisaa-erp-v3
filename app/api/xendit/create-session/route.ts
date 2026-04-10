@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       continue; // Skip silently
     }
 
-    const remaining = invoice.totalDue - invoice.totalPaid;
+    const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
     if (remaining <= 0) {
       failed++;
       continue;
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         items: invoice.lines.map((line) => ({
           name: line.labelSnapshot,
           quantity: 1,
-          price: line.finalAmount,
+          price: Number(line.finalAmount),
         })),
       });
 
