@@ -5,19 +5,20 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { StatCard } from "@/components/admin/stat-card";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+} from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Plus, GraduationCap, BookOpen, Users } from "lucide-react";
+import { Plus, GraduationCap, BookOpen, Users, Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
 type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; isActive: boolean; _count: { classSections: number } };
@@ -25,6 +26,12 @@ type ClassSection = { id: string; name: string; capacity: number; program: { nam
 type Campus = { id: string; name: string };
 type Employee = { id: string; nama: string; kode: string; jabatan: string };
 type Assignment = { id: string; role: string; employee: { nama: string; kode: string; jabatan: string } };
+
+const TYPE_LABELS: Record<string, string> = {
+  SEMESTER: "Semester",
+  YEAR_ROUND: "Sepanjang Tahun",
+  SESSION: "Per Sesi",
+};
 
 export default function AcademicPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
@@ -89,7 +96,6 @@ export default function AcademicPage() {
     setLoading(false);
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchAll(); }, []);
 
   async function saveYear() {
@@ -116,6 +122,82 @@ export default function AcademicPage() {
     setSaving(false);
   }
 
+  // --- Column definitions ---
+
+  const programColumns: ColumnDef<Program>[] = [
+    {
+      accessorKey: "name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Program" />,
+      cell: ({ row }) => {
+        const p = row.original;
+        return (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{p.name}</span>
+              <Badge variant="outline" className="text-[10px] font-currency">{p.code}</Badge>
+            </div>
+            {p.description && <p className="text-xs text-muted-foreground mt-0.5">{p.description}</p>}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "type",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Tipe" />,
+      cell: ({ row }) => <span className="text-sm">{TYPE_LABELS[row.original.type] ?? row.original.type}</span>,
+    },
+    {
+      id: "age",
+      header: "Usia",
+      cell: ({ row }) => {
+        const p = row.original;
+        if (p.ageMin == null) return <span className="text-xs text-muted-foreground">—</span>;
+        return <span className="text-xs">{Math.floor(p.ageMin / 12)}–{Math.floor((p.ageMax ?? 72) / 12)} tahun</span>;
+      },
+    },
+    {
+      id: "classes",
+      accessorFn: (row) => row._count.classSections,
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Kelas" />,
+      cell: ({ row }) => <span className="font-currency text-sm">{row.original._count.classSections}</span>,
+    },
+  ];
+
+  const yearColumns: ColumnDef<AcademicYear>[] = [
+    {
+      accessorKey: "name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun Ajaran" />,
+      cell: ({ row }) => <span className="text-sm font-medium">{row.original.name}</span>,
+    },
+    {
+      accessorKey: "startDate",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Periode" />,
+      cell: ({ row }) => {
+        const y = row.original;
+        return (
+          <span className="text-xs text-muted-foreground">
+            {new Date(y.startDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+            {" — "}
+            {new Date(y.endDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
+      id: "classCount",
+      header: "Kelas",
+      cell: ({ row }) => {
+        const count = sections.filter(s => s.academicYear.name === row.original.name).length;
+        return <span className="font-currency text-sm">{count}</span>;
+      },
+    },
+  ];
+
   const classColumns: ColumnDef<ClassSection>[] = [
     {
       accessorKey: "name",
@@ -139,7 +221,7 @@ export default function AcademicPage() {
     {
       id: "academicYear",
       accessorFn: (row) => row.academicYear.name,
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun Ajaran" />,
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun" />,
       cell: ({ row }) => <span className="text-sm">{row.original.academicYear.name}</span>,
     },
     {
@@ -165,107 +247,50 @@ export default function AcademicPage() {
     },
   ];
 
-  if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
-
   return (
     <>
       <PageHeader title="Akademik" description="Program, tahun ajaran, dan kelas" />
 
-      <Tabs defaultValue="programs">
-        <TabsList>
-          <TabsTrigger value="programs">Program</TabsTrigger>
-          <TabsTrigger value="years">Tahun Ajaran</TabsTrigger>
-          <TabsTrigger value="classes">Kelas</TabsTrigger>
-        </TabsList>
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        <StatCard label="Program" value={programs.length} icon={BookOpen} color="primary" index={0} />
+        <StatCard label="Tahun Ajaran" value={years.length} icon={Calendar} color="primary" index={1} />
+        <StatCard label="Kelas" value={sections.length} icon={GraduationCap} color="success" index={2} />
+        <StatCard label="Total Murid" value={sections.reduce((s, c) => s + c._count.enrollments, 0)} icon={Users} color="primary" index={3} />
+      </div>
 
-        {/* Programs */}
-        <TabsContent value="programs">
-          <div className="flex justify-end mb-4 mt-4">
-            <Button size="sm" onClick={() => { setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
-              <Plus size={14} className="mr-1.5" /> Tambah Program
-            </Button>
-          </div>
-          {programs.length === 0 ? (
-            <EmptyState icon={BookOpen} title="Belum ada program" description="Tambahkan program pendidikan seperti D'Care, KB, TKIT" actionLabel="Tambah Program" onAction={() => setProgramDialog(true)} />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {programs.map((p, i) => (
-                <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                  <Card className="p-5">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-sm">{p.name}</h3>
-                          <Badge variant="outline" className="text-[10px] font-currency">{p.code}</Badge>
-                        </div>
-                        {p.description && <p className="text-xs text-muted-foreground mt-1">{p.description}</p>}
-                        <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                          <span>{p.type === "SEMESTER" ? "Semester" : p.type === "YEAR_ROUND" ? "Sepanjang Tahun" : "Per Sesi"}</span>
-                          {p.ageMin != null && <span>Usia: {Math.floor(p.ageMin / 12)}-{Math.floor((p.ageMax ?? 72) / 12)} tahun</span>}
-                          <span>{p._count.classSections} kelas</span>
-                        </div>
-                      </div>
-                      <GraduationCap size={20} className="text-primary shrink-0" />
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
+      {/* Programs Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Program</h2>
+          <Button size="sm" onClick={() => { setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
+            <Plus size={14} className="mr-1.5" /> Tambah Program
+          </Button>
+        </div>
+        <DataTable columns={programColumns} data={programs} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada program" emptyDescription="Tambahkan program pendidikan" />
+      </div>
 
-        {/* Academic Years */}
-        <TabsContent value="years">
-          <div className="flex justify-end mb-4 mt-4">
-            <Button size="sm" onClick={() => { setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
-              <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
-            </Button>
-          </div>
-          {years.length === 0 ? (
-            <EmptyState title="Belum ada tahun ajaran" description="Tambahkan tahun ajaran untuk memulai" actionLabel="Tambah" onAction={() => setYearDialog(true)} />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {years.map((y, i) => (
-                <motion.div key={y.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                  <Card className="p-5 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <GraduationCap size={18} className="text-primary" />
-                      </div>
-                      <StatusBadge status={y.status} />
-                    </div>
-                    <h3 className="text-lg font-bold tracking-tight">{y.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(y.startDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                      {" — "}
-                      {new Date(y.endDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                    </p>
-                    <div className="flex items-center gap-2 mt-3 text-[10px] text-muted-foreground">
-                      <span>{sections.filter(s => s.academicYear.name === y.name).length} kelas</span>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
+      {/* Academic Years Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Tahun Ajaran</h2>
+          <Button size="sm" onClick={() => { setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
+            <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
+          </Button>
+        </div>
+        <DataTable columns={yearColumns} data={years} loading={loading} defaultSort={{ field: "name", order: "desc" }} emptyTitle="Belum ada tahun ajaran" emptyDescription="Tambahkan tahun ajaran" />
+      </div>
 
-        {/* Class Sections */}
-        <TabsContent value="classes">
-          <div className="flex justify-end mb-4 mt-4">
-            <Button size="sm" onClick={() => { setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
-              <Plus size={14} className="mr-1.5" /> Tambah Kelas
-            </Button>
-          </div>
-          <DataTable
-            columns={classColumns}
-            data={sections}
-            defaultSort={{ field: "name", order: "asc" }}
-            emptyTitle="Belum ada kelas"
-            emptyDescription="Tambahkan kelas untuk program dan tahun ajaran tertentu"
-          />
-        </TabsContent>
-      </Tabs>
+      {/* Class Sections Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Kelas</h2>
+          <Button size="sm" onClick={() => { setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
+            <Plus size={14} className="mr-1.5" /> Tambah Kelas
+          </Button>
+        </div>
+        <DataTable columns={classColumns} data={sections} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada kelas" emptyDescription="Tambahkan kelas untuk program" />
+      </div>
 
       {/* Add Year Dialog */}
       <Dialog open={yearDialog} onOpenChange={setYearDialog}>
@@ -294,7 +319,7 @@ export default function AcademicPage() {
               <FormField label="Kode" required><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></FormField>
               <FormField label="Nama" required><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></FormField>
             </div>
-            <FormField label="Deskripsi"><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} placeholder="Program pendidikan taman kanak-kanak" /></FormField>
+            <FormField label="Deskripsi"><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></FormField>
             <FormField label="Tipe">
               <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -306,8 +331,8 @@ export default function AcademicPage() {
               </Select>
             </FormField>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Usia Min (bulan)" help="Contoh: 24 = 2 tahun"><Input type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></FormField>
-              <FormField label="Usia Max (bulan)" help="Contoh: 72 = 6 tahun"><Input type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></FormField>
+              <FormField label="Usia Min (bulan)"><Input type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></FormField>
+              <FormField label="Usia Max (bulan)"><Input type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></FormField>
             </div>
           </div>
           <DialogFooter>
@@ -355,7 +380,6 @@ export default function AcademicPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Guru Pengajar — {assignForm.className}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            {/* Current assignments */}
             {classAssignments.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Guru Saat Ini</p>
@@ -370,8 +394,6 @@ export default function AcademicPage() {
                 ))}
               </div>
             )}
-
-            {/* Add new assignment */}
             <div className="pt-2 border-t border-border">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tambah Guru</p>
               <FormField label="Pilih Guru">
