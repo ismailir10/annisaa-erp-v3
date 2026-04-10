@@ -1,25 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, CalendarDays } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
+import { formatDateShort } from "@/lib/format";
 
 type Holiday = {
   id: string;
@@ -35,12 +34,6 @@ const TYPE_LABELS: Record<string, string> = {
   SCHOOL_CLOSURE: "Sekolah",
 };
 
-const TYPE_COLORS: Record<string, string> = {
-  NATIONAL: "bg-status-holiday-subtle text-[#6B21A8]",
-  ISLAMIC: "bg-status-leave-subtle text-[#0369A1]",
-  SCHOOL_CLOSURE: "bg-status-late-subtle text-[#B35C00]",
-};
-
 export default function HolidaysPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +41,7 @@ export default function HolidaysPage() {
   const [editing, setEditing] = useState<Holiday | null>(null);
   const [form, setForm] = useState({ date: "", name: "", type: "NATIONAL", isHalfDay: false });
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Holiday | null>(null);
 
   async function fetchHolidays() {
     const res = await fetch("/api/config/holidays");
@@ -55,7 +49,6 @@ export default function HolidaysPage() {
     setLoading(false);
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchHolidays(); }, []);
 
   function openNew() {
@@ -91,25 +84,64 @@ export default function HolidaysPage() {
     setSaving(false);
   }
 
-  async function handleDelete(h: Holiday) {
-    if (!confirm(`Hapus "${h.name}"?`)) return;
-    const res = await fetch(`/api/config/holidays/${h.id}`, { method: "DELETE" });
-    if (res.ok) { toast.success("Dihapus"); fetchHolidays(); }
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const res = await fetch(`/api/config/holidays/${deleteTarget.id}`, { method: "DELETE" });
+    if (res.ok) { toast.success("Dihapus"); setDeleteTarget(null); fetchHolidays(); }
     else toast.error("Gagal menghapus");
   }
 
-  // Group by month
-  const grouped: Record<string, Holiday[]> = {};
-  for (const h of holidays) {
-    const month = h.date.slice(0, 7);
-    if (!grouped[month]) grouped[month] = [];
-    grouped[month].push(h);
-  }
-
-  const formatMonth = (ym: string) => {
-    const [y, m] = ym.split("-");
-    return new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
-  };
+  const columns: ColumnDef<Holiday>[] = [
+    {
+      accessorKey: "date",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tanggal" />
+      ),
+      cell: ({ row }) => (
+        <span className="text-sm font-currency">
+          {formatDateShort(row.original.date)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "name",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Nama" />
+      ),
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{row.original.name}</span>
+          {row.original.isHalfDay && <Badge variant="outline" className="text-[10px]">½ Hari</Badge>}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "type",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tipe" />
+      ),
+      cell: ({ row }) => (
+        <StatusBadge
+          status={row.original.type}
+          label={TYPE_LABELS[row.original.type] ?? row.original.type}
+        />
+      ),
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <div className="flex gap-1">
+          <button onClick={() => openEdit(row.original)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
+            <Pencil size={13} />
+          </button>
+          <button onClick={() => setDeleteTarget(row.original)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+            <Trash2 size={13} />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -123,52 +155,26 @@ export default function HolidaysPage() {
         }
       />
 
-      {loading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-card rounded-xl animate-pulse" />)}
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(grouped).map(([month, items]) => (
-            <div key={month}>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-2">
-                <CalendarDays size={14} /> {formatMonth(month)}
-              </h3>
-              <div className="space-y-1">
-                {items.map((h, i) => (
-                  <motion.div
-                    key={h.id}
-                    initial={{ opacity: 0, x: -5 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.02 }}
-                    className="flex items-center justify-between p-3 bg-card border border-border rounded-lg hover:border-primary/20 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-currency text-xs text-muted-foreground w-12">
-                        {new Date(h.date + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
-                      </span>
-                      <span className="text-sm font-medium">{h.name}</span>
-                      <Badge variant="secondary" className={`text-[10px] ${TYPE_COLORS[h.type] ?? ""}`}>
-                        {TYPE_LABELS[h.type] ?? h.type}
-                      </Badge>
-                      {h.isHalfDay && <Badge variant="outline" className="text-[10px]">½ Hari</Badge>}
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => openEdit(h)} className="p-1 rounded hover:bg-accent text-muted-foreground">
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => handleDelete(h)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        data={holidays}
+        loading={loading}
+        defaultSort={{ field: "date", order: "asc" }}
+        emptyTitle="Belum ada hari libur"
+        emptyDescription="Tambahkan hari libur untuk perhitungan hari kerja."
+      />
 
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Hapus Hari Libur"
+        description={`Hapus "${deleteTarget?.name}"? Ini akan mempengaruhi perhitungan hari kerja.`}
+        onConfirm={handleDelete}
+        confirmLabel="Hapus"
+      />
+
+      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -176,16 +182,13 @@ export default function HolidaysPage() {
             <DialogDescription>Hari libur mempengaruhi perhitungan hari kerja</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <Label>Tanggal *</Label>
+            <FormField label="Tanggal" required>
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-            </div>
-            <div>
-              <Label>Nama *</Label>
+            </FormField>
+            <FormField label="Nama" required>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Hari Raya Idul Fitri" />
-            </div>
-            <div>
-              <Label>Tipe</Label>
+            </FormField>
+            <FormField label="Tipe">
               <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -194,16 +197,14 @@ export default function HolidaysPage() {
                   <SelectItem value="SCHOOL_CLOSURE">Penutupan Sekolah</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={form.isHalfDay} onCheckedChange={(c) => setForm({ ...form, isHalfDay: !!c })} />
               Setengah hari
             </label>
           </div>
           <DialogFooter>
-            <DialogClose>
-              <Button variant="outline">Batal</Button>
-            </DialogClose>
+            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? "Menyimpan..." : "Simpan"}
             </Button>
