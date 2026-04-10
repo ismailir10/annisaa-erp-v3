@@ -21,6 +21,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
@@ -147,6 +148,7 @@ export default function InvoicesPage() {
   const [genForm, setGenForm] = useState({ periodLabel: "", dueDate: "", academicYearId: "" });
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [sendResults, setSendResults] = useState<
     { studentName: string; invoiceNumber: string; paymentUrl: string }[] | null
   >(null);
@@ -242,7 +244,6 @@ export default function InvoicesPage() {
       toast.error("Tidak ada tagihan DRAFT untuk dikirim");
       return;
     }
-    if (!confirm(`Kirim ${draftIds.length} tagihan? Link pembayaran Xendit akan dibuat untuk setiap tagihan.`)) return;
 
     setSending(true);
     const res = await fetch("/api/xendit/create-session", {
@@ -272,7 +273,7 @@ export default function InvoicesPage() {
         actions={
           <div className="flex gap-2">
             {draftCount > 0 && (
-              <Button size="sm" onClick={handleSendInvoices} disabled={sending}>
+              <Button size="sm" onClick={() => setSendConfirmOpen(true)} disabled={sending}>
                 {sending ? "Mengirim..." : `Kirim ${draftCount} Tagihan`}
               </Button>
             )}
@@ -316,6 +317,16 @@ export default function InvoicesPage() {
         loading={loading}
         emptyTitle="Belum ada tagihan"
         emptyDescription="Buat tagihan bulanan untuk semua siswa aktif"
+      />
+
+      {/* Send Confirmation */}
+      <ConfirmDialog
+        open={sendConfirmOpen}
+        onOpenChange={setSendConfirmOpen}
+        title="Kirim Tagihan"
+        description={`Kirim ${draftCount} tagihan? Link pembayaran Xendit akan dibuat untuk setiap tagihan.`}
+        onConfirm={handleSendInvoices}
+        confirmLabel="Ya, Kirim"
       />
 
       {/* Generate Dialog */}
@@ -416,6 +427,14 @@ export default function InvoicesPage() {
             </Button>
             <DialogClose>
               <Button>Selesai</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+i</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>

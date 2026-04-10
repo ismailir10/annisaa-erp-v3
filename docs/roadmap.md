@@ -4,14 +4,14 @@
 
 All 8 phases built on staging. Foundation refactor in progress before production deployment.
 
-## Foundation Refactor (In Progress)
+## Foundation Refactor (Complete ✅)
 
 1. ✅ Rewrite CLAUDE.md (operating manual)
-2. ⬜ PostgreSQL migration + schema fixes (Decimal, indexes, Guardian M:N)
-3. ⬜ Shared API utilities + Zod validation
-4. ⬜ DataTable component (TanStack + Shadcn)
-5. ⬜ Migrate all list pages to DataTable
-6. ⬜ Security review
+2. ✅ PostgreSQL migration + schema fixes (Decimal, indexes)
+3. ✅ Shared API utilities (pagination, response, validate) + Zod schemas
+4. ✅ DataTable component (TanStack + Shadcn)
+5. ✅ Migrate all list pages to DataTable (6 pages + 6 APIs paginated)
+6. ✅ Security review (tenant ownership on 9 routes, rate limiting on 5 routes)
 
 ## Future Features (After Foundation)
 
