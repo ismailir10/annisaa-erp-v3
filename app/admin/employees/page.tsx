@@ -9,8 +9,9 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Users, UserCheck, UserX, Building2 } from "lucide-react";
 
 // ------------------------------------------------------------------
 // Types
@@ -135,13 +136,23 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("nama");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
 
-  // Fetch campuses once
+  // Fetch campuses + stats once
   useEffect(() => {
     fetch("/api/config/campuses")
       .then((r) => r.json())
       .then((c) => setCampuses(Array.isArray(c) ? c : []))
       .catch(() => {});
+    // Quick stats — fetch all with minimal data
+    Promise.all([
+      fetch("/api/employees?pageSize=1&status=ACTIVE").then(r => r.json()),
+      fetch("/api/employees?pageSize=1&status=INACTIVE").then(r => r.json()),
+    ]).then(([active, inactive]) => {
+      const a = active.pagination?.total ?? 0;
+      const i = inactive.pagination?.total ?? 0;
+      setStats({ total: a + i, active: a, inactive: i });
+    }).catch(() => {});
   }, []);
 
   const fetchEmployees = useCallback(async () => {
@@ -210,6 +221,13 @@ export default function EmployeesPage() {
           </Link>
         }
       />
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+        <StatCard label="Total Karyawan" value={stats.total} icon={Users} color="primary" index={0} />
+        <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
+        <StatCard label="Tidak Aktif" value={stats.inactive} icon={UserX} color="error" index={2} />
+      </div>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama, kode, atau email..."

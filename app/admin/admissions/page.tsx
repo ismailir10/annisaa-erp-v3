@@ -19,7 +19,8 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
-import { Plus, UserPlus } from "lucide-react";
+import { StatCard } from "@/components/admin/stat-card";
+import { Plus, UserPlus, Users, PhoneCall, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -80,6 +81,21 @@ export default function AdmissionsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [stats, setStats] = useState({ total: 0, inquiry: 0, admitted: 0, registered: 0 });
+
+  // Stats fetch once
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/admissions?pageSize=1&status=INQUIRY").then(r => r.json()),
+      fetch("/api/admissions?pageSize=1&status=ADMITTED").then(r => r.json()),
+      fetch("/api/admissions?pageSize=1&status=REGISTERED").then(r => r.json()),
+    ]).then(([inquiry, admitted, registered]) => {
+      const i = inquiry.pagination?.total ?? 0;
+      const a = admitted.pagination?.total ?? 0;
+      const r = registered.pagination?.total ?? 0;
+      setStats({ total: i + a + r, inquiry: i, admitted: a, registered: r });
+    }).catch(() => {});
+  }, []);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -304,6 +320,13 @@ export default function AdmissionsPage() {
           </Button>
         }
       />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
+        <StatCard label="Inquiry" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
+        <StatCard label="Diterima" value={stats.admitted} icon={CheckCircle} color="success" index={2} />
+        <StatCard label="Terdaftar" value={stats.registered} icon={UserPlus} color="primary" index={3} />
+      </div>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama anak atau orang tua..."

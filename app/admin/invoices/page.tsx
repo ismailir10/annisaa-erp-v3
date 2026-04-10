@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, FileText } from "lucide-react";
+import { StatCard } from "@/components/admin/stat-card";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 
@@ -156,11 +157,27 @@ export default function InvoicesPage() {
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [stats, setStats] = useState({ total: 0, draft: 0, sent: 0, paid: 0, overdue: 0 });
   const [sendResults, setSendResults] = useState<
     { studentName: string; invoiceNumber: string; paymentUrl: string }[] | null
   >(null);
 
-  // Fetch academic years once
+  // Fetch stats + academic years once
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/invoices?pageSize=1&status=DRAFT").then(r => r.json()),
+      fetch("/api/invoices?pageSize=1&status=SENT").then(r => r.json()),
+      fetch("/api/invoices?pageSize=1&status=PAID").then(r => r.json()),
+      fetch("/api/invoices?pageSize=1&status=OVERDUE").then(r => r.json()),
+    ]).then(([draft, sent, paid, overdue]) => {
+      const d = draft.pagination?.total ?? 0;
+      const s = sent.pagination?.total ?? 0;
+      const p = paid.pagination?.total ?? 0;
+      const o = overdue.pagination?.total ?? 0;
+      setStats({ total: d + s + p + o, draft: d, sent: s, paid: p, overdue: o });
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch("/api/academic-years")
       .then((r) => r.json())
@@ -296,6 +313,13 @@ export default function InvoicesPage() {
           </div>
         }
       />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />
+        <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
+        <StatCard label="Lunas" value={stats.paid} icon={CheckCircle} color="success" index={2} />
+        <StatCard label="Jatuh Tempo" value={stats.overdue} icon={AlertTriangle} color="error" index={3} />
+      </div>
 
       <DataTableToolbar
         searchPlaceholder="Cari siswa atau nomor tagihan..."

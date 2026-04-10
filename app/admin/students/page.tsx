@@ -8,8 +8,9 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, GraduationCap, UserCheck, UserX } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 
 // ------------------------------------------------------------------
@@ -148,6 +149,21 @@ export default function StudentsPage() {
   const [status, setStatus] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [stats, setStats] = useState({ total: 0, active: 0, enrolled: 0, graduated: 0 });
+
+  // Stats fetch once
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/students?pageSize=1&status=ACTIVE").then(r => r.json()),
+      fetch("/api/students?pageSize=1&status=ENROLLED").then(r => r.json()),
+      fetch("/api/students?pageSize=1&status=GRADUATED").then(r => r.json()),
+    ]).then(([active, enrolled, graduated]) => {
+      const a = active.pagination?.total ?? 0;
+      const e = enrolled.pagination?.total ?? 0;
+      const g = graduated.pagination?.total ?? 0;
+      setStats({ total: a + e + g, active: a, enrolled: e, graduated: g });
+    }).catch(() => {});
+  }, []);
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -213,6 +229,13 @@ export default function StudentsPage() {
           </Link>
         }
       />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Total Siswa" value={stats.total} icon={Users} color="primary" index={0} />
+        <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
+        <StatCard label="Terdaftar Kelas" value={stats.enrolled} icon={GraduationCap} color="primary" index={2} />
+        <StatCard label="Lulus" value={stats.graduated} icon={GraduationCap} color="warning" index={3} />
+      </div>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama siswa..."

@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { StatCard } from "@/components/admin/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Check, X } from "lucide-react";
+import { Check, X, Clock, CheckCircle, XCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 // ------------------------------------------------------------------
@@ -76,6 +77,21 @@ export default function AdminLeavePage() {
   const [statusFilter, setStatusFilter] = useState("PENDING");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+
+  // Stats fetch once
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/leave/requests?pageSize=1&status=PENDING").then(r => r.json()),
+      fetch("/api/leave/requests?pageSize=1&status=APPROVED").then(r => r.json()),
+      fetch("/api/leave/requests?pageSize=1&status=REJECTED").then(r => r.json()),
+    ]).then(([pending, approved, rejected]) => {
+      const p = pending.pagination?.total ?? 0;
+      const a = approved.pagination?.total ?? 0;
+      const r = rejected.pagination?.total ?? 0;
+      setStats({ total: p + a + r, pending: p, approved: a, rejected: r });
+    }).catch(() => {});
+  }, []);
 
   // Review dialog
   const [reviewTarget, setReviewTarget] = useState<LeaveRequest | null>(null);
@@ -266,6 +282,13 @@ export default function AdminLeavePage() {
         title="Pengajuan Cuti"
         description={`${pagination.total} pengajuan`}
       />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Total Pengajuan" value={stats.total} icon={FileText} color="primary" index={0} />
+        <StatCard label="Menunggu" value={stats.pending} icon={Clock} color="warning" index={1} />
+        <StatCard label="Disetujui" value={stats.approved} icon={CheckCircle} color="success" index={2} />
+        <StatCard label="Ditolak" value={stats.rejected} icon={XCircle} color="error" index={3} />
+      </div>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama karyawan..."
