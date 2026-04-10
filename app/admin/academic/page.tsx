@@ -17,6 +17,8 @@ import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, GraduationCap, BookOpen, Users, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +50,10 @@ export default function AcademicPage() {
   const [programForm, setProgramForm] = useState({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" });
   const [sectionForm, setSectionForm] = useState({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" });
   const [saving, setSaving] = useState(false);
+  const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
+  const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const [editingSection, setEditingSection] = useState<ClassSection | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
 
   // Teacher assignment
   const [assignDialog, setAssignDialog] = useState(false);
@@ -101,26 +107,48 @@ export default function AcademicPage() {
 
   async function saveYear() {
     setSaving(true);
-    const res = await fetch("/api/academic-years", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(yearForm) });
-    if (res.ok) { toast.success("Tahun ajaran ditambahkan"); setYearDialog(false); fetchAll(); }
+    const url = editingYear ? `/api/academic-years/${editingYear.id}` : "/api/academic-years";
+    const method = editingYear ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(yearForm) });
+    if (res.ok) { toast.success(editingYear ? "Tahun ajaran diperbarui" : "Tahun ajaran ditambahkan"); setYearDialog(false); setEditingYear(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
     setSaving(false);
   }
 
   async function saveProgram() {
     setSaving(true);
-    const res = await fetch("/api/programs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...programForm, ageMin: programForm.ageMin ? parseInt(programForm.ageMin) : null, ageMax: programForm.ageMax ? parseInt(programForm.ageMax) : null }) });
-    if (res.ok) { toast.success("Program ditambahkan"); setProgramDialog(false); fetchAll(); }
+    const url = editingProgram ? `/api/programs/${editingProgram.id}` : "/api/programs";
+    const method = editingProgram ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...programForm, ageMin: programForm.ageMin ? parseInt(programForm.ageMin) : null, ageMax: programForm.ageMax ? parseInt(programForm.ageMax) : null }) });
+    if (res.ok) { toast.success(editingProgram ? "Program diperbarui" : "Program ditambahkan"); setProgramDialog(false); setEditingProgram(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
     setSaving(false);
   }
 
   async function saveSection() {
     setSaving(true);
-    const res = await fetch("/api/class-sections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...sectionForm, capacity: parseInt(sectionForm.capacity) }) });
-    if (res.ok) { toast.success("Kelas ditambahkan"); setSectionDialog(false); fetchAll(); }
+    const url = editingSection ? `/api/class-sections/${editingSection.id}` : "/api/class-sections";
+    const method = editingSection ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...sectionForm, capacity: parseInt(sectionForm.capacity) }) });
+    if (res.ok) { toast.success(editingSection ? "Kelas diperbarui" : "Kelas ditambahkan"); setSectionDialog(false); setEditingSection(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
     setSaving(false);
+  }
+
+  async function handleDeactivate() {
+    if (!deactivateTarget) return;
+    const urlMap: Record<string, string> = {
+      year: `/api/academic-years/${deactivateTarget.id}`,
+      program: `/api/programs/${deactivateTarget.id}`,
+      section: `/api/class-sections/${deactivateTarget.id}`,
+    };
+    const res = await fetch(urlMap[deactivateTarget.type], {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "INACTIVE" }),
+    });
+    if (res.ok) { toast.success("Berhasil dinonaktifkan"); setDeactivateTarget(null); fetchAll(); }
+    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
   }
 
   // --- Column definitions ---
@@ -162,6 +190,21 @@ export default function AcademicPage() {
       header: ({ column }) => <DataTableColumnHeader column={column} title="Kelas" />,
       cell: ({ row }) => <span className="font-currency text-sm">{row.original._count.classSections}</span>,
     },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <DataTableRowActions
+          onEdit={() => {
+            const p = row.original;
+            setEditingProgram(p);
+            setProgramForm({ code: p.code, name: p.name, description: p.description ?? "", type: p.type, ageMin: p.ageMin ? String(p.ageMin) : "", ageMax: p.ageMax ? String(p.ageMax) : "" });
+            setProgramDialog(true);
+          }}
+          onDeactivate={() => setDeactivateTarget({ type: "program", id: row.original.id, name: row.original.name })}
+          isActive={row.original.isActive}
+        />
+      ),
+    },
   ];
 
   const yearColumns: ColumnDef<AcademicYear>[] = [
@@ -196,6 +239,21 @@ export default function AcademicPage() {
         const count = sections.filter(s => s.academicYear.name === row.original.name).length;
         return <span className="font-currency text-sm">{count}</span>;
       },
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <DataTableRowActions
+          onEdit={() => {
+            const y = row.original;
+            setEditingYear(y);
+            setYearForm({ name: y.name, startDate: y.startDate, endDate: y.endDate });
+            setYearDialog(true);
+          }}
+          onDeactivate={() => setDeactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
+          isActive={row.original.status === "ACTIVE"}
+        />
+      ),
     },
   ];
 
@@ -235,15 +293,25 @@ export default function AcademicPage() {
     },
     {
       id: "actions",
-      header: "",
       cell: ({ row }) => (
-        <Button size="sm" variant="outline" onClick={() => {
-          setAssignForm({ classSectionId: row.original.id, className: row.original.name, employeeId: "" });
-          setAssignDialog(true);
-          loadAssignments(row.original.id);
-        }}>
-          <Plus size={12} className="mr-1" /> Guru
-        </Button>
+        <DataTableRowActions
+          onEdit={() => {
+            const s = row.original;
+            setEditingSection(s);
+            setSectionForm({ name: s.name, programId: "", academicYearId: "", campusId: "", capacity: String(s.capacity) });
+            setSectionDialog(true);
+          }}
+          onDeactivate={() => setDeactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
+          extraActions={[{
+            label: "Guru Pengajar",
+            icon: <Users size={14} />,
+            onClick: () => {
+              setAssignForm({ classSectionId: row.original.id, className: row.original.name, employeeId: "" });
+              setAssignDialog(true);
+              loadAssignments(row.original.id);
+            },
+          }]}
+        />
       ),
     },
   ];
@@ -264,7 +332,7 @@ export default function AcademicPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Program</h2>
-          <Button size="sm" onClick={() => { setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
+          <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
             <Plus size={14} className="mr-1.5" /> Tambah Program
           </Button>
         </div>
@@ -275,7 +343,7 @@ export default function AcademicPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Tahun Ajaran</h2>
-          <Button size="sm" onClick={() => { setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
+          <Button size="sm" onClick={() => { setEditingYear(null); setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
             <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
           </Button>
         </div>
@@ -286,7 +354,7 @@ export default function AcademicPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Kelas</h2>
-          <Button size="sm" onClick={() => { setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
+          <Button size="sm" onClick={() => { setEditingSection(null); setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
             <Plus size={14} className="mr-1.5" /> Tambah Kelas
           </Button>
         </div>
@@ -296,7 +364,7 @@ export default function AcademicPage() {
       {/* Add Year Dialog */}
       <Dialog open={yearDialog} onOpenChange={setYearDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Tambah Tahun Ajaran</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingYear ? "Edit Tahun Ajaran" : "Tambah Tahun Ajaran"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <FormField label="Nama" required><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></FormField>
             <div className="grid grid-cols-2 gap-3">
@@ -314,7 +382,7 @@ export default function AcademicPage() {
       {/* Add Program Dialog */}
       <Dialog open={programDialog} onOpenChange={setProgramDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Tambah Program</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingProgram ? "Edit Program" : "Tambah Program"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Kode" required><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></FormField>
@@ -346,7 +414,7 @@ export default function AcademicPage() {
       {/* Add Section Dialog */}
       <Dialog open={sectionDialog} onOpenChange={setSectionDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Tambah Kelas</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingSection ? "Edit Kelas" : "Tambah Kelas"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <FormField label="Nama Kelas" required><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></FormField>
             <FormField label="Program" required>
@@ -417,6 +485,16 @@ export default function AcademicPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Deactivate Confirm */}
+      <ConfirmDialog
+        open={!!deactivateTarget}
+        onOpenChange={(o) => !o && setDeactivateTarget(null)}
+        title="Nonaktifkan"
+        description={`Nonaktifkan "${deactivateTarget?.name}"? Data tidak akan dihapus.`}
+        onConfirm={handleDeactivate}
+        confirmLabel="Nonaktifkan"
+      />
     </>
   );
 }
