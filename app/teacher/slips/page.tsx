@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Download, FileText, Banknote } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 import { Card as StatWrapper } from "@/components/ui/card";
 

@@ -11,7 +11,6 @@ import {
   Receipt,
   Building2,
   Clock,
-  Settings,
   type LucideIcon,
 } from "lucide-react";
 

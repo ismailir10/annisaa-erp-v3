@@ -67,7 +67,6 @@ export default function StudentDetailPage() {
   if (loading) return <div className="animate-pulse h-96 bg-card rounded-xl" />;
   if (!student) return <div className="text-center py-20 text-muted-foreground">Siswa tidak ditemukan.</div>;
 
-  const primaryGuardian = student.guardians.find(g => g.isPrimary) ?? student.guardians[0];
   const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
   const metadata = student.metadata ? JSON.parse(student.metadata) : null;
 

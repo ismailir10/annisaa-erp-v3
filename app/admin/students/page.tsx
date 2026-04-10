@@ -10,7 +10,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, GraduationCap, UserCheck, UserX } from "lucide-react";
+import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 
 // ------------------------------------------------------------------
@@ -189,7 +189,6 @@ export default function StudentsPage() {
   }, [pagination.page, pagination.pageSize, search, status, sortBy, sortOrder]);
 
   // Fetch on mount and when deps change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
   const handleSearchChange = useCallback((value: string) => {

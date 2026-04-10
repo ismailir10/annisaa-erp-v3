@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { StatCard } from "@/components/admin/stat-card";
-import { Plus, UserPlus, Users, PhoneCall, CheckCircle, XCircle } from "lucide-react";
+import { Plus, UserPlus, Users, PhoneCall, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
