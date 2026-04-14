@@ -127,7 +127,7 @@ export default function OrgConfigPage() {
         {/* Timezone */}
         <Field>
           <FieldLabel>Zona Waktu</FieldLabel>
-          <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} />
+          <Input value="Asia/Jakarta" disabled />
         </Field>
 
         {/* Payroll period */}

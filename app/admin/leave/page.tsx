@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Check, X, Clock, CheckCircle, XCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { formatDateShort } from "@/lib/format";
 
 // ------------------------------------------------------------------
 // Types
@@ -90,7 +91,7 @@ export default function AdminLeavePage() {
       const a = approved.pagination?.total ?? 0;
       const r = rejected.pagination?.total ?? 0;
       setStats({ total: p + a + r, pending: p, approved: a, rejected: r });
-    }).catch(() => {});
+    }).catch(() => { /* stats are non-critical */ });
   }, []);
 
   // Review dialog
@@ -237,6 +238,17 @@ export default function AdminLeavePage() {
             </p>
           )}
         </div>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Dibuat" />
+      ),
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateShort(row.original.createdAt)}
+        </span>
       ),
     },
     {

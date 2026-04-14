@@ -96,7 +96,7 @@ export default function AdmissionsPage() {
       const a = admitted.pagination?.total ?? 0;
       const r = registered.pagination?.total ?? 0;
       setStats({ total: i + a + r, inquiry: i, admitted: a, registered: r });
-    }).catch(() => {});
+    }).catch(() => { /* stats are non-critical */ });
   }, []);
 
   // Dialog state
@@ -123,7 +123,7 @@ export default function AdmissionsPage() {
     fetch("/api/programs")
       .then((r) => r.json())
       .then((p) => setPrograms(Array.isArray(p) ? p : p.data ?? []))
-      .catch(() => {});
+      .catch(() => { /* programs lookup is non-critical */ });
   }, []);
 
   const fetchAdmissions = useCallback(async () => {
@@ -423,6 +423,21 @@ export default function AdmissionsPage() {
                 />
               </Field>
             </div>
+            <Field>
+              <FieldLabel>Jenis Kelamin</FieldLabel>
+              <Select
+                value={form.childGender}
+                onValueChange={(v) => v && setForm({ ...form, childGender: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="L">Laki-laki</SelectItem>
+                  <SelectItem value="P">Perempuan</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>Nama Orang Tua *</FieldLabel>

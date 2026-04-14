@@ -66,7 +66,7 @@ export default function NewStudentPage() {
             <Field><FieldLabel>Nama Panggilan</FieldLabel><Input value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} placeholder="Aisyah" /></Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Field><FieldLabel>Tanggal Lahir</FieldLabel><Input type="date" value={form.dateOfBirth} onChange={e => setForm({ ...form, dateOfBirth: e.target.value })} /></Field>
+            <Field><FieldLabel>Tanggal Lahir</FieldLabel><Input type="date" value={form.dateOfBirth} onChange={e => setForm({ ...form, dateOfBirth: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
             <Field>
               <FieldLabel>Jenis Kelamin</FieldLabel>
               <Select value={form.gender} onValueChange={v => v && setForm({ ...form, gender: v })}>

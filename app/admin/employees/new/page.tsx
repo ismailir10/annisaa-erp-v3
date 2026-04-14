@@ -108,8 +108,26 @@ export default function NewEmployeePage() {
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Field><FieldLabel>Tanggal Masuk *</FieldLabel><Input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} /></Field>
-          <Field><FieldLabel>Bank</FieldLabel><Input value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} /></Field>
+          <Field><FieldLabel>Tanggal Masuk *</FieldLabel><Input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+          <Field>
+            <FieldLabel>Bank</FieldLabel>
+            <Select value={form.bankName} onValueChange={(v) => v && setForm({ ...form, bankName: v })}>
+              <SelectTrigger><SelectValue placeholder="Pilih bank" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Bank BSI">Bank BSI</SelectItem>
+                <SelectItem value="BRI">BRI</SelectItem>
+                <SelectItem value="BCA">BCA</SelectItem>
+                <SelectItem value="Bank Mandiri">Bank Mandiri</SelectItem>
+                <SelectItem value="BNI">BNI</SelectItem>
+                <SelectItem value="CIMB Niaga">CIMB Niaga</SelectItem>
+                <SelectItem value="BJB">BJB</SelectItem>
+                <SelectItem value="Bank Muamalat">Bank Muamalat</SelectItem>
+                <SelectItem value="Bank Mega">Bank Mega</SelectItem>
+                <SelectItem value="Bank Permata">Bank Permata</SelectItem>
+                <SelectItem value="Lainnya">Lainnya</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
         <Field><FieldLabel>No. Rekening</FieldLabel><Input value={form.bankAccountNo} onChange={(e) => setForm({ ...form, bankAccountNo: e.target.value })} /></Field>
         <label className="flex items-center gap-2 text-sm">

@@ -113,7 +113,7 @@ export default function PayrollListPage() {
       const a = approved.pagination?.total ?? 0;
       const s = sent.pagination?.total ?? 0;
       setStats({ total: d + a + s, draft: d, approved: a, slipsSent: s });
-    }).catch(() => {});
+    }).catch(() => { /* stats are non-critical */ });
   }, []);
 
   const fetchRuns = useCallback(async () => {
