@@ -8,7 +8,7 @@ export type SessionUser = {
   name: string | null;
   tenantId: string | null;
   employeeId: string | null;
-  guardianId: string | null;
+  parentId: string | null;
 };
 
 /**
@@ -52,19 +52,19 @@ export async function getSession(): Promise<SessionUser | null> {
           },
         });
       } else {
-        // Check if there's a guardian with this email
-        const guardian = await prisma.guardian.findFirst({
+        // Check if there's a parent with this email
+        const parent = await prisma.parent.findFirst({
           where: { email: authUser.email },
-          include: { student: { select: { tenantId: true } } },
         });
 
-        if (guardian) {
+        if (parent) {
           user = await prisma.user.create({
             data: {
-              tenantId: guardian.student.tenantId,
+              tenantId: parent.tenantId,
               email: authUser.email,
               role: "GUARDIAN",
-              name: guardian.name,
+              name: parent.name,
+              parentId: parent.id,
             },
           });
         } else {
@@ -82,11 +82,11 @@ export async function getSession(): Promise<SessionUser | null> {
       data: { lastLoginAt: new Date() },
     });
 
-    // For guardian users, find their guardian ID
-    let guardianId: string | null = null;
-    if (user.role === "GUARDIAN") {
-      const guardian = await prisma.guardian.findFirst({ where: { email: user.email } });
-      guardianId = guardian?.id ?? null;
+    // For guardian users, find their parent ID
+    let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
+    if (user.role === "GUARDIAN" && !parentId) {
+      const parent = await prisma.parent.findFirst({ where: { email: user.email } });
+      parentId = parent?.id ?? null;
     }
 
     return {
@@ -96,7 +96,7 @@ export async function getSession(): Promise<SessionUser | null> {
       name: user.name,
       tenantId: user.tenantId,
       employeeId: user.employeeId,
-      guardianId,
+      parentId,
     };
   } catch {
     return getDemoSession();
@@ -123,6 +123,6 @@ async function getDemoSession(): Promise<SessionUser | null> {
     name: user.name,
     tenantId: user.tenantId,
     employeeId: user.employeeId,
-    guardianId: null,
+    parentId: null,
   };
 }

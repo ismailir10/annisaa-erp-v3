@@ -25,13 +25,28 @@ export async function POST(
   // Check capacity
   const section = await prisma.classSection.findUnique({
     where: { id: classSectionId },
-    include: { _count: { select: { enrollments: { where: { status: "ACTIVE" } } } } },
+    include: {
+      program: true,
+      _count: { select: { enrollments: { where: { status: "ACTIVE" } } } },
+    },
   });
   if (!section) return NextResponse.json({ error: "Kelas tidak ditemukan" }, { status: 404 });
 
   const activeCount = section._count.enrollments;
   if (activeCount >= section.capacity) {
     return NextResponse.json({ error: `Kelas penuh (${activeCount}/${section.capacity})` }, { status: 400 });
+  }
+
+  // Check age if student has DOB and program has age limits
+  if (student?.dateOfBirth && section.program.ageMin) {
+    const dob = new Date(student.dateOfBirth);
+    const ageInMonths = Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+    if (section.program.ageMin && ageInMonths < section.program.ageMin) {
+      return NextResponse.json({ error: `Usia siswa (${ageInMonths} bulan) di bawah batas minimum program (${section.program.ageMin} bulan)` }, { status: 400 });
+    }
+    if (section.program.ageMax && ageInMonths > section.program.ageMax) {
+      return NextResponse.json({ error: `Usia siswa (${ageInMonths} bulan) di atas batas maksimum program (${section.program.ageMax} bulan)` }, { status: 400 });
+    }
   }
 
   const today = new Date().toISOString().split("T")[0];

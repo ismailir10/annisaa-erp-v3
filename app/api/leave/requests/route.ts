@@ -41,6 +41,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tidak ada hari kerja dalam rentang tanggal tersebut" }, { status: 400 });
   }
 
+  // Check employee is active
+  const employeeCheck = await prisma.employee.findUnique({
+    where: { id: session.employeeId },
+    select: { status: true },
+  });
+  if (employeeCheck?.status !== "ACTIVE") {
+    return NextResponse.json({ error: "Karyawan tidak aktif" }, { status: 400 });
+  }
+
   // Check balance for ANNUAL and SICK
   if (leaveType === "ANNUAL" || leaveType === "SICK") {
     const employee = await prisma.employee.findUnique({

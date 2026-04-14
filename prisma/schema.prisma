@@ -17,6 +17,7 @@ model Tenant {
 
   users           User[]
   roles           Role[]
+  parents         Parent[]
   campuses        Campus[]
   employees       Employee[]
   holidays        Holiday[]
@@ -42,11 +43,13 @@ model User {
   name        String?
   lastLoginAt DateTime?
 
+  parentId     String?
   customRoleId String?
   status       String    @default("ACTIVE") // ACTIVE | INACTIVE
 
   tenant     Tenant?   @relation(fields: [tenantId], references: [id])
   employee   Employee? @relation(fields: [employeeId], references: [id])
+  parent     Parent?   @relation(fields: [parentId], references: [id])
   customRole Role?     @relation(fields: [customRoleId], references: [id])
 }
 
@@ -231,6 +234,7 @@ model AttendanceRecord {
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, date])
+  @@index([employeeId, date])
   @@index([date])
   @@index([status])
 }
@@ -375,7 +379,7 @@ model Student {
   createdAt   DateTime @default(now())
 
   tenant      Tenant              @relation(fields: [tenantId], references: [id])
-  guardians   Guardian[]
+  guardians   StudentGuardian[]
   enrollments StudentEnrollment[]
   admission   Admission?
   invoices           Invoice[]
@@ -385,20 +389,40 @@ model Student {
   @@index([tenantId, status])
 }
 
-// ── GUARDIAN ─────────────────────────────────────────────────
-model Guardian {
+// ── PARENT (the actual person — contact info lives here) ────
+model Parent {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  email     String?
+  phone     String?
+  whatsapp  String?
+  address   String?
+  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt DateTime @default(now())
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id])
+  guardians StudentGuardian[]
+  invoices  Invoice[]
+  users     User[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+}
+
+// ── STUDENT ↔ PARENT JUNCTION (relationship + billing) ──────
+model StudentGuardian {
   id           String  @id @default(cuid())
   studentId    String
-  name         String
+  parentId     String
   relationship String  // AYAH | IBU | WALI | OTHER
-  phone        String?
-  email        String?
-  whatsapp     String?
-  isPrimary    Boolean @default(false) // Primary billing contact
+  isPrimary    Boolean @default(false) // Primary billing contact for this student
 
   student Student @relation(fields: [studentId], references: [id])
+  parent  Parent  @relation(fields: [parentId], references: [id])
 
-  @@index([email])
+  @@unique([studentId, parentId])
+  @@index([parentId])
 }
 
 // ── STUDENT ENROLLMENT ───────────────────────────────────────
@@ -416,6 +440,7 @@ model StudentEnrollment {
 
   @@unique([studentId, classSectionId])
   @@index([classSectionId, status])
+  @@index([studentId, status])
 }
 
 // ── ADMISSION ────────────────────────────────────────────────
@@ -496,19 +521,23 @@ model Invoice {
   createdBy     String
   sentAt        DateTime?
   paidAt        DateTime?
+  parentId      String?   // Billing contact (Parent)
   xenditSessionId  String?  // Xendit checkout session ID
   xenditPaymentUrl String?  // Xendit hosted checkout URL
   createdAt     DateTime  @default(now())
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id])
   student  Student       @relation(fields: [studentId], references: [id])
+  parent   Parent?       @relation(fields: [parentId], references: [id])
   lines    InvoiceLine[]
   payments Payment[]
 
   @@unique([tenantId, invoiceNumber])
   @@index([studentId, status])
+  @@index([tenantId, status, dueDate])
   @@index([dueDate])
   @@index([status])
+  @@index([parentId])
 }
 
 // ── INVOICE LINE ─────────────────────────────────────────────
@@ -528,15 +557,22 @@ model InvoiceLine {
 
 // ── PAYMENT ──────────────────────────────────────────────────
 model Payment {
-  id             String   @id @default(cuid())
-  invoiceId      String
-  amount         Decimal @db.Decimal(15, 2)
-  method         String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
-  reference      String?  // Bank transfer ref or Xendit payment ID
-  notes          String?
-  paidAt         DateTime @default(now())
+  id               String   @id @default(cuid())
+  invoiceId        String
+  amount           Decimal  @db.Decimal(15, 2)
+  method           String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
+  reference        String?  // Bank transfer ref
+  notes            String?
+  status           String   @default("RECORDED") // RECORDED | APPROVED | REVERSED
+  createdBy        String?  // User ID who recorded
+  xenditPaymentId  String?  @unique // Idempotency key for Xendit webhooks
+  paidAt           DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId, status])
+  @@index([createdAt])
 }
 
 // ══════════════════════════════════════════════════════════════

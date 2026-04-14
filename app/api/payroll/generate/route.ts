@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Period start and end required" }, { status: 400 });
   }
 
-  // Prevent duplicate payroll runs for the same period
+  // Prevent duplicate or overlapping payroll runs
   const existingRun = await prisma.payrollRun.findFirst({
     where: { tenantId: session.tenantId, periodStart, periodEnd },
   });
@@ -32,6 +32,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Penggajian untuk periode ini sudah ada", id: existingRun.id },
       { status: 409 }
+    );
+  }
+
+  const overlapping = await prisma.payrollRun.findFirst({
+    where: {
+      tenantId: session.tenantId,
+      status: { not: "CANCELLED" },
+      periodStart: { lte: periodEnd },
+      periodEnd: { gte: periodStart },
+    },
+  });
+  if (overlapping) {
+    return NextResponse.json(
+      { error: `Periode tumpang tindih dengan penggajian ${overlapping.periodStart} - ${overlapping.periodEnd}` },
+      { status: 400 }
     );
   }
 

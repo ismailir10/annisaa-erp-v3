@@ -16,7 +16,8 @@ async function main() {
   await prisma.studentAttendance.deleteMany();
   await prisma.teachingAssignment.deleteMany();
   await prisma.studentEnrollment.deleteMany();
-  await prisma.guardian.deleteMany();
+  await prisma.studentGuardian.deleteMany();
+  await prisma.parent.deleteMany();
   await prisma.student.deleteMany();
   await prisma.classSection.deleteMany();
   await prisma.program.deleteMany();
@@ -239,7 +240,7 @@ async function main() {
   // 7b-4. Students with Guardians and Enrollments
   let studentCount = 0;
   for (const s of students) {
-    await prisma.student.create({
+    const student = await prisma.student.create({
       data: {
         tenantId: tenant.id,
         name: s.name,
@@ -248,15 +249,6 @@ async function main() {
         gender: s.gender,
         address: s.address,
         status: "ACTIVE",
-        guardians: {
-          create: s.guardians.map((g) => ({
-            name: g.name,
-            relationship: g.relationship,
-            phone: g.phone,
-            whatsapp: g.whatsapp,
-            isPrimary: g.isPrimary,
-          })),
-        },
         enrollments: {
           create: {
             classSectionId: classSectionMap[s.classCode],
@@ -266,6 +258,24 @@ async function main() {
         },
       },
     });
+    for (const g of s.guardians) {
+      const parent = await prisma.parent.create({
+        data: {
+          tenantId: tenant.id,
+          name: g.name,
+          phone: g.phone,
+          whatsapp: g.whatsapp,
+        },
+      });
+      await prisma.studentGuardian.create({
+        data: {
+          studentId: student.id,
+          parentId: parent.id,
+          relationship: g.relationship,
+          isPrimary: g.isPrimary,
+        },
+      });
+    }
     studentCount++;
   }
   console.log(`✅ Students: ${studentCount} (with guardians & enrollments)`);

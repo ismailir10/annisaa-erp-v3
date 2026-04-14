@@ -23,7 +23,7 @@ type Payment = { id: string; amount: number; method: string; reference: string |
 type InvoiceDetail = {
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
   totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null;
-  student: { name: string; nickname: string | null; guardians: { name: string; phone: string | null; email: string | null; whatsapp: string | null }[] };
+  student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
 };
 
@@ -84,7 +84,8 @@ export default function InvoiceDetailPage() {
   if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-48" /><Skeleton className="h-8 w-64" /><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><Skeleton className="h-64 lg:col-span-2" /><div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-32" /></div></div></div>;
   if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia." />;
 
-  const guardian = invoice.student.guardians[0];
+  const guardianEntry = invoice.student.guardians[0];
+  const guardian = guardianEntry?.parent;
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
 
   return (

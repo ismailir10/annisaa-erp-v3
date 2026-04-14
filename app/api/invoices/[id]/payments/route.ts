@@ -17,6 +17,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  if (invoice.status === "CANCELLED") {
+    return NextResponse.json({ error: "Tidak bisa mencatat pembayaran untuk tagihan yang dibatalkan" }, { status: 400 });
+  }
+  if (invoice.status === "PAID") {
+    return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });
+  }
+
   const amount = parseFloat(body.amount);
   if (!amount || amount <= 0) {
     return NextResponse.json({ error: "Jumlah pembayaran tidak valid" }, { status: 400 });

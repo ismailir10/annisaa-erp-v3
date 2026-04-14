@@ -14,6 +14,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
   const body = await req.json();
+
+  // Prevent archiving if there are active enrollments
+  if (body.status === "ARCHIVED") {
+    const activeEnrollments = await prisma.studentEnrollment.count({
+      where: {
+        classSection: { academicYearId: id },
+        status: "ACTIVE",
+      },
+    });
+    if (activeEnrollments > 0) {
+      return NextResponse.json({ error: `Masih ada ${activeEnrollments} siswa aktif di tahun ajaran ini` }, { status: 400 });
+    }
+  }
+
   const year = await prisma.academicYear.update({
     where: { id },
     data: {

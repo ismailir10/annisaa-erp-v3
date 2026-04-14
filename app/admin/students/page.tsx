@@ -27,7 +27,7 @@ type Student = {
   gender: string | null;
   status: string;
   createdAt: string;
-  guardians: { name: string; phone: string | null }[];
+  guardians: { parent: { name: string; phone: string | null } }[];
   enrollments: {
     classSection: { name: string; program: { name: string } };
   }[];
@@ -104,10 +104,10 @@ const columns: ColumnDef<Student>[] = [
       if (!g) return <span className="text-xs text-muted-foreground">—</span>;
       return (
         <div className="text-sm">
-          <span>{g.name}</span>
-          {g.phone && (
+          <span>{g.parent.name}</span>
+          {g.parent.phone && (
             <span className="text-xs text-muted-foreground ml-1.5">
-              {g.phone}
+              {g.parent.phone}
             </span>
           )}
         </div>

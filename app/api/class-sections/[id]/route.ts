@@ -16,6 +16,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
   const body = await req.json();
+
+  // Prevent reducing capacity below current enrollment
+  if (body.capacity !== undefined) {
+    const currentEnrollment = await prisma.studentEnrollment.count({
+      where: { classSectionId: id, status: "ACTIVE" },
+    });
+    if (body.capacity < currentEnrollment) {
+      return NextResponse.json({ error: `Kapasitas tidak bisa kurang dari jumlah siswa terdaftar (${currentEnrollment})` }, { status: 400 });
+    }
+  }
+
   const section = await prisma.classSection.update({
     where: { id },
     data: { name: body.name?.trim(), capacity: body.capacity, campusId: body.campusId },

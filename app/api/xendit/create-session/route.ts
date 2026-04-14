@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
       include: {
-        student: { include: { guardians: { where: { isPrimary: true }, take: 1 } } },
+        student: { include: { guardians: { where: { isPrimary: true }, take: 1, include: { parent: true } } } },
         lines: true,
       },
     });
@@ -61,16 +61,17 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    const guardian = invoice.student.guardians[0];
+    const guardianLink = invoice.student.guardians[0];
+    const guardianParent = guardianLink?.parent;
 
     try {
       const xenditSession = await createXenditSession({
         referenceId: invoice.id,
         amount: remaining,
         description: `${invoice.invoiceNumber} — ${invoice.student.name} — ${invoice.periodLabel}`,
-        customerName: guardian?.name ?? invoice.student.name,
-        customerEmail: guardian?.email ?? undefined,
-        customerPhone: guardian?.whatsapp ?? guardian?.phone ?? undefined,
+        customerName: guardianParent?.name ?? invoice.student.name,
+        customerEmail: guardianParent?.email ?? undefined,
+        customerPhone: guardianParent?.whatsapp ?? guardianParent?.phone ?? undefined,
         successReturnUrl: `${appUrl}/payment/success?invoice=${invoice.id}`,
         cancelReturnUrl: `${appUrl}/payment/cancel?invoice=${invoice.id}`,
         expiryDays: 7,
