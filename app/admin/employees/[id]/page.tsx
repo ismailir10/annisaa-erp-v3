@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Pencil, X } from "lucide-react";
+import { ArrowLeft, Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield } from "lucide-react";
 import { formatDateShort, formatTime } from "@/lib/format";
 import Link from "next/link";
 
@@ -31,12 +31,15 @@ type SalaryValue = {
 };
 type Campus = { id: string; name: string };
 
+const INDONESIAN_BANKS = ["Bank BSI", "BRI", "BCA", "Bank Mandiri", "BNI", "CIMB Niaga", "BJB", "Bank Muamalat", "Bank Mega", "Bank Permata", "Lainnya"];
+
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [salaryValues, setSalaryValues] = useState<SalaryValue[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingSalary, setSavingSalary] = useState(false);
@@ -49,8 +52,9 @@ export default function EmployeeDetailPage() {
       fetch(`/api/employees/${id}`).then(r => r.json()),
       fetch(`/api/employees/${id}/salary`).then(r => r.json()),
       fetch("/api/config/campuses").then(r => r.json()),
-    ]).then(([emp, sal, camps]) => {
-      setEmployee(emp); setSalaryValues(sal); setCampuses(camps); setLoading(false);
+      fetch("/api/employees/positions").then(r => r.json()),
+    ]).then(([emp, sal, camps, pos]) => {
+      setEmployee(emp); setSalaryValues(sal); setCampuses(camps); setPositions(pos); setLoading(false);
     }).catch(() => { toast.error("Gagal memuat data karyawan"); setLoading(false); });
   }, [id]);
 
@@ -81,7 +85,7 @@ export default function EmployeeDetailPage() {
     toast.success("Karyawan dinonaktifkan"); router.push("/admin/employees");
   }
 
-  if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-8 w-64" /><Skeleton className="h-10 w-72" /><Skeleton className="h-80 max-w-2xl" /></div>;
+  if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-8 w-64" /><Skeleton className="h-10 w-72" /><Skeleton className="h-80 max-w-3xl" /></div>;
   if (!employee) return <EmptyState title="Karyawan tidak ditemukan" description="Silakan kembali ke daftar karyawan." />;
 
   const e = employee;
@@ -104,61 +108,163 @@ export default function EmployeeDetailPage() {
         <TabsList><TabsTrigger value="profile">Profil</TabsTrigger><TabsTrigger value="salary">Gaji</TabsTrigger><TabsTrigger value="attendance">Kehadiran</TabsTrigger></TabsList>
 
         <TabsContent value="profile">
-          <Card className="p-6 max-w-2xl mt-4">
+          <Card className="p-5 max-w-3xl mt-4">
             {isEditing && (
               <div className="flex justify-end gap-2 mb-4">
                 <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}><X size={14} className="mr-1" /> Batal</Button>
                 <Button size="sm" onClick={handleSave} disabled={saving}><Save size={14} className="mr-1" /> {saving ? "Menyimpan..." : "Simpan Profil"}</Button>
               </div>
             )}
+
             {isEditing ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <Field><FieldLabel>Kode</FieldLabel><Input value={e.kode} disabled /></Field>
-                  <Field><FieldLabel>Nama</FieldLabel><Input value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
+              /* ── EDIT MODE ─────────────────────────────────── */
+              <div className="space-y-5">
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Identitas</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field><FieldLabel>Kode</FieldLabel><Input value={e.kode} disabled /></Field>
+                    <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
+                  </div>
+                  <div className="mt-3">
+                    <Field><FieldLabel>Nama Formal</FieldLabel><Input value={editForm.formalName} onChange={ev => setEditForm({ ...editForm, formalName: ev.target.value })} /></Field>
+                  </div>
                 </div>
-                <Field><FieldLabel>Nama Formal</FieldLabel><Input value={editForm.formalName} onChange={ev => setEditForm({ ...editForm, formalName: ev.target.value })} /></Field>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field><FieldLabel>Email</FieldLabel><Input value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
-                  <Field><FieldLabel>No. HP</FieldLabel><Input value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
+
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kontak</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field><FieldLabel>Email *</FieldLabel><Input value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
+                    <Field><FieldLabel>No. HP</FieldLabel><Input value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field><FieldLabel>Jabatan</FieldLabel><Input value={editForm.jabatan} onChange={ev => setEditForm({ ...editForm, jabatan: ev.target.value })} /></Field>
-                  <Field>
-                    <FieldLabel>Kampus</FieldLabel>
-                    <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </Field>
+
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kepegawaian</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field>
+                      <FieldLabel>Jabatan *</FieldLabel>
+                      <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })}>
+                        <SelectTrigger><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
+                        <SelectContent>
+                          {positions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          {!positions.includes(editForm.jabatan) && editForm.jabatan && (
+                            <SelectItem value={editForm.jabatan}>{editForm.jabatan}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Kampus *</FieldLabel>
+                      <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className="mt-3">
+                    <Field><FieldLabel>Tanggal Masuk</FieldLabel><Input type="date" value={editForm.hireDate} onChange={ev => setEditForm({ ...editForm, hireDate: ev.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field><FieldLabel>Tanggal Masuk</FieldLabel><Input type="date" value={editForm.hireDate} onChange={ev => setEditForm({ ...editForm, hireDate: ev.target.value })} /></Field>
-                  <Field><FieldLabel>Bank</FieldLabel><Input value={editForm.bankName} onChange={ev => setEditForm({ ...editForm, bankName: ev.target.value })} /></Field>
+
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rekening & BPJS</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field>
+                      <FieldLabel>Bank</FieldLabel>
+                      <Select value={editForm.bankName} onValueChange={v => v && setEditForm({ ...editForm, bankName: v })}>
+                        <SelectTrigger><SelectValue placeholder="Pilih bank" /></SelectTrigger>
+                        <SelectContent>
+                          {INDONESIAN_BANKS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field><FieldLabel>No. Rekening</FieldLabel><Input value={editForm.bankAccountNo} onChange={ev => setEditForm({ ...editForm, bankAccountNo: ev.target.value })} /></Field>
+                  </div>
+                  <div className="mt-3">
+                    <label className="flex items-center gap-2 text-sm"><Checkbox checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
+                  </div>
                 </div>
-                <Field><FieldLabel>No. Rekening</FieldLabel><Input value={editForm.bankAccountNo} onChange={ev => setEditForm({ ...editForm, bankAccountNo: ev.target.value })} /></Field>
-                <label className="flex items-center gap-2 text-sm"><Checkbox checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-[10px] text-muted-foreground">Kode</p><p className="text-sm font-medium font-currency">{e.kode}</p></div>
-                <div><p className="text-[10px] text-muted-foreground">Nama</p><p className="text-sm font-medium">{e.nama}</p></div>
-                {e.formalName && <div className="col-span-2"><p className="text-[10px] text-muted-foreground">Nama Formal</p><p className="text-sm">{e.formalName}</p></div>}
-                <div><p className="text-[10px] text-muted-foreground">Email</p><p className="text-sm">{e.email}</p></div>
-                <div><p className="text-[10px] text-muted-foreground">No. HP</p><p className="text-sm">{e.noHp || "—"}</p></div>
-                <div><p className="text-[10px] text-muted-foreground">Jabatan</p><p className="text-sm">{e.jabatan}</p></div>
-                <div><p className="text-[10px] text-muted-foreground">Kampus</p><p className="text-sm">{e.campus.name}</p></div>
-                <div><p className="text-[10px] text-muted-foreground">Tanggal Masuk</p><p className="text-sm">{formatDateShort(e.hireDate)}</p></div>
-                <div><p className="text-[10px] text-muted-foreground">Bank</p><p className="text-sm">{e.bankName || "—"}</p></div>
-                <div><p className="text-[10px] text-muted-foreground">No. Rekening</p><p className="text-sm font-currency">{e.bankAccountNo || "—"}</p></div>
-                <div><p className="text-[10px] text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak"}</p></div>
+              /* ── VIEW MODE ─────────────────────────────────── */
+              <div className="space-y-6">
+                {/* Identitas */}
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Identitas</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3">
+                      <User size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-[10px] text-muted-foreground">Kode</p><p className="text-sm font-medium font-currency">{e.kode}</p></div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <User size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-[10px] text-muted-foreground">Nama</p><p className="text-sm font-medium">{e.nama}</p></div>
+                    </div>
+                  </div>
+                  {e.formalName && (
+                    <div className="mt-2 ml-7"><p className="text-[10px] text-muted-foreground">Nama Formal</p><p className="text-sm">{e.formalName}</p></div>
+                  )}
+                </div>
+
+                {/* Kontak */}
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kontak</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3">
+                      <Mail size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-[10px] text-muted-foreground">Email</p><p className="text-sm">{e.email}</p></div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Phone size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-[10px] text-muted-foreground">No. HP</p><p className="text-sm">{e.noHp || "—"}</p></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kepegawaian */}
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kepegawaian</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3">
+                      <Briefcase size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-[10px] text-muted-foreground">Jabatan</p><p className="text-sm font-medium">{e.jabatan}</p></div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <MapPin size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-[10px] text-muted-foreground">Kampus</p><p className="text-sm">{e.campus.name}</p></div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <Calendar size={16} className="text-muted-foreground shrink-0" />
+                    <div><p className="text-[10px] text-muted-foreground">Tanggal Masuk</p><p className="text-sm">{formatDateShort(e.hireDate)}</p></div>
+                  </div>
+                </div>
+
+                {/* Rekening & BPJS */}
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rekening & BPJS</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3">
+                      <CreditCard size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-[10px] text-muted-foreground">Bank</p><p className="text-sm">{e.bankName || "—"}</p></div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <CreditCard size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-[10px] text-muted-foreground">No. Rekening</p><p className="text-sm font-currency">{e.bankAccountNo || "—"}</p></div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <Shield size={16} className="text-muted-foreground shrink-0" />
+                    <div><p className="text-[10px] text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar"}</p></div>
+                  </div>
+                </div>
               </div>
             )}
           </Card>
         </TabsContent>
 
         <TabsContent value="salary">
-          <Card className="p-6 max-w-2xl mt-4">
+          <Card className="p-6 max-w-3xl mt-4">
             {salaryValues.length === 0 ? <EmptyState title="Tidak ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
               <div className="space-y-3">
                 {salaryValues.map(sv => (
@@ -212,7 +318,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
   const STATUS_COLORS: Record<string, string> = { PRESENT: "bg-status-present", LATE: "bg-status-late", ABSENT: "bg-status-absent", LEAVE: "bg-status-leave", HOLIDAY: "bg-status-holiday", PRESENT_NO_CHECKOUT: "bg-status-no-checkout" };
 
   return (
-    <Card className="p-6 max-w-2xl mt-4">
+    <Card className="p-6 max-w-3xl mt-4">
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground">←</button>
         <span className="text-sm font-semibold capitalize">{monthLabel}</span>

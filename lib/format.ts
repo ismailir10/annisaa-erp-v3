@@ -15,14 +15,18 @@ export function formatDate(dateStr: string, options?: Intl.DateTimeFormatOptions
     month: "long",
     year: "numeric",
   };
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("id-ID", options ?? defaults);
+  // Handle both YYYY-MM-DD and ISO datetime (2026-04-10T14:30:45.123Z)
+  const dateOnly = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr;
+  return new Date(dateOnly + "T00:00:00").toLocaleDateString("id-ID", options ?? defaults);
 }
 
 /**
  * Format date string to short format (e.g., "8 Apr 2026")
  */
 export function formatDateShort(dateStr: string): string {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("id-ID", {
+  // Handle both YYYY-MM-DD and ISO datetime (2026-04-10T14:30:45.123Z)
+  const dateOnly = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr;
+  return new Date(dateOnly + "T00:00:00").toLocaleDateString("id-ID", {
     day: "numeric",
     month: "short",
     year: "numeric",
