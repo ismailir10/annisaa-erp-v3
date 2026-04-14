@@ -150,8 +150,8 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
-  const [sortBy, setSortBy] = useState("name");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, enrolled: 0, graduated: 0 });
 
   // Stats fetch once
@@ -165,7 +165,7 @@ export default function StudentsPage() {
       const e = enrolled.pagination?.total ?? 0;
       const g = graduated.pagination?.total ?? 0;
       setStats({ total: a + e + g, active: a, enrolled: e, graduated: g });
-    }).catch(() => {});
+    }).catch(() => { /* stats are non-critical */ });
   }, []);
 
   const fetchStudents = useCallback(async () => {
@@ -283,7 +283,7 @@ export default function StudentsPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         onSortChange={handleSortChange}
-        defaultSort={{ field: "name", order: "asc" }}
+        defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
         emptyTitle="Belum ada siswa terdaftar"
         emptyDescription="Mulai dengan mendaftarkan siswa baru atau konversi dari pendaftaran."

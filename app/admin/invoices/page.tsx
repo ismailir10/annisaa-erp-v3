@@ -28,7 +28,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatCard } from "@/components/admin/stat-card";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, Ban } from "lucide-react";
 import { toast } from "sonner";
-import { formatRupiah } from "@/lib/format";
+import { formatRupiah, formatDateShort } from "@/lib/format";
 
 // ------------------------------------------------------------------
 // Types
@@ -126,6 +126,17 @@ const columns: ColumnDef<Invoice>[] = [
     },
   },
   {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Dibuat" />
+    ),
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground">
+        {formatDateShort(row.original.createdAt)}
+      </span>
+    ),
+  },
+  {
     accessorKey: "status",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
@@ -180,14 +191,14 @@ export default function InvoicesPage() {
       const p = paid.pagination?.total ?? 0;
       const o = overdue.pagination?.total ?? 0;
       setStats({ total: d + s + p + o, draft: d, sent: s, paid: p, overdue: o });
-    }).catch(() => {});
+    }).catch(() => { /* stats are non-critical */ });
   }, []);
 
   useEffect(() => {
     fetch("/api/academic-years")
       .then((r) => r.json())
       .then((y) => setYears(Array.isArray(y) ? y : y.data ?? []))
-      .catch(() => {});
+      .catch(() => { /* academic years lookup is non-critical */ });
   }, []);
 
   const fetchInvoices = useCallback(async () => {

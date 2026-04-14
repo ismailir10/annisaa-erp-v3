@@ -11,6 +11,7 @@ import {
   Receipt,
   Building2,
   Clock,
+  Shield,
   type LucideIcon,
 } from "lucide-react";
 
@@ -90,6 +91,8 @@ export const adminNav: NavConfig = {
       href: "/admin/settings/salary-components",
       icon: Coins,
     },
+    { label: "Pengguna", href: "/admin/settings/users", icon: Users },
+    { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield },
   ],
 };
 

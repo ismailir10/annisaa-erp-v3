@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
+import { formatDateShort } from "@/lib/format";
 
 // ------------------------------------------------------------------
 // Types
@@ -29,6 +30,7 @@ type Employee = {
   campusId: string;
   bankAccountNo: string | null;
   bpjsEnrolled: boolean;
+  createdAt: string;
   campus: { name: string };
 };
 
@@ -111,6 +113,17 @@ const columns: ColumnDef<Employee>[] = [
     },
   },
   {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Dibuat" />
+    ),
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground">
+        {formatDateShort(row.original.createdAt)}
+      </span>
+    ),
+  },
+  {
     accessorKey: "status",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
@@ -137,8 +150,8 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("");
   const [campusFilter, setCampusFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("nama");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
 
   // Fetch campuses + stats once
@@ -146,7 +159,7 @@ export default function EmployeesPage() {
     fetch("/api/config/campuses")
       .then((r) => r.json())
       .then((c) => setCampuses(Array.isArray(c) ? c : []))
-      .catch(() => {});
+      .catch(() => { /* stats are non-critical */ });
     // Quick stats — fetch all with minimal data
     Promise.all([
       fetch("/api/employees?pageSize=1&status=ACTIVE").then(r => r.json()),
@@ -155,7 +168,7 @@ export default function EmployeesPage() {
       const a = active.pagination?.total ?? 0;
       const i = inactive.pagination?.total ?? 0;
       setStats({ total: a + i, active: a, inactive: i });
-    }).catch(() => {});
+    }).catch(() => { /* stats are non-critical */ });
   }, []);
 
   const fetchEmployees = useCallback(async () => {
@@ -286,7 +299,7 @@ export default function EmployeesPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         onSortChange={handleSortChange}
-        defaultSort={{ field: "nama", order: "asc" }}
+        defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
         emptyTitle="Belum ada karyawan"
         emptyDescription="Tambahkan karyawan baru untuk memulai."

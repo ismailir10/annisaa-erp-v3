@@ -13,6 +13,8 @@ async function main() {
   console.log("🌱 Seeding database...");
 
   // Clear existing data
+  await prisma.studentAttendance.deleteMany();
+  await prisma.teachingAssignment.deleteMany();
   await prisma.studentEnrollment.deleteMany();
   await prisma.guardian.deleteMany();
   await prisma.student.deleteMany();
@@ -267,6 +269,79 @@ async function main() {
     studentCount++;
   }
   console.log(`✅ Students: ${studentCount} (with guardians & enrollments)`);
+
+  // ── 7c. TEACHING ASSIGNMENTS (link teachers to classes) ────
+  // Map teachers by jabatan to classes
+  const teacherClassMap: { empKode: string; classKey: string; role: string }[] = [
+    { empKode: "NNF6", classKey: "TKIT_A", role: "HOMEROOM" },   // redacted - Class A1
+    { empKode: "YN7", classKey: "TKIT_B", role: "HOMEROOM" },    // Yohana - Class A2
+    { empKode: "NK20", classKey: "KB_ASTER", role: "HOMEROOM" },  // Redacted Employee - Ka Paud
+    { empKode: "EH21", classKey: "KB_METLAND", role: "HOMEROOM" },// Elvriani - Pj Dcare Metland
+    { empKode: "SNF17", classKey: "DCARE", role: "HOMEROOM" },    // Redacted Employee - Class Dcare
+    { empKode: "HH3", classKey: "POPUP", role: "HOMEROOM" },      // Redacted Employee - Ka Dcare
+  ];
+
+  let assignmentCount = 0;
+  for (const ta of teacherClassMap) {
+    if (employeeIds[ta.empKode] && classSectionMap[ta.classKey]) {
+      await prisma.teachingAssignment.create({
+        data: {
+          employeeId: employeeIds[ta.empKode],
+          classSectionId: classSectionMap[ta.classKey],
+          role: ta.role,
+        },
+      });
+      assignmentCount++;
+    }
+  }
+  console.log(`✅ Teaching assignments: ${assignmentCount}`);
+
+  // ── 7d. STUDENT ATTENDANCE (last 5 school days) ───────────
+  // Get all students with their enrollments for class linking
+  const allStudents = await prisma.student.findMany({
+    where: { tenantId: tenant.id, status: "ACTIVE" },
+    include: { enrollments: { where: { status: "ACTIVE" }, select: { classSectionId: true } } },
+  });
+
+  let studentAttCount = 0;
+  const todayDate = new Date();
+  for (let dayOffset = 5; dayOffset >= 1; dayOffset--) {
+    const d = new Date(todayDate);
+    d.setDate(d.getDate() - dayOffset);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue; // skip weekends
+
+    const dateStr = d.toISOString().split("T")[0];
+
+    for (const student of allStudents) {
+      if (student.enrollments.length === 0) continue;
+      const classSectionId = student.enrollments[0].classSectionId;
+
+      // Find the teacher for this class
+      const ta = teacherClassMap.find(t => classSectionMap[t.classKey] === classSectionId);
+      const checkedInBy = ta ? employeeIds[ta.empKode] : null;
+
+      // Randomize: 75% PRESENT, 10% ABSENT, 10% SICK, 5% PERMISSION
+      const rand = Math.random();
+      let status: string;
+      if (rand < 0.75) status = "PRESENT";
+      else if (rand < 0.85) status = "ABSENT";
+      else if (rand < 0.95) status = "SICK";
+      else status = "PERMISSION";
+
+      await prisma.studentAttendance.create({
+        data: {
+          studentId: student.id,
+          classSectionId,
+          date: dateStr,
+          status,
+          checkedInBy,
+        },
+      });
+      studentAttCount++;
+    }
+  }
+  console.log(`✅ Student attendance: ${studentAttCount} records`);
 
   // ── 8. SEED ATTENDANCE RECORDS (last 30 days) ──────────────
   const today = new Date();

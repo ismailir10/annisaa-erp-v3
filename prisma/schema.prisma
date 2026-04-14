@@ -16,6 +16,7 @@ model Tenant {
   createdAt DateTime @default(now())
 
   users           User[]
+  roles           Role[]
   campuses        Campus[]
   employees       Employee[]
   holidays        Holiday[]
@@ -41,8 +42,29 @@ model User {
   name        String?
   lastLoginAt DateTime?
 
-  tenant   Tenant?   @relation(fields: [tenantId], references: [id])
-  employee Employee? @relation(fields: [employeeId], references: [id])
+  customRoleId String?
+  status       String    @default("ACTIVE") // ACTIVE | INACTIVE
+
+  tenant     Tenant?   @relation(fields: [tenantId], references: [id])
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  customRole Role?     @relation(fields: [customRoleId], references: [id])
+}
+
+// ── ROLE (RBAC) ─────────────────────────────────────────────
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String   // "Kepala Sekolah", "Admin Keuangan"
+  code        String   // "HEAD", "FINANCE_ADMIN"
+  description String?
+  isSystem    Boolean  @default(false)
+  permissions String   // JSON array: ["payroll.approve", "invoice.void"]
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  users  User[]
+
+  @@unique([tenantId, code])
 }
 
 // ── CAMPUS ───────────────────────────────────────────────────
