@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Users, UserCheck, Clock, UserX, CalendarOff, Banknote, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { formatDate } from "@/lib/format";
 
 type WeeklyTrend = { date: string; present: number; late: number; absent: number };
 
@@ -60,7 +61,7 @@ export function DashboardClient({
                 const presentH = total > 0 ? (day.present / maxTrendValue) * 100 : 0;
                 const lateH = total > 0 ? (day.late / maxTrendValue) * 100 : 0;
                 const absentH = total > 0 ? (day.absent / maxTrendValue) * 100 : 0;
-                const dayLabel = new Date(day.date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short" });
+                const dayLabel = formatDate(day.date, { weekday: "short" });
 
                 return (
                   <div key={day.date} className="flex-1 flex flex-col items-center gap-1">

@@ -37,15 +37,13 @@ export async function POST(
     select: { employeeId: true },
   });
 
-  for (const item of items) {
-    await prisma.attendanceRecord.updateMany({
-      where: {
-        employeeId: item.employeeId,
-        date: { gte: payroll.periodStart, lte: payroll.periodEnd },
-      },
-      data: { isLocked: true },
-    });
-  }
+  await prisma.attendanceRecord.updateMany({
+    where: {
+      employeeId: { in: items.map(i => i.employeeId) },
+      date: { gte: payroll.periodStart, lte: payroll.periodEnd },
+    },
+    data: { isLocked: true },
+  });
 
   return NextResponse.json({ ok: true });
 }

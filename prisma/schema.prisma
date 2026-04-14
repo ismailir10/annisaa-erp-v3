@@ -379,6 +379,14 @@ model Student {
   status      String  @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
   createdAt   DateTime @default(now())
 
+  // Government compliance fields
+  nis         String?  // Nomor Induk Siswa (school-assigned)
+  nisn        String?  // Nomor Induk Siswa Nasional
+  birthPlace  String?  // Tempat lahir
+  nik         String?  // NIK anak (16 digits)
+  kkNumber    String?  // No. Kartu Keluarga
+  livingWith  String?  // ORANG_TUA | WALI | LAINNYA
+
   tenant      Tenant              @relation(fields: [tenantId], references: [id])
   guardians   StudentGuardian[]
   enrollments StudentEnrollment[]
@@ -398,9 +406,19 @@ model Parent {
   email     String?
   phone     String?
   whatsapp  String?
-  address   String?
-  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
-  createdAt DateTime @default(now())
+  address         String?
+  status          String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt       DateTime @default(now())
+
+  // Government compliance fields
+  nik             String?  // NIK orang tua (16 digits)
+  education       String?  // SMA | D1-D3 | S1 | S2 | S3 | Profesi
+  occupation      String?  // Karyawan Swasta | ASN | Guru | Wiraswasta | Ibu Rumah Tangga
+  employer        String?  // Nama perusahaan
+  employerAddress String?  // Alamat kantor
+  employerCity    String?  // Kota/Kab
+  incomeRange     String?  // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
+  childrenTotal   Int?     // Total anak (including non-students at this school)
 
   tenant    Tenant             @relation(fields: [tenantId], references: [id])
   guardians StudentGuardian[]
@@ -418,6 +436,7 @@ model StudentGuardian {
   parentId     String
   relationship String  // AYAH | IBU | WALI | OTHER
   isPrimary    Boolean @default(false) // Primary billing contact for this student
+  childOrder   Int?    // Anak ke- (this student's position in the parent's family)
 
   student Student @relation(fields: [studentId], references: [id])
   parent  Parent  @relation(fields: [parentId], references: [id])
@@ -456,6 +475,9 @@ model Admission {
   parentPhone      String?
   parentEmail      String?
   parentWhatsapp   String?
+  parentEducation  String?  // SMA | D1-D3 | S1 | S2 | S3
+  parentOccupation String?  // Karyawan Swasta | ASN | Guru | Wiraswasta | BUMN | Ibu Rumah Tangga | Lainnya
+  parentIncome     String?  // < Rp 1 Juta | Rp 1-2 Juta | Rp 3-5 Juta | Rp 5-10 Juta | > Rp 10 Juta
   programId        String?  // Program of interest
   campusPreference String?  // Campus ID
   source           String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER

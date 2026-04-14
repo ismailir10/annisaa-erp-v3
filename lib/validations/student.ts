@@ -7,6 +7,12 @@ export const createStudentSchema = z.object({
   gender: z.enum(["L", "P"]).optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  nis: z.string().optional().nullable(),
+  nisn: z.string().optional().nullable(),
+  birthPlace: z.string().optional().nullable(),
+  nik: z.string().optional().nullable(),
+  kkNumber: z.string().optional().nullable(),
+  livingWith: z.string().optional().nullable(),
   metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   guardians: z.array(z.object({
     name: z.string().min(1, "Nama wali wajib diisi"),

@@ -38,6 +38,9 @@ type Admission = {
   parentName: string;
   parentPhone: string | null;
   parentWhatsapp: string | null;
+  parentEducation: string | null;
+  parentOccupation: string | null;
+  parentIncome: string | null;
   programId: string | null;
   source: string;
   status: string;
@@ -112,6 +115,9 @@ export default function AdmissionsPage() {
     parentPhone: "",
     parentWhatsapp: "",
     parentEmail: "",
+    parentEducation: "",
+    parentOccupation: "",
+    parentIncome: "",
     programId: "",
     source: "WHATSAPP",
     notes: "",
@@ -233,6 +239,9 @@ export default function AdmissionsPage() {
       parentPhone: "",
       parentWhatsapp: "",
       parentEmail: "",
+      parentEducation: "",
+      parentOccupation: "",
+      parentIncome: "",
       programId: "",
       source: "WHATSAPP",
       notes: "",
@@ -324,7 +333,10 @@ export default function AdmissionsPage() {
               setForm({
                 childName: a.childName, childAge: a.childAge ?? "", childGender: a.childGender ?? "",
                 parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
-                parentEmail: "", programId: a.programId ?? "", source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
+                parentEmail: "", parentEducation: a.parentEducation ?? "",
+                parentOccupation: a.parentOccupation ?? "",
+                parentIncome: a.parentIncome ?? "",
+                programId: a.programId ?? "", source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
               });
               setDialogOpen(true);
             }}
@@ -454,6 +466,64 @@ export default function AdmissionsPage() {
                   onChange={(e) => setForm({ ...form, parentWhatsapp: e.target.value })}
                   placeholder="081234567890"
                 />
+              </Field>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field>
+                <FieldLabel>Pendidikan Orang Tua</FieldLabel>
+                <Select
+                  value={form.parentEducation}
+                  onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SMA">SMA</SelectItem>
+                    <SelectItem value="D1-D3">D1-D3</SelectItem>
+                    <SelectItem value="S1">S1</SelectItem>
+                    <SelectItem value="S2">S2</SelectItem>
+                    <SelectItem value="S3">S3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Pekerjaan</FieldLabel>
+                <Select
+                  value={form.parentOccupation}
+                  onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Karyawan Swasta">Karyawan Swasta</SelectItem>
+                    <SelectItem value="ASN">ASN</SelectItem>
+                    <SelectItem value="Guru">Guru</SelectItem>
+                    <SelectItem value="Wiraswasta">Wiraswasta</SelectItem>
+                    <SelectItem value="BUMN">BUMN</SelectItem>
+                    <SelectItem value="Ibu Rumah Tangga">Ibu Rumah Tangga</SelectItem>
+                    <SelectItem value="Lainnya">Lainnya</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Penghasilan</FieldLabel>
+                <Select
+                  value={form.parentIncome}
+                  onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="< Rp 1 Juta">&lt; Rp 1 Juta</SelectItem>
+                    <SelectItem value="Rp 1-2 Juta">Rp 1-2 Juta</SelectItem>
+                    <SelectItem value="Rp 3-5 Juta">Rp 3-5 Juta</SelectItem>
+                    <SelectItem value="Rp 5-10 Juta">Rp 5-10 Juta</SelectItem>
+                    <SelectItem value="> Rp 10 Juta">&gt; Rp 10 Juta</SelectItem>
+                  </SelectContent>
+                </Select>
               </Field>
             </div>
             <Field>

@@ -58,21 +58,21 @@ const SYSTEM_ROLES = [
     name: "Admin Sekolah",
     description: "Akses penuh ke semua fitur sistem",
     icon: ShieldCheck,
-    color: "text-[#5DB4B8]" as const,
+    color: "text-primary" as const,
   },
   {
     role: "TEACHER",
     name: "Guru",
     description: "Akses kehadiran dan data siswa di kelas yang diajar",
     icon: Shield,
-    color: "text-[#00B37E]" as const,
+    color: "text-success" as const,
   },
   {
     role: "GUARDIAN",
     name: "Wali Murid",
     description: "Akses data anak, tagihan, kehadiran, dan rapor",
     icon: Shield,
-    color: "text-[#FF8C00]" as const,
+    color: "text-warning" as const,
   },
 ];
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
-import { formatTime } from "@/lib/format";
+import { formatDate, formatTime } from "@/lib/format";
 
 type TodayRecord = {
   status: string;
@@ -93,7 +93,7 @@ export function TeacherHomeClient({
     second: "2-digit",
     hour12: false,
   });
-  const dateStr = time.toLocaleDateString("id-ID", {
+  const dateStr = formatDate(time.toISOString().split("T")[0], {
     weekday: "long",
     day: "numeric",
     month: "long",
