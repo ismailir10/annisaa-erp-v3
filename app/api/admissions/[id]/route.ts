@@ -10,6 +10,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!existing || existing.tenantId !== session.tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
+
+  // Validate status transitions
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    INQUIRY: ["VISIT_SCHEDULED", "CANCELLED"],
+    VISIT_SCHEDULED: ["VISITED", "CANCELLED"],
+    VISITED: ["ADMITTED", "CANCELLED"],
+    ADMITTED: ["REGISTERED", "CANCELLED"],
+    REGISTERED: ["CANCELLED"],
+    CANCELLED: [], // Terminal state
+  };
+
+  if (body.status && body.status !== existing.status) {
+    const allowed = VALID_TRANSITIONS[existing.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return NextResponse.json({ error: `Tidak bisa mengubah status dari ${existing.status} ke ${body.status}` }, { status: 400 });
+    }
+  }
+
   const admission = await prisma.admission.update({
     where: { id },
     data: {

@@ -45,11 +45,11 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${origin}/teacher`);
         }
 
-        // Check if guardian exists (first-time parent login)
-        const guardian = await prisma.guardian.findFirst({
+        // Check if parent exists (first-time parent login)
+        const parent = await prisma.parent.findFirst({
           where: { email: user.email },
         });
-        if (guardian) {
+        if (parent) {
           return NextResponse.redirect(`${origin}/parent`);
         }
       } catch (dbError) {

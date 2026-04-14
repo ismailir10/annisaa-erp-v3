@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       skip,
       take,
       include: {
-        guardians: { where: { isPrimary: true }, take: 1 },
+        guardians: { where: { isPrimary: true }, take: 1, include: { parent: true } },
         enrollments: {
           where: { status: "ACTIVE" },
           include: { classSection: { select: { name: true, program: { select: { name: true } } } } },
@@ -76,14 +76,24 @@ export async function POST(req: NextRequest) {
 
   if (body.guardians?.length) {
     for (const g of body.guardians) {
-      await prisma.guardian.create({
+      const email = g.email?.trim() || null;
+      let parent;
+      if (email) {
+        parent = await prisma.parent.upsert({
+          where: { tenantId_email: { tenantId: session.tenantId, email } },
+          create: { tenantId: session.tenantId, name: g.name, email, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+          update: { name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+        });
+      } else {
+        parent = await prisma.parent.create({
+          data: { tenantId: session.tenantId, name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+        });
+      }
+      await prisma.studentGuardian.create({
         data: {
           studentId: student.id,
-          name: g.name,
+          parentId: parent.id,
           relationship: g.relationship,
-          phone: g.phone ?? null,
-          email: g.email ?? null,
-          whatsapp: g.whatsapp ?? null,
           isPrimary: g.isPrimary,
         },
       });

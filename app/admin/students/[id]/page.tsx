@@ -21,7 +21,7 @@ import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Tras
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
-type Guardian = { id: string; name: string; relationship: string; phone: string | null; email: string | null; whatsapp: string | null; isPrimary: boolean };
+type Guardian = { id: string; relationship: string; isPrimary: boolean; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null } };
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
@@ -101,7 +101,7 @@ export default function StudentDetailPage() {
 
   function openEditGuardian(g: Guardian) {
     setEditingGuardian(g);
-    setGuardianForm({ name: g.name, relationship: g.relationship, phone: g.phone ?? "", email: g.email ?? "", whatsapp: g.whatsapp ?? "" });
+    setGuardianForm({ name: g.parent.name, relationship: g.relationship, phone: g.parent.phone ?? "", email: g.parent.email ?? "", whatsapp: g.parent.whatsapp ?? "" });
     setGuardianDialog(true);
   }
 
@@ -286,7 +286,7 @@ export default function StudentDetailPage() {
                   <div key={g.id} className="border-b border-border/50 last:border-0 pb-3 last:pb-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{g.name}</p>
+                        <p className="text-sm font-medium">{g.parent.name}</p>
                         <Badge variant="outline" className="text-[10px]">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
                         {g.isPrimary && <Badge className="bg-primary/10 text-primary text-[10px]">Utama</Badge>}
                       </div>
@@ -296,9 +296,9 @@ export default function StudentDetailPage() {
                       </div>
                     </div>
                     <div className="mt-1 space-y-0.5">
-                      {g.phone && <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone size={10} /> {g.phone}</p>}
-                      {g.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail size={10} /> {g.email}</p>}
-                      {g.whatsapp && <p className="text-xs text-muted-foreground flex items-center gap-1">WA: {g.whatsapp}</p>}
+                      {g.parent.phone && <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone size={10} /> {g.parent.phone}</p>}
+                      {g.parent.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail size={10} /> {g.parent.email}</p>}
+                      {g.parent.whatsapp && <p className="text-xs text-muted-foreground flex items-center gap-1">WA: {g.parent.whatsapp}</p>}
                     </div>
                   </div>
                 ))}
@@ -383,7 +383,7 @@ export default function StudentDetailPage() {
       </Dialog>
 
       <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Siswa" description={`Nonaktifkan ${student.name}? Siswa tidak akan muncul di daftar aktif.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" />
-      <ConfirmDialog open={!!deleteGuardianTarget} onOpenChange={(o) => !o && setDeleteGuardianTarget(null)} title="Hapus Wali" description={`Hapus data wali "${deleteGuardianTarget?.name}"?`} onConfirm={deleteGuardian} confirmLabel="Hapus" />
+      <ConfirmDialog open={!!deleteGuardianTarget} onOpenChange={(o) => !o && setDeleteGuardianTarget(null)} title="Hapus Wali" description={`Hapus data wali "${deleteGuardianTarget?.parent?.name}"?`} onConfirm={deleteGuardian} confirmLabel="Hapus" />
     </>
   );
 }

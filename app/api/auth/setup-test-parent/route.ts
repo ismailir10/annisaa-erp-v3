@@ -3,13 +3,13 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
 /**
- * One-time setup: creates a GUARDIAN record for rightjet.hq@gmail.com
- * linked to the first student in the database.
+ * One-time setup: creates a Parent record for rightjet.hq@gmail.com
+ * linked to the first student in the database via StudentGuardian.
  *
  * Call: POST /api/auth/setup-test-parent
  * Requires: SCHOOL_ADMIN session
  *
- * After creating the guardian, rightjet.hq@gmail.com can log in via
+ * After creating the parent, rightjet.hq@gmail.com can log in via
  * Google OAuth and the auth system will auto-create a GUARDIAN user.
  */
 export async function POST() {
@@ -20,10 +20,10 @@ export async function POST() {
 
   const email = "rightjet.hq@gmail.com";
 
-  // Check if guardian already exists
-  const existing = await prisma.guardian.findFirst({ where: { email } });
+  // Check if parent already exists
+  const existing = await prisma.parent.findFirst({ where: { email } });
   if (existing) {
-    return NextResponse.json({ message: "Guardian already exists", guardianId: existing.id });
+    return NextResponse.json({ message: "Parent already exists", parentId: existing.id });
   }
 
   // Find first student
@@ -35,19 +35,27 @@ export async function POST() {
     return NextResponse.json({ error: "No students found" }, { status: 404 });
   }
 
-  const guardian = await prisma.guardian.create({
+  const parent = await prisma.parent.create({
     data: {
+      tenantId: session.tenantId,
       name: "Test Parent (RightJet)",
       email,
       phone: "081234567890",
+    },
+  });
+
+  await prisma.studentGuardian.create({
+    data: {
+      studentId: student.id,
+      parentId: parent.id,
       relationship: "PARENT",
-      student: { connect: { id: student.id } },
+      isPrimary: true,
     },
   });
 
   return NextResponse.json({
-    message: `Guardian created for ${student.name}`,
-    guardianId: guardian.id,
+    message: `Parent created for ${student.name}`,
+    parentId: parent.id,
     studentName: student.name,
   });
 }

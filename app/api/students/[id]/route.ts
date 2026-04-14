@@ -13,7 +13,7 @@ export async function GET(
   const student = await prisma.student.findUnique({
     where: { id },
     include: {
-      guardians: { orderBy: { isPrimary: "desc" } },
+      guardians: { orderBy: { isPrimary: "desc" }, include: { parent: true } },
       enrollments: {
         include: {
           classSection: {
@@ -52,6 +52,15 @@ export async function PUT(
   }
 
   const body = await req.json();
+
+  // Cascade: withdraw all active enrollments when student is deactivated
+  if (body.status === "INACTIVE" || body.status === "WITHDRAWN") {
+    await prisma.studentEnrollment.updateMany({
+      where: { studentId: id, status: "ACTIVE" },
+      data: { status: "WITHDRAWN" },
+    });
+  }
+
   const student = await prisma.student.update({
     where: { id },
     data: {

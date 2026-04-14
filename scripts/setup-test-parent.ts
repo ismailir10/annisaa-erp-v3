@@ -3,7 +3,7 @@
  * Run with: npx tsx scripts/setup-test-parent.ts
  *
  * This creates/updates:
- * 1. A guardian record linked to the first student found
+ * 1. A Parent record + StudentGuardian link to the first student found
  * 2. A user record with GUARDIAN role
  *
  * Requires DATABASE_URL to be set (staging DB).
@@ -23,43 +23,54 @@ async function main() {
   });
 
   if (!student) {
-    console.error("❌ No students found in database. Create a student first.");
+    console.error("No students found in database. Create a student first.");
     process.exit(1);
   }
 
-  console.log(`📚 Found student: ${student.name} (${student.id})`);
+  console.log(`Found student: ${student.name} (${student.id})`);
 
   // Find the tenant
   const tenant = await prisma.tenant.findFirst();
   if (!tenant) {
-    console.error("❌ No tenant found.");
+    console.error("No tenant found.");
     process.exit(1);
   }
 
-  // Upsert guardian
-  const existingGuardian = await prisma.guardian.findFirst({
+  // Upsert parent
+  const existingParent = await prisma.parent.findFirst({
     where: { email: PARENT_EMAIL },
   });
 
-  let guardian;
-  if (existingGuardian) {
-    guardian = await prisma.guardian.update({
-      where: { id: existingGuardian.id },
-      data: { studentId: student.id },
-    });
-    console.log(`✅ Updated existing guardian: ${guardian.id}`);
+  let parent;
+  if (existingParent) {
+    parent = existingParent;
+    console.log(`Updated existing parent: ${parent.id}`);
   } else {
-    guardian = await prisma.guardian.create({
+    parent = await prisma.parent.create({
       data: {
         name: PARENT_NAME,
         email: PARENT_EMAIL,
         phone: "081234567890",
-        relationship: "PARENT",
-        studentId: student.id,
         tenantId: tenant.id,
       },
     });
-    console.log(`✅ Created guardian: ${guardian.id}`);
+    console.log(`Created parent: ${parent.id}`);
+  }
+
+  // Ensure StudentGuardian link exists
+  const existingLink = await prisma.studentGuardian.findFirst({
+    where: { parentId: parent.id, studentId: student.id },
+  });
+  if (!existingLink) {
+    await prisma.studentGuardian.create({
+      data: {
+        studentId: student.id,
+        parentId: parent.id,
+        relationship: "PARENT",
+        isPrimary: true,
+      },
+    });
+    console.log(`Created StudentGuardian link`);
   }
 
   // Upsert user
@@ -70,9 +81,9 @@ async function main() {
   if (existingUser) {
     await prisma.user.update({
       where: { id: existingUser.id },
-      data: { role: "GUARDIAN", tenantId: tenant.id },
+      data: { role: "GUARDIAN", tenantId: tenant.id, parentId: parent.id },
     });
-    console.log(`✅ Updated existing user to GUARDIAN role`);
+    console.log(`Updated existing user to GUARDIAN role`);
   } else {
     await prisma.user.create({
       data: {
@@ -80,12 +91,13 @@ async function main() {
         name: PARENT_NAME,
         role: "GUARDIAN",
         tenantId: tenant.id,
+        parentId: parent.id,
       },
     });
-    console.log(`✅ Created GUARDIAN user: ${PARENT_EMAIL}`);
+    console.log(`Created GUARDIAN user: ${PARENT_EMAIL}`);
   }
 
-  console.log(`\n🎉 Done! ${PARENT_EMAIL} can now log in as parent for student: ${student.name}`);
+  console.log(`\nDone! ${PARENT_EMAIL} can now log in as parent for student: ${student.name}`);
 }
 
 main()

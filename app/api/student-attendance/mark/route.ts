@@ -21,6 +21,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Kelas, tanggal, dan data kehadiran wajib diisi" }, { status: 400 });
   }
 
+  const today = new Date().toISOString().split("T")[0];
+  if (date > today) {
+    return NextResponse.json({ error: "Tidak bisa mencatat kehadiran untuk tanggal yang akan datang" }, { status: 400 });
+  }
+
   // Verify teacher is assigned to this class
   const assignment = await prisma.teachingAssignment.findFirst({
     where: { employeeId: session.employeeId, classSectionId },

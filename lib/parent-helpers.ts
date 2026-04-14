@@ -1,0 +1,111 @@
+import { prisma } from "@/lib/db";
+import type { SessionUser } from "@/lib/auth";
+
+export type ParentChild = {
+  studentId: string;
+  studentName: string;
+  studentNickname: string | null;
+  className: string | null;
+  programName: string | null;
+  relationship: string;
+  student: {
+    id: string;
+    name: string;
+    nickname: string | null;
+    enrollments: {
+      id: string;
+      status: string;
+      classSection: {
+        id: string;
+        name: string;
+        program: { name: string };
+      };
+    }[];
+    invoices: {
+      id: string;
+      invoiceNumber: string;
+      periodLabel: string;
+      totalDue: unknown;
+      totalPaid: unknown;
+      status: string;
+      xenditPaymentUrl: string | null;
+      createdAt: Date;
+    }[];
+  };
+};
+
+/**
+ * Find a parent record from session (parentId or email fallback).
+ * Returns the parent with all linked children via StudentGuardian.
+ */
+export async function getParentWithChildren(session: SessionUser) {
+  const parentId = session.parentId;
+
+  const whereClause = parentId
+    ? { id: parentId }
+    : { email: session.email };
+
+  const parent = await prisma.parent.findFirst({
+    where: whereClause,
+    include: {
+      guardians: {
+        include: {
+          student: {
+            include: {
+              enrollments: {
+                where: { status: "ACTIVE" },
+                include: {
+                  classSection: {
+                    include: { program: { select: { name: true } } },
+                  },
+                },
+                take: 1,
+              },
+              invoices: {
+                where: { status: { in: ["SENT", "DRAFT", "OVERDUE"] } },
+                orderBy: { createdAt: "desc" as const },
+                take: 5,
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!parent || parent.guardians.length === 0) {
+    return { parent: null, children: [] };
+  }
+
+  const children: ParentChild[] = parent.guardians.map((sg) => {
+    const enrollment = sg.student.enrollments[0] ?? null;
+    return {
+      studentId: sg.student.id,
+      studentName: sg.student.name,
+      studentNickname: sg.student.nickname,
+      className: enrollment?.classSection.name ?? null,
+      programName: enrollment?.classSection.program.name ?? null,
+      relationship: sg.relationship,
+      student: sg.student,
+    };
+  });
+
+  return { parent, children };
+}
+
+/**
+ * Resolve which child is selected from the URL param, defaulting to first.
+ */
+export function resolveSelectedChild(
+  children: ParentChild[],
+  childParam: string | undefined
+): ParentChild | null {
+  if (children.length === 0) return null;
+
+  if (childParam) {
+    const found = children.find((c) => c.studentId === childParam);
+    if (found) return found;
+  }
+
+  return children[0];
+}

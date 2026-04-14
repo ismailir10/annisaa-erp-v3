@@ -1,24 +1,32 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helpers";
+import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { InvoicesClient } from "./client";
 
-export default async function ParentInvoicesPage() {
+export default async function ParentInvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ child?: string }>;
+}) {
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN") redirect("/");
 
-  const guardian = await prisma.guardian.findFirst({
-    where: { email: session.email },
-  });
-  if (!guardian) redirect("/parent");
+  const { parent, children } = await getParentWithChildren(session);
+  if (!parent || children.length === 0) redirect("/parent");
+
+  const params = await searchParams;
+  const selected = resolveSelectedChild(children, params.child);
+  if (!selected) redirect("/parent");
 
   const invoices = await prisma.invoice.findMany({
-    where: { studentId: guardian.studentId },
+    where: { studentId: selected.studentId },
     include: { payments: true },
     orderBy: { createdAt: "desc" },
   });
 
-  const data = invoices.map(inv => ({
+  const data = invoices.map((inv) => ({
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
     periodLabel: inv.periodLabel,
@@ -29,5 +37,19 @@ export default async function ParentInvoicesPage() {
     createdAt: inv.createdAt.toISOString(),
   }));
 
-  return <InvoicesClient data={data} />;
+  const childTabsData = children.map((c) => ({
+    studentId: c.studentId,
+    studentName: c.studentName,
+    className: c.className,
+  }));
+
+  return (
+    <div>
+      <ChildSelectorTabs
+        items={childTabsData}
+        selectedChildId={selected.studentId}
+      />
+      <InvoicesClient data={data} />
+    </div>
+  );
 }

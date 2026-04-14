@@ -78,21 +78,24 @@ export async function POST(req: NextRequest) {
   // 4. Students (import seed data inline — simplified version)
   let studentCount = 0;
   for (const s of students) {
-    await prisma.student.create({
+    const student = await prisma.student.create({
       data: {
         tenantId,
         name: s.name, nickname: s.nickname, dateOfBirth: s.dateOfBirth,
         gender: s.gender, address: s.address, status: "ACTIVE",
-        guardians: {
-          create: s.guardians.map((g: { name: string; relationship: string; phone: string; whatsapp: string; isPrimary: boolean }) => ({
-            name: g.name, relationship: g.relationship, phone: g.phone, whatsapp: g.whatsapp, isPrimary: g.isPrimary,
-          })),
-        },
         enrollments: {
           create: { classSectionId: classMap[s.classCode], enrollDate: "2025-07-14", status: "ACTIVE" },
         },
       },
     });
+    for (const g of s.guardians as { name: string; relationship: string; phone: string; whatsapp: string; isPrimary: boolean }[]) {
+      const parent = await prisma.parent.create({
+        data: { tenantId, name: g.name, phone: g.phone, whatsapp: g.whatsapp },
+      });
+      await prisma.studentGuardian.create({
+        data: { studentId: student.id, parentId: parent.id, relationship: g.relationship, isPrimary: g.isPrimary },
+      });
+    }
     studentCount++;
   }
 

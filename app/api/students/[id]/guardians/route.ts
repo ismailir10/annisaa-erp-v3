@@ -28,16 +28,34 @@ export async function POST(
     return NextResponse.json({ error: "Nama wali wajib diisi" }, { status: 400 });
   }
 
-  const guardian = await prisma.guardian.create({
+  const email = body.email?.trim() || null;
+  const name = body.name.trim();
+  const phone = body.phone?.trim() || null;
+  const whatsapp = body.whatsapp?.trim() || null;
+
+  // Find or create a Parent record
+  let parent;
+  if (email) {
+    parent = await prisma.parent.upsert({
+      where: { tenantId_email: { tenantId: session.tenantId, email } },
+      create: { tenantId: session.tenantId, name, email, phone, whatsapp },
+      update: { name, phone, whatsapp },
+    });
+  } else {
+    parent = await prisma.parent.create({
+      data: { tenantId: session.tenantId, name, phone, whatsapp },
+    });
+  }
+
+  // Create the StudentGuardian link
+  const guardian = await prisma.studentGuardian.create({
     data: {
-      name: body.name.trim(),
+      studentId,
+      parentId: parent.id,
       relationship: body.relationship || "WALI",
-      phone: body.phone?.trim() || null,
-      email: body.email?.trim() || null,
-      whatsapp: body.whatsapp?.trim() || null,
       isPrimary: body.isPrimary ?? false,
-      student: { connect: { id: studentId } },
     },
+    include: { parent: true },
   });
 
   return NextResponse.json(guardian, { status: 201 });

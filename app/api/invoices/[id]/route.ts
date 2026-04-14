@@ -10,7 +10,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const invoice = await prisma.invoice.findUnique({
     where: { id },
     include: {
-      student: { include: { guardians: { where: { isPrimary: true }, take: 1 } } },
+      student: { include: { guardians: { where: { isPrimary: true }, take: 1, include: { parent: true } } } },
       lines: { include: { feeComponent: { select: { code: true, category: true } } }, orderBy: { feeComponent: { sortOrder: "asc" } } },
       payments: { orderBy: { paidAt: "desc" } },
     },

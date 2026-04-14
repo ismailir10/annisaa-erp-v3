@@ -1,39 +1,25 @@
 import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
+import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helpers";
 import Link from "next/link";
 import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
 import { formatRupiah } from "@/lib/format";
 
-export default async function ParentDashboard() {
+export default async function ParentDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ child?: string }>;
+}) {
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN") redirect("/");
 
-  // Find guardian's students
-  const guardian = await prisma.guardian.findFirst({
-    where: { email: session.email },
-    include: {
-      student: {
-        include: {
-          enrollments: {
-            where: { status: "ACTIVE" },
-            include: { classSection: { include: { program: { select: { name: true } } } } },
-            take: 1,
-          },
-          invoices: {
-            where: { status: { in: ["SENT", "DRAFT", "OVERDUE"] } },
-            orderBy: { createdAt: "desc" },
-            take: 3,
-          },
-        },
-      },
-    },
-  });
+  const { parent, children } = await getParentWithChildren(session);
 
-  if (!guardian) {
+  if (!parent || children.length === 0) {
     return (
       <div className="py-16">
         <EmptyState
@@ -45,40 +31,80 @@ export default async function ParentDashboard() {
     );
   }
 
-  const student = guardian.student;
+  const params = await searchParams;
+  const selected = resolveSelectedChild(children, params.child);
+  if (!selected) redirect("/parent");
+
+  const student = selected.student;
   const enrollment = student.enrollments[0];
   const unpaidInvoices = student.invoices;
-  const totalUnpaid = unpaidInvoices.reduce((s, i) => s + (Number(i.totalDue) - Number(i.totalPaid)), 0);
+  const totalUnpaid = unpaidInvoices.reduce(
+    (s, i) => s + (Number(i.totalDue) - Number(i.totalPaid)),
+    0
+  );
+
+  const childTabsData = children.map((c) => ({
+    studentId: c.studentId,
+    studentName: c.studentName,
+    className: c.className,
+  }));
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">Assalamu&apos;alaikum, {guardian.name}</h1>
-        <p className="text-sm text-muted-foreground mt-1">Portal Orang Tua — An Nisaa&apos; Sekolahku</p>
+        <h1 className="text-xl font-bold">
+          Assalamu&apos;alaikum, {parent.name}
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Portal Orang Tua — An Nisaa&apos; Sekolahku
+        </p>
       </div>
+
+      {/* Child selector tabs (only shown when 2+ children) */}
+      <ChildSelectorTabs
+        items={childTabsData}
+        selectedChildId={selected.studentId}
+      />
 
       {/* Student card */}
       <Card className="p-5">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-primary text-xl font-bold">{student.name[0]}</span>
+            <span className="text-primary text-xl font-bold">
+              {student.name[0]}
+            </span>
           </div>
           <div>
             <h2 className="text-lg font-bold">{student.name}</h2>
-            {student.nickname && <p className="text-xs text-muted-foreground">{student.nickname}</p>}
+            {student.nickname && (
+              <p className="text-xs text-muted-foreground">
+                {student.nickname}
+              </p>
+            )}
             {enrollment && (
               <div className="flex items-center gap-2 mt-1">
-                <StatusBadge status="ACTIVE" label={enrollment.classSection.name} />
-                <span className="text-xs text-muted-foreground">{enrollment.classSection.program.name}</span>
+                <StatusBadge
+                  status="ACTIVE"
+                  label={enrollment.classSection.name}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {enrollment.classSection.program.name}
+                </span>
               </div>
             )}
           </div>
         </div>
       </Card>
 
-      {/* Quick links */}
+      {/* Quick links — preserve child param */}
       <div className="grid grid-cols-3 gap-3">
-        <Link href="/parent/invoices">
+        <Link
+          href={
+            children.length > 1
+              ? `/parent/invoices?child=${selected.studentId}`
+              : "/parent/invoices"
+          }
+        >
           <Card className="p-4 text-center hover:border-primary/30 transition-colors">
             <CreditCard size={20} className="mx-auto text-primary mb-2" />
             <p className="text-xs font-medium">Tagihan</p>
@@ -89,13 +115,25 @@ export default async function ParentDashboard() {
             )}
           </Card>
         </Link>
-        <Link href="/parent/attendance">
+        <Link
+          href={
+            children.length > 1
+              ? `/parent/attendance?child=${selected.studentId}`
+              : "/parent/attendance"
+          }
+        >
           <Card className="p-4 text-center hover:border-primary/30 transition-colors">
             <CalendarDays size={20} className="mx-auto text-primary mb-2" />
             <p className="text-xs font-medium">Kehadiran</p>
           </Card>
         </Link>
-        <Link href="/parent/reports">
+        <Link
+          href={
+            children.length > 1
+              ? `/parent/reports?child=${selected.studentId}`
+              : "/parent/reports"
+          }
+        >
           <Card className="p-4 text-center hover:border-primary/30 transition-colors">
             <GraduationCap size={20} className="mx-auto text-primary mb-2" />
             <p className="text-xs font-medium">Rapor</p>
@@ -108,15 +146,21 @@ export default async function ParentDashboard() {
         <div>
           <h3 className="text-sm font-semibold mb-3">Tagihan Belum Lunas</h3>
           <div className="space-y-2">
-            {unpaidInvoices.map(inv => (
-              <Link key={inv.id} href={`/parent/invoices`}>
+            {unpaidInvoices.map((inv) => (
+              <Link key={inv.id} href="/parent/invoices">
                 <Card className="p-4 flex items-center justify-between hover:border-primary/20 transition-colors">
                   <div>
                     <p className="text-sm font-medium">{inv.periodLabel}</p>
-                    <p className="text-[10px] text-muted-foreground">{inv.invoiceNumber}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {inv.invoiceNumber}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-currency text-sm font-bold">{formatRupiah(Number(inv.totalDue) - Number(inv.totalPaid))}</p>
+                    <p className="font-currency text-sm font-bold">
+                      {formatRupiah(
+                        Number(inv.totalDue) - Number(inv.totalPaid)
+                      )}
+                    </p>
                     <StatusBadge status={inv.status} />
                   </div>
                 </Card>
