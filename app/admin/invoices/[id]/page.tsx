@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ArrowLeft, CreditCard, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
-import { formatRupiah } from "@/lib/format";
+import { formatRupiah, formatDateShort } from "@/lib/format";
 
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = { id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string };
@@ -180,7 +180,7 @@ export default function InvoiceDetailPage() {
                       <span className="font-currency text-sm font-bold text-status-present">{formatRupiah(p.amount)}</span>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {new Date(p.paidAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                      {formatDateShort(p.paidAt)}
                       {p.reference && ` · Ref: ${p.reference}`}
                     </p>
                     {p.notes && <p className="text-[10px] text-muted-foreground">{p.notes}</p>}

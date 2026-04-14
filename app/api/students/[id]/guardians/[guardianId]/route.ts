@@ -36,6 +36,13 @@ export async function PUT(
       phone: body.phone !== undefined ? (body.phone?.trim() || null) : guardian.parent.phone,
       email: body.email !== undefined ? (body.email?.trim() || null) : guardian.parent.email,
       whatsapp: body.whatsapp !== undefined ? (body.whatsapp?.trim() || null) : guardian.parent.whatsapp,
+      nik: body.parentNik !== undefined ? (body.parentNik?.trim() || null) : undefined,
+      education: body.education !== undefined ? (body.education?.trim() || null) : undefined,
+      occupation: body.occupation !== undefined ? (body.occupation?.trim() || null) : undefined,
+      employer: body.employer !== undefined ? (body.employer?.trim() || null) : undefined,
+      employerAddress: body.employerAddress !== undefined ? (body.employerAddress?.trim() || null) : undefined,
+      employerCity: body.employerCity !== undefined ? (body.employerCity?.trim() || null) : undefined,
+      incomeRange: body.incomeRange !== undefined ? (body.incomeRange?.trim() || null) : undefined,
     },
   });
 

@@ -18,6 +18,7 @@ export default function NewStudentPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "", nickname: "", dateOfBirth: "", gender: "", address: "", notes: "",
+    nis: "", nisn: "", birthPlace: "", nik: "", kkNumber: "",
   });
   const [guardian, setGuardian] = useState({
     name: "", relationship: "IBU", phone: "", email: "", whatsapp: "",
@@ -80,6 +81,17 @@ export default function NewStudentPage() {
           </div>
           <Field><FieldLabel>Alamat</FieldLabel><Textarea value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} rows={2} placeholder="Alamat lengkap" /></Field>
           <Field><FieldLabel>Catatan</FieldLabel><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Alergi, kebutuhan khusus, dll." /></Field>
+
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pt-2">Identitas Resmi</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <Field><FieldLabel>NIS</FieldLabel><Input value={form.nis} onChange={e => setForm({ ...form, nis: e.target.value })} placeholder="Nomor Induk Siswa" /></Field>
+            <Field><FieldLabel>NISN</FieldLabel><Input value={form.nisn} onChange={e => setForm({ ...form, nisn: e.target.value })} placeholder="Nomor Induk Siswa Nasional" /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field><FieldLabel>Tempat Lahir</FieldLabel><Input value={form.birthPlace} onChange={e => setForm({ ...form, birthPlace: e.target.value })} placeholder="Kota kelahiran" /></Field>
+            <Field><FieldLabel>NIK</FieldLabel><Input value={form.nik} onChange={e => setForm({ ...form, nik: e.target.value })} placeholder="Nomor Induk Kependudukan" /></Field>
+          </div>
+          <Field><FieldLabel>No. KK</FieldLabel><Input value={form.kkNumber} onChange={e => setForm({ ...form, kkNumber: e.target.value })} placeholder="Nomor Kartu Keluarga" /></Field>
         </Card>
 
         {/* Guardian Info */}

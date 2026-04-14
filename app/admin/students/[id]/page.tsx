@@ -21,11 +21,13 @@ import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Tras
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
-type Guardian = { id: string; relationship: string; isPrimary: boolean; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null } };
+type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; education: string | null; occupation: string | null; employer: string | null; incomeRange: string | null; childrenTotal: number | null } };
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
   gender: string | null; address: string | null; notes: string | null; metadata: string | null; status: string;
+  nis: string | null; nisn: string | null; birthPlace: string | null;
+  nik: string | null; kkNumber: string | null; livingWith: string | null;
   guardians: Guardian[]; enrollments: Enrollment[];
 };
 type ClassSection = { id: string; name: string; program: { name: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number }; capacity: number };
@@ -39,7 +41,7 @@ export default function StudentDetailPage() {
 
   // Edit toggle
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", nickname: "", dateOfBirth: "", gender: "", address: "", notes: "" });
+  const [editForm, setEditForm] = useState({ name: "", nickname: "", dateOfBirth: "", gender: "", address: "", notes: "", nis: "", nisn: "", birthPlace: "", nik: "", kkNumber: "", livingWith: "" });
   const [savingStudent, setSavingStudent] = useState(false);
 
   // Enroll dialog
@@ -51,7 +53,7 @@ export default function StudentDetailPage() {
   // Guardian dialog
   const [guardianDialog, setGuardianDialog] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<Guardian | null>(null);
-  const [guardianForm, setGuardianForm] = useState({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "" });
+  const [guardianForm, setGuardianForm] = useState({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "" });
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
 
@@ -76,6 +78,8 @@ export default function StudentDetailPage() {
       name: student.name, nickname: student.nickname ?? "",
       dateOfBirth: student.dateOfBirth ?? "", gender: student.gender ?? "",
       address: student.address ?? "", notes: student.notes ?? "",
+      nis: student.nis ?? "", nisn: student.nisn ?? "", birthPlace: student.birthPlace ?? "",
+      nik: student.nik ?? "", kkNumber: student.kkNumber ?? "", livingWith: student.livingWith ?? "",
     });
     setIsEditing(true);
   }
@@ -95,13 +99,13 @@ export default function StudentDetailPage() {
   // --- Guardian CRUD ---
   function openAddGuardian() {
     setEditingGuardian(null);
-    setGuardianForm({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "" });
+    setGuardianForm({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "" });
     setGuardianDialog(true);
   }
 
   function openEditGuardian(g: Guardian) {
     setEditingGuardian(g);
-    setGuardianForm({ name: g.parent.name, relationship: g.relationship, phone: g.parent.phone ?? "", email: g.parent.email ?? "", whatsapp: g.parent.whatsapp ?? "" });
+    setGuardianForm({ name: g.parent.name, relationship: g.relationship, phone: g.parent.phone ?? "", email: g.parent.email ?? "", whatsapp: g.parent.whatsapp ?? "", parentNik: "", education: g.parent.education ?? "", occupation: g.parent.occupation ?? "", employer: g.parent.employer ?? "", employerAddress: "", employerCity: "", incomeRange: g.parent.incomeRange ?? "" });
     setGuardianDialog(true);
   }
 
@@ -233,6 +237,24 @@ export default function StudentDetailPage() {
             </Field>
             <Field className="sm:col-span-2"><FieldLabel>Alamat</FieldLabel><Textarea value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} rows={2} /></Field>
             <Field className="sm:col-span-2"><FieldLabel>Catatan</FieldLabel><Textarea value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></Field>
+
+            <div className="sm:col-span-2 mt-2"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Identitas Resmi</p></div>
+            <Field><FieldLabel>NIS</FieldLabel><Input value={editForm.nis} onChange={e => setEditForm({ ...editForm, nis: e.target.value })} placeholder="Nomor Induk Siswa" /></Field>
+            <Field><FieldLabel>NISN</FieldLabel><Input value={editForm.nisn} onChange={e => setEditForm({ ...editForm, nisn: e.target.value })} placeholder="Nomor Induk Siswa Nasional" /></Field>
+            <Field><FieldLabel>Tempat Lahir</FieldLabel><Input value={editForm.birthPlace} onChange={e => setEditForm({ ...editForm, birthPlace: e.target.value })} placeholder="Kota kelahiran" /></Field>
+            <Field><FieldLabel>NIK</FieldLabel><Input value={editForm.nik} onChange={e => setEditForm({ ...editForm, nik: e.target.value })} placeholder="Nomor Induk Kependudukan" /></Field>
+            <Field><FieldLabel>No. KK</FieldLabel><Input value={editForm.kkNumber} onChange={e => setEditForm({ ...editForm, kkNumber: e.target.value })} placeholder="Nomor Kartu Keluarga" /></Field>
+            <Field>
+              <FieldLabel>Tinggal Dengan</FieldLabel>
+              <Select value={editForm.livingWith || undefined} onValueChange={v => v && setEditForm({ ...editForm, livingWith: v })}>
+                <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ORANG_TUA">Orang Tua</SelectItem>
+                  <SelectItem value="WALI">Wali</SelectItem>
+                  <SelectItem value="LAINNYA">Lainnya</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
@@ -251,6 +273,20 @@ export default function StudentDetailPage() {
             )}
             {student.notes && <div className="col-span-2"><p className="text-[10px] text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
           </div>
+        )}
+
+        {!isEditing && (student.nis || student.nisn || student.nik || student.birthPlace) && (
+          <>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Identitas Resmi</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {student.nis && <div><p className="text-[10px] text-muted-foreground">NIS</p><p className="text-sm font-medium font-currency">{student.nis}</p></div>}
+              {student.nisn && <div><p className="text-[10px] text-muted-foreground">NISN</p><p className="text-sm font-medium font-currency">{student.nisn}</p></div>}
+              {student.birthPlace && <div><p className="text-[10px] text-muted-foreground">Tempat Lahir</p><p className="text-sm">{student.birthPlace}</p></div>}
+              {student.nik && <div><p className="text-[10px] text-muted-foreground">NIK</p><p className="text-sm font-currency">{student.nik}</p></div>}
+              {student.kkNumber && <div><p className="text-[10px] text-muted-foreground">No. KK</p><p className="text-sm font-currency">{student.kkNumber}</p></div>}
+              {student.livingWith && <div><p className="text-[10px] text-muted-foreground">Tinggal Dengan</p><p className="text-sm">{student.livingWith === "ORANG_TUA" ? "Orang Tua" : student.livingWith === "WALI" ? "Wali" : "Lainnya"}</p></div>}
+            </div>
+          </>
         )}
 
         {!isEditing && metadata && Object.keys(metadata).length > 0 && (
@@ -289,6 +325,7 @@ export default function StudentDetailPage() {
                         <p className="text-sm font-medium">{g.parent.name}</p>
                         <Badge variant="outline" className="text-[10px]">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
                         {g.isPrimary && <Badge className="bg-primary/10 text-primary text-[10px]">Utama</Badge>}
+                        {g.childOrder && <Badge variant="outline" className="text-[10px]">Anak ke-{g.childOrder}</Badge>}
                       </div>
                       <div className="flex gap-1">
                         <button onClick={() => openEditGuardian(g)} className="p-1 rounded hover:bg-accent text-muted-foreground"><Pencil size={12} /></button>
@@ -300,6 +337,13 @@ export default function StudentDetailPage() {
                       {g.parent.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail size={10} /> {g.parent.email}</p>}
                       {g.parent.whatsapp && <p className="text-xs text-muted-foreground flex items-center gap-1">WA: {g.parent.whatsapp}</p>}
                     </div>
+                    {(g.parent.education || g.parent.occupation || g.parent.incomeRange) && (
+                      <div className="mt-1.5 flex flex-wrap gap-2">
+                        {g.parent.education && <Badge variant="outline" className="text-[10px]">{g.parent.education}</Badge>}
+                        {g.parent.occupation && <Badge variant="outline" className="text-[10px]">{g.parent.occupation}</Badge>}
+                        {g.parent.incomeRange && <Badge variant="outline" className="text-[10px]">{g.parent.incomeRange}</Badge>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -352,6 +396,58 @@ export default function StudentDetailPage() {
               <Field><FieldLabel>WhatsApp</FieldLabel><Input value={guardianForm.whatsapp} onChange={e => setGuardianForm({ ...guardianForm, whatsapp: e.target.value })} placeholder="081234567890" /></Field>
             </div>
             <Field><FieldLabel>Email</FieldLabel><Input type="email" value={guardianForm.email} onChange={e => setGuardianForm({ ...guardianForm, email: e.target.value })} placeholder="email@example.com" /></Field>
+
+            <div className="pt-2 border-t"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Pekerjaan</p></div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Pendidikan</FieldLabel>
+                <Select value={guardianForm.education || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, education: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SMA">SMA</SelectItem>
+                    <SelectItem value="D1-D3">D1-D3</SelectItem>
+                    <SelectItem value="S1">S1</SelectItem>
+                    <SelectItem value="S2">S2</SelectItem>
+                    <SelectItem value="S3">S3</SelectItem>
+                    <SelectItem value="Profesi">Profesi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Pekerjaan</FieldLabel>
+                <Select value={guardianForm.occupation || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, occupation: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Karyawan Swasta">Karyawan Swasta</SelectItem>
+                    <SelectItem value="ASN">ASN</SelectItem>
+                    <SelectItem value="Guru">Guru</SelectItem>
+                    <SelectItem value="Wiraswasta">Wiraswasta</SelectItem>
+                    <SelectItem value="BUMN">BUMN</SelectItem>
+                    <SelectItem value="Ibu Rumah Tangga">Ibu Rumah Tangga</SelectItem>
+                    <SelectItem value="Freelance">Freelance</SelectItem>
+                    <SelectItem value="Lainnya">Lainnya</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Penghasilan</FieldLabel>
+                <Select value={guardianForm.incomeRange || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, incomeRange: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="< Rp 1 Juta">&lt; Rp 1 Juta</SelectItem>
+                    <SelectItem value="Rp 1-2 Juta">Rp 1-2 Juta</SelectItem>
+                    <SelectItem value="Rp 3-5 Juta">Rp 3-5 Juta</SelectItem>
+                    <SelectItem value="Rp 5-10 Juta">Rp 5-10 Juta</SelectItem>
+                    <SelectItem value="Rp 7-10 Juta">Rp 7-10 Juta</SelectItem>
+                    <SelectItem value="> Rp 10 Juta">&gt; Rp 10 Juta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field><FieldLabel>NIK</FieldLabel><Input value={guardianForm.parentNik} onChange={e => setGuardianForm({ ...guardianForm, parentNik: e.target.value })} placeholder="NIK orang tua" /></Field>
+            </div>
+            <Field><FieldLabel>Tempat Kerja</FieldLabel><Input value={guardianForm.employer} onChange={e => setGuardianForm({ ...guardianForm, employer: e.target.value })} placeholder="Nama perusahaan / instansi" /></Field>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="outline">Batal</Button></DialogClose>

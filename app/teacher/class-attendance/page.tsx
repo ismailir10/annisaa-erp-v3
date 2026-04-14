@@ -37,7 +37,7 @@ export default function ClassAttendancePage() {
       setAssignments(d);
       if (d.length > 0) setSelectedClass(d[0].classSection.id);
       setLoading(false);
-    }).catch(() => { setLoading(false); });
+    }).catch(() => { /* non-critical: assignments load silently fails */ setLoading(false); });
   }, []);
 
   // Load students when class or date changes

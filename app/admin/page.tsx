@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/admin/page-header";
+import { formatDate } from "@/lib/format";
 import { DashboardClient } from "./dashboard-client";
 
 export default async function AdminDashboard() {
@@ -68,7 +69,7 @@ export default async function AdminDashboard() {
     <>
       <PageHeader
         title={`Selamat datang, ${session.name?.split(" ")[0] ?? "Admin"}`}
-        description={today.toLocaleDateString("id-ID", {
+        description={formatDate(today.toISOString().split("T")[0], {
           weekday: "long", year: "numeric", month: "long", day: "numeric",
         })}
       />

@@ -70,6 +70,12 @@ export async function POST(req: NextRequest) {
       gender: body.gender ?? null,
       address: body.address ?? null,
       notes: body.notes ?? null,
+      nis: body.nis?.trim() || null,
+      nisn: body.nisn?.trim() || null,
+      birthPlace: body.birthPlace?.trim() || null,
+      nik: body.nik?.trim() || null,
+      kkNumber: body.kkNumber?.trim() || null,
+      livingWith: body.livingWith?.trim() || null,
       metadata: body.metadata ? JSON.stringify(body.metadata) : null,
     },
   });

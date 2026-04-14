@@ -21,6 +21,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, GraduationCap, BookOpen, Users, Calendar } from "lucide-react";
 import { toast } from "sonner";
+import { formatDateShort } from "@/lib/format";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
 type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; isActive: boolean; _count: { classSections: number } };
@@ -220,9 +221,9 @@ export default function AcademicPage() {
         const y = row.original;
         return (
           <span className="text-xs text-muted-foreground">
-            {new Date(y.startDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+            {formatDateShort(y.startDate)}
             {" — "}
-            {new Date(y.endDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+            {formatDateShort(y.endDate)}
           </span>
         );
       },
