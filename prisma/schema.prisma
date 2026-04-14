@@ -129,6 +129,7 @@ model Employee {
   bankAccountNo String?
   bankName      String?
   bpjsEnrolled  Boolean @default(false)
+  createdAt     DateTime @default(now())
 
   // Leave balances (reset annually)
   leaveBalanceAnnual Int @default(12)
