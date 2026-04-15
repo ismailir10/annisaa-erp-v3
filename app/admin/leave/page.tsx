@@ -116,8 +116,8 @@ export default function AdminLeavePage() {
       const json = await res.json();
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
-    } catch (err) {
-      console.error("Failed to fetch leave requests:", err);
+    } catch {
+      toast.error("Gagal memuat data cuti");
     } finally {
       setLoading(false);
     }

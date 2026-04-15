@@ -148,8 +148,8 @@ export default function AdmissionsPage() {
       const json = await res.json();
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
-    } catch (err) {
-      console.error("Failed to fetch admissions:", err);
+    } catch {
+      toast.error("Gagal memuat data pendaftaran");
     } finally {
       setLoading(false);
     }

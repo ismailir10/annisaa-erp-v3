@@ -217,8 +217,8 @@ export default function InvoicesPage() {
       const json = await res.json();
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
-    } catch (err) {
-      console.error("Failed to fetch invoices:", err);
+    } catch {
+      toast.error("Gagal memuat data tagihan");
     } finally {
       setLoading(false);
     }
@@ -303,7 +303,7 @@ export default function InvoicesPage() {
       setSendResults(d.results);
     }
     if (d.failed > 0) toast.error(`${d.failed} tagihan gagal`);
-    if (d.errors?.length) d.errors.forEach((e: string) => console.error(e));
+    if (d.errors?.length) d.errors.forEach((e: string) => toast.error(e));
     fetchInvoices();
     setSending(false);
   }
