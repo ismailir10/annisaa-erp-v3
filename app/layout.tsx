@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { Analytics } from '@vercel/analytics/next';
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -53,6 +54,7 @@ export default function RootLayout({
           {children}
         </TooltipProvider>
         <Toaster />
+        <Analytics />
       </body>
     </html>
   );
