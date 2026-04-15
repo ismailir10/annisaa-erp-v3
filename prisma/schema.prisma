@@ -365,6 +365,7 @@ model ClassSection {
   name            String  // "TKIT A", "KB Aster", "D'Care Metland"
   capacity        Int     @default(20)
   campusId        String
+  status          String  @default("ACTIVE") // ACTIVE | INACTIVE
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
   program             Program              @relation(fields: [programId], references: [id])
