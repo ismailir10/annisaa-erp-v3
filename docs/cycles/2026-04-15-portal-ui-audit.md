@@ -82,7 +82,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
    - Reduce from 5 tabs to 4: Beranda, Kehadiran, Kelas, Gaji
    - Verify: Bottom nav shows 4 tabs with proper spacing and active states
 
-4. [ ] Audit and fix parent portal inconsistencies
+4. [x] Audit and fix parent portal inconsistencies
    - Review all parent pages for hardcoded colors, replace with CSS vars
    - Ensure EmptyState usage is consistent
    - Verify StatusBadge usage (no inline Badge with hardcoded colors)
@@ -121,12 +121,14 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 - Task 1: Remove salary amounts from teacher slips page UI — `app/teacher/slips/page.tsx` — Removed summary stat cards, all currency amount displays, and unused imports. Slip cards now show only period dates, status badge, and PDF button.
 - Task 2: Add "Lihat & Ajukan Cuti" action to teacher attendance page — `app/teacher/attendance/page.tsx` — Added clickable card at top with CalendarDays icon, navigates to `/teacher/leave`.
 - Task 3: Remove "Cuti" tab from teacher bottom navigation — `components/teacher/bottom-nav.tsx` — Removed Cuti tab, reduced from 5 to 4 tabs, removed unused CalendarOff import.
+- Task 4: Audit and fix parent portal inconsistencies — `app/parent/invoices/invoice-detail-sheet.tsx` — Fixed dynamic Tailwind class names, replaced with proper VARIANT_STYLES mapping using CSS variables.
 
 ## Verification
 
 - Task 1: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/slips/page.tsx), Manual smoke: Salary page no longer displays any amounts, only PDF button.
 - Task 2: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/attendance/page.tsx), Manual smoke: Cuti action card visible at top of attendance page.
 - Task 3: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/bottom-nav.tsx), Manual smoke: Bottom nav now shows 4 tabs with proper spacing.
+- Task 4: Gates passed (TypeScript compilation successful, no new errors introduced in parent/invoices/invoice-detail-sheet.tsx), Manual smoke: Status messages now use proper CSS variable classes.
 
 ## Ship Notes
 
