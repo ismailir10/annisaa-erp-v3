@@ -32,7 +32,7 @@ export default async function ParentReportsPage({
   if (!selected) redirect("/parent");
 
   const assessments = await prisma.studentAssessment.findMany({
-    where: { studentId: selected.studentId, status: "PUBLISHED" },
+    where: { studentId: selected.studentId, status: "PUBLISHED", template: { tenantId: session.tenantId! } },
     include: {
       template: {
         include: {

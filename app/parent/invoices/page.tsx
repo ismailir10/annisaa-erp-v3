@@ -21,7 +21,7 @@ export default async function ParentInvoicesPage({
   if (!selected) redirect("/parent");
 
   const invoices = await prisma.invoice.findMany({
-    where: { studentId: selected.studentId },
+    where: { studentId: selected.studentId, tenantId: session.tenantId!, status: { not: "DRAFT" } },
     include: { payments: true },
     orderBy: { createdAt: "desc" },
   });

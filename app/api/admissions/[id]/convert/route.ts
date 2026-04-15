@@ -76,7 +76,7 @@ export async function POST(
   // Link admission to student and update status
   await prisma.admission.update({
     where: { id },
-    data: { studentId: student.id, status: "ADMITTED" },
+    data: { studentId: student.id, status: "REGISTERED" },
   });
 
   return NextResponse.json({ student, message: "Siswa berhasil dibuat dari data pendaftaran" });

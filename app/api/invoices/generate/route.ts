@@ -102,10 +102,16 @@ export async function POST(req: NextRequest) {
 
     const totalDue = programFees.reduce((s, f) => s + Number(f.amount), 0);
 
+    // Look up primary guardian for parentId
+    const primaryGuardian = await prisma.studentGuardian.findFirst({
+      where: { studentId, isPrimary: true },
+    });
+
     await prisma.invoice.create({
       data: {
         tenantId: session.tenantId,
         studentId,
+        parentId: primaryGuardian?.parentId ?? null,
         invoiceNumber,
         periodLabel: periodLabel.trim(),
         dueDate,
