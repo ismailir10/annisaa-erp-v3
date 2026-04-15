@@ -133,7 +133,7 @@ export default function ClassAttendancePage() {
       {/* Summary */}
       <div className="flex gap-3 mb-4">
         <Card className="p-3 flex-1 text-center">
-          <p className="font-currency text-xl font-bold text-[var(--status-present)]">{presentCount}</p>
+          <p className="font-currency text-xl font-bold text-status-present">{presentCount}</p>
           <p className="text-[10px] text-muted-foreground">Hadir</p>
         </Card>
         <Card className="p-3 flex-1 text-center">
@@ -161,7 +161,7 @@ export default function ClassAttendancePage() {
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-                      status === "PRESENT" ? "bg-[var(--status-present)]" : status === "ABSENT" ? "bg-destructive" : status === "SICK" ? "bg-[var(--status-late)]" : "bg-[var(--status-leave)]"
+                      status === "PRESENT" ? "bg-status-present" : status === "ABSENT" ? "bg-destructive" : status === "SICK" ? "bg-status-late" : "bg-status-leave"
                     }`}>
                       {status === "PRESENT" ? <Check size={14} /> : s.student.name[0]}
                     </div>

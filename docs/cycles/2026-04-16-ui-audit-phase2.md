@@ -63,7 +63,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 5. [x] **Fix inline Badge → StatusBadge in admin** — Check employees, dashboard-client, fees pages for inline Badge with hardcoded colors; replace with StatusBadge. Accept: no inline Badge with hardcoded color classes in admin pages.
 
-6. [ ] **Fix hardcoded colors in teacher class-attendance** — Replace `bg-[var(--status-present)]` etc. with proper CSS variable classes. Accept: zero `text-[`/`bg-[` in `app/teacher/class-attendance/page.tsx`.
+6. [x] **Fix hardcoded colors in teacher class-attendance** — Replace `bg-[var(--status-present)]` etc. with proper CSS variable classes. Accept: zero `text-[`/`bg-[` in `app/teacher/class-attendance/page.tsx`.
 
 7. [ ] **Fix teacher profile Badge → StatusBadge** — Replace raw `<Badge>` with `<StatusBadge>` in `app/teacher/profile/page.tsx`. Accept: uses StatusBadge component.
 
