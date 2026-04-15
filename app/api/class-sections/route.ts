@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+
+// Cache GET responses for 2 hours — class sections change ~once per semester
+export const revalidate = 7200;
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -44,5 +48,7 @@ export async function POST(req: NextRequest) {
       campusId: body.campusId,
     },
   });
+
+  revalidatePath("/api/class-sections");
   return NextResponse.json(section, { status: 201 });
 }
