@@ -1,0 +1,64 @@
+name: Docs Check
+
+# Enforces the "one-file-per-cycle + doc sync" rule at PR time.
+# Replicates .githooks/pre-commit rule 2 at the GitHub level so it cannot be
+# bypassed with `git commit --no-verify`.
+#
+# Rule: any PR that touches app/, components/, lib/, or prisma/ must also
+# update at least one of:
+#   - README.md
+#   - CLAUDE.md
+#   - docs/cycles/*.md
+
+on:
+  pull_request:
+    branches: [staging, main]
+
+jobs:
+  docs-check:
+    name: Docs sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check doc sync
+        run: |
+          set -eu
+          BASE="origin/${{ github.base_ref }}"
+          echo "Base: $BASE"
+
+          CHANGED=$(git diff --name-only "$BASE...HEAD")
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          TOUCHES_CODE=0
+          TOUCHES_DOC=0
+
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              app/*|components/*|lib/*|prisma/*) TOUCHES_CODE=1 ;;
+            esac
+            case "$f" in
+              README.md|CLAUDE.md|docs/cycles/*.md) TOUCHES_DOC=1 ;;
+            esac
+          done <<EOF
+          $CHANGED
+          EOF
+
+          if [ "$TOUCHES_CODE" = "1" ] && [ "$TOUCHES_DOC" = "0" ]; then
+            echo ""
+            echo "❌ This PR changes code under app/, components/, lib/, or prisma/"
+            echo "   but does not update README.md, CLAUDE.md, or any"
+            echo "   docs/cycles/*.md file."
+            echo ""
+            echo "   Stage at least one of:"
+            echo "     - docs/cycles/YYYY-MM-DD-<slug>.md  (this cycle's doc)"
+            echo "     - README.md                          (project map changes)"
+            echo "     - CLAUDE.md                          (operating manual changes)"
+            exit 1
+          fi
+
+          echo "✅ Docs sync OK"
