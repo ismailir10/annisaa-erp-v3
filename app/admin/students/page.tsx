@@ -9,6 +9,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
@@ -154,6 +155,7 @@ export default function StudentsPage() {
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, enrolled: 0, graduated: 0 });
+  const [deactivateTarget, setDeactivateTarget] = useState<Student | null>(null);
 
   // Stats fetch once
   useEffect(() => {
@@ -219,17 +221,42 @@ export default function StudentsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
+  async function handleStatusToggle() {
+    if (!deactivateTarget) return;
+    const newStatus = deactivateTarget.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+    const res = await fetch(`/api/students/${deactivateTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal mengubah status");
+      return;
+    }
+    toast.success(newStatus === "ACTIVE" ? "Siswa diaktifkan" : "Siswa dinonaktifkan");
+    setDeactivateTarget(null);
+    fetchStudents();
+  }
+
   const columnsWithActions = useMemo<ColumnDef<Student>[]>(
     () => [
       ...columns,
       {
         id: "actions",
         header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/students/${row.original.id}`)}
-          />
-        ),
+        cell: ({ row }) => {
+          const s = row.original;
+          const isActive = s.status !== "INACTIVE";
+          return (
+            <DataTableRowActions
+              onView={() => router.push(`/admin/students/${s.id}`)}
+              onDeactivate={isActive ? () => setDeactivateTarget(s) : undefined}
+              onActivate={!isActive ? () => setDeactivateTarget(s) : undefined}
+              isActive={isActive}
+            />
+          );
+        },
       },
     ],
     [router],
@@ -288,6 +315,16 @@ export default function StudentsPage() {
         loading={loading}
         emptyTitle="Belum ada siswa terdaftar"
         emptyDescription="Mulai dengan mendaftarkan siswa baru atau konversi dari pendaftaran."
+      />
+
+      <ConfirmDialog
+        open={!!deactivateTarget}
+        onOpenChange={(o) => !o && setDeactivateTarget(null)}
+        title={deactivateTarget?.status === "INACTIVE" ? "Aktifkan Siswa" : "Nonaktifkan Siswa"}
+        description={`Ubah status "${deactivateTarget?.name}"? Data tidak akan dihapus.`}
+        confirmLabel={deactivateTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
+        onConfirm={handleStatusToggle}
+        destructive={deactivateTarget?.status !== "INACTIVE"}
       />
     </>
   );
