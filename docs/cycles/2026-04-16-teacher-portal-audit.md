@@ -93,4 +93,14 @@ Additionally there are several code-quality issues (double padding from layout, 
 
 ## Ship Notes
 
-<!-- /ship fills this section -->
+- **No database migrations** — this cycle is frontend-only
+- **No new env vars**
+- **Route removed:** `/teacher/leave` no longer exists — all leave functionality is now in a Sheet on the `/teacher/attendance` page
+- **Manual smoke test:**
+  1. Log in as teacher → verify home page renders correctly (no double padding)
+  2. Tap "Kehadiran" → verify calendar loads → tap "Cuti & Izin" card → verify Sheet slides up with balance + requests
+  3. In Sheet → tap "Ajukan Cuti" → verify dialog shows day count preview
+  4. Tap avatar/name in header → verify navigates to `/teacher/profile`
+  5. Verify all other tabs (Kelas, Gaji) still work
+- **Rollback:** revert this branch — no data changes to undo
+- **Overlap:** safe to merge alongside `claude/upbeat-mendeleev` (zero file overlap)
