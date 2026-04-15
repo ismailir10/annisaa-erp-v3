@@ -187,8 +187,11 @@ Build + tests green.
 ### Task 2 — attendance/today: 2 round trips → 1 (commit b29ab0e)
 - `app/api/attendance/today/route.ts`: replaced separate `prisma.attendanceRecord.findMany` with `include: { attendanceRecords: { where: { date }, select: {...} } }` on the employee query. Response shape unchanged.
 
-### Task 3 — payroll setup: 4 sequential → Promise.all (commit pending)
-- `app/api/payroll/generate/route.ts`: wrapped `orgConfig`, `holidays`, `componentDefs`, `employees` fetches in a single `Promise.all`. The two duplicate-check `findFirst` calls remain sequential (each can return 400 early). `orgConfig` null check moved after the parallel block.
+### Task 3 — payroll setup: 4 sequential → Promise.all (commit 3b9e539)
+- `app/api/payroll/generate/route.ts`: wrapped `orgConfig`, `holidays`, `componentDefs`, `employees` fetches in a single `Promise.all`. The two duplicate-check `findFirst` calls remain sequential (each can return 400/409 early). `orgConfig` null check moved after the parallel block.
+
+### Task 4 — payroll writes: nested create → createMany in transaction (commit pending)
+- `app/api/payroll/generate/route.ts`: replaced `prisma.payrollRun.create` with nested `items.create` loop (1 + N + N×M INSERTs) with `prisma.$transaction` interactive transaction: creates the run, then `payrollItem.createMany` and `payrollItemLine.createMany` as two bulk INSERTs. Item IDs pre-generated with `crypto.randomUUID()` so lines can reference them without a round trip. For 40 employees × 8 components: ≈361 → 3 statements. Added `tenantId!` non-null assertion (guarded by auth check at line 16).
 
 ---
 
