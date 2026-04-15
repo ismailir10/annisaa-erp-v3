@@ -1,9 +1,17 @@
+import { unstable_cache } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { formatDate } from "@/lib/format";
 import { DashboardClient } from "./dashboard-client";
+
+const getEmployeeCount = unstable_cache(
+  async (tenantId: string) =>
+    prisma.employee.count({ where: { tenantId, status: "ACTIVE" } }),
+  ["employees-count"],
+  { revalidate: 1800, tags: ["employees-count"] }
+);
 
 export default async function AdminDashboard() {
   const session = await getSession();
@@ -23,9 +31,7 @@ export default async function AdminDashboard() {
 
   // Parallel queries for dashboard data
   const [totalEmployees, todayAttendance, pendingLeave, lastPayroll, weeklyTrendRaw] = await Promise.all([
-    prisma.employee.count({
-      where: { tenantId: session.tenantId!, status: "ACTIVE" },
-    }),
+    getEmployeeCount(session.tenantId!),
     prisma.attendanceRecord.groupBy({
       by: ["status"],
       where: { date: todayStr },

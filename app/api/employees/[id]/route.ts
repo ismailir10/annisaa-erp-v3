@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
@@ -47,6 +48,7 @@ export async function PUT(
       where: { id },
       data: { status: "INACTIVE" },
     });
+    revalidateTag("employees-count", {});
     return NextResponse.json(employee);
   }
 

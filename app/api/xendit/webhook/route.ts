@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 
 /**
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    revalidateTag("student-invoices", {});
     console.log(`[XENDIT WEBHOOK] Invoice ${invoice.invoiceNumber} → ${newStatus} (paid: ${totalPaid})`);
     return NextResponse.json({ ok: true, status: newStatus });
   }
