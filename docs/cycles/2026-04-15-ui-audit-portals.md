@@ -63,7 +63,7 @@ Ordered, atomic. Each task will be implemented, verified (build + tests pass), a
 10. [x] Remove stat card skeletons from parent invoices loading state
 11. [x] REMOVE "Masuk" (check-in) and "Pulang" (check-out) columns from parent attendance DataTable - keep only Date + Status
 12. [x] Remove stat cards from parent attendance page ("Hadir", "Tidak Hadir", "Total") - not needed for parents
-13. [ ] Replace parent portal's hybrid InvoiceCard/DataTable with pure DataTable (responsive)
+13. [x] Replace parent portal's hybrid InvoiceCard/DataTable with pure DataTable (responsive)
 14. [ ] Add DataTable to teacher portal attendance page (if list >10 items)
 15. [ ] Replace all teacher portal form fields with `<Field>` + `<FieldLabel>` + `<Input>` pattern
 16. [ ] Replace all parent portal form fields with `<Field>` + `<FieldLabel>` + `<Input>` pattern
@@ -87,6 +87,7 @@ Ordered, atomic. Each task will be implemented, verified (build + tests pass), a
 - Task 4-7: Navigation audits — reviewed teacher/parent bottom navs, determined current implementations are appropriate (Shadcn doesn't provide bottom nav component; current implementations use Framer Motion properly)
 - Task 8-10: Remove harmful invoice stat cards — `app/parent/invoices/client.tsx` — removed stat cards, InvoiceStatCard import, and stat card skeletons (harmful UX: created unnecessary stress showing debt totals)
 - Task 11-12: Remove inappropriate attendance data — `app/parent/attendance/client.tsx` — removed "Masuk"/"Pulang" columns (operational times irrelevant to parents) and stat cards (not needed for parents)
+- Task 13: Unify parent invoices to pure DataTable — `app/parent/invoices/client.tsx` — removed hybrid InvoiceCard/DataTable approach, now uses responsive DataTable for all screen sizes (improves consistency)
 
 ## Verification
 
@@ -96,6 +97,7 @@ Ordered, atomic. Each task will be implemented, verified (build + tests pass), a
 - Task 4-7: audit passed - current bottom nav implementations are appropriate and well-implemented (Framer Motion, proper accessibility, mobile-first)
 - Task 8-10: build passed - removed harmful UX (stat cards showing debt totals), removed unused imports, cleaned up loading skeleton
 - Task 11-12: build passed - removed operational times (Masuk/Pulang) and attendance stat cards, parents only need Date + Status
+- Task 13: build passed - unified to pure DataTable approach, removed InvoiceCard dependency, improved cross-device consistency
 
 ## Ship Notes
 
