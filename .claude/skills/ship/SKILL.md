@@ -1,5 +1,7 @@
 ---
-description: Push to staging (direct for cto role, PR for product-builder). Runs gates one final time, verifies cycle doc is complete, and triggers the deploy. Combines git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch.
+name: ship
+description: Push a completed cycle to staging. For cto (Opus) sessions, pushes directly to staging. For product-builder (non-Opus) sessions, creates a feature branch and opens a PR to staging. Never touches main. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
+disable-model-invocation: true
 ---
 
 # /ship — push (direct or via PR)

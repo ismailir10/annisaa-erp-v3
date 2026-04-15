@@ -1,5 +1,7 @@
 ---
-description: Write a cycle doc (context + spec + task list) before writing code. Combines spec-driven-development, planning-and-task-breakdown, and idea-refine.
+name: spec
+description: Start a new development cycle. Creates a single cycle doc (docs/cycles/YYYY-MM-DD-<slug>.md) with Context, Spec, and Tasks sections before any code is written. Folds in spec-driven-development, planning-and-task-breakdown, and idea-refine from the upstream agent-skills plugin. Use when beginning any non-trivial feature, bug fix, or change.
+disable-model-invocation: true
 ---
 
 # /spec — define + plan in one step
@@ -38,7 +40,7 @@ Do **not** start writing code. This is the define phase.
 
 ## Step 3: Write the cycle doc
 
-1. Pick a kebab-case slug (2–4 words). Create `docs/cycles/$(date +%Y-%m-%d)-<slug>.md` with the six-section template from `_cycle-doc.md`.
+1. Pick a kebab-case slug (2–4 words). Create `docs/cycles/$(date +%Y-%m-%d)-<slug>.md` with the six-section template below.
 2. Fill `## Context` — one paragraph: the problem + intended outcome. Include why it matters.
 3. Apply **`agent-skills:spec-driven-development`** to fill `## Spec`:
    - Acceptance criteria as a checklist
@@ -49,6 +51,30 @@ Do **not** start writing code. This is the define phase.
    - Each task has its own one-line acceptance criterion
    - Each task is small enough to commit independently
 5. Leave `## Implementation`, `## Verification`, `## Ship Notes` empty — they are owned by `/build` and `/ship`.
+
+### Cycle doc template
+
+```markdown
+# <Cycle Title>
+
+## Context
+<one paragraph: problem + intended outcome>
+
+## Spec
+<acceptance criteria as a checklist>
+
+## Tasks
+<ordered, atomic, each is a checkbox with acceptance line>
+
+## Implementation
+<filled by /build — per-task bullet of files touched + one-line summary>
+
+## Verification
+<filled by /build — gate output, test names, manual smoke notes>
+
+## Ship Notes
+<filled by /ship — migrations, env vars, manual steps, rollback plan>
+```
 
 ## Step 4: Present for approval
 
@@ -61,6 +87,6 @@ Show the user the cycle doc's Context + Spec + Tasks sections and ask for confir
 
 ## Rules
 
-- **One file only.** Never create `SPEC.md`, `PLAN.md`, or any other sibling markdown.
+- **One file only.** Never create `SPEC.md`, `PLAN.md`, or any other sibling markdown. The pre-commit hook will reject anything outside the allowlist.
 - **No implementation.** `/spec` writes the doc and stops. `/build` does the work.
 - **Reuse first.** If exploration finds existing utilities that solve part of the problem, note them in the task list (`reuse X from lib/...`) rather than re-implementing.
