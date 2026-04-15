@@ -157,6 +157,13 @@ export function calculatePayroll(
   components: SalaryComponent[],
   actualWorkingDays: number
 ): Map<string, PayrollItemResult> {
+  if (actualWorkingDays <= 0) {
+    throw new Error(
+      `actualWorkingDays must be > 0, got ${actualWorkingDays}. ` +
+      "Check that the payroll period has working days configured and holidays are not covering the entire period."
+    );
+  }
+
   const results = new Map<string, PayrollItemResult>();
 
   const defaultVars: AttendanceVariables = {
