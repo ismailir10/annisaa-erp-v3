@@ -61,7 +61,11 @@ The upstream `agent-skills` plugin (addyosmani/agent-skills) remains installed �
 - After the **last task**: run the **end-of-cycle gate** before committing (see below)
 - Fill Ship Notes in the cycle doc
 
-**`/ship`** — push to staging. `cto` role pushes directly; `product-builder` role opens a PR to staging. Never touches `main`. Playwright must have passed (recorded in the cycle doc Verification section) before pushing.
+**`/ship`** — create a PR from the feature branch to `staging` and auto-merge it once CI is green. **Both `cto` and `product-builder` use this same flow — no direct pushes to `staging` or `main` for anyone.**
+- `/ship` → PR feat/* → staging, auto-merged when CI passes
+- `/ship --to-main` → PR staging → main, auto-merged when CI passes (explicit ask only; CTO-initiated)
+
+Playwright must have passed (recorded in the cycle doc Verification section) before running `/ship`.
 
 ### Testing gates
 
@@ -76,8 +80,9 @@ Two-tier system — fast unit gate between every task, Playwright smoke once per
 
 **Playwright notes:**
 - Tests live in `e2e/` — three portals: `admin.spec.ts`, `teacher.spec.ts`, `parent.spec.ts`
-- Uses demo-mode auth (cookie-based, no live Supabase needed)
-- `reuseExistingServer: true` — if `npm run dev` is already running, Playwright reuses it
+- Uses demo-mode auth (cookie-based, direct cookie injection — no login UI, no rate-limit exposure)
+- Runs against the **production build** (`DEMO_MODE=true npm run start`) — not dev server. Requires `npm run build` first.
+- `reuseExistingServer: !process.env.CI` — reuses a running server locally; forces a fresh server in CI
 - Chromium only (no multi-browser), workers: 1 (demo mode is stateful)
 - If a Playwright test fails at end-of-cycle, fix it before committing the last task
 
@@ -116,7 +121,7 @@ Installed via `scripts/install-hooks.sh` which sets `core.hooksPath=.githooks` a
 
 - **`pre-commit`** — enforces the markdown allowlist (one-file-per-cycle rule) and doc-sync (code changes must stage cycle doc, README.md, or CLAUDE.md).
 - **`prepare-commit-msg`** — appends `Model-Trailer: <model>` and `Role: <role>` from `.claude/session-role` to every commit that doesn't already have them.
-- **`pre-push`** — blocks pushes to `staging` or `main` unless `role=cto`. Non-cto sessions must open a PR.
+- **`pre-push`** — blocks direct pushes to `staging` or `main` for **all roles** (including `cto`). Everyone uses `/ship` to open a PR instead. Direct pushes to feature branches (`feat/*`) are always allowed.
 
 ### 3. Worktree isolation (every product-builder session gets its own working tree)
 
@@ -125,7 +130,7 @@ The cto session works in the main checkout. **Every product-builder session work
 **Why:** Worktrees prevent parallel sessions from stomping on each other's lockfiles and build artifacts. They also give each session a clean slate — no dirty state inherited from a crashed previous session.
 
 **Rule:**
-- `role=cto` → main checkout, no worktree needed.
+- `role=cto` → main checkout, no worktree needed. Uses `/ship` (PR model) like everyone else — no direct push to staging.
 - `role=product-builder` → **every new session = new worktree, no exceptions.** `check-role.sh` blocks `/spec`, `/build`, and `/ship` until the session is inside a worktree.
 
 **The user never touches worktree setup.** When the user opens a Claude Code session in the main checkout and types anything (e.g. `/spec build the crud sweep`), the AI detects it is a product-builder session in the main checkout via the `SessionStart` hook and does the setup automatically:
@@ -137,7 +142,7 @@ The cto session works in the main checkout. **Every product-builder session work
 5. Proceeds with the user's original request
 
 `setup-worktree.sh` does everything in one step:
-- `git worktree add .worktrees/<slug> -b feat/<slug>`
+- `git worktree add .worktrees/<slug> -b feat/<slug> origin/staging` — always branches from latest `origin/staging`, never from a stale local HEAD
 - Symlinks `.env` and `.env.local` from the main checkout (fixes "missing env" errors)
 - Symlinks `node_modules` from the main checkout (no `npm install` needed)
 - Runs `install-hooks.sh` inside the worktree
@@ -154,10 +159,22 @@ git branch -D feat/<slug>
 
 Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Required settings:
 
-- **`staging`**: require PR + 1 review, status checks (`lint`, `typecheck`, `test`, `build`), restrict direct push to `ismailir10`
-- **`main`**: require PR from `staging` only, 1 review, same status checks
+- **`staging`**: require PR, no direct push for anyone (including owner), status checks must pass before merge
+- **`main`**: require PR from `staging` only, same status checks
 
-If you are setting up a fresh clone or forking this repo, enable these before letting non-Opus sessions touch it.
+**Required GitHub Actions CI checks on every PR to `staging` and `main`:**
+```
+build         # npm run build
+typecheck     # tsc --noEmit
+test          # npx vitest run
+e2e           # npx playwright test (production server)
+```
+
+The `/ship` auto-merge only proceeds when all CI checks pass. Without these checks configured, the "auto-merge on green" model has no enforcement.
+
+**staging → main cadence:** After every 2-4 merged cycles on staging (or when the user says "ship to prod"), CTO runs `/ship --to-main` to create the staging → main PR. CTO reviews and merges after CI passes.
+
+If you are setting up a fresh clone or forking this repo, configure the Actions workflow and branch protection before running `/ship`.
 
 ### Commit attribution
 
@@ -193,6 +210,12 @@ The cycle doc template:
 ## Verification   <!-- /build: gates + manual smoke -->
 ## Ship Notes     <!-- /ship: migrations, env vars, rollback -->
 ```
+
+**`/ship` preflight checklist** (must pass before opening PR):
+- [ ] `npm run build && npx vitest run && npx playwright test` all green
+- [ ] Verification section in cycle doc filled
+- [ ] **README.md updated** — mandatory if cycle adds/changes modules, routes, CRUD status, or entities
+- [ ] Ship Notes filled (migrations, new env vars, rollback plan)
 
 ---
 
@@ -554,4 +577,4 @@ All use demo-mode auth — no live Supabase or env vars required to run locally.
 | `CLAUDE.md` | This file — AI operating manual (standards, patterns, rules) | When standards or workflow change |
 | `docs/cycles/YYYY-MM-DD-<slug>.md` | One per cycle — Context / Spec / Tasks / Implementation / Verification / Ship Notes | Created by `/spec`, updated by `/build` and `/ship` |
 
-**Last updated:** 2026-04-15 (workflow refinement cycle — 3-command loop, multi-LLM safety, one-file-per-cycle enforcement)
+**Last updated:** 2026-04-16 (workflow improvement cycle — PR model for all roles, staging→main cadence, mandatory README check, pre-push hardening)

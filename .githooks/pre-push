@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# pre-push — block non-cto pushes to staging and main
+# pre-push — block direct pushes to staging and main for ALL roles
 #
-# Reads .claude/session-role. If role != cto, blocks pushes to staging/main
-# with instructions to use /ship (which opens a PR instead).
+# No one pushes staging or main directly — not even cto. All changes flow
+# through PRs created by /ship. GitHub branch protection is the real
+# enforcement layer; this hook is a local early-warning guard.
+#
+# Feature branches (feat/*) are always allowed.
 #
 # Bypass: git push --no-verify (discouraged). GitHub branch protection on
-# staging/main is the real enforcement layer — configure it in Settings.
+# staging/main will still reject it if configured.
 #
 # Arguments from git: <remote> <url>
 # stdin lines: <local_ref> <local_sha> <remote_ref> <remote_sha>
@@ -15,7 +18,7 @@ set -eu
 REMOTE="${1:-}"
 PROTECTED_REFS="refs/heads/staging refs/heads/main"
 
-# Read session role
+# Read session role for informational context
 ROLE_FILE=".claude/session-role"
 ROLE="unknown"
 MODEL="unknown"
@@ -26,13 +29,13 @@ fi
 
 # Read refs from stdin
 BLOCKED=0
+BLOCKED_REF=""
 while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
   for p in $PROTECTED_REFS; do
     if [ "$REMOTE_REF" = "$p" ]; then
-      if [ "$ROLE" != "cto" ]; then
-        echo "pre-push: BLOCKED push to $REMOTE_REF from role=$ROLE (model=$MODEL)" >&2
-        BLOCKED=1
-      fi
+      echo "pre-push: BLOCKED direct push to $REMOTE_REF (role=$ROLE, model=$MODEL)" >&2
+      BLOCKED=1
+      BLOCKED_REF="$REMOTE_REF"
     fi
   done
 done
@@ -40,21 +43,23 @@ done
 if [ "$BLOCKED" = "1" ]; then
   cat >&2 <<EOF
 
-Only sessions with role=cto can push directly to staging or main.
-Your current session role: $ROLE ($MODEL)
+Direct pushes to staging and main are disabled for all roles.
+Use /ship to open a PR instead — it handles push + PR creation automatically.
 
-To push this work:
-  1. Make sure you are on a feature branch (not staging/main):
-       git checkout -b feat/<slug>
-  2. Push the feature branch:
+Your current session: role=$ROLE, model=$MODEL
+Blocked ref: $BLOCKED_REF
+
+To ship manually:
+  1. Push your feature branch:
        git push -u origin feat/<slug>
-  3. Open a PR targeting staging:
-       gh pr create --base staging --title "[$MODEL] <title>"
+  2. Open a PR to staging:
+       gh pr create --base staging
 
 Or run /ship — it does all of the above automatically.
+For staging → main: /ship --to-main (CTO-initiated only).
 
 Emergency override: git push --no-verify
-(Discouraged. GitHub branch protection will still reject it if configured.)
+(GitHub branch protection will still reject it if configured.)
 
 EOF
   exit 1
