@@ -405,6 +405,7 @@ Also add to the "Security Checklist for New Routes" section:
 - T5: Payroll page server-side gate — `app/admin/payroll/layout.tsx` (new), `app/admin/settings/salary-components/layout.tsx` (new) — Server Component layouts redirect non-SUPER_ADMIN before any page renders
 - T6: Sidebar + nav config — `config/admin-nav.ts`, `components/admin/sidebar.tsx`, `app/admin/layout.tsx` — added `superAdminOnly` to NavItem type, marked Penggajian + Komponen Gaji as superAdminOnly, sidebar filters items via `canSeeSalary` boolean prop (avoids server-only import in client component)
 - T7: Employee UI — `app/admin/employees/[id]/page.tsx` — salary fetch returns null on 403, Gaji tab hidden when salaryValues===null, Rekening & BPJS section hidden when server stripped fields
+- T8: Vitest unit tests — `lib/__tests__/auth-helpers.test.ts`, `app/api/__tests__/payroll-auth.test.ts`, `app/api/__tests__/employee-salary-auth.test.ts` — 21 new tests covering all three helper functions, payroll route role gating, employee salary route gating, and field stripping behavior
 
 ---
 
@@ -428,8 +429,8 @@ Also add to the "Security Checklist for New Routes" section:
 
 | Gate | Status |
 |------|--------|
-| `npm run build` | T1–T7 ✓ |
-| `npx vitest run` | T1–T7 ✓ (69/69) |
+| `npm run build` | T1–T8 ✓ |
+| `npx vitest run` | T1–T8 ✓ (90/90) |
 | `npx playwright test` | pending |
 
 ---
