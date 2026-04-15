@@ -84,6 +84,8 @@ model Campus {
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   employees     Employee[]
   classSections ClassSection[]
+
+  @@index([tenantId])
 }
 
 // ── ORG CONFIG ───────────────────────────────────────────────
@@ -214,6 +216,7 @@ model EmployeeSalaryValue {
   componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
 
   @@unique([employeeId, componentDefId])
+  @@index([componentDefId])
 }
 
 // ── ATTENDANCE ───────────────────────────────────────────────
@@ -280,6 +283,7 @@ model PayrollItem {
   lines      PayrollItemLine[]
 
   @@index([payrollRunId, employeeId])
+  @@index([employeeId])
 }
 
 model PayrollItemLine {
@@ -295,6 +299,9 @@ model PayrollItemLine {
 
   payrollItem  PayrollItem        @relation(fields: [payrollItemId], references: [id])
   componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
+
+  @@index([payrollItemId])
+  @@index([componentDefId])
 }
 
 // ── EMAIL LOG ────────────────────────────────────────────────
