@@ -55,7 +55,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 1. [x] **Payroll: guard division-by-zero** — In `lib/payroll/engine.ts`, add early return if `actualWorkingDays <= 0` (throw descriptive error). Add corresponding test case. Files: `lib/payroll/engine.ts`, `lib/payroll/__tests__/engine.test.ts`.
 
-2. [ ] **Payroll: make approval atomic** — Wrap payroll approval's 3 operations (status update, attendance fetch, attendance update) in `prisma.$transaction()`. Files: `app/api/payroll/[id]/approve/route.ts`.
+2. [x] **Payroll: make approval atomic** — Wrap payroll approval's 3 operations (status update, attendance fetch, attendance update) in `prisma.$transaction()`. Files: `app/api/payroll/[id]/approve/route.ts`.
 
 3. [ ] **Payroll: fix parseFloat → Number for adjustment amounts** — Replace `parseFloat(body.adjustmentAmount)` with `Number(body.adjustmentAmount)` and validate result is not NaN. Files: `app/api/payroll/[id]/items/[itemId]/lines/[lineId]/route.ts`.
 
@@ -90,6 +90,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 ## Implementation
 
 - **Task 1 — Payroll division-by-zero guard:** `lib/payroll/engine.ts`, `lib/payroll/__tests__/engine.test.ts` — Added guard at top of `calculatePayroll()` that throws descriptive error when `actualWorkingDays <= 0`. Added 2 test cases (0 and -1).
+- **Task 2 — Payroll approval atomic:** `app/api/payroll/[id]/approve/route.ts` — Wrapped status update + attendance fetch + attendance lock in single `prisma.$transaction()`.
 
 ## Verification
 
@@ -98,7 +99,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 | `npm run build` | ✅ |
 | `npx vitest run` | ✅ (75 tests) |
 | Payroll: actualWorkingDays=0 returns error, not NaN | ✅ |
-| Payroll: approval is atomic (3 ops in single tx) | ⏳ |
+| Payroll: approval is atomic (3 ops in single tx) | ✅ |
 | Invoice: bulk generation rolls back on any failure | ⏳ |
 | Invoice: concurrent generation gets unique numbers | ⏳ |
 | Admission: conversion rolls back on partial failure | ⏳ |
