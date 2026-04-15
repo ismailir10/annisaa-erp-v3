@@ -77,11 +77,13 @@ Additionally there are several code-quality issues (double padding from layout, 
 
 - Task 1: Fix layout double-padding — `app/teacher/layout.tsx`, `app/teacher/loading.tsx` — removed `px-5 py-6` from layout `<main>`, removed redundant `max-w-md mx-auto` from loading.tsx. Child pages already manage their own padding.
 - Task 2: Convert leave into bottom Sheet — `components/teacher/leave-sheet.tsx` (new), `app/teacher/attendance/page.tsx`, deleted `app/teacher/leave/page.tsx` — leave is now a `<Sheet side="bottom">` that opens from the attendance page's "Cuti & Izin" card. Includes formatted dates (formatDateShort), live weekday day-count preview, and proper error handling on all fetches.
+- Task 3: Make Profile accessible from header — `components/teacher/header.tsx` — replaced hidden user name with visible avatar circle + first name that links to `/teacher/profile`. Visible on all screen sizes now.
 
 ## Verification
 
 - Task 1: gates passed (build + vitest 69/69), no visual regression expected — layout only changed outer wrapper, child pages untouched
 - Task 2: gates passed (build + vitest 69/69), `/teacher/leave` route no longer exists, Sheet renders from Kehadiran page
+- Task 3: gates passed (build + vitest 69/69), header now shows avatar + name linking to profile
 
 ## Ship Notes
 
