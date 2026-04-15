@@ -8,6 +8,12 @@ Teacher attendance tracking and payroll management system for **An Nisaa' Sekola
 
 ## Features
 
+### Parent Portal (Mobile)
+- **Dashboard** — child overview, quick navigation, unpaid invoice summary
+- **Invoices** — view payment status, pay via Xendit checkout, download PDF
+- **Attendance** — view child's attendance records (last 30 days)
+- **Reports** — view published assessment reports with development scores
+
 ### Teacher Portal (Mobile)
 - **Check-in / Check-out** — GPS captured as documentation, never blocks
 - **Attendance Calendar** — monthly color-coded view with day details
@@ -185,33 +191,39 @@ cp .env.example .env
 
 ```
 app/
-├── admin/           # Admin pages (dashboard, employees, attendance, payroll, settings)
-├── teacher/         # Teacher pages (check-in, attendance, slips, profile)
+├── admin/           # 22+ admin pages (dashboard, employees, students, fees, payroll, settings)
+├── teacher/         # 6 teacher pages (check-in, attendance, class attendance, leave, slips, profile)
+├── parent/          # 4 parent pages (dashboard, invoices, attendance, reports)
 ├── auth/callback/   # Supabase OAuth callback
-├── api/             # API routes (40+ endpoints)
+├── api/             # 69+ API routes (organized by domain: core, hr, academic, students, finance, learning)
 └── page.tsx         # Login (Supabase Auth + demo fallback)
 
 components/
-├── admin/           # Sidebar, page header, stat card
-├── attendance/      # Calendar, override modal
+├── admin/           # Sidebar, page header, stat card, data table components
 ├── teacher/         # Bottom nav, header
-└── ui/              # Shadcn UI components
+├── parent/          # Bottom nav, header, child selector tabs
+├── attendance/      # Calendar, override modal
+└── ui/              # 62 Shadcn UI components (full library)
 
 lib/
 ├── auth.ts          # Session management (Supabase + demo fallback)
 ├── auth-guard.ts    # Tenant ownership verification
 ├── db.ts            # Prisma client (auto-detects SQLite/PostgreSQL)
 ├── rate-limit.ts    # In-memory rate limiter
+├── parent-helpers.ts# Parent-specific data access helpers
+├── format.ts        # Currency/date/time formatting utilities
 ├── attendance/      # Status logic, timezone helpers
 ├── payroll/         # Calculation engine, working days, BSI export
 ├── pdf/             # Salary slip PDF template
 ├── email/           # Resend integration + branded HTML template
-└── supabase/        # Client, server, middleware utilities
+├── xendit/          # Xendit payment gateway client
+├── api/             # Shared pagination, validation, response helpers
+└── validations/     # Zod schemas per domain
 
 prisma/
-├── schema.prisma    # 13 models
+├── schema.prisma    # 30+ models across 6 modules
 ├── seed.ts          # Full seed script
-└── data/            # Employees, holidays, salary components, values
+└── data/            # Seed data (employees, holidays, salary components, etc.)
 ```
 
 ---
@@ -241,3 +253,18 @@ Without `RESEND_API_KEY`, emails are simulated (logged but not sent).
 ## License
 
 Private — An Nisaa' Sekolahku
+
+---
+
+## Development Documentation
+
+For detailed development standards, UI patterns, and workflow guidelines, see **[CLAUDE.md](./CLAUDE.md)**.
+
+**Key sections for developers:**
+- UI Standards (Shadcn components, DataTable patterns)
+- Portal Consistency (admin/teacher/parent patterns)
+- CRUD Standard (create, read, update, deactivate patterns)
+- Security Checklist (tenant isolation, rate limiting)
+- Documentation Maintenance (keeping docs in sync with code)
+
+**Note:** All developers and AI agents MUST update CLAUDE.md and README.md when making changes to the codebase.
