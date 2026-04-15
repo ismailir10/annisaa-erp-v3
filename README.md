@@ -1,111 +1,23 @@
 # An Nisaa' School ERP
 
-Teacher attendance tracking and payroll management system for **An Nisaa' Sekolahku** — an Islamic early childhood education school in Bekasi, Indonesia.
+School management system for **An Nisaa' Sekolahku** — an Islamic PAUD/TKIT in Bekasi, Indonesia. 2 campuses, 40+ teachers, 500+ students. SaaS-ready architecture (single tenant MVP, multi-tenant foundation).
 
 **Production:** [annisaa-erp-v3.vercel.app](https://annisaa-erp-v3.vercel.app)
+**Repo:** [github.com/ismailir10/annisaa-erp-v3](https://github.com/ismailir10/annisaa-erp-v3)
 
 ---
 
-## Features
+## Contents
 
-### Parent Portal (Mobile)
-- **Dashboard** — child overview, quick navigation, unpaid invoice summary
-- **Invoices** — view payment status, pay via Xendit checkout, download PDF
-- **Attendance** — view child's attendance records (last 30 days)
-- **Reports** — view published assessment reports with development scores
-
-### Teacher Portal (Mobile)
-- **Check-in / Check-out** — GPS captured as documentation, never blocks
-- **Attendance Calendar** — monthly color-coded view with day details
-- **Salary Slips** — view and download PDF payslips
-- **Profile** — view personal info, campus, position
-
-### Admin Portal (Desktop)
-- **Dashboard** — real-time attendance stats + quick actions
-- **Employee Management** — CRUD with auto-generated codes, position dropdown
-- **Attendance** — daily dashboard, monthly grid, override with LEAVE status
-- **Payroll** — full cycle: draft → attendance variables → review → approve → BSI CSV → PDF slips → email
-- **Settings** — campus, org config, holidays (2026 Indonesia), salary components (13 configurable)
-
-### Payroll Engine
-- 13 salary components (FIXED, PCT_OF_BASE, ATTENDANCE_BASED)
-- Working days auto-calculated (excludes weekends + holidays)
-- Pro-rating for partial attendance
-- Attendance variables: overtime, outdoor days, holiday worked, DC days
-- Line-by-line adjustment with notes
-- BSI bank CSV export
-- PDF salary slip generation with branded template
-- Email delivery via Resend with PDF attachment
-
----
-
-## Environments
-
-| Environment | Branch | URL | Database | Purpose |
-|-------------|--------|-----|----------|---------|
-| **Production** | `main` | annisaa-erp-v3.vercel.app | Supabase Mumbai (`qrnbanxcrmrwganpmzmn`) | Real teachers, real payroll |
-| **Staging** | `staging` | Vercel preview URL | Supabase Tokyo (`jzhujpqaxyeeokgexerc`) | Testing with safe data |
-
-### Key Differences
-
-| | Production | Staging |
-|---|-----------|---------|
-| Database | 25 real users, 24 employees | 3 test users, 2 test employees |
-| Admin | redacted-admin@example.test | redacted-admin@example.test |
-| Teachers | Real teacher emails | redacted-admin@example.test, redacted-parent@example.test |
-| Emails | Sent to real teacher emails | Sent to test teacher emails only |
-| Banner | None | Yellow "STAGING" banner at top |
-
----
-
-## Development Workflow (SOP)
-
-### The Golden Rule: `staging` is always AHEAD of `main`
-
-```
-Feature branch → staging (test on preview) → PR to main → production
-     ↓                ↓                            ↓
-   develop        Vercel Preview               Vercel Production
-                  Staging Supabase             Production Supabase
-```
-
-### Step-by-step
-
-1. **Always work on `staging` branch** (or a feature branch merged into staging)
-   ```bash
-   git checkout staging
-   ```
-
-2. **Develop and push**
-   ```bash
-   git add -A && git commit -m "feat: ..." && git push
-   ```
-
-3. **Vercel auto-deploys** a Preview at the staging URL
-
-4. **Test on staging** — login, check features, test payroll/email (safe: only test users)
-
-5. **When satisfied, create PR**
-   ```bash
-   gh pr create --base main --head staging --title "Release: ..."
-   ```
-
-6. **CI runs** — lint, typecheck, unit tests (GitHub Actions)
-
-7. **Merge PR** → production auto-deploys
-   ```bash
-   gh pr merge --merge
-   ```
-
-8. **NEVER push directly to `main`**
-
-### Payroll Safety Rules
-
-- **ALWAYS test salary slip generation on staging first** before running on production
-- Staging emails go to `STAGING_EMAIL_OVERRIDE` (admin email), never to test teachers
-- Verify PDF content and amounts before sending on production
-- BSI CSV: preview the employee list before downloading
-- Once payroll is APPROVED, attendance is locked — no going back
+- [Tech Stack](#tech-stack)
+- [Modules](#modules)
+- [Portals](#portals)
+- [Current Phase](#current-phase)
+- [Roadmap](#roadmap)
+- [Architecture Decisions](#architecture-decisions)
+- [Development Workflow](#development-workflow)
+- [Setup](#setup)
+- [Environments](#environments)
 
 ---
 
@@ -118,135 +30,271 @@ Feature branch → staging (test on preview) → PR to main → production
 | Database | Supabase PostgreSQL (prod: Mumbai, staging: Tokyo) / SQLite (local dev) |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
-| UI | Shadcn UI + Tailwind CSS |
+| UI | Shadcn UI + Tailwind CSS + TanStack Table |
 | Fonts | Plus Jakarta Sans + JetBrains Mono |
-| Animation | Framer Motion |
-| Email | Resend (with branded HTML template + PDF attachment) |
+| Payment | Xendit Checkout Session API |
+| Email | Resend (branded HTML template + PDF attachment) |
 | PDF | @react-pdf/renderer |
 | Hosting | Vercel |
-| CI | GitHub Actions (lint, typecheck, test on PR) |
-| Testing | Vitest (unit) |
+| CI | GitHub Actions (lint, typecheck, vitest) |
+| Testing | Vitest (unit) + Playwright (E2E) |
 
 ---
 
-## Getting Started (Local Development)
+## Modules
+
+Six domain modules. Parent Portal is a view *across* students + finance + learning, not its own module.
+
+| Module | Domain | Key Models |
+|--------|--------|------------|
+| **core** | Auth, tenant, config | Tenant, User, Campus, OrgConfig, Holiday, EmailLog |
+| **hr** | Staff management | Employee, SalaryComponentDef, PayrollRun, PayrollItem, AttendanceRecord, LeaveRequest |
+| **academic** | School structure | AcademicYear, Program, ClassSection, TeachingAssignment |
+| **students** | Student lifecycle | Student, Guardian, StudentEnrollment, Admission |
+| **finance** | Fees & payments | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
+| **learning** | Academic outcomes | StudentAttendance, AssessmentTemplate, AssessmentCategory, StudentAssessment |
+
+### CRUD completion status
+
+**Fully complete (6/28):** User, Campus, Holiday, LeaveRequest, SalaryComponentDef, FeeComponentDef
+**Partially complete (14/28):** Missing edit/deactivate or some CRUD operations
+**Missing UI/CRUD (8/28):** OrgConfig, EmailLog, PayrollItem, ProgramFeeStructure (deactivate), InvoiceLine, Payment, AssessmentCategory, AssessmentIndicator
+
+**Overall: ~60% CRUD completion**
+
+| Module | Complete | Partial | Missing |
+|---|---|---|---|
+| CORE | 3 (User, Campus, Holiday) | — | 2 (OrgConfig, EmailLog) |
+| HR | 2 (LeaveRequest, SalaryComponentDef) | 5 (Employee, Attendance, PayrollRun, PayrollItem, TeachingAssignment) | — |
+| ACADEMIC | 1 (AcademicYear) | 3 (Program, ClassSection, TeachingAssignment) | — |
+| STUDENTS | 1 (Student) | 2 (Guardian, StudentEnrollment) | — |
+| FINANCE | 1 (FeeComponentDef) | 4 (ProgramFeeStructure, Invoice, InvoiceLine, Payment) | — |
+| LEARNING | 0 | 6 (StudentAttendance, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, StudentAssessment, StudentAssessmentScore) | — |
+
+---
+
+## Portals
+
+Three portals, three roles.
+
+| Portal | Route | Role | Layout |
+|---|---|---|---|
+| Admin | `/admin` | `SCHOOL_ADMIN` | Desktop — sidebar + data tables |
+| Teacher | `/teacher` | `TEACHER` | Mobile-first, `max-w-md`, bottom nav |
+| Parent | `/parent` | `GUARDIAN` | Mobile-first, `max-w-md`, bottom nav |
+
+### Features
+
+**Parent Portal** — Dashboard (child overview + unpaid invoices), Invoices (pay via Xendit, PDF download), Attendance (30 days), Reports (published assessments)
+
+**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar, Salary Slips (PDF), Profile
+
+**Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (draft → variables → review → approve → BSI CSV → PDF slips → email), Settings (campus, org config, holidays, salary components)
+
+**Payroll Engine** — 13 salary components (FIXED / PCT_OF_BASE / ATTENDANCE_BASED), auto working-days calc, pro-rating, line-by-line adjustment, BSI bank CSV export, branded PDF slips, Resend email delivery.
+
+---
+
+## Current Phase
+
+**Phase 1A: Standardize + Harden**
+
+**Completed:**
+- Foundation refactor, Shadcn sidebar + 62 components installed
+- DataTable on 12+ pages with sorting + skeleton loading
+- Stat cards on all list pages
+- Security: tenant isolation fixes, rate limiting, email rate throttling
+- CI green (lint + typecheck + test)
+- Parent portal initial implementation and standardization complete
+- Workflow refinement (2026-04-15): 3-command loop, multi-LLM safety, one-file-per-cycle — see [`docs/cycles/2026-04-15-workflow-refinement.md`](docs/cycles/2026-04-15-workflow-refinement.md)
+
+**In progress:**
+- CRUD completion: add edit + deactivate to all entities (target: 100%)
+- Admin interface for LEARNING module (assessment management, student attendance)
+
+---
+
+## Roadmap
+
+Next 2–3 cycles, in order:
+
+1. **CRUD completion sweep** — bring the 14 partial entities to fully-complete (edit dialogs + deactivate), add the 8 missing-UI entities. Target all six modules at 100% CRUD.
+2. **LEARNING module admin** — build the admin interface for student attendance, assessment templates/categories/indicators, and per-student scoring. Currently no admin UI exists for this module.
+3. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
+
+Future cycles, unscheduled: admissions pipeline, report card publishing workflow, multi-tenant hardening, parent self-service profile edits.
+
+---
+
+## Architecture Decisions
+
+Short log. Each entry is a decision that constrains future work.
+
+| Date | Decision | Why |
+|---|---|---|
+| 2025 | Next.js App Router + Server Components by default | Supabase SSR integration, streaming, and route-handler co-location |
+| 2025 | Prisma over direct Supabase client for business logic | Type safety, migration history, easier local SQLite dev |
+| 2025 | Soft-delete everywhere (`status=INACTIVE`) | Audit trail, undo, no data loss |
+| 2025 | Shadcn-first UI (62 components installed) | Consistency, accessibility, avoids bespoke drift |
+| 2026-04 | Xendit over Midtrans for parent invoice payments | Xendit Checkout Session API is simpler and has cleaner webhook semantics |
+| 2026-04 | Performance optimization phase 2: bundle analyzer + dynamic imports | Initial bundle was >400KB; see [`docs/cycles/2025-04-15-performance-optimization-phase2.md`](docs/cycles/2025-04-15-performance-optimization-phase2.md) |
+| 2026-04-15 | 3-command workflow (`/spec`, `/build`, `/ship`) over upstream 7 | Lower friction for small cycles; every upstream skill is still mapped into one of the three |
+| 2026-04-15 | One markdown file per cycle, enforced by pre-commit hook | Stop scratch-file proliferation from non-Opus sessions |
+| 2026-04-15 | Role-gated push: `cto` pushes to staging, `product-builder` opens PR | Let other LLMs contribute without bypassing review |
+| 2026-04-15 | `prd.md` retired; README.md becomes single source of truth for status/roadmap/ADRs | Eliminate three-way doc drift |
+
+---
+
+## Development Workflow
+
+### The 3-step loop
+
+Every cycle uses exactly these three commands and exactly **one** markdown file (`docs/cycles/YYYY-MM-DD-<slug>.md`):
+
+```
+/spec   →   /build   →   /ship
+```
+
+- **`/spec`** — define + plan. Creates the cycle doc with Context, Spec, and Tasks sections. Combines `agent-skills:spec-driven-development`, `planning-and-task-breakdown`, and (when needed) `idea-refine`.
+- **`/build`** — build + test + review, looping over the tasks. One commit per task with gates (`npm run build && npx vitest run`) enforced between tasks. Combines `incremental-implementation`, `test-driven-development`, `source-driven-development`, `frontend-ui-engineering`, `api-and-interface-design`, `security-and-hardening`, `browser-testing-with-devtools`, `debugging-and-error-recovery`, `code-review-and-quality`, and `code-simplification`.
+- **`/ship`** — push to staging. `cto` role pushes directly; `product-builder` role opens a PR to staging. Never touches `main`.
+
+All 20 upstream `agent-skills:*` skills are still in play — they're folded into one of the three commands. See `CLAUDE.md` for the full coverage table.
+
+### Multi-LLM session safety
+
+Other LLMs (Sonnet, Haiku, GLM 5.2, GPT) may work on this repo. Three mechanisms keep this safe:
+
+**1. Session role (`.claude/session-role`).** Every session declares `role=cto` or `role=product-builder` plus its model name on turn one. The `SessionStart` hook reminds the assistant to set this before running any command. Commands refuse to run without it. File format:
+```
+role=cto
+model=claude-opus-4-6
+```
+
+**2. Worktree isolation.** Every `product-builder` session works in its own git worktree, never the main checkout. This prevents parallel sessions from stomping on each other's lockfiles, build artifacts, and in-progress edits.
+
+```bash
+# At the start of a product-builder cycle:
+git worktree add .worktrees/<slug> -b feat/<slug>
+cd .worktrees/<slug>
+./scripts/install-hooks.sh
+```
+
+`cto` sessions work in the main checkout (single-threaded, human-driven). The `SessionStart` hook warns if a `product-builder` session is in the main checkout, and the three slash commands refuse to run until the session is inside a worktree.
+
+**3. Git hooks.** Installed via `scripts/install-hooks.sh`:
+- `pre-commit` — enforces the markdown allowlist (no scratch `.md` files) and doc-sync (code changes must update the cycle doc, README.md, or CLAUDE.md).
+- `prepare-commit-msg` — appends `Model-Trailer` and `Role` to every commit from `.claude/session-role`.
+- `pre-push` — blocks pushes to `staging` or `main` unless `role=cto`. Non-cto sessions must use `/ship` (which opens a PR).
+
+**GitHub branch protection is the real boundary.** Client hooks can be bypassed with `--no-verify`. Enable in Settings → Branches:
+- `staging`: require PR + 1 review, status checks (`lint`, `typecheck`, `test`, `build`), restrict direct push to `ismailir10`
+- `main`: require PR from `staging` only, 1 review, same status checks
+
+### One-file-per-cycle rule
+
+The only markdown files allowed in the repo are:
+- `README.md`, `CLAUDE.md`, `LICENSE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (repo root)
+- `docs/**` (including `docs/cycles/YYYY-MM-DD-<slug>.md`, one per cycle)
+- `.github/**`, `.claude/**`, `.agent-skills/**`, `.githooks/**`
+
+Any other staged `.md` file is rejected by the pre-commit hook. All cycle notes live inside the cycle doc — no `PLAN.md`, `SPEC.md`, `TEST-REPORT.md`, etc.
+
+### Documentation maintenance
+
+Every cycle updates docs as part of `/build`:
+- New module/page/feature → update README.md "Current Phase" and/or "Modules" table
+- UI pattern change or new standard → update CLAUDE.md
+- Cycle-specific history → the cycle doc itself (not README/CLAUDE)
+
+The `pre-commit` hook rejects code changes that don't accompany at least one of: cycle doc, README.md, or CLAUDE.md.
+
+---
+
+## Setup
 
 ### Prerequisites
 - Node.js 20+
 - npm
 
-### Setup
+### Clone and install
 
 ```bash
-# Clone
 git clone https://github.com/ismailir10/annisaa-erp-v3.git
 cd annisaa-erp-v3
-
-# Install
 npm install
+```
 
-# Generate Prisma client + push schema to SQLite
+### Install git hooks (required for contributors)
+
+```bash
+./scripts/install-hooks.sh
+```
+
+This enables pre-commit (markdown allowlist + doc sync), prepare-commit-msg (model trailer), and pre-push (role gate). Without this, commits may be rejected by CI or GitHub branch protection later.
+
+### Database (local demo mode)
+
+```bash
 npx prisma generate
 npx prisma db push
-
-# Seed data (24 employees, 312 salary values, 23 holidays, attendance, payroll)
-npx prisma db seed
-
-# Start dev server (demo mode — no Supabase needed)
+npx prisma db seed    # 24 employees, 23 holidays, sample attendance + payroll
 npm run dev
 ```
 
-Open http://localhost:3000 — demo mode with user selector.
+Open http://localhost:3000 — demo mode with user selector, no Supabase needed.
 
-### Environment Variables
+### Environment variables
 
-Copy `.env.example` to `.env`:
+Copy `.env.example` to `.env`. Key variables:
 
-```bash
-cp .env.example .env
-```
-
-| Variable | Local Dev | Staging (Preview) | Production |
-|----------|-----------|-------------------|------------|
-| `DATABASE_URL` | `file:./dev.db` (auto) | Staging Supabase pooler | Production Supabase pooler |
-| `NEXT_PUBLIC_SUPABASE_URL` | — (demo mode) | Staging Supabase URL | Production Supabase URL |
+| Variable | Local | Staging | Production |
+|---|---|---|---|
+| `DATABASE_URL` | `file:./dev.db` | Supabase Tokyo pooler | Supabase Mumbai pooler |
+| `NEXT_PUBLIC_SUPABASE_URL` | — | Staging Supabase URL | Production Supabase URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | — | Staging anon key | Production anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Staging service key | Production service key |
-| `RESEND_API_KEY` | — | Resend API key | Resend API key |
+| `RESEND_API_KEY` | — | Resend key | Resend key |
+| `STAGING_EMAIL_OVERRIDE` | — | Admin email | — |
+| `XENDIT_SECRET_KEY` | — | Staging key | Production key |
+| `XENDIT_CALLBACK_TOKEN` | — | Staging token | Production token |
 
----
+Without `RESEND_API_KEY`, emails are simulated (logged, not sent).
 
-## Security
-
-- **Auth:** Supabase Auth (Google OAuth + Magic Link). Demo auth disabled when Supabase is configured.
-- **Tenant isolation:** All mutation endpoints verify `tenantId` ownership via `verifyTenantOwnership()`
-- **Rate limiting:** Check-in (5/min), payroll generate (2/min)
-- **Payroll access:** Teachers can ONLY view their own approved salary slips. No draft access.
-- **Security headers:** X-Frame-Options DENY, HSTS, X-Content-Type-Options nosniff
-- **Email safety:** Staging overrides all recipients to admin email. Production sends to actual teachers.
-
----
-
-## Project Structure
-
-```
-app/
-├── admin/           # 22+ admin pages (dashboard, employees, students, fees, payroll, settings)
-├── teacher/         # 6 teacher pages (check-in, attendance, class attendance, leave, slips, profile)
-├── parent/          # 4 parent pages (dashboard, invoices, attendance, reports)
-├── auth/callback/   # Supabase OAuth callback
-├── api/             # 69+ API routes (organized by domain: core, hr, academic, students, finance, learning)
-└── page.tsx         # Login (Supabase Auth + demo fallback)
-
-components/
-├── admin/           # Sidebar, page header, stat card, data table components
-├── teacher/         # Bottom nav, header
-├── parent/          # Bottom nav, header, child selector tabs
-├── attendance/      # Calendar, override modal
-└── ui/              # 62 Shadcn UI components (full library)
-
-lib/
-├── auth.ts          # Session management (Supabase + demo fallback)
-├── auth-guard.ts    # Tenant ownership verification
-├── db.ts            # Prisma client (auto-detects SQLite/PostgreSQL)
-├── rate-limit.ts    # In-memory rate limiter
-├── parent-helpers.ts# Parent-specific data access helpers
-├── format.ts        # Currency/date/time formatting utilities
-├── attendance/      # Status logic, timezone helpers
-├── payroll/         # Calculation engine, working days, BSI export
-├── pdf/             # Salary slip PDF template
-├── email/           # Resend integration + branded HTML template
-├── xendit/          # Xendit payment gateway client
-├── api/             # Shared pagination, validation, response helpers
-└── validations/     # Zod schemas per domain
-
-prisma/
-├── schema.prisma    # 30+ models across 6 modules
-├── seed.ts          # Full seed script
-└── data/            # Seed data (employees, holidays, salary components, etc.)
-```
-
----
-
-## Tests
+### Tests
 
 ```bash
-npx vitest run        # 12 unit tests (payroll engine + working days)
+npm run build && npx vitest run   # mandated gate before every commit
+npx playwright test               # E2E (selective)
+npm run lint
 ```
 
 ---
 
-## Email Setup (Resend)
+## Environments
 
-To enable actual email delivery:
+| Environment | Branch | URL | Database | Purpose |
+|---|---|---|---|---|
+| **Local** | any | localhost:3000 | SQLite (`file:./dev.db`) | Demo mode |
+| **Staging** | `staging` | Vercel preview | Supabase Tokyo | Test with safe data (3 test users, test teacher emails) |
+| **Production** | `main` | annisaa-erp-v3.vercel.app | Supabase Mumbai | Real teachers, real payroll |
 
-1. Create account at [resend.com](https://resend.com)
-2. Add and verify your sending domain
-3. Get API key
-4. Add `RESEND_API_KEY=re_xxxxx` to Vercel env vars (both Preview and Production)
-5. Test on staging first — emails go to `STAGING_EMAIL_OVERRIDE`
+### Key differences
 
-Without `RESEND_API_KEY`, emails are simulated (logged but not sent).
+|  | Production | Staging |
+|---|---|---|
+| Users | 25 real, 24 employees | 3 test, 2 test employees |
+| Teacher emails | Real | `redacted-admin@example.test`, `redacted-parent@example.test` |
+| Outbound email | Sent to real teachers | Overridden to admin via `STAGING_EMAIL_OVERRIDE` |
+| Banner | None | Yellow "STAGING" banner at top |
+
+### Payroll safety rules
+
+- Always test salary slip generation on staging first
+- Staging emails go to `STAGING_EMAIL_OVERRIDE`, never to test teachers
+- Verify PDF content and amounts before production runs
+- BSI CSV: preview the employee list before downloading
+- Once payroll is APPROVED, attendance is locked — no going back
 
 ---
 
@@ -256,15 +304,6 @@ Private — An Nisaa' Sekolahku
 
 ---
 
-## Development Documentation
+## For developers and AI agents
 
-For detailed development standards, UI patterns, and workflow guidelines, see **[CLAUDE.md](./CLAUDE.md)**.
-
-**Key sections for developers:**
-- UI Standards (Shadcn components, DataTable patterns)
-- Portal Consistency (admin/teacher/parent patterns)
-- CRUD Standard (create, read, update, deactivate patterns)
-- Security Checklist (tenant isolation, rate limiting)
-- Documentation Maintenance (keeping docs in sync with code)
-
-**Note:** All developers and AI agents MUST update CLAUDE.md and README.md when making changes to the codebase.
+See **[CLAUDE.md](./CLAUDE.md)** for the operating manual: UI standards, CRUD standard, API standards, security checklist, color tokens, file structure. CLAUDE.md is the *how*; this README is the *what*.
