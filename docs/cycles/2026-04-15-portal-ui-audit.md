@@ -89,7 +89,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
    - Fix any inconsistent spacing, padding, or border radius
    - Verify: All parent portal pages follow CLAUDE.md standards
 
-5. [ ] Audit and fix teacher portal inconsistencies
+5. [x] Audit and fix teacher portal inconsistencies
    - Review all teacher pages for hardcoded colors, replace with CSS vars
    - Ensure EmptyState usage is consistent
    - Verify StatusBadge usage (no inline Badge with hardcoded colors)
@@ -122,6 +122,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 - Task 2: Add "Lihat & Ajukan Cuti" action to teacher attendance page — `app/teacher/attendance/page.tsx` — Added clickable card at top with CalendarDays icon, navigates to `/teacher/leave`.
 - Task 3: Remove "Cuti" tab from teacher bottom navigation — `components/teacher/bottom-nav.tsx` — Removed Cuti tab, reduced from 5 to 4 tabs, removed unused CalendarOff import.
 - Task 4: Audit and fix parent portal inconsistencies — `app/parent/invoices/invoice-detail-sheet.tsx` — Fixed dynamic Tailwind class names, replaced with proper VARIANT_STYLES mapping using CSS variables.
+- Task 5: Audit and fix teacher portal inconsistencies — No changes needed, all teacher portal pages already follow CLAUDE.md standards.
 
 ## Verification
 
@@ -129,6 +130,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 - Task 2: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/attendance/page.tsx), Manual smoke: Cuti action card visible at top of attendance page.
 - Task 3: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/bottom-nav.tsx), Manual smoke: Bottom nav now shows 4 tabs with proper spacing.
 - Task 4: Gates passed (TypeScript compilation successful, no new errors introduced in parent/invoices/invoice-detail-sheet.tsx), Manual smoke: Status messages now use proper CSS variable classes.
+- Task 5: Gates passed (TypeScript compilation successful, no new errors), Manual smoke: All teacher portal pages use proper CSS variables.
 
 ## Ship Notes
 
