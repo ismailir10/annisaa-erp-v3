@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+
+// Cache GET responses for 1 day — fee structures change ~once per academic year
+export const revalidate = 86400;
 
 // Get fee structure for a program + academic year
 export async function GET(req: NextRequest) {
@@ -64,5 +68,6 @@ export async function PUT(req: NextRequest) {
     });
   }
 
+  revalidatePath("/api/fee-structure");
   return NextResponse.json({ ok: true });
 }
