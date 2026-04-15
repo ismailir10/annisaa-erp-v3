@@ -1,133 +1,191 @@
 # School ERP — Operating Manual
 
-> **Read this file completely before making any changes.** This is the single source of truth for all AI development sessions.
+> **Read this file completely before making any changes.** This is the operating manual for AI development sessions on this repo. For project status, modules, roadmap, and architecture decisions, see [README.md](./README.md).
 
-## Project
+## Project quick reference
 
-**An Nisaa' School ERP** — school management system for An Nisaa' Sekolahku, an Islamic PAUD/TKIT in Bekasi, Indonesia. 2 campuses, 40+ teachers, 500+ students. SaaS-ready architecture (single tenant MVP, multi-tenant foundation).
+**An Nisaa' School ERP** — school management system for An Nisaa' Sekolahku (Islamic PAUD/TKIT, Bekasi). 2 campuses, 40+ teachers, 500+ students. SaaS-ready single-tenant MVP.
 
 **Production:** [annisaa-erp-v3.vercel.app](https://annisaa-erp-v3.vercel.app)
 **Repo:** [github.com/ismailir10/annisaa-erp-v3](https://github.com/ismailir10/annisaa-erp-v3)
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Framework | Next.js 15 (App Router) |
-| Language | TypeScript (strict) |
-| Database | Supabase PostgreSQL |
-| ORM | Prisma 7 |
-| Auth | Supabase Auth (Google OAuth + Magic Link) |
-| UI | Shadcn UI + TanStack Table |
-| Styling | Tailwind CSS + CSS variables |
-| Fonts | Plus Jakarta Sans + JetBrains Mono |
-| Payment | Xendit Checkout Session API |
-| Email | Resend |
-| PDF | @react-pdf/renderer |
-| Hosting | Vercel |
-| CI | GitHub Actions |
-| Testing | Vitest (unit) + Playwright (E2E) |
+Tech stack, module list, CRUD status, roadmap, and architecture decisions all live in **README.md**. This file is the *how*; README is the *what*.
 
 ---
 
-## 6 Modules
+## Development Workflow — The 3-Step Loop
 
-| Module | Domain | Key Models |
-|--------|--------|------------|
-| **core** | Auth, tenant, config | Tenant, User, Campus, OrgConfig, Holiday, EmailLog |
-| **hr** | Staff management | Employee, SalaryComponentDef, PayrollRun, PayrollItem, AttendanceRecord, LeaveRequest |
-| **academic** | School structure | AcademicYear, Program, ClassSection, TeachingAssignment |
-| **students** | Student lifecycle | Student, Guardian, StudentEnrollment, Admission |
-| **finance** | Fees & payments | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
-| **learning** | Academic outcomes | StudentAttendance, AssessmentTemplate, AssessmentCategory, StudentAssessment |
+Every development cycle uses exactly these three commands and exactly **one** markdown file (`docs/cycles/YYYY-MM-DD-<slug>.md`):
 
-**Parent Portal** = view across students + finance + learning (not a module).
-
-### 3 Portals
-
-| Portal | Route | Role |
-|--------|-------|------|
-| Admin | `/admin` | SCHOOL_ADMIN |
-| Teacher | `/teacher` | TEACHER |
-| Parent | `/parent` | GUARDIAN |
-
----
-
-## Development Workflow
-
-### Agent Skills System
-
-This project uses the **agent-skills** framework (via Claude Code plugin) for engineering workflows:
-
-**Plugin Installation:**
-```bash
-claude plugin marketplace add addyosmani/agent-skills
-claude plugin install agent-skills@addy-agent-skills
+```
+/spec   →   /build   →   /ship
 ```
 
-**Available Slash Commands (7):**
-- `/spec` — Write spec before coding
-- `/plan` — Create task breakdown
-- `/build` — Implement incrementally
-- `/test` — Run/write tests
-- `/review` — Review code quality
-- `/code-simplify` — Reduce complexity
-- `/ship` — Create PR and merge
+The upstream `agent-skills` plugin (addyosmani/agent-skills) remains installed — it still provides the underlying skills. Our three project-level commands wrap the plugin's skills and fold all 20 of them into the 3-step flow, so nothing from the upstream framework is lost.
 
-**Workflow:**
-```
-1. /spec   → Write feature spec (DEFINE phase)
-2. /plan   → Break into tasks (PLAN phase)
-3. /build  → Implement incrementally (BUILD phase)
-4. /test   → Verify tests pass (VERIFY phase)
-5. /review → Code review + security audit (REVIEW phase)
-6. /ship   → Deploy to production (SHIP phase)
-```
+### Coverage mapping — nothing is dropped
 
-**20 Skills Included:**
-- **Define:** idea-refine, spec-driven-development
-- **Plan:** planning-and-task-breakdown
-- **Build:** incremental-implementation, test-driven-development, frontend-ui-engineering, api-and-interface-design, context-engineering, source-driven-development
-- **Verify:** browser-testing-with-devtools, debugging-and-error-recovery
-- **Review:** code-review-and-quality, code-simplification, security-and-hardening, performance-optimization
-- **Ship:** git-workflow-and-versioning, ci-cd-and-automation, deprecation-and-migration, documentation-and-adrs, shipping-and-launch
+| Upstream skill | Folded into |
+|---|---|
+| `idea-refine` | `/spec` (when the request is vague) |
+| `spec-driven-development` | `/spec` |
+| `planning-and-task-breakdown` | `/spec` |
+| `context-engineering` | `/spec` + `/build` |
+| `source-driven-development` | `/build` |
+| `incremental-implementation` | `/build` |
+| `frontend-ui-engineering` | `/build` (auto on `components/`, `app/*/page.tsx`) |
+| `api-and-interface-design` | `/build` (auto on `app/api/`) |
+| `security-and-hardening` | `/build` (auto on `app/api/`, `lib/auth`, `middleware.ts`) |
+| `test-driven-development` | `/build` |
+| `browser-testing-with-devtools` | `/build` |
+| `debugging-and-error-recovery` | `/build` |
+| `code-review-and-quality` | `/build` |
+| `code-simplification` | `/build` |
+| `performance-optimization` | `/build` (when the spec mentions perf) |
+| `git-workflow-and-versioning` | `/ship` |
+| `ci-cd-and-automation` | `/ship` |
+| `documentation-and-adrs` | `/ship` |
+| `deprecation-and-migration` | `/ship` (only when the spec declares a deprecation) |
+| `shipping-and-launch` | `/ship` |
 
-**3 Agent Personas:**
-- code-reviewer (Senior Staff Engineer)
-- security-auditor (Security Engineer)
-- test-engineer (QA Specialist)
+### Per-command responsibilities
 
-**Source:** [github.com/addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)
+**`/spec`** — define + plan. Creates the cycle doc with Context / Spec / Tasks sections. Surface assumptions before handing off to `/build`.
 
-| Phase | Agent-Skills Skill | Domain Skills (auto-load) | Do |
-|-------|-------------------|--------------------------|-----|
-| Define | `spec-driven-development` | — | Write spec BEFORE code. Surface assumptions. |
-| Plan | `planning-and-task-breakdown` | — | Atomic tasks with acceptance criteria. |
-| Build | `incremental-implementation` | nextjs, supabase, shadcn | One vertical slice at a time. Test each. |
-| Build | `frontend-ui-engineering` | shadcn | Shadcn components. Follow UI standards. |
-| Build | `api-and-interface-design` | nextjs, supabase | Pagination, Zod, standard responses. |
-| Test | `test-driven-development` | — | Tests for critical paths. |
-| Review | `code-review-and-quality` | nextjs, supabase | Code Reviewer persona before merge. |
-| Review | `security-and-hardening` | supabase, vercel-functions | Security Auditor for auth/tenant. |
-| Simplify | `code-simplification` | — | Reduce complexity after feature complete. |
-| Ship | `git-workflow-and-versioning` | deployments-cicd | PR staging→main. |
+**`/build`** — loops over the cycle doc's Tasks, one at a time:
+- Implement the slice
+- Run `npm run build && npx vitest run` — must pass before moving on
+- Review + simplify the diff
+- Update the cycle doc's Implementation + Verification sections
+- Commit (one commit per task, not per cycle)
+- After the last task, fill Ship Notes in the cycle doc
 
-**Personas** (`.agent-skills/agents/`): Code Reviewer, Test Engineer, Security Auditor.
+**`/ship`** — push to staging. `cto` role pushes directly; `product-builder` role opens a PR to staging. Never touches `main`.
 
-### Git Rules
-
-1. Work on `staging` branch only
-2. Push → Vercel preview auto-deploys
-3. Test on preview URL
-4. PR: `staging` → `main`
-5. CI must pass (lint + typecheck + test)
-6. **NEVER** push directly to `main`
-
-### Before Every Commit
+### Before every commit
 
 ```bash
 npm run build && npx vitest run
 ```
+
+`/build` runs this between tasks automatically. If you're committing manually, run it yourself.
+
+---
+
+## Multi-LLM Safety
+
+Other LLMs (Sonnet, Haiku, GLM 5.2, GPT, etc.) may work on this repo. Three mechanisms keep this safe:
+
+### 1. Session role (`.claude/session-role`)
+
+Every session declares its role on turn one. File format:
+```
+role=cto              # opus sessions — can push staging directly
+model=claude-opus-4-6 # or claude-sonnet-4-6, glm-5.2, gpt-5, human
+```
+
+If the file is missing or stale (>12h), the `SessionStart` hook (`scripts/check-role.sh`) prints an instruction telling the assistant to ask the user. The three slash commands refuse to run until it's set.
+
+**No env var reads.** Claude Code doesn't reliably export `CLAUDE_MODEL` to subprocesses and other CLIs use different variables. The file is the single source of truth.
+
+### 2. Git hooks (`.githooks/`)
+
+Installed via `scripts/install-hooks.sh` which sets `core.hooksPath=.githooks` and writes `.githooks/.installed` as a marker.
+
+- **`pre-commit`** — enforces the markdown allowlist (one-file-per-cycle rule) and doc-sync (code changes must stage cycle doc, README.md, or CLAUDE.md).
+- **`prepare-commit-msg`** — appends `Model-Trailer: <model>` and `Role: <role>` from `.claude/session-role` to every commit that doesn't already have them.
+- **`pre-push`** — blocks pushes to `staging` or `main` unless `role=cto`. Non-cto sessions must open a PR.
+
+### 3. Worktree isolation (every non-cto session gets its own working tree)
+
+The cto session works in the main checkout. **Every other session — product-builder, parallel cto experiments, non-Claude CLIs — works in its own git worktree.** This prevents parallel sessions from stomping on each other's working trees, lockfiles, and build artifacts.
+
+**Why:** If two sessions edit `package-lock.json` or `tsconfig.tsbuildinfo` at the same time in the same checkout, one will overwrite the other. If a session crashes mid-commit in the shared tree, the next session inherits dirty state it didn't create (like this cycle did — see `docs/cycles/2026-04-15-workflow-refinement.md` Ship Notes).
+
+**Rule:**
+- `role=cto` → main checkout is fine (single-threaded, human-driven).
+- `role=product-builder` → must be in a worktree. `scripts/check-role.sh` prints a warning when this rule is violated. `/spec`, `/build`, and `/ship` refuse to run.
+
+**How to create a worktree** (non-cto session, first action after confirming role):
+
+```bash
+# Claude Code (preferred): use the EnterWorktree tool
+# Manual: git CLI
+SLUG=<kebab-case-cycle-name>
+git worktree add .worktrees/$SLUG -b feat/$SLUG
+cd .worktrees/$SLUG
+./scripts/install-hooks.sh   # worktrees inherit hooksPath, but run anyway to write .installed
+```
+
+The worktree lives at `.worktrees/<slug>/` (already gitignored via `.claude/worktrees/` — wait, see below). The session writes its own `.claude/session-role` inside the worktree (each worktree has its own `.claude/` copy if you followed EnterWorktree, or the session writes it fresh).
+
+**Cleanup when the cycle is done:**
+```bash
+cd ../..                         # back to main checkout
+git worktree remove .worktrees/<slug>
+git branch -D feat/<slug>        # if merged; otherwise leave until PR lands
+```
+
+### 4. GitHub branch protection (the real boundary)
+
+Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Required settings:
+
+- **`staging`**: require PR + 1 review, status checks (`lint`, `typecheck`, `test`, `build`), restrict direct push to `ismailir10`
+- **`main`**: require PR from `staging` only, 1 review, same status checks
+
+If you are setting up a fresh clone or forking this repo, enable these before letting non-Opus sessions touch it.
+
+### Commit attribution
+
+Every commit carries:
+```
+Model-Trailer: claude-opus-4-6
+Role: cto
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+This is appended automatically by the `prepare-commit-msg` hook. `/build` also includes it in the commit HEREDOC as a belt-and-suspenders measure. If both fail, the commit still lands but with `Model-Trailer: human` — surface this to the user so they can investigate.
+
+---
+
+## One-File-Per-Cycle Rule
+
+**Only these markdown files are allowed in the repo:**
+- `README.md`, `CLAUDE.md`, `LICENSE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (root)
+- `docs/**` (including `docs/cycles/YYYY-MM-DD-<slug>.md`, **one per cycle**)
+- `.github/**`, `.claude/**`, `.agent-skills/**`, `.githooks/**`
+
+Any other staged `.md` file is rejected by the `pre-commit` hook with an error pointing at this rule.
+
+**Never create `SPEC.md`, `PLAN.md`, `TEST-REPORT.md`, `NOTES.md`, `PHASE1-VERIFY.md`, or similar scratch files.** Everything that belongs to a cycle goes into the cycle doc's six sections. If you feel the urge to drop a sibling file, resist — the hook will reject it anyway.
+
+The cycle doc template:
+```markdown
+# <Cycle Title>
+## Context       <!-- /spec: why we're doing this -->
+## Spec          <!-- /spec: acceptance criteria -->
+## Tasks         <!-- /spec: ordered atomic tasks -->
+## Implementation <!-- /build: per-task files + summary -->
+## Verification   <!-- /build: gates + manual smoke -->
+## Ship Notes     <!-- /ship: migrations, env vars, rollback -->
+```
+
+---
+
+## Documentation Maintenance
+
+Two docs are kept current every cycle:
+
+| Document | Role | Update when |
+|---|---|---|
+| **README.md** | Single source of truth — project map, modules, CRUD status, roadmap, ADRs, workflow, setup | Modules change, CRUD status changes, roadmap shifts, architecture decisions made, new user-facing features |
+| **CLAUDE.md** | This file — operating manual for AI agents (standards, patterns, rules) | UI/CRUD/API standards change, security practices change, workflow process changes |
+
+**`prd.md` is retired.** All product/roadmap/ADR content lives in README.md. Do not recreate prd.md.
+
+**The cycle doc** is where per-cycle history lives. Do not duplicate cycle details into README.md or CLAUDE.md — link to the cycle doc instead.
+
+The `pre-commit` hook enforces that code changes stage at least one of: the current cycle doc, README.md, or CLAUDE.md. This catches missed doc updates before they become drift.
 
 ---
 
@@ -422,61 +480,6 @@ Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
 
 ---
 
-## Current Phase
-
-**Phase 1A: Standardize + Harden** (see `prd.md` Section 20 for full roadmap)
-
-**Completed:**
-- Foundation refactor (Steps 1-6)
-- Shadcn sidebar + 62 components installed
-- DataTable on 12+ pages with sorting + skeleton loading
-- Stat cards on all list pages
-- Security: tenant isolation fixes, rate limiting, email rate throttling
-- CI green (lint + typecheck + test)
-- Parent portal initial implementation (4 pages: dashboard, invoices, attendance, reports)
-- **Parent portal standardization complete** (DataTable + error handling + accessibility)
-
-**In Progress:**
-- CRUD completion: add edit + deactivate to all entities (see CRUD Standard above)
-- DataTableRowActions component for standard action column
-- Admin interface for LEARNING module (assessment management, student attendance)
-
-**System-wide CRUD Status (as of 2026-04-15):**
-- **Fully Complete (6/28 entities):** User, Campus, Holiday, LeaveRequest, SalaryComponentDef, FeeComponentDef
-- **Partially Complete (14/28 entities):** Missing edit/deactivate or some CRUD operations
-- **Missing UI/CRUD (8/28 entities):** OrgConfig, EmailLog, PayrollItem, ProgramFeeStructure (deactivate), InvoiceLine, Payment, AssessmentCategory, AssessmentIndicator
-- **Overall: ~60% CRUD completion**
-
-**Module-by-Module Status:**
-- **CORE (6 entities):** 4/6 complete (User, Campus, Holiday ✅ | OrgConfig, EmailLog ❌)
-- **HR (7 entities):** 2/7 complete (LeaveRequest, SalaryComponentDef ✅ | Employee, Attendance, PayrollRun, PayrollItem, TeachingAssignment ⚠️)
-- **ACADEMIC (4 entities):** 1/4 complete (AcademicYear ✅ | Program, ClassSection, TeachingAssignment ⚠️)
-- **STUDENTS (3 entities):** 1/3 complete (Student ✅ | Guardian, StudentEnrollment ⚠️)
-- **FINANCE (5 entities):** 1/5 complete (FeeComponentDef ✅ | ProgramFeeStructure, Invoice, InvoiceLine, Payment ⚠️)
-- **LEARNING (6 entities):** 0/6 complete (StudentAttendance, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, StudentAssessment, StudentAssessmentScore ⚠️)
-
-**Parent Portal Audit Findings (2026-04-15):**
-- ✅ DataTable usage on invoices & attendance pages
-- ✅ StatusBadge usage (mostly)
-- ✅ Currency/date formatting consistency
-- ✅ Mobile-first max-w-md layout
-- ✅ Tenant isolation & security
-- ✅ Error handling in client components (invoices, attendance)
-- ✅ Dashboard uses DataTable for unpaid invoices (with sorting)
-- ✅ Reports uses DataTable for assessments (with sorting + Sheet detail view)
-- ✅ Reports page uses `<Badge>` appropriately for assessment scores (not status)
-- ✅ `safe-area-bottom` CSS utility added for iPhone home indicator
-- ✅ Bottom nav layoutId standardized to `bottom-nav-active` (matches teacher portal)
-- ✅ ARIA labels added to all bottom navigation links
-
-**Next (after first month of real usage):**
-- Complete CRUD operations for all entities (target: 100% completion)
-- Admin interface for LEARNING module (assessment management, student attendance)
-- Audit logging for critical operations (payroll approve, attendance override, invoice void)
-- E2E tests for new CRUD flows
-
----
-
 ## File Structure
 
 ```
@@ -493,105 +496,30 @@ lib/payroll/        Payroll calculation engine
 lib/xendit/         Xendit API client
 lib/email/          Resend integration
 prisma/             Schema + seed data
+docs/cycles/        One markdown file per development cycle
+.claude/commands/   Project slash commands (/spec, /build, /ship)
+.githooks/          Pre-commit, prepare-commit-msg, pre-push hooks
+scripts/            check-role.sh, install-hooks.sh
 ```
-
----
-
-## Environments
-
-| Env | Branch | DB | URL |
-|-----|--------|-----|-----|
-| Local | any | `supabase start` | localhost:3000 |
-| Staging | `staging` | Supabase Tokyo | Vercel preview |
-| Production | `main` | Supabase Mumbai | annisaa-erp-v3.vercel.app |
 
 ---
 
 ## Testing
 
 ```bash
-npx vitest run        # Unit tests
-npx playwright test   # E2E tests
-npm run build         # Build check
-npm run lint          # Lint
+npm run build && npx vitest run   # mandated before every commit
+npx playwright test               # E2E (selective)
+npm run lint                      # lint check
 ```
-
-Run ALL before every commit.
-
----
-
-## Documentation Maintenance
-
-> **CRITICAL:** Every code change MUST include documentation updates to keep docs in sync with the codebase.
-
-### Documentation Roles
-
-| Document | Audience | Purpose | Update Frequency |
-|----------|----------|---------|------------------|
-| **CLAUDE.md** | AI agents + developers | Implementation guide: patterns, standards, current phase, workflow | Per feature/bugfix |
-| **README.md** | Humans (users + new devs) | Project overview, features, setup, getting started | Per major feature/release |
-| **prd.md** | Product + engineering | Product requirements, user stories, acceptance criteria, roadmap | Per requirement change |
-| **`.agent-skills/projects/school-erp/CLAUDE.md`** | AI agents | Agent skills integration guide (hybrid system) | Per process change |
-
-### When to Update Each Document
-
-**Update CLAUDE.md when:**
-- ✅ Adding new modules, pages, or features
-- ✅ Changing UI standards or patterns
-- ✅ Updating tech stack or dependencies
-- ✅ Modifying security practices
-- ✅ Changing project structure or file organization
-- ✅ Completing phases from roadmap (Current Phase section)
-- ✅ CRUD completion status changes
-- ✅ Portal consistency improvements
-
-**Update README.md when:**
-- ✅ Adding new user-facing features
-- ✅ Changing environment setup
-- ✅ Modifying development workflow
-- ✅ Updating project structure overview
-- ✅ Adding new dependencies or services
-
-**Update prd.md when:**
-- ✅ Adding new requirements or user stories
-- ✅ Changing acceptance criteria
-- ✅ Updating roadmap milestones
-- ✅ Modifying executive decisions
-- ✅ Adding architecture decisions
-
-**Update agent-skills guide when:**
-- ✅ Changing agent workflow/process
-- ✅ Adding new domain skills to the project
-- ✅ Modifying how skills integrate
-- ✅ Updating skill usage conventions
-
-### Documentation Update Workflow
-
-1. **Before implementing:** Read relevant sections of CLAUDE.md and prd.md
-2. **While implementing:** Note any patterns that need documentation updates
-3. **After implementing:** Update documentation BEFORE committing
-4. **Commit message:** Include "docs:" prefix for documentation-only commits
-
-**Example commits:**
-```bash
-# Feature implementation
-git add app/parent/invoices/ CLAUDE.md
-git commit -m "feat(parent): invoice filters + docs update"
-
-# Documentation only
-git add CLAUDE.md prd.md
-git commit -m "docs: update CRUD status and roadmap"
-```
-
-**Every AI agent and human developer MUST follow this workflow.**
 
 ---
 
 ## Key Documents
 
-| Doc | Purpose | Last Updated |
-|-----|---------|--------------|
-| `CLAUDE.md` | This file — AI operating manual | 2026-04-15 (Parent portal audit + agent-skills integration) |
-| `prd.md` | Product spec + roadmap + architecture decisions (single source of truth) | - |
-| `README.md` | Setup guide + project overview | - |
-| `.agent-skills/projects/school-erp/CLAUDE.md` | Agent skills integration guide | 2026-04-15 (Hybrid system documentation) |
+| Doc | Purpose | Updated |
+|-----|---------|---------|
+| `README.md` | Project map: modules, CRUD status, roadmap, ADRs, workflow, setup | Every cycle |
+| `CLAUDE.md` | This file — AI operating manual (standards, patterns, rules) | When standards or workflow change |
+| `docs/cycles/YYYY-MM-DD-<slug>.md` | One per cycle — Context / Spec / Tasks / Implementation / Verification / Ship Notes | Created by `/spec`, updated by `/build` and `/ship` |
+
+**Last updated:** 2026-04-15 (workflow refinement cycle — 3-command loop, multi-LLM safety, one-file-per-cycle enforcement)

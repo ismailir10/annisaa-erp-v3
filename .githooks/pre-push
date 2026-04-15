@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# pre-push — block non-cto pushes to staging and main
+#
+# Reads .claude/session-role. If role != cto, blocks pushes to staging/main
+# with instructions to use /ship (which opens a PR instead).
+#
+# Bypass: git push --no-verify (discouraged). GitHub branch protection on
+# staging/main is the real enforcement layer — configure it in Settings.
+#
+# Arguments from git: <remote> <url>
+# stdin lines: <local_ref> <local_sha> <remote_ref> <remote_sha>
+
+set -eu
+
+REMOTE="${1:-}"
+PROTECTED_REFS="refs/heads/staging refs/heads/main"
+
+# Read session role
+ROLE_FILE=".claude/session-role"
+ROLE="unknown"
+MODEL="unknown"
+if [ -f "$ROLE_FILE" ]; then
+  ROLE=$(grep '^role=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
+  MODEL=$(grep '^model=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
+fi
+
+# Read refs from stdin
+BLOCKED=0
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+  for p in $PROTECTED_REFS; do
+    if [ "$REMOTE_REF" = "$p" ]; then
+      if [ "$ROLE" != "cto" ]; then
+        echo "pre-push: BLOCKED push to $REMOTE_REF from role=$ROLE (model=$MODEL)" >&2
+        BLOCKED=1
+      fi
+    fi
+  done
+done
+
+if [ "$BLOCKED" = "1" ]; then
+  cat >&2 <<EOF
+
+Only sessions with role=cto can push directly to staging or main.
+Your current session role: $ROLE ($MODEL)
+
+To push this work:
+  1. Make sure you are on a feature branch (not staging/main):
+       git checkout -b feat/<slug>
+  2. Push the feature branch:
+       git push -u origin feat/<slug>
+  3. Open a PR targeting staging:
+       gh pr create --base staging --title "[$MODEL] <title>"
+
+Or run /ship — it does all of the above automatically.
+
+Emergency override: git push --no-verify
+(Discouraged. GitHub branch protection will still reject it if configured.)
+
+EOF
+  exit 1
+fi
+
+exit 0
