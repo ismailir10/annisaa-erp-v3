@@ -393,17 +393,49 @@ Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
 **Completed:**
 - Foundation refactor (Steps 1-6)
 - Shadcn sidebar + 62 components installed
-- DataTable on 12 pages with sorting + skeleton loading
+- DataTable on 12+ pages with sorting + skeleton loading
 - Stat cards on all list pages
 - Security: tenant isolation fixes, rate limiting, email rate throttling
 - CI green (lint + typecheck + test)
+- Parent portal initial implementation (4 pages: dashboard, invoices, attendance, reports)
+- **Parent portal standardization complete** (DataTable + error handling + accessibility)
 
 **In Progress:**
 - CRUD completion: add edit + deactivate to all entities (see CRUD Standard above)
-- Portal consistency: standardize teacher/parent to match admin patterns
 - DataTableRowActions component for standard action column
+- Admin interface for LEARNING module (assessment management, student attendance)
+
+**System-wide CRUD Status (as of 2026-04-15):**
+- **Fully Complete (6/28 entities):** User, Campus, Holiday, LeaveRequest, SalaryComponentDef, FeeComponentDef
+- **Partially Complete (14/28 entities):** Missing edit/deactivate or some CRUD operations
+- **Missing UI/CRUD (8/28 entities):** OrgConfig, EmailLog, PayrollItem, ProgramFeeStructure (deactivate), InvoiceLine, Payment, AssessmentCategory, AssessmentIndicator
+- **Overall: ~60% CRUD completion**
+
+**Module-by-Module Status:**
+- **CORE (6 entities):** 4/6 complete (User, Campus, Holiday ✅ | OrgConfig, EmailLog ❌)
+- **HR (7 entities):** 2/7 complete (LeaveRequest, SalaryComponentDef ✅ | Employee, Attendance, PayrollRun, PayrollItem, TeachingAssignment ⚠️)
+- **ACADEMIC (4 entities):** 1/4 complete (AcademicYear ✅ | Program, ClassSection, TeachingAssignment ⚠️)
+- **STUDENTS (3 entities):** 1/3 complete (Student ✅ | Guardian, StudentEnrollment ⚠️)
+- **FINANCE (5 entities):** 1/5 complete (FeeComponentDef ✅ | ProgramFeeStructure, Invoice, InvoiceLine, Payment ⚠️)
+- **LEARNING (6 entities):** 0/6 complete (StudentAttendance, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, StudentAssessment, StudentAssessmentScore ⚠️)
+
+**Parent Portal Audit Findings (2026-04-15):**
+- ✅ DataTable usage on invoices & attendance pages
+- ✅ StatusBadge usage (mostly)
+- ✅ Currency/date formatting consistency
+- ✅ Mobile-first max-w-md layout
+- ✅ Tenant isolation & security
+- ✅ Error handling in client components (invoices, attendance)
+- ✅ Dashboard uses DataTable for unpaid invoices (with sorting)
+- ✅ Reports uses DataTable for assessments (with sorting + Sheet detail view)
+- ✅ Reports page uses `<Badge>` appropriately for assessment scores (not status)
+- ✅ `safe-area-bottom` CSS utility added for iPhone home indicator
+- ✅ Bottom nav layoutId standardized to `bottom-nav-active` (matches teacher portal)
+- ✅ ARIA labels added to all bottom navigation links
 
 **Next (after first month of real usage):**
+- Complete CRUD operations for all entities (target: 100% completion)
+- Admin interface for LEARNING module (assessment management, student attendance)
 - Audit logging for critical operations (payroll approve, attendance override, invoice void)
 - E2E tests for new CRUD flows
 
@@ -452,10 +484,58 @@ Run ALL before every commit.
 
 ---
 
+## Documentation Maintenance
+
+> **CRITICAL:** Every code change MUST include documentation updates to keep CLAUDE.md and README.md in sync with the codebase.
+
+### When to Update Documentation
+
+**Update CLAUDE.md when:**
+- Adding new modules, pages, or features
+- Changing UI standards or patterns
+- Updating tech stack or dependencies
+- Modifying security practices
+- Changing project structure or file organization
+- Completing phases from roadmap
+
+**Update README.md when:**
+- Adding new user-facing features
+- Changing environment setup
+- Modifying development workflow
+- Updating project structure overview
+- Adding new dependencies or services
+
+### Documentation Update Workflow
+
+1. **Before implementing:** Read relevant sections of CLAUDE.md to understand patterns
+2. **While implementing:** Note any patterns that need documentation updates
+3. **After implementing:** Update documentation BEFORE committing
+4. **Commit message:** Include "docs: update CLAUDE.md/README.md for [feature]" in commit
+
+### Git Commit Pattern with Documentation
+
+```bash
+# Make code changes
+git add app/parent/reports/page.tsx
+git commit -m "fix(parent): replace assessment loop with DataTable"
+
+# Update documentation
+git add CLAUDE.md
+git commit -m "docs: update CLAUDE.md - add parent portal audit findings"
+
+# Or combine both:
+git add app/parent/reports/page.tsx CLAUDE.md
+git commit -m "fix(parent): DataTable for reports + docs update"
+```
+
+**Every AI agent and human developer MUST follow this workflow.**
+
+---
+
 ## Key Documents
 
-| Doc | Purpose |
-|-----|---------|
-| `CLAUDE.md` | This file — AI operating manual |
-| `prd.md` | Product spec + roadmap + architecture decisions (single source of truth) |
-| `README.md` | Setup guide |
+| Doc | Purpose | Last Updated |
+|-----|---------|--------------|
+| `CLAUDE.md` | This file — AI operating manual | 2026-04-15 (Parent portal audit) |
+| `prd.md` | Product spec + roadmap + architecture decisions (single source of truth) | - |
+| `README.md` | Setup guide + project overview | - |

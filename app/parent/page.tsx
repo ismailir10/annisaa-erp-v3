@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helpers";
+import { UnpaidInvoicesTable } from "./unpaid-invoices-table";
 import Link from "next/link";
 import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
@@ -145,28 +146,16 @@ export default async function ParentDashboard({
       {unpaidInvoices.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold mb-3">Tagihan Belum Lunas</h3>
-          <div className="space-y-2">
-            {unpaidInvoices.map((inv) => (
-              <Link key={inv.id} href="/parent/invoices">
-                <Card className="p-4 flex items-center justify-between hover:border-primary/20 transition-colors">
-                  <div>
-                    <p className="text-sm font-medium">{inv.periodLabel}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {inv.invoiceNumber}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-currency text-sm font-bold">
-                      {formatRupiah(
-                        Number(inv.totalDue) - Number(inv.totalPaid)
-                      )}
-                    </p>
-                    <StatusBadge status={inv.status} />
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
+          <UnpaidInvoicesTable
+            data={unpaidInvoices.map((inv) => ({
+              id: inv.id,
+              invoiceNumber: inv.invoiceNumber,
+              periodLabel: inv.periodLabel,
+              totalDue: Number(inv.totalDue),
+              totalPaid: Number(inv.totalPaid),
+              status: inv.status,
+            }))}
+          />
         </div>
       )}
     </div>
