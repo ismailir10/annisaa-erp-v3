@@ -114,12 +114,12 @@ export async function POST(req: NextRequest) {
 
   // 5. Teaching Assignments
   const teacherEmails: Record<string, string> = {
-    TKIT_A: "redacted-email@example.test",
-    TKIT_B: "redacted-email@example.test",
-    KB_ASTER: "redacted-email@example.test",
-    KB_METLAND: "redacted-email@example.test",
-    DCARE: "redacted-email@example.test",
-    POPUP: "redacted-email@example.test",
+    TKIT_A: "guru06@example.test",
+    TKIT_B: "guru07@example.test",
+    KB_ASTER: "guru08@example.test",
+    KB_METLAND: "guru09@example.test",
+    DCARE: "guru10@example.test",
+    POPUP: "guru11@example.test",
   };
   let assignmentCount = 0;
   for (const [classKey, email] of Object.entries(teacherEmails)) {
