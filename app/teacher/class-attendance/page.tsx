@@ -33,18 +33,35 @@ export default function ClassAttendancePage() {
 
   // Load teacher's assigned classes
   useEffect(() => {
-    fetch("/api/teaching-assignments/my").then(r => r.json()).then(d => {
-      setAssignments(d);
-      if (d.length > 0) setSelectedClass(d[0].classSection.id);
-      setLoading(false);
-    }).catch(() => { /* non-critical: assignments load silently fails */ setLoading(false); });
+    fetch("/api/teaching-assignments/my")
+      .then((r) => {
+        if (!r.ok) {
+          toast.error("Gagal memuat kelas");
+          setLoading(false);
+          return;
+        }
+        return r.json();
+      })
+      .then((d) => {
+        if (!d) return;
+        setAssignments(d);
+        if (d.length > 0) setSelectedClass(d[0].classSection.id);
+        setLoading(false);
+      })
+      .catch(() => {
+        toast.error("Gagal memuat kelas");
+        setLoading(false);
+      });
   }, []);
 
   // Load students when class or date changes
   const loadStudents = useCallback(async () => {
     if (!selectedClass) return;
     const res = await fetch(`/api/student-attendance?classSectionId=${selectedClass}&date=${date}`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      toast.error("Gagal memuat data siswa");
+      return;
+    }
     const data: StudentRecord[] = await res.json();
     setStudents(data);
     // Initialize statuses from existing records
