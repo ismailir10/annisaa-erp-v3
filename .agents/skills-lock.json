@@ -1,6 +1,18 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "lastUpdated": "2026-04-15",
+  "agentSkillsPlugin": {
+    "name": "agent-skills",
+    "source": "addyosmani/agent-skills",
+    "marketplace": "addy-agent-skills",
+    "version": "1.0.0",
+    "scope": "user",
+    "status": "enabled",
+    "description": "Production-grade engineering skills for AI coding agents",
+    "skillsCount": 20,
+    "commandsCount": 7,
+    "agentPersonasCount": 3
+  },
   "skills": [
     {
       "name": "ai-gateway",
@@ -290,6 +302,50 @@
       "name": "test-engineer",
       "path": ".agent-skills/agents/test-engineer.md",
       "description": "QA engineer specialized in test strategy, test writing, and coverage analysis. Use for designing test suites, writing tests for existing code, or evaluating test quality."
+    }
+  ],
+  "agentSkillsCommands": [
+    {
+      "name": "/spec",
+      "description": "Write spec before coding. Invokes spec-driven-development skill.",
+      "skill": "spec-driven-development",
+      "phase": "DEFINE"
+    },
+    {
+      "name": "/plan",
+      "description": "Create task breakdown. Invokes planning-and-task-breakdown skill.",
+      "skill": "planning-and-task-breakdown",
+      "phase": "PLAN"
+    },
+    {
+      "name": "/build",
+      "description": "Implement incrementally. Invokes incremental-implementation skill.",
+      "skill": "incremental-implementation",
+      "phase": "BUILD"
+    },
+    {
+      "name": "/test",
+      "description": "Run tests. Invokes test-driven-development skill.",
+      "skill": "test-driven-development",
+      "phase": "BUILD"
+    },
+    {
+      "name": "/review",
+      "description": "Code review + security audit. Invokes code-review-and-quality + security-auditor personas.",
+      "personas": ["code-reviewer", "security-auditor"],
+      "phase": "REVIEW"
+    },
+    {
+      "name": "/code-simplify",
+      "description": "Reduce complexity. Invokes code-simplification skill.",
+      "skill": "code-simplification",
+      "phase": "REVIEW"
+    },
+    {
+      "name": "/ship",
+      "description": "Create PR and merge. Invokes git-workflow-and-versioning + shipping-and-launch skills.",
+      "skills": ["git-workflow-and-versioning", "shipping-and-launch"],
+      "phase": "SHIP"
     }
   ],
   "slashCommands": [

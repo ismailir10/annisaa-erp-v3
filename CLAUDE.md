@@ -55,26 +55,17 @@
 
 ## Development Workflow
 
-### Hybrid Agent Skills System
+### Agent Skills System
 
-This project uses **TWO complementary agent skill systems**:
+This project uses the **agent-skills** framework (via Claude Code plugin) for engineering workflows:
 
-| System | Purpose | Location | Skills |
-|--------|---------|----------|--------|
-| **Agent-Skills Framework** | Engineering workflow/process | `.agent-skills/` (submodule) | `/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship` |
-| **Domain Skills** | Platform-specific expertise | `.agents/skills/` (locked via skills-lock.json) | nextjs, supabase, shadcn, auth, workflow, etc. |
-
-**How they work together:**
-```
-1. /spec (agent-skills)     → Write feature spec
-2. /plan (agent-skills)     → Break into tasks
-3. /build (hybrid)          → incremental-implementation + nextjs + supabase + shadcn
-4. /test (agent-skills)     → Test critical paths
-5. /review (agent-skills)   → Code review + security audit
-6. /ship (agent-skills)     → PR staging → main
+**Plugin Installation:**
+```bash
+claude plugin marketplace add addyosmani/agent-skills
+claude plugin install agent-skills@addy-agent-skills
 ```
 
-**Agent-Skills Commands** (workflow):
+**Available Slash Commands (7):**
 - `/spec` — Write spec before coding
 - `/plan` — Create task breakdown
 - `/build` — Implement incrementally
@@ -83,19 +74,30 @@ This project uses **TWO complementary agent skill systems**:
 - `/code-simplify` — Reduce complexity
 - `/ship` — Create PR and merge
 
-**Domain Skills** (auto-loaded based on file patterns):
-- `nextjs` — App Router, Server Components, caching
-- `supabase` — Auth, RLS, PostgreSQL patterns
-- `shadcn` — UI components and patterns
-- `auth` — Authentication integration
-- `workflow` — Vercel Workflow DevKit
-- `vercel-functions` — Edge Functions, rate limiting
+**Workflow:**
+```
+1. /spec   → Write feature spec (DEFINE phase)
+2. /plan   → Break into tasks (PLAN phase)
+3. /build  → Implement incrementally (BUILD phase)
+4. /test   → Verify tests pass (VERIFY phase)
+5. /review → Code review + security audit (REVIEW phase)
+6. /ship   → Deploy to production (SHIP phase)
+```
 
-**See also:** [`.agent-skills/projects/school-erp/CLAUDE.md`](./.agent-skills/projects/school-erp/CLAUDE.md) for detailed integration guide.
+**20 Skills Included:**
+- **Define:** idea-refine, spec-driven-development
+- **Plan:** planning-and-task-breakdown
+- **Build:** incremental-implementation, test-driven-development, frontend-ui-engineering, api-and-interface-design, context-engineering, source-driven-development
+- **Verify:** browser-testing-with-devtools, debugging-and-error-recovery
+- **Review:** code-review-and-quality, code-simplification, security-and-hardening, performance-optimization
+- **Ship:** git-workflow-and-versioning, ci-cd-and-automation, deprecation-and-migration, documentation-and-adrs, shipping-and-launch
 
-### Agent Skills Lifecycle
+**3 Agent Personas:**
+- code-reviewer (Senior Staff Engineer)
+- security-auditor (Security Engineer)
+- test-engineer (QA Specialist)
 
-Follow [agent-skills](https://github.com/addyosmani/agent-skills) framework:
+**Source:** [github.com/addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)
 
 | Phase | Agent-Skills Skill | Domain Skills (auto-load) | Do |
 |-------|-------------------|--------------------------|-----|
