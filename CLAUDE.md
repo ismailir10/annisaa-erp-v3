@@ -55,26 +55,60 @@
 
 ## Development Workflow
 
+### Hybrid Agent Skills System
+
+This project uses **TWO complementary agent skill systems**:
+
+| System | Purpose | Location | Skills |
+|--------|---------|----------|--------|
+| **Agent-Skills Framework** | Engineering workflow/process | `.agent-skills/` (submodule) | `/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship` |
+| **Domain Skills** | Platform-specific expertise | `.agents/skills/` (locked via skills-lock.json) | nextjs, supabase, shadcn, auth, workflow, etc. |
+
+**How they work together:**
+```
+1. /spec (agent-skills)     → Write feature spec
+2. /plan (agent-skills)     → Break into tasks
+3. /build (hybrid)          → incremental-implementation + nextjs + supabase + shadcn
+4. /test (agent-skills)     → Test critical paths
+5. /review (agent-skills)   → Code review + security audit
+6. /ship (agent-skills)     → PR staging → main
+```
+
+**Agent-Skills Commands** (workflow):
+- `/spec` — Write spec before coding
+- `/plan` — Create task breakdown
+- `/build` — Implement incrementally
+- `/test` — Run/write tests
+- `/review` — Review code quality
+- `/code-simplify` — Reduce complexity
+- `/ship` — Create PR and merge
+
+**Domain Skills** (auto-loaded based on file patterns):
+- `nextjs` — App Router, Server Components, caching
+- `supabase` — Auth, RLS, PostgreSQL patterns
+- `shadcn` — UI components and patterns
+- `auth` — Authentication integration
+- `workflow` — Vercel Workflow DevKit
+- `vercel-functions` — Edge Functions, rate limiting
+
+**See also:** [`.agent-skills/projects/school-erp/CLAUDE.md`](./.agent-skills/projects/school-erp/CLAUDE.md) for detailed integration guide.
+
 ### Agent Skills Lifecycle
 
-Follow [agent-skills](https://github.com/addyosmani/agent-skills) (`.agent-skills/`):
+Follow [agent-skills](https://github.com/addyosmani/agent-skills) framework:
 
-```
-/spec → /plan → /build → /test → /review → /ship
-```
-
-| Phase | Skill | Do |
-|-------|-------|----|
-| Define | `spec-driven-development` | Write spec BEFORE code. Surface assumptions. |
-| Plan | `planning-and-task-breakdown` | Atomic tasks with acceptance criteria. |
-| Build | `incremental-implementation` | One vertical slice at a time. Test each. |
-| Build | `frontend-ui-engineering` | Shadcn components. Follow UI standards. |
-| Build | `api-and-interface-design` | Pagination, Zod, standard responses. |
-| Test | `test-driven-development` | Tests for critical paths. |
-| Review | `code-review-and-quality` | Code Reviewer persona before merge. |
-| Review | `security-and-hardening` | Security Auditor for auth/tenant. |
-| Simplify | `code-simplification` | Reduce complexity after feature complete. |
-| Ship | `git-workflow-and-versioning` | PR staging→main. |
+| Phase | Agent-Skills Skill | Domain Skills (auto-load) | Do |
+|-------|-------------------|--------------------------|-----|
+| Define | `spec-driven-development` | — | Write spec BEFORE code. Surface assumptions. |
+| Plan | `planning-and-task-breakdown` | — | Atomic tasks with acceptance criteria. |
+| Build | `incremental-implementation` | nextjs, supabase, shadcn | One vertical slice at a time. Test each. |
+| Build | `frontend-ui-engineering` | shadcn | Shadcn components. Follow UI standards. |
+| Build | `api-and-interface-design` | nextjs, supabase | Pagination, Zod, standard responses. |
+| Test | `test-driven-development` | — | Tests for critical paths. |
+| Review | `code-review-and-quality` | nextjs, supabase | Code Reviewer persona before merge. |
+| Review | `security-and-hardening` | supabase, vercel-functions | Security Auditor for auth/tenant. |
+| Simplify | `code-simplification` | — | Reduce complexity after feature complete. |
+| Ship | `git-workflow-and-versioning` | deployments-cicd | PR staging→main. |
 
 **Personas** (`.agent-skills/agents/`): Code Reviewer, Test Engineer, Security Auditor.
 
@@ -486,46 +520,65 @@ Run ALL before every commit.
 
 ## Documentation Maintenance
 
-> **CRITICAL:** Every code change MUST include documentation updates to keep CLAUDE.md and README.md in sync with the codebase.
+> **CRITICAL:** Every code change MUST include documentation updates to keep docs in sync with the codebase.
 
-### When to Update Documentation
+### Documentation Roles
+
+| Document | Audience | Purpose | Update Frequency |
+|----------|----------|---------|------------------|
+| **CLAUDE.md** | AI agents + developers | Implementation guide: patterns, standards, current phase, workflow | Per feature/bugfix |
+| **README.md** | Humans (users + new devs) | Project overview, features, setup, getting started | Per major feature/release |
+| **prd.md** | Product + engineering | Product requirements, user stories, acceptance criteria, roadmap | Per requirement change |
+| **`.agent-skills/projects/school-erp/CLAUDE.md`** | AI agents | Agent skills integration guide (hybrid system) | Per process change |
+
+### When to Update Each Document
 
 **Update CLAUDE.md when:**
-- Adding new modules, pages, or features
-- Changing UI standards or patterns
-- Updating tech stack or dependencies
-- Modifying security practices
-- Changing project structure or file organization
-- Completing phases from roadmap
+- ✅ Adding new modules, pages, or features
+- ✅ Changing UI standards or patterns
+- ✅ Updating tech stack or dependencies
+- ✅ Modifying security practices
+- ✅ Changing project structure or file organization
+- ✅ Completing phases from roadmap (Current Phase section)
+- ✅ CRUD completion status changes
+- ✅ Portal consistency improvements
 
 **Update README.md when:**
-- Adding new user-facing features
-- Changing environment setup
-- Modifying development workflow
-- Updating project structure overview
-- Adding new dependencies or services
+- ✅ Adding new user-facing features
+- ✅ Changing environment setup
+- ✅ Modifying development workflow
+- ✅ Updating project structure overview
+- ✅ Adding new dependencies or services
+
+**Update prd.md when:**
+- ✅ Adding new requirements or user stories
+- ✅ Changing acceptance criteria
+- ✅ Updating roadmap milestones
+- ✅ Modifying executive decisions
+- ✅ Adding architecture decisions
+
+**Update agent-skills guide when:**
+- ✅ Changing agent workflow/process
+- ✅ Adding new domain skills to the project
+- ✅ Modifying how skills integrate
+- ✅ Updating skill usage conventions
 
 ### Documentation Update Workflow
 
-1. **Before implementing:** Read relevant sections of CLAUDE.md to understand patterns
+1. **Before implementing:** Read relevant sections of CLAUDE.md and prd.md
 2. **While implementing:** Note any patterns that need documentation updates
 3. **After implementing:** Update documentation BEFORE committing
-4. **Commit message:** Include "docs: update CLAUDE.md/README.md for [feature]" in commit
+4. **Commit message:** Include "docs:" prefix for documentation-only commits
 
-### Git Commit Pattern with Documentation
-
+**Example commits:**
 ```bash
-# Make code changes
-git add app/parent/reports/page.tsx
-git commit -m "fix(parent): replace assessment loop with DataTable"
+# Feature implementation
+git add app/parent/invoices/ CLAUDE.md
+git commit -m "feat(parent): invoice filters + docs update"
 
-# Update documentation
-git add CLAUDE.md
-git commit -m "docs: update CLAUDE.md - add parent portal audit findings"
-
-# Or combine both:
-git add app/parent/reports/page.tsx CLAUDE.md
-git commit -m "fix(parent): DataTable for reports + docs update"
+# Documentation only
+git add CLAUDE.md prd.md
+git commit -m "docs: update CRUD status and roadmap"
 ```
 
 **Every AI agent and human developer MUST follow this workflow.**
@@ -536,6 +589,7 @@ git commit -m "fix(parent): DataTable for reports + docs update"
 
 | Doc | Purpose | Last Updated |
 |-----|---------|--------------|
-| `CLAUDE.md` | This file — AI operating manual | 2026-04-15 (Parent portal audit) |
+| `CLAUDE.md` | This file — AI operating manual | 2026-04-15 (Parent portal audit + agent-skills integration) |
 | `prd.md` | Product spec + roadmap + architecture decisions (single source of truth) | - |
 | `README.md` | Setup guide + project overview | - |
+| `.agent-skills/projects/school-erp/CLAUDE.md` | Agent skills integration guide | 2026-04-15 (Hybrid system documentation) |
