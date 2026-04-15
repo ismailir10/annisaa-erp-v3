@@ -65,7 +65,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 6. [x] **Fix hardcoded colors in teacher class-attendance** — Replace `bg-[var(--status-present)]` etc. with proper CSS variable classes. Accept: zero `text-[`/`bg-[` in `app/teacher/class-attendance/page.tsx`.
 
-7. [ ] **Fix teacher profile Badge → StatusBadge** — Replace raw `<Badge>` with `<StatusBadge>` in `app/teacher/profile/page.tsx`. Accept: uses StatusBadge component.
+7. [x] **Fix teacher profile Badge → StatusBadge** — Replace raw `<Badge>` with `<StatusBadge>` in `app/teacher/profile/page.tsx`. Accept: uses StatusBadge component.
 
 8. [ ] **Fix parent assessments-table color mapping** — Replace `text-[var(--status-late)]` with proper CSS variable class. Accept: zero `text-[` in `app/parent/assessments-table.tsx`.
 
