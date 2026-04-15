@@ -2,21 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CalendarDays, Wallet, UserCircle } from "lucide-react";
+import { Home, CalendarDays, Wallet, School } from "lucide-react";
 import { motion } from "framer-motion";
 
 const tabs = [
   { label: "Beranda", href: "/teacher", icon: Home },
   { label: "Kehadiran", href: "/teacher/attendance", icon: CalendarDays },
-  { label: "Slip Gaji", href: "/teacher/slips", icon: Wallet },
-  { label: "Profil", href: "/teacher/profile", icon: UserCircle },
+  { label: "Kelas", href: "/teacher/class-attendance", icon: School },
+  { label: "Gaji", href: "/teacher/slips", icon: Wallet },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom">
+    <nav className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom" aria-label="Navigasi utama guru">
       <div className="flex items-center justify-around h-16 max-w-md mx-auto">
         {tabs.map((tab) => {
           const isActive =
@@ -30,22 +30,25 @@ export function BottomNav() {
               key={tab.href}
               href={tab.href}
               className="flex flex-col items-center justify-center gap-1 relative py-1 px-4"
+              aria-label={tab.label}
+              aria-current={isActive ? "page" : undefined}
             >
               {isActive && (
                 <motion.div
                   layoutId="bottom-nav-active"
-                  className="absolute -top-0 w-8 h-0.5 bg-[#5DB4B8] rounded-full"
+                  className="absolute -top-0 w-8 h-0.5 bg-primary rounded-full"
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
               )}
               <Icon
                 size={20}
                 strokeWidth={isActive ? 2 : 1.5}
-                className={isActive ? "text-[#5DB4B8]" : "text-[#8AACAD]"}
+                className={isActive ? "text-primary" : "text-muted-foreground"}
+                aria-hidden="true"
               />
               <span
                 className={`text-[10px] font-medium ${
-                  isActive ? "text-[#5DB4B8]" : "text-[#8AACAD]"
+                  isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >
                 {tab.label}

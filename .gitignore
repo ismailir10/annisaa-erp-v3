@@ -28,3 +28,18 @@ coverage/
 # IDE
 .vscode/
 .idea/
+.claude/worktrees/
+.worktrees/
+
+# Session-local state (written by the assistant on turn 1, per-session)
+.claude/session-role
+.githooks/.installed
+
+# Build / analysis artifacts
+build.log
+build-analyze.log
+tsconfig.tsbuildinfo
+
+# Reference material (large xlsx, third-party repos, etc.) — kept locally, never committed
+artifacts/
+

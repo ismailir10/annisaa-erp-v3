@@ -4,6 +4,7 @@ import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
 import { holidays } from "./data/holidays";
+import { students } from "./data/students";
 
 const adapter = new PrismaLibSql({ url: "file:dev.db" });
 const prisma = new PrismaClient({ adapter });
@@ -12,6 +13,15 @@ async function main() {
   console.log("🌱 Seeding database...");
 
   // Clear existing data
+  await prisma.studentAttendance.deleteMany();
+  await prisma.teachingAssignment.deleteMany();
+  await prisma.studentEnrollment.deleteMany();
+  await prisma.studentGuardian.deleteMany();
+  await prisma.parent.deleteMany();
+  await prisma.student.deleteMany();
+  await prisma.classSection.deleteMany();
+  await prisma.program.deleteMany();
+  await prisma.academicYear.deleteMany();
   await prisma.emailLog.deleteMany();
   await prisma.payrollItemLine.deleteMany();
   await prisma.payrollItem.deleteMany();
@@ -162,6 +172,186 @@ async function main() {
   }
   console.log(`✅ Employees: ${empCount}`);
   console.log(`✅ Salary values: ${empCount * salaryComponents.length}`);
+
+  // ── 7b. ACADEMIC YEAR, PROGRAMS, CLASS SECTIONS, STUDENTS ──
+
+  // 7b-1. Academic Year
+  const academicYear = await prisma.academicYear.create({
+    data: {
+      tenantId: tenant.id,
+      name: "2025/2026",
+      startDate: "2025-07-14",
+      endDate: "2026-06-20",
+      status: "ACTIVE",
+    },
+  });
+  console.log(`✅ Academic year: ${academicYear.name}`);
+
+  // 7b-2. Programs
+  const programDefs = [
+    { code: "DCARE", name: "Day Care", type: "YEAR_ROUND", ageMin: 24, ageMax: 36 },
+    { code: "KB", name: "Kelompok Bermain", type: "SEMESTER", ageMin: 36, ageMax: 60 },
+    { code: "TKIT", name: "TK Islam Terpadu", type: "SEMESTER", ageMin: 48, ageMax: 84 },
+    { code: "POPUP", name: "Pop Up Class", type: "SESSION", ageMin: 36, ageMax: 72 },
+  ];
+  const programMap: Record<string, string> = {};
+  for (const p of programDefs) {
+    const created = await prisma.program.create({
+      data: {
+        tenantId: tenant.id,
+        code: p.code,
+        name: p.name,
+        type: p.type,
+        ageMin: p.ageMin,
+        ageMax: p.ageMax,
+      },
+    });
+    programMap[p.code] = created.id;
+  }
+  console.log(`✅ Programs: ${programDefs.length}`);
+
+  // 7b-3. Class Sections
+  const classSectionDefs = [
+    { name: "TKIT A", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
+    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
+    { name: "KB Aster", programCode: "KB", campusSlug: "taman-aster", capacity: 15 },
+    { name: "KB Metland", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15 },
+    { name: "D'Care Aster", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10 },
+    { name: "POPUP Weekend", programCode: "POPUP", campusSlug: "taman-aster", capacity: 25 },
+  ];
+  const classSectionMap: Record<string, string> = {};
+  const classSectionKeys = ["TKIT_A", "TKIT_B", "KB_ASTER", "KB_METLAND", "DCARE", "POPUP"];
+  for (let i = 0; i < classSectionDefs.length; i++) {
+    const cs = classSectionDefs[i];
+    const created = await prisma.classSection.create({
+      data: {
+        tenantId: tenant.id,
+        programId: programMap[cs.programCode],
+        academicYearId: academicYear.id,
+        name: cs.name,
+        capacity: cs.capacity,
+        campusId: campusMap[cs.campusSlug],
+      },
+    });
+    classSectionMap[classSectionKeys[i]] = created.id;
+  }
+  console.log(`✅ Class sections: ${classSectionDefs.length}`);
+
+  // 7b-4. Students with Guardians and Enrollments
+  let studentCount = 0;
+  for (const s of students) {
+    const student = await prisma.student.create({
+      data: {
+        tenantId: tenant.id,
+        name: s.name,
+        nickname: s.nickname,
+        dateOfBirth: s.dateOfBirth,
+        gender: s.gender,
+        address: s.address,
+        status: "ACTIVE",
+        enrollments: {
+          create: {
+            classSectionId: classSectionMap[s.classCode],
+            enrollDate: "2025-07-14",
+            status: "ACTIVE",
+          },
+        },
+      },
+    });
+    for (const g of s.guardians) {
+      const parent = await prisma.parent.create({
+        data: {
+          tenantId: tenant.id,
+          name: g.name,
+          phone: g.phone,
+          whatsapp: g.whatsapp,
+        },
+      });
+      await prisma.studentGuardian.create({
+        data: {
+          studentId: student.id,
+          parentId: parent.id,
+          relationship: g.relationship,
+          isPrimary: g.isPrimary,
+        },
+      });
+    }
+    studentCount++;
+  }
+  console.log(`✅ Students: ${studentCount} (with guardians & enrollments)`);
+
+  // ── 7c. TEACHING ASSIGNMENTS (link teachers to classes) ────
+  // Map teachers by jabatan to classes
+  const teacherClassMap: { empKode: string; classKey: string; role: string }[] = [
+    { empKode: "NNF6", classKey: "TKIT_A", role: "HOMEROOM" },   // redacted - Class A1
+    { empKode: "YN7", classKey: "TKIT_B", role: "HOMEROOM" },    // Yohana - Class A2
+    { empKode: "NK20", classKey: "KB_ASTER", role: "HOMEROOM" },  // Redacted Employee - Ka Paud
+    { empKode: "EH21", classKey: "KB_METLAND", role: "HOMEROOM" },// Elvriani - Pj Dcare Metland
+    { empKode: "SNF17", classKey: "DCARE", role: "HOMEROOM" },    // Redacted Employee - Class Dcare
+    { empKode: "HH3", classKey: "POPUP", role: "HOMEROOM" },      // Redacted Employee - Ka Dcare
+  ];
+
+  let assignmentCount = 0;
+  for (const ta of teacherClassMap) {
+    if (employeeIds[ta.empKode] && classSectionMap[ta.classKey]) {
+      await prisma.teachingAssignment.create({
+        data: {
+          employeeId: employeeIds[ta.empKode],
+          classSectionId: classSectionMap[ta.classKey],
+          role: ta.role,
+        },
+      });
+      assignmentCount++;
+    }
+  }
+  console.log(`✅ Teaching assignments: ${assignmentCount}`);
+
+  // ── 7d. STUDENT ATTENDANCE (last 5 school days) ───────────
+  // Get all students with their enrollments for class linking
+  const allStudents = await prisma.student.findMany({
+    where: { tenantId: tenant.id, status: "ACTIVE" },
+    include: { enrollments: { where: { status: "ACTIVE" }, select: { classSectionId: true } } },
+  });
+
+  let studentAttCount = 0;
+  const todayDate = new Date();
+  for (let dayOffset = 5; dayOffset >= 1; dayOffset--) {
+    const d = new Date(todayDate);
+    d.setDate(d.getDate() - dayOffset);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue; // skip weekends
+
+    const dateStr = d.toISOString().split("T")[0];
+
+    for (const student of allStudents) {
+      if (student.enrollments.length === 0) continue;
+      const classSectionId = student.enrollments[0].classSectionId;
+
+      // Find the teacher for this class
+      const ta = teacherClassMap.find(t => classSectionMap[t.classKey] === classSectionId);
+      const checkedInBy = ta ? employeeIds[ta.empKode] : null;
+
+      // Randomize: 75% PRESENT, 10% ABSENT, 10% SICK, 5% PERMISSION
+      const rand = Math.random();
+      let status: string;
+      if (rand < 0.75) status = "PRESENT";
+      else if (rand < 0.85) status = "ABSENT";
+      else if (rand < 0.95) status = "SICK";
+      else status = "PERMISSION";
+
+      await prisma.studentAttendance.create({
+        data: {
+          studentId: student.id,
+          classSectionId,
+          date: dateStr,
+          status,
+          checkedInBy,
+        },
+      });
+      studentAttCount++;
+    }
+  }
+  console.log(`✅ Student attendance: ${studentAttCount} records`);
 
   // ── 8. SEED ATTENDANCE RECORDS (last 30 days) ──────────────
   const today = new Date();

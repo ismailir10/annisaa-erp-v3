@@ -1,0 +1,605 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { StatCard } from "@/components/admin/stat-card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { Plus, UserPlus, Users, PhoneCall, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
+import { formatDateShort } from "@/lib/format";
+
+// ------------------------------------------------------------------
+// Types
+// ------------------------------------------------------------------
+
+type Admission = {
+  id: string;
+  childName: string;
+  childAge: string | null;
+  childGender: string | null;
+  parentName: string;
+  parentPhone: string | null;
+  parentWhatsapp: string | null;
+  parentEducation: string | null;
+  parentOccupation: string | null;
+  parentIncome: string | null;
+  programId: string | null;
+  source: string;
+  status: string;
+  notes: string | null;
+  followUpDate: string | null;
+  studentId: string | null;
+  createdAt: string;
+  program: { name: string } | null;
+};
+
+type Program = { id: string; name: string };
+
+type Pagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  WHATSAPP: "WhatsApp",
+  WALK_IN: "Datang Langsung",
+  WEBSITE: "Website",
+  REFERRAL: "Referensi",
+  OTHER: "Lainnya",
+};
+
+// ------------------------------------------------------------------
+// Page (columns defined inside to access convertToStudent)
+// ------------------------------------------------------------------
+
+export default function AdmissionsPage() {
+  const [data, setData] = useState<Admission[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [stats, setStats] = useState({ total: 0, inquiry: 0, admitted: 0, registered: 0 });
+
+  // Stats fetch once
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/admissions?pageSize=1&status=INQUIRY").then(r => r.json()),
+      fetch("/api/admissions?pageSize=1&status=ADMITTED").then(r => r.json()),
+      fetch("/api/admissions?pageSize=1&status=REGISTERED").then(r => r.json()),
+    ]).then(([inquiry, admitted, registered]) => {
+      const i = inquiry.pagination?.total ?? 0;
+      const a = admitted.pagination?.total ?? 0;
+      const r = registered.pagination?.total ?? 0;
+      setStats({ total: i + a + r, inquiry: i, admitted: a, registered: r });
+    }).catch(() => { /* stats are non-critical */ });
+  }, []);
+
+  // Dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAdmission, setEditingAdmission] = useState<Admission | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    childName: "",
+    childAge: "",
+    childGender: "",
+    parentName: "",
+    parentPhone: "",
+    parentWhatsapp: "",
+    parentEmail: "",
+    parentEducation: "",
+    parentOccupation: "",
+    parentIncome: "",
+    programId: "",
+    source: "WHATSAPP",
+    notes: "",
+    followUpDate: "",
+  });
+
+  // Fetch programs once
+  useEffect(() => {
+    fetch("/api/programs")
+      .then((r) => r.json())
+      .then((p) => setPrograms(Array.isArray(p) ? p : p.data ?? []))
+      .catch(() => { /* programs lookup is non-critical */ });
+  }, []);
+
+  const fetchAdmissions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pagination.page),
+        pageSize: String(pagination.pageSize),
+        sortBy,
+        sortOrder,
+      });
+      if (search) params.set("search", search);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+
+      const res = await fetch(`/api/admissions?${params}`);
+      const json = await res.json();
+      setData(json.data ?? []);
+      if (json.pagination) setPagination(json.pagination);
+    } catch {
+      toast.error("Gagal memuat data pendaftaran");
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination.page, pagination.pageSize, search, statusFilter, sortBy, sortOrder]);
+
+  useEffect(() => {
+    fetchAdmissions();
+  }, [fetchAdmissions]);
+
+  // ------------------------------------------------------------------
+  // Handlers
+  // ------------------------------------------------------------------
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setPagination((p) => ({ ...p, page }));
+  }, []);
+
+  const handlePageSizeChange = useCallback((pageSize: number) => {
+    setPagination((p) => ({ ...p, page: 1, pageSize }));
+  }, []);
+
+  const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    setSortBy(field);
+    setSortOrder(order);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
+
+  async function convertToStudent(admissionId: string) {
+    const res = await fetch(`/api/admissions/${admissionId}/convert`, { method: "POST" });
+    if (res.ok) {
+      toast.success("Berhasil dikonversi menjadi siswa");
+      fetchAdmissions();
+    } else {
+      const d = await res.json();
+      toast.error(d.error || "Gagal konversi");
+    }
+  }
+
+  async function handleSubmit() {
+    if (!form.childName.trim() || !form.parentName.trim()) {
+      toast.error("Nama anak dan orang tua wajib diisi");
+      return;
+    }
+    setSaving(true);
+    const url = editingAdmission ? `/api/admissions/${editingAdmission.id}` : "/api/admissions";
+    const method = editingAdmission ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    if (res.ok) {
+      toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran berhasil dicatat");
+      setDialogOpen(false);
+      setEditingAdmission(null);
+      fetchAdmissions();
+    } else {
+      const d = await res.json();
+      toast.error(d.error || "Gagal");
+    }
+    setSaving(false);
+  }
+
+  async function handleCancel() {
+    if (!cancelTarget) return;
+    const res = await fetch(`/api/admissions/${cancelTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "CANCELLED" }),
+    });
+    if (res.ok) { toast.success("Pendaftaran dibatalkan"); setCancelTarget(null); fetchAdmissions(); }
+    else toast.error("Gagal membatalkan");
+  }
+
+  function openDialog() {
+    setEditingAdmission(null);
+    setForm({
+      childName: "",
+      childAge: "",
+      childGender: "",
+      parentName: "",
+      parentPhone: "",
+      parentWhatsapp: "",
+      parentEmail: "",
+      parentEducation: "",
+      parentOccupation: "",
+      parentIncome: "",
+      programId: "",
+      source: "WHATSAPP",
+      notes: "",
+      followUpDate: "",
+    });
+    setDialogOpen(true);
+  }
+
+  // ------------------------------------------------------------------
+  // Columns (need access to convertToStudent)
+  // ------------------------------------------------------------------
+
+  const columns: ColumnDef<Admission>[] = [
+    {
+      accessorKey: "childName",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Anak" />
+      ),
+      cell: ({ row }) => {
+        const a = row.original;
+        return (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{a.childName}</span>
+              {a.childAge && (
+                <span className="text-xs text-muted-foreground">{a.childAge}</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {a.parentName}
+              {a.parentPhone && ` · ${a.parentPhone}`}
+            </p>
+          </div>
+        );
+      },
+    },
+    {
+      id: "program",
+      header: "Program",
+      cell: ({ row }) => (
+        <span className="text-sm">
+          {row.original.program?.name ?? (
+            <span className="text-muted-foreground italic">Belum dipilih</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      id: "source",
+      header: "Sumber",
+      cell: ({ row }) => (
+        <div className="text-xs">
+          <span>{SOURCE_LABELS[row.original.source] ?? row.original.source}</span>
+          <p className="text-muted-foreground">
+            {formatDateShort(row.original.createdAt.split("T")[0])}
+          </p>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tanggal" />
+      ),
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDateShort(row.original.createdAt.split("T")[0])}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => {
+        const a = row.original;
+        if (a.studentId) {
+          return <span className="text-xs text-muted-foreground">Sudah jadi siswa</span>;
+        }
+        return (
+          <DataTableRowActions
+            onEdit={() => {
+              setEditingAdmission(a);
+              setForm({
+                childName: a.childName, childAge: a.childAge ?? "", childGender: a.childGender ?? "",
+                parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
+                parentEmail: "", parentEducation: a.parentEducation ?? "",
+                parentOccupation: a.parentOccupation ?? "",
+                parentIncome: a.parentIncome ?? "",
+                programId: a.programId ?? "", source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
+              });
+              setDialogOpen(true);
+            }}
+            onDeactivate={a.status !== "CANCELLED" ? () => setCancelTarget(a) : undefined}
+            isActive={a.status !== "CANCELLED"}
+            extraActions={a.status !== "CANCELLED" ? [{
+              label: "Konversi ke Siswa",
+              icon: <UserPlus size={14} />,
+              onClick: () => convertToStudent(a.id),
+            }] : undefined}
+          />
+        );
+      },
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader
+        title="Pendaftaran"
+        description={`${pagination.total} calon siswa`}
+        actions={
+          <Button size="sm" onClick={openDialog}>
+            <Plus size={14} className="mr-1.5" /> Catat Inquiry
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
+        <StatCard label="Inquiry" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
+        <StatCard label="Diterima" value={stats.admitted} icon={CheckCircle} color="success" index={2} />
+        <StatCard label="Terdaftar" value={stats.registered} icon={UserPlus} color="primary" index={3} />
+      </div>
+
+      <DataTableToolbar
+        searchPlaceholder="Cari nama anak atau orang tua..."
+        onSearchChange={handleSearchChange}
+        filters={[
+          {
+            key: "status",
+            label: "Status",
+            value: statusFilter,
+            onChange: (v) => {
+              setStatusFilter(v);
+              setPagination((p) => ({ ...p, page: 1 }));
+            },
+            options: [
+              { value: "all", label: "Semua Status" },
+              { value: "INQUIRY", label: "Pertanyaan" },
+              { value: "VISIT_SCHEDULED", label: "Kunjungan" },
+              { value: "VISITED", label: "Sudah Kunjungan" },
+              { value: "ADMITTED", label: "Diterima" },
+              { value: "REGISTERED", label: "Terdaftar" },
+              { value: "CANCELLED", label: "Dibatalkan" },
+            ],
+          },
+        ]}
+      />
+
+      <DataTable
+        columns={columns}
+        data={data}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        onSortChange={handleSortChange}
+        defaultSort={{ field: "createdAt", order: "desc" }}
+        loading={loading}
+        emptyTitle="Tidak ada pendaftaran"
+        emptyDescription="Catat inquiry baru ketika orang tua menghubungi sekolah"
+      />
+
+      {/* Add Admission Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Nama Anak *</FieldLabel>
+                <Input
+                  value={form.childName}
+                  onChange={(e) => setForm({ ...form, childName: e.target.value })}
+                  placeholder="Aisyah"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Usia</FieldLabel>
+                <Input
+                  value={form.childAge}
+                  onChange={(e) => setForm({ ...form, childAge: e.target.value })}
+                  placeholder="4 tahun"
+                />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel>Jenis Kelamin</FieldLabel>
+              <Select
+                value={form.childGender}
+                onValueChange={(v) => v && setForm({ ...form, childGender: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="L">Laki-laki</SelectItem>
+                  <SelectItem value="P">Perempuan</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Nama Orang Tua *</FieldLabel>
+                <Input
+                  value={form.parentName}
+                  onChange={(e) => setForm({ ...form, parentName: e.target.value })}
+                  placeholder="Ibu Fatimah"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>WhatsApp</FieldLabel>
+                <Input
+                  value={form.parentWhatsapp}
+                  onChange={(e) => setForm({ ...form, parentWhatsapp: e.target.value })}
+                  placeholder="081234567890"
+                />
+              </Field>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field>
+                <FieldLabel>Pendidikan Orang Tua</FieldLabel>
+                <Select
+                  value={form.parentEducation}
+                  onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SMA">SMA</SelectItem>
+                    <SelectItem value="D1-D3">D1-D3</SelectItem>
+                    <SelectItem value="S1">S1</SelectItem>
+                    <SelectItem value="S2">S2</SelectItem>
+                    <SelectItem value="S3">S3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Pekerjaan</FieldLabel>
+                <Select
+                  value={form.parentOccupation}
+                  onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Karyawan Swasta">Karyawan Swasta</SelectItem>
+                    <SelectItem value="ASN">ASN</SelectItem>
+                    <SelectItem value="Guru">Guru</SelectItem>
+                    <SelectItem value="Wiraswasta">Wiraswasta</SelectItem>
+                    <SelectItem value="BUMN">BUMN</SelectItem>
+                    <SelectItem value="Ibu Rumah Tangga">Ibu Rumah Tangga</SelectItem>
+                    <SelectItem value="Lainnya">Lainnya</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Penghasilan</FieldLabel>
+                <Select
+                  value={form.parentIncome}
+                  onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="< Rp 1 Juta">&lt; Rp 1 Juta</SelectItem>
+                    <SelectItem value="Rp 1-2 Juta">Rp 1-2 Juta</SelectItem>
+                    <SelectItem value="Rp 3-5 Juta">Rp 3-5 Juta</SelectItem>
+                    <SelectItem value="Rp 5-10 Juta">Rp 5-10 Juta</SelectItem>
+                    <SelectItem value="> Rp 10 Juta">&gt; Rp 10 Juta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel>Program Diminati</FieldLabel>
+              <Select
+                value={form.programId}
+                onValueChange={(v) => v && setForm({ ...form, programId: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih program" />
+                </SelectTrigger>
+                <SelectContent>
+                  {programs.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Sumber</FieldLabel>
+                <Select
+                  value={form.source}
+                  onValueChange={(v) => v && setForm({ ...form, source: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                    <SelectItem value="WALK_IN">Datang Langsung</SelectItem>
+                    <SelectItem value="WEBSITE">Website</SelectItem>
+                    <SelectItem value="REFERRAL">Referensi</SelectItem>
+                    <SelectItem value="OTHER">Lainnya</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Tanggal Follow Up</FieldLabel>
+                <Input
+                  type="date"
+                  value={form.followUpDate}
+                  onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
+                />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel>Catatan</FieldLabel>
+              <Input
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Catatan tambahan..."
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <DialogClose>
+              <Button variant="outline">Batal</Button>
+            </DialogClose>
+            <Button onClick={handleSubmit} disabled={saving}>
+              {saving ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        onOpenChange={(o) => !o && setCancelTarget(null)}
+        title="Batalkan Pendaftaran"
+        description={`Batalkan pendaftaran "${cancelTarget?.childName}"? Status akan diubah menjadi CANCELLED.`}
+        onConfirm={handleCancel}
+        confirmLabel="Batalkan"
+      />
+    </>
+  );
+}

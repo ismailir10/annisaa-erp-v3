@@ -19,10 +19,10 @@ export function StatCard({
   index?: number;
 }) {
   const colorMap = {
-    primary: { bg: "bg-[#5DB4B8]/10", text: "text-[#5DB4B8]", icon: "text-[#5DB4B8]" },
-    success: { bg: "bg-[#00B37E]/10", text: "text-[#00B37E]", icon: "text-[#00B37E]" },
-    warning: { bg: "bg-[#FF8C00]/10", text: "text-[#FF8C00]", icon: "text-[#FF8C00]" },
-    error: { bg: "bg-[#FF3B3B]/10", text: "text-[#FF3B3B]", icon: "text-[#FF3B3B]" },
+    primary: { bg: "bg-primary/10", text: "text-primary", icon: "text-primary" },
+    success: { bg: "bg-success/10", text: "text-success", icon: "text-success" },
+    warning: { bg: "bg-warning/10", text: "text-warning", icon: "text-warning" },
+    error: { bg: "bg-destructive/10", text: "text-destructive", icon: "text-destructive" },
   };
 
   const c = colorMap[color];

@@ -1,5 +1,5 @@
 import React from "react";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 
 const TEAL = "#5DB4B8";
 const DARK = "#1A2E2F";
@@ -228,6 +228,7 @@ function fmtRp(amount: number): string {
 
 export type SlipData = {
   schoolName: string;
+  logoUrl?: string;
   period: string;
   employeeName: string;
   employeeCode: string;
@@ -253,9 +254,15 @@ export function SalarySlipPdf({ data }: { data: SlipData }) {
         <View style={s.content}>
           {/* Header */}
           <View style={s.headerRow}>
-            <View>
-              <Text style={s.schoolName}>{data.schoolName}</Text>
-              <Text style={s.schoolSubtitle}>Pendidikan Anak Usia Dini Islam Terpadu</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              {data.logoUrl && (
+                // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image has no alt prop
+                <Image src={data.logoUrl} style={{ width: 36, height: 36, borderRadius: 6 }} />
+              )}
+              <View>
+                <Text style={s.schoolName}>{data.schoolName}</Text>
+                <Text style={s.schoolSubtitle}>Pendidikan Anak Usia Dini Islam Terpadu</Text>
+              </View>
             </View>
             <View>
               <Text style={s.docTitle}>Slip Gaji</Text>

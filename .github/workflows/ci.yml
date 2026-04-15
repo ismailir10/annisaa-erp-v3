@@ -34,5 +34,5 @@ jobs:
       - name: Unit tests
         run: npx vitest run
 
-      - name: Build
-        run: npm run build
+      # Build runs on Vercel with real DATABASE_URL.
+      # CI only validates lint, types, and tests.

@@ -6,12 +6,11 @@
 export function salarySlipEmailHtml({
   employeeName,
   period,
-  netPay,
   appUrl,
 }: {
   employeeName: string;
   period: string;
-  netPay: string;
+  netPay?: string; // kept for backward compat, no longer displayed
   appUrl: string;
 }): string {
   return `
@@ -21,12 +20,13 @@ export function salarySlipEmailHtml({
 <body style="margin:0;padding:0;background-color:#F7FAFA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;padding:32px 16px;">
     <tr><td>
-      <!-- Header -->
-      <div style="background:#5DB4B8;border-radius:12px 12px 0 0;padding:24px 28px;text-align:center;">
-        <h1 style="margin:0;color:#FFFFFF;font-size:18px;font-weight:700;letter-spacing:0.5px;">
+      <!-- Header (light) -->
+      <div style="background:#FFFFFF;border-radius:12px 12px 0 0;padding:24px 28px;text-align:center;border:1px solid #E5E2DE;border-bottom:3px solid #5DB4B8;">
+        <img src="${appUrl}/logo.png" alt="An Nisaa'" width="48" height="48" style="border-radius:12px;margin-bottom:8px;" />
+        <h1 style="margin:0;color:#1A2E2F;font-size:18px;font-weight:700;letter-spacing:0.5px;">
           An Nisaa' Sekolahku
         </h1>
-        <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:12px;">
+        <p style="margin:4px 0 0;color:#57534E;font-size:12px;">
           Pendidikan Anak Usia Dini Islam Terpadu
         </p>
       </div>
@@ -39,14 +39,8 @@ export function salarySlipEmailHtml({
         </p>
 
         <p style="margin:0 0 20px;color:#57534E;font-size:14px;line-height:1.6;">
-          Slip gaji Anda untuk periode <strong>${period}</strong> telah tersedia. Berikut ringkasan penggajian Anda:
+          Slip gaji Anda untuk periode <strong>${period}</strong> telah tersedia. Silakan unduh slip gaji dalam format PDF melalui tautan di bawah ini.
         </p>
-
-        <!-- Net Pay Box -->
-        <div style="background:#F7FAFA;border:1px solid #5DB4B8;border-radius:8px;padding:20px;text-align:center;margin:0 0 24px;">
-          <p style="margin:0 0 4px;color:#57534E;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Gaji Bersih</p>
-          <p style="margin:0;color:#1A2E2F;font-size:28px;font-weight:700;font-family:monospace;">${netPay}</p>
-        </div>
 
         <!-- CTA Button -->
         <div style="text-align:center;margin:0 0 24px;">

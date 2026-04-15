@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { formatTime } from "@/lib/format";
 
 type AttendanceRecord = {
   id: string;
@@ -13,13 +14,24 @@ type AttendanceRecord = {
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  PRESENT: { bg: "bg-[#00B37E]", text: "text-white", label: "Hadir" },
-  LATE: { bg: "bg-[#FF8C00]", text: "text-white", label: "Terlambat" },
-  ABSENT: { bg: "bg-[#FF3B3B]", text: "text-white", label: "Tidak Hadir" },
-  LEAVE: { bg: "bg-[#0EA5E9]", text: "text-white", label: "Izin" },
-  HOLIDAY: { bg: "bg-[#8B5CF6]", text: "text-white", label: "Libur" },
-  HALF_DAY: { bg: "bg-[#FFB020]", text: "text-white", label: "Setengah Hari" },
-  PRESENT_NO_CHECKOUT: { bg: "bg-[#FFB020]", text: "text-white", label: "Hadir Tanpa Pulang" },
+  PRESENT: { bg: "bg-status-present", text: "text-white", label: "Hadir" },
+  LATE: { bg: "bg-status-late", text: "text-white", label: "Terlambat" },
+  ABSENT: { bg: "bg-status-absent", text: "text-white", label: "Tidak Hadir" },
+  LEAVE: { bg: "bg-status-leave", text: "text-white", label: "Izin" },
+  HOLIDAY: { bg: "bg-status-holiday", text: "text-white", label: "Libur" },
+  HALF_DAY: { bg: "bg-status-late", text: "text-white", label: "Setengah Hari" },
+  PRESENT_NO_CHECKOUT: { bg: "bg-status-late", text: "text-white", label: "Hadir Tanpa Pulang" },
+};
+
+// Status colors for text display (modal, summary)
+const STATUS_TEXT_COLORS: Record<string, string> = {
+  PRESENT: "text-status-present-text",
+  LATE: "text-status-late-text",
+  ABSENT: "text-status-absent-text",
+  LEAVE: "text-status-leave-text",
+  HOLIDAY: "text-status-holiday-text",
+  HALF_DAY: "text-status-late-text",
+  PRESENT_NO_CHECKOUT: "text-status-late-text",
 };
 
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -74,11 +86,6 @@ export function AttendanceCalendar({
     else if (r.status === "ABSENT") summary.absent++;
     else if (r.status === "LEAVE") summary.leave++;
   }
-
-  const formatTime = (iso: string | null) => {
-    if (!iso) return "--:--";
-    return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
-  };
 
   return (
     <div>
@@ -145,10 +152,10 @@ export function AttendanceCalendar({
       {/* Summary */}
       <div className="grid grid-cols-4 gap-3 mt-4 bg-card border border-border rounded-xl p-3">
         {[
-          { label: "Hadir", value: summary.present, color: "text-[#00B37E]" },
-          { label: "Terlambat", value: summary.late, color: "text-[#FF8C00]" },
-          { label: "Tidak Hadir", value: summary.absent, color: "text-[#FF3B3B]" },
-          { label: "Izin", value: summary.leave, color: "text-[#0EA5E9]" },
+          { label: "Hadir", value: summary.present, color: "text-status-present" },
+          { label: "Terlambat", value: summary.late, color: "text-status-late" },
+          { label: "Tidak Hadir", value: summary.absent, color: "text-destructive" },
+          { label: "Izin", value: summary.leave, color: "text-status-leave" },
         ].map((s) => (
           <div key={s.label} className="text-center">
             <p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p>
@@ -189,7 +196,7 @@ export function AttendanceCalendar({
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Status</span>
-                  <span className={`font-medium ${STATUS_COLORS[selectedDay.status]?.bg.replace("bg-", "text-").replace("]", "]")}`}>
+                  <span className={`font-medium ${STATUS_TEXT_COLORS[selectedDay.status] ?? "text-foreground"}`}>
                     {STATUS_COLORS[selectedDay.status]?.label ?? selectedDay.status}
                   </span>
                 </div>

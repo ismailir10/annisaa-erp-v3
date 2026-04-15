@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -59,14 +59,14 @@ export default function NewPayrollPage() {
 
       <Card className="p-6 max-w-lg space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>Tanggal Mulai</Label>
+          <Field>
+            <FieldLabel>Tanggal Mulai</FieldLabel>
             <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
-          </div>
-          <div>
-            <Label>Tanggal Selesai</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Tanggal Selesai</FieldLabel>
             <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
-          </div>
+          </Field>
         </div>
         <p className="text-xs text-muted-foreground">
           Sistem akan menghitung hari kerja aktual, kehadiran per karyawan, dan semua komponen gaji.

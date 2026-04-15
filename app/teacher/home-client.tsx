@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin } from "lucide-react";
+import { toast } from "sonner";
+import { Card } from "@/components/ui/card";
+import { formatDate, formatTime } from "@/lib/format";
 
 type TodayRecord = {
   status: string;
@@ -80,7 +83,7 @@ export function TeacherHomeClient({
     } else {
       const data = await res.json();
       setSuccess(null);
-      alert(data.error || "Gagal");
+      toast.error(data.error || "Gagal");
     }
     setLoading(false);
   }
@@ -91,21 +94,12 @@ export function TeacherHomeClient({
     second: "2-digit",
     hour12: false,
   });
-  const dateStr = time.toLocaleDateString("id-ID", {
+  const dateStr = formatDate(time.toISOString().split("T")[0], {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-
-  const formatTime = (iso: string | null) => {
-    if (!iso) return "--:--";
-    return new Date(iso).toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  };
 
   const greeting = time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam";
 
@@ -142,7 +136,7 @@ export function TeacherHomeClient({
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
-                className="w-36 h-36 rounded-full bg-[#00B37E] flex items-center justify-center"
+                className="w-36 h-36 rounded-full bg-status-present flex items-center justify-center"
               >
                 <motion.span
                   initial={{ scale: 0 }}
@@ -162,11 +156,11 @@ export function TeacherHomeClient({
                 disabled={hasCheckedOut || loading}
                 className={`w-36 h-36 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg transition-colors ${
                   hasCheckedOut
-                    ? "bg-[#00B37E] cursor-default"
+                    ? "bg-status-present cursor-default"
                     : hasCheckedIn
-                    ? "bg-[#FF8C00] hover:bg-[#E67E00]"
-                    : "bg-[#5DB4B8] hover:bg-[#4A9DA1]"
-                } ${loading ? "animate-pulse" : ""}`}
+                    ? "bg-status-late hover:opacity-90"
+                    : "bg-primary hover:opacity-90"
+                } ${loading ? "opacity-70" : ""}`}
               >
                 {loading
                   ? "..."
@@ -200,34 +194,36 @@ export function TeacherHomeClient({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.4 }}
-        className="mt-8 bg-card border border-border rounded-xl p-4"
+        className="mt-8"
       >
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Status Hari Ini
-        </p>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-xs text-muted-foreground">Masuk</p>
-            <p className="font-currency text-sm font-semibold mt-0.5">
-              {formatTime(record?.checkInTime ?? null)}
-            </p>
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Status Hari Ini
+          </p>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Masuk</p>
+              <p className="font-currency text-sm font-semibold mt-0.5">
+                {formatTime(record?.checkInTime ?? null)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Pulang</p>
+              <p className="font-currency text-sm font-semibold mt-0.5">
+                {formatTime(record?.checkOutTime ?? null)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Status</p>
+              <p className="text-sm font-semibold mt-0.5">
+                {record?.status === "PRESENT" && <span className="text-status-present-text">Hadir</span>}
+                {record?.status === "LATE" && <span className="text-status-late-text">Terlambat</span>}
+                {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-status-late-text">Hadir</span>}
+                {!record && <span className="text-muted-foreground">—</span>}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Pulang</p>
-            <p className="font-currency text-sm font-semibold mt-0.5">
-              {formatTime(record?.checkOutTime ?? null)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Status</p>
-            <p className="text-sm font-semibold mt-0.5">
-              {record?.status === "PRESENT" && <span className="text-[#00B37E]">Hadir</span>}
-              {record?.status === "LATE" && <span className="text-[#FF8C00]">Terlambat</span>}
-              {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-[#FFB020]">Hadir</span>}
-              {!record && <span className="text-muted-foreground">—</span>}
-            </p>
-          </div>
-        </div>
+        </Card>
       </motion.div>
     </div>
   );

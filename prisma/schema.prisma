@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ── TENANT (single for MVP, prepared for multi-tenant) ──────
@@ -15,13 +15,22 @@ model Tenant {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
 
-  users       User[]
-  campuses    Campus[]
-  employees   Employee[]
-  holidays    Holiday[]
-  orgConfig   OrgConfig?
-  salaryDefs  SalaryComponentDef[]
-  payrollRuns PayrollRun[]
+  users           User[]
+  roles           Role[]
+  parents         Parent[]
+  campuses        Campus[]
+  employees       Employee[]
+  holidays        Holiday[]
+  orgConfig       OrgConfig?
+  salaryDefs      SalaryComponentDef[]
+  payrollRuns     PayrollRun[]
+  academicYears   AcademicYear[]
+  programs        Program[]
+  classSections   ClassSection[]
+  students        Student[]
+  admissions      Admission[]
+  feeDefs         FeeComponentDef[]
+  invoices        Invoice[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -34,8 +43,33 @@ model User {
   name        String?
   lastLoginAt DateTime?
 
-  tenant   Tenant?   @relation(fields: [tenantId], references: [id])
-  employee Employee? @relation(fields: [employeeId], references: [id])
+  parentId     String?
+  customRoleId String?
+  status       String    @default("ACTIVE") // ACTIVE | INACTIVE
+
+  tenant     Tenant?   @relation(fields: [tenantId], references: [id])
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  parent     Parent?   @relation(fields: [parentId], references: [id])
+  customRole Role?     @relation(fields: [customRoleId], references: [id])
+
+  @@index([tenantId, status])
+}
+
+// ── ROLE (RBAC) ─────────────────────────────────────────────
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String   // "Kepala Sekolah", "Admin Keuangan"
+  code        String   // "HEAD", "FINANCE_ADMIN"
+  description String?
+  isSystem    Boolean  @default(false)
+  permissions String   // JSON array: ["payroll.approve", "invoice.void"]
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  users  User[]
+
+  @@unique([tenantId, code])
 }
 
 // ── CAMPUS ───────────────────────────────────────────────────
@@ -44,11 +78,14 @@ model Campus {
   tenantId String
   name     String
   address  String?
-  lat      Float?
-  lng      Float?
+  lat      Decimal? @db.Decimal(10, 8)
+  lng      Decimal? @db.Decimal(11, 8)
 
-  tenant    Tenant     @relation(fields: [tenantId], references: [id])
-  employees Employee[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  employees     Employee[]
+  classSections ClassSection[]
+
+  @@index([tenantId])
 }
 
 // ── ORG CONFIG ───────────────────────────────────────────────
@@ -96,15 +133,58 @@ model Employee {
   bankAccountNo String?
   bankName      String?
   bpjsEnrolled  Boolean @default(false)
+  createdAt     DateTime @default(now())
+
+  // Leave balances (reset annually)
+  leaveBalanceAnnual Int @default(12)
+  leaveBalanceSick   Int @default(14)
 
   tenant            Tenant                @relation(fields: [tenantId], references: [id])
   campus            Campus                @relation(fields: [campusId], references: [id])
   user              User?
-  salaryValues      EmployeeSalaryValue[]
-  attendanceRecords AttendanceRecord[]
-  payrollItems      PayrollItem[]
+  salaryValues         EmployeeSalaryValue[]
+  attendanceRecords    AttendanceRecord[]
+  payrollItems         PayrollItem[]
+  leaveRequests        LeaveRequest[]
+  teachingAssignments  TeachingAssignment[]
 
   @@unique([tenantId, kode])
+  @@index([tenantId, status])
+  @@index([campusId])
+}
+
+// ── TEACHING ASSIGNMENT ──────────────────────────────────────
+model TeachingAssignment {
+  id             String @id @default(cuid())
+  employeeId     String
+  classSectionId String
+  role           String @default("HOMEROOM") // HOMEROOM | ASSISTANT
+  createdAt      DateTime @default(now())
+
+  employee     Employee     @relation(fields: [employeeId], references: [id])
+  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+
+  @@unique([employeeId, classSectionId])
+}
+
+// ── LEAVE ────────────────────────────────────────────────────
+model LeaveRequest {
+  id          String   @id @default(cuid())
+  employeeId  String
+  leaveType   String   // ANNUAL | SICK | PERMISSION | OTHER
+  startDate   String   // YYYY-MM-DD
+  endDate     String   // YYYY-MM-DD
+  days        Int      // Calculated duration
+  reason      String
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNote  String?
+  createdAt   DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, status, leaveType])
 }
 
 // ── SALARY COMPONENT ─────────────────────────────────────────
@@ -130,12 +210,13 @@ model EmployeeSalaryValue {
   id             String @id @default(cuid())
   employeeId     String
   componentDefId String
-  value          Float  @default(0)
+  value          Decimal @default(0) @db.Decimal(15, 2)
 
   employee     Employee           @relation(fields: [employeeId], references: [id])
   componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
 
   @@unique([employeeId, componentDefId])
+  @@index([componentDefId])
 }
 
 // ── ATTENDANCE ───────────────────────────────────────────────
@@ -145,10 +226,10 @@ model AttendanceRecord {
   date             String
   checkInTime      DateTime?
   checkOutTime     DateTime?
-  checkInLat       Float?
-  checkInLng       Float?
-  checkOutLat      Float?
-  checkOutLng      Float?
+  checkInLat       Decimal? @db.Decimal(10, 8)
+  checkInLng       Decimal? @db.Decimal(11, 8)
+  checkOutLat      Decimal? @db.Decimal(10, 8)
+  checkOutLng       Decimal? @db.Decimal(11, 8)
   status           String
   isManualOverride Boolean  @default(false)
   overrideReason   String?
@@ -159,6 +240,9 @@ model AttendanceRecord {
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, date])
+  @@index([employeeId, date])
+  @@index([date])
+  @@index([status])
 }
 
 // ── PAYROLL ──────────────────────────────────────────────────
@@ -177,17 +261,19 @@ model PayrollRun {
 
   tenant Tenant        @relation(fields: [tenantId], references: [id])
   items  PayrollItem[]
+
+  @@index([tenantId, periodStart])
 }
 
 model PayrollItem {
   id           String @id @default(cuid())
   payrollRunId String
   employeeId   String
-  grossAmount  Float  @default(0)
-  deductions   Float  @default(0)
-  netAmount    Float  @default(0)
+  grossAmount  Decimal @default(0) @db.Decimal(15, 2)
+  deductions   Decimal @default(0) @db.Decimal(15, 2)
+  netAmount    Decimal @default(0) @db.Decimal(15, 2)
 
-  overtimeHours     Float @default(0)
+  overtimeHours     Decimal @default(0) @db.Decimal(5, 2)
   outdoorDays       Int   @default(0)
   holidayWorkedDays Int   @default(0)
   dcDays            Int   @default(0)
@@ -195,6 +281,9 @@ model PayrollItem {
   payrollRun PayrollRun      @relation(fields: [payrollRunId], references: [id])
   employee   Employee        @relation(fields: [employeeId], references: [id])
   lines      PayrollItemLine[]
+
+  @@index([payrollRunId, employeeId])
+  @@index([employeeId])
 }
 
 model PayrollItemLine {
@@ -203,13 +292,16 @@ model PayrollItemLine {
   componentDefId   String
   labelSnapshot    String
   categorySnapshot String
-  calculatedAmount Float  @default(0)
-  adjustmentAmount Float  @default(0)
+  calculatedAmount Decimal @default(0) @db.Decimal(15, 2)
+  adjustmentAmount Decimal @default(0) @db.Decimal(15, 2)
   adjustmentNote   String?
-  finalAmount      Float  @default(0)
+  finalAmount      Decimal @default(0) @db.Decimal(15, 2)
 
   payrollItem  PayrollItem        @relation(fields: [payrollItemId], references: [id])
   componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
+
+  @@index([payrollItemId])
+  @@index([componentDefId])
 }
 
 // ── EMAIL LOG ────────────────────────────────────────────────
@@ -221,4 +313,399 @@ model EmailLog {
   status   String   @default("PENDING")
   error    String?
   sentAt   DateTime @default(now())
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 2: Academic Structure + Student Management
+// ══════════════════════════════════════════════════════════════
+
+// ── ACADEMIC YEAR ────────────────────────────────────────────
+model AcademicYear {
+  id        String @id @default(cuid())
+  tenantId  String
+  name      String // "2025/2026"
+  startDate String // YYYY-MM-DD
+  endDate   String // YYYY-MM-DD
+  status    String @default("PLANNING") // PLANNING | ACTIVE | ARCHIVED
+
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  classSections  ClassSection[]
+  feeStructures  ProgramFeeStructure[]
+
+  @@unique([tenantId, name])
+}
+
+// ── PROGRAM ──────────────────────────────────────────────────
+model Program {
+  id          String  @id @default(cuid())
+  tenantId    String
+  code        String  // "DCARE", "KB", "TKIT", "POPUP"
+  name        String  // "Day Care", "Kelompok Bermain", etc.
+  description String?
+  type        String  // SEMESTER | YEAR_ROUND | SESSION
+  ageMin      Int?    // Minimum age in months
+  ageMax      Int?    // Maximum age in months
+  isActive    Boolean @default(true)
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  classSections       ClassSection[]
+  admissions          Admission[]
+  feeStructures       ProgramFeeStructure[]
+  assessmentTemplates AssessmentTemplate[]
+
+  @@unique([tenantId, code])
+}
+
+// ── CLASS SECTION ────────────────────────────────────────────
+model ClassSection {
+  id              String  @id @default(cuid())
+  tenantId        String
+  programId       String
+  academicYearId  String
+  name            String  // "TKIT A", "KB Aster", "D'Care Metland"
+  capacity        Int     @default(20)
+  campusId        String
+  status          String  @default("ACTIVE") // ACTIVE | INACTIVE
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  program             Program              @relation(fields: [programId], references: [id])
+  academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id])
+  campus              Campus               @relation(fields: [campusId], references: [id])
+  enrollments         StudentEnrollment[]
+  teachingAssignments TeachingAssignment[]
+  studentAttendances  StudentAttendance[]
+
+  @@index([tenantId])
+}
+
+// ── STUDENT ──────────────────────────────────────────────────
+model Student {
+  id          String  @id @default(cuid())
+  tenantId    String
+  name        String
+  nickname    String?
+  dateOfBirth String? // YYYY-MM-DD
+  gender      String? // L | P
+  address     String?
+  photoUrl    String?
+  notes       String?
+  metadata    String? // JSON for custom fields (hobby, blood type, allergies, etc.)
+  status      String  @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
+  createdAt   DateTime @default(now())
+
+  // Government compliance fields
+  nis         String?  // Nomor Induk Siswa (school-assigned)
+  nisn        String?  // Nomor Induk Siswa Nasional
+  birthPlace  String?  // Tempat lahir
+  nik         String?  // NIK anak (16 digits)
+  kkNumber    String?  // No. Kartu Keluarga
+  livingWith  String?  // ORANG_TUA | WALI | LAINNYA
+
+  // Lifecycle tracking
+  withdrawalReason String?
+  withdrawalDate   String?  // YYYY-MM-DD
+  graduationDate   String?  // YYYY-MM-DD
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  guardians   StudentGuardian[]
+  enrollments StudentEnrollment[]
+  admission   Admission?
+  invoices           Invoice[]
+  studentAttendances StudentAttendance[]
+  assessments        StudentAssessment[]
+
+  @@index([tenantId, status])
+}
+
+// ── PARENT (the actual person — contact info lives here) ────
+model Parent {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  email     String?
+  phone     String?
+  whatsapp  String?
+  address         String?
+  status          String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt       DateTime @default(now())
+
+  // Government compliance fields
+  nik             String?  // NIK orang tua (16 digits)
+  education       String?  // SMA | D1-D3 | S1 | S2 | S3 | Profesi
+  occupation      String?  // Karyawan Swasta | ASN | Guru | Wiraswasta | Ibu Rumah Tangga
+  employer        String?  // Nama perusahaan
+  employerAddress String?  // Alamat kantor
+  employerCity    String?  // Kota/Kab
+  incomeRange     String?  // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
+  childrenTotal   Int?     // Total anak (including non-students at this school)
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id])
+  guardians StudentGuardian[]
+  invoices  Invoice[]
+  users     User[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+}
+
+// ── STUDENT ↔ PARENT JUNCTION (relationship + billing) ──────
+model StudentGuardian {
+  id           String  @id @default(cuid())
+  studentId    String
+  parentId     String
+  relationship String  // AYAH | IBU | WALI | OTHER
+  isPrimary    Boolean @default(false) // Primary billing contact for this student
+  childOrder   Int?    // Anak ke- (this student's position in the parent's family)
+
+  student Student @relation(fields: [studentId], references: [id])
+  parent  Parent  @relation(fields: [parentId], references: [id])
+
+  @@unique([studentId, parentId])
+  @@index([parentId])
+}
+
+// ── STUDENT ENROLLMENT ───────────────────────────────────────
+model StudentEnrollment {
+  id             String   @id @default(cuid())
+  studentId      String
+  classSectionId String
+  enrollDate     String   // YYYY-MM-DD
+  status         String   @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+
+  @@unique([studentId, classSectionId])
+  @@index([classSectionId, status])
+  @@index([studentId, status])
+}
+
+// ── ADMISSION ────────────────────────────────────────────────
+model Admission {
+  id               String   @id @default(cuid())
+  tenantId         String
+  childName        String
+  childAge         String?  // e.g., "4 tahun"
+  childGender      String?  // L | P
+  dateOfBirth      String?  // YYYY-MM-DD
+  parentName       String
+  parentPhone      String?
+  parentEmail      String?
+  parentWhatsapp   String?
+  parentEducation  String?  // SMA | D1-D3 | S1 | S2 | S3
+  parentOccupation String?  // Karyawan Swasta | ASN | Guru | Wiraswasta | BUMN | Ibu Rumah Tangga | Lainnya
+  parentIncome     String?  // < Rp 1 Juta | Rp 1-2 Juta | Rp 3-5 Juta | Rp 5-10 Juta | > Rp 10 Juta
+  programId        String?  // Program of interest
+  campusPreference String?  // Campus ID
+  source           String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER
+  status           String   @default("INQUIRY") // INQUIRY | VISIT_SCHEDULED | VISITED | ADMITTED | REGISTERED | CANCELLED
+  notes            String?
+  followUpDate     String?  // YYYY-MM-DD
+  studentId        String?  @unique // Linked when converted to student
+  createdAt        DateTime @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  program Program? @relation(fields: [programId], references: [id])
+  student Student? @relation(fields: [studentId], references: [id])
+
+  @@index([tenantId, status])
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 3: Fee Structure + Invoicing
+// ══════════════════════════════════════════════════════════════
+
+// ── FEE COMPONENT DEFINITION ─────────────────────────────────
+model FeeComponentDef {
+  id         String  @id @default(cuid())
+  tenantId   String
+  code       String  // e.g., "spp", "uang_pangkal", "seragam"
+  label      String  // e.g., "SPP Bulanan", "Uang Pangkal"
+  category   String  // TUITION | REGISTRATION | ACTIVITY | MATERIAL | OTHER
+  isRecurring Boolean @default(true)  // monthly vs one-time
+  isEnabled  Boolean @default(true)
+  sortOrder  Int     @default(0)
+
+  tenant         Tenant               @relation(fields: [tenantId], references: [id])
+  feeStructures  ProgramFeeStructure[]
+  invoiceLines   InvoiceLine[]
+
+  @@unique([tenantId, code])
+}
+
+// ── PROGRAM FEE STRUCTURE ────────────────────────────────────
+model ProgramFeeStructure {
+  id              String @id @default(cuid())
+  programId       String
+  academicYearId  String
+  feeComponentId  String
+  amount          Decimal @default(0) @db.Decimal(15, 2)
+  notes           String?
+
+  program      Program         @relation(fields: [programId], references: [id])
+  academicYear AcademicYear    @relation(fields: [academicYearId], references: [id])
+  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
+
+  @@unique([programId, academicYearId, feeComponentId])
+}
+
+// ── INVOICE ──────────────────────────────────────────────────
+model Invoice {
+  id            String    @id @default(cuid())
+  tenantId      String
+  studentId     String
+  invoiceNumber String    // Auto-generated: INV-2026-0001
+  periodLabel   String    // "April 2026" or "Semester 1 2025/2026"
+  dueDate       String    // YYYY-MM-DD
+  totalDue      Decimal   @default(0) @db.Decimal(15, 2)
+  totalPaid     Decimal   @default(0) @db.Decimal(15, 2)
+  status        String    @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
+  createdBy     String
+  sentAt        DateTime?
+  paidAt        DateTime?
+  parentId      String?   // Billing contact (Parent)
+  xenditSessionId  String?  // Xendit checkout session ID
+  xenditPaymentUrl String?  // Xendit hosted checkout URL
+  createdAt     DateTime  @default(now())
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  student  Student       @relation(fields: [studentId], references: [id])
+  parent   Parent?       @relation(fields: [parentId], references: [id])
+  lines    InvoiceLine[]
+  payments Payment[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([studentId, status])
+  @@index([tenantId, status, dueDate])
+  @@index([dueDate])
+  @@index([status])
+  @@index([parentId])
+}
+
+// ── INVOICE LINE ─────────────────────────────────────────────
+model InvoiceLine {
+  id              String @id @default(cuid())
+  invoiceId       String
+  feeComponentId  String
+  labelSnapshot   String
+  amount          Decimal @default(0) @db.Decimal(15, 2)
+  adjustmentAmount Decimal @default(0) @db.Decimal(15, 2)
+  adjustmentNote  String?
+  finalAmount     Decimal @default(0) @db.Decimal(15, 2)
+
+  invoice      Invoice         @relation(fields: [invoiceId], references: [id])
+  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
+}
+
+// ── PAYMENT ──────────────────────────────────────────────────
+model Payment {
+  id               String   @id @default(cuid())
+  invoiceId        String
+  amount           Decimal  @db.Decimal(15, 2)
+  method           String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
+  reference        String?  // Bank transfer ref
+  notes            String?
+  status           String   @default("RECORDED") // RECORDED | APPROVED | REVERSED
+  createdBy        String?  // User ID who recorded
+  xenditPaymentId  String?  @unique // Idempotency key for Xendit webhooks
+  paidAt           DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId, status])
+  @@index([createdAt])
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 6: Student Attendance
+// ══════════════════════════════════════════════════════════════
+
+model StudentAttendance {
+  id             String   @id @default(cuid())
+  studentId      String
+  classSectionId String
+  date           String   // YYYY-MM-DD
+  status         String   @default("PRESENT") // PRESENT | ABSENT | SICK | PERMISSION
+  checkInTime    DateTime?
+  checkOutTime   DateTime?
+  checkedInBy    String?  // Employee ID who marked attendance
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+
+  @@unique([studentId, date])
+  @@index([classSectionId, date])
+  @@index([date])
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 7: Report Cards / Assessments
+// ══════════════════════════════════════════════════════════════
+
+model AssessmentTemplate {
+  id            String @id @default(cuid())
+  tenantId      String
+  programId     String
+  name          String // "Laporan Perkembangan Semester 1"
+  type          String @default("SEMESTER") // SEMESTER | QUARTERLY | MONTHLY
+  isActive      Boolean @default(true)
+
+  program    Program              @relation(fields: [programId], references: [id])
+  categories AssessmentCategory[]
+  assessments StudentAssessment[]
+}
+
+model AssessmentCategory {
+  id         String @id @default(cuid())
+  templateId String
+  name       String // "Perkembangan Motorik Halus"
+  sortOrder  Int    @default(0)
+
+  template   AssessmentTemplate     @relation(fields: [templateId], references: [id])
+  indicators AssessmentIndicator[]
+}
+
+model AssessmentIndicator {
+  id          String @id @default(cuid())
+  categoryId  String
+  description String // "Dapat memegang pensil dengan benar"
+  sortOrder   Int    @default(0)
+
+  category AssessmentCategory       @relation(fields: [categoryId], references: [id])
+  scores   StudentAssessmentScore[]
+}
+
+model StudentAssessment {
+  id          String    @id @default(cuid())
+  studentId   String
+  templateId  String
+  period      String    // "Semester 1 2025/2026"
+  status      String    @default("DRAFT") // DRAFT | PUBLISHED
+  createdBy   String
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  student  Student              @relation(fields: [studentId], references: [id])
+  template AssessmentTemplate   @relation(fields: [templateId], references: [id])
+  scores   StudentAssessmentScore[]
+
+  @@unique([studentId, templateId, period])
+}
+
+model StudentAssessmentScore {
+  id           String  @id @default(cuid())
+  assessmentId String
+  indicatorId  String
+  score        String? // BB | MB | BSH | BSB
+  notes        String?
+
+  assessment StudentAssessment   @relation(fields: [assessmentId], references: [id])
+  indicator  AssessmentIndicator @relation(fields: [indicatorId], references: [id])
+
+  @@unique([assessmentId, indicatorId])
 }

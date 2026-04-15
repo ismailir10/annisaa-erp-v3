@@ -1,0 +1,271 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Plus, Save } from "lucide-react";
+import { toast } from "sonner";
+import { formatRupiah } from "@/lib/format";
+
+type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
+type Program = { id: string; code: string; name: string };
+type AcademicYear = { id: string; name: string; status: string };
+type FeeStructure = { id: string; feeComponentId: string; amount: number; notes: string | null; feeComponent: FeeComponent };
+
+const CATEGORY_LABELS: Record<string, string> = { TUITION: "SPP", REGISTRATION: "Pendaftaran", ACTIVITY: "Kegiatan", MATERIAL: "Bahan", OTHER: "Lainnya" };
+
+export default function FeesPage() {
+  const [components, setComponents] = useState<FeeComponent[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [years, setYears] = useState<AcademicYear[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [componentDialog, setComponentDialog] = useState(false);
+  const [editingFee, setEditingFee] = useState<FeeComponent | null>(null);
+  const [form, setForm] = useState({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: "0" });
+  const [saving, setSaving] = useState(false);
+
+  // Fee structure state
+  const [selectedProgram, setSelectedProgram] = useState("");
+  const [selectedYear, setSelectedYear] = useState("");
+  const [, setStructures] = useState<FeeStructure[]>([]);
+  const [structureAmounts, setStructureAmounts] = useState<Record<string, number>>({});
+  const [structureLoading, setStructureLoading] = useState(false);
+  const [structureSaving, setStructureSaving] = useState(false);
+
+  async function fetchAll() {
+    const [c, p, y] = await Promise.all([
+      fetch("/api/fee-components").then(r => r.json()),
+      fetch("/api/programs").then(r => r.json()),
+      fetch("/api/academic-years").then(r => r.json()),
+    ]);
+    setComponents(c); setPrograms(p); setYears(y);
+    setLoading(false);
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchAll(); }, []);
+
+  async function saveComponent() {
+    setSaving(true);
+    const url = editingFee ? `/api/fee-components/${editingFee.id}` : "/api/fee-components";
+    const method = editingFee ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, sortOrder: parseInt(form.sortOrder) }) });
+    if (res.ok) { toast.success(editingFee ? "Komponen diperbarui" : "Komponen biaya ditambahkan"); setComponentDialog(false); setEditingFee(null); fetchAll(); }
+    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
+    setSaving(false);
+  }
+
+  async function toggleComponent(c: FeeComponent) {
+    await fetch(`/api/fee-components/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isEnabled: !c.isEnabled }) });
+    fetchAll();
+  }
+
+  async function fetchStructure() {
+    if (!selectedProgram || !selectedYear) return;
+    setStructureLoading(true);
+    const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
+    const data: FeeStructure[] = await res.json();
+    setStructures(data);
+    const amounts: Record<string, number> = {};
+    for (const s of data) amounts[s.feeComponentId] = s.amount;
+    setStructureAmounts(amounts);
+    setStructureLoading(false);
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { fetchStructure(); }, [selectedProgram, selectedYear]);
+
+  async function saveStructure() {
+    setStructureSaving(true);
+    const fees = components.filter(c => c.isEnabled).map(c => ({ feeComponentId: c.id, amount: structureAmounts[c.id] ?? 0 }));
+    const res = await fetch("/api/fee-structure", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ programId: selectedProgram, academicYearId: selectedYear, fees }) });
+    if (res.ok) { toast.success("Struktur biaya disimpan"); fetchStructure(); }
+    else toast.error("Gagal menyimpan");
+    setStructureSaving(false);
+  }
+
+  if (loading) return <Skeleton className="h-96 rounded-xl" />;
+
+  const feeComponentColumns: ColumnDef<FeeComponent>[] = [
+    {
+      accessorKey: "sortOrder",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="#" />,
+      cell: ({ row }) => <span className="font-currency text-xs text-muted-foreground">{row.original.sortOrder}</span>,
+    },
+    {
+      accessorKey: "label",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Komponen" />,
+      cell: ({ row }) => {
+        const c = row.original;
+        return (
+          <div className={!c.isEnabled ? "opacity-50" : ""}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{c.label}</span>
+              <Badge variant="outline" className="text-[10px] font-currency">{c.code}</Badge>
+            </div>
+            <span className="text-[10px] text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "category",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Kategori" />,
+      cell: ({ row }) => <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABELS[row.original.category] ?? row.original.category}</Badge>,
+    },
+    {
+      id: "enabled",
+      header: "Aktif",
+      cell: ({ row }) => <Switch checked={row.original.isEnabled} onCheckedChange={() => toggleComponent(row.original)} />,
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <DataTableRowActions
+          onEdit={() => {
+            const c = row.original;
+            setEditingFee(c);
+            setForm({ code: c.code, label: c.label, category: c.category, isRecurring: c.isRecurring, sortOrder: String(c.sortOrder) });
+            setComponentDialog(true);
+          }}
+          onDeactivate={row.original.isEnabled ? () => toggleComponent(row.original) : undefined}
+          onActivate={!row.original.isEnabled ? () => toggleComponent(row.original) : undefined}
+          isActive={row.original.isEnabled}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
+
+      <Tabs defaultValue="components">
+        <TabsList>
+          <TabsTrigger value="components">Komponen Biaya</TabsTrigger>
+          <TabsTrigger value="structure">Struktur per Program</TabsTrigger>
+        </TabsList>
+
+        {/* Fee Components */}
+        <TabsContent value="components">
+          <div className="flex justify-end mb-4 mt-4">
+            <Button size="sm" onClick={() => { setEditingFee(null); setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) }); setComponentDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Komponen
+            </Button>
+          </div>
+          <DataTable
+            columns={feeComponentColumns}
+            data={components}
+            defaultSort={{ field: "sortOrder", order: "asc" }}
+            emptyTitle="Belum ada komponen biaya"
+            emptyDescription="Tambahkan komponen seperti SPP, Uang Pangkal, Seragam"
+          />
+        </TabsContent>
+
+        {/* Fee Structure per Program */}
+        <TabsContent value="structure">
+          <div className="flex gap-3 mt-4 mb-4">
+            <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
+              <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+              <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+
+          {!selectedProgram || !selectedYear ? (
+            <Card className="p-8 text-center text-muted-foreground"><p className="text-sm">Pilih program dan tahun ajaran untuk mengatur biaya.</p></Card>
+          ) : structureLoading ? (
+            <Skeleton className="h-40 rounded-xl" />
+          ) : (
+            <Card className="p-6">
+              <div className="space-y-3">
+                {components.filter(c => c.isEnabled).map(c => (
+                  <div key={c.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                    <div>
+                      <p className="text-sm font-medium">{c.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</p>
+                    </div>
+                    <div className="w-40">
+                      <Input
+                        type="number"
+                        value={structureAmounts[c.id] ?? 0}
+                        onChange={e => setStructureAmounts({ ...structureAmounts, [c.id]: parseFloat(e.target.value) || 0 })}
+                        className="font-currency text-right"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                <p className="text-sm font-semibold">Total Bulanan: <span className="font-currency text-primary">{formatRupiah(Object.values(structureAmounts).reduce((s, v) => s + v, 0))}</span></p>
+                <Button onClick={saveStructure} disabled={structureSaving}>
+                  <Save size={14} className="mr-1.5" /> {structureSaving ? "Menyimpan..." : "Simpan Struktur"}
+                </Button>
+              </div>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Add Component Dialog */}
+      <Dialog open={componentDialog} onOpenChange={setComponentDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <Field><FieldLabel>Kode *</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
+              <Field><FieldLabel>Label *</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
+            </div>
+            <Field>
+              <FieldLabel>Kategori</FieldLabel>
+              <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TUITION">SPP</SelectItem>
+                  <SelectItem value="REGISTRATION">Pendaftaran</SelectItem>
+                  <SelectItem value="ACTIVITY">Kegiatan</SelectItem>
+                  <SelectItem value="MATERIAL">Bahan</SelectItem>
+                  <SelectItem value="OTHER">Lainnya</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field><FieldLabel>Urutan</FieldLabel><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
+              <Field>
+                <FieldLabel>Tipe</FieldLabel>
+                <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Bulanan (berulang)</SelectItem>
+                    <SelectItem value="false">Sekali bayar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <Button onClick={saveComponent} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

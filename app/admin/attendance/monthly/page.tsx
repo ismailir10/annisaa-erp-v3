@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { PageHeader } from "@/components/admin/page-header";
-import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { formatMonthLabel } from "@/lib/format";
 import Link from "next/link";
 
 type MonthlyData = {
@@ -17,13 +18,13 @@ type MonthlyData = {
 type Campus = { id: string; name: string };
 
 const STATUS_COLORS: Record<string, string> = {
-  PRESENT: "bg-[#00B37E]",
-  LATE: "bg-[#FF8C00]",
-  ABSENT: "bg-[#FF3B3B]",
-  LEAVE: "bg-[#0EA5E9]",
-  HOLIDAY: "bg-[#8B5CF6]",
-  HALF_DAY: "bg-[#FFB020]",
-  PRESENT_NO_CHECKOUT: "bg-[#FFB020]",
+  PRESENT: "bg-status-present",
+  LATE: "bg-status-late",
+  ABSENT: "bg-status-absent",
+  LEAVE: "bg-status-leave",
+  HOLIDAY: "bg-status-holiday",
+  HALF_DAY: "bg-status-late",
+  PRESENT_NO_CHECKOUT: "bg-status-late",
 };
 
 export default function MonthlyAttendancePage() {
@@ -53,12 +54,13 @@ export default function MonthlyAttendancePage() {
     setLoading(false);
   }, [month, year, campusId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  const monthLabel = new Date(year, month - 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+  const monthLabel = formatMonthLabel(year, month);
 
   function prevMonth() {
     if (month === 1) { setMonth(12); setYear(year - 1); }
@@ -107,7 +109,7 @@ export default function MonthlyAttendancePage() {
       </div>
 
       {loading ? (
-        <div className="animate-pulse h-96 bg-card rounded-xl" />
+        <Skeleton className="h-96 rounded-xl" />
       ) : (
         <div className="overflow-x-auto bg-card border border-border rounded-xl">
           <table className="w-full text-xs">
@@ -154,10 +156,10 @@ export default function MonthlyAttendancePage() {
                         </td>
                       );
                     })}
-                    <td className="px-2 py-1 text-center font-currency text-[#00B37E]">{emp.summary.present}</td>
-                    <td className="px-2 py-1 text-center font-currency text-[#FF8C00]">{emp.summary.late}</td>
-                    <td className="px-2 py-1 text-center font-currency text-[#FF3B3B]">{emp.summary.absent}</td>
-                    <td className="px-2 py-1 text-center font-currency text-[#0EA5E9]">{emp.summary.leave}</td>
+                    <td className="px-2 py-1 text-center font-currency text-status-present">{emp.summary.present}</td>
+                    <td className="px-2 py-1 text-center font-currency text-status-late">{emp.summary.late}</td>
+                    <td className="px-2 py-1 text-center font-currency text-destructive">{emp.summary.absent}</td>
+                    <td className="px-2 py-1 text-center font-currency text-status-leave">{emp.summary.leave}</td>
                   </tr>
                 );
               })}

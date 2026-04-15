@@ -1,4 +1,4 @@
-import { calculateWorkingDays, countAttendanceDays } from "./working-days";
+import { countAttendanceDays } from "./working-days";
 
 export type SalaryComponent = {
   id: string;
@@ -137,6 +137,11 @@ function calculateAttendanceBased(
     case "insentif_dc":
       return perUnitValue * variables.dcDays;
     case "lembur":
+      // COMPLIANCE NOTE: Indonesian labor law (UU 13/2003 Art. 78(4)) requires overtime
+      // premium rates: 1.5x hourly rate for the first hour, 2x for subsequent hours on weekdays;
+      // 2x hourly rate + daily wage for holiday overtime. The current implementation uses a flat
+      // per-hour rate (perUnitValue * hours). This should be reviewed with the school's HR to
+      // ensure compliance if overtime is a regular practice.
       return perUnitValue * variables.overtimeHours;
     default:
       // Generic attendance-based: multiply by days present
@@ -157,6 +162,13 @@ export function calculatePayroll(
   components: SalaryComponent[],
   actualWorkingDays: number
 ): Map<string, PayrollItemResult> {
+  if (actualWorkingDays <= 0) {
+    throw new Error(
+      `actualWorkingDays must be > 0, got ${actualWorkingDays}. ` +
+      "Check that the payroll period has working days configured and holidays are not covering the entire period."
+    );
+  }
+
   const results = new Map<string, PayrollItemResult>();
 
   const defaultVars: AttendanceVariables = {

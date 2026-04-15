@@ -1,5 +1,5 @@
 # School ERP — Teacher Attendance & Payroll System
-**Version**: 8.0 · **Status**: MVP Final · **Date**: 2026-04-07
+**Version**: 11.0 · **Status**: v1 Shipped, Foundation Refactor Complete · **Date**: 2026-04-10
 
 ---
 
@@ -1405,4 +1405,280 @@ Seeded from "Hari Libur" sheet. 35+ holidays for 2024-2026.
 
 ---
 
-**End of PRD v8.0**
+## 19. v1 Completion Status (2026-04-08)
+
+### What Was Shipped
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Auth (Google OAuth + Magic Link) | ✅ Shipped | Supabase Auth, auto-create User on first login |
+| Campus CRUD | ✅ Shipped | GPS capture, employee count |
+| Org Config | ✅ Shipped | Working days, hours, grace, payroll period |
+| Holiday Calendar | ✅ Shipped | 2026 Indonesia holidays (23 days) |
+| Salary Components (13) | ✅ Shipped | Enable/disable, sort order |
+| Employee CRUD | ✅ Shipped | Auto-generated codes, position dropdown |
+| Employee Salary Values | ✅ Shipped | Per-component editor |
+| Teacher Check-in/out | ✅ Shipped | GPS as documentation, PRESENT/LATE status |
+| Teacher Attendance Calendar | ✅ Shipped | Color-coded monthly view |
+| Teacher Profile | ✅ Shipped | Read-only, logout button |
+| Teacher Salary Slips | ✅ Shipped | View + download PDF |
+| Admin Attendance (Today) | ✅ Shipped | Stats + employee table + override |
+| Admin Attendance (Monthly) | ✅ Shipped | Full grid, click-to-override |
+| Attendance Override | ✅ Shipped | LEAVE status with reason |
+| Payroll Draft Generation | ✅ Shipped | All calc types, working days engine |
+| Attendance Variables | ✅ Shipped | Overtime, outdoor, holiday worked, DC |
+| Payroll Review + Adjust | ✅ Shipped | Line-by-line with notes |
+| Payroll Approve | ✅ Shipped | Locks attendance |
+| BSI CSV Export | ✅ Shipped | Excluded employees shown |
+| PDF Salary Slip + Email | ✅ Shipped | Branded PDF, Resend integration |
+
+### Infrastructure Shipped
+
+| Item | Status |
+|------|--------|
+| Production (Vercel + Supabase Mumbai) | ✅ Live |
+| Staging (Vercel Preview + Supabase Tokyo) | ✅ Live |
+| Separate databases (staging ≠ production) | ✅ |
+| GitHub Actions CI (lint, typecheck, test) | ✅ |
+| Staging-first workflow (SOP documented) | ✅ |
+| Security: rate limiting, tenant isolation, security headers | ✅ |
+| Security: payroll access control (own slips only, no drafts) | ✅ |
+| Unit tests: 12 (payroll engine + working days) | ✅ |
+| An Nisaa' branding (logo, teal palette, favicon) | ✅ |
+
+### What Was Deferred from MVP (→ v2 candidates)
+
+| Feature | Original Priority | Reason Deferred |
+|---------|------------------|-----------------|
+| Leave management (request/approve/balance) | P0 in v7 | Scope cut — admin override to LEAVE covers MVP |
+| Multi-tenant / Super Admin | P0 in v7 | Single tenant sufficient for MVP |
+| GPS enforcement (radius check) | P0 in v7 | GPS as documentation only, simpler |
+| In-app notifications (bell/badge) | P0 in v7 | Email covers critical path |
+| Offline / PWA | Decision D-18 | GPS not blocking removes main use case |
+| Payroll reopen workflow | ADM-18 | Create new run instead |
+| Bulk CSV import (employees/holidays) | ADM-6 | Seed script + single entry sufficient |
+| Teacher profile editing | TCH-9 | Read-only profile shipped |
+| Manual payment recording with receipts | ADM-16 | Deferred — admin tracks offline |
+
+---
+
+## 20. Roadmap (Updated 2026-04-10)
+
+### Guiding Principle
+
+> **Build brick by brick. Each phase must be stable before the next begins.**
+> Don't overthink non-essentials, but don't skip essentials either.
+> The PRD is the single source of truth for all product decisions.
+
+### Current State (April 2026)
+
+Phase 1 (Attendance + Payroll) is **built**. Foundation refactor is **complete** — PostgreSQL migration, DataTable component, paginated APIs, security hardening, Zod validation, UI standardization all done.
+
+**Immediate next:** UI polish (sorting, Shadcn gaps, loading states) → E2E tests → onboarding.
+
+---
+
+### Foundation Refactor (Complete ✅ — 2026-04-10)
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Rewrite CLAUDE.md (operating manual) | ✅ |
+| 2 | PostgreSQL migration + schema fixes (Decimal, indexes) | ✅ |
+| 3 | Shared API utilities (pagination, response, validate) + Zod schemas | ✅ |
+| 4 | DataTable component (TanStack Table + Shadcn) | ✅ |
+| 5 | Migrate 6 list pages to DataTable + 6 APIs paginated | ✅ |
+| 6 | Security review (tenant ownership 9 routes, rate limiting 5 routes, Zod) | ✅ |
+
+---
+
+### Phase 1A: UI Polish + Harden (NOW)
+
+**Goal:** Fill Shadcn gaps, finish DataTable features, add loading states, then E2E tests.
+
+#### 1A.1 — DataTable Completion
+
+| # | Task | Priority | Why |
+|---|------|----------|-----|
+| 1 | Column sorting (click header → sortBy/sortOrder API params) | P0 | APIs support it, frontend doesn't wire it |
+| 2 | Loading skeleton in DataTable during fetch | P0 | No loading indicator currently |
+| 3 | Row click → detail page navigation | P1 | Currently requires action button click |
+| 4 | Column visibility toggle (hide/show columns) | P2 | TanStack supports it, nice-to-have |
+
+#### 1A.2 — Shadcn Component Gaps
+
+| # | Component | Where to Use | Priority |
+|---|-----------|-------------|----------|
+| 1 | `Skeleton` | All data-fetching pages (tables, cards, forms) | P0 |
+| 2 | `AlertDialog` | Destructive confirms (delete employee, void invoice) | P0 |
+| 3 | `Calendar` | Attendance calendar (replace custom), date pickers | P1 |
+| 4 | `Progress` | Payroll processing, slip sending progress | P1 |
+| 5 | `Breadcrumb` | Detail pages (Employees > John Doe > Salary) | P1 |
+| 6 | `Accordion` | Payroll item expansion (income/deduction breakdown) | P1 |
+| 7 | `ScrollArea` | Long lists in modals/sheets | P2 |
+| 8 | `Drawer` | Mobile sidebar navigation | P2 |
+| 9 | `RadioGroup` | Form options (status, type selects with few options) | P2 |
+
+#### 1A.3 — E2E Tests + Onboarding
+
+| # | Task | Priority | Why |
+|---|------|----------|-----|
+| 1 | E2E regression tests (Playwright) — critical paths | P0 | Protect core flows before real usage |
+| 2 | Verify Resend email delivery (domain verified) | P0 | Salary slips must arrive |
+| 3 | Onboard 24 teachers — login instructions, test check-in | P0 | Nothing matters if nobody uses it |
+| 4 | Run first real payroll cycle (admin supervision) | P0 | Verify calculations match old spreadsheet |
+| 5 | Collect feedback after first month | P0 | Find bugs and UX issues |
+
+**Exit criteria:** All DataTable columns sortable. Skeleton loading on all pages. E2E tests green. 24 teachers check in daily for 1 month. 1 real payroll run matches expected amounts.
+
+---
+
+### Phase 1B: Operations Polish (After 1st Payroll)
+
+**Goal:** Fix friction discovered in Phase 1A and add the most-requested missing features.
+
+| # | Feature | Priority | Effort | Why |
+|---|---------|----------|--------|-----|
+| 1 | Leave management (request/approve/balance) | P0 | Large | Currently manual override — teachers need to request directly |
+| 2 | Payroll history comparison (current vs previous) | P1 | Small | Admin needs this every month |
+| 3 | Employee attendance history (per-person view) | P1 | Small | Admin needs per-teacher drill-down |
+| 4 | Bulk holiday import (CSV) | P1 | Small | 23 holidays one by one is painful |
+| 5 | Export attendance to CSV | P1 | Small | School reporting requirements |
+| 6 | Teacher profile editing (phone, emergency contact) | P1 | Small | Teacher autonomy |
+| 7 | Dashboard: recent payroll summary | P2 | Small | Quick admin glance |
+
+**Exit criteria:** Leave management working. Admin can compare payroll periods. 3+ payroll cycles completed successfully.
+
+---
+
+### Phase 2: Academic Structure + Students + Admissions (2-3 weeks)
+
+**Goal:** Programs, classes, student admission pipeline, registration, enrollment, user management.
+
+**Models:** AcademicYear, Program (D'Care/KB/TKIT/Pop Up Class), ClassSection, Student, Guardian, StudentEnrollment, Admission
+
+**Admission Pipeline:** INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → REGISTERED → ENROLLED → ACTIVE
+
+**User Management:** Invite users, manage roles, deactivate access.
+
+**Exit criteria:** Admin can track admissions, register students, enroll in classes, manage user access.
+
+---
+
+### Phase 3: Fee Structure + Invoicing (2-3 weeks)
+
+**Goal:** Define fees per program, generate invoices, record payments. Pattern reuse: FeeComponentDef mirrors SalaryComponentDef, Invoice mirrors PayrollRun.
+
+**Models:** FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment
+
+**Exit criteria:** Admin generates monthly invoices for all enrolled students, records manual payments, sends invoice PDF.
+
+---
+
+### Phase 4: Xendit Payment Automation (2 weeks)
+
+**Goal:** Replace admin's manual Xendit dashboard with automated checkout links via Session API (`session_type: PAY`, `mode: PAYMENT_LINK`).
+
+**Rollout:** Monthly tuition first → registration fees → activity fees.
+
+**Exit criteria:** Admin clicks "Kirim Pembayaran" → Xendit link → parent pays → invoice auto-marked PAID.
+
+---
+
+### Phase 5: Teacher Assignment (1 week)
+
+**Goal:** Link teachers to classes. Required before student attendance.
+
+**Model:** TeachingAssignment (employeeId → classSectionId, role: HOMEROOM/ASSISTANT)
+
+**Exit criteria:** Teachers assigned to classes, teacher sees assigned class on dashboard.
+
+---
+
+### Phase 6: Student Attendance (2 weeks)
+
+**Goal:** Teachers mark student attendance. Essential for D'Care (parent drop-off/pickup).
+
+**Model:** StudentAttendance (studentId, date, status, checkInTime, checkOutTime, checkedInBy)
+
+**Exit criteria:** Teacher marks attendance for their class, admin sees student attendance dashboard.
+
+---
+
+### Phase 7: Report Cards / Assessments (2-3 weeks)
+
+**Goal:** Developmental assessment using BB/MB/BSH/BSB scale (Kurikulum 2013 PAUD).
+
+**Models:** AssessmentTemplate, AssessmentCategory, AssessmentIndicator, StudentAssessment, StudentAssessmentScore
+
+**Exit criteria:** Teacher fills assessment, admin publishes, PDF report card generated.
+
+---
+
+### Phase 8: Parent Portal (2-3 weeks)
+
+**Goal:** Self-service for parents — invoices, payment (Xendit), attendance, report cards.
+
+**Auth:** Guardian login via Supabase (GUARDIAN role).
+
+**Exit criteria:** Parent logs in, views invoices, pays via Xendit, views child attendance + report cards.
+
+---
+
+### Phase 9+ (Future, build on demand)
+
+| Feature | Trigger |
+|---------|---------|
+| Pop Up Class scheduling + registration | When program is actively running |
+| WhatsApp notifications (Fonnte/Wablas) | When email isn't reaching parents |
+| Multi-admin per campus | When one admin can't handle both campuses |
+| Multi-tenant | When other schools want the system |
+
+---
+
+### Build Order
+
+```
+Track A (Billing):  Phase 2 → Phase 3 → Phase 4
+Track B (Academic): Phase 2 → Phase 5 → Phase 6 → Phase 7
+Phase 8 (Parent Portal) combines both tracks.
+```
+
+---
+
+## 21. Architecture Decisions
+
+### ADR-001: PostgreSQL everywhere (not SQLite for local dev)
+**Date:** 2026-04-10 · **Status:** Done
+Switch from SQLite (local) + PostgreSQL (prod) to PostgreSQL everywhere using `supabase start` for local dev. SQLite forced String dates and Float amounts. PostgreSQL enables proper Decimal(15,2) and DateTime types.
+
+### ADR-002: Float → Decimal for monetary fields
+**Date:** 2026-04-10 · **Status:** Done
+All monetary fields use Decimal(15,2), not Float. Float causes rounding errors in financial calculations. At scale (24 employees × 13 components × 12 months = 3,744 calculations), errors accumulate.
+
+### ADR-003: Guardian model 1:1 → M:N
+**Date:** 2026-04-10 · **Status:** Planned (Phase 2)
+Change Guardian from 1:1 to M:N via GuardianStudent junction table. A parent with 2 children currently requires 2 Guardian records.
+
+### ADR-004: 6-module architecture
+**Date:** 2026-04-10 · **Status:** Done
+Organize code around 6 modules: core, hr, academic, students, finance, learning. Parent Portal is a view layer, not a module.
+
+### ADR-005: TanStack Table + Shadcn DataTable
+**Date:** 2026-04-10 · **Status:** Done
+Use TanStack Table (React Table v8) with Shadcn styling for all list pages. Server-side pagination, sorting, filtering.
+
+### ADR-006: Zod validation on all API inputs
+**Date:** 2026-04-10 · **Status:** Done
+Zod schemas for all POST/PUT inputs with shared validation wrapper. Consistent error messages.
+
+### ADR-007: Xendit Session API (not Invoice API)
+**Date:** 2026-04-08 · **Status:** Done
+Use Xendit Checkout Session API with PAYMENT_LINK mode. Supports all payment methods (VA, QRIS, e-wallets). 7-day expiry for parents.
+
+### ADR-008: An Nisaa' brand (not generic)
+**Date:** 2026-04-07 · **Status:** Done
+Use An Nisaa' brand colors (teal #5DB4B8) with Revolut-style layout (dark sidebar). Plus Jakarta Sans is Indonesian-origin font.
+
+---
+
+**End of PRD v11.0**

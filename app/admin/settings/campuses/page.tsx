@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
-  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -36,6 +37,7 @@ export default function CampusesPage() {
   const [editing, setEditing] = useState<Campus | null>(null);
   const [form, setForm] = useState({ name: "", address: "", lat: "", lng: "" });
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Campus | null>(null);
 
   async function fetchCampuses() {
     const res = await fetch("/api/config/campuses");
@@ -43,6 +45,7 @@ export default function CampusesPage() {
     setLoading(false);
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchCampuses(); }, []);
 
   function openNew() {
@@ -83,11 +86,12 @@ export default function CampusesPage() {
     setSaving(false);
   }
 
-  async function handleDelete(c: Campus) {
-    if (!confirm(`Hapus ${c.name}?`)) return;
-    const res = await fetch(`/api/config/campuses/${c.id}`, { method: "DELETE" });
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const res = await fetch(`/api/config/campuses/${deleteTarget.id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Kampus dihapus");
+      setDeleteTarget(null);
       fetchCampuses();
     } else {
       const data = await res.json();
@@ -125,7 +129,7 @@ export default function CampusesPage() {
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[1, 2].map((i) => (
-            <div key={i} className="h-32 bg-card border border-border rounded-xl animate-pulse" />
+            <Skeleton key={i} className="h-32" />
           ))}
         </div>
       ) : (
@@ -159,7 +163,7 @@ export default function CampusesPage() {
                     <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => handleDelete(c)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                    <button onClick={() => setDeleteTarget(c)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -180,23 +184,23 @@ export default function CampusesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <Label>Nama *</Label>
+            <Field>
+              <FieldLabel>Nama *</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" />
-            </div>
-            <div>
-              <Label>Alamat</Label>
+            </Field>
+            <Field>
+              <FieldLabel>Alamat</FieldLabel>
               <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Jl. Contoh No.1, Bekasi" />
-            </div>
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Latitude</Label>
+              <Field>
+                <FieldLabel>Latitude</FieldLabel>
                 <Input value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} placeholder="-6.2234" type="number" step="any" />
-              </div>
-              <div>
-                <Label>Longitude</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Longitude</FieldLabel>
                 <Input value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} placeholder="106.8432" type="number" step="any" />
-              </div>
+              </Field>
             </div>
             <Button variant="outline" size="sm" onClick={getCurrentLocation} type="button">
               <LocateFixed size={14} className="mr-1.5" /> Ambil Lokasi Saat Ini
@@ -212,6 +216,15 @@ export default function CampusesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Hapus Kampus"
+        description={`Hapus "${deleteTarget?.name}"? Kampus yang memiliki karyawan tidak bisa dihapus.`}
+        onConfirm={handleDelete}
+        confirmLabel="Hapus"
+      />
     </>
   );
 }

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import { sendSalarySlipEmail } from "@/lib/email/send-slip";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import React from "react";
 
 function formatRupiah(n: number): string {
@@ -14,6 +15,12 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Rate limit: 2 slip sends per minute
+  const { success } = rateLimit(`send-slips:${getClientIp(_req)}`, 2, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
+  }
+
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -47,7 +54,14 @@ export async function POST(
   let failed = 0;
   const errors: string[] = [];
 
-  for (const item of payroll.items) {
+  for (let idx = 0; idx < payroll.items.length; idx++) {
+    const item = payroll.items[idx];
+
+    // Throttle: 600ms between emails to stay under Resend's 2 req/sec limit
+    if (idx > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+
     if (!item.employee.email) {
       failed++;
       errors.push(`${item.employee.nama}: tidak ada email`);
@@ -56,8 +70,10 @@ export async function POST(
 
     try {
       // Generate PDF for this employee
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
       const slipData: SlipData = {
         schoolName: tenant?.name ?? "An Nisaa' Sekolahku",
+        logoUrl: `${appUrl}/logo.png`,
         period: `${payroll.periodStart} s/d ${payroll.periodEnd}`,
         employeeName: item.employee.formalName ?? item.employee.nama,
         employeeCode: item.employee.kode,
@@ -67,13 +83,13 @@ export async function POST(
         bankAccountNo: item.employee.bankAccountNo,
         incomeLines: item.lines
           .filter((l) => l.categorySnapshot === "INCOME")
-          .map((l) => ({ label: l.labelSnapshot, amount: l.finalAmount })),
+          .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
         deductionLines: item.lines
           .filter((l) => l.categorySnapshot === "DEDUCTION")
-          .map((l) => ({ label: l.labelSnapshot, amount: l.finalAmount })),
-        totalIncome: item.grossAmount,
-        totalDeductions: item.deductions,
-        netPay: item.netAmount,
+          .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
+        totalIncome: Number(item.grossAmount),
+        totalDeductions: Number(item.deductions),
+        netPay: Number(item.netAmount),
         generatedDate: new Date().toLocaleDateString("id-ID", {
           day: "numeric", month: "long", year: "numeric",
         }),
@@ -87,7 +103,7 @@ export async function POST(
         to: item.employee.email,
         employeeName: item.employee.nama,
         period: `${payroll.periodStart} s/d ${payroll.periodEnd}`,
-        netPay: formatRupiah(item.netAmount),
+        netPay: formatRupiah(Number(item.netAmount)),
         pdfBuffer: new Uint8Array(pdfBuffer),
         pdfFilename: `slip-gaji-${item.employee.kode}-${payroll.periodStart}.pdf`,
       });
@@ -120,10 +136,13 @@ export async function POST(
     }
   }
 
-  await prisma.payrollRun.update({
-    where: { id },
-    data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
-  });
+  // Only mark as SLIPS_SENT if at least one email succeeded
+  if (sent > 0) {
+    await prisma.payrollRun.update({
+      where: { id },
+      data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
+    });
+  }
 
   return NextResponse.json({ sent, failed, total: payroll.items.length, errors: errors.length > 0 ? errors : undefined });
 }

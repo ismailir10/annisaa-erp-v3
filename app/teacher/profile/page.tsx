@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { User, Mail, Phone, Building2, Briefcase, CreditCard } from "lucide-react";
 
 export default async function TeacherProfilePage() {
@@ -38,7 +39,7 @@ export default async function TeacherProfilePage() {
           <h2 className="text-base font-semibold">{employee.nama}</h2>
           <div className="flex items-center gap-2 mt-1">
             <Badge variant="secondary" className="text-[10px] font-currency">{employee.kode}</Badge>
-            <Badge variant="secondary" className="text-[10px] bg-status-present-subtle text-[#00875A]">Aktif</Badge>
+            <StatusBadge status="ACTIVE" />
           </div>
         </div>
       </div>

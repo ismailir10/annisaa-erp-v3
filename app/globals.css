@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source not "../docs/**";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -68,6 +69,24 @@
   --color-status-holiday-subtle: var(--status-holiday-subtle);
   --color-status-no-checkout: var(--status-no-checkout);
   --color-status-no-checkout-subtle: var(--status-no-checkout-subtle);
+
+  /* Status text colors */
+  --color-status-present-text: var(--status-present-text);
+  --color-status-late-text: var(--status-late-text);
+  --color-status-absent-text: var(--status-absent-text);
+  --color-status-leave-text: var(--status-leave-text);
+  --color-status-holiday-text: var(--status-holiday-text);
+  --color-status-no-checkout-text: var(--status-no-checkout-text);
+
+  /* Semantic colors */
+  --color-warning: var(--warning);
+  --color-warning-highlight: var(--warning-highlight);
+  --color-success: var(--success);
+  --color-info: var(--info);
+
+  /* Login page specific */
+  --color-login-card-bg: var(--login-card-bg);
+  --color-login-primary-hover: var(--login-primary-hover);
 }
 
 /*
@@ -116,7 +135,7 @@
 
   /* Dark sidebar — deep teal variant */
   --sidebar: #1A2E2F;
-  --sidebar-foreground: #FFFFFF;
+  --sidebar-foreground: #8AACAD;
   --sidebar-primary: #5DB4B8;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #2A4344;
@@ -144,6 +163,24 @@
   --status-holiday-subtle: #F3E8FF;
   --status-no-checkout: #FFB020;
   --status-no-checkout-subtle: #FFF7E6;
+
+  /* Status text (darker shades for readability) */
+  --status-present-text: #00875A;
+  --status-late-text: #B35C00;
+  --status-absent-text: #CC0000;
+  --status-leave-text: #0369A1;
+  --status-holiday-text: #6B21A8;
+  --status-no-checkout-text: #B35C00;
+
+  /* Semantic */
+  --warning: #FF8C00;
+  --warning-highlight: #F4D03F;
+  --success: #00B37E;
+  --info: #0EA5E9;
+
+  /* Login page specific */
+  --login-card-bg: #223838;
+  --login-primary-hover: #4A9DA1;
 }
 
 @layer base {
@@ -163,4 +200,9 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+}
+
+/* Safe area for mobile devices (iPhone home indicator) */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }

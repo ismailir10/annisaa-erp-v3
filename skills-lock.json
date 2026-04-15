@@ -112,9 +112,9 @@
       "computedHash": "448f9889dc50e212b6781904c1290a5e5a7c832b541aaf6c3d6e22e4801dfe41"
     },
     "shadcn": {
-      "source": "vercel/vercel-plugin",
+      "source": "shadcn/ui",
       "sourceType": "github",
-      "computedHash": "4d966b8dbf5b7396ade1c8aeb2f6500aebbee70819110545e9f278b80d2bfdf1"
+      "computedHash": "873c67922d80775a9fdf596db7964b579f0408c30ec6e3d11989f6055bbec89f"
     },
     "supabase": {
       "source": "supabase/agent-skills",

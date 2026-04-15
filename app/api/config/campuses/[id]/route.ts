@@ -55,6 +55,7 @@ export async function DELETE(
     );
   }
 
+  // Intentional hard delete — Campus has no status field (config entity)
   await prisma.campus.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

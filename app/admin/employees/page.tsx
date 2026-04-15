@@ -1,14 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Plus, Search, Building2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { StatCard } from "@/components/admin/stat-card";
+import { Button } from "@/components/ui/button";
+import { Plus, Users, UserCheck, UserX } from "lucide-react";
+import { formatDateShort } from "@/lib/format";
+
+// ------------------------------------------------------------------
+// Types
+// ------------------------------------------------------------------
 
 type Employee = {
   id: string;
@@ -20,130 +31,280 @@ type Employee = {
   campusId: string;
   bankAccountNo: string | null;
   bpjsEnrolled: boolean;
+  createdAt: string;
   campus: { name: string };
 };
 
 type Campus = { id: string; name: string };
 
+type Pagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+// ------------------------------------------------------------------
+// Columns
+// ------------------------------------------------------------------
+
+const columns: ColumnDef<Employee>[] = [
+  {
+    accessorKey: "nama",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Nama" />
+    ),
+    cell: ({ row }) => {
+      const e = row.original;
+      return (
+        <Link
+          href={`/admin/employees/${e.id}`}
+          className="flex items-center gap-3 group"
+        >
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <span className="text-primary text-xs font-bold">{e.nama[0]}</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium group-hover:text-primary transition-colors">
+                {e.nama}
+              </span>
+              <span className="font-currency text-[10px] text-muted-foreground">
+                {e.kode}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">{e.email}</p>
+          </div>
+        </Link>
+      );
+    },
+  },
+  {
+    accessorKey: "jabatan",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Jabatan" />
+    ),
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.jabatan}</span>
+    ),
+  },
+  {
+    id: "campus",
+    header: "Kampus",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.campus.name}</span>
+    ),
+  },
+  {
+    id: "bank",
+    header: "Rekening",
+    cell: ({ row }) => {
+      if (!row.original.bankAccountNo) {
+        return (
+          <Badge variant="outline" className="text-[10px] text-destructive">
+            Belum diisi
+          </Badge>
+        );
+      }
+      return (
+        <span className="text-xs text-muted-foreground font-currency">
+          ••• {row.original.bankAccountNo.slice(-4)}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Dibuat" />
+    ),
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground">
+        {formatDateShort(row.original.createdAt)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => <StatusBadge status={row.original.status} />,
+  },
+];
+
+// ------------------------------------------------------------------
+// Page
+// ------------------------------------------------------------------
+
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const router = useRouter();
+  const [data, setData] = useState<Employee[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filterCampus, setFilterCampus] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [campusFilter, setCampusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
 
+  // Fetch campuses + stats once
   useEffect(() => {
+    fetch("/api/config/campuses")
+      .then((r) => r.json())
+      .then((c) => setCampuses(Array.isArray(c) ? c : []))
+      .catch(() => { /* stats are non-critical */ });
+    // Quick stats — fetch all with minimal data
     Promise.all([
-      fetch("/api/employees").then((r) => r.json()),
-      fetch("/api/config/campuses").then((r) => r.json()),
-    ]).then(([emps, camps]) => {
-      setEmployees(emps);
-      setCampuses(camps);
-      setLoading(false);
-    });
+      fetch("/api/employees?pageSize=1&status=ACTIVE").then(r => r.json()),
+      fetch("/api/employees?pageSize=1&status=INACTIVE").then(r => r.json()),
+    ]).then(([active, inactive]) => {
+      const a = active.pagination?.total ?? 0;
+      const i = inactive.pagination?.total ?? 0;
+      setStats({ total: a + i, active: a, inactive: i });
+    }).catch(() => { /* stats are non-critical */ });
   }, []);
 
-  const filtered = employees.filter((e) => {
-    if (filterCampus !== "all" && e.campusId !== filterCampus) return false;
-    if (filterStatus !== "all" && e.status !== filterStatus) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return e.nama.toLowerCase().includes(q) || e.kode.toLowerCase().includes(q) || e.email.toLowerCase().includes(q);
+  const fetchEmployees = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pagination.page),
+        pageSize: String(pagination.pageSize),
+        sortBy,
+        sortOrder,
+      });
+      if (search) params.set("search", search);
+      if (campusFilter !== "all") params.set("campusId", campusFilter);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+
+      const res = await fetch(`/api/employees?${params}`);
+      const json = await res.json();
+      setData(json.data ?? []);
+      if (json.pagination) setPagination(json.pagination);
+    } catch {
+      toast.error("Gagal memuat data karyawan");
+    } finally {
+      setLoading(false);
     }
-    return true;
-  });
+  }, [pagination.page, pagination.pageSize, search, campusFilter, statusFilter, sortBy, sortOrder]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setPagination((p) => ({ ...p, page }));
+  }, []);
+
+  const handlePageSizeChange = useCallback((pageSize: number) => {
+    setPagination((p) => ({ ...p, page: 1, pageSize }));
+  }, []);
+
+  const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    setSortBy(field);
+    setSortOrder(order);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
+
+  const columnsWithActions = useMemo<ColumnDef<Employee>[]>(
+    () => [
+      ...columns,
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <DataTableRowActions
+            onView={() => router.push(`/admin/employees/${row.original.id}`)}
+          />
+        ),
+      },
+    ],
+    [router],
+  );
+
+  // Build campus filter options dynamically
+  const campusOptions = [
+    { value: "all", label: "Semua Kampus" },
+    ...campuses.map((c) => ({ value: c.id, label: c.name })),
+  ];
 
   return (
     <>
       <PageHeader
         title="Karyawan"
-        description={`${employees.filter((e) => e.status === "ACTIVE").length} aktif`}
+        description={`${pagination.total} karyawan terdaftar`}
         actions={
           <Link href="/admin/employees/new">
-            <Button size="sm"><Plus size={16} className="mr-1.5" /> Tambah</Button>
+            <Button size="sm">
+              <Plus size={14} className="mr-1.5" /> Tambah
+            </Button>
           </Link>
         }
       />
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Cari nama, kode, atau email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={filterCampus} onValueChange={(v) => v && setFilterCampus(v)}>
-          <SelectTrigger className="w-full sm:w-44">
-            <Building2 size={14} className="mr-1.5 text-muted-foreground" />
-            <SelectValue placeholder="Semua kampus" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Kampus</SelectItem>
-            {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterStatus} onValueChange={(v) => v && setFilterStatus(v)}>
-          <SelectTrigger className="w-full sm:w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua</SelectItem>
-            <SelectItem value="ACTIVE">Aktif</SelectItem>
-            <SelectItem value="INACTIVE">Tidak Aktif</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+        <StatCard label="Total Karyawan" value={stats.total} icon={Users} color="primary" index={0} />
+        <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
+        <StatCard label="Tidak Aktif" value={stats.inactive} icon={UserX} color="error" index={2} />
       </div>
 
-      {/* Employee list */}
-      {loading ? (
-        <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-16 bg-card rounded-lg animate-pulse" />)}</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <p className="text-sm">Tidak ada karyawan ditemukan.</p>
-          <p className="text-xs mt-1">Coba ubah filter pencarian atau tambahkan karyawan baru.</p>
-        </div>
-      ) : (
-        <div className="space-y-1">
-          {filtered.map((e, i) => (
-            <motion.div
-              key={e.id}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.02 }}
-            >
-              <Link
-                href={`/admin/employees/${e.id}`}
-                className="flex items-center justify-between p-3 bg-card border border-border rounded-lg hover:border-primary/20 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-primary text-xs font-bold">{e.nama[0]}</span>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{e.nama}</span>
-                      <span className="font-currency text-[10px] text-muted-foreground">{e.kode}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{e.jabatan} · {e.campus.name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!e.bankAccountNo && <Badge variant="outline" className="text-[10px] text-status-late">Tanpa Rekening</Badge>}
-                  <Badge
-                    variant="secondary"
-                    className={`text-[10px] ${e.status === "ACTIVE" ? "bg-status-present-subtle text-[#00875A]" : "bg-muted text-muted-foreground"}`}
-                  >
-                    {e.status === "ACTIVE" ? "Aktif" : "Tidak Aktif"}
-                  </Badge>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
-      )}
+      <DataTableToolbar
+        searchPlaceholder="Cari nama, kode, atau email..."
+        onSearchChange={handleSearchChange}
+        filters={[
+          {
+            key: "campus",
+            label: "Kampus",
+            value: campusFilter,
+            onChange: (v) => {
+              setCampusFilter(v);
+              setPagination((p) => ({ ...p, page: 1 }));
+            },
+            options: campusOptions,
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: statusFilter,
+            onChange: (v) => {
+              setStatusFilter(v);
+              setPagination((p) => ({ ...p, page: 1 }));
+            },
+            options: [
+              { value: "all", label: "Semua Status" },
+              { value: "ACTIVE", label: "Aktif" },
+              { value: "INACTIVE", label: "Tidak Aktif" },
+            ],
+          },
+        ]}
+      />
+
+      <DataTable
+        columns={columnsWithActions}
+        data={data}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        onSortChange={handleSortChange}
+        defaultSort={{ field: "createdAt", order: "desc" }}
+        loading={loading}
+        emptyTitle="Belum ada karyawan"
+        emptyDescription="Tambahkan karyawan baru untuk memulai."
+      />
     </>
   );
 }

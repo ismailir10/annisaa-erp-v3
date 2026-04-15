@@ -4,10 +4,11 @@ import { prisma } from "./db";
 export type SessionUser = {
   id: string;
   email: string;
-  role: "SCHOOL_ADMIN" | "TEACHER";
+  role: "SCHOOL_ADMIN" | "TEACHER" | "GUARDIAN";
   name: string | null;
   tenantId: string | null;
   employeeId: string | null;
+  parentId: string | null;
 };
 
 /**
@@ -16,8 +17,9 @@ export type SessionUser = {
  * Auto-creates the Prisma User on first login if employee exists with that email.
  */
 export async function getSession(): Promise<SessionUser | null> {
-  // Check if we're in demo mode (no Supabase URL configured)
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL === "") {
+  // Demo mode requires explicit opt-in via DEMO_MODE=true env var.
+  // This prevents accidental demo activation in production if Supabase is down.
+  if (process.env.DEMO_MODE === "true") {
     return getDemoSession();
   }
 
@@ -51,17 +53,24 @@ export async function getSession(): Promise<SessionUser | null> {
           },
         });
       } else {
-        // Check if this is the admin email
-        const tenant = await prisma.tenant.findFirst();
-        if (tenant) {
+        // Check if there's a parent with this email
+        const parent = await prisma.parent.findFirst({
+          where: { email: authUser.email },
+        });
+
+        if (parent) {
           user = await prisma.user.create({
             data: {
-              tenantId: tenant.id,
+              tenantId: parent.tenantId,
               email: authUser.email,
-              role: "SCHOOL_ADMIN",
-              name: authUser.user_metadata?.full_name ?? authUser.email.split("@")[0],
+              role: "GUARDIAN",
+              name: parent.name,
+              parentId: parent.id,
             },
           });
+        } else {
+          // Not an employee, not a guardian, no existing User → deny access
+          return null;
         }
       }
     }
@@ -74,6 +83,13 @@ export async function getSession(): Promise<SessionUser | null> {
       data: { lastLoginAt: new Date() },
     });
 
+    // For guardian users, find their parent ID
+    let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
+    if (user.role === "GUARDIAN" && !parentId) {
+      const parent = await prisma.parent.findFirst({ where: { email: user.email } });
+      parentId = parent?.id ?? null;
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -81,10 +97,13 @@ export async function getSession(): Promise<SessionUser | null> {
       name: user.name,
       tenantId: user.tenantId,
       employeeId: user.employeeId,
+      parentId,
     };
   } catch {
-    // Fallback to demo mode if Supabase is not reachable
-    return getDemoSession();
+    // In production, don't fall back to demo mode on auth errors.
+    // Return null so the middleware redirects to login.
+    console.error("[AUTH] Session retrieval failed");
+    return null;
   }
 }
 
@@ -101,6 +120,12 @@ async function getDemoSession(): Promise<SessionUser | null> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return null;
 
+  let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
+  if (user.role === "GUARDIAN" && !parentId) {
+    const parent = await prisma.parent.findFirst({ where: { email: user.email } });
+    parentId = parent?.id ?? null;
+  }
+
   return {
     id: user.id,
     email: user.email,
@@ -108,5 +133,6 @@ async function getDemoSession(): Promise<SessionUser | null> {
     name: user.name,
     tenantId: user.tenantId,
     employeeId: user.employeeId,
+    parentId,
   };
 }

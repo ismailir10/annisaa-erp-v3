@@ -46,8 +46,10 @@ export async function GET(
 
   const tenant = await prisma.tenant.findUnique({ where: { id: item.payrollRun.tenantId } });
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
   const data: SlipData = {
     schoolName: tenant?.name ?? "School",
+    logoUrl: `${appUrl}/logo.png`,
     period: `${item.payrollRun.periodStart} s/d ${item.payrollRun.periodEnd}`,
     employeeName: item.employee.formalName ?? item.employee.nama,
     employeeCode: item.employee.kode,
@@ -57,13 +59,13 @@ export async function GET(
     bankAccountNo: item.employee.bankAccountNo,
     incomeLines: item.lines
       .filter((l) => l.categorySnapshot === "INCOME")
-      .map((l) => ({ label: l.labelSnapshot, amount: l.finalAmount })),
+      .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
     deductionLines: item.lines
       .filter((l) => l.categorySnapshot === "DEDUCTION")
-      .map((l) => ({ label: l.labelSnapshot, amount: l.finalAmount })),
-    totalIncome: item.grossAmount,
-    totalDeductions: item.deductions,
-    netPay: item.netAmount,
+      .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
+    totalIncome: Number(item.grossAmount),
+    totalDeductions: Number(item.deductions),
+    netPay: Number(item.netAmount),
     generatedDate: new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
   };
 

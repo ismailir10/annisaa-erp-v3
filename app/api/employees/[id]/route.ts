@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
@@ -32,6 +33,13 @@ export async function PUT(
   }
 
   const { id } = await params;
+
+  // Verify tenant ownership before any mutation
+  const existing = await prisma.employee.findUnique({ where: { id } });
+  if (!existing || existing.tenantId !== session.tenantId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const body = await req.json();
 
   // Deactivate
@@ -40,6 +48,7 @@ export async function PUT(
       where: { id },
       data: { status: "INACTIVE" },
     });
+    revalidateTag("employees-count", {});
     return NextResponse.json(employee);
   }
 

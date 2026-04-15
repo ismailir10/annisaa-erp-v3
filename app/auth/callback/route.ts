@@ -33,21 +33,31 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${origin}/admin`);
         } else if (prismaUser?.role === "TEACHER") {
           return NextResponse.redirect(`${origin}/teacher`);
+        } else if (prismaUser?.role === "GUARDIAN") {
+          return NextResponse.redirect(`${origin}/parent`);
         }
 
-        // Check if employee exists
+        // Check if employee exists (first-time teacher login)
         const employee = await prisma.employee.findFirst({
           where: { email: user.email },
         });
         if (employee) {
           return NextResponse.redirect(`${origin}/teacher`);
         }
+
+        // Check if parent exists (first-time parent login)
+        const parent = await prisma.parent.findFirst({
+          where: { email: user.email },
+        });
+        if (parent) {
+          return NextResponse.redirect(`${origin}/parent`);
+        }
       } catch (dbError) {
         console.error("DB lookup in callback failed:", dbError);
-        // DB failed but auth succeeded — redirect to admin, getSession() will handle user creation
       }
 
-      return NextResponse.redirect(`${origin}/admin`);
+      // Email not provisioned — no matching Employee, Parent, or User
+      return NextResponse.redirect(`${origin}/?error=access_denied`);
     } catch (e) {
       console.error("Auth callback error:", e);
       return NextResponse.redirect(`${origin}/?error=callback_error`);

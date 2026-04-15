@@ -2,15 +2,19 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
-import { UserCheck, Clock, UserX, CalendarDays, Pencil } from "lucide-react";
-import { motion } from "framer-motion";
+import { UserCheck, Clock, UserX, CalendarDays, Download } from "lucide-react";
+import { formatDate, formatTime } from "@/lib/format";
 
 type EmployeeAttendance = {
   employee: { id: string; kode: string; nama: string; jabatan: string; campusName: string };
@@ -21,15 +25,6 @@ type EmployeeAttendance = {
 };
 
 type Campus = { id: string; name: string };
-
-const STATUS_LABELS: Record<string, { label: string; class: string }> = {
-  PRESENT: { label: "Hadir", class: "bg-status-present-subtle text-[#00875A]" },
-  LATE: { label: "Terlambat", class: "bg-status-late-subtle text-[#B35C00]" },
-  ABSENT: { label: "Tidak Hadir", class: "bg-status-absent-subtle text-[#CC0000]" },
-  LEAVE: { label: "Izin", class: "bg-status-leave-subtle text-[#0369A1]" },
-  HALF_DAY: { label: "½ Hari", class: "bg-status-late-subtle text-[#B35C00]" },
-  PRESENT_NO_CHECKOUT: { label: "No Checkout", class: "bg-status-no-checkout-subtle text-[#B35C00]" },
-};
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -59,6 +54,7 @@ export default function AttendancePage() {
     setLoading(false);
   }, [date, campusId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const present = data.filter((d) => ["PRESENT", "LATE", "PRESENT_NO_CHECKOUT"].includes(d.attendance?.status ?? "")).length;
@@ -76,20 +72,92 @@ export default function AttendancePage() {
     setOverrideOpen(true);
   }
 
-  const formatTime = (iso: string | null) => {
-    if (!iso) return "--:--";
-    return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
-  };
+  const columns: ColumnDef<EmployeeAttendance>[] = [
+    {
+      id: "nama",
+      accessorFn: (row) => row.employee.nama,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Karyawan" />
+      ),
+      cell: ({ row }) => {
+        const ea = row.original;
+        return (
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <span className="text-primary text-xs font-bold">{ea.employee.nama[0]}</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium">{ea.employee.nama}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {ea.employee.kode} · {ea.employee.campusName}
+              </p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "checkIn",
+      accessorFn: (row) => row.attendance?.checkInTime,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Masuk" />
+      ),
+      cell: ({ row }) => (
+        <span className="font-currency text-xs text-muted-foreground">
+          {formatTime(row.original.attendance?.checkInTime ?? null)}
+        </span>
+      ),
+    },
+    {
+      id: "checkOut",
+      accessorFn: (row) => row.attendance?.checkOutTime,
+      header: "Pulang",
+      cell: ({ row }) => (
+        <span className="font-currency text-xs text-muted-foreground">
+          {formatTime(row.original.attendance?.checkOutTime ?? null)}
+        </span>
+      ),
+    },
+    {
+      id: "status",
+      accessorFn: (row) => row.attendance?.status ?? "ABSENT",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
+      cell: ({ row }) => {
+        const ea = row.original;
+        return ea.attendance ? (
+          <StatusBadge status={ea.attendance.status} />
+        ) : (
+          <StatusBadge status="ABSENT" label="—" />
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <DataTableRowActions
+          onEdit={() => openOverride(row.original)}
+        />
+      ),
+    },
+  ];
 
   return (
     <>
       <PageHeader
         title="Kehadiran Hari Ini"
-        description={new Date(date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        description={formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         actions={
-          <Link href="/admin/attendance/monthly">
-            <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
+              <Download size={14} className="mr-1.5" /> Ekspor CSV
+            </Button>
+            <Link href="/admin/attendance/monthly">
+              <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
+            </Link>
+          </div>
         }
       />
 
@@ -114,53 +182,13 @@ export default function AttendancePage() {
       </div>
 
       {/* Table */}
-      {loading ? (
-        <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-14 bg-card rounded-lg animate-pulse" />)}</div>
-      ) : (
-        <div className="space-y-1">
-          {data.map((ea, i) => (
-            <motion.div
-              key={ea.employee.id}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.02 }}
-              className="flex items-center justify-between p-3 bg-card border border-border rounded-lg"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-primary text-xs font-bold">{ea.employee.nama[0]}</span>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{ea.employee.nama}</p>
-                  <p className="text-[10px] text-muted-foreground">{ea.employee.campusName}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="font-currency text-xs text-muted-foreground hidden sm:block">
-                  {formatTime(ea.attendance?.checkInTime ?? null)}
-                </span>
-                {ea.attendance ? (
-                  <Badge variant="secondary" className={`text-[10px] ${STATUS_LABELS[ea.attendance.status]?.class ?? ""}`}>
-                    {STATUS_LABELS[ea.attendance.status]?.label ?? ea.attendance.status}
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="text-[10px] bg-muted text-muted-foreground">—</Badge>
-                )}
-                <span className="font-currency text-xs text-muted-foreground hidden sm:block">
-                  {formatTime(ea.attendance?.checkOutTime ?? null)}
-                </span>
-                <button
-                  onClick={() => openOverride(ea)}
-                  className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground"
-                  title="Ubah Status Kehadiran"
-                >
-                  <Pencil size={13} />
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        data={data}
+        loading={loading}
+        emptyTitle="Tidak ada data kehadiran"
+        emptyDescription="Belum ada karyawan yang tercatat untuk tanggal ini."
+      />
 
       {/* Override Modal */}
       {overrideTarget && (

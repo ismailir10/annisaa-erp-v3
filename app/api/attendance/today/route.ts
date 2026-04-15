@@ -12,28 +12,32 @@ export async function GET(req: NextRequest) {
   const date = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
   const campusId = searchParams.get("campusId");
 
-  // Get all active employees
   const empWhere: Record<string, unknown> = { tenantId: session.tenantId, status: "ACTIVE" };
   if (campusId && campusId !== "all") empWhere.campusId = campusId;
 
+  // Single query: employees + their attendance record for the date via include
+  // (was: two round trips — findMany employees then findMany attendanceRecords)
   const employees = await prisma.employee.findMany({
     where: empWhere,
-    include: { campus: { select: { name: true } } },
+    include: {
+      campus: { select: { name: true } },
+      attendanceRecords: {
+        where: { date },
+        select: {
+          id: true,
+          status: true,
+          checkInTime: true,
+          checkOutTime: true,
+          isManualOverride: true,
+          isLocked: true,
+        },
+      },
+    },
     orderBy: { nama: "asc" },
   });
 
-  // Get attendance records for the date
-  const records = await prisma.attendanceRecord.findMany({
-    where: {
-      date,
-      employeeId: { in: employees.map((e) => e.id) },
-    },
-  });
-
-  const recordMap = new Map(records.map((r) => [r.employeeId, r]));
-
   const result = employees.map((emp) => {
-    const record = recordMap.get(emp.id);
+    const record = emp.attendanceRecords[0] ?? null;
     return {
       employee: {
         id: emp.id,

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# prepare-commit-msg — append Model-Trailer + Role from .claude/session-role
+#
+# If the commit message already contains Model-Trailer:, this does nothing.
+# Otherwise it reads .claude/session-role and appends:
+#   Model-Trailer: <model>
+#   Role: <role>
+#   Co-Authored-By: Claude <noreply@anthropic.com>
+#
+# If .claude/session-role is missing, it appends Model-Trailer: human.
+
+set -eu
+
+MSG_FILE="$1"
+COMMIT_SOURCE="${2:-}"
+
+# Skip for merge/squash/fixup/template commits — they already have their own body
+case "$COMMIT_SOURCE" in
+  merge|squash|commit) exit 0 ;;
+esac
+
+# Skip if trailer already present
+if grep -q '^Model-Trailer:' "$MSG_FILE" 2>/dev/null; then
+  exit 0
+fi
+
+ROLE_FILE=".claude/session-role"
+MODEL="human"
+ROLE="human"
+
+if [ -f "$ROLE_FILE" ]; then
+  MODEL=$(grep '^model=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
+  ROLE=$(grep '^role=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
+  [ -z "$MODEL" ] && MODEL="unknown"
+  [ -z "$ROLE" ] && ROLE="unknown"
+fi
+
+# Append the trailer block (blank line separator if message has content)
+{
+  cat "$MSG_FILE"
+  echo ""
+  echo "Model-Trailer: $MODEL"
+  echo "Role: $ROLE"
+  if [ "$MODEL" != "human" ]; then
+    echo "Co-Authored-By: Claude <noreply@anthropic.com>"
+  fi
+} > "$MSG_FILE.tmp"
+mv "$MSG_FILE.tmp" "$MSG_FILE"
+
+exit 0
