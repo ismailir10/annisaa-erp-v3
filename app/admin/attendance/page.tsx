@@ -7,12 +7,13 @@ import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
-import { UserCheck, Clock, UserX, CalendarDays, Pencil, Download } from "lucide-react";
+import { UserCheck, Clock, UserX, CalendarDays, Download } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 
 type EmployeeAttendance = {
