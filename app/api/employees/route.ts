@@ -59,51 +59,59 @@ export async function POST(req: NextRequest) {
   const result = await validateBody(createEmployeeSchema, await req.json());
   if (result.error) return result.error;
   const body = result.data;
+  const tenantId = session.tenantId;
 
-  // Auto-generate employee code: initials + sequence number
-  const initials = body.nama
-    .trim()
-    .split(/\s+/)
-    .map((w: string) => w[0]?.toUpperCase())
-    .join("")
-    .slice(0, 3);
+  // Auto-generate employee code: initials + sequence number (atomic)
+  const employee = await prisma.$transaction(async (tx) => {
+    // Advisory lock per tenant to serialize employee code generation
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(12345, ${tenantId}::bigint)`;
 
-  const lastEmployee = await prisma.employee.findFirst({
-    where: { tenantId: session.tenantId },
-    orderBy: { kode: "desc" },
-  });
-  const lastNum = lastEmployee?.kode.match(/(\d+)$/)?.[1];
-  const nextNum = lastNum
-    ? parseInt(lastNum) + 1
-    : (await prisma.employee.count({ where: { tenantId: session.tenantId } })) + 1;
-  const kode = `${initials}${nextNum}`;
+    const initials = body.nama
+      .trim()
+      .split(/\s+/)
+      .map((w: string) => w[0]?.toUpperCase())
+      .join("")
+      .slice(0, 3);
 
-  const employee = await prisma.employee.create({
-    data: {
-      tenantId: session.tenantId,
-      kode,
-      nama: body.nama.trim(),
-      formalName: body.formalName?.trim() || null,
-      email: body.email.trim(),
-      noHp: body.noHp?.trim() || null,
-      jabatan: body.jabatan.trim(),
-      campusId: body.campusId,
-      hireDate: body.hireDate,
-      bankName: body.bankName?.trim() || null,
-      bankAccountNo: body.bankAccountNo?.trim() || null,
-      bpjsEnrolled: body.bpjsEnrolled ?? false,
-    },
-  });
+    const lastEmployee = await tx.employee.findFirst({
+      where: { tenantId },
+      orderBy: { kode: "desc" },
+    });
+    const lastNum = lastEmployee?.kode.match(/(\d+)$/)?.[1];
+    const nextNum = lastNum
+      ? parseInt(lastNum) + 1
+      : (await tx.employee.count({ where: { tenantId } })) + 1;
+    const kode = `${initials}${nextNum}`;
 
-  // Create teacher user account
-  await prisma.user.create({
-    data: {
-      tenantId: session.tenantId,
-      email: body.email.trim(),
-      role: "TEACHER",
-      name: body.nama.trim(),
-      employeeId: employee.id,
-    },
+    const emp = await tx.employee.create({
+      data: {
+        tenantId,
+        kode,
+        nama: body.nama.trim(),
+        formalName: body.formalName?.trim() || null,
+        email: body.email.trim(),
+        noHp: body.noHp?.trim() || null,
+        jabatan: body.jabatan.trim(),
+        campusId: body.campusId,
+        hireDate: body.hireDate,
+        bankName: body.bankName?.trim() || null,
+        bankAccountNo: body.bankAccountNo?.trim() || null,
+        bpjsEnrolled: body.bpjsEnrolled ?? false,
+      },
+    });
+
+    // Create teacher user account
+    await tx.user.create({
+      data: {
+        tenantId,
+        email: body.email.trim(),
+        role: "TEACHER",
+        name: body.nama.trim(),
+        employeeId: emp.id,
+      },
+    });
+
+    return emp;
   });
 
   revalidateTag("employees-count", {});

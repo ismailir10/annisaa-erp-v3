@@ -51,15 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, message: "Already paid" });
     }
 
-    // Idempotency: check if this payment was already recorded
-    const existingPayment = await prisma.payment.findFirst({
-      where: { invoiceId: invoice.id, reference: paymentId ?? data.payment_session_id },
-    });
-    if (existingPayment) {
-      return NextResponse.json({ ok: true, message: "Payment already recorded" });
-    }
-
-    // Record payment
+    // Record payment atomically: idempotency check + payment create + invoice update
     const paymentAmount = amount ?? Number(invoice.totalDue);
     const currentPaid = Number(invoice.totalPaid);
     const remaining = Number(invoice.totalDue) - currentPaid;
@@ -70,33 +62,49 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await prisma.payment.create({
-      data: {
-        invoiceId: invoice.id,
-        amount: paymentAmount,
-        method: "XENDIT",
-        reference: paymentId ?? data.payment_session_id,
-        notes: `Xendit payment via ${data.channel_code ?? "checkout"}`,
-      },
-    });
+    const newStatus = await prisma.$transaction(async (tx) => {
+      // Advisory lock on invoice to serialize concurrent webhooks
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(('x' || ${invoice.id}::text)::bit(64)::bigint)`;
 
-    // Update invoice totals
-    const allPayments = await prisma.payment.findMany({ where: { invoiceId: invoice.id } });
-    const totalPaid = allPayments.reduce((s, p) => s + Number(p.amount), 0);
+      // Re-fetch invoice inside tx for fresh status
+      const fresh = await tx.invoice.findUnique({ where: { id: invoice.id } });
+      if (!fresh || fresh.status === "PAID") return "PAID";
 
-    const newStatus = totalPaid >= Number(invoice.totalDue) ? "PAID" : "PARTIALLY_PAID";
+      // Idempotency check inside tx
+      const existing = await tx.payment.findFirst({
+        where: { invoiceId: invoice.id, reference: paymentId ?? data.payment_session_id },
+      });
+      if (existing) return fresh.status as string;
 
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        totalPaid,
-        status: newStatus,
-        paidAt: newStatus === "PAID" ? new Date() : null,
-      },
+      await tx.payment.create({
+        data: {
+          invoiceId: invoice.id,
+          amount: paymentAmount,
+          method: "XENDIT",
+          reference: paymentId ?? data.payment_session_id,
+          notes: `Xendit payment via ${data.channel_code ?? "checkout"}`,
+        },
+      });
+
+      const allPayments = await tx.payment.findMany({ where: { invoiceId: invoice.id } });
+      const totalPaid = allPayments.reduce((s, p) => s + Number(p.amount), 0);
+
+      const status = totalPaid >= Number(invoice.totalDue) ? "PAID" : "PARTIALLY_PAID";
+
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          totalPaid,
+          status,
+          paidAt: status === "PAID" ? new Date() : null,
+        },
+      });
+
+      return status;
     });
 
     revalidateTag("student-invoices", {});
-    console.log(`[XENDIT WEBHOOK] Invoice ${invoice.invoiceNumber} → ${newStatus} (paid: ${totalPaid})`);
+    console.log(`[XENDIT WEBHOOK] Invoice ${invoice.invoiceNumber} → ${newStatus}`);
     return NextResponse.json({ ok: true, status: newStatus });
   }
 

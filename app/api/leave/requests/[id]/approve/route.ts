@@ -27,34 +27,38 @@ export async function POST(
     return NextResponse.json({ error: "Hanya pengajuan PENDING yang bisa disetujui" }, { status: 400 });
   }
 
-  // Approve the request
-  const updated = await prisma.leaveRequest.update({
-    where: { id },
-    data: {
-      status: "APPROVED",
-      reviewedBy: session.id,
-      reviewedAt: new Date(),
-      reviewNote: body.note?.trim() || null,
-    },
-  });
+  // Atomic: approve leave + create attendance records
+  const updated = await prisma.$transaction(async (tx) => {
+    const approved = await tx.leaveRequest.update({
+      where: { id },
+      data: {
+        status: "APPROVED",
+        reviewedBy: session.id,
+        reviewedAt: new Date(),
+        reviewNote: body.note?.trim() || null,
+      },
+    });
 
-  // Create LEAVE attendance records for each day in the leave period
-  const start = new Date(request.startDate);
-  const end = new Date(request.endDate);
-  const current = new Date(start);
+    // Create LEAVE attendance records for each day in the leave period
+    const start = new Date(request.startDate);
+    const end = new Date(request.endDate);
+    const current = new Date(start);
 
-  while (current <= end) {
-    const dow = current.getDay();
-    if (dow !== 0 && dow !== 6) {
-      const dateStr = current.toISOString().split("T")[0];
-      await prisma.attendanceRecord.upsert({
-        where: { employeeId_date: { employeeId: request.employeeId, date: dateStr } },
-        update: { status: "LEAVE", isManualOverride: true, overrideReason: `Cuti: ${request.reason}`, overriddenBy: session.id, overriddenAt: new Date() },
-        create: { employeeId: request.employeeId, date: dateStr, status: "LEAVE", isManualOverride: true, overrideReason: `Cuti: ${request.reason}`, overriddenBy: session.id, overriddenAt: new Date() },
-      });
+    while (current <= end) {
+      const dow = current.getDay();
+      if (dow !== 0 && dow !== 6) {
+        const dateStr = current.toISOString().split("T")[0];
+        await tx.attendanceRecord.upsert({
+          where: { employeeId_date: { employeeId: request.employeeId, date: dateStr } },
+          update: { status: "LEAVE", isManualOverride: true, overrideReason: `Cuti: ${request.reason}`, overriddenBy: session.id, overriddenAt: new Date() },
+          create: { employeeId: request.employeeId, date: dateStr, status: "LEAVE", isManualOverride: true, overrideReason: `Cuti: ${request.reason}`, overriddenBy: session.id, overriddenAt: new Date() },
+        });
+      }
+      current.setDate(current.getDate() + 1);
     }
-    current.setDate(current.getDate() + 1);
-  }
+
+    return approved;
+  });
 
   return NextResponse.json(updated);
 }
