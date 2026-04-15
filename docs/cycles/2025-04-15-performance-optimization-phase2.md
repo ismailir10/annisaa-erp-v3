@@ -149,12 +149,65 @@ Build on Phase 1 success to deliver comprehensive performance optimization acros
 - Parent portal has manageable file sizes (<300 lines)
 
 **Task 2: Identify Dynamic Import Candidates**
-- [ ] Components >50KB identified
-- [ ] Priority list created
+- [x] Components >50KB identified
+- [x] Priority list created
+
+**Dynamic Import Candidates Analysis:**
+
+**High Priority (Immediate Impact):**
+1. `InvoiceDetailSheet` (258 lines, parent portal)
+   - Used in: `app/parent/invoices/client.tsx`
+   - Only opens when user clicks invoice
+   - Perfect for dynamic import with loading skeleton
+
+2. `AdminInvoiceDetail` component
+   - Used in: `app/admin/invoices/[id]/page.tsx`
+   - Heavy detail view, can be lazy-loaded
+
+3. `AdmissionsForm` component
+   - Used in: `app/admin/admissions/page.tsx` (605 lines)
+   - Complex form with validation
+   - Can be split into smaller components
+
+**Medium Priority (Moderate Impact):**
+4. `StudentsDetailPage` components
+   - Used in: `app/admin/students/[id]/page.tsx` (612 lines)
+   - Multiple tabs and related data sections
+   - Can lazy-load tab content
+
+5. `RolesManagement` component
+   - Used in: `app/admin/settings/roles/page.tsx` (530 lines)
+   - Client component with complex state
+   - Can be dynamically imported
+
+6. `AcademicManagement` component
+   - Used in: `app/admin/academic/page.tsx` (506 lines)
+   - Client component with tree view
+   - Can be dynamically imported
+
+**Lower Priority (Small Impact):**
+7. `LeaveManagement` component (411 lines)
+8. `PayrollDetail` component (453 lines)
+9. `EmployeesDetail` component (356 lines)
+
+**Loading Skeleton Requirements:**
+- InvoiceDetailSheet: Skeleton matching sheet layout (header + 4 rows)
+- AdminInvoiceDetail: Skeleton with header + invoice details
+- AdmissionsForm: Skeleton with form fields (6-8 fields)
+- StudentsDetailPage: Skeleton with tabs + content area
+- RolesManagement: Skeleton with table + form
+
+**Implementation Order:**
+1. Parent portal InvoiceDetailSheet (easiest, high mobile impact)
+2. Admin invoice-related components
+3. Large admin form components
+4. Tab-based detail pages
 
 **Checkpoint:**
 - [x] Bundle baseline established
-- [ ] Optimization targets identified
+- [x] Optimization targets identified
+- [x] Priority list created
+- [x] Ready for Phase 2 implementation
 
 ---
 
