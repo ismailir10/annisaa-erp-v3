@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -31,6 +31,8 @@ type Student = {
   guardians: Guardian[]; enrollments: Enrollment[];
 };
 type ClassSection = { id: string; name: string; program: { name: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number }; capacity: number };
+type AttendanceRecord = { id: string; date: string; status: string; notes: string | null; classSection: { name: string } };
+type AttendanceSummary = { present: number; absent: number; sick: number; permission: number; total: number };
 
 const REL_LABELS: Record<string, string> = { AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya", PARENT: "Orang Tua" };
 
@@ -72,6 +74,15 @@ export default function StudentDetailPage() {
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
 
+  // Attendance history
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
+  const [attendanceMonth, setAttendanceMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
   const fetchStudent = useCallback(async () => {
     try {
       const res = await fetch(`/api/students/${id}`);
@@ -82,6 +93,18 @@ export default function StudentDetailPage() {
   }, [id]);
 
   useEffect(() => { fetchStudent(); }, [fetchStudent]);
+
+  const fetchAttendance = useCallback(async (month: string) => {
+    setAttendanceLoading(true);
+    try {
+      const res = await fetch(`/api/students/${id}/attendance?month=${month}`);
+      if (!res.ok) { toast.error("Gagal memuat riwayat kehadiran"); return; }
+      const data = await res.json();
+      setAttendanceRecords(data.records);
+      setAttendanceSummary(data.summary);
+    } catch { toast.error("Terjadi kesalahan"); }
+    finally { setAttendanceLoading(false); }
+  }, [id]);
 
   // --- Edit toggle ---
   function startEditing() {
@@ -381,10 +404,11 @@ export default function StudentDetailPage() {
       </Card>
 
       {/* Tabs for related data */}
-      <Tabs defaultValue="guardians">
+      <Tabs defaultValue="guardians" onValueChange={(v) => { if (v === "attendance") fetchAttendance(attendanceMonth); }}>
         <TabsList>
           <TabsTrigger value="guardians">Orang Tua / Wali</TabsTrigger>
           <TabsTrigger value="enrollments">Riwayat Kelas</TabsTrigger>
+          <TabsTrigger value="attendance"><CalendarDays size={13} className="mr-1" />Kehadiran</TabsTrigger>
         </TabsList>
 
         <TabsContent value="guardians">
@@ -444,6 +468,64 @@ export default function StudentDetailPage() {
                       <p className="text-[10px] text-muted-foreground mt-0.5">{e.classSection.program.name} · {e.classSection.academicYear.name} · {e.classSection.campus.name}</p>
                     </div>
                     <StatusBadge status={e.status} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="attendance">
+          <Card className="p-5 mt-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Riwayat Kehadiran</h3>
+              <Input
+                type="month"
+                className="w-40 h-8 text-xs"
+                value={attendanceMonth}
+                onChange={(e) => {
+                  setAttendanceMonth(e.target.value);
+                  if (e.target.value) fetchAttendance(e.target.value);
+                }}
+              />
+            </div>
+
+            {attendanceSummary && (
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="rounded-lg border p-2.5 text-center">
+                  <p className="text-lg font-bold text-status-present">{attendanceSummary.present}</p>
+                  <p className="text-[10px] text-muted-foreground">Hadir</p>
+                </div>
+                <div className="rounded-lg border p-2.5 text-center">
+                  <p className="text-lg font-bold text-destructive">{attendanceSummary.absent}</p>
+                  <p className="text-[10px] text-muted-foreground">Tidak Hadir</p>
+                </div>
+                <div className="rounded-lg border p-2.5 text-center">
+                  <p className="text-lg font-bold text-status-leave">{attendanceSummary.sick}</p>
+                  <p className="text-[10px] text-muted-foreground">Sakit</p>
+                </div>
+                <div className="rounded-lg border p-2.5 text-center">
+                  <p className="text-lg font-bold text-warning">{attendanceSummary.permission}</p>
+                  <p className="text-[10px] text-muted-foreground">Izin</p>
+                </div>
+              </div>
+            )}
+
+            {attendanceLoading ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+              </div>
+            ) : attendanceRecords.length === 0 ? (
+              <EmptyState title="Belum ada data kehadiran" description="Belum ada rekap kehadiran untuk bulan ini." />
+            ) : (
+              <div className="space-y-0">
+                {attendanceRecords.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0">
+                    <div>
+                      <p className="text-sm font-medium">{formatDateShort(r.date)}</p>
+                      <p className="text-xs text-muted-foreground">{r.classSection.name}{r.notes ? ` · ${r.notes}` : ""}</p>
+                    </div>
+                    <StatusBadge status={r.status} />
                   </div>
                 ))}
               </div>
