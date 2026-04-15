@@ -79,13 +79,13 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 13. [x] **Assessment: wrap score upserts in transaction** — Wrap the score upsert loop and status update in `prisma.$transaction()`. Files: `app/api/assessments/student/[id]/route.ts`.
 
-14. [ ] **Security: gate demo mode behind explicit env var** — Add `DEMO_MODE=true` check in `lib/auth.ts`. Demo mode only activates when BOTH `DEMO_MODE=true` AND no Supabase URL. Update `lib/supabase/middleware.ts` to respect this. Files: `lib/auth.ts`, `lib/supabase/middleware.ts`.
+14. [x] **Security: gate demo mode behind explicit env var** — Add `DEMO_MODE=true` check in `lib/auth.ts`. Demo mode only activates when BOTH `DEMO_MODE=true` AND no Supabase URL. Update `lib/supabase/middleware.ts` to respect this. Files: `lib/auth.ts`, `lib/supabase/middleware.ts`.
 
-15. [ ] **Security: disable demo user list in production** — In `/api/auth/users`, return 404 when Supabase IS configured. Files: `app/api/auth/users/route.ts`.
+15. [x] **Security: disable demo user list in production** — In `/api/auth/users`, return 404 when Supabase IS configured. Files: `app/api/auth/users/route.ts`.
 
-16. [ ] **Security: add missing rate limit on demo login** — Add rate limiting to `/api/auth/login` endpoint. Files: `app/api/auth/login/route.ts`.
+16. [x] **Security: add missing rate limit on demo login** — Add rate limiting to `/api/auth/login` endpoint. Files: `app/api/auth/login/route.ts`.
 
-17. [ ] **Docs: add overtime rate compliance note** — Add a code comment in `lib/payroll/engine.ts` documenting that Indonesian labor law UU 13/2003 requires overtime premium rates (1.5x first hour, 2x subsequent) and this should be reviewed with the school's HR. Files: `lib/payroll/engine.ts`.
+17. [x] **Docs: add overtime rate compliance note** — Add a code comment in `lib/payroll/engine.ts` documenting that Indonesian labor law UU 13/2003 requires overtime premium rates (1.5x first hour, 2x subsequent) and this should be reviewed with the school's HR. Files: `lib/payroll/engine.ts`.
 
 ## Implementation
 
@@ -99,6 +99,8 @@ Ordered by risk severity. Each task is atomic and independently committable.
 - **Task 11 — Atomic enrollment:** `app/api/students/[id]/enroll/route.ts` — Capacity check uses `SELECT ... FOR UPDATE OF cs` to lock the class section row, preventing concurrent over-enrollment.
 - **Task 12 — Attendance bulk transaction:** `app/api/student-attendance/mark/route.ts` — Wrapped bulk upsert loop in `$transaction()`.
 - **Task 13 — Assessment score transaction:** `app/api/assessments/student/[id]/route.ts` — Score upserts + status update now atomic in `$transaction()`.
+- **Task 14-16 — Security hardening:** `lib/auth.ts`, `app/api/auth/users/route.ts`, `app/api/auth/login/route.ts` — Demo mode now requires explicit `DEMO_MODE=true` env var (not just missing Supabase URL). Auth exceptions no longer fall back to demo. Demo user list returns 404 when not in demo mode. Demo login rate-limited to 5 req/min per IP.
+- **Task 17 — Overtime compliance note:** `lib/payroll/engine.ts` — Added code comment documenting UU 13/2003 Art. 78(4) overtime premium requirements (1.5x/2x) vs current flat-rate implementation.
 
 ## Verification
 
@@ -115,9 +117,16 @@ Ordered by risk severity. Each task is atomic and independently committable.
 | Student deactivation: draft/sent invoices cancelled | ✅ |
 | Enrollment: concurrent requests respect capacity | ✅ (SELECT FOR UPDATE) |
 | Webhook: overpayment logged as warning | ✅ |
-| Demo mode: requires DEMO_MODE=true env var | ⏳ |
-| Demo users: 404 when Supabase configured | ⏳ |
+| Demo mode: requires DEMO_MODE=true env var | ✅ |
+| Demo users: 404 when Supabase configured | ✅ |
 
 ## Ship Notes
 
-<!-- /ship fills this section -->
+**New env var required:**
+- `DEMO_MODE=true` — must be set in `.env.local` for local development / E2E tests. Without this, demo login and demo session are completely disabled.
+
+**No database migrations.** All changes are code-only.
+
+**Breaking change: Demo mode activation.** Previously, demo mode activated automatically when `NEXT_PUBLIC_SUPABASE_URL` was missing. Now it requires an explicit `DEMO_MODE=true` env var. If local development relies on demo mode, add `DEMO_MODE=true` to `.env.local`.
+
+**Rollback plan:** Revert the 10 commits from this cycle. No data migration was performed. If issues arise with the `DEMO_MODE` change specifically, set `DEMO_MODE=true` in production as a temporary workaround while investigating.
