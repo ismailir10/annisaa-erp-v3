@@ -73,7 +73,7 @@ export default function NewEmployeePage() {
           <Field className="col-span-2 sm:col-span-1"><FieldLabel>Nama Formal</FieldLabel><Input value={form.formalName} onChange={(e) => setForm({ ...form, formalName: e.target.value })} placeholder="Eneng Rina SPd.I" /></Field>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Field><FieldLabel>Email *</FieldLabel><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="eneng@gmail.com" /></Field>
+          <Field><FieldLabel>Email *</FieldLabel><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="nama@example.test" /></Field>
           <Field><FieldLabel>No. HP</FieldLabel><Input value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} placeholder="Contoh: 081234567890" /></Field>
         </div>
         <div className="grid grid-cols-2 gap-4">

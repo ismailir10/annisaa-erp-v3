@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 // Demo mode E2E — direct cookie auth to avoid rate limit on repeated logins.
-const PARENT_USER_ID = "u_rightjet"; // Ibu Nurul (Test Parent) — GUARDIAN
+const PARENT_USER_ID = "u_rightjet"; // Demo parent (GUARDIAN) — opaque staging DB record ID
 
 test.describe("Parent flows", () => {
   test.beforeEach(async ({ page }) => {

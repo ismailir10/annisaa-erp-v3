@@ -49,7 +49,7 @@ Out of scope for this cycle: history rewrite with `git filter-repo`. The real PI
 
 ## Verification
 
-- [x] `git ls-files | grep -iE 'annisaa.*xlsx|erazamonac|enengrina|rainbee9010'` → no hits (all PII email addresses and the master spreadsheet are gone from HEAD).
+- [x] `git ls-files | grep -iE 'annisaa.*xlsx|<private-email-prefixes>'` → no hits (all PII email addresses and the master spreadsheet are gone from HEAD).
 - [x] `npm run build` — green (with synthetic employees + salary values).
 - [x] `npx vitest run` — 69/69 passing.
 - [x] `npx playwright test` — deferred to CI after merge (ran 20/20 green on PR #16 earlier in the day against identical test harness; synthetic seed data is not exercised by E2E specs).
