@@ -287,7 +287,7 @@ npm run lint
 |  | Production | Staging |
 |---|---|---|
 | Users | 25 real, 24 employees | 3 test, 2 test employees |
-| Teacher emails | Real | `ismail10rabbanii@gmail.com`, `rightjet.hq@gmail.com` |
+| Teacher emails | Real | Private — stored as repo secrets / local env vars |
 | Outbound email | Sent to real teachers | Overridden to admin via `STAGING_EMAIL_OVERRIDE` |
 | Banner | None | Yellow "STAGING" banner at top |
 
