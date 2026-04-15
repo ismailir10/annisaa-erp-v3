@@ -77,7 +77,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
    - Navigate to `/teacher/leave` on tap/click
    - Verify: Action is visible and accessible at top of attendance page
 
-3. [ ] Remove "Cuti" tab from teacher bottom navigation
+3. [x] Remove "Cuti" tab from teacher bottom navigation
    - Update `components/teacher/bottom-nav.tsx`: remove Cuti tab
    - Reduce from 5 tabs to 4: Beranda, Kehadiran, Kelas, Gaji
    - Verify: Bottom nav shows 4 tabs with proper spacing and active states
@@ -120,11 +120,13 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 
 - Task 1: Remove salary amounts from teacher slips page UI — `app/teacher/slips/page.tsx` — Removed summary stat cards, all currency amount displays, and unused imports. Slip cards now show only period dates, status badge, and PDF button.
 - Task 2: Add "Lihat & Ajukan Cuti" action to teacher attendance page — `app/teacher/attendance/page.tsx` — Added clickable card at top with CalendarDays icon, navigates to `/teacher/leave`.
+- Task 3: Remove "Cuti" tab from teacher bottom navigation — `components/teacher/bottom-nav.tsx` — Removed Cuti tab, reduced from 5 to 4 tabs, removed unused CalendarOff import.
 
 ## Verification
 
 - Task 1: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/slips/page.tsx), Manual smoke: Salary page no longer displays any amounts, only PDF button.
 - Task 2: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/attendance/page.tsx), Manual smoke: Cuti action card visible at top of attendance page.
+- Task 3: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/bottom-nav.tsx), Manual smoke: Bottom nav now shows 4 tabs with proper spacing.
 
 ## Ship Notes
 
