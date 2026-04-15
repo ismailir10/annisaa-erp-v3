@@ -51,6 +51,8 @@ model User {
   employee   Employee? @relation(fields: [employeeId], references: [id])
   parent     Parent?   @relation(fields: [parentId], references: [id])
   customRole Role?     @relation(fields: [customRoleId], references: [id])
+
+  @@index([tenantId, status])
 }
 
 // ── ROLE (RBAC) ─────────────────────────────────────────────
@@ -276,6 +278,8 @@ model PayrollItem {
   payrollRun PayrollRun      @relation(fields: [payrollRunId], references: [id])
   employee   Employee        @relation(fields: [employeeId], references: [id])
   lines      PayrollItemLine[]
+
+  @@index([payrollRunId, employeeId])
 }
 
 model PayrollItemLine {
@@ -362,6 +366,8 @@ model ClassSection {
   enrollments         StudentEnrollment[]
   teachingAssignments TeachingAssignment[]
   studentAttendances  StudentAttendance[]
+
+  @@index([tenantId])
 }
 
 // ── STUDENT ──────────────────────────────────────────────────
@@ -495,6 +501,8 @@ model Admission {
   tenant  Tenant   @relation(fields: [tenantId], references: [id])
   program Program? @relation(fields: [programId], references: [id])
   student Student? @relation(fields: [studentId], references: [id])
+
+  @@index([tenantId, status])
 }
 
 // ══════════════════════════════════════════════════════════════
