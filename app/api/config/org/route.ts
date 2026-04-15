@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+
+export const revalidate = 3600; // 1h — org config is static between saves
 
 export async function GET() {
   const session = await getSession();
@@ -48,5 +51,6 @@ export async function PUT(req: NextRequest) {
     },
   });
 
+  revalidatePath("/api/config/org");
   return NextResponse.json(config);
 }
