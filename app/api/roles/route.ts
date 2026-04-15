@@ -4,6 +4,9 @@ import { getSession } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 
+// Cache roles for 1 hour (static data)
+export const revalidate = 3600;
+
 export async function GET() {
   const session = await getSession();
   if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
