@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getStudentInvoices } from "../parent-helpers";
 import { prisma } from "@/lib/db";
 
+// Mock next/cache so unstable_cache is a no-op (no Next.js incrementalCache runtime in Vitest)
+vi.mock("next/cache", () => ({
+  unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
+  revalidateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
+
 // Mock Prisma client
 vi.mock("@/lib/db", () => ({
   prisma: {

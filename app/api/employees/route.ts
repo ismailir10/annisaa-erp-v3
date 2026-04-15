@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
@@ -105,5 +106,6 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  revalidateTag("employees-count", {});
   return NextResponse.json(employee, { status: 201 });
 }
