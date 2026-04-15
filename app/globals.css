@@ -80,8 +80,13 @@
 
   /* Semantic colors */
   --color-warning: var(--warning);
+  --color-warning-highlight: var(--warning-highlight);
   --color-success: var(--success);
   --color-info: var(--info);
+
+  /* Login page specific */
+  --color-login-card-bg: var(--login-card-bg);
+  --color-login-primary-hover: var(--login-primary-hover);
 }
 
 /*
@@ -169,8 +174,13 @@
 
   /* Semantic */
   --warning: #FF8C00;
+  --warning-highlight: #F4D03F;
   --success: #00B37E;
   --info: #0EA5E9;
+
+  /* Login page specific */
+  --login-card-bg: #223838;
+  --login-primary-hover: #4A9DA1;
 }
 
 @layer base {

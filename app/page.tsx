@@ -125,7 +125,7 @@ function LoginPage() {
         </div>
 
         {/* Auth Card */}
-        <div className="bg-sidebar-accent rounded-2xl p-6 border border-white/5">
+        <div className="bg-login-card-bg rounded-2xl p-6 border border-white/5">
 
           {isSupabaseConfigured ? (
             /* ── Supabase Auth ── */
@@ -183,7 +183,7 @@ function LoginPage() {
                   <button
                     type="submit"
                     disabled={loading || !email}
-                    className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-primary text-white font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-primary text-white font-medium text-sm hover:bg-login-primary-hover transition-colors disabled:opacity-50"
                   >
                     {loading ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
                     Kirim Magic Link
