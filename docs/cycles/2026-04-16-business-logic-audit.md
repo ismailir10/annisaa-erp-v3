@@ -67,9 +67,9 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 7. [x] **Invoice: constant-time webhook token comparison** — Replace `callbackToken !== expectedToken` with `crypto.timingSafeEqual()`. Files: `app/api/xendit/webhook/route.ts`.
 
-8. [ ] **Admission: wrap conversion in transaction** — Wrap student creation, parent upsert, guardian creation, and admission update in `prisma.$transaction()`. Files: `app/api/admissions/[id]/convert/route.ts`.
+8. [x] **Admission: wrap conversion in transaction** — Wrap student creation, parent upsert, guardian creation, and admission update in `prisma.$transaction()`. Files: `app/api/admissions/[id]/convert/route.ts`.
 
-9. [ ] **Admission: require ADMITTED status for conversion** — Change the condition from `!== "ADMITTED" && !== "VISITED"` to `!== "ADMITTED"` only. Files: `app/api/admissions/[id]/convert/route.ts`.
+9. [x] **Admission: require ADMITTED status for conversion** — Change the condition from `!== "ADMITTED" && !== "VISITED"` to `!== "ADMITTED"` only. Files: `app/api/admissions/[id]/convert/route.ts`.
 
 10. [ ] **Student: cascade deactivation to invoices** — When student status changes to INACTIVE or WITHDRAWN, also update unpaid invoices (DRAFT, SENT) to CANCELLED. Files: `app/api/students/[id]/route.ts`.
 
@@ -94,6 +94,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 - **Task 3 — Payroll parseFloat fix:** `app/api/payroll/[id]/items/[itemId]/lines/[lineId]/route.ts` — Replaced `parseFloat()` with `Number()` + NaN validation. Also wrapped line update + item recalculation in `$transaction()`.
 - **Task 4+5 — Invoice atomic generation + race-safe numbering:** `app/api/invoices/generate/route.ts` — Wrapped entire generation loop in `prisma.$transaction()`. Added `pg_advisory_xact_lock` per tenant to prevent concurrent invoice number collisions. All-or-nothing: if any invoice creation fails, all roll back.
 - **Task 6+7 — Webhook security hardening:** `app/api/xendit/webhook/route.ts` — Replaced string comparison with `crypto.timingSafeEqual()` for webhook token. Added payment amount validation against remaining balance (logs warning on overpayment, still processes).
+- **Task 8+9 — Admission atomic conversion + strict status:** `app/api/admissions/[id]/convert/route.ts` — Wrapped student + parent + guardian + admission update in `prisma.$transaction()`. Restricted conversion to `ADMITTED` status only (no longer allows `VISITED`).
 
 ## Verification
 
@@ -105,8 +106,8 @@ Ordered by risk severity. Each task is atomic and independently committable.
 | Payroll: approval is atomic (3 ops in single tx) | ✅ |
 | Invoice: bulk generation rolls back on any failure | ✅ |
 | Invoice: concurrent generation gets unique numbers | ✅ (advisory lock) |
-| Admission: conversion rolls back on partial failure | ⏳ |
-| Admission: VISITED status rejected for conversion | ⏳ |
+| Admission: conversion rolls back on partial failure | ✅ |
+| Admission: VISITED status rejected for conversion | ✅ |
 | Student deactivation: draft/sent invoices cancelled | ⏳ |
 | Enrollment: concurrent requests respect capacity | ⏳ |
 | Webhook: overpayment logged as warning | ✅ |
