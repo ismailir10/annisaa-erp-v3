@@ -50,31 +50,36 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Get org config
-  const orgConfig = await prisma.orgConfig.findUnique({
-    where: { tenantId: session.tenantId },
-  });
+  // Parallelise the 4 independent setup queries — none depend on each other
+  const [orgConfig, holidays, componentDefs, employees] = await Promise.all([
+    prisma.orgConfig.findUnique({ where: { tenantId: session.tenantId } }),
+    prisma.holiday.findMany({
+      where: {
+        tenantId: session.tenantId,
+        date: { gte: periodStart, lte: periodEnd },
+      },
+    }),
+    prisma.salaryComponentDef.findMany({
+      where: { tenantId: session.tenantId, isEnabled: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.employee.findMany({
+      where: { tenantId: session.tenantId, status: "ACTIVE" },
+      include: {
+        salaryValues: true,
+        attendanceRecords: {
+          where: { date: { gte: periodStart, lte: periodEnd } },
+        },
+      },
+    }),
+  ]);
+
   if (!orgConfig) {
     return NextResponse.json({ error: "Org config not set" }, { status: 400 });
   }
 
   const workingDays = JSON.parse(orgConfig.workingDays) as string[];
-
-  // Get holidays in period
-  const holidays = await prisma.holiday.findMany({
-    where: {
-      tenantId: session.tenantId,
-      date: { gte: periodStart, lte: periodEnd },
-    },
-  });
-
   const actualWorkDays = calculateWorkingDays(periodStart, periodEnd, workingDays, holidays);
-
-  // Get salary components
-  const componentDefs = await prisma.salaryComponentDef.findMany({
-    where: { tenantId: session.tenantId, isEnabled: true },
-    orderBy: { sortOrder: "asc" },
-  });
 
   const components: SalaryComponent[] = componentDefs.map((c) => ({
     id: c.id,
@@ -85,17 +90,6 @@ export async function POST(req: NextRequest) {
     isProRated: c.isProRated,
     sortOrder: c.sortOrder,
   }));
-
-  // Get active employees with salary values and attendance
-  const employees = await prisma.employee.findMany({
-    where: { tenantId: session.tenantId, status: "ACTIVE" },
-    include: {
-      salaryValues: true,
-      attendanceRecords: {
-        where: { date: { gte: periodStart, lte: periodEnd } },
-      },
-    },
-  });
 
   // Calculate payroll
   const results = calculatePayroll(
@@ -111,35 +105,54 @@ export async function POST(req: NextRequest) {
     actualWorkDays
   );
 
-  // Create payroll run with items and lines
-  const payrollRun = await prisma.payrollRun.create({
-    data: {
-      tenantId: session.tenantId,
-      periodStart,
-      periodEnd,
-      actualWorkDays,
-      createdBy: session.id,
-      items: {
-        create: employees.map((emp) => {
-          const result = results.get(emp.id)!;
-          return {
-            employeeId: emp.id,
-            grossAmount: result.grossAmount,
-            deductions: result.deductions,
-            netAmount: result.netAmount,
-            lines: {
-              create: result.lines.map((line) => ({
-                componentDefId: line.componentDefId,
-                labelSnapshot: line.labelSnapshot,
-                categorySnapshot: line.categorySnapshot,
-                calculatedAmount: line.calculatedAmount,
-                finalAmount: line.finalAmount,
-              })),
-            },
-          };
-        }),
+  // Pre-generate item IDs so PayrollItemLines can reference them without an
+  // extra round trip. Replaces 1 + N + N×M individual INSERTs with 3 bulk
+  // statements inside an interactive transaction:
+  //   - 1 INSERT into PayrollRun
+  //   - 1 INSERT ... VALUES (...) × N into PayrollItem (createMany)
+  //   - 1 INSERT ... VALUES (...) × N×M into PayrollItemLine (createMany)
+  const itemData = employees.map((emp) => {
+    const result = results.get(emp.id)!;
+    return {
+      id: crypto.randomUUID(),
+      employeeId: emp.id,
+      grossAmount: result.grossAmount,
+      deductions: result.deductions,
+      netAmount: result.netAmount,
+    };
+  });
+
+  const lineData = employees.flatMap((emp, i) => {
+    const result = results.get(emp.id)!;
+    return result.lines.map((line) => ({
+      payrollItemId: itemData[i].id,
+      componentDefId: line.componentDefId,
+      labelSnapshot: line.labelSnapshot,
+      categorySnapshot: line.categorySnapshot,
+      calculatedAmount: line.calculatedAmount,
+      finalAmount: line.finalAmount,
+    }));
+  });
+
+  const payrollRun = await prisma.$transaction(async (tx) => {
+    const run = await tx.payrollRun.create({
+      data: {
+        tenantId: session.tenantId!, // non-null confirmed by auth check at line 16
+        periodStart,
+        periodEnd,
+        actualWorkDays,
+        createdBy: session.id,
       },
-    },
+      select: { id: true },
+    });
+
+    await tx.payrollItem.createMany({
+      data: itemData.map((item) => ({ ...item, payrollRunId: run.id })),
+    });
+
+    await tx.payrollItemLine.createMany({ data: lineData });
+
+    return run;
   });
 
   return NextResponse.json({ id: payrollRun.id }, { status: 201 });
