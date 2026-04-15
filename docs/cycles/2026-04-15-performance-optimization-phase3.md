@@ -179,7 +179,13 @@ Build + tests green.
 
 ## Implementation
 
-_To be filled by `/build`_
+### Task 1 — 4 missing Prisma indexes (commit 3a22b38)
+- `prisma/schema.prisma`: added `@@index([tenantId, status])` to `User`, `@@index([payrollRunId, employeeId])` to `PayrollItem`, `@@index([tenantId, status])` to `Admission`, `@@index([tenantId])` to `ClassSection`
+- `prisma/migrations/20260415000000_add_perf_indexes/migration.sql`: 4 `CREATE INDEX` statements
+- `vitest.config.ts` + `vitest.setup.ts`: applied stash fix (jsdom env + react plugin) so component tests run
+
+### Task 2 — attendance/today: 2 round trips → 1 (commit pending)
+- `app/api/attendance/today/route.ts`: replaced separate `prisma.attendanceRecord.findMany` with `include: { attendanceRecords: { where: { date }, select: {...} } }` on the employee query. Response shape unchanged.
 
 ---
 
