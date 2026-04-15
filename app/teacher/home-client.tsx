@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { Card } from "@/components/ui/card";
 import { formatDate, formatTime } from "@/lib/format";
 
 type TodayRecord = {
@@ -135,7 +136,7 @@ export function TeacherHomeClient({
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
-                className="w-36 h-36 rounded-full bg-[var(--status-present)] flex items-center justify-center"
+                className="w-36 h-36 rounded-full bg-status-present flex items-center justify-center"
               >
                 <motion.span
                   initial={{ scale: 0 }}
@@ -155,9 +156,9 @@ export function TeacherHomeClient({
                 disabled={hasCheckedOut || loading}
                 className={`w-36 h-36 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg transition-colors ${
                   hasCheckedOut
-                    ? "bg-[var(--status-present)] cursor-default"
+                    ? "bg-status-present cursor-default"
                     : hasCheckedIn
-                    ? "bg-[var(--status-late)] hover:opacity-90"
+                    ? "bg-status-late hover:opacity-90"
                     : "bg-primary hover:opacity-90"
                 } ${loading ? "opacity-70" : ""}`}
               >
@@ -193,34 +194,36 @@ export function TeacherHomeClient({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.4 }}
-        className="mt-8 bg-card border border-border rounded-xl p-4"
+        className="mt-8"
       >
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Status Hari Ini
-        </p>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-xs text-muted-foreground">Masuk</p>
-            <p className="font-currency text-sm font-semibold mt-0.5">
-              {formatTime(record?.checkInTime ?? null)}
-            </p>
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Status Hari Ini
+          </p>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Masuk</p>
+              <p className="font-currency text-sm font-semibold mt-0.5">
+                {formatTime(record?.checkInTime ?? null)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Pulang</p>
+              <p className="font-currency text-sm font-semibold mt-0.5">
+                {formatTime(record?.checkOutTime ?? null)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Status</p>
+              <p className="text-sm font-semibold mt-0.5">
+                {record?.status === "PRESENT" && <span className="text-status-present-text">Hadir</span>}
+                {record?.status === "LATE" && <span className="text-status-late-text">Terlambat</span>}
+                {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-status-late-text">Hadir</span>}
+                {!record && <span className="text-muted-foreground">—</span>}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Pulang</p>
-            <p className="font-currency text-sm font-semibold mt-0.5">
-              {formatTime(record?.checkOutTime ?? null)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Status</p>
-            <p className="text-sm font-semibold mt-0.5">
-              {record?.status === "PRESENT" && <span className="text-[var(--status-present)]">Hadir</span>}
-              {record?.status === "LATE" && <span className="text-[var(--status-late)]">Terlambat</span>}
-              {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-[var(--status-late)]">Hadir</span>}
-              {!record && <span className="text-muted-foreground">—</span>}
-            </p>
-          </div>
-        </div>
+        </Card>
       </motion.div>
     </div>
   );
