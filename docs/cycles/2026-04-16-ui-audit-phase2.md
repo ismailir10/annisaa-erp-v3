@@ -96,6 +96,8 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 - Task 3: Gates passed (build + vitest run). Zero `toLocaleDateString` in `app/admin/`.
 - Task 4: Gates passed (build + vitest run). Attendance page uses DataTableRowActions.
 - Task 5: Gates passed (build + vitest run). Employee detail status uses StatusBadge.
+- Task 6: Gates passed (build + vitest run). Teacher class-attendance uses proper Tailwind status classes.
+- Task 7: Gates passed (build + vitest run). Teacher profile uses StatusBadge.
 
 ## Ship Notes
 
