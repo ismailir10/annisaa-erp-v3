@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateEmployeePayroll, SalaryComponent, AttendanceVariables } from "../engine";
+import { calculateEmployeePayroll, calculatePayroll, SalaryComponent, AttendanceVariables } from "../engine";
 
 // Real salary components matching An Nisaa' structure
 const components: SalaryComponent[] = [
@@ -141,6 +141,28 @@ describe("calculateEmployeePayroll", () => {
     expect(result.grossAmount).toBe(0);
     expect(result.deductions).toBe(0);
     expect(result.netAmount).toBe(0);
+  });
+
+  it("throws when actualWorkingDays is 0", () => {
+    const salaryValues = components.map(c => ({ componentDefId: c.id, value: 0 }));
+    expect(() =>
+      calculatePayroll(
+        [{ id: "e1", salaryValues, attendanceRecords: [], variables: defaultVars }],
+        components,
+        0
+      )
+    ).toThrow("actualWorkingDays must be > 0");
+  });
+
+  it("throws when actualWorkingDays is negative", () => {
+    const salaryValues = components.map(c => ({ componentDefId: c.id, value: 0 }));
+    expect(() =>
+      calculatePayroll(
+        [{ id: "e1", salaryValues, attendanceRecords: [], variables: defaultVars }],
+        components,
+        -1
+      )
+    ).toThrow("actualWorkingDays must be > 0");
   });
 
   it("counts leave days for pro-rating", () => {
