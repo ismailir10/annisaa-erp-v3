@@ -17,8 +17,9 @@ export type SessionUser = {
  * Auto-creates the Prisma User on first login if employee exists with that email.
  */
 export async function getSession(): Promise<SessionUser | null> {
-  // Check if we're in demo mode (no Supabase URL configured)
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL === "") {
+  // Demo mode requires explicit opt-in via DEMO_MODE=true env var.
+  // This prevents accidental demo activation in production if Supabase is down.
+  if (process.env.DEMO_MODE === "true") {
     return getDemoSession();
   }
 
@@ -99,7 +100,10 @@ export async function getSession(): Promise<SessionUser | null> {
       parentId,
     };
   } catch {
-    return getDemoSession();
+    // In production, don't fall back to demo mode on auth errors.
+    // Return null so the middleware redirects to login.
+    console.error("[AUTH] Session retrieval failed");
+    return null;
   }
 }
 

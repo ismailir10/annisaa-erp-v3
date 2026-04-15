@@ -137,6 +137,11 @@ function calculateAttendanceBased(
     case "insentif_dc":
       return perUnitValue * variables.dcDays;
     case "lembur":
+      // COMPLIANCE NOTE: Indonesian labor law (UU 13/2003 Art. 78(4)) requires overtime
+      // premium rates: 1.5x hourly rate for the first hour, 2x for subsequent hours on weekdays;
+      // 2x hourly rate + daily wage for holiday overtime. The current implementation uses a flat
+      // per-hour rate (perUnitValue * hours). This should be reviewed with the school's HR to
+      // ensure compliance if overtime is a regular practice.
       return perUnitValue * variables.overtimeHours;
     default:
       // Generic attendance-based: multiply by days present
