@@ -147,6 +147,7 @@ export default async function ParentDashboard({
         <div>
           <h3 className="text-sm font-semibold mb-3">Tagihan Belum Lunas</h3>
           <UnpaidInvoicesTable
+            childId={children.length > 1 ? selected.studentId : undefined}
             data={unpaidInvoices.map((inv) => ({
               id: inv.id,
               invoiceNumber: inv.invoiceNumber,
