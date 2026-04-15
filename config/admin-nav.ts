@@ -68,6 +68,7 @@ export const adminNav: NavConfig = {
         { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
+        { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
       ],
     },

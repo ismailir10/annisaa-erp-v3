@@ -131,11 +131,13 @@ This page reuses:
 
 - Task 1: Student deactivate action — `app/admin/students/page.tsx` — added deactivate/activate with ConfirmDialog and DataTableRowActions dropdown
 - Task 2: Guardian standalone list page — `app/api/guardians/route.ts`, `app/api/guardians/[id]/route.ts`, `app/admin/guardians/page.tsx`, `config/admin-nav.ts` — full CRUD list with search, status filter, edit dialog, deactivate
+- Task 3: Enrollment standalone list page — `app/api/enrollments/route.ts`, `app/api/enrollments/[id]/route.ts`, `app/admin/enrollments/page.tsx`, `config/admin-nav.ts` — full list with class section filter, edit dialog, deactivate
 
 ## Verification
 
 - Task 1: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 2: gates passed (build + vitest run — 6 files, 69 tests green)
+- Task 3: gates passed (build + vitest run — 6 files, 69 tests green)
 
 ## Ship Notes
 
