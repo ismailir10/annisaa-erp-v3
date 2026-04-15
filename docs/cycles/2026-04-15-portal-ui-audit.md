@@ -71,7 +71,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
    - Keep only: period dates, status badge, PDF button
    - Verify: UI shows no currency amounts, only PDF button reveals amounts
 
-2. [ ] Add "Lihat & Ajukan Cuti" action to teacher attendance page
+2. [x] Add "Lihat & Ajukan Cuti" action to teacher attendance page
    - Add card/button at top of Kehadiran page linking to leave
    - Use Card component with icon (CalendarDays) + "Cuti" label
    - Navigate to `/teacher/leave` on tap/click
@@ -119,10 +119,12 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 ## Implementation
 
 - Task 1: Remove salary amounts from teacher slips page UI — `app/teacher/slips/page.tsx` — Removed summary stat cards, all currency amount displays, and unused imports. Slip cards now show only period dates, status badge, and PDF button.
+- Task 2: Add "Lihat & Ajukan Cuti" action to teacher attendance page — `app/teacher/attendance/page.tsx` — Added clickable card at top with CalendarDays icon, navigates to `/teacher/leave`.
 
 ## Verification
 
 - Task 1: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/slips/page.tsx), Manual smoke: Salary page no longer displays any amounts, only PDF button.
+- Task 2: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/attendance/page.tsx), Manual smoke: Cuti action card visible at top of attendance page.
 
 ## Ship Notes
 
