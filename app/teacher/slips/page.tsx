@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Download, FileText } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 type SlipItem = {
   id: string;
@@ -20,9 +21,16 @@ export default function TeacherSlipsPage() {
 
   useEffect(() => {
     fetch("/api/slips/my")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) {
+          toast.error("Gagal memuat slip gaji");
+          setLoading(false);
+          return;
+        }
+        return r.json();
+      })
       .then((d) => {
-        setSlips(d);
+        if (d) setSlips(d);
         setLoading(false);
       });
   }, []);

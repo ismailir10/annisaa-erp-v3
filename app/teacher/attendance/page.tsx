@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { AttendanceCalendar } from "@/components/attendance/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { CalendarDays } from "lucide-react";
+import { LeaveSheet } from "@/components/teacher/leave-sheet";
 
 type AttendanceRecord = {
   id: string;
@@ -16,12 +16,12 @@ type AttendanceRecord = {
 };
 
 export default function TeacherAttendancePage() {
-  const router = useRouter();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [leaveSheetOpen, setLeaveSheetOpen] = useState(false);
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
@@ -43,18 +43,18 @@ export default function TeacherAttendancePage() {
     <div className="px-5 pt-6 pb-4">
       <h1 className="text-lg font-bold mb-4">Kehadiran Saya</h1>
 
-      {/* Cuti action card */}
+      {/* Cuti action card — opens Sheet instead of navigating */}
       <Card
         className="p-4 mb-4 cursor-pointer hover:border-primary/30 transition-colors"
-        onClick={() => router.push("/teacher/leave")}
+        onClick={() => setLeaveSheetOpen(true)}
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
             <CalendarDays size={20} className="text-primary" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold">Lihat & Ajukan Cuti</p>
-            <p className="text-xs text-muted-foreground">Kelola cuti dan izin Anda</p>
+            <p className="text-sm font-semibold">Cuti &amp; Izin</p>
+            <p className="text-xs text-muted-foreground">Lihat saldo dan ajukan cuti</p>
           </div>
         </div>
       </Card>
@@ -73,6 +73,8 @@ export default function TeacherAttendancePage() {
           onMonthChange={handleMonthChange}
         />
       )}
+
+      <LeaveSheet open={leaveSheetOpen} onOpenChange={setLeaveSheetOpen} />
     </div>
   );
 }

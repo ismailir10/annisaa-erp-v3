@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { formatTime } from "@/lib/format";
 
 type AttendanceRecord = {
   id: string;
@@ -85,11 +86,6 @@ export function AttendanceCalendar({
     else if (r.status === "ABSENT") summary.absent++;
     else if (r.status === "LEAVE") summary.leave++;
   }
-
-  const formatTime = (iso: string | null) => {
-    if (!iso) return "--:--";
-    return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
-  };
 
   return (
     <div>
