@@ -45,6 +45,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Intentional hard delete — Holiday has no status field (config entity)
   await prisma.holiday.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

@@ -109,6 +109,7 @@ export async function DELETE(
     );
   }
 
+  // Intentional hard delete — Role has no status field (config entity)
   await prisma.role.delete({ where: { id } });
 
   return NextResponse.json({ success: true });

@@ -52,8 +52,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: `Tidak bisa dihapus: ${enrollCount} siswa terdaftar` }, { status: 400 });
   }
 
-  // Hard delete is intentional — ClassSection has no status field (config/reference data).
-  // Enrollment guard above prevents deletion of sections with active students.
-  await prisma.classSection.delete({ where: { id } });
+  // Soft delete — ClassSection has status field (ACTIVE/INACTIVE). Set to INACTIVE.
+  await prisma.classSection.update({ where: { id }, data: { status: "INACTIVE" } });
   return NextResponse.json({ ok: true });
 }

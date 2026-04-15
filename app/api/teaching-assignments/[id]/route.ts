@@ -15,6 +15,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   });
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
+  // Intentional hard delete — junction table, no status field
   await prisma.teachingAssignment.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
