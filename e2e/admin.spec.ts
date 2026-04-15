@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 // Demo mode E2E tests — bypasses login UI to avoid rate-limit on repeated beforeEach calls.
 // Sets session cookie directly (same format as /api/auth/login handler).
 
-const ADMIN_USER_ID = "u_admin"; // Redacted Admin — SCHOOL_ADMIN
+const ADMIN_USER_ID = "u_super_admin"; // Primary owner — SUPER_ADMIN
 
 test.describe("Admin flows", () => {
   test.beforeEach(async ({ page }) => {

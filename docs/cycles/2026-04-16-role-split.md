@@ -399,6 +399,7 @@ Also add to the "Security Checklist for New Routes" section:
 ## Implementation
 
 - T1: Auth helpers — `lib/auth.ts`, `app/admin/layout.tsx`, `app/api/auth/login/route.ts`, `vitest.config.ts` — added `SUPER_ADMIN` to SessionUser union, exported `isSuperAdmin`/`isAdminRole`/`canViewSalary` helpers, updated layout gate and demo login redirect, fixed vitest worktree exclusion
+- T2: Data migration + seed — `prisma/migrations/20260416000002_rename_school_admin_to_super_admin/migration.sql`, `prisma/seed.ts`, `e2e/admin.spec.ts` — reversible SQL migration renames SCHOOL_ADMIN→SUPER_ADMIN in prod, seed creates u_super_admin + u_school_admin fixtures with stable IDs, Playwright spec updated to u_super_admin
 
 ---
 
