@@ -42,8 +42,8 @@ export async function getParentWithChildren(session: SessionUser) {
   const parentId = session.parentId;
 
   const whereClause = parentId
-    ? { id: parentId }
-    : { email: session.email };
+    ? { id: parentId, tenantId: session.tenantId ?? undefined }
+    : { email: session.email, tenantId: session.tenantId ?? undefined };
 
   const parent = await prisma.parent.findFirst({
     where: whereClause,

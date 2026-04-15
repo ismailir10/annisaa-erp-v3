@@ -44,13 +44,10 @@ export async function POST() {
     },
   });
 
-  await prisma.studentGuardian.create({
-    data: {
-      studentId: student.id,
-      parentId: parent.id,
-      relationship: "PARENT",
-      isPrimary: true,
-    },
+  await prisma.studentGuardian.upsert({
+    where: { studentId_parentId: { studentId: student.id, parentId: parent.id } },
+    create: { studentId: student.id, parentId: parent.id, relationship: "PARENT", isPrimary: true },
+    update: {},
   });
 
   return NextResponse.json({
