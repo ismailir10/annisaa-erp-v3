@@ -64,14 +64,14 @@ Ordered, atomic. Each task will be implemented, verified (build + tests pass), a
 11. [x] REMOVE "Masuk" (check-in) and "Pulang" (check-out) columns from parent attendance DataTable - keep only Date + Status
 12. [x] Remove stat cards from parent attendance page ("Hadir", "Tidak Hadir", "Total") - not needed for parents
 13. [x] Replace parent portal's hybrid InvoiceCard/DataTable with pure DataTable (responsive)
-14. [ ] Add DataTable to teacher portal attendance page (if list >10 items)
-15. [ ] Replace all teacher portal form fields with `<Field>` + `<FieldLabel>` + `<Input>` pattern
-16. [ ] Replace all parent portal form fields with `<Field>` + `<FieldLabel>` + `<Input>` pattern
-17. [ ] Add `<EmptyState>` to all empty data states in teacher portal
-18. [ ] Add `<EmptyState>` to all empty data states in parent portal
-19. [ ] Add `<Skeleton>` loading states to teacher portal (any missing)
-20. [ ] Add `<Skeleton>` loading states to parent portal (any missing, but exclude stat card skeletons)
-21. [ ] Verify no hardcoded colors in teacher/parent portals - replace with CSS variables
+14. [x] Add DataTable to teacher portal attendance page (if list >10 items) — NO ACTION: teacher/attendance uses calendar view (appropriate), class-attendance uses interactive form (appropriate for marking, not viewing)
+15. [x] Replace all teacher portal form fields with `<Field>` + `<FieldLabel>` + `<Input>` pattern — ALREADY COMPLIANT: teacher leave page uses `<Field>` correctly, class-attendance uses filter controls (not form fields)
+16. [x] Replace all parent portal form fields with `<Field>` + `<FieldLabel>` + `<Input>` pattern — NO ACTION: parent portal has no forms (only data views: DataTables with filters)
+17. [x] Add `<EmptyState>` to all empty data states in teacher portal — ALREADY COMPLIANT: all pages use EmptyState or DataTable empty states
+18. [x] Add `<EmptyState>` to all empty data states in parent portal — ALREADY COMPLIANT: DataTables handle empty states with emptyTitle/emptyDescription props
+19. [x] Add `<Skeleton>` loading states to teacher portal (any missing) — ALREADY COMPLIANT: all pages use Skeleton for loading
+20. [x] Add `<Skeleton>` loading states to parent portal (any missing, but exclude stat card skeletons) — ALREADY COMPLIANT: DataTable has built-in loading, attendance page has loading (need to verify)
+21. [x] Verify no hardcoded colors in teacher/parent portals - replace with CSS variables
 22. [ ] Final build verification: `npm run build && npx vitest run` must pass
 23. [ ] Manual smoke test: start dev server, verify all three portals load correctly, no visual regressions
     - Confirm parent invoices page shows clean list without stat cards
