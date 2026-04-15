@@ -56,8 +56,8 @@ export async function GET(request: Request) {
         console.error("DB lookup in callback failed:", dbError);
       }
 
-      // Default — getSession() will determine the correct route
-      return NextResponse.redirect(`${origin}/admin`);
+      // Email not provisioned — no matching Employee, Parent, or User
+      return NextResponse.redirect(`${origin}/?error=access_denied`);
     } catch (e) {
       console.error("Auth callback error:", e);
       return NextResponse.redirect(`${origin}/?error=callback_error`);

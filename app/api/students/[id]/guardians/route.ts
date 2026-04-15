@@ -40,6 +40,14 @@ export async function POST(
   const employerCity = body.employerCity?.trim() || null;
   const incomeRange = body.incomeRange?.trim() || null;
 
+  // Validate email doesn't collide with employee/admin
+  if (email) {
+    const emailCollision = await prisma.employee.findFirst({ where: { email, tenantId: session.tenantId } });
+    if (emailCollision) {
+      return NextResponse.json({ error: "Email ini sudah digunakan oleh karyawan. Gunakan email lain untuk orang tua." }, { status: 400 });
+    }
+  }
+
   // Find or create a Parent record
   let parent;
   if (email) {
