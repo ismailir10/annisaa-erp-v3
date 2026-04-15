@@ -57,6 +57,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: `Tidak bisa dihapus: ${sectionCount} kelas terkait` }, { status: 400 });
   }
 
-  await prisma.academicYear.delete({ where: { id } });
+  // Soft delete — set status to ARCHIVED instead of hard delete
+  await prisma.academicYear.update({ where: { id }, data: { status: "ARCHIVED" } });
   return NextResponse.json({ ok: true });
 }

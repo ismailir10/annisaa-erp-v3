@@ -82,7 +82,7 @@ export async function DELETE(
   });
   if (!guardian) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Delete the link only — parent may be linked to other students
+  // Intentional hard delete — junction table, no status field. Removes the student↔guardian link only.
   await prisma.studentGuardian.delete({ where: { id: guardianId } });
 
   return NextResponse.json({ ok: true });

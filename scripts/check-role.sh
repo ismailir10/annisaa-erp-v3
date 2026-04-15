@@ -58,7 +58,7 @@ if [ "$ROLE" = "product-builder" ]; then
     GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
     COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
     if [ -n "$GIT_DIR" ] && [ -n "$COMMON_DIR" ] && [ "$GIT_DIR" = "$COMMON_DIR" ]; then
-      echo "[check-role] WARNING: product-builder sessions must work in a git worktree, not the main checkout. Assistant: create one with 'git worktree add .worktrees/<slug> -b feat/<slug>' (or use EnterWorktree if available), then cd into it before running /spec /build /ship. See CLAUDE.md §Worktree Isolation." >&2
+      echo "[check-role] REQUIRED ACTION — do this NOW before anything else: You are 'product-builder' in the main checkout. You must set up a worktree yourself (do NOT ask the user to do it). Steps: (1) derive a short kebab-case slug from the user's request, e.g. 'crud-sweep' or 'attendance-fix' — if the request is unclear use a generic slug like 'feature-work'; (2) run 'bash scripts/setup-worktree.sh <slug>' using the Bash tool; (3) use the EnterWorktree tool to move into .worktrees/<slug>; (4) rewrite .claude/session-role inside the worktree with your actual model ID; (5) then proceed with the user's original request as if nothing happened. The user should never have to touch the worktree setup." >&2
     fi
   fi
 fi

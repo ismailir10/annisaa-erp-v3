@@ -118,34 +118,36 @@ Installed via `scripts/install-hooks.sh` which sets `core.hooksPath=.githooks` a
 - **`prepare-commit-msg`** — appends `Model-Trailer: <model>` and `Role: <role>` from `.claude/session-role` to every commit that doesn't already have them.
 - **`pre-push`** — blocks pushes to `staging` or `main` unless `role=cto`. Non-cto sessions must open a PR.
 
-### 3. Worktree isolation (every non-cto session gets its own working tree)
+### 3. Worktree isolation (every product-builder session gets its own working tree)
 
-The cto session works in the main checkout. **Every other session — product-builder, parallel cto experiments, non-Claude CLIs — works in its own git worktree.** This prevents parallel sessions from stomping on each other's working trees, lockfiles, and build artifacts.
+The cto session works in the main checkout. **Every product-builder session works in its own dedicated git worktree — one worktree per cycle, created fresh at session start.**
 
-**Why:** If two sessions edit `package-lock.json` or `tsconfig.tsbuildinfo` at the same time in the same checkout, one will overwrite the other. If a session crashes mid-commit in the shared tree, the next session inherits dirty state it didn't create (like this cycle did — see `docs/cycles/2026-04-15-workflow-refinement.md` Ship Notes).
+**Why:** Worktrees prevent parallel sessions from stomping on each other's lockfiles and build artifacts. They also give each session a clean slate — no dirty state inherited from a crashed previous session.
 
 **Rule:**
-- `role=cto` → main checkout is fine (single-threaded, human-driven).
-- `role=product-builder` → must be in a worktree. `scripts/check-role.sh` prints a warning when this rule is violated. `/spec`, `/build`, and `/ship` refuse to run.
+- `role=cto` → main checkout, no worktree needed.
+- `role=product-builder` → **every new session = new worktree, no exceptions.** `check-role.sh` blocks `/spec`, `/build`, and `/ship` until the session is inside a worktree.
 
-**How to create a worktree** (non-cto session, first action after confirming role):
+**The user never touches worktree setup.** When the user opens a Claude Code session in the main checkout and types anything (e.g. `/spec build the crud sweep`), the AI detects it is a product-builder session in the main checkout via the `SessionStart` hook and does the setup automatically:
 
+1. Derives a kebab-case slug from the user's request
+2. Runs `bash scripts/setup-worktree.sh <slug>` via the Bash tool
+3. Uses `EnterWorktree` to move into `.worktrees/<slug>`
+4. Rewrites `.claude/session-role` with its own model ID
+5. Proceeds with the user's original request
+
+`setup-worktree.sh` does everything in one step:
+- `git worktree add .worktrees/<slug> -b feat/<slug>`
+- Symlinks `.env` and `.env.local` from the main checkout (fixes "missing env" errors)
+- Symlinks `node_modules` from the main checkout (no `npm install` needed)
+- Runs `install-hooks.sh` inside the worktree
+
+**`.env` / `node_modules` in worktrees:** Both are gitignored and absent from fresh worktrees. The setup script symlinks them so `npm run dev`, `npm run build`, and Prisma work immediately. If a branch changes `package.json` dependencies, run `npm install` inside the worktree to replace the `node_modules` symlink.
+
+**Cleanup when the cycle is merged:**
 ```bash
-# Claude Code (preferred): use the EnterWorktree tool
-# Manual: git CLI
-SLUG=<kebab-case-cycle-name>
-git worktree add .worktrees/$SLUG -b feat/$SLUG
-cd .worktrees/$SLUG
-./scripts/install-hooks.sh   # worktrees inherit hooksPath, but run anyway to write .installed
-```
-
-The worktree lives at `.worktrees/<slug>/` (already gitignored via `.claude/worktrees/` — wait, see below). The session writes its own `.claude/session-role` inside the worktree (each worktree has its own `.claude/` copy if you followed EnterWorktree, or the session writes it fresh).
-
-**Cleanup when the cycle is done:**
-```bash
-cd ../..                         # back to main checkout
 git worktree remove .worktrees/<slug>
-git branch -D feat/<slug>        # if merged; otherwise leave until PR lands
+git branch -D feat/<slug>
 ```
 
 ### 4. GitHub branch protection (the real boundary)
