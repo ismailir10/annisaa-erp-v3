@@ -73,11 +73,11 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 10. [x] **Student: cascade deactivation to invoices** — When student status changes to INACTIVE or WITHDRAWN, also update unpaid invoices (DRAFT, SENT) to CANCELLED. Files: `app/api/students/[id]/route.ts`.
 
-11. [ ] **Enrollment: atomic capacity check** — Use `$transaction` with `$queryRaw` to atomically check capacity and create enrollment (prevents race-condition over-enrollment). Files: `app/api/students/[id]/enroll/route.ts`.
+11. [x] **Enrollment: atomic capacity check** — Use `$transaction` with `$queryRaw` to atomically check capacity and create enrollment (prevents race-condition over-enrollment). Files: `app/api/students/[id]/enroll/route.ts`.
 
-12. [ ] **Student attendance: wrap bulk upsert in transaction** — Wrap the attendance marking loop in `prisma.$transaction()`. Files: `app/api/student-attendance/mark/route.ts`.
+12. [x] **Student attendance: wrap bulk upsert in transaction** — Wrap the attendance marking loop in `prisma.$transaction()`. Files: `app/api/student-attendance/mark/route.ts`.
 
-13. [ ] **Assessment: wrap score upserts in transaction** — Wrap the score upsert loop and status update in `prisma.$transaction()`. Files: `app/api/assessments/student/[id]/route.ts`.
+13. [x] **Assessment: wrap score upserts in transaction** — Wrap the score upsert loop and status update in `prisma.$transaction()`. Files: `app/api/assessments/student/[id]/route.ts`.
 
 14. [ ] **Security: gate demo mode behind explicit env var** — Add `DEMO_MODE=true` check in `lib/auth.ts`. Demo mode only activates when BOTH `DEMO_MODE=true` AND no Supabase URL. Update `lib/supabase/middleware.ts` to respect this. Files: `lib/auth.ts`, `lib/supabase/middleware.ts`.
 
@@ -96,6 +96,9 @@ Ordered by risk severity. Each task is atomic and independently committable.
 - **Task 6+7 — Webhook security hardening:** `app/api/xendit/webhook/route.ts` — Replaced string comparison with `crypto.timingSafeEqual()` for webhook token. Added payment amount validation against remaining balance (logs warning on overpayment, still processes).
 - **Task 8+9 — Admission atomic conversion + strict status:** `app/api/admissions/[id]/convert/route.ts` — Wrapped student + parent + guardian + admission update in `prisma.$transaction()`. Restricted conversion to `ADMITTED` status only (no longer allows `VISITED`).
 - **Task 10 — Student deactivation cascade:** `app/api/students/[id]/route.ts` — Enrollment withdrawal + invoice cancellation (DRAFT/SENT → CANCELLED) now run atomically in `$transaction()`.
+- **Task 11 — Atomic enrollment:** `app/api/students/[id]/enroll/route.ts` — Capacity check uses `SELECT ... FOR UPDATE OF cs` to lock the class section row, preventing concurrent over-enrollment.
+- **Task 12 — Attendance bulk transaction:** `app/api/student-attendance/mark/route.ts` — Wrapped bulk upsert loop in `$transaction()`.
+- **Task 13 — Assessment score transaction:** `app/api/assessments/student/[id]/route.ts` — Score upserts + status update now atomic in `$transaction()`.
 
 ## Verification
 
@@ -110,7 +113,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 | Admission: conversion rolls back on partial failure | ✅ |
 | Admission: VISITED status rejected for conversion | ✅ |
 | Student deactivation: draft/sent invoices cancelled | ✅ |
-| Enrollment: concurrent requests respect capacity | ⏳ |
+| Enrollment: concurrent requests respect capacity | ✅ (SELECT FOR UPDATE) |
 | Webhook: overpayment logged as warning | ✅ |
 | Demo mode: requires DEMO_MODE=true env var | ⏳ |
 | Demo users: 404 when Supabase configured | ⏳ |
