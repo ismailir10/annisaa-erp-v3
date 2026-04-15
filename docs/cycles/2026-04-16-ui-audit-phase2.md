@@ -69,17 +69,17 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 8. [x] **Fix parent assessments-table color mapping** — Replace `text-[var(--status-late)]` with proper CSS variable class. Accept: zero `text-[` in `app/parent/assessments-table.tsx`.
 
-9. [ ] **Convert DELETE routes to soft delete where applicable** — For each of the 7 hard delete routes, check if the model has a status field. If yes, convert to status-based deactivation. If no, add a code comment documenting why hard delete is intentional. Accept: no `prisma.*.delete()` on entities with status fields.
+9. [x] **Convert DELETE routes to soft delete where applicable** — For each of the 7 hard delete routes, check if the model has a status field. If yes, convert to status-based deactivation. If no, add a code comment documenting why hard delete is intentional. Accept: no `prisma.*.delete()` on entities with status fields.
 
-10. [ ] **Add Zod validation to leave request POST** — Replace manual `if (!leaveType || ...)` with a Zod schema and `validateBody()`. Accept: POST handler uses `validateBody(leaveRequestSchema, body)`.
+10. [x] **Add Zod validation to leave request POST** — Replace manual `if (!leaveType || ...)` with a Zod schema and `validateBody()`. Accept: POST handler uses `validateBody(leaveRequestSchema, body)`.
 
-11. [ ] **Replace `where: any` with proper Prisma types** — Update 7 API routes to use `Prisma.*WhereInput` types. Accept: zero `where: any` in `app/api/`.
+11. [x] **Replace `where: any` with proper Prisma types** — Update 7 API routes to use `Prisma.*WhereInput` types. Accept: zero `where: any` in `app/api/`.
 
-12. [ ] **Standardize Xendit webhook error format** — Change `{ ok: false, error }` to `{ error }` in webhook route. Accept: consistent error format across all routes.
+12. [x] **Standardize Xendit webhook error format** — Change `{ ok: false, error }` to `{ error }` in webhook route. Accept: consistent error format across all routes.
 
-13. [ ] **Replace toLocaleDateString in attendance export route** — Update `app/api/attendance/export/route.ts` to use formatDate utility. Accept: zero `toLocaleDateString` in API route files (PDF/email routes exempted).
+13. [x] **Replace toLocaleDateString in attendance export route** — Update `app/api/attendance/export/route.ts` to use formatDate utility. Accept: zero `toLocaleDateString` in API route files (PDF/email routes exempted).
 
-14. [ ] **Final build + test verification** — Run `npm run build && npx vitest run`. Fix any regressions. Accept: build passes, all tests pass.
+14. [x] **Final build + test verification** — Run `npm run build && npx vitest run`. Fix any regressions. Accept: build passes, all tests pass.
 
 ## Implementation
 
@@ -88,6 +88,14 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 - Task 3: Replace toLocaleDateString with formatDate — `lib/format.ts`, `app/admin/{employees/[id],invoices,attendance,attendance/monthly}/page.tsx` — Added `formatMonthLabel()` to lib/format. Replaced 4 toLocaleDateString calls in admin pages with formatDate/formatMonthLabel.
 - Task 4: Fix attendance page action column — `app/admin/attendance/page.tsx` — Replaced raw `<button>` with `DataTableRowActions onEdit`. Removed unused `Pencil` import.
 - Task 5: Fix inline Badge → StatusBadge in admin — `app/admin/employees/[id]/page.tsx` — Replaced `<Badge>Tidak Aktif</Badge>` with `<StatusBadge status="INACTIVE" />`. Other Badge uses are labels (codes, categories) not status indicators.
+- Task 6: Fix hardcoded colors in teacher class-attendance — `app/teacher/class-attendance/page.tsx` — Replaced `text-[var(--status-present)]` and `bg-[var(...)]` with proper Tailwind theme classes (`text-status-present`, `bg-status-present`).
+- Task 7: Fix teacher profile Badge → StatusBadge — `app/teacher/profile/page.tsx` — Replaced `<Badge>Aktif</Badge>` with `<StatusBadge status="ACTIVE" />`.
+- Task 8: Fix parent assessments-table colors — `app/parent/assessments-table.tsx` — Replaced `text-[var(--status-late)]` and `text-[var(--status-present)]` with `text-status-late` and `text-status-present`.
+- Task 9: Convert DELETE routes to soft delete — `app/api/{class-sections,academic-years}/[id]/route.ts` — ClassSection: `.delete()` → `.update({ status: "INACTIVE" })`. AcademicYear: `.delete()` → `.update({ status: "ARCHIVED" })`. 5 routes without status fields documented as intentional hard deletes.
+- Task 10: Add Zod validation to leave request POST — `lib/validations/leave.ts`, `app/api/leave/requests/route.ts` — Created `createLeaveRequestSchema` with Zod. Replaced manual `if (!leaveType || ...)` with `validateBody()`.
+- Task 11: Replace where: any with Prisma types — 7 API routes — Replaced `const where: any` with `Prisma.*WhereInput` types (Employee, PayrollRun, Admission, LeaveRequest, Invoice, Student, User).
+- Task 12: Standardize Xendit webhook error format — `app/api/xendit/webhook/route.ts` — Changed `{ ok: false, error }` to `{ error }` for consistency.
+- Task 13: Replace toLocaleDateString in attendance export — Already fixed by parallel session (0 instances remaining).
 
 ## Verification
 
@@ -98,7 +106,35 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 - Task 5: Gates passed (build + vitest run). Employee detail status uses StatusBadge.
 - Task 6: Gates passed (build + vitest run). Teacher class-attendance uses proper Tailwind status classes.
 - Task 7: Gates passed (build + vitest run). Teacher profile uses StatusBadge.
+- Task 8: Gates passed (build + vitest run). Parent assessments uses proper Tailwind classes.
+- Task 9: Gates passed (build + vitest run). 2 soft deletes + 5 documented hard deletes.
+- Task 10: Gates passed (build + vitest run). Zod validation on leave request POST.
+- Task 11: Gates passed (build + vitest run). Zero `where: any` in API routes.
+- Task 12: Gates passed (build + vitest run). Xendit webhook uses `{ error }` format.
+- Task 13: Verified — already fixed.
 
 ## Ship Notes
 
-<filled by /ship>
+### Database Migrations
+None — no schema changes. ClassSection and AcademicYear already had status fields.
+
+### Environment Variables
+None.
+
+### Manual Smoke Test Steps
+1. **Login page** (`/`): Verify colors render correctly (teal background, primary buttons). Both Supabase and demo mode.
+2. **Admin pages**: Load each list page (students, employees, invoices, admissions, payroll, leave). Verify toast errors appear (not console errors). Test date formatting on attendance page.
+3. **Teacher portal**: Login as teacher → verify profile shows StatusBadge "Aktif". Check class-attendance colors (Hadir green, Tidak Hadir red).
+4. **Parent portal**: Check assessments table score colors (BB red, MB orange, BSH green, BSB teal).
+5. **Attendance page**: Verify DataTableRowActions (edit/override) works in action column.
+6. **Staging banner**: Verify yellow banner shows on preview deploys.
+
+### Rollback Plan
+```bash
+git revert HEAD~8..HEAD  # Revert all 8 commits from this cycle
+```
+
+### Summary
+- **UI**: 13+ hardcoded hex colors → CSS variables. 7 console.error → toast.error. 4 toLocaleDateString → formatDate. 3 Badge → StatusBadge. 5 arbitrary CSS var refs → Tailwind theme classes. 1 raw button → DataTableRowActions.
+- **API**: 2 hard deletes → soft delete (ClassSection INACTIVE, AcademicYear ARCHIVED). 5 hard deletes documented as intentional. Zod validation on leave request POST. 7 `where: any` → Prisma types. Xendit webhook error format standardized.
+- **Infrastructure**: 5 stale worktrees cleaned up (~1GB freed). 69 tests passing.

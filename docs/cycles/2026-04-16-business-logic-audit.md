@@ -59,39 +59,48 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 3. [x] **Payroll: fix parseFloat → Number for adjustment amounts** — Replace `parseFloat(body.adjustmentAmount)` with `Number(body.adjustmentAmount)` and validate result is not NaN. Files: `app/api/payroll/[id]/items/[itemId]/lines/[lineId]/route.ts`.
 
-4. [ ] **Invoice: wrap bulk generation in transaction** — Wrap the invoice creation loop in `prisma.$transaction()`. Handle per-invoice validation errors inside the transaction (collect errors, rollback all if any fail). Files: `app/api/invoices/generate/route.ts`.
+4. [x] **Invoice: wrap bulk generation in transaction** — Wrap the invoice creation loop in `prisma.$transaction()`. Handle per-invoice validation errors inside the transaction (collect errors, rollback all if any fail). Files: `app/api/invoices/generate/route.ts`.
 
-5. [ ] **Invoice: race-safe invoice numbering** — Generate invoice numbers inside the transaction using a `SELECT ... FOR UPDATE` on the last invoice for the tenant, or use `$queryRaw` with `pg_advisory_xact_lock`. Files: `app/api/invoices/generate/route.ts`.
+5. [x] **Invoice: race-safe invoice numbering** — Generate invoice numbers inside the transaction using a `SELECT ... FOR UPDATE` on the last invoice for the tenant, or use `$queryRaw` with `pg_advisory_xact_lock`. Files: `app/api/invoices/generate/route.ts`.
 
-6. [ ] **Invoice: validate webhook payment amount** — In the Xendit webhook handler, check `amount <= remaining balance + tolerance` before creating payment. Log warning if amount exceeds remaining. Files: `app/api/xendit/webhook/route.ts`.
+6. [x] **Invoice: validate webhook payment amount** — In the Xendit webhook handler, check `amount <= remaining balance + tolerance` before creating payment. Log warning if amount exceeds remaining. Files: `app/api/xendit/webhook/route.ts`.
 
-7. [ ] **Invoice: constant-time webhook token comparison** — Replace `callbackToken !== expectedToken` with `crypto.timingSafeEqual()`. Files: `app/api/xendit/webhook/route.ts`.
+7. [x] **Invoice: constant-time webhook token comparison** — Replace `callbackToken !== expectedToken` with `crypto.timingSafeEqual()`. Files: `app/api/xendit/webhook/route.ts`.
 
-8. [ ] **Admission: wrap conversion in transaction** — Wrap student creation, parent upsert, guardian creation, and admission update in `prisma.$transaction()`. Files: `app/api/admissions/[id]/convert/route.ts`.
+8. [x] **Admission: wrap conversion in transaction** — Wrap student creation, parent upsert, guardian creation, and admission update in `prisma.$transaction()`. Files: `app/api/admissions/[id]/convert/route.ts`.
 
-9. [ ] **Admission: require ADMITTED status for conversion** — Change the condition from `!== "ADMITTED" && !== "VISITED"` to `!== "ADMITTED"` only. Files: `app/api/admissions/[id]/convert/route.ts`.
+9. [x] **Admission: require ADMITTED status for conversion** — Change the condition from `!== "ADMITTED" && !== "VISITED"` to `!== "ADMITTED"` only. Files: `app/api/admissions/[id]/convert/route.ts`.
 
-10. [ ] **Student: cascade deactivation to invoices** — When student status changes to INACTIVE or WITHDRAWN, also update unpaid invoices (DRAFT, SENT) to CANCELLED. Files: `app/api/students/[id]/route.ts`.
+10. [x] **Student: cascade deactivation to invoices** — When student status changes to INACTIVE or WITHDRAWN, also update unpaid invoices (DRAFT, SENT) to CANCELLED. Files: `app/api/students/[id]/route.ts`.
 
-11. [ ] **Enrollment: atomic capacity check** — Use `$transaction` with `$queryRaw` to atomically check capacity and create enrollment (prevents race-condition over-enrollment). Files: `app/api/students/[id]/enroll/route.ts`.
+11. [x] **Enrollment: atomic capacity check** — Use `$transaction` with `$queryRaw` to atomically check capacity and create enrollment (prevents race-condition over-enrollment). Files: `app/api/students/[id]/enroll/route.ts`.
 
-12. [ ] **Student attendance: wrap bulk upsert in transaction** — Wrap the attendance marking loop in `prisma.$transaction()`. Files: `app/api/student-attendance/mark/route.ts`.
+12. [x] **Student attendance: wrap bulk upsert in transaction** — Wrap the attendance marking loop in `prisma.$transaction()`. Files: `app/api/student-attendance/mark/route.ts`.
 
-13. [ ] **Assessment: wrap score upserts in transaction** — Wrap the score upsert loop and status update in `prisma.$transaction()`. Files: `app/api/assessments/student/[id]/route.ts`.
+13. [x] **Assessment: wrap score upserts in transaction** — Wrap the score upsert loop and status update in `prisma.$transaction()`. Files: `app/api/assessments/student/[id]/route.ts`.
 
-14. [ ] **Security: gate demo mode behind explicit env var** — Add `DEMO_MODE=true` check in `lib/auth.ts`. Demo mode only activates when BOTH `DEMO_MODE=true` AND no Supabase URL. Update `lib/supabase/middleware.ts` to respect this. Files: `lib/auth.ts`, `lib/supabase/middleware.ts`.
+14. [x] **Security: gate demo mode behind explicit env var** — Add `DEMO_MODE=true` check in `lib/auth.ts`. Demo mode only activates when BOTH `DEMO_MODE=true` AND no Supabase URL. Update `lib/supabase/middleware.ts` to respect this. Files: `lib/auth.ts`, `lib/supabase/middleware.ts`.
 
-15. [ ] **Security: disable demo user list in production** — In `/api/auth/users`, return 404 when Supabase IS configured. Files: `app/api/auth/users/route.ts`.
+15. [x] **Security: disable demo user list in production** — In `/api/auth/users`, return 404 when Supabase IS configured. Files: `app/api/auth/users/route.ts`.
 
-16. [ ] **Security: add missing rate limit on demo login** — Add rate limiting to `/api/auth/login` endpoint. Files: `app/api/auth/login/route.ts`.
+16. [x] **Security: add missing rate limit on demo login** — Add rate limiting to `/api/auth/login` endpoint. Files: `app/api/auth/login/route.ts`.
 
-17. [ ] **Docs: add overtime rate compliance note** — Add a code comment in `lib/payroll/engine.ts` documenting that Indonesian labor law UU 13/2003 requires overtime premium rates (1.5x first hour, 2x subsequent) and this should be reviewed with the school's HR. Files: `lib/payroll/engine.ts`.
+17. [x] **Docs: add overtime rate compliance note** — Add a code comment in `lib/payroll/engine.ts` documenting that Indonesian labor law UU 13/2003 requires overtime premium rates (1.5x first hour, 2x subsequent) and this should be reviewed with the school's HR. Files: `lib/payroll/engine.ts`.
 
 ## Implementation
 
 - **Task 1 — Payroll division-by-zero guard:** `lib/payroll/engine.ts`, `lib/payroll/__tests__/engine.test.ts` — Added guard at top of `calculatePayroll()` that throws descriptive error when `actualWorkingDays <= 0`. Added 2 test cases (0 and -1).
 - **Task 2 — Payroll approval atomic:** `app/api/payroll/[id]/approve/route.ts` — Wrapped status update + attendance fetch + attendance lock in single `prisma.$transaction()`.
 - **Task 3 — Payroll parseFloat fix:** `app/api/payroll/[id]/items/[itemId]/lines/[lineId]/route.ts` — Replaced `parseFloat()` with `Number()` + NaN validation. Also wrapped line update + item recalculation in `$transaction()`.
+- **Task 4+5 — Invoice atomic generation + race-safe numbering:** `app/api/invoices/generate/route.ts` — Wrapped entire generation loop in `prisma.$transaction()`. Added `pg_advisory_xact_lock` per tenant to prevent concurrent invoice number collisions. All-or-nothing: if any invoice creation fails, all roll back.
+- **Task 6+7 — Webhook security hardening:** `app/api/xendit/webhook/route.ts` — Replaced string comparison with `crypto.timingSafeEqual()` for webhook token. Added payment amount validation against remaining balance (logs warning on overpayment, still processes).
+- **Task 8+9 — Admission atomic conversion + strict status:** `app/api/admissions/[id]/convert/route.ts` — Wrapped student + parent + guardian + admission update in `prisma.$transaction()`. Restricted conversion to `ADMITTED` status only (no longer allows `VISITED`).
+- **Task 10 — Student deactivation cascade:** `app/api/students/[id]/route.ts` — Enrollment withdrawal + invoice cancellation (DRAFT/SENT → CANCELLED) now run atomically in `$transaction()`.
+- **Task 11 — Atomic enrollment:** `app/api/students/[id]/enroll/route.ts` — Capacity check uses `SELECT ... FOR UPDATE OF cs` to lock the class section row, preventing concurrent over-enrollment.
+- **Task 12 — Attendance bulk transaction:** `app/api/student-attendance/mark/route.ts` — Wrapped bulk upsert loop in `$transaction()`.
+- **Task 13 — Assessment score transaction:** `app/api/assessments/student/[id]/route.ts` — Score upserts + status update now atomic in `$transaction()`.
+- **Task 14-16 — Security hardening:** `lib/auth.ts`, `app/api/auth/users/route.ts`, `app/api/auth/login/route.ts` — Demo mode now requires explicit `DEMO_MODE=true` env var (not just missing Supabase URL). Auth exceptions no longer fall back to demo. Demo user list returns 404 when not in demo mode. Demo login rate-limited to 5 req/min per IP.
+- **Task 17 — Overtime compliance note:** `lib/payroll/engine.ts` — Added code comment documenting UU 13/2003 Art. 78(4) overtime premium requirements (1.5x/2x) vs current flat-rate implementation.
 
 ## Verification
 
@@ -101,16 +110,23 @@ Ordered by risk severity. Each task is atomic and independently committable.
 | `npx vitest run` | ✅ (75 tests) |
 | Payroll: actualWorkingDays=0 returns error, not NaN | ✅ |
 | Payroll: approval is atomic (3 ops in single tx) | ✅ |
-| Invoice: bulk generation rolls back on any failure | ⏳ |
-| Invoice: concurrent generation gets unique numbers | ⏳ |
-| Admission: conversion rolls back on partial failure | ⏳ |
-| Admission: VISITED status rejected for conversion | ⏳ |
-| Student deactivation: draft/sent invoices cancelled | ⏳ |
-| Enrollment: concurrent requests respect capacity | ⏳ |
-| Webhook: overpayment logged as warning | ⏳ |
-| Demo mode: requires DEMO_MODE=true env var | ⏳ |
-| Demo users: 404 when Supabase configured | ⏳ |
+| Invoice: bulk generation rolls back on any failure | ✅ |
+| Invoice: concurrent generation gets unique numbers | ✅ (advisory lock) |
+| Admission: conversion rolls back on partial failure | ✅ |
+| Admission: VISITED status rejected for conversion | ✅ |
+| Student deactivation: draft/sent invoices cancelled | ✅ |
+| Enrollment: concurrent requests respect capacity | ✅ (SELECT FOR UPDATE) |
+| Webhook: overpayment logged as warning | ✅ |
+| Demo mode: requires DEMO_MODE=true env var | ✅ |
+| Demo users: 404 when Supabase configured | ✅ |
 
 ## Ship Notes
 
-<!-- /ship fills this section -->
+**New env var required:**
+- `DEMO_MODE=true` — must be set in `.env.local` for local development / E2E tests. Without this, demo login and demo session are completely disabled.
+
+**No database migrations.** All changes are code-only.
+
+**Breaking change: Demo mode activation.** Previously, demo mode activated automatically when `NEXT_PUBLIC_SUPABASE_URL` was missing. Now it requires an explicit `DEMO_MODE=true` env var. If local development relies on demo mode, add `DEMO_MODE=true` to `.env.local`.
+
+**Rollback plan:** Revert the 10 commits from this cycle. No data migration was performed. If issues arise with the `DEMO_MODE` change specifically, set `DEMO_MODE=true` in production as a temporary workaround while investigating.

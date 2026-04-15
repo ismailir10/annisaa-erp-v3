@@ -26,26 +26,28 @@ export async function PUT(
   const { scores, status } = await req.json();
   // scores: [{ indicatorId, score, notes }]
 
-  if (scores?.length) {
-    for (const s of scores) {
-      await prisma.studentAssessmentScore.upsert({
-        where: { assessmentId_indicatorId: { assessmentId: id, indicatorId: s.indicatorId } },
-        update: { score: s.score, notes: s.notes ?? null },
-        create: { assessmentId: id, indicatorId: s.indicatorId, score: s.score, notes: s.notes ?? null },
+  // Atomic: save all scores + update status in a single transaction
+  await prisma.$transaction(async (tx) => {
+    if (scores?.length) {
+      for (const s of scores) {
+        await tx.studentAssessmentScore.upsert({
+          where: { assessmentId_indicatorId: { assessmentId: id, indicatorId: s.indicatorId } },
+          update: { score: s.score, notes: s.notes ?? null },
+          create: { assessmentId: id, indicatorId: s.indicatorId, score: s.score, notes: s.notes ?? null },
+        });
+      }
+    }
+
+    if (status) {
+      await tx.studentAssessment.update({
+        where: { id },
+        data: {
+          status,
+          publishedAt: status === "PUBLISHED" ? new Date() : undefined,
+        },
       });
     }
-  }
-
-  // Update status if provided
-  if (status) {
-    await prisma.studentAssessment.update({
-      where: { id },
-      data: {
-        status,
-        publishedAt: status === "PUBLISHED" ? new Date() : undefined,
-      },
-    });
-  }
+  });
 
   return NextResponse.json({ ok: true });
 }
