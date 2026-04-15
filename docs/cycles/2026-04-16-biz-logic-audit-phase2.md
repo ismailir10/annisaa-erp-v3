@@ -75,11 +75,30 @@ Ordered by risk severity (financial > data corruption > auth bypass > cache > ra
 - **Task 6 — Leave approval atomic:** `app/api/leave/requests/[id]/approve/route.ts` — Wrapped leave request update + all attendance record upserts in single `$transaction()`. If any attendance upsert fails, the entire approval rolls back.
 - **Task 7 — Employee code race-safe:** `app/api/employees/route.ts` — Wrapped code generation + employee creation + user creation in `$transaction()` with `pg_advisory_xact_lock` per tenant. Prevents duplicate employee codes from concurrent creation requests.
 - **Task 8 — Parent cache collision fix:** `lib/parent-helpers.ts` — Converted `getParentWithChildren` from `unstable_cache` with static key (all parents shared one cache entry = security bug) to a regular async function. Also fixed `StudentInvoices` type: `totalDue`/`totalPaid` changed from `unknown` to `number` with explicit `Number()` conversion in `getStudentInvoices`.
+- **Task 9 — Teaching assignments tenant isolation:** `app/api/teaching-assignments/my/route.ts` — Added `tenantId` filter via `classSection` relation. Added `!session?.tenantId` guard.
 
 ## Verification
 
-<!-- /build will fill this in after running gates -->
+| Gate | Status |
+|------|--------|
+| `npm run build` | ✅ |
+| `npx vitest run` | ✅ (69 tests) |
+| Manual payment: atomic + overpayment guard | ✅ |
+| Webhook payment: atomic + advisory lock | ✅ |
+| Enrollment: duplicate active enrollment blocked | ✅ |
+| Attendance: student-class validation | ✅ |
+| Assessment: score >= 0 + teacher auth | ✅ |
+| Leave: approval atomic | ✅ |
+| Employee: race-safe code generation | ✅ |
+| Parent cache: no cross-parent collision | ✅ |
+| Teaching assignments: tenant isolation | ✅ |
 
 ## Ship Notes
 
-<!-- /ship will fill this in -->
+**No env vars required.** All changes are code-only.
+
+**No database migrations.**
+
+**Breaking changes:** None — all fixes are additive (new validations, transaction wrapping). Existing valid workflows are unaffected.
+
+**Rollback plan:** Revert the 9 commits from this cycle. No data migration was performed.
