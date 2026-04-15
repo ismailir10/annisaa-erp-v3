@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
-import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helpers";
+import { getParentWithChildren, resolveSelectedChild, getStudentInvoices } from "@/lib/parent-helpers";
 import { UnpaidInvoicesTable } from "./unpaid-invoices-table";
 import Link from "next/link";
 import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
@@ -38,7 +38,7 @@ export default async function ParentDashboard({
 
   const student = selected.student;
   const enrollment = student.enrollments[0];
-  const unpaidInvoices = student.invoices;
+  const unpaidInvoices = await getStudentInvoices(student.id);
   const totalUnpaid = unpaidInvoices.reduce(
     (s, i) => s + (Number(i.totalDue) - Number(i.totalPaid)),
     0

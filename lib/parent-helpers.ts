@@ -1,6 +1,17 @@
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
 
+export type StudentInvoices = {
+  id: string;
+  invoiceNumber: string;
+  periodLabel: string;
+  totalDue: unknown;
+  totalPaid: unknown;
+  status: string;
+  xenditPaymentUrl: string | null;
+  createdAt: Date;
+};
+
 export type ParentChild = {
   studentId: string;
   studentName: string;
@@ -20,16 +31,6 @@ export type ParentChild = {
         name: string;
         program: { name: string };
       };
-    }[];
-    invoices: {
-      id: string;
-      invoiceNumber: string;
-      periodLabel: string;
-      totalDue: unknown;
-      totalPaid: unknown;
-      status: string;
-      xenditPaymentUrl: string | null;
-      createdAt: Date;
     }[];
   };
 };
@@ -60,11 +61,6 @@ export async function getParentWithChildren(session: SessionUser) {
                   },
                 },
                 take: 1,
-              },
-              invoices: {
-                where: { status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] } },
-                orderBy: { createdAt: "desc" as const },
-                take: 5,
               },
             },
           },
@@ -108,4 +104,31 @@ export function resolveSelectedChild(
   }
 
   return children[0];
+}
+
+/**
+ * Fetch invoices for a specific student.
+ * Only fetches unpaid/partially paid/overdue invoices, ordered by creation date.
+ */
+export async function getStudentInvoices(studentId: string): Promise<StudentInvoices[]> {
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      studentId,
+      status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+    },
+    orderBy: { createdAt: "desc" as const },
+    take: 5,
+    select: {
+      id: true,
+      invoiceNumber: true,
+      periodLabel: true,
+      totalDue: true,
+      totalPaid: true,
+      status: true,
+      xenditPaymentUrl: true,
+      createdAt: true,
+    },
+  });
+
+  return invoices;
 }
