@@ -22,7 +22,19 @@ export default async function ParentInvoicesPage({
 
   const invoices = await prisma.invoice.findMany({
     where: { studentId: selected.studentId, tenantId: session.tenantId!, status: { not: "DRAFT" } },
-    include: { payments: true },
+    include: {
+      payments: { orderBy: { paidAt: "desc" } },
+      lines: { include: { feeComponent: { select: { code: true, category: true } } } },
+      student: {
+        include: {
+          enrollments: {
+            where: { status: "ACTIVE" },
+            include: { classSection: { include: { program: true } } },
+            take: 1,
+          },
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -30,11 +42,40 @@ export default async function ParentInvoicesPage({
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
     periodLabel: inv.periodLabel,
+    dueDate: inv.dueDate,
     totalDue: Number(inv.totalDue),
     totalPaid: Number(inv.totalPaid),
     status: inv.status,
     xenditPaymentUrl: inv.xenditPaymentUrl,
+    sentAt: inv.sentAt?.toISOString() ?? null,
+    paidAt: inv.paidAt?.toISOString() ?? null,
     createdAt: inv.createdAt.toISOString(),
+    // For detail view
+    lines: inv.lines.map((l) => ({
+      id: l.id,
+      labelSnapshot: l.labelSnapshot,
+      amount: Number(l.amount),
+      finalAmount: Number(l.finalAmount),
+      adjustmentAmount: Number(l.adjustmentAmount),
+      adjustmentNote: l.adjustmentNote,
+    })),
+    payments: inv.payments.map((p) => ({
+      id: p.id,
+      amount: Number(p.amount),
+      method: p.method,
+      reference: p.reference,
+      paidAt: p.paidAt.toISOString(),
+    })),
+    student: {
+      name: inv.student.name,
+      nickname: inv.student.nickname,
+      classSection: inv.student.enrollments[0]?.classSection
+        ? {
+            name: inv.student.enrollments[0].classSection.name,
+            program: { name: inv.student.enrollments[0].classSection.program.name },
+          }
+        : null,
+    },
   }));
 
   const childTabsData = children.map((c) => ({
