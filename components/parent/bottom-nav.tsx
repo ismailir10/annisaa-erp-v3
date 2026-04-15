@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Home, Receipt, CalendarDays, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -14,6 +14,7 @@ const tabs = [
 
 export function ParentBottomNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   return (
     <nav className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom" aria-label="Navigasi utama orang tua">
@@ -28,7 +29,7 @@ export function ParentBottomNav() {
           return (
             <Link
               key={tab.href}
-              href={tab.href}
+              href={`${tab.href}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`}
               className="flex flex-col items-center justify-center gap-1 relative py-1 px-4"
               aria-label={tab.label}
               aria-current={isActive ? "page" : undefined}
