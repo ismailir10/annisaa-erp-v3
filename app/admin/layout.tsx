@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/admin/sidebar";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
@@ -11,7 +11,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  if (!session || session.role !== "SCHOOL_ADMIN") redirect("/");
+  if (!session || !isAdminRole(session.role)) redirect("/");
 
   return (
     <SidebarProvider>
