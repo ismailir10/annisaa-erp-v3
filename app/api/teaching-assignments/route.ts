@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+
+// Cache GET responses for 1 hour — assignments change when teachers are reassigned
+export const revalidate = 3600;
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -53,5 +57,6 @@ export async function POST(req: NextRequest) {
     data: { employeeId, classSectionId, role: role ?? "HOMEROOM" },
   });
 
+  revalidatePath("/api/teaching-assignments");
   return NextResponse.json(assignment, { status: 201 });
 }
