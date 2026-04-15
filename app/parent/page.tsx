@@ -154,6 +154,7 @@ export default async function ParentDashboard({
               totalDue: Number(inv.totalDue),
               totalPaid: Number(inv.totalPaid),
               status: inv.status,
+              xenditPaymentUrl: inv.xenditPaymentUrl,
             }))}
           />
         </div>

@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { formatRupiah } from "@/lib/format";
@@ -23,6 +24,7 @@ type UnpaidInvoiceItem = {
   totalDue: number;
   totalPaid: number;
   status: string;
+  xenditPaymentUrl: string | null;
 };
 
 const columns: ColumnDef<UnpaidInvoiceItem>[] = [
@@ -57,11 +59,33 @@ const columns: ColumnDef<UnpaidInvoiceItem>[] = [
   {
     id: "actions",
     header: "",
-    cell: () => (
-      <Link href="/parent/invoices" className="text-primary hover:underline flex items-center gap-1 text-xs">
-        Lihat <ExternalLink size={12} />
-      </Link>
-    ),
+    cell: ({ row }) => {
+      const inv = row.original;
+      const remaining = inv.totalDue - inv.totalPaid;
+
+      // Show payment button if URL exists and remaining > 0
+      if (inv.xenditPaymentUrl && remaining > 0) {
+        return (
+          <a
+            href={inv.xenditPaymentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block"
+          >
+            <Button size="sm">
+              <ExternalLink size={12} className="mr-1" /> Bayar
+            </Button>
+          </a>
+        );
+      }
+
+      // Otherwise, show link to invoices page
+      return (
+        <Link href="/parent/invoices" className="text-primary hover:underline flex items-center gap-1 text-xs">
+          Lihat <ExternalLink size={12} />
+        </Link>
+      );
+    },
   },
 ];
 

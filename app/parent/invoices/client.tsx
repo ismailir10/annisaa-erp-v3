@@ -6,10 +6,12 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Receipt, CheckCircle, Clock, ExternalLink, AlertCircle } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Receipt, CheckCircle, Clock, Eye, AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { InvoiceDetailSheet } from "./invoice-detail-sheet";
 
 const PARENT_INVOICE_LABELS: Record<string, string> = {
   SENT: "Belum Dibayar",
@@ -23,68 +25,44 @@ type InvoiceItem = {
   id: string;
   invoiceNumber: string;
   periodLabel: string;
+  dueDate: string;
   totalDue: number;
   totalPaid: number;
   status: string;
   xenditPaymentUrl: string | null;
+  sentAt: string | null;
+  paidAt: string | null;
   createdAt: string;
+  // For detail view
+  lines: Array<{
+    id: string;
+    labelSnapshot: string;
+    amount: number;
+    finalAmount: number;
+    adjustmentAmount: number;
+    adjustmentNote: string | null;
+  }>;
+  payments: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    reference: string | null;
+    paidAt: string;
+  }>;
+  student: {
+    name: string;
+    nickname: string | null;
+    classSection: {
+      name: string;
+      program: { name: string };
+    } | null;
+  };
 };
 
-const columns: ColumnDef<InvoiceItem>[] = [
-  {
-    accessorKey: "periodLabel",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Periode" />,
-    cell: ({ row }) => (
-      <div>
-        <span className="text-sm font-medium">{row.original.periodLabel}</span>
-        <p className="text-[10px] text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
-      </div>
-    ),
-  },
-  {
-    id: "amount",
-    accessorFn: (row) => row.totalDue,
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Jumlah" />,
-    cell: ({ row }) => {
-      const inv = row.original;
-      const remaining = inv.totalDue - inv.totalPaid;
-      return (
-        <div>
-          <span className="font-currency text-sm font-bold">{formatRupiah(inv.totalDue)}</span>
-          {inv.totalPaid > 0 && inv.totalPaid < inv.totalDue && (
-            <p className="font-currency text-[10px] text-success">Dibayar: {formatRupiah(inv.totalPaid)}</p>
-          )}
-          {remaining > 0 && inv.status !== "DRAFT" && (
-            <p className="font-currency text-[10px] text-destructive">Sisa: {formatRupiah(remaining)}</p>
-          )}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "status",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-    cell: ({ row }) => <StatusBadge status={row.original.status} label={PARENT_INVOICE_LABELS[row.original.status]} />,
-  },
-  {
-    id: "actions",
-    header: "",
-    cell: ({ row }) => {
-      const inv = row.original;
-      const remaining = inv.totalDue - inv.totalPaid;
-      if (!inv.xenditPaymentUrl || remaining <= 0) return null;
-      return (
-        <a href={inv.xenditPaymentUrl} target="_blank" rel="noopener noreferrer">
-          <Button size="sm">
-            <ExternalLink size={12} className="mr-1" /> Bayar
-          </Button>
-        </a>
-      );
-    },
-  },
-];
-
 export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("unpaid");
+
   useEffect(() => {
     if (data === null) {
       toast.error("Gagal memuat data tagihan");
@@ -102,9 +80,70 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
     );
   }
 
+  // Filter data based on status
+  const filteredData = data.filter((item) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "unpaid") return item.status === "SENT";
+    if (statusFilter === "partial") return item.status === "PARTIALLY_PAID";
+    if (statusFilter === "paid") return item.status === "PAID";
+    if (statusFilter === "overdue") return item.status === "OVERDUE";
+    return true;
+  });
+
   const totalDue = data.reduce((s, i) => s + i.totalDue, 0);
   const totalPaid = data.reduce((s, i) => s + i.totalPaid, 0);
   const paidCount = data.filter(i => i.status === "PAID").length;
+
+  const columns: ColumnDef<InvoiceItem>[] = [
+    {
+      accessorKey: "periodLabel",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Periode" />,
+      cell: ({ row }) => (
+        <div>
+          <span className="text-sm font-medium">{row.original.periodLabel}</span>
+          <p className="text-[10px] text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
+        </div>
+      ),
+    },
+    {
+      id: "amount",
+      accessorFn: (row) => row.totalDue,
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Jumlah" />,
+      cell: ({ row }) => {
+        const inv = row.original;
+        const remaining = inv.totalDue - inv.totalPaid;
+        return (
+          <div>
+            <span className="font-currency text-sm font-bold">{formatRupiah(inv.totalDue)}</span>
+            {inv.totalPaid > 0 && inv.totalPaid < inv.totalDue && (
+              <p className="font-currency text-[10px] text-success">Dibayar: {formatRupiah(inv.totalPaid)}</p>
+            )}
+            {remaining > 0 && inv.status !== "DRAFT" && (
+              <p className="font-currency text-[10px] text-destructive">Sisa: {formatRupiah(remaining)}</p>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} label={PARENT_INVOICE_LABELS[row.original.status]} />,
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setSelectedInvoice(row.original)}
+        >
+          <Eye size={14} className="mr-1" /> Lihat
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <div>
@@ -116,12 +155,37 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
         <StatCard label="Lunas" value={`${paidCount}/${data.length}`} icon={Clock} color="primary" index={2} />
       </div>
 
+      {/* Status Filter */}
+      <div className="mb-4">
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => value && setStatusFilter(value)}
+        >
+          <SelectTrigger className="w-full max-w-xs">
+            <SelectValue placeholder="Filter berdasarkan status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Status</SelectItem>
+            <SelectItem value="unpaid">Belum Dibayar</SelectItem>
+            <SelectItem value="partial">Dibayar Sebagian</SelectItem>
+            <SelectItem value="paid">Lunas</SelectItem>
+            <SelectItem value="overdue">Jatuh Tempo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <DataTable
         columns={columns}
-        data={data}
+        data={filteredData}
         defaultSort={{ field: "periodLabel", order: "desc" }}
         emptyTitle="Belum ada tagihan"
         emptyDescription="Tagihan akan muncul saat admin membuat tagihan bulanan."
+      />
+
+      <InvoiceDetailSheet
+        open={!!selectedInvoice}
+        onOpenChange={(open) => !open && setSelectedInvoice(null)}
+        invoice={selectedInvoice}
       />
     </div>
   );
