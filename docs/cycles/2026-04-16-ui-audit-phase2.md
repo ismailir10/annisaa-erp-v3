@@ -53,7 +53,7 @@ The first UI audit cycle (`2026-04-15-ui-consistency-fixes.md`) identified 9 vio
 
 Ordered, each atomic. Each task will be committed independently after `npm run build && npx vitest run` passes.
 
-1. [ ] **Replace console.error with toast.error in admin pages** — Update 7 instances across 6 admin pages (students, employees, invoices, admissions, payroll, leave). Accept: zero `console.error()` in `app/admin/`.
+1. [x] **Replace console.error with toast.error in admin pages** — Update 7 instances across 6 admin pages (students, employees, invoices, admissions, payroll, leave). Accept: zero `console.error()` in `app/admin/`.
 
 2. [ ] **Replace hardcoded hex colors in app/page.tsx and app/layout.tsx** — Replace all `text-[#xxx]`/`bg-[#xxx]` with CSS variable equivalents from globals.css. Accept: `grep -c 'text-\[#' app/page.tsx app/layout.tsx` returns 0.
 
@@ -83,11 +83,11 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 ## Implementation
 
-<filled by /build>
+- Task 1: Replace console.error with toast.error — `app/admin/{students,employees,invoices,admissions,payroll,leave}/page.tsx` — Replaced 7 `console.error()` calls with `toast.error()` in Indonesian. Added `import { toast } from "sonner"` to 3 files that were missing it (students, employees, payroll).
 
 ## Verification
 
-<filled by /build>
+- Task 1: Gates passed (build + vitest run). Zero `console.error` remaining in `app/admin/`.
 
 ## Ship Notes
 

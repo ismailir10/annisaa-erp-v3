@@ -10,6 +10,7 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
@@ -131,8 +132,8 @@ export default function PayrollListPage() {
       const json = await res.json();
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
-    } catch (err) {
-      console.error("Failed to fetch payroll runs:", err);
+    } catch {
+      toast.error("Gagal memuat data penggajian");
     } finally {
       setLoading(false);
     }
