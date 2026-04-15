@@ -62,7 +62,7 @@ export async function getParentWithChildren(session: SessionUser) {
                 take: 1,
               },
               invoices: {
-                where: { status: { in: ["SENT", "DRAFT", "OVERDUE"] } },
+                where: { status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] } },
                 orderBy: { createdAt: "desc" as const },
                 take: 5,
               },

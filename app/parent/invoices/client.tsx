@@ -9,6 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Receipt, CheckCircle, Clock, ExternalLink } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 
+const PARENT_INVOICE_LABELS: Record<string, string> = {
+  SENT: "Belum Dibayar",
+  PARTIALLY_PAID: "Dibayar Sebagian",
+  PAID: "Lunas",
+  OVERDUE: "Jatuh Tempo",
+  CANCELLED: "Dibatalkan",
+};
+
 type InvoiceItem = {
   id: string;
   invoiceNumber: string;
@@ -54,7 +62,7 @@ const columns: ColumnDef<InvoiceItem>[] = [
   {
     accessorKey: "status",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-    cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    cell: ({ row }) => <StatusBadge status={row.original.status} label={PARENT_INVOICE_LABELS[row.original.status]} />,
   },
   {
     id: "actions",

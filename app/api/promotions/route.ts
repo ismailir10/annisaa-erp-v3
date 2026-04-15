@@ -108,22 +108,22 @@ export async function POST(req: NextRequest) {
   const toPromote = enrollments.filter((e) => !excluded.has(e.studentId));
   const skipped = enrollments.length - toPromote.length;
 
-  // Check capacity for all students being promoted
-  const currentActive = targetSection._count.enrollments;
-  const needed = currentActive + toPromote.length;
-  if (needed > targetSection.capacity) {
-    return NextResponse.json(
-      {
-        error: `Kapasitas kelas tujuan tidak cukup. Tersedia: ${targetSection.capacity - currentActive}, dibutuhkan: ${toPromote.length}`,
-      },
-      { status: 400 }
-    );
-  }
-
   const today = new Date().toISOString().split("T")[0];
 
-  // Transaction: graduate old enrollments + create new ones
+  // Transaction: check capacity + graduate old enrollments + upsert new ones
+  try {
   await prisma.$transaction(async (tx) => {
+    // Re-check capacity inside transaction for consistency
+    const currentActive = await tx.studentEnrollment.count({
+      where: { classSectionId: targetClassSectionId, status: "ACTIVE" },
+    });
+    const needed = currentActive + toPromote.length;
+    if (needed > targetSection.capacity) {
+      throw new Error(
+        `Kapasitas kelas tujuan tidak cukup. Tersedia: ${targetSection.capacity - currentActive}, dibutuhkan: ${toPromote.length}`
+      );
+    }
+
     // Mark all old enrollments as GRADUATED
     await tx.studentEnrollment.updateMany({
       where: {
@@ -132,16 +132,27 @@ export async function POST(req: NextRequest) {
       data: { status: "GRADUATED" },
     });
 
-    // Create new ACTIVE enrollments
-    await tx.studentEnrollment.createMany({
-      data: toPromote.map((e) => ({
-        studentId: e.studentId,
-        classSectionId: targetClassSectionId,
-        enrollDate: today,
-        status: "ACTIVE",
-      })),
-    });
+    // Upsert new ACTIVE enrollments
+    for (const e of toPromote) {
+      await tx.studentEnrollment.upsert({
+        where: { studentId_classSectionId: { studentId: e.studentId, classSectionId: targetClassSectionId } },
+        create: {
+          studentId: e.studentId,
+          classSectionId: targetClassSectionId,
+          enrollDate: today,
+          status: "ACTIVE",
+        },
+        update: {
+          status: "ACTIVE",
+          enrollDate: today,
+        },
+      });
+    }
   });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Gagal memproses promosi";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   return NextResponse.json({
     promoted: toPromote.length,

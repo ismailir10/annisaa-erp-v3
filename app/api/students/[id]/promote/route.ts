@@ -66,13 +66,19 @@ export async function POST(
       data: { status: "GRADUATED", notes: notes || undefined },
     });
 
-    return tx.studentEnrollment.create({
-      data: {
+    return tx.studentEnrollment.upsert({
+      where: { studentId_classSectionId: { studentId, classSectionId: targetClassSectionId } },
+      create: {
         studentId,
         classSectionId: targetClassSectionId,
         enrollDate: today,
         status: "ACTIVE",
-        notes: notes || undefined,
+        notes: notes || null,
+      },
+      update: {
+        status: "ACTIVE",
+        enrollDate: today,
+        notes: notes || null,
       },
       include: {
         classSection: { select: { id: true, name: true } },

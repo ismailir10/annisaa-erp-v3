@@ -18,15 +18,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Check if already seeded
-  const existingYear = await prisma.academicYear.findFirst({
-    where: { tenantId: session.tenantId, name: "2025/2026" },
-  });
-  if (existingYear) {
-    return NextResponse.json({ message: "Already seeded", skipped: true });
-  }
-
   const tenantId = session.tenantId;
+
+  // Check if already seeded — skip only academic year creation if it exists
+  const existingYear = await prisma.academicYear.findFirst({
+    where: { tenantId, name: "2025/2026" },
+  });
 
   // Get campuses
   const campuses = await prisma.campus.findMany({ where: { tenantId } });
@@ -35,12 +32,15 @@ export async function POST(req: NextRequest) {
   const defaultCampusId = campuses[0]?.id;
   if (!defaultCampusId) return NextResponse.json({ error: "No campuses found" }, { status: 400 });
 
-  // 1. Academic Year
-  const academicYear = await prisma.academicYear.create({
-    data: { tenantId, name: "2025/2026", startDate: "2025-07-14", endDate: "2026-06-20", status: "ACTIVE" },
-  });
+  // 1. Academic Year (idempotent)
+  let academicYear = existingYear;
+  if (!academicYear) {
+    academicYear = await prisma.academicYear.create({
+      data: { tenantId, name: "2025/2026", startDate: "2025-07-14", endDate: "2026-06-20", status: "ACTIVE" },
+    });
+  }
 
-  // 2. Programs
+  // 2. Programs (idempotent)
   const programDefs = [
     { code: "DCARE", name: "Day Care", type: "YEAR_ROUND", ageMin: 24, ageMax: 36 },
     { code: "KB", name: "Kelompok Bermain", type: "SEMESTER", ageMin: 36, ageMax: 60 },
@@ -49,8 +49,10 @@ export async function POST(req: NextRequest) {
   ];
   const programMap: Record<string, string> = {};
   for (const p of programDefs) {
-    const created = await prisma.program.create({
-      data: { tenantId, code: p.code, name: p.name, type: p.type, ageMin: p.ageMin, ageMax: p.ageMax },
+    const created = await prisma.program.upsert({
+      where: { tenantId_code: { tenantId, code: p.code } },
+      update: {},
+      create: { tenantId, code: p.code, name: p.name, type: p.type, ageMin: p.ageMin, ageMax: p.ageMax },
     });
     programMap[p.code] = created.id;
   }
@@ -69,15 +71,26 @@ export async function POST(req: NextRequest) {
   ];
   const classMap: Record<string, string> = {};
   for (const cs of classDefs) {
-    const created = await prisma.classSection.create({
-      data: { tenantId, programId: programMap[cs.programCode], academicYearId: academicYear.id, name: cs.name, capacity: cs.capacity, campusId: cs.campusId },
+    let existing = await prisma.classSection.findFirst({
+      where: { tenantId, name: cs.name, academicYearId: academicYear.id },
     });
-    classMap[cs.key] = created.id;
+    if (!existing) {
+      existing = await prisma.classSection.create({
+        data: { tenantId, programId: programMap[cs.programCode], academicYearId: academicYear.id, name: cs.name, capacity: cs.capacity, campusId: cs.campusId },
+      });
+    }
+    classMap[cs.key] = existing.id;
   }
 
-  // 4. Students (import seed data inline — simplified version)
+  // 4. Students (import seed data inline — idempotent)
   let studentCount = 0;
   for (const s of students) {
+    // Idempotent: skip if student with same name + DOB already exists
+    const existingStudent = await prisma.student.findFirst({
+      where: { tenantId, name: s.name, dateOfBirth: s.dateOfBirth },
+    });
+    if (existingStudent) { studentCount++; continue; }
+
     const student = await prisma.student.create({
       data: {
         tenantId,
@@ -112,8 +125,10 @@ export async function POST(req: NextRequest) {
   for (const [classKey, email] of Object.entries(teacherEmails)) {
     const user = await prisma.user.findFirst({ where: { email, tenantId } });
     if (user?.employeeId && classMap[classKey]) {
-      await prisma.teachingAssignment.create({
-        data: { employeeId: user.employeeId, classSectionId: classMap[classKey], role: "HOMEROOM" },
+      await prisma.teachingAssignment.upsert({
+        where: { employeeId_classSectionId: { employeeId: user.employeeId, classSectionId: classMap[classKey] } },
+        update: {},
+        create: { employeeId: user.employeeId, classSectionId: classMap[classKey], role: "HOMEROOM" },
       });
       assignmentCount++;
     }
@@ -136,8 +151,10 @@ export async function POST(req: NextRequest) {
       if (!st.enrollments[0]) continue;
       const rand = Math.random();
       const status = rand < 0.75 ? "PRESENT" : rand < 0.85 ? "ABSENT" : rand < 0.95 ? "SICK" : "PERMISSION";
-      await prisma.studentAttendance.create({
-        data: { studentId: st.id, classSectionId: st.enrollments[0].classSectionId, date: dateStr, status },
+      await prisma.studentAttendance.upsert({
+        where: { studentId_date: { studentId: st.id, date: dateStr } },
+        update: {},
+        create: { studentId: st.id, classSectionId: st.enrollments[0].classSectionId, date: dateStr, status },
       });
       attCount++;
     }

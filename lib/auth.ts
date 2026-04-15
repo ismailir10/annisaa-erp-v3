@@ -116,6 +116,12 @@ async function getDemoSession(): Promise<SessionUser | null> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return null;
 
+  let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
+  if (user.role === "GUARDIAN" && !parentId) {
+    const parent = await prisma.parent.findFirst({ where: { email: user.email } });
+    parentId = parent?.id ?? null;
+  }
+
   return {
     id: user.id,
     email: user.email,
@@ -123,6 +129,6 @@ async function getDemoSession(): Promise<SessionUser | null> {
     name: user.name,
     tenantId: user.tenantId,
     employeeId: user.employeeId,
-    parentId: null,
+    parentId,
   };
 }

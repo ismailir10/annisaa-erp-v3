@@ -26,7 +26,7 @@ export default async function ParentAttendancePage({
   const startDate = thirtyDaysAgo.toISOString().split("T")[0];
 
   const records = await prisma.studentAttendance.findMany({
-    where: { studentId: selected.studentId, date: { gte: startDate } },
+    where: { studentId: selected.studentId, classSection: { tenantId: session.tenantId! }, date: { gte: startDate } },
     orderBy: { date: "desc" },
   });
 
