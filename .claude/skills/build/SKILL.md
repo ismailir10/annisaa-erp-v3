@@ -1,5 +1,7 @@
 ---
-description: Execute the tasks in the current cycle doc. Loops over tasks, building, testing, and reviewing each, committing per task. Combines incremental-implementation, test-driven-development, source-driven-development, frontend-ui-engineering, api-and-interface-design, security-and-hardening, browser-testing-with-devtools, debugging-and-error-recovery, code-review-and-quality, and code-simplification.
+name: build
+description: Execute the tasks in the current development cycle doc. Loops over tasks one at a time, implementing, testing, reviewing, and committing each separately with gates enforced between tasks. Folds in incremental-implementation, test-driven-development, source-driven-development, frontend-ui-engineering, api-and-interface-design, security-and-hardening, browser-testing-with-devtools, debugging-and-error-recovery, code-review-and-quality, and code-simplification from the upstream agent-skills plugin. Use after /spec has created a cycle doc.
+disable-model-invocation: true
 ---
 
 # /build — build + test + review, looping over tasks

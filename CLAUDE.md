@@ -497,7 +497,7 @@ lib/xendit/         Xendit API client
 lib/email/          Resend integration
 prisma/             Schema + seed data
 docs/cycles/        One markdown file per development cycle
-.claude/commands/   Project slash commands (/spec, /build, /ship)
+.claude/skills/     Project slash commands (spec/, build/, ship/ — each a SKILL.md)
 .githooks/          Pre-commit, prepare-commit-msg, pre-push hooks
 scripts/            check-role.sh, install-hooks.sh
 ```
