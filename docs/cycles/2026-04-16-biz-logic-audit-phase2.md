@@ -73,6 +73,7 @@ Ordered by risk severity (financial > data corruption > auth bypass > cache > ra
 - **Task 4 — Attendance student-class validation:** `app/api/student-attendance/mark/route.ts` — Added batch validation inside existing transaction that checks all studentIds have an ACTIVE enrollment in the specified classSectionId. Rejects entire batch if any student is not enrolled.
 - **Task 5 — Assessment score validation + teacher auth:** `app/api/assessments/student/[id]/route.ts` — Added score >= 0 validation before upsert. Added teacher authorization check: TEACHER role must have a TeachingAssignment for a class section whose program matches the assessment template's program. Admin bypass allowed.
 - **Task 6 — Leave approval atomic:** `app/api/leave/requests/[id]/approve/route.ts` — Wrapped leave request update + all attendance record upserts in single `$transaction()`. If any attendance upsert fails, the entire approval rolls back.
+- **Task 7 — Employee code race-safe:** `app/api/employees/route.ts` — Wrapped code generation + employee creation + user creation in `$transaction()` with `pg_advisory_xact_lock` per tenant. Prevents duplicate employee codes from concurrent creation requests.
 
 ## Verification
 
