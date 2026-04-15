@@ -96,7 +96,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
    - Fix any inconsistent spacing, padding, or border radius
    - Verify: All teacher portal pages follow CLAUDE.md standards
 
-6. [ ] Ensure header consistency across both portals
+6. [x] Ensure header consistency across both portals
    - Compare TeacherHeader and ParentHeader components
    - Ensure identical structure: logo + school name + username + logout button
    - Verify `title="Keluar"` on logout buttons for accessibility
@@ -123,6 +123,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 - Task 3: Remove "Cuti" tab from teacher bottom navigation — `components/teacher/bottom-nav.tsx` — Removed Cuti tab, reduced from 5 to 4 tabs, removed unused CalendarOff import.
 - Task 4: Audit and fix parent portal inconsistencies — `app/parent/invoices/invoice-detail-sheet.tsx` — Fixed dynamic Tailwind class names, replaced with proper VARIANT_STYLES mapping using CSS variables.
 - Task 5: Audit and fix teacher portal inconsistencies — No changes needed, all teacher portal pages already follow CLAUDE.md standards.
+- Task 6: Ensure header consistency — No changes needed, TeacherHeader and ParentHeader already identical.
 
 ## Verification
 
@@ -131,6 +132,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 - Task 3: Gates passed (TypeScript compilation successful, no new errors introduced in teacher/bottom-nav.tsx), Manual smoke: Bottom nav now shows 4 tabs with proper spacing.
 - Task 4: Gates passed (TypeScript compilation successful, no new errors introduced in parent/invoices/invoice-detail-sheet.tsx), Manual smoke: Status messages now use proper CSS variable classes.
 - Task 5: Gates passed (TypeScript compilation successful, no new errors), Manual smoke: All teacher portal pages use proper CSS variables.
+- Task 6: Gates passed (TypeScript compilation successful, no new errors), Manual smoke: Both headers identical in structure, height, padding.
 
 ## Ship Notes
 
