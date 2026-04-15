@@ -445,11 +445,11 @@ export async function POST(req: NextRequest) {
 
   // ── 12. Leave Requests ────────────────────────────────────
   const leaveRequestDefs = [
-    { empKode: "ER2", leaveType: "ANNUAL", startDate: "2026-04-01", endDate: "2026-04-03", days: 3, reason: "Urusan keluarga", status: "APPROVED" },
-    { empKode: "HH3", leaveType: "SICK", startDate: "2026-04-07", endDate: "2026-04-08", days: 2, reason: "Sakit demam", status: "APPROVED" },
-    { empKode: "AY4", leaveType: "ANNUAL", startDate: "2026-04-15", endDate: "2026-04-16", days: 2, reason: "Acara pernikahan", status: "PENDING" },
-    { empKode: "SNF17", leaveType: "PERMISSION", startDate: "2026-04-10", endDate: "2026-04-10", days: 1, reason: "Keperluan mendadak", status: "REJECTED", reviewNote: "Tidak bisa karena jadwal asesmen" },
-    { empKode: "NK20", leaveType: "ANNUAL", startDate: "2026-03-20", endDate: "2026-03-21", days: 2, reason: "Mudik", status: "CANCELLED" },
+    { empKode: "E002", leaveType: "ANNUAL", startDate: "2026-04-01", endDate: "2026-04-03", days: 3, reason: "Urusan keluarga", status: "APPROVED" },
+    { empKode: "E003", leaveType: "SICK", startDate: "2026-04-07", endDate: "2026-04-08", days: 2, reason: "Sakit demam", status: "APPROVED" },
+    { empKode: "E004", leaveType: "ANNUAL", startDate: "2026-04-15", endDate: "2026-04-16", days: 2, reason: "Acara pernikahan", status: "PENDING" },
+    { empKode: "E007", leaveType: "PERMISSION", startDate: "2026-04-10", endDate: "2026-04-10", days: 1, reason: "Keperluan mendadak", status: "REJECTED", reviewNote: "Tidak bisa karena jadwal asesmen" },
+    { empKode: "E008", leaveType: "ANNUAL", startDate: "2026-03-20", endDate: "2026-03-21", days: 2, reason: "Mudik", status: "CANCELLED" },
   ];
 
   let leaveCount = 0;

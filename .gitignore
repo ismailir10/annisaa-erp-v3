@@ -43,3 +43,10 @@ tsconfig.tsbuildinfo
 # Reference material (large xlsx, third-party repos, etc.) — kept locally, never committed
 artifacts/
 
+# Third-party agent skill plugins (loaded from ~/.claude/, not this repo)
+.agents/
+
+# Playwright output
+playwright-report/
+test-results/
+
