@@ -63,6 +63,13 @@ const METHOD_LABELS: Record<string, string> = {
   OTHER: "Lainnya",
 };
 
+const VARIANT_STYLES: Record<string, string> = {
+  success: "bg-status-present/10 border-status-present/20",
+  muted: "bg-muted/50 border-border",
+  destructive: "bg-destructive/10 border-destructive/20",
+  warning: "bg-warning/10 border-warning/20",
+};
+
 export function InvoiceDetailSheet({
   open,
   onOpenChange,
@@ -142,7 +149,7 @@ export function InvoiceDetailSheet({
         </SheetHeader>
 
         {/* Status Message */}
-        <div className={`mt-4 p-3 rounded-lg bg-${statusMsg.variant}/10 border border-${statusMsg.variant}/20 flex items-start gap-3`}>
+        <div className={`mt-4 p-3 rounded-lg flex items-start gap-3 ${VARIANT_STYLES[statusMsg.variant]}`}>
           {statusMsg.icon}
           <p className="text-xs flex-1">{statusMsg.message}</p>
         </div>
