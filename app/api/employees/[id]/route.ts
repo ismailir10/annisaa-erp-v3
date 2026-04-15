@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
 
 export async function GET(
   _req: NextRequest,
@@ -20,6 +20,10 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  if (!canViewSalary(session.role)) {
+    const { bankAccountNo, bankName, bpjsEnrolled, ...rest } = employee;
+    return NextResponse.json(rest);
+  }
   return NextResponse.json(employee);
 }
 
@@ -28,7 +32,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

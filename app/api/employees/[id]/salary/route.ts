@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, canViewSalary } from "@/lib/auth";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
 
 export async function GET(
@@ -9,6 +9,9 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  if (!canViewSalary(session.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id } = await params;
   if (!(await verifyTenantOwnership("employee", id, session.tenantId))) {
@@ -29,7 +32,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !canViewSalary(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

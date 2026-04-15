@@ -401,6 +401,7 @@ Also add to the "Security Checklist for New Routes" section:
 - T1: Auth helpers — `lib/auth.ts`, `app/admin/layout.tsx`, `app/api/auth/login/route.ts`, `vitest.config.ts` — added `SUPER_ADMIN` to SessionUser union, exported `isSuperAdmin`/`isAdminRole`/`canViewSalary` helpers, updated layout gate and demo login redirect, fixed vitest worktree exclusion
 - T2: Data migration + seed — `prisma/migrations/20260416000002_rename_school_admin_to_super_admin/migration.sql`, `prisma/seed.ts`, `e2e/admin.spec.ts` — reversible SQL migration renames SCHOOL_ADMIN→SUPER_ADMIN in prod, seed creates u_super_admin + u_school_admin fixtures with stable IDs, Playwright spec updated to u_super_admin
 - T3: Payroll route sweep — all 9 `app/api/payroll/**` routes — changed `session.role !== "SCHOOL_ADMIN"` → `!canViewSalary(session.role)`, fixed payroll/route.ts silent-fail to proper 403, added `canViewSalary` import to each handler
+- T4: Employee route role-check + field stripping — `app/api/employees/route.ts`, `app/api/employees/[id]/route.ts`, `app/api/employees/[id]/salary/route.ts` — POST/PUT locked to `isAdminRole`, GET salary locked to `canViewSalary`, GET list+detail strips `bankAccountNo`/`bankName`/`bpjsEnrolled` for non-SUPER_ADMIN
 
 ---
 
@@ -424,8 +425,8 @@ Also add to the "Security Checklist for New Routes" section:
 
 | Gate | Status |
 |------|--------|
-| `npm run build` | T1–T3 ✓ |
-| `npx vitest run` | T1–T3 ✓ (69/69) |
+| `npm run build` | T1–T4 ✓ |
+| `npx vitest run` | T1–T4 ✓ (69/69) |
 | `npx playwright test` | pending |
 
 ---
