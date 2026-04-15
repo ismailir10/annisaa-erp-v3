@@ -61,7 +61,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 4. [x] **Fix attendance page action column** — Replace raw `<button>` override action with proper DataTableRowActions or equivalent pattern. Accept: attendance page action column follows standard pattern.
 
-5. [ ] **Fix inline Badge → StatusBadge in admin** — Check employees, dashboard-client, fees pages for inline Badge with hardcoded colors; replace with StatusBadge. Accept: no inline Badge with hardcoded color classes in admin pages.
+5. [x] **Fix inline Badge → StatusBadge in admin** — Check employees, dashboard-client, fees pages for inline Badge with hardcoded colors; replace with StatusBadge. Accept: no inline Badge with hardcoded color classes in admin pages.
 
 6. [ ] **Fix hardcoded colors in teacher class-attendance** — Replace `bg-[var(--status-present)]` etc. with proper CSS variable classes. Accept: zero `text-[`/`bg-[` in `app/teacher/class-attendance/page.tsx`.
 
@@ -87,6 +87,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 - Task 2: Replace hardcoded hex colors — `app/page.tsx`, `app/layout.tsx` — Replaced 13+ hardcoded hex colors in login page with CSS variable classes (bg-sidebar, text-sidebar-foreground, bg-primary, bg-sidebar-accent). Staging banner uses `bg-yellow-400 text-sidebar`.
 - Task 3: Replace toLocaleDateString with formatDate — `lib/format.ts`, `app/admin/{employees/[id],invoices,attendance,attendance/monthly}/page.tsx` — Added `formatMonthLabel()` to lib/format. Replaced 4 toLocaleDateString calls in admin pages with formatDate/formatMonthLabel.
 - Task 4: Fix attendance page action column — `app/admin/attendance/page.tsx` — Replaced raw `<button>` with `DataTableRowActions onEdit`. Removed unused `Pencil` import.
+- Task 5: Fix inline Badge → StatusBadge in admin — `app/admin/employees/[id]/page.tsx` — Replaced `<Badge>Tidak Aktif</Badge>` with `<StatusBadge status="INACTIVE" />`. Other Badge uses are labels (codes, categories) not status indicators.
 
 ## Verification
 
@@ -94,6 +95,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 - Task 2: Gates passed (build + vitest run). Zero hardcoded hex colors in login page and layout.
 - Task 3: Gates passed (build + vitest run). Zero `toLocaleDateString` in `app/admin/`.
 - Task 4: Gates passed (build + vitest run). Attendance page uses DataTableRowActions.
+- Task 5: Gates passed (build + vitest run). Employee detail status uses StatusBadge.
 
 ## Ship Notes
 
