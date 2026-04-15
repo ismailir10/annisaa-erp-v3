@@ -12,7 +12,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { InvoiceFilter } from "@/components/parent/invoice-filter";
-import { InvoiceCard } from "@/components/parent/invoice-card";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 
 // Dynamically import InvoiceDetailSheet to reduce initial bundle size
@@ -194,45 +193,14 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
         />
       </div>
 
-      {/* Hybrid View: Mobile Cards / Desktop Table */}
-      <div className="space-y-4">
-        {/* Mobile: Card View */}
-        <div className="md:hidden space-y-3">
-          {filteredData.length === 0 ? (
-            <div className="text-center py-12">
-              <Receipt className="mx-auto h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-              <p className="text-sm text-muted-foreground">
-                {statusFilter === "all"
-                  ? "Belum ada tagihan"
-                  : `Tidak ada tagihan ${PARENT_INVOICE_LABELS[statusFilter as keyof typeof PARENT_INVOICE_LABELS]?.toLowerCase()}`
-                }
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Tagihan akan muncul saat admin membuat tagihan bulanan.
-              </p>
-            </div>
-          ) : (
-            filteredData.map((invoice) => (
-              <InvoiceCard
-                key={invoice.id}
-                invoice={invoice}
-                onView={() => setSelectedInvoice(invoice)}
-              />
-            ))
-          )}
-        </div>
-
-        {/* Desktop: Table View */}
-        <div className="hidden md:block">
-          <DataTable
-            columns={columns}
-            data={filteredData}
-            defaultSort={{ field: "periodLabel", order: "desc" }}
-            emptyTitle="Belum ada tagihan"
-            emptyDescription="Tagihan akan muncul saat admin membuat tagihan bulanan."
-          />
-        </div>
-      </div>
+      {/* DataTable - Responsive for both mobile and desktop */}
+      <DataTable
+        columns={columns}
+        data={filteredData}
+        defaultSort={{ field: "periodLabel", order: "desc" }}
+        emptyTitle="Belum ada tagihan"
+        emptyDescription="Tagihan akan muncul saat admin membuat tagihan bulanan."
+      />
 
       <InvoiceDetailSheet
         open={!!selectedInvoice}
