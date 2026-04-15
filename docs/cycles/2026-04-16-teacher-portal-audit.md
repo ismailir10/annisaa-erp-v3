@@ -80,6 +80,7 @@ Additionally there are several code-quality issues (double padding from layout, 
 - Task 3: Make Profile accessible from header — `components/teacher/header.tsx` — replaced hidden user name with visible avatar circle + first name that links to `/teacher/profile`. Visible on all screen sizes now.
 - Task 4: Fix CSS variable usage in home-client — `app/teacher/home-client.tsx` — replaced `bg-[var(--status-present)]`/`bg-[var(--status-late)]` with `bg-status-present`/`bg-status-late`, replaced `text-[var(--status-present)]`/`text-[var(--status-late)]` with `text-status-present-text`/`text-status-late-text`, wrapped today status in Shadcn `<Card>` instead of raw div.
 - Task 5: Fix error handling gaps — `app/teacher/slips/page.tsx`, `app/teacher/class-attendance/page.tsx` — slips page now checks `res.ok` before parsing and shows toast on failure; class-attendance replaced silent `.catch(() => {})` with toast error, and `loadStudents` now shows toast on fetch failure.
+- Task 6: Calendar uses shared formatTime — `components/attendance/calendar.tsx` — removed inline `formatTime` function, imported shared `formatTime` from `@/lib/format` (same signature, same behavior).
 
 ## Verification
 
@@ -88,6 +89,7 @@ Additionally there are several code-quality issues (double padding from layout, 
 - Task 3: gates passed (build + vitest 69/69), header now shows avatar + name linking to profile
 - Task 4: gates passed (build + vitest 69/69), zero `var(--` remaining in home-client.tsx
 - Task 5: gates passed (build + vitest 69/69), no more silent error swallowing on teacher pages
+- Task 6: gates passed (build + vitest 69/69), calendar uses shared formatTime
 
 ## Ship Notes
 
