@@ -8,8 +8,8 @@ We need to visually verify three parent portal screens — **Tagihan (invoices)*
 
 | Account | Parent | Student | Class |
 |---|---|---|---|
-| `commandprompt.adhan@gmail.com` | Ibu Rina (g_4) | Ahmad Faris Abdullah (st_4) | TKIT B |
-| `rightjet.hq@gmail.com` | Ibu Nurul | Bilal Hakim | Unknown (no enrollment!) |
+| `parent01@example.test` | Ibu Rina (g_4) | Ahmad Faris Abdullah (st_4) | TKIT B |
+| `parent02@example.test` | Demo Parent 02 | Bilal Hakim | Unknown (no enrollment!) |
 
 **Bugs & oddities found during the audit (fix in this cycle):**
 
@@ -18,7 +18,7 @@ We need to visually verify three parent portal screens — **Tagihan (invoices)*
 3. **Invoice `periodLabel` = `"may 2026"`** — lowercase English. Should be `"Mei 2026"` (Indonesian, titlecase), consistent with existing `"April 2026"` and `"Maret 2026"`.
 4. **Ahmad Faris has 0 unpaid invoices** — all 3 invoices are `PAID`. Dashboard calls `getStudentInvoices()` which filters for `SENT | PARTIALLY_PAID | OVERDUE`. Tagihan screen shows them (filter `status != DRAFT`), but the dashboard widget is empty. Need 1 SENT invoice to make the dashboard meaningful.
 5. **Only 5 days of attendance (Apr 8–14)** — portal shows last 30 days. Five records means an almost-empty calendar. Need ~15 school-day backfill (mid-March → Apr 7) with varied statuses.
-6. **Bilal has no `StudentAssessment`** — rightjet account shows empty rapor. Need 1 PUBLISHED assessment with scores.
+6. **Bilal has no `StudentAssessment`** — parent02 account shows empty rapor. Need 1 PUBLISHED assessment with scores.
 
 ---
 
@@ -26,13 +26,13 @@ We need to visually verify three parent portal screens — **Tagihan (invoices)*
 
 ### Acceptance criteria
 
-- [ ] Logging in as `commandprompt.adhan@gmail.com` shows:
+- [ ] Logging in as `parent01@example.test` shows:
   - Dashboard: child card (Ahmad Faris, TKIT B), at least 1 unpaid invoice in the widget
   - Tagihan: list of invoices (SENT + PAID history), detail sheet opens correctly with line items + payment history
   - Kehadiran: calendar with ~20 days of data, variety of statuses (PRESENT / ABSENT / SICK / LATE)
   - Rapor: 1 published assessment with category + indicator scores
 
-- [ ] Logging in as `rightjet.hq@gmail.com` shows:
+- [ ] Logging in as `parent02@example.test` shows:
   - Dashboard: child card (Bilal Hakim, class name visible), 1 unpaid SENT invoice on widget
   - Tagihan: 1 SENT invoice visible in list + detail sheet
   - Kehadiran: ~20 days of data with variety
@@ -111,11 +111,11 @@ Seed rows for **both** `st_4` and Bilal Hakim's studentId. Use their known `clas
 - [x] SQL: `bilal_assessment_scores` = 24
 
 ### Manual smoke (staging)
-- [ ] `commandprompt.adhan@gmail.com` → dashboard shows child card + unpaid Mei 2026 invoice widget
+- [ ] `parent01@example.test` → dashboard shows child card + unpaid Mei 2026 invoice widget
 - [ ] → Tagihan: 4 invoices visible; detail sheet opens with lines and payments
 - [ ] → Kehadiran: calendar shows Mar–Apr data, mixed statuses
 - [ ] → Rapor: published assessment renders with category rows + score badges
-- [ ] `rightjet.hq@gmail.com` → dashboard shows "Bilal Hakim" with class name (not null)
+- [ ] `parent02@example.test` → dashboard shows "Bilal Hakim" with class name (not null)
 - [ ] → Tagihan: 1 SENT invoice; detail sheet opens
 - [ ] → Kehadiran: mixed attendance data
 - [ ] → Rapor: published assessment renders
@@ -145,8 +145,8 @@ DELETE FROM "StudentAssessment" WHERE id = 'sa_bilal_s1';
 ```
 
 **Manual smoke steps** (on staging — annisaa-erp-v3-staging):
-1. Login as `commandprompt.adhan@gmail.com` → verify dashboard widget shows Mei 2026 unpaid
-2. Login as `rightjet.hq@gmail.com` → verify class name shows "KB Metland", rapor loads
+1. Login as `parent01@example.test` → verify dashboard widget shows Mei 2026 unpaid
+2. Login as `parent02@example.test` → verify class name shows "KB Metland", rapor loads
 
 **Follow-up (out of scope for this cycle):**
 - `Invoice.parentId` should be set at invoice creation time in the API (`app/api/invoices/route.ts`) — resolved by querying `StudentGuardian` for the student's primary guardian at POST time.
