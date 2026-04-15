@@ -57,8 +57,20 @@ export default function StudentDetailPage() {
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
 
-  // Deactivate
-  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  // Promote (Naik Kelas)
+  const [promoteDialog, setPromoteDialog] = useState(false);
+  const [promoteTarget, setPromoteTarget] = useState("");
+  const [promoteNotes, setPromoteNotes] = useState("");
+  const [promoting, setPromoting] = useState(false);
+
+  // Graduate (Luluskan)
+  const [graduateOpen, setGraduateOpen] = useState(false);
+  const [graduating, setGraduating] = useState(false);
+
+  // Withdraw (Keluarkan)
+  const [withdrawDialog, setWithdrawDialog] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const fetchStudent = useCallback(async () => {
     try {
@@ -150,14 +162,71 @@ export default function StudentDetailPage() {
     setEnrolling(false);
   }
 
-  // --- Deactivate ---
-  async function handleDeactivate() {
-    const res = await fetch(`/api/students/${id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "INACTIVE" }),
-    });
-    if (res.ok) { toast.success("Siswa dinonaktifkan"); setDeactivateOpen(false); fetchStudent(); }
-    else toast.error("Gagal menonaktifkan");
+  // --- Promote (Naik Kelas) ---
+  async function openPromoteDialog() {
+    try {
+      const res = await fetch("/api/class-sections");
+      if (!res.ok) { toast.error("Gagal memuat data kelas"); return; }
+      setSections(await res.json());
+      setPromoteTarget("");
+      setPromoteNotes("");
+      setPromoteDialog(true);
+    } catch { toast.error("Terjadi kesalahan"); }
+  }
+
+  async function handlePromote() {
+    if (!promoteTarget) { toast.error("Pilih kelas tujuan"); return; }
+    setPromoting(true);
+    try {
+      const res = await fetch(`/api/students/${id}/promote`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetClassSectionId: promoteTarget, notes: promoteNotes }),
+      });
+      if (res.ok) { toast.success("Siswa berhasil naik kelas"); setPromoteDialog(false); fetchStudent(); }
+      else { const d = await res.json(); toast.error(d.error || "Gagal naik kelas"); }
+    } catch { toast.error("Terjadi kesalahan"); }
+    setPromoting(false);
+  }
+
+  // --- Graduate (Luluskan) ---
+  async function handleGraduate() {
+    setGraduating(true);
+    try {
+      const res = await fetch(`/api/students/${id}/graduate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) { toast.success("Siswa berhasil diluluskan"); setGraduateOpen(false); fetchStudent(); }
+      else { const d = await res.json(); toast.error(d.error || "Gagal meluluskan"); }
+    } catch { toast.error("Terjadi kesalahan"); }
+    setGraduating(false);
+  }
+
+  // --- Withdraw (Keluarkan) ---
+  async function handleWithdraw() {
+    if (!withdrawReason.trim()) { toast.error("Alasan wajib diisi"); return; }
+    setWithdrawing(true);
+    try {
+      const res = await fetch(`/api/students/${id}/withdraw`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: withdrawReason }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.unpaidInvoices > 0) {
+          toast.success(`Siswa dikeluarkan. Perhatian: ${data.unpaidInvoices} tagihan belum lunas.`);
+        } else {
+          toast.success("Siswa berhasil dikeluarkan");
+        }
+        setWithdrawDialog(false);
+        setWithdrawReason("");
+        fetchStudent();
+      } else {
+        const d = await res.json();
+        toast.error(d.error || "Gagal mengeluarkan siswa");
+      }
+    } catch { toast.error("Terjadi kesalahan"); }
+    setWithdrawing(false);
   }
 
   if (loading) return (
@@ -195,9 +264,19 @@ export default function StudentDetailPage() {
             <Button size="sm" variant="outline" onClick={openEnrollDialog}>
               <Plus size={14} className="mr-1" /> Daftarkan ke Kelas
             </Button>
+            {student.status === "ACTIVE" && activeEnrollment && (
+              <Button size="sm" variant="outline" onClick={openPromoteDialog}>
+                <GraduationCap size={14} className="mr-1" /> Naik Kelas
+              </Button>
+            )}
             {student.status === "ACTIVE" && (
-              <Button size="sm" variant="outline" onClick={() => setDeactivateOpen(true)} className="text-destructive hover:text-destructive">
-                Nonaktifkan
+              <Button size="sm" variant="outline" onClick={() => setGraduateOpen(true)}>
+                Luluskan
+              </Button>
+            )}
+            {student.status === "ACTIVE" && (
+              <Button size="sm" variant="outline" onClick={() => setWithdrawDialog(true)} className="text-destructive hover:text-destructive">
+                Keluarkan
               </Button>
             )}
           </div>
@@ -478,7 +557,55 @@ export default function StudentDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Siswa" description={`Nonaktifkan ${student.name}? Siswa tidak akan muncul di daftar aktif.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" />
+      {/* Promote Dialog */}
+      <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <Field>
+              <FieldLabel>Kelas Tujuan *</FieldLabel>
+              <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)}>
+                <SelectTrigger><SelectValue placeholder="Pilih kelas tujuan..." /></SelectTrigger>
+                <SelectContent>
+                  {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>Catatan (opsional)</FieldLabel>
+              <Textarea value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
+            </Field>
+          </div>
+          <DialogFooter>
+            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Graduate Confirm */}
+      <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi GRADUATED dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
+
+      {/* Withdraw Dialog */}
+      <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Mengeluarkan <strong>{student.name}</strong> dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.
+            </p>
+            <Field>
+              <FieldLabel>Alasan Keluar *</FieldLabel>
+              <Textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} placeholder="Masukkan alasan pengeluaran siswa..." rows={3} />
+            </Field>
+          </div>
+          <DialogFooter>
+            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog open={!!deleteGuardianTarget} onOpenChange={(o) => !o && setDeleteGuardianTarget(null)} title="Hapus Wali" description={`Hapus data wali "${deleteGuardianTarget?.parent?.name}"?`} onConfirm={deleteGuardian} confirmLabel="Hapus" />
     </>
   );
