@@ -71,6 +71,7 @@ Ordered by risk severity (financial > data corruption > auth bypass > cache > ra
 - **Task 2 — Webhook payment atomic:** `app/api/xendit/webhook/route.ts` — Wrapped idempotency check + payment create + invoice update in `$transaction()` with `pg_advisory_xact_lock` on invoice ID. Re-fetches invoice inside tx for fresh status.
 - **Task 3 — Duplicate enrollment guard:** `app/api/students/[id]/enroll/route.ts` — Added check inside existing transaction for any ACTIVE enrollment for the student. Rejects with clear error if student is already enrolled in another class.
 - **Task 4 — Attendance student-class validation:** `app/api/student-attendance/mark/route.ts` — Added batch validation inside existing transaction that checks all studentIds have an ACTIVE enrollment in the specified classSectionId. Rejects entire batch if any student is not enrolled.
+- **Task 5 — Assessment score validation + teacher auth:** `app/api/assessments/student/[id]/route.ts` — Added score >= 0 validation before upsert. Added teacher authorization check: TEACHER role must have a TeachingAssignment for a class section whose program matches the assessment template's program. Admin bypass allowed.
 
 ## Verification
 
