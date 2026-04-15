@@ -55,7 +55,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 1. [x] **Replace console.error with toast.error in admin pages** — Update 7 instances across 6 admin pages (students, employees, invoices, admissions, payroll, leave). Accept: zero `console.error()` in `app/admin/`.
 
-2. [ ] **Replace hardcoded hex colors in app/page.tsx and app/layout.tsx** — Replace all `text-[#xxx]`/`bg-[#xxx]` with CSS variable equivalents from globals.css. Accept: `grep -c 'text-\[#' app/page.tsx app/layout.tsx` returns 0.
+2. [x] **Replace hardcoded hex colors in app/page.tsx and app/layout.tsx** — Replace all `text-[#xxx]`/`bg-[#xxx]` with CSS variable equivalents from globals.css. Accept: `grep -c 'text-\[#' app/page.tsx app/layout.tsx` returns 0.
 
 3. [ ] **Replace toLocaleDateString with formatDate in admin pages** — Update 4 admin pages (employees/[id], invoices, attendance, attendance/monthly). Accept: zero `toLocaleDateString` in `app/admin/`.
 
@@ -84,10 +84,12 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 ## Implementation
 
 - Task 1: Replace console.error with toast.error — `app/admin/{students,employees,invoices,admissions,payroll,leave}/page.tsx` — Replaced 7 `console.error()` calls with `toast.error()` in Indonesian. Added `import { toast } from "sonner"` to 3 files that were missing it (students, employees, payroll).
+- Task 2: Replace hardcoded hex colors — `app/page.tsx`, `app/layout.tsx` — Replaced 13+ hardcoded hex colors in login page with CSS variable classes (bg-sidebar, text-sidebar-foreground, bg-primary, bg-sidebar-accent). Staging banner uses `bg-yellow-400 text-sidebar`.
 
 ## Verification
 
 - Task 1: Gates passed (build + vitest run). Zero `console.error` remaining in `app/admin/`.
+- Task 2: Gates passed (build + vitest run). Zero hardcoded hex colors in login page and layout.
 
 ## Ship Notes
 
