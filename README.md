@@ -87,7 +87,7 @@ Three portals, three roles.
 
 **Parent Portal** — Dashboard (child overview + unpaid invoices), Invoices (pay via Xendit, PDF download), Attendance (30 days), Reports (published assessments)
 
-**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar, Salary Slips (PDF), Profile
+**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Salary Slips (PDF), Profile (accessible via header avatar)
 
 **Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (draft → variables → review → approve → BSI CSV → PDF slips → email), Settings (campus, org config, holidays, salary components)
 
@@ -107,6 +107,9 @@ Three portals, three roles.
 - CI green (lint + typecheck + test)
 - Parent portal initial implementation and standardization complete
 - Workflow refinement (2026-04-15): 3-command loop, multi-LLM safety, one-file-per-cycle — see [`docs/cycles/2026-04-15-workflow-refinement.md`](docs/cycles/2026-04-15-workflow-refinement.md)
+- **Business logic hardening phase 2 (2026-04-16)**: atomic payment/enroll/attendance/assessment transactions, Xendit webhook advisory lock, parent-portal cache isolation fix — see [`docs/cycles/2026-04-16-biz-logic-audit-phase2.md`](docs/cycles/2026-04-16-biz-logic-audit-phase2.md)
+- **Teacher portal polish (2026-04-16)**: Cuti/Izin as inline bottom sheet on attendance calendar, profile accessible from header, layout padding fix, shared `formatTime` utility — see [`docs/cycles/2026-04-16-teacher-portal-audit.md`](docs/cycles/2026-04-16-teacher-portal-audit.md)
+- **Student attendance history tab (2026-04-16)**: new Kehadiran tab on `/admin/students/[id]` with month filter and 4 stat cards — see [`docs/cycles/2026-04-16-crud-audit-t13.md`](docs/cycles/2026-04-16-crud-audit-t13.md)
 
 **In progress:**
 - CRUD completion: add edit + deactivate to all entities (target: 100%)
