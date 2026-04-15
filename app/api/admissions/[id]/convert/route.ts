@@ -21,62 +21,65 @@ export async function POST(
   if (admission.studentId) {
     return NextResponse.json({ error: "Pendaftaran ini sudah dikonversi menjadi siswa" }, { status: 400 });
   }
-  if (admission.status !== "ADMITTED" && admission.status !== "VISITED") {
-    return NextResponse.json({ error: "Hanya pendaftaran dengan status ADMITTED atau VISITED yang bisa dikonversi" }, { status: 400 });
+  if (admission.status !== "ADMITTED") {
+    return NextResponse.json({ error: "Hanya pendaftaran dengan status ADMITTED yang bisa dikonversi" }, { status: 400 });
   }
 
-  // Create student from admission data
-  const student = await prisma.student.create({
-    data: {
-      tenantId: session.tenantId,
-      name: admission.childName,
-      dateOfBirth: admission.dateOfBirth,
-      gender: admission.childGender,
-    },
-  });
-
-  // Create parent record and link to student
-  const parentEmail = admission.parentEmail?.trim() || null;
-  let parent;
-  if (parentEmail) {
-    parent = await prisma.parent.upsert({
-      where: { tenantId_email: { tenantId: session.tenantId, email: parentEmail } },
-      create: {
-        tenantId: session.tenantId,
-        name: admission.parentName,
-        email: parentEmail,
-        phone: admission.parentPhone,
-        whatsapp: admission.parentWhatsapp,
-      },
-      update: {
-        name: admission.parentName,
-        phone: admission.parentPhone,
-        whatsapp: admission.parentWhatsapp,
-      },
-    });
-  } else {
-    parent = await prisma.parent.create({
+  // Atomic conversion: student + parent + guardian + admission update
+  const { student } = await prisma.$transaction(async (tx) => {
+    const student = await tx.student.create({
       data: {
-        tenantId: session.tenantId,
-        name: admission.parentName,
-        phone: admission.parentPhone,
-        whatsapp: admission.parentWhatsapp,
+        tenantId: session.tenantId!,
+        name: admission.childName,
+        dateOfBirth: admission.dateOfBirth,
+        gender: admission.childGender,
       },
     });
-  }
-  await prisma.studentGuardian.create({
-    data: {
-      studentId: student.id,
-      parentId: parent.id,
-      relationship: "WALI",
-      isPrimary: true,
-    },
-  });
 
-  // Link admission to student and update status
-  await prisma.admission.update({
-    where: { id },
-    data: { studentId: student.id, status: "REGISTERED" },
+    const parentEmail = admission.parentEmail?.trim() || null;
+    let parent;
+    if (parentEmail) {
+      parent = await tx.parent.upsert({
+        where: { tenantId_email: { tenantId: session.tenantId!, email: parentEmail } },
+        create: {
+          tenantId: session.tenantId!,
+          name: admission.parentName,
+          email: parentEmail,
+          phone: admission.parentPhone,
+          whatsapp: admission.parentWhatsapp,
+        },
+        update: {
+          name: admission.parentName,
+          phone: admission.parentPhone,
+          whatsapp: admission.parentWhatsapp,
+        },
+      });
+    } else {
+      parent = await tx.parent.create({
+        data: {
+          tenantId: session.tenantId!,
+          name: admission.parentName,
+          phone: admission.parentPhone,
+          whatsapp: admission.parentWhatsapp,
+        },
+      });
+    }
+
+    await tx.studentGuardian.create({
+      data: {
+        studentId: student.id,
+        parentId: parent.id,
+        relationship: "WALI",
+        isPrimary: true,
+      },
+    });
+
+    await tx.admission.update({
+      where: { id },
+      data: { studentId: student.id, status: "REGISTERED" },
+    });
+
+    return { student };
   });
 
   return NextResponse.json({ student, message: "Siswa berhasil dibuat dari data pendaftaran" });
