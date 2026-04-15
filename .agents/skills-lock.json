@@ -80,6 +80,21 @@
       "enabled": true
     },
     {
+      "name": "frontend-design",
+      "path": ".agents/skills/frontend-design",
+      "description": "Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics. Official Claude Code frontend-design plugin.",
+      "category": "design",
+      "enabled": true,
+      "autoLoadPatterns": [
+        "app/**/page.tsx",
+        "app/**/layout.tsx",
+        "components/**/*.tsx",
+        "**/*.css",
+        "tailwind.config.*"
+      ],
+      "officialUrl": "https://github.com/anthropics/claude-code/tree/main/plugins/frontend-design"
+    },
+    {
       "name": "knowledge-update",
       "path": ".agents/skills/knowledge-update",
       "description": "Corrects outdated LLM knowledge about the Vercel platform and introduces new products. Injected at session start.",
@@ -312,11 +327,6 @@
       "name": "/ship",
       "path": ".claude/commands/ship.md",
       "description": "Create PR and merge. Uses git-workflow-and-versioning skill."
-    },
-    {
-      "name": "/frontend-design",
-      "path": ".claude/commands/frontend-design.md",
-      "description": "Design production-quality UI/UX. Focuses on accessibility, visual hierarchy, and user-centered patterns."
     }
   ],
   "projectSpecific": {
@@ -338,7 +348,8 @@
       "auth",
       "vercel-functions",
       "deployments-cicd",
-      "react-best-practices"
+      "react-best-practices",
+      "frontend-design"
     ]
   }
 }

@@ -1,0 +1,27 @@
+priority: 10
+pathPatterns:
+  - 'app/**/page.tsx'
+  - 'app/**/layout.tsx'
+  - 'components/**/*.tsx'
+  - '**/*.css'
+  - 'tailwind.config.*'
+promptSignals:
+  phrases:
+    - "design"
+    - "frontend"
+    - "ui"
+    - "component"
+    - "interface"
+    - "aesthetic"
+    - "visual"
+  allOf:
+    - [build, design]
+  anyOf:
+    - "landing page"
+    - "dashboard"
+    - "ui design"
+    - "component design"
+    - "frontend interface"
+    - "create a.*page"
+    - "build a.*component"
+  minScore: 5
