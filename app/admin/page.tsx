@@ -12,8 +12,17 @@ export default async function AdminDashboard() {
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
 
+  // Calculate last 7 weekdays for trend query
+  const last7Weekdays: string[] = [];
+  const d = new Date(today);
+  while (last7Weekdays.length < 7) {
+    d.setDate(d.getDate() - 1);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    last7Weekdays.unshift(d.toISOString().split("T")[0]);
+  }
+
   // Parallel queries for dashboard data
-  const [totalEmployees, todayAttendance, pendingLeave, lastPayroll, weeklyTrend] = await Promise.all([
+  const [totalEmployees, todayAttendance, pendingLeave, lastPayroll, weeklyTrendRaw] = await Promise.all([
     prisma.employee.count({
       where: { tenantId: session.tenantId!, status: "ACTIVE" },
     }),
@@ -30,33 +39,32 @@ export default async function AdminDashboard() {
       orderBy: { periodStart: "desc" },
       include: { _count: { select: { items: true } } },
     }),
-    // Attendance trend: last 7 weekdays
-    (async () => {
-      const days: { date: string; present: number; late: number; absent: number }[] = [];
-      const d = new Date(today);
-      let count = 0;
-      while (count < 7) {
-        d.setDate(d.getDate() - 1);
-        if (d.getDay() === 0 || d.getDay() === 6) continue;
-        const dateStr = d.toISOString().split("T")[0];
-        const records = await prisma.attendanceRecord.groupBy({
-          by: ["status"],
-          where: { date: dateStr },
-          _count: true,
-        });
-        const counts: Record<string, number> = {};
-        for (const r of records) counts[r.status] = r._count;
-        days.unshift({
-          date: dateStr,
-          present: (counts["PRESENT"] ?? 0) + (counts["PRESENT_NO_CHECKOUT"] ?? 0),
-          late: counts["LATE"] ?? 0,
-          absent: counts["ABSENT"] ?? 0,
-        });
-        count++;
-      }
-      return days;
-    })(),
+    // Attendance trend: single query for all 7 weekdays
+    prisma.attendanceRecord.groupBy({
+      by: ["date", "status"],
+      where: { date: { in: last7Weekdays } },
+      _count: true,
+    }),
   ]);
+
+  // Aggregate weekly trend data by date
+  const weeklyTrendMap = new Map<string, Record<string, number>>();
+  for (const row of weeklyTrendRaw) {
+    if (!weeklyTrendMap.has(row.date)) {
+      weeklyTrendMap.set(row.date, {});
+    }
+    weeklyTrendMap.get(row.date)![row.status] = row._count;
+  }
+
+  const weeklyTrend = last7Weekdays.map((date) => {
+    const counts = weeklyTrendMap.get(date) || {};
+    return {
+      date,
+      present: (counts["PRESENT"] ?? 0) + (counts["PRESENT_NO_CHECKOUT"] ?? 0),
+      late: counts["LATE"] ?? 0,
+      absent: counts["ABSENT"] ?? 0,
+    };
+  });
 
   const statusCounts: Record<string, number> = {};
   for (const row of todayAttendance) statusCounts[row.status] = row._count;
