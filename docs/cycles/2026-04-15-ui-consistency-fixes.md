@@ -52,7 +52,7 @@ Ordered, each atomic. Each task will be committed independently after verificati
 
 1. [x] **Audit verification** — Re-run the UI audit exploration to capture exact file paths and line numbers for all violations (update this cycle's Implementation section with the full list)
 
-2. [ ] **Standardize action column pattern** — Ensure all DataTable action columns use `DataTableRowActions` component with standardized "Lihat" button + dropdown (⋮) for Edit/Deactivate. Apply to admin portal list pages first.
+2. [x] **Standardize action column pattern** — Ensure all DataTable action columns use `DataTableRowActions` component with standardized "Lihat" button + dropdown (⋮) for Edit/Deactivate. Apply to admin portal list pages first.
 
 3. [ ] **Add missing FieldDescription** — Add FieldDescription to all forms using Field component. If empty, add an empty `<FieldDescription />` for consistency.
 
@@ -76,10 +76,12 @@ Ordered, each atomic. Each task will be committed independently after verificati
   - **Critical (3):** Hardcoded hex colors in `app/page.tsx` (lines 122, 139, 161) and `app/layout.tsx` (line 34)
   - **High (6):** `console.error()` instead of `toast.error()` in 6 admin pages (students:188, employees:192, invoices:221, admissions:152, payroll:203, leave:164); inline `<Badge>` with hardcoded colors in employees:103, dashboard-client.tsx:125, fees:117
   - **Good news:** Teacher/parent portals fully compliant; most forms use Field correctly; loading states use Skeleton; empty states use EmptyState
+- **Task 2 — Action column pattern:** Verified all admin list pages. 11 pages already use DataTableRowActions correctly (students, employees, admissions, academic, fees, invoices, payroll, users, salary-components, roles, holidays). 3 pages don't need it: attendance (inline actions), leave (domain-specific approve/reject), payroll/[id] (read-only detail view). No changes needed — pattern already standardized.
 
 ## Verification
 
 - **Task 1 — Audit verification:** Exploration agent completed comprehensive audit of all 3 portals. Results documented in Implementation section. No code changes required for this task.
+- **Task 2 — Action column pattern:** Manual verification of all admin pages with DataTable. Confirmed DataTableRowActions usage is already standardized across all applicable pages. No code changes required.
 
 ## Ship Notes
 
