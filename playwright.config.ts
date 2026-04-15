@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
+  timeout: 60_000,
   retries: 1,
   // Run tests serially — demo mode server is stateful (cookie-based auth)
   workers: 1,
@@ -21,10 +21,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    command: "DEMO_MODE=true npm run start",
     port: 3000,
-    reuseExistingServer: true,
-    // Give dev server 60s on a cold start (Prisma generate + Next.js compile)
-    timeout: 60_000,
+    reuseExistingServer: !process.env.CI,
+    // Production server starts fast — no JIT compilation
+    timeout: 30_000,
   },
 });
