@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-// Demo-only login — disabled when Supabase Auth is configured
+// Demo-only login — only when DEMO_MODE=true
 export async function POST(req: NextRequest) {
-  // Block in production — only allow when Supabase is not configured
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (process.env.DEMO_MODE !== "true") {
     return NextResponse.json(
-      { error: "Demo login disabled. Use Supabase Auth." },
+      { error: "Demo login disabled." },
       { status: 403 }
     );
+  }
+
+  // Rate limit: 5 login attempts per minute per IP
+  const { success } = rateLimit(`demo-login:${getClientIp(req)}`, 5, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, { status: 429 });
   }
 
   const { userId } = await req.json();

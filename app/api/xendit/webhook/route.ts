@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
+import { timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/db";
 
 /**
@@ -12,7 +13,10 @@ export async function POST(req: NextRequest) {
   const callbackToken = req.headers.get("x-callback-token");
   const expectedToken = process.env.XENDIT_WEBHOOK_TOKEN;
 
-  if (!expectedToken || callbackToken !== expectedToken) {
+  if (!expectedToken || !callbackToken || !timingSafeEqual(
+    Buffer.from(callbackToken),
+    Buffer.from(expectedToken)
+  )) {
     console.error("[XENDIT WEBHOOK] Invalid callback token");
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (!invoiceId) {
       console.error("[XENDIT WEBHOOK] No reference_id in webhook data");
       // Return 200 to prevent Xendit from retrying
-      return NextResponse.json({ ok: false, error: "Missing reference_id" });
+      return NextResponse.json({ error: "Missing reference_id" });
     }
 
     // Find invoice by ID (reference_id = invoice.id)
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
     if (!invoice) {
       console.error(`[XENDIT WEBHOOK] Invoice not found: ${invoiceId}`);
       // Return 200 — don't make Xendit retry for a missing invoice
-      return NextResponse.json({ ok: false, error: "Invoice not found" });
+      return NextResponse.json({ error: "Invoice not found" });
     }
 
     if (invoice.status === "PAID") {
@@ -56,10 +60,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Record payment
+    const paymentAmount = amount ?? Number(invoice.totalDue);
+    const currentPaid = Number(invoice.totalPaid);
+    const remaining = Number(invoice.totalDue) - currentPaid;
+
+    if (paymentAmount > remaining) {
+      console.warn(
+        `[XENDIT WEBHOOK] Payment ${paymentAmount} exceeds remaining ${remaining} for invoice ${invoice.invoiceNumber}. Processing anyway.`
+      );
+    }
+
     await prisma.payment.create({
       data: {
         invoiceId: invoice.id,
-        amount: amount ?? Number(invoice.totalDue),
+        amount: paymentAmount,
         method: "XENDIT",
         reference: paymentId ?? data.payment_session_id,
         notes: `Xendit payment via ${data.channel_code ?? "checkout"}`,
