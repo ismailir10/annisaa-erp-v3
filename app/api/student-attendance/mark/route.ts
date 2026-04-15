@@ -37,29 +37,31 @@ export async function POST(req: NextRequest) {
   }
 
   let saved = 0;
-  for (const record of records) {
-    await prisma.studentAttendance.upsert({
-      where: { studentId_date: { studentId: record.studentId, date } },
-      update: {
-        status: record.status,
-        checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
-        checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
-        notes: record.notes ?? undefined,
-        checkedInBy: session.employeeId,
-      },
-      create: {
-        studentId: record.studentId,
-        classSectionId,
-        date,
-        status: record.status,
-        checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
-        checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
-        notes: record.notes ?? null,
-        checkedInBy: session.employeeId,
-      },
-    });
-    saved++;
-  }
+  await prisma.$transaction(async (tx) => {
+    for (const record of records) {
+      await tx.studentAttendance.upsert({
+        where: { studentId_date: { studentId: record.studentId, date } },
+        update: {
+          status: record.status,
+          checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
+          checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
+          notes: record.notes ?? undefined,
+          checkedInBy: session.employeeId!,
+        },
+        create: {
+          studentId: record.studentId,
+          classSectionId,
+          date,
+          status: record.status,
+          checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
+          checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
+          notes: record.notes ?? null,
+          checkedInBy: session.employeeId!,
+        },
+      });
+      saved++;
+    }
+  });
 
   return NextResponse.json({ saved, total: records.length });
 }
