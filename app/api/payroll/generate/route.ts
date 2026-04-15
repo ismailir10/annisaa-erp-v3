@@ -50,31 +50,36 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Get org config
-  const orgConfig = await prisma.orgConfig.findUnique({
-    where: { tenantId: session.tenantId },
-  });
+  // Parallelise the 4 independent setup queries — none depend on each other
+  const [orgConfig, holidays, componentDefs, employees] = await Promise.all([
+    prisma.orgConfig.findUnique({ where: { tenantId: session.tenantId } }),
+    prisma.holiday.findMany({
+      where: {
+        tenantId: session.tenantId,
+        date: { gte: periodStart, lte: periodEnd },
+      },
+    }),
+    prisma.salaryComponentDef.findMany({
+      where: { tenantId: session.tenantId, isEnabled: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.employee.findMany({
+      where: { tenantId: session.tenantId, status: "ACTIVE" },
+      include: {
+        salaryValues: true,
+        attendanceRecords: {
+          where: { date: { gte: periodStart, lte: periodEnd } },
+        },
+      },
+    }),
+  ]);
+
   if (!orgConfig) {
     return NextResponse.json({ error: "Org config not set" }, { status: 400 });
   }
 
   const workingDays = JSON.parse(orgConfig.workingDays) as string[];
-
-  // Get holidays in period
-  const holidays = await prisma.holiday.findMany({
-    where: {
-      tenantId: session.tenantId,
-      date: { gte: periodStart, lte: periodEnd },
-    },
-  });
-
   const actualWorkDays = calculateWorkingDays(periodStart, periodEnd, workingDays, holidays);
-
-  // Get salary components
-  const componentDefs = await prisma.salaryComponentDef.findMany({
-    where: { tenantId: session.tenantId, isEnabled: true },
-    orderBy: { sortOrder: "asc" },
-  });
 
   const components: SalaryComponent[] = componentDefs.map((c) => ({
     id: c.id,
@@ -85,17 +90,6 @@ export async function POST(req: NextRequest) {
     isProRated: c.isProRated,
     sortOrder: c.sortOrder,
   }));
-
-  // Get active employees with salary values and attendance
-  const employees = await prisma.employee.findMany({
-    where: { tenantId: session.tenantId, status: "ACTIVE" },
-    include: {
-      salaryValues: true,
-      attendanceRecords: {
-        where: { date: { gte: periodStart, lte: periodEnd } },
-      },
-    },
-  });
 
   // Calculate payroll
   const results = calculatePayroll(

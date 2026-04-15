@@ -184,8 +184,11 @@ Build + tests green.
 - `prisma/migrations/20260415000000_add_perf_indexes/migration.sql`: 4 `CREATE INDEX` statements
 - `vitest.config.ts` + `vitest.setup.ts`: applied stash fix (jsdom env + react plugin) so component tests run
 
-### Task 2 — attendance/today: 2 round trips → 1 (commit pending)
+### Task 2 — attendance/today: 2 round trips → 1 (commit b29ab0e)
 - `app/api/attendance/today/route.ts`: replaced separate `prisma.attendanceRecord.findMany` with `include: { attendanceRecords: { where: { date }, select: {...} } }` on the employee query. Response shape unchanged.
+
+### Task 3 — payroll setup: 4 sequential → Promise.all (commit pending)
+- `app/api/payroll/generate/route.ts`: wrapped `orgConfig`, `holidays`, `componentDefs`, `employees` fetches in a single `Promise.all`. The two duplicate-check `findFirst` calls remain sequential (each can return 400 early). `orgConfig` null check moved after the parallel block.
 
 ---
 
