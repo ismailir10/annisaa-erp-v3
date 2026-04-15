@@ -64,71 +64,80 @@ export async function POST(req: NextRequest) {
   }
 
   // Get next invoice number
-  const lastInvoice = await prisma.invoice.findFirst({
-    where: { tenantId: session.tenantId },
-    orderBy: { invoiceNumber: "desc" },
-    select: { invoiceNumber: true },
-  });
-  let nextNum = 1;
-  if (lastInvoice?.invoiceNumber) {
-    const match = lastInvoice.invoiceNumber.match(/(\d+)$/);
-    if (match) nextNum = parseInt(match[1]) + 1;
-  }
   const year = new Date().getFullYear();
 
   let created = 0;
   let skipped = 0;
 
-  for (const enrollment of enrollments) {
-    const studentId = enrollment.student.id;
-    const programFees = feesByProgram.get(enrollment.classSection.programId) ?? [];
+  // Atomic invoice generation with advisory lock to prevent race conditions
+  await prisma.$transaction(async (tx) => {
+    // Acquire advisory lock per tenant — lock is released when transaction ends
+    const tenantId = session.tenantId!;
+    const lockKey = tenantId.split("").reduce((h, c) => h + c.charCodeAt(0), 0);
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
 
-    if (programFees.length === 0) {
-      skipped++;
-      continue;
+    const lastInvoice = await tx.invoice.findFirst({
+      where: { tenantId },
+      orderBy: { invoiceNumber: "desc" },
+      select: { invoiceNumber: true },
+    });
+    let nextNum = 1;
+    if (lastInvoice?.invoiceNumber) {
+      const match = lastInvoice.invoiceNumber.match(/(\d+)$/);
+      if (match) nextNum = parseInt(match[1]) + 1;
     }
 
-    // Check if invoice already exists for this student + period
-    const existing = await prisma.invoice.findFirst({
-      where: { studentId, periodLabel: periodLabel.trim(), tenantId: session.tenantId },
-    });
-    if (existing) {
-      skipped++;
-      continue;
-    }
+    for (const enrollment of enrollments) {
+      const studentId = enrollment.student.id;
+      const programFees = feesByProgram.get(enrollment.classSection.programId) ?? [];
 
-    const invoiceNumber = `INV-${year}-${String(nextNum).padStart(4, "0")}`;
-    nextNum++;
+      if (programFees.length === 0) {
+        skipped++;
+        continue;
+      }
 
-    const totalDue = programFees.reduce((s, f) => s + Number(f.amount), 0);
+      // Check if invoice already exists for this student + period
+      const existing = await tx.invoice.findFirst({
+        where: { studentId, periodLabel: periodLabel.trim(), tenantId },
+      });
+      if (existing) {
+        skipped++;
+        continue;
+      }
 
-    // Look up primary guardian for parentId
-    const primaryGuardian = await prisma.studentGuardian.findFirst({
-      where: { studentId, isPrimary: true },
-    });
+      const invoiceNumber = `INV-${year}-${String(nextNum).padStart(4, "0")}`;
+      nextNum++;
 
-    await prisma.invoice.create({
-      data: {
-        tenantId: session.tenantId,
-        studentId,
-        parentId: primaryGuardian?.parentId ?? null,
-        invoiceNumber,
-        periodLabel: periodLabel.trim(),
-        dueDate,
-        totalDue,
-        createdBy: session.id,
-        lines: {
-          create: programFees.map((f) => ({
-            feeComponentId: f.feeComponentId,
-            labelSnapshot: f.feeComponent.label,
-            amount: f.amount,
-            finalAmount: f.amount,
-          })),
+      const totalDue = programFees.reduce((s, f) => s + Number(f.amount), 0);
+
+      // Look up primary guardian for parentId
+      const primaryGuardian = await tx.studentGuardian.findFirst({
+        where: { studentId, isPrimary: true },
+      });
+
+      await tx.invoice.create({
+        data: {
+          tenantId,
+          studentId,
+          parentId: primaryGuardian?.parentId ?? null,
+          invoiceNumber,
+          periodLabel: periodLabel.trim(),
+          dueDate,
+          totalDue,
+          createdBy: session.id,
+          lines: {
+            create: programFees.map((f) => ({
+              feeComponentId: f.feeComponentId,
+              labelSnapshot: f.feeComponent.label,
+              amount: f.amount,
+              finalAmount: f.amount,
+            })),
+          },
         },
-      },
-    });
-    created++;
-  }
+      });
+      created++;
+    }
+  });
 
   return NextResponse.json({ created, skipped, total: enrollments.length });
 }
