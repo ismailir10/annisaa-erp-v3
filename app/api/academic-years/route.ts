@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
+export const revalidate = 86400; // 24h — academic years rarely change
+
 export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
