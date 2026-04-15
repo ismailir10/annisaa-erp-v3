@@ -63,9 +63,9 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 5. [x] **Invoice: race-safe invoice numbering** — Generate invoice numbers inside the transaction using a `SELECT ... FOR UPDATE` on the last invoice for the tenant, or use `$queryRaw` with `pg_advisory_xact_lock`. Files: `app/api/invoices/generate/route.ts`.
 
-6. [ ] **Invoice: validate webhook payment amount** — In the Xendit webhook handler, check `amount <= remaining balance + tolerance` before creating payment. Log warning if amount exceeds remaining. Files: `app/api/xendit/webhook/route.ts`.
+6. [x] **Invoice: validate webhook payment amount** — In the Xendit webhook handler, check `amount <= remaining balance + tolerance` before creating payment. Log warning if amount exceeds remaining. Files: `app/api/xendit/webhook/route.ts`.
 
-7. [ ] **Invoice: constant-time webhook token comparison** — Replace `callbackToken !== expectedToken` with `crypto.timingSafeEqual()`. Files: `app/api/xendit/webhook/route.ts`.
+7. [x] **Invoice: constant-time webhook token comparison** — Replace `callbackToken !== expectedToken` with `crypto.timingSafeEqual()`. Files: `app/api/xendit/webhook/route.ts`.
 
 8. [ ] **Admission: wrap conversion in transaction** — Wrap student creation, parent upsert, guardian creation, and admission update in `prisma.$transaction()`. Files: `app/api/admissions/[id]/convert/route.ts`.
 
@@ -93,6 +93,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 - **Task 2 — Payroll approval atomic:** `app/api/payroll/[id]/approve/route.ts` — Wrapped status update + attendance fetch + attendance lock in single `prisma.$transaction()`.
 - **Task 3 — Payroll parseFloat fix:** `app/api/payroll/[id]/items/[itemId]/lines/[lineId]/route.ts` — Replaced `parseFloat()` with `Number()` + NaN validation. Also wrapped line update + item recalculation in `$transaction()`.
 - **Task 4+5 — Invoice atomic generation + race-safe numbering:** `app/api/invoices/generate/route.ts` — Wrapped entire generation loop in `prisma.$transaction()`. Added `pg_advisory_xact_lock` per tenant to prevent concurrent invoice number collisions. All-or-nothing: if any invoice creation fails, all roll back.
+- **Task 6+7 — Webhook security hardening:** `app/api/xendit/webhook/route.ts` — Replaced string comparison with `crypto.timingSafeEqual()` for webhook token. Added payment amount validation against remaining balance (logs warning on overpayment, still processes).
 
 ## Verification
 
@@ -108,7 +109,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 | Admission: VISITED status rejected for conversion | ⏳ |
 | Student deactivation: draft/sent invoices cancelled | ⏳ |
 | Enrollment: concurrent requests respect capacity | ⏳ |
-| Webhook: overpayment logged as warning | ⏳ |
+| Webhook: overpayment logged as warning | ✅ |
 | Demo mode: requires DEMO_MODE=true env var | ⏳ |
 | Demo users: 404 when Supabase configured | ⏳ |
 
