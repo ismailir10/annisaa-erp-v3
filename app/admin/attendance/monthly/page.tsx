@@ -6,6 +6,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { formatMonthLabel } from "@/lib/format";
 import Link from "next/link";
 
 type MonthlyData = {
@@ -59,7 +60,7 @@ export default function MonthlyAttendancePage() {
   const daysInMonth = new Date(year, month, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  const monthLabel = new Date(year, month - 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+  const monthLabel = formatMonthLabel(year, month);
 
   function prevMonth() {
     if (month === 1) { setMonth(12); setYear(year - 1); }

@@ -57,7 +57,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 2. [x] **Replace hardcoded hex colors in app/page.tsx and app/layout.tsx** — Replace all `text-[#xxx]`/`bg-[#xxx]` with CSS variable equivalents from globals.css. Accept: `grep -c 'text-\[#' app/page.tsx app/layout.tsx` returns 0.
 
-3. [ ] **Replace toLocaleDateString with formatDate in admin pages** — Update 4 admin pages (employees/[id], invoices, attendance, attendance/monthly). Accept: zero `toLocaleDateString` in `app/admin/`.
+3. [x] **Replace toLocaleDateString with formatDate in admin pages** — Update 4 admin pages (employees/[id], invoices, attendance, attendance/monthly). Accept: zero `toLocaleDateString` in `app/admin/`.
 
 4. [ ] **Fix attendance page action column** — Replace raw `<button>` override action with proper DataTableRowActions or equivalent pattern. Accept: attendance page action column follows standard pattern.
 
@@ -85,11 +85,13 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 - Task 1: Replace console.error with toast.error — `app/admin/{students,employees,invoices,admissions,payroll,leave}/page.tsx` — Replaced 7 `console.error()` calls with `toast.error()` in Indonesian. Added `import { toast } from "sonner"` to 3 files that were missing it (students, employees, payroll).
 - Task 2: Replace hardcoded hex colors — `app/page.tsx`, `app/layout.tsx` — Replaced 13+ hardcoded hex colors in login page with CSS variable classes (bg-sidebar, text-sidebar-foreground, bg-primary, bg-sidebar-accent). Staging banner uses `bg-yellow-400 text-sidebar`.
+- Task 3: Replace toLocaleDateString with formatDate — `lib/format.ts`, `app/admin/{employees/[id],invoices,attendance,attendance/monthly}/page.tsx` — Added `formatMonthLabel()` to lib/format. Replaced 4 toLocaleDateString calls in admin pages with formatDate/formatMonthLabel.
 
 ## Verification
 
 - Task 1: Gates passed (build + vitest run). Zero `console.error` remaining in `app/admin/`.
 - Task 2: Gates passed (build + vitest run). Zero hardcoded hex colors in login page and layout.
+- Task 3: Gates passed (build + vitest run). Zero `toLocaleDateString` in `app/admin/`.
 
 ## Ship Notes
 

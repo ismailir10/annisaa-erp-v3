@@ -28,7 +28,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatCard } from "@/components/admin/stat-card";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, Ban } from "lucide-react";
 import { toast } from "sonner";
-import { formatRupiah, formatDateShort } from "@/lib/format";
+import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
 
 // ------------------------------------------------------------------
 // Types
@@ -253,7 +253,7 @@ export default function InvoicesPage() {
 
   function openGenerateDialog() {
     const now = new Date();
-    const monthName = now.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+    const monthName = formatMonthLabel(now.getFullYear(), now.getMonth() + 1);
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const dueDate = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, "0")}-${String(lastDay.getDate()).padStart(2, "0")}`;
     const activeYear = years.find((y) => y.status === "ACTIVE");

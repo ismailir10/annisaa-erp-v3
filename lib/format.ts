@@ -34,6 +34,13 @@ export function formatDateShort(dateStr: string): string {
 }
 
 /**
+ * Format month + year as "Januari 2026" (Indonesian).
+ */
+export function formatMonthLabel(year: number, month: number): string {
+  return new Date(year, month - 1, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+}
+
+/**
  * Format time from ISO datetime string.
  */
 export function formatTime(iso: string | null): string {
