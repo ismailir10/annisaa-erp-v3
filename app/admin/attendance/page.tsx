@@ -136,13 +136,9 @@ export default function AttendancePage() {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <button
-          onClick={() => openOverride(row.original)}
-          className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground"
-          title="Ubah Status Kehadiran"
-        >
-          <Pencil size={13} />
-        </button>
+        <DataTableRowActions
+          onEdit={() => openOverride(row.original)}
+        />
       ),
     },
   ];
