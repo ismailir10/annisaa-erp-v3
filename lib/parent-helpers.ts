@@ -6,8 +6,8 @@ export type StudentInvoices = {
   id: string;
   invoiceNumber: string;
   periodLabel: string;
-  totalDue: unknown;
-  totalPaid: unknown;
+  totalDue: number;
+  totalPaid: number;
   status: string;
   xenditPaymentUrl: string | null;
   createdAt: Date;
@@ -39,10 +39,8 @@ export type ParentChild = {
 /**
  * Find a parent record from session (parentId or email fallback).
  * Returns the parent with all linked children via StudentGuardian.
- * Cached for 5 minutes, tagged for revalidation on guardian mutations.
  */
-export const getParentWithChildren = unstable_cache(
-  async (session: SessionUser) => {
+export async function getParentWithChildren(session: SessionUser) {
     const parentId = session.parentId;
 
     const whereClause = parentId
@@ -90,10 +88,7 @@ export const getParentWithChildren = unstable_cache(
     });
 
     return { parent, children };
-  },
-  ["parent-children"],
-  { revalidate: 300, tags: ["parent-children"] }
-);
+}
 
 /**
  * Resolve which child is selected from the URL param, defaulting to first.
@@ -138,7 +133,11 @@ export const getStudentInvoices = unstable_cache(
       },
     });
 
-    return invoices;
+    return invoices.map((inv) => ({
+      ...inv,
+      totalDue: Number(inv.totalDue),
+      totalPaid: Number(inv.totalPaid),
+    }));
   },
   ["student-invoices"],
   { revalidate: 120, tags: ["student-invoices"] }

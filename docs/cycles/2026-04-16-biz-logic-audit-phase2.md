@@ -74,6 +74,7 @@ Ordered by risk severity (financial > data corruption > auth bypass > cache > ra
 - **Task 5 — Assessment score validation + teacher auth:** `app/api/assessments/student/[id]/route.ts` — Added score >= 0 validation before upsert. Added teacher authorization check: TEACHER role must have a TeachingAssignment for a class section whose program matches the assessment template's program. Admin bypass allowed.
 - **Task 6 — Leave approval atomic:** `app/api/leave/requests/[id]/approve/route.ts` — Wrapped leave request update + all attendance record upserts in single `$transaction()`. If any attendance upsert fails, the entire approval rolls back.
 - **Task 7 — Employee code race-safe:** `app/api/employees/route.ts` — Wrapped code generation + employee creation + user creation in `$transaction()` with `pg_advisory_xact_lock` per tenant. Prevents duplicate employee codes from concurrent creation requests.
+- **Task 8 — Parent cache collision fix:** `lib/parent-helpers.ts` — Converted `getParentWithChildren` from `unstable_cache` with static key (all parents shared one cache entry = security bug) to a regular async function. Also fixed `StudentInvoices` type: `totalDue`/`totalPaid` changed from `unknown` to `number` with explicit `Number()` conversion in `getStudentInvoices`.
 
 ## Verification
 
