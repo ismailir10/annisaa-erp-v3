@@ -67,7 +67,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 7. [x] **Fix teacher profile Badge → StatusBadge** — Replace raw `<Badge>` with `<StatusBadge>` in `app/teacher/profile/page.tsx`. Accept: uses StatusBadge component.
 
-8. [ ] **Fix parent assessments-table color mapping** — Replace `text-[var(--status-late)]` with proper CSS variable class. Accept: zero `text-[` in `app/parent/assessments-table.tsx`.
+8. [x] **Fix parent assessments-table color mapping** — Replace `text-[var(--status-late)]` with proper CSS variable class. Accept: zero `text-[` in `app/parent/assessments-table.tsx`.
 
 9. [ ] **Convert DELETE routes to soft delete where applicable** — For each of the 7 hard delete routes, check if the model has a status field. If yes, convert to status-based deactivation. If no, add a code comment documenting why hard delete is intentional. Accept: no `prisma.*.delete()` on entities with status fields.
 

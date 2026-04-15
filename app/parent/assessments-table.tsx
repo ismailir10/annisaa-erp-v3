@@ -11,8 +11,8 @@ import { useState } from "react";
 
 const SCORE_LABELS: Record<string, { label: string; color: string }> = {
   BB: { label: "Belum Berkembang", color: "text-destructive" },
-  MB: { label: "Mulai Berkembang", color: "text-[var(--status-late)]" },
-  BSH: { label: "Berkembang Sesuai Harapan", color: "text-[var(--status-present)]" },
+  MB: { label: "Mulai Berkembang", color: "text-status-late" },
+  BSH: { label: "Berkembang Sesuai Harapan", color: "text-status-present" },
   BSB: { label: "Berkembang Sangat Baik", color: "text-primary" },
 };
 
