@@ -79,7 +79,7 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 13. [x] **Replace toLocaleDateString in attendance export route** — Update `app/api/attendance/export/route.ts` to use formatDate utility. Accept: zero `toLocaleDateString` in API route files (PDF/email routes exempted).
 
-14. [ ] **Final build + test verification** — Run `npm run build && npx vitest run`. Fix any regressions. Accept: build passes, all tests pass.
+14. [x] **Final build + test verification** — Run `npm run build && npx vitest run`. Fix any regressions. Accept: build passes, all tests pass.
 
 ## Implementation
 
@@ -115,4 +115,26 @@ Ordered, each atomic. Each task will be committed independently after `npm run b
 
 ## Ship Notes
 
-<filled by /ship>
+### Database Migrations
+None — no schema changes. ClassSection and AcademicYear already had status fields.
+
+### Environment Variables
+None.
+
+### Manual Smoke Test Steps
+1. **Login page** (`/`): Verify colors render correctly (teal background, primary buttons). Both Supabase and demo mode.
+2. **Admin pages**: Load each list page (students, employees, invoices, admissions, payroll, leave). Verify toast errors appear (not console errors). Test date formatting on attendance page.
+3. **Teacher portal**: Login as teacher → verify profile shows StatusBadge "Aktif". Check class-attendance colors (Hadir green, Tidak Hadir red).
+4. **Parent portal**: Check assessments table score colors (BB red, MB orange, BSH green, BSB teal).
+5. **Attendance page**: Verify DataTableRowActions (edit/override) works in action column.
+6. **Staging banner**: Verify yellow banner shows on preview deploys.
+
+### Rollback Plan
+```bash
+git revert HEAD~8..HEAD  # Revert all 8 commits from this cycle
+```
+
+### Summary
+- **UI**: 13+ hardcoded hex colors → CSS variables. 7 console.error → toast.error. 4 toLocaleDateString → formatDate. 3 Badge → StatusBadge. 5 arbitrary CSS var refs → Tailwind theme classes. 1 raw button → DataTableRowActions.
+- **API**: 2 hard deletes → soft delete (ClassSection INACTIVE, AcademicYear ARCHIVED). 5 hard deletes documented as intentional. Zod validation on leave request POST. 7 `where: any` → Prisma types. Xendit webhook error format standardized.
+- **Infrastructure**: 5 stale worktrees cleaned up (~1GB freed). 69 tests passing.
