@@ -56,20 +56,28 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 
 ### CRUD completion status
 
-**Fully complete (6/28):** User, Campus, Holiday, LeaveRequest, SalaryComponentDef, FeeComponentDef
-**Partially complete (14/28):** Missing edit/deactivate or some CRUD operations
-**Missing UI/CRUD (8/28):** OrgConfig, EmailLog, PayrollItem, ProgramFeeStructure (deactivate), InvoiceLine, Payment, AssessmentCategory, AssessmentIndicator
+Audited 2026-04-16 against actual `app/admin/**` pages and `app/api/**` routes.
 
-**Overall: ~60% CRUD completion**
+**Fully complete (8/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef
+**Partially complete (12/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Employee, Student, Program, ClassSection, TeachingAssignment, Admission, AttendanceRecord, PayrollRun, Invoice, StudentEnrollment, StudentGuardian, StudentAttendance.
+**Missing admin UI (7/27):** EmailLog, PayrollItem, ProgramFeeStructure (deactivate), InvoiceLine, Payment (admin-side), StudentAssessment, StudentAssessmentScore. AssessmentCategory and AssessmentIndicator are only reachable via the AssessmentTemplate create flow and have no standalone management UI.
+
+**Overall: ~70% CRUD completion** (8 full + 12 partial / 27 admin-relevant entities)
 
 | Module | Complete | Partial | Missing |
 |---|---|---|---|
-| CORE | 3 (User, Campus, Holiday) | — | 2 (OrgConfig, EmailLog) |
-| HR | 2 (LeaveRequest, SalaryComponentDef) | 5 (Employee, Attendance, PayrollRun, PayrollItem, TeachingAssignment) | — |
-| ACADEMIC | 1 (AcademicYear) | 3 (Program, ClassSection, TeachingAssignment) | — |
-| STUDENTS | 1 (Student) | 2 (Guardian, StudentEnrollment) | — |
-| FINANCE | 1 (FeeComponentDef) | 4 (ProgramFeeStructure, Invoice, InvoiceLine, Payment) | — |
-| LEARNING | 0 | 6 (StudentAttendance, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, StudentAssessment, StudentAssessmentScore) | — |
+| CORE | 4 (User, Campus, Holiday, OrgConfig) | — | 1 (EmailLog) |
+| HR | 2 (LeaveRequest, SalaryComponentDef) | 4 (Employee, AttendanceRecord, PayrollRun, TeachingAssignment) | 1 (PayrollItem) |
+| ACADEMIC | 1 (AcademicYear) | 2 (Program, ClassSection) | — |
+| STUDENTS | — | 4 (Student, StudentEnrollment, StudentGuardian, Admission) | — |
+| FINANCE | 1 (FeeComponentDef) | 2 (Invoice, ProgramFeeStructure) | 2 (InvoiceLine, Payment) |
+| LEARNING | — | 2 (StudentAttendance, AssessmentTemplate) | 4 (StudentAssessment, StudentAssessmentScore, AssessmentCategory, AssessmentIndicator) |
+
+**Known gaps before 100% CRUD:**
+- Student needs an explicit deactivate action in its DataTable row actions (detail page already supports edit).
+- Guardian, StudentEnrollment, and TeachingAssignment are managed only inline via parent-entity detail pages — no standalone list or deactivate.
+- AssessmentTemplate has API support (`/api/assessments/templates`) but no admin list or detail page.
+- StudentAssessment / StudentAssessmentScore are read-only from the parent portal; no admin create/edit UI.
 
 ---
 
