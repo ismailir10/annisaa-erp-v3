@@ -54,21 +54,37 @@ The upstream `agent-skills` plugin (addyosmani/agent-skills) remains installed �
 
 **`/build`** — loops over the cycle doc's Tasks, one at a time:
 - Implement the slice
-- Run `npm run build && npx vitest run` — must pass before moving on
+- Run the **between-task gate**: `npm run build && npx vitest run` — must pass before moving on
 - Review + simplify the diff
 - Update the cycle doc's Implementation + Verification sections
 - Commit (one commit per task, not per cycle)
-- After the last task, fill Ship Notes in the cycle doc
+- After the **last task**: run the **end-of-cycle gate** before committing (see below)
+- Fill Ship Notes in the cycle doc
 
-**`/ship`** — push to staging. `cto` role pushes directly; `product-builder` role opens a PR to staging. Never touches `main`.
+**`/ship`** — push to staging. `cto` role pushes directly; `product-builder` role opens a PR to staging. Never touches `main`. Playwright must have passed (recorded in the cycle doc Verification section) before pushing.
 
-### Before every commit
+### Testing gates
 
+Two-tier system — fast unit gate between every task, Playwright smoke once per cycle:
+
+| Gate | Command | When |
+|------|---------|------|
+| Between-task (fast) | `npm run build && npx vitest run` | Before every commit during `/build` |
+| End-of-cycle (smoke) | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
+
+**Why two tiers:** Playwright spins up a dev server and runs ~20 browser tests (~2 min cold). Running it between every task adds 10+ min to a 5-task cycle. Running it once at the end catches UI regressions without slowing iteration.
+
+**Playwright notes:**
+- Tests live in `e2e/` — three portals: `admin.spec.ts`, `teacher.spec.ts`, `parent.spec.ts`
+- Uses demo-mode auth (cookie-based, no live Supabase needed)
+- `reuseExistingServer: true` — if `npm run dev` is already running, Playwright reuses it
+- Chromium only (no multi-browser), workers: 1 (demo mode is stateful)
+- If a Playwright test fails at end-of-cycle, fix it before committing the last task
+
+If you're committing manually outside `/build`, run at minimum:
 ```bash
 npm run build && npx vitest run
 ```
-
-`/build` runs this between tasks automatically. If you're committing manually, run it yourself.
 
 ---
 
@@ -85,6 +101,12 @@ model=claude-opus-4-6 # or claude-sonnet-4-6, glm-5.2, gpt-5, human
 ```
 
 If the file is missing or stale (>12h), the `SessionStart` hook (`scripts/check-role.sh`) prints an instruction telling the assistant to ask the user. The three slash commands refuse to run until it's set.
+
+**Role override on every session start (critical):** The file persists between sessions and can carry a stale role from a previous AI session. To prevent this, the `SessionStart` hook always prints a reminder. The assistant MUST follow this rule:
+
+> **If the user's first message in a session declares a role — "you are cto", "act as product-builder", "i am cto", "cto mode", or any clear equivalent — the assistant MUST immediately rewrite `.claude/session-role` with the declared role and its own model ID before taking any other action, even if the file already exists and is fresh.**
+
+This overrides whatever the file currently says. There is no "it's already set" exception.
 
 **No env var reads.** Claude Code doesn't reliably export `CLAUDE_MODEL` to subprocesses and other CLIs use different variables. The file is the single source of truth.
 
@@ -507,10 +529,18 @@ scripts/            check-role.sh, install-hooks.sh
 ## Testing
 
 ```bash
-npm run build && npx vitest run   # mandated before every commit
-npx playwright test               # E2E (selective)
-npm run lint                      # lint check
+# Between-task gate (run before every commit)
+npm run build && npx vitest run
+
+# End-of-cycle gate (run after last task, before final commit)
+npm run build && npx vitest run && npx playwright test
+
+# Lint
+npm run lint
 ```
+
+E2E specs: `e2e/admin.spec.ts` (9 tests), `e2e/teacher.spec.ts` (5 tests), `e2e/parent.spec.ts` (6 tests).
+All use demo-mode auth — no live Supabase or env vars required to run locally.
 
 ---
 

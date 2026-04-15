@@ -42,10 +42,11 @@ if command -v stat >/dev/null 2>&1; then
   fi
 fi
 
-# Role is set and fresh. Print a one-line reminder so the assistant sees it.
+# Role is set and fresh — but the user may be starting a NEW session with a different role.
+# Always remind the assistant to check the user's first message for a role declaration.
 ROLE=$(grep '^role=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
 MODEL=$(grep '^model=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
-echo "[check-role] Session active: role=$ROLE, model=$MODEL" >&2
+echo "[check-role] Last session: role=$ROLE, model=$MODEL. IMPORTANT: If the user's opening message declares a role ('you are cto', 'act as product-builder', 'i am cto', etc.), write $ROLE_FILE immediately (role=<declared> and model=<your-model-id>) before any other action, even though the file already exists. Do not silently inherit the previous session's role." >&2
 
 # Worktree isolation check: every product-builder session MUST work in a git worktree,
 # not in the main checkout. This prevents parallel sessions from stomping on each
