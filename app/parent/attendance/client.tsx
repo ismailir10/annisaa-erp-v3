@@ -5,8 +5,10 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { UserCheck, UserX, CalendarDays } from "lucide-react";
+import { UserCheck, UserX, CalendarDays, AlertCircle } from "lucide-react";
 import { formatDateShort, formatTime } from "@/lib/format";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 type AttendanceRecord = {
   id: string;
@@ -50,7 +52,24 @@ const columns: ColumnDef<AttendanceRecord>[] = [
   },
 ];
 
-export function AttendanceClient({ data }: { data: AttendanceRecord[] }) {
+export function AttendanceClient({ data }: { data: AttendanceRecord[] | null }) {
+  useEffect(() => {
+    if (data === null) {
+      toast.error("Gagal memuat data kehadiran");
+    }
+  }, [data]);
+
+  if (data === null) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
+          <p className="text-sm text-muted-foreground">Gagal memuat data kehadiran</p>
+        </div>
+      </div>
+    );
+  }
+
   const present = data.filter(r => r.status === "PRESENT").length;
   const absent = data.filter(r => ["ABSENT", "SICK", "PERMISSION"].includes(r.status)).length;
 

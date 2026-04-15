@@ -29,11 +29,12 @@ export function ParentBottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className="flex flex-col items-center justify-center gap-1 relative py-1 px-4"
+              className="flex flex-col items-center justify-center gap-1 relative py-1 px-4 focus:ring-2 focus:ring-ring"
+              aria-label={`Navigasi ke ${tab.label}`}
             >
               {isActive && (
                 <motion.div
-                  layoutId="parent-nav-active"
+                  layoutId="bottom-nav-active"
                   className="absolute -top-0 w-8 h-0.5 bg-primary rounded-full"
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />

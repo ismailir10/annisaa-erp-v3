@@ -6,8 +6,10 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Receipt, CheckCircle, Clock, ExternalLink } from "lucide-react";
+import { Receipt, CheckCircle, Clock, ExternalLink, AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 const PARENT_INVOICE_LABELS: Record<string, string> = {
   SENT: "Belum Dibayar",
@@ -82,7 +84,24 @@ const columns: ColumnDef<InvoiceItem>[] = [
   },
 ];
 
-export function InvoicesClient({ data }: { data: InvoiceItem[] }) {
+export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
+  useEffect(() => {
+    if (data === null) {
+      toast.error("Gagal memuat data tagihan");
+    }
+  }, [data]);
+
+  if (data === null) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
+          <p className="text-sm text-muted-foreground">Gagal memuat data tagihan</p>
+        </div>
+      </div>
+    );
+  }
+
   const totalDue = data.reduce((s, i) => s + i.totalDue, 0);
   const totalPaid = data.reduce((s, i) => s + i.totalPaid, 0);
   const paidCount = data.filter(i => i.status === "PAID").length;
