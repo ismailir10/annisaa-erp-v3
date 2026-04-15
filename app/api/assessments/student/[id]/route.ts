@@ -20,11 +20,39 @@ export async function PUT(
   // Verify assessment belongs to tenant via student
   const assessment = await prisma.studentAssessment.findFirst({
     where: { id, student: { tenantId: session.tenantId } },
+    include: { template: { select: { programId: true } } },
   });
   if (!assessment) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
+  // Teacher authorization: verify teacher is assigned to a class section
+  // whose program matches the assessment template's program
+  if (session.role === "TEACHER" && session.employeeId) {
+    const assignment = await prisma.teachingAssignment.findFirst({
+      where: {
+        employeeId: session.employeeId,
+        classSection: {
+          programId: assessment.template.programId,
+          tenantId: session.tenantId,
+        },
+      },
+    });
+    if (!assignment) {
+      return NextResponse.json({ error: "Anda tidak berwenang menilai program ini" }, { status: 403 });
+    }
+  }
+
   const { scores, status } = await req.json();
   // scores: [{ indicatorId, score, notes }]
+
+  // Validate scores
+  if (scores?.length) {
+    for (const s of scores) {
+      const scoreVal = Number(s.score);
+      if (Number.isNaN(scoreVal) || scoreVal < 0) {
+        return NextResponse.json({ error: `Nilai tidak valid untuk indikator ${s.indicatorId}: harus >= 0` }, { status: 400 });
+      }
+    }
+  }
 
   // Atomic: save all scores + update status in a single transaction
   await prisma.$transaction(async (tx) => {

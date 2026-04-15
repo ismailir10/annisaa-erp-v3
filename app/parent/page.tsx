@@ -40,7 +40,7 @@ export default async function ParentDashboard({
   const enrollment = student.enrollments[0];
   const unpaidInvoices = await getStudentInvoices(student.id);
   const totalUnpaid = unpaidInvoices.reduce(
-    (s, i) => s + (Number(i.totalDue) - Number(i.totalPaid)),
+    (s, i) => s + (i.totalDue - i.totalPaid),
     0
   );
 

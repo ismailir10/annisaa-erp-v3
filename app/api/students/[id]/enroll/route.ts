@@ -40,9 +40,17 @@ export async function POST(
     }
   }
 
-  // Atomic capacity check + enrollment to prevent race-condition over-enrollment
+  // Atomic capacity check + duplicate enrollment guard
   const today = new Date().toISOString().split("T")[0];
   const enrollment = await prisma.$transaction(async (tx) => {
+    // Check for existing ACTIVE enrollment in any class
+    const existingEnrollment = await tx.studentEnrollment.findFirst({
+      where: { studentId, status: "ACTIVE" },
+    });
+    if (existingEnrollment) {
+      throw new Error("Siswa sudah terdaftar di kelas lain. Tarik siswa dari kelas sebelumnya terlebih dahulu.");
+    }
+
     // Lock the class section row to prevent concurrent enrollment
     const section = await tx.$queryRaw<Array<{ id: string; capacity: number; active_count: bigint }>>`
       SELECT cs.id, cs.capacity, COUNT(se.id)::int as active_count

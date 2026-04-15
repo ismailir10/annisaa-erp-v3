@@ -38,6 +38,22 @@ export async function POST(req: NextRequest) {
 
   let saved = 0;
   await prisma.$transaction(async (tx) => {
+    // Validate all students are enrolled in this class
+    const studentIds = records.map((r: { studentId: string }) => r.studentId);
+    const activeEnrollments = await tx.studentEnrollment.findMany({
+      where: {
+        studentId: { in: studentIds },
+        classSectionId,
+        status: "ACTIVE",
+      },
+      select: { studentId: true },
+    });
+    const enrolledIds = new Set(activeEnrollments.map((e) => e.studentId));
+    const notEnrolled = studentIds.filter((id: string) => !enrolledIds.has(id));
+    if (notEnrolled.length > 0) {
+      throw new Error(`Siswa tidak terdaftar di kelas ini: ${notEnrolled.join(", ")}`);
+    }
+
     for (const record of records) {
       await tx.studentAttendance.upsert({
         where: { studentId_date: { studentId: record.studentId, date } },
