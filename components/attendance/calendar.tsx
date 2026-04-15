@@ -22,6 +22,17 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
   PRESENT_NO_CHECKOUT: { bg: "bg-status-late", text: "text-white", label: "Hadir Tanpa Pulang" },
 };
 
+// Status colors for text display (modal, summary)
+const STATUS_TEXT_COLORS: Record<string, string> = {
+  PRESENT: "text-status-present-text",
+  LATE: "text-status-late-text",
+  ABSENT: "text-status-absent-text",
+  LEAVE: "text-status-leave-text",
+  HOLIDAY: "text-status-holiday-text",
+  HALF_DAY: "text-status-late-text",
+  PRESENT_NO_CHECKOUT: "text-status-late-text",
+};
+
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
 export function AttendanceCalendar({
@@ -189,7 +200,7 @@ export function AttendanceCalendar({
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Status</span>
-                  <span className={`font-medium ${STATUS_COLORS[selectedDay.status]?.bg.replace("bg-", "text-").replace("]", "]")}`}>
+                  <span className={`font-medium ${STATUS_TEXT_COLORS[selectedDay.status] ?? "text-foreground"}`}>
                     {STATUS_COLORS[selectedDay.status]?.label ?? selectedDay.status}
                   </span>
                 </div>

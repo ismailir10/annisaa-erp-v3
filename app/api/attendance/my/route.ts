@@ -4,7 +4,14 @@ import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.employeeId) return NextResponse.json([], { status: 401 });
+  if (!session?.employeeId || !session?.tenantId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Role check: Only TEACHER can access their attendance records
+  if (session.role !== "TEACHER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
@@ -19,6 +26,10 @@ export async function GET(req: NextRequest) {
   const records = await prisma.attendanceRecord.findMany({
     where: {
       employeeId: session.employeeId,
+      // Tenant isolation: Ensure records belong to the teacher's tenant via employee
+      employee: {
+        tenantId: session.tenantId,
+      },
       date: { gte: startDate, lt: endDate },
     },
     orderBy: { date: "asc" },
