@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -100,7 +101,7 @@ export default function EmployeeDetailPage() {
           {e.status === "ACTIVE" ? (<>
             {!isEditing && <Button variant="outline" size="sm" onClick={startEditing}><Pencil size={14} className="mr-1" /> Edit</Button>}
             <Button variant="outline" size="sm" onClick={() => setDeactivateOpen(true)} className="text-destructive hover:text-destructive">Nonaktifkan</Button>
-          </>) : <Badge variant="secondary" className="bg-muted">Tidak Aktif</Badge>}
+          </>) : <StatusBadge status="INACTIVE" />}
         </div>}
       />
 
