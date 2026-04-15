@@ -16,7 +16,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { toast } from "sonner";
 import { ArrowLeft, Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield } from "lucide-react";
-import { formatDateShort, formatTime } from "@/lib/format";
+import { formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
 import Link from "next/link";
 
 type Employee = {
@@ -314,7 +314,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
 
   useEffect(() => { fetchAttendance(); }, [fetchAttendance]);
 
-  const monthLabel = new Date(year, month - 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+  const monthLabel = formatMonthLabel(year, month);
   const STATUS_COLORS: Record<string, string> = { PRESENT: "bg-status-present", LATE: "bg-status-late", ABSENT: "bg-status-absent", LEAVE: "bg-status-leave", HOLIDAY: "bg-status-holiday", PRESENT_NO_CHECKOUT: "bg-status-no-checkout" };
 
   return (
