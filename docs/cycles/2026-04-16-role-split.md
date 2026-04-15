@@ -406,6 +406,7 @@ Also add to the "Security Checklist for New Routes" section:
 - T6: Sidebar + nav config — `config/admin-nav.ts`, `components/admin/sidebar.tsx`, `app/admin/layout.tsx` — added `superAdminOnly` to NavItem type, marked Penggajian + Komponen Gaji as superAdminOnly, sidebar filters items via `canSeeSalary` boolean prop (avoids server-only import in client component)
 - T7: Employee UI — `app/admin/employees/[id]/page.tsx` — salary fetch returns null on 403, Gaji tab hidden when salaryValues===null, Rekening & BPJS section hidden when server stripped fields
 - T8: Vitest unit tests — `lib/__tests__/auth-helpers.test.ts`, `app/api/__tests__/payroll-auth.test.ts`, `app/api/__tests__/employee-salary-auth.test.ts` — 21 new tests covering all three helper functions, payroll route role gating, employee salary route gating, and field stripping behavior
+- T9: Playwright spec — `e2e/admin-school-admin.spec.ts` (new), `e2e/admin.spec.ts` + `e2e/teacher.spec.ts` (updated), `app/admin/page.tsx` + `app/admin/dashboard-client.tsx` (canSeeSalary filtering on dashboard), `app/auth/callback/route.ts` + 46 API routes (isAdminRole sweep) — all 25 Playwright tests green; fixed PII-scrub test regressions (navigate-via-API pattern, stable field selectors)
 
 ---
 
@@ -413,25 +414,25 @@ Also add to the "Security Checklist for New Routes" section:
 
 ### Security checklist (must all pass before `/ship`)
 
-- [ ] `grep -r "SCHOOL_ADMIN" app/api/payroll/` returns nothing (all checks now use `canViewSalary`)
-- [ ] `grep -r "SCHOOL_ADMIN" app/api/employees/` returns nothing (all checks now use `canViewSalary` or `isAdminRole`)
-- [ ] `GET /api/payroll` with SCHOOL_ADMIN session → 403 (not 200, not empty array)
-- [ ] `GET /api/employees/[id]/salary` with SCHOOL_ADMIN session → 403
-- [ ] `GET /api/employees/[id]` with SCHOOL_ADMIN session → response excludes `bankAccountNo`, `bankName`, `bpjsEnrolled`
-- [ ] `/admin/payroll` with SCHOOL_ADMIN session → redirected to `/admin` (layout gate)
-- [ ] Sidebar rendered for SCHOOL_ADMIN → no "Penggajian" link, no "Komponen Gaji" link
-- [ ] Employee detail for SCHOOL_ADMIN → no "Gaji" tab, no bank/BPJS fields
-- [ ] SQL migration is reversible (down migration comment present in migration file)
-- [ ] Seed has two admin fixtures: `u_super_admin` (SUPER_ADMIN) + `u_school_admin` (SCHOOL_ADMIN)
-- [ ] Playwright `admin-school-admin.spec.ts` — all 5 tests green
+- [x] `grep -r "SCHOOL_ADMIN" app/api/payroll/` returns nothing (all checks now use `canViewSalary`)
+- [x] `grep -r "SCHOOL_ADMIN" app/api/employees/` returns nothing (all checks now use `canViewSalary` or `isAdminRole`)
+- [x] `GET /api/payroll` with SCHOOL_ADMIN session → 403 (not 200, not empty array)
+- [x] `GET /api/employees/[id]/salary` with SCHOOL_ADMIN session → 403
+- [x] `GET /api/employees/[id]` with SCHOOL_ADMIN session → response excludes `bankAccountNo`, `bankName`, `bpjsEnrolled`
+- [x] `/admin/payroll` with SCHOOL_ADMIN session → redirected to `/admin` (layout gate)
+- [x] Sidebar rendered for SCHOOL_ADMIN → no "Penggajian" link, no "Komponen Gaji" link
+- [x] Employee detail for SCHOOL_ADMIN → no "Gaji" tab, no bank/BPJS fields
+- [x] SQL migration is reversible (down migration comment present in migration file)
+- [x] Seed has two admin fixtures: `u_super_admin` (SUPER_ADMIN) + `u_school_admin` (SCHOOL_ADMIN)
+- [x] Playwright `admin-school-admin.spec.ts` — all 5 tests green
 
 ### Gates
 
 | Gate | Status |
 |------|--------|
-| `npm run build` | T1–T8 ✓ |
-| `npx vitest run` | T1–T8 ✓ (90/90) |
-| `npx playwright test` | pending |
+| `npm run build` | T1–T9 ✓ |
+| `npx vitest run` | T1–T9 ✓ (90/90) |
+| `npx playwright test` | T9 ✓ (25/25) |
 
 ---
 

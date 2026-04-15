@@ -1,3 +1,4 @@
+import { isAdminRole } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
           where: { email: user.email },
         });
 
-        if (prismaUser?.role === "SCHOOL_ADMIN") {
+        if (isAdminRole(prismaUser?.role ?? "")) {
           return NextResponse.redirect(`${origin}/admin`);
         } else if (prismaUser?.role === "TEACHER") {
           return NextResponse.redirect(`${origin}/teacher`);
