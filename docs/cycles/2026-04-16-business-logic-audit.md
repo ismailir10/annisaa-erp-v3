@@ -57,7 +57,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 2. [x] **Payroll: make approval atomic** — Wrap payroll approval's 3 operations (status update, attendance fetch, attendance update) in `prisma.$transaction()`. Files: `app/api/payroll/[id]/approve/route.ts`.
 
-3. [ ] **Payroll: fix parseFloat → Number for adjustment amounts** — Replace `parseFloat(body.adjustmentAmount)` with `Number(body.adjustmentAmount)` and validate result is not NaN. Files: `app/api/payroll/[id]/items/[itemId]/lines/[lineId]/route.ts`.
+3. [x] **Payroll: fix parseFloat → Number for adjustment amounts** — Replace `parseFloat(body.adjustmentAmount)` with `Number(body.adjustmentAmount)` and validate result is not NaN. Files: `app/api/payroll/[id]/items/[itemId]/lines/[lineId]/route.ts`.
 
 4. [ ] **Invoice: wrap bulk generation in transaction** — Wrap the invoice creation loop in `prisma.$transaction()`. Handle per-invoice validation errors inside the transaction (collect errors, rollback all if any fail). Files: `app/api/invoices/generate/route.ts`.
 
@@ -91,6 +91,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 - **Task 1 — Payroll division-by-zero guard:** `lib/payroll/engine.ts`, `lib/payroll/__tests__/engine.test.ts` — Added guard at top of `calculatePayroll()` that throws descriptive error when `actualWorkingDays <= 0`. Added 2 test cases (0 and -1).
 - **Task 2 — Payroll approval atomic:** `app/api/payroll/[id]/approve/route.ts` — Wrapped status update + attendance fetch + attendance lock in single `prisma.$transaction()`.
+- **Task 3 — Payroll parseFloat fix:** `app/api/payroll/[id]/items/[itemId]/lines/[lineId]/route.ts` — Replaced `parseFloat()` with `Number()` + NaN validation. Also wrapped line update + item recalculation in `$transaction()`.
 
 ## Verification
 
