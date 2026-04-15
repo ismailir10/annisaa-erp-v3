@@ -58,9 +58,9 @@ Ordered, atomic. Each task will be implemented, verified (build + tests pass), a
 5. [x] Audit parent portal navigation - identified that custom `ParentBottomNav` is appropriate (Shadcn doesn't provide bottom nav component)
 6. [x] Implement teacher portal navigation using Shadcn components (mobile-first, bottom nav, Framer Motion layoutId) — NO ACTION: current implementation is appropriate
 7. [x] Implement parent portal navigation using Shadcn components (match teacher portal pattern exactly, must preserve `?child=`) — NO ACTION: current implementation is appropriate and already preserves `?child=`
-8. [ ] REMOVE invoice stat cards from parent invoices page ("Total Tagihan", "Dibayar", "Lunas" cards)
-9. [ ] DELETE `InvoiceStatCard` component (no longer needed after removal)
-10. [ ] Remove stat card skeletons from parent invoices loading state
+8. [x] REMOVE invoice stat cards from parent invoices page ("Total Tagihan", "Dibayar", "Lunas" cards)
+9. [x] DELETE `InvoiceStatCard` component (no longer needed after removal)
+10. [x] Remove stat card skeletons from parent invoices loading state
 11. [ ] REMOVE "Masuk" (check-in) and "Pulang" (check-out) columns from parent attendance DataTable - keep only Date + Status
 12. [ ] Remove stat cards from parent attendance page ("Hadir", "Tidak Hadir", "Total") - not needed for parents
 13. [ ] Replace parent portal's hybrid InvoiceCard/DataTable with pure DataTable (responsive)
@@ -85,6 +85,7 @@ Ordered, atomic. Each task will be implemented, verified (build + tests pass), a
 - Task 2: ParentBottomNav — `components/parent/bottom-nav.tsx` — added `useSearchParams` to preserve `?child=` parameter in all nav links
 - Task 3: UnpaidInvoicesTable — `app/parent/unpaid-invoices-table.tsx`, `app/parent/page.tsx` — added `childId` prop to preserve `?child=` parameter in "Lihat" link
 - Task 4-7: Navigation audits — reviewed teacher/parent bottom navs, determined current implementations are appropriate (Shadcn doesn't provide bottom nav component; current implementations use Framer Motion properly)
+- Task 8-10: Remove harmful invoice stat cards — `app/parent/invoices/client.tsx` — removed stat cards, InvoiceStatCard import, and stat card skeletons (harmful UX: created unnecessary stress showing debt totals)
 
 ## Verification
 
@@ -92,6 +93,7 @@ Ordered, atomic. Each task will be implemented, verified (build + tests pass), a
 - Task 2: code review passed - fix correctly preserves search params using Next.js `useSearchParams` hook
 - Task 3: code review passed - added `childId` prop with `useMemo` for performance, passes childId from parent page to preserve multi-child selection
 - Task 4-7: audit passed - current bottom nav implementations are appropriate and well-implemented (Framer Motion, proper accessibility, mobile-first)
+- Task 8-10: build passed - removed harmful UX (stat cards showing debt totals), removed unused imports, cleaned up loading skeleton
 
 ## Ship Notes
 
