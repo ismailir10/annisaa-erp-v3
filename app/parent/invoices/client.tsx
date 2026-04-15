@@ -10,10 +10,20 @@ import { Receipt, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { InvoiceDetailSheet } from "./invoice-detail-sheet";
+import dynamic from "next/dynamic";
 import { InvoiceStatCard } from "@/components/parent/invoice-stat-card";
 import { InvoiceFilter } from "@/components/parent/invoice-filter";
 import { InvoiceCard } from "@/components/parent/invoice-card";
+import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
+
+// Dynamically import InvoiceDetailSheet to reduce initial bundle size
+const InvoiceDetailSheet = dynamic(
+  () => import("./invoice-detail-sheet").then((mod) => ({ default: mod.InvoiceDetailSheet })),
+  {
+    loading: () => <InvoiceDetailSkeleton />,
+    ssr: false,
+  }
+);
 
 const PARENT_INVOICE_LABELS: Record<string, string> = {
   SENT: "Belum Dibayar",
