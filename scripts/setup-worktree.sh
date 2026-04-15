@@ -53,8 +53,9 @@ fi
 
 # ── Create worktree ──────────────────────────────────────────────────────────
 
-echo "setup-worktree: creating .worktrees/$SLUG on branch $BRANCH ..."
-git worktree add "$WORKTREE_PATH" -b "$BRANCH"
+echo "setup-worktree: creating .worktrees/$SLUG on branch $BRANCH (base: origin/staging) ..."
+git fetch origin staging --quiet
+git worktree add "$WORKTREE_PATH" -b "$BRANCH" origin/staging
 
 # ── Symlink .env files ───────────────────────────────────────────────────────
 
