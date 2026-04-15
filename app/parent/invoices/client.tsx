@@ -3,11 +3,11 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Receipt, CheckCircle, Clock, Eye, AlertCircle } from "lucide-react";
+import { Receipt, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -134,13 +134,9 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setSelectedInvoice(row.original)}
-        >
-          <Eye size={14} className="mr-1" /> Lihat
-        </Button>
+        <DataTableRowActions
+          onView={() => setSelectedInvoice(row.original)}
+        />
       ),
     },
   ];

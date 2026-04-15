@@ -3,9 +3,8 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
-import { Eye } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
@@ -75,13 +74,9 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setSelectedAssessment(row.original)}
-        >
-          <Eye size={14} className="mr-1" /> Lihat
-        </Button>
+        <DataTableRowActions
+          onView={() => setSelectedAssessment(row.original)}
+        />
       ),
     },
   ];

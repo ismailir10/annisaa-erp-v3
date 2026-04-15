@@ -17,7 +17,7 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom">
+    <nav className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom" aria-label="Navigasi utama guru">
       <div className="flex items-center justify-around h-16 max-w-md mx-auto">
         {tabs.map((tab) => {
           const isActive =
@@ -31,6 +31,8 @@ export function BottomNav() {
               key={tab.href}
               href={tab.href}
               className="flex flex-col items-center justify-center gap-1 relative py-1 px-4"
+              aria-label={tab.label}
+              aria-current={isActive ? "page" : undefined}
             >
               {isActive && (
                 <motion.div
@@ -43,6 +45,7 @@ export function BottomNav() {
                 size={20}
                 strokeWidth={isActive ? 2 : 1.5}
                 className={isActive ? "text-primary" : "text-muted-foreground"}
+                aria-hidden="true"
               />
               <span
                 className={`text-[10px] font-medium ${

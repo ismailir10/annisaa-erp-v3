@@ -14,7 +14,7 @@ export default async function TeacherLayout({
   return (
     <div className="min-h-screen bg-background pb-20">
       <TeacherHeader userName={session.name ?? "Guru"} />
-      <main className="max-w-md mx-auto">{children}</main>
+      <main className="max-w-md mx-auto px-5 py-6">{children}</main>
       <BottomNav />
     </div>
   );
