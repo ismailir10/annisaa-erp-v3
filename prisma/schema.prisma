@@ -387,6 +387,11 @@ model Student {
   kkNumber    String?  // No. Kartu Keluarga
   livingWith  String?  // ORANG_TUA | WALI | LAINNYA
 
+  // Lifecycle tracking
+  withdrawalReason String?
+  withdrawalDate   String?  // YYYY-MM-DD
+  graduationDate   String?  // YYYY-MM-DD
+
   tenant      Tenant              @relation(fields: [tenantId], references: [id])
   guardians   StudentGuardian[]
   enrollments StudentEnrollment[]
