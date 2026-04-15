@@ -71,7 +71,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 
 9. [x] **Admission: require ADMITTED status for conversion** — Change the condition from `!== "ADMITTED" && !== "VISITED"` to `!== "ADMITTED"` only. Files: `app/api/admissions/[id]/convert/route.ts`.
 
-10. [ ] **Student: cascade deactivation to invoices** — When student status changes to INACTIVE or WITHDRAWN, also update unpaid invoices (DRAFT, SENT) to CANCELLED. Files: `app/api/students/[id]/route.ts`.
+10. [x] **Student: cascade deactivation to invoices** — When student status changes to INACTIVE or WITHDRAWN, also update unpaid invoices (DRAFT, SENT) to CANCELLED. Files: `app/api/students/[id]/route.ts`.
 
 11. [ ] **Enrollment: atomic capacity check** — Use `$transaction` with `$queryRaw` to atomically check capacity and create enrollment (prevents race-condition over-enrollment). Files: `app/api/students/[id]/enroll/route.ts`.
 
@@ -95,6 +95,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 - **Task 4+5 — Invoice atomic generation + race-safe numbering:** `app/api/invoices/generate/route.ts` — Wrapped entire generation loop in `prisma.$transaction()`. Added `pg_advisory_xact_lock` per tenant to prevent concurrent invoice number collisions. All-or-nothing: if any invoice creation fails, all roll back.
 - **Task 6+7 — Webhook security hardening:** `app/api/xendit/webhook/route.ts` — Replaced string comparison with `crypto.timingSafeEqual()` for webhook token. Added payment amount validation against remaining balance (logs warning on overpayment, still processes).
 - **Task 8+9 — Admission atomic conversion + strict status:** `app/api/admissions/[id]/convert/route.ts` — Wrapped student + parent + guardian + admission update in `prisma.$transaction()`. Restricted conversion to `ADMITTED` status only (no longer allows `VISITED`).
+- **Task 10 — Student deactivation cascade:** `app/api/students/[id]/route.ts` — Enrollment withdrawal + invoice cancellation (DRAFT/SENT → CANCELLED) now run atomically in `$transaction()`.
 
 ## Verification
 
@@ -108,7 +109,7 @@ Ordered by risk severity. Each task is atomic and independently committable.
 | Invoice: concurrent generation gets unique numbers | ✅ (advisory lock) |
 | Admission: conversion rolls back on partial failure | ✅ |
 | Admission: VISITED status rejected for conversion | ✅ |
-| Student deactivation: draft/sent invoices cancelled | ⏳ |
+| Student deactivation: draft/sent invoices cancelled | ✅ |
 | Enrollment: concurrent requests respect capacity | ⏳ |
 | Webhook: overpayment logged as warning | ✅ |
 | Demo mode: requires DEMO_MODE=true env var | ⏳ |
