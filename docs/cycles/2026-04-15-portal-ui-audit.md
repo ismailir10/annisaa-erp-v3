@@ -102,7 +102,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
    - Verify `title="Keluar"` on logout buttons for accessibility
    - Verify: Both headers have same height, padding, and visual style
 
-7. [ ] Ensure bottom nav consistency across both portals
+7. [x] Ensure bottom nav consistency across both portals
    - Compare BottomNav components (teacher vs parent)
    - Verify both use Framer Motion `layoutId` for active indicator
    - Verify active states: teal underline + icon color change
@@ -124,6 +124,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 - Task 4: Audit and fix parent portal inconsistencies — `app/parent/invoices/invoice-detail-sheet.tsx` — Fixed dynamic Tailwind class names, replaced with proper VARIANT_STYLES mapping using CSS variables.
 - Task 5: Audit and fix teacher portal inconsistencies — No changes needed, all teacher portal pages already follow CLAUDE.md standards.
 - Task 6: Ensure header consistency — No changes needed, TeacherHeader and ParentHeader already identical.
+- Task 7: Ensure bottom nav consistency — No changes needed, both bottom navs already identical in structure and behavior.
 
 ## Verification
 
@@ -133,6 +134,7 @@ Ordered, each atomic. Each task has its own acceptance criterion.
 - Task 4: Gates passed (TypeScript compilation successful, no new errors introduced in parent/invoices/invoice-detail-sheet.tsx), Manual smoke: Status messages now use proper CSS variable classes.
 - Task 5: Gates passed (TypeScript compilation successful, no new errors), Manual smoke: All teacher portal pages use proper CSS variables.
 - Task 6: Gates passed (TypeScript compilation successful, no new errors), Manual smoke: Both headers identical in structure, height, padding.
+- Task 7: Gates passed (TypeScript compilation successful, no new errors), Manual smoke: Both bottom navs use same Framer Motion layoutId, active states, padding.
 
 ## Ship Notes
 
