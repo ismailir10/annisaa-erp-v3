@@ -23,6 +23,7 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   matchExact?: boolean;
+  superAdminOnly?: boolean;
 };
 
 export type NavGroup = {
@@ -57,7 +58,7 @@ export const adminNav: NavConfig = {
         { label: "Karyawan", href: "/admin/employees", icon: Users },
         { label: "Kehadiran", href: "/admin/attendance", icon: CalendarCheck },
         { label: "Pengajuan Cuti", href: "/admin/leave", icon: CalendarOff },
-        { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
+        { label: "Penggajian", href: "/admin/payroll", icon: Banknote, superAdminOnly: true },
       ],
     },
     {
@@ -105,6 +106,7 @@ export const adminNav: NavConfig = {
       label: "Komponen Gaji",
       href: "/admin/settings/salary-components",
       icon: Coins,
+      superAdminOnly: true,
     },
     { label: "Pengguna", href: "/admin/settings/users", icon: Users },
     { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield },

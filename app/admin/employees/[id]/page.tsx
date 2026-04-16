@@ -23,7 +23,7 @@ import Link from "next/link";
 type Employee = {
   id: string; kode: string; nama: string; formalName: string | null; email: string;
   noHp: string | null; jabatan: string; campusId: string; hireDate: string;
-  status: string; bankAccountNo: string | null; bankName: string | null; bpjsEnrolled: boolean;
+  status: string; bankAccountNo?: string | null; bankName?: string | null; bpjsEnrolled?: boolean;
   campus: { name: string };
 };
 type SalaryValue = {
@@ -38,7 +38,7 @@ export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const [salaryValues, setSalaryValues] = useState<SalaryValue[]>([]);
+  const [salaryValues, setSalaryValues] = useState<SalaryValue[] | null>(null);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +51,7 @@ export default function EmployeeDetailPage() {
   useEffect(() => {
     Promise.all([
       fetch(`/api/employees/${id}`).then(r => r.json()),
-      fetch(`/api/employees/${id}/salary`).then(r => r.json()),
+      fetch(`/api/employees/${id}/salary`).then(r => r.ok ? r.json() : null),
       fetch("/api/config/campuses").then(r => r.json()),
       fetch("/api/employees/positions").then(r => r.json()),
     ]).then(([emp, sal, camps, pos]) => {
@@ -61,7 +61,7 @@ export default function EmployeeDetailPage() {
 
   function startEditing() {
     if (!employee) return;
-    setEditForm({ nama: employee.nama, formalName: employee.formalName ?? "", email: employee.email, noHp: employee.noHp ?? "", jabatan: employee.jabatan, campusId: employee.campusId, hireDate: employee.hireDate, bankName: employee.bankName ?? "", bankAccountNo: employee.bankAccountNo ?? "", bpjsEnrolled: employee.bpjsEnrolled });
+    setEditForm({ nama: employee.nama, formalName: employee.formalName ?? "", email: employee.email, noHp: employee.noHp ?? "", jabatan: employee.jabatan, campusId: employee.campusId, hireDate: employee.hireDate, bankName: employee.bankName ?? "", bankAccountNo: employee.bankAccountNo ?? "", bpjsEnrolled: employee.bpjsEnrolled ?? false });
     setIsEditing(true);
   }
 
@@ -75,6 +75,7 @@ export default function EmployeeDetailPage() {
 
   async function handleSaveSalary() {
     setSavingSalary(true);
+    if (!salaryValues) return;
     const payload = salaryValues.map(sv => ({ componentDefId: sv.componentDefId, value: sv.value }));
     const res = await fetch(`/api/employees/${id}/salary`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (res.ok) toast.success("Nilai gaji disimpan"); else toast.error("Gagal menyimpan");
@@ -106,7 +107,7 @@ export default function EmployeeDetailPage() {
       />
 
       <Tabs defaultValue="profile">
-        <TabsList><TabsTrigger value="profile">Profil</TabsTrigger><TabsTrigger value="salary">Gaji</TabsTrigger><TabsTrigger value="attendance">Kehadiran</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="profile">Profil</TabsTrigger>{salaryValues !== null && <TabsTrigger value="salary">Gaji</TabsTrigger>}<TabsTrigger value="attendance">Kehadiran</TabsTrigger></TabsList>
 
         <TabsContent value="profile">
           <Card className="p-5 max-w-3xl mt-4">
@@ -167,7 +168,7 @@ export default function EmployeeDetailPage() {
                   </div>
                 </div>
 
-                <div>
+                {"bankAccountNo" in employee && <div>
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rekening & BPJS</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
@@ -184,7 +185,7 @@ export default function EmployeeDetailPage() {
                   <div className="mt-3">
                     <label className="flex items-center gap-2 text-sm"><Checkbox checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
                   </div>
-                </div>
+                </div>}
               </div>
             ) : (
               /* ── VIEW MODE ─────────────────────────────────── */
@@ -241,8 +242,8 @@ export default function EmployeeDetailPage() {
                   </div>
                 </div>
 
-                {/* Rekening & BPJS */}
-                <div>
+                {/* Rekening & BPJS — hidden when server stripped fields (SCHOOL_ADMIN) */}
+                {"bankAccountNo" in e && <div>
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rekening & BPJS</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
@@ -258,7 +259,7 @@ export default function EmployeeDetailPage() {
                     <Shield size={16} className="text-muted-foreground shrink-0" />
                     <div><p className="text-[10px] text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar"}</p></div>
                   </div>
-                </div>
+                </div>}
               </div>
             )}
           </Card>
@@ -266,9 +267,9 @@ export default function EmployeeDetailPage() {
 
         <TabsContent value="salary">
           <Card className="p-6 max-w-3xl mt-4">
-            {salaryValues.length === 0 ? <EmptyState title="Tidak ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
+            {(salaryValues ?? []).length === 0 ? <EmptyState title="Tidak ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
               <div className="space-y-3">
-                {salaryValues.map(sv => (
+                {(salaryValues ?? []).map(sv => (
                   <div key={sv.componentDefId} className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
                     <div className="flex-1">
                       <p className="text-sm font-medium">{sv.componentDef.label}</p>
@@ -279,7 +280,7 @@ export default function EmployeeDetailPage() {
                         <span className="text-[10px] text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
                       </div>
                     </div>
-                    <div className="w-40"><Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => svs.map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" /></div>
+                    <div className="w-40"><Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" /></div>
                   </div>
                 ))}
                 <Button onClick={handleSaveSalary} disabled={savingSalary} className="mt-2"><Save size={14} className="mr-1.5" /> {savingSalary ? "Menyimpan..." : "Simpan Semua Nilai"}</Button>

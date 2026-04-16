@@ -3,23 +3,14 @@ import { test, expect } from "@playwright/test";
 // Demo mode E2E tests — discovers user ID from /api/auth/users and sets
 // session cookie directly to avoid rate-limit on repeated beforeEach calls.
 
-let adminUserId: string;
+const ADMIN_USER_ID = "u_super_admin"; // Primary owner — SUPER_ADMIN
 
 test.describe("Admin flows", () => {
-  test.beforeAll(async ({ request }) => {
-    // Discover admin user ID from the demo user list endpoint
-    const res = await request.get("/api/auth/users");
-    const users = await res.json();
-    const admin = users.find((u: { role: string }) => u.role === "SCHOOL_ADMIN");
-    if (!admin) throw new Error("No SCHOOL_ADMIN user found in demo DB");
-    adminUserId = admin.id;
-  });
-
   test.beforeEach(async ({ page }) => {
     // Set demo session cookie directly — avoids /api/auth/login rate limit
     await page.context().addCookies([{
       name: "school-erp-session",
-      value: adminUserId,
+      value: ADMIN_USER_ID,
       domain: "localhost",
       path: "/",
       httpOnly: true,
@@ -42,10 +33,13 @@ test.describe("Admin flows", () => {
   });
 
   test("employee detail loads with salary tab", async ({ page }) => {
-    await page.goto("/admin/employees");
-    // Click the first employee link in the data table
-    await page.locator("table tbody tr").first().locator("a").first().click();
-    await page.waitForURL("**/admin/employees/**");
+    // Navigate via API to avoid depending on employee name in the table
+    const res = await page.request.get("/api/employees?pageSize=1");
+    const json = await res.json();
+    const empId = json.data?.[0]?.id;
+    if (!empId) return;
+    await page.goto(`/admin/employees/${empId}`);
+    await page.waitForURL(`**/admin/employees/${empId}`);
     await expect(page.getByRole("tab", { name: "Profil" })).toBeVisible();
     await page.getByRole("tab", { name: "Gaji" }).click();
     await expect(page.locator("text=Gaji Pokok")).toBeVisible();

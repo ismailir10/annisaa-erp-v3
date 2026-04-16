@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -41,24 +41,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tidak ada hari kerja dalam rentang tanggal tersebut" }, { status: 400 });
   }
 
-  // Check employee is active
-  const employeeCheck = await prisma.employee.findUnique({
+  // Single fetch: check active status + grab leave balances in one query
+  const employee = await prisma.employee.findUnique({
     where: { id: session.employeeId },
-    select: { status: true },
+    select: { status: true, leaveBalanceAnnual: true, leaveBalanceSick: true },
   });
-  if (employeeCheck?.status !== "ACTIVE") {
+  if (employee?.status !== "ACTIVE") {
     return NextResponse.json({ error: "Karyawan tidak aktif" }, { status: 400 });
   }
 
-  // Check balance for ANNUAL and SICK
+  // Check balance for ANNUAL and SICK via DB aggregate (no rows fetched)
   if (leaveType === "ANNUAL" || leaveType === "SICK") {
-    const employee = await prisma.employee.findUnique({
-      where: { id: session.employeeId },
-      select: { leaveBalanceAnnual: true, leaveBalanceSick: true },
-    });
-
     const year = new Date().getFullYear();
-    const approved = await prisma.leaveRequest.findMany({
+    const usedAgg = await prisma.leaveRequest.aggregate({
+      _sum: { days: true },
       where: {
         employeeId: session.employeeId,
         status: "APPROVED",
@@ -66,7 +62,7 @@ export async function POST(req: NextRequest) {
         startDate: { gte: `${year}-01-01` },
       },
     });
-    const used = approved.reduce((s, r) => s + r.days, 0);
+    const used = usedAgg._sum.days ?? 0;
     const total = leaveType === "ANNUAL" ? employee!.leaveBalanceAnnual : employee!.leaveBalanceSick;
     const remaining = total - used;
 
@@ -109,7 +105,7 @@ export async function POST(req: NextRequest) {
 // Admin: list all leave requests
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
   }
 

@@ -58,6 +58,7 @@ test.describe("Teacher flows", () => {
     await expect(page.locator("text=Profil Saya")).toBeVisible();
     // Verify the info card rendered — "Nama Lengkap" label always appears
     await expect(page.locator("text=Nama Lengkap")).toBeVisible();
+    await expect(page.locator("text=Jabatan").first()).toBeVisible();
   });
 
   test("logout works", async ({ page }) => {

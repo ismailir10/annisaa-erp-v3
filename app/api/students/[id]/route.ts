@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
+import { validateBody } from "@/lib/api/validate";
+import { updateStudentSchema } from "@/lib/validations/student";
 
 export async function GET(
   _req: NextRequest,
@@ -41,7 +43,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -51,7 +53,9 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const result = await validateBody(updateStudentSchema, await req.json());
+  if (result.error) return result.error;
+  const body = result.data;
 
   // Cascade: withdraw enrollments + cancel draft/sent invoices when student is deactivated
   if (body.status === "INACTIVE" || body.status === "WITHDRAWN") {
