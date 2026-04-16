@@ -131,6 +131,7 @@ SUPER_ADMIN   24h (upper bound)   4h idle
 - Task 7 (2026-04-16): `supabase/config.toml` — reverted session policy to commented-out state with a note that these require Supabase Pro plan. Idle timeouts are fully enforced at middleware level instead.
 - Task 8 (2026-04-16): `prisma/seed.ts` — fixed hardcoded LibSQL adapter (`file:dev.db`) that crashed CI seed. Now detects DATABASE_URL: uses `PrismaLibSql` for `file:` URLs (local dev), `PrismaPg` for `postgres:` URLs (CI/prod), aligned with `lib/db.ts`.
 - Task 9 (2026-04-16): `prisma/migrations/20260415000000_add_perf_indexes/migration.sql` + `20260416000000_add_fk_indexes/migration.sql` — wrapped CREATE INDEX in DO blocks with table-existence checks. Prevents `relation does not exist` errors when migrations run on databases where some tables haven't been created yet.
+- Task 10 (2026-04-16): `app/parent/page.tsx` — added "Semua tagihan lunas" empty state when parent has no unpaid invoices. CI Playwright test expected this text but the dashboard previously rendered nothing when the invoice list was empty (seed creates no invoices).
 
 ---
 
