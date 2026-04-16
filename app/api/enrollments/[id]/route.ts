@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { updateEnrollmentSchema } from "@/lib/validations/enrollment";
 
 export async function PUT(
   req: NextRequest,
@@ -17,6 +18,10 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
+  const parsed = updateEnrollmentSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Input tidak valid" }, { status: 400 });
+  }
 
   // Verify tenant ownership via student
   const existing = await prisma.studentEnrollment.findFirst({
@@ -24,14 +29,9 @@ export async function PUT(
   });
   if (!existing) return NextResponse.json({ error: "Pendaftaran tidak ditemukan" }, { status: 404 });
 
-  const data: Record<string, unknown> = {};
-  if (body.classSectionId) data.classSectionId = body.classSectionId;
-  if (body.status) data.status = body.status;
-  if (body.notes !== undefined) data.notes = body.notes;
-
   const updated = await prisma.studentEnrollment.update({
     where: { id },
-    data,
+    data: parsed.data,
     include: {
       student: { select: { name: true } },
       classSection: { select: { name: true } },

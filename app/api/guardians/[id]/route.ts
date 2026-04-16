@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { updateGuardianSchema, toggleGuardianStatusSchema } from "@/lib/validations/guardian";
 
 /**
  * Standalone guardian routes — operate on a StudentGuardian record by its own ID.
@@ -36,6 +37,10 @@ export async function PUT(
   if (!guardian) return NextResponse.json({ error: "Wali tidak ditemukan" }, { status: 404 });
 
   const body = await req.json();
+  const parsed = updateGuardianSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Input tidak valid" }, { status: 400 });
+  }
 
   // Update parent contact fields
   await prisma.parent.update({
@@ -82,7 +87,11 @@ export async function PATCH(
   if (!guardian) return NextResponse.json({ error: "Wali tidak ditemukan" }, { status: 404 });
 
   const body = await req.json();
-  const newStatus = body.status === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+  const parsed = toggleGuardianStatusSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Input tidak valid" }, { status: 400 });
+  }
+  const newStatus = parsed.data.status;
 
   const updated = await prisma.studentGuardian.update({
     where: { id },
