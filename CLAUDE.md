@@ -134,21 +134,22 @@ This overrides whatever the file currently says. There is no "it's already set" 
 
 Installed via `scripts/install-hooks.sh` which sets `core.hooksPath=.githooks` and writes `.githooks/.installed` as a marker.
 
-- **`pre-commit`** — enforces the markdown allowlist (one-file-per-cycle rule) and doc-sync (code changes must stage cycle doc, README.md, or CLAUDE.md).
+- **`pre-commit`** — enforces the markdown allowlist (one-file-per-cycle rule), doc-sync (code changes must stage cycle doc, README.md, or CLAUDE.md), and seed drift prevention (`prisma/seed.ts` cannot be committed without `lib/db.ts` also staged).
 - **`prepare-commit-msg`** — appends `Model-Trailer: <model>` and `Role: <role>` from `.claude/session-role` to every commit that doesn't already have them.
 - **`pre-push`** — blocks direct pushes to `staging` or `main` for **all roles** (including `cto`). Everyone uses `/ship` to open a PR instead. Direct pushes to feature branches (`feat/*`) are always allowed.
 
-### 3. Worktree isolation (every product-builder session gets its own working tree)
+### 3. Worktree isolation (every session gets its own working tree)
 
-The cto session works in the main checkout. **Every product-builder session works in its own dedicated git worktree — one worktree per cycle, created fresh at session start.**
+**Every session works in its own dedicated git worktree — one worktree per cycle, created fresh at session start.** This applies to all roles (cto, product-builder, etc.).
 
 **Why:** Worktrees prevent parallel sessions from stomping on each other's lockfiles and build artifacts. They also give each session a clean slate — no dirty state inherited from a crashed previous session.
 
 **Rule:**
-- `role=cto` → main checkout, no worktree needed. Uses `/ship` (PR model) like everyone else — no direct push to staging.
+- **Every session — regardless of role — MUST work in a worktree.** No exceptions. `check-role.sh` enforces this for all roles.
+- `role=cto` → worktree required. Uses `/ship` (PR model) like everyone else — no direct push to staging.
 - `role=product-builder` → **every new session = new worktree, no exceptions.** `check-role.sh` blocks `/spec`, `/build`, and `/ship` until the session is inside a worktree.
 
-**The user never touches worktree setup.** When the user opens a Claude Code session in the main checkout and types anything (e.g. `/spec build the crud sweep`), the AI detects it is a product-builder session in the main checkout via the `SessionStart` hook and does the setup automatically:
+**The user never touches worktree setup.** When the user opens a Claude Code session in the main checkout and types anything (e.g. `/spec build the crud sweep`), the AI detects it is in the main checkout via the `SessionStart` hook and does the setup automatically regardless of role:
 
 1. Derives a kebab-case slug from the user's request
 2. Runs `bash scripts/setup-worktree.sh <slug>` via the Bash tool
@@ -463,6 +464,26 @@ import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui
 - Framer Motion `layoutId` for smooth active indicator animation
 - Safe area padding for mobile (`safe-area-bottom` on bottom nav)
 
+### Empty State Contract
+
+**Every conditional list render MUST have an explicit else branch that renders visible content.** Rendering nothing in the empty case is a Playwright test failure waiting to happen — every E2E test asserts visible text on the page.
+
+```tsx
+// CORRECT — always render something
+{items.length > 0 ? (
+  <ul>{items.map(i => <li key={i.id}>{i.name}</li>)}</ul>
+) : (
+  <EmptyState title="Belum ada data" description="Data akan muncul setelah ditambahkan" />
+)}
+
+// WRONG — renders literally nothing when empty (test will fail)
+{items.length > 0 && (
+  <ul>{items.map(i => <li key={i.id}>{i.name}</li>)}</ul>
+)}
+```
+
+**Rule:** If a page or component conditionally renders a list based on fetched data, it MUST render an `<EmptyState>` or at minimum visible text in the empty branch. This applies to all portals (admin, teacher, parent) and all page types (list pages, detail pages, dashboard cards).
+
 ### Error Handling Standard
 
 Every `fetch()` call MUST check response:
@@ -601,4 +622,4 @@ All use demo-mode auth — no live Supabase or env vars required to run locally.
 | `docs/uat/jobs/*.md` | Per-portal Jobs-to-be-Done library — maintained by `/build` when user-facing capability changes | Each cycle that touches portal UX |
 | `docs/uat/reports/*.md` | UAT reports (gitignored) — produced by `/uat`, consumed by `/spec` | On demand |
 
-**Last updated:** 2026-04-16 (role split — SUPER_ADMIN + SCHOOL_ADMIN; added standalone `/uat` command, JTBD library, personas, `/spec` UAT integration, branch hygiene preflight)
+**Last updated:** 2026-04-17 (CI hardening — seed drift hook, empty state contract, worktree for all roles)

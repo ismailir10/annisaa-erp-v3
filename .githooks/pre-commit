@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# pre-commit — enforce one-file-per-cycle + doc sync
+# pre-commit — enforce one-file-per-cycle + doc sync + seed drift check
 #
-# Two rules:
+# Three rules:
 #  1. Markdown allowlist: any staged .md file must be in the allowlist below.
 #     The allowlist is: README.md, CLAUDE.md, LICENSE.md at repo root;
 #     anything under docs/, .github/, .claude/, .agent-skills/.
 #  2. Doc sync: if any staged file touches app/, components/, lib/, prisma/,
 #     app/api/ — then the commit must also stage README.md, CLAUDE.md, or a
 #     docs/cycles/*.md file.
+#  3. Seed drift: if prisma/seed.ts is staged, lib/db.ts must also be staged.
+#     This forces authors to keep the seed's Prisma adapter in sync with lib/db.ts.
 #
 # Bypass: git commit --no-verify (discouraged; GitHub branch protection on
 # staging/main is the real enforcement layer).
@@ -81,6 +83,31 @@ if [ "$TOUCHES_CODE" = "1" ] && [ "$TOUCHES_DOC" = "0" ]; then
   echo "" >&2
   echo "  This is enforced so docs stay in sync with code. The /build and /ship" >&2
   echo "  slash commands update the cycle doc automatically — use them." >&2
+  exit 1
+fi
+
+# ---------- Rule 3: Seed drift prevention ----------
+# If prisma/seed.ts is staged, lib/db.ts must also be staged.
+# The seed and lib/db.ts must use the same Prisma adapter — a drift causes CI failures.
+SEED_TOUCHED=0
+DB_TOUCHED=0
+while IFS= read -r f; do
+  case "$f" in
+    prisma/seed.ts) SEED_TOUCHED=1 ;;
+    lib/db.ts) DB_TOUCHED=1 ;;
+  esac
+done <<EOF
+$STAGED
+EOF
+
+if [ "$SEED_TOUCHED" = "1" ] && [ "$DB_TOUCHED" = "0" ]; then
+  echo "pre-commit: prisma/seed.ts is staged but lib/db.ts is not." >&2
+  echo "" >&2
+  echo "  These two files MUST use the same Prisma adapter. If you change the" >&2
+  echo "  seed, you must also stage lib/db.ts (even if unchanged) to confirm" >&2
+  echo "  you've verified adapter parity." >&2
+  echo "" >&2
+  echo "  Fix: git add lib/db.ts" >&2
   exit 1
 fi
 

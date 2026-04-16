@@ -123,7 +123,7 @@ export function InvoiceDetailSheet({
     }
     return {
       icon: <Info size={16} className="text-muted-foreground" />,
-      message: "Link pembayaran belum tersedia. Hubungi admin untuk membuat link pembayaran.",
+      message: "Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.",
       variant: "muted" as const,
     };
   };
@@ -249,7 +249,7 @@ export function InvoiceDetailSheet({
             ) : (
               <div className="text-center">
                 <p className="text-xs text-muted-foreground mb-3">
-                  Link pembayaran belum tersedia. Hubungi admin untuk membuat link pembayaran.
+                  Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
                 </p>
               </div>
             )}
