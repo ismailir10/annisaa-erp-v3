@@ -99,7 +99,7 @@ export default function AdmissionsPage() {
       const a = admitted.pagination?.total ?? 0;
       const r = registered.pagination?.total ?? 0;
       setStats({ total: i + a + r, inquiry: i, admitted: a, registered: r });
-    }).catch(() => { /* stats are non-critical */ });
+    }).catch((err) => console.error("[admissions] stats fetch failed", err));
   }, []);
 
   // Dialog state
@@ -129,7 +129,7 @@ export default function AdmissionsPage() {
     fetch("/api/programs")
       .then((r) => r.json())
       .then((p) => setPrograms(Array.isArray(p) ? p : p.data ?? []))
-      .catch(() => { /* programs lookup is non-critical */ });
+      .catch((err) => console.error("[admissions] programs fetch failed", err));
   }, []);
 
   const fetchAdmissions = useCallback(async () => {
