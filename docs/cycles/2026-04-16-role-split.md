@@ -431,9 +431,9 @@ Also add to the "Security Checklist for New Routes" section:
 
 | Gate | Status |
 |------|--------|
-| `npm run build` | T1–T10 ✓ |
-| `npx vitest run` | T1–T10 ✓ (90/90) |
-| `npx playwright test` | T9 ✓ (25/25) |
+| `npm run build` | T1–T10 ✓ (end-of-cycle confirmed) |
+| `npx vitest run` | T1–T10 ✓ 90/90 (end-of-cycle confirmed) |
+| `npx playwright test` | T9 ✓ 25/25 (end-of-cycle confirmed, all portals green) |
 
 ---
 
