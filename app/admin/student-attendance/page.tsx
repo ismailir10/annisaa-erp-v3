@@ -98,19 +98,12 @@ export default function StudentAttendancePage() {
   // ── Fetch stats (today's date range for context) ────────────────
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
-    Promise.all([
-      fetch(`/api/student-attendance?mode=list&pageSize=1&status=PRESENT&dateFrom=${today}&dateTo=${today}`).then((r) => r.json()),
-      fetch(`/api/student-attendance?mode=list&pageSize=1&status=ABSENT&dateFrom=${today}&dateTo=${today}`).then((r) => r.json()),
-      fetch(`/api/student-attendance?mode=list&pageSize=1&status=SICK&dateFrom=${today}&dateTo=${today}`).then((r) => r.json()),
-      fetch(`/api/student-attendance?mode=list&pageSize=1&status=PERMISSION&dateFrom=${today}&dateTo=${today}`).then((r) => r.json()),
-    ]).then(([present, absent, sick, permission]) => {
-      setStats({
-        present: present.pagination?.total ?? 0,
-        absent: absent.pagination?.total ?? 0,
-        sick: sick.pagination?.total ?? 0,
-        permission: permission.pagination?.total ?? 0,
-      });
-    }).catch(() => toast.error("Gagal memuat data"));
+    fetch(`/api/student-attendance/stats?dateFrom=${today}&dateTo=${today}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.present !== undefined) setStats(data);
+      })
+      .catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   // ── Fetch list ──────────────────────────────────────────────────

@@ -87,11 +87,16 @@ export async function getSession(): Promise<SessionUser | null> {
 
     if (!user) return null;
 
-    // Update last login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    // Update last login — skip if updated within last 5 minutes to avoid
+    // writing on every single getSession() call (every API route + page load).
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+    if (!user.lastLoginAt || user.lastLoginAt < fiveMinutesAgo) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: now },
+      });
+    }
 
     // For guardian users, find their parent ID
     let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;

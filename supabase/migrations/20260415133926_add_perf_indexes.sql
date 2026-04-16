@@ -1,6 +1,5 @@
 -- Performance: add missing indexes on high-traffic WHERE fields
 -- Phase 3 — docs/cycles/2026-04-15-performance-optimization-phase3.md
-
 -- Guard each CREATE INDEX with a table-existence check so the migration
 -- succeeds even when some tables haven't been created yet.
 
