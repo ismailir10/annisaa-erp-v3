@@ -82,6 +82,14 @@ export const adminNav: NavConfig = {
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
       ],
     },
+    {
+      id: "learning",
+      label: "Penilaian",
+      icon: ClipboardList,
+      items: [
+        { label: "Template", href: "/admin/assessments/templates", icon: ClipboardList },
+      ],
+    },
   ],
 
   settings: [

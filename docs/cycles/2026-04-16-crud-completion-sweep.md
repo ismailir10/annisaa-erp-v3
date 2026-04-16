@@ -133,6 +133,7 @@ This page reuses:
 - Task 2: Guardian standalone list page — `app/api/guardians/route.ts`, `app/api/guardians/[id]/route.ts`, `app/admin/guardians/page.tsx`, `config/admin-nav.ts` — full CRUD list with search, status filter, edit dialog, deactivate
 - Task 3: Enrollment standalone list page — `app/api/enrollments/route.ts`, `app/api/enrollments/[id]/route.ts`, `app/admin/enrollments/page.tsx`, `config/admin-nav.ts` — full list with class section filter, edit dialog, deactivate
 - Task 4: Teaching assignment standalone list page — `app/admin/teaching-assignments/page.tsx`, `config/admin-nav.ts` — list with client-side search, delete via ConfirmDialog (junction table — hard delete intentional)
+- Task 5: Assessment template admin UI — `app/api/assessments/templates/[id]/route.ts`, `app/admin/assessments/templates/page.tsx`, `config/admin-nav.ts` — list page with create dialog (nested categories+indicators), edit dialog, toggle isActive, new "Penilaian" nav group
 
 ## Verification
 
@@ -140,6 +141,7 @@ This page reuses:
 - Task 2: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 3: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 4: gates passed (build + vitest run — 6 files, 69 tests green)
+- Task 5: gates passed (build + vitest run — 6 files, 69 tests green)
 
 ## Ship Notes
 
