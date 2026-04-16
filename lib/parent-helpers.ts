@@ -142,3 +142,60 @@ export const getStudentInvoices = unstable_cache(
   ["student-invoices"],
   { revalidate: 120, tags: ["student-invoices"] }
 );
+
+export type InvoiceListItem = {
+  id: string;
+  invoiceNumber: string;
+  periodLabel: string;
+  dueDate: string;
+  totalDue: number;
+  totalPaid: number;
+  status: string;
+  xenditPaymentUrl: string | null;
+  sentAt: string | null;
+  paidAt: string | null;
+  createdAt: string;
+};
+
+/**
+ * Fetch all non-DRAFT invoices for a specific student.
+ * Cached for 2 minutes with parent-scoped key to prevent cross-parent data leak.
+ * Key includes parentId + studentId + tenantId for triple isolation.
+ */
+export const getParentInvoiceList = unstable_cache(
+  async (parentId: string, studentId: string, tenantId: string): Promise<InvoiceListItem[]> => {
+    const invoices = await prisma.invoice.findMany({
+      where: { studentId, tenantId, status: { not: "DRAFT" } },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        periodLabel: true,
+        dueDate: true,
+        totalDue: true,
+        totalPaid: true,
+        status: true,
+        xenditPaymentUrl: true,
+        sentAt: true,
+        paidAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return invoices.map((inv) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      periodLabel: inv.periodLabel,
+      dueDate: inv.dueDate,
+      totalDue: Number(inv.totalDue),
+      totalPaid: Number(inv.totalPaid),
+      status: inv.status,
+      xenditPaymentUrl: inv.xenditPaymentUrl,
+      sentAt: inv.sentAt?.toISOString() ?? null,
+      paidAt: inv.paidAt?.toISOString() ?? null,
+      createdAt: inv.createdAt.toISOString(),
+    }));
+  },
+  ["parent-invoice-list"],
+  { revalidate: 120, tags: ["parent-invoice-list"] }
+);

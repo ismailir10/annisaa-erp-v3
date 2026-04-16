@@ -36,7 +36,7 @@ A previous perf cycle added `unstable_cache` to `getParentWithChildren`, but it 
   Refactor `app/parent/invoices/page.tsx` to use explicit `select` instead of deep `include` chains. Only fetch fields needed for the invoice list view (id, invoiceNumber, totalAmount, status, dueDate, createdAt, student name). Move heavy data (lines, payments, full enrollment) to the detail sheet — lazy-load when the user opens it.
   _Acceptance: Prisma query on the invoices page touches ≤2 relation levels; no 4-level includes._
 
-- [ ] **Task 2 — Add safe caching with parent-scoped keys**
+- [x] **Task 2 — Add safe caching with parent-scoped keys**
   Wrap the invoice list query in `unstable_cache` with a key scoped to `["parent-invoices", parentId, studentId]` and a 2-minute TTL with revalidation tags. This prevents the cross-parent leak that caused the previous cache removal.
   _Acceptance: cache key includes both parentId and studentId; warm reload hits cache; cold nav triggers at most one Prisma query._
 
@@ -47,10 +47,12 @@ A previous perf cycle added `unstable_cache` to `getParentWithChildren`, but it 
 ## Implementation
 
 - Task 1: Replace heavy includes with select-based projection — `app/parent/invoices/page.tsx`, `app/parent/invoices/client.tsx`, `app/parent/invoices/invoice-detail-sheet.tsx`, `app/api/guardian/invoices/[id]/route.ts` (new) — Replaced 4-level nested Prisma include with scalar-only `select` on the list page. Created a new guardian-scoped API endpoint (`GET /api/guardian/invoices/[id]`) for lazy-loading invoice detail (lines, payments, student enrollment) when the user opens the detail sheet. The detail sheet now fetches on open instead of receiving all data inline.
+- Task 2: Add safe caching with parent-scoped keys — `lib/parent-helpers.ts`, `app/parent/invoices/page.tsx` — Added `getParentInvoiceList` cached function using `unstable_cache` with 2-min TTL. Cache key automatically scoped per `[parentId, studentId, tenantId]` via function arguments (prevents the cross-parent data leak from the previous `["parent-children"]` static key). Page now calls the cached function directly — no inline Prisma query.
 
 ## Verification
 
 - Task 1: `npm run build` ✓ clean, `npx vitest run` ✓ 90/90 tests pass
+- Task 2: `npm run build` ✓ clean, `npx vitest run` ✓ 90/90 tests pass
 
 ## Ship Notes
 
