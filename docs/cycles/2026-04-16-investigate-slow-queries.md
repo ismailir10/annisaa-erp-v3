@@ -125,15 +125,50 @@ SUPER_ADMIN   24h (upper bound)   4h idle
 - Task 1 (2026-04-16): `lib/auth.ts` — added 5-minute cooldown to `lastLoginAt` update in `getSession()`. Reduces ~1809 writes/day to ~288. Build + 90 tests green.
 - Task 2 (2026-04-16): New `app/api/student-attendance/stats/route.ts` — single `prisma.studentAttendance.groupBy({ by: ["status"] })` query, admin-only, returns `{ present, absent, sick, permission }`. Replaces 4 parallel list API calls. Build + 90 tests green.
 - Task 3 (2026-04-16): `app/admin/student-attendance/page.tsx` — replaced 4 parallel `fetch` calls with single call to `/api/student-attendance/stats`. Build + 90 tests green.
+- Task 4 (2026-04-16): `supabase/config.toml` — enabled `[auth.sessions]` with `timebox = "24h"` and `inactivity_timeout = "24h"`. Note: for Supabase Cloud, apply same settings in Dashboard > Authentication > Policies > Session Limits. Build + 90 tests green.
+- Task 5 (2026-04-16): `proxy.ts` — added `enforceAdminIdle()` middleware function. Uses `school-erp-admin-last-active` cookie (httpOnly, sameSite lax, path /admin). Only activates on `/admin/*` page routes. If cookie timestamp > 4h old → redirect to login. On every admin page request → refresh cookie. Works for both Supabase Auth and demo mode. Build + 90 tests + 25 Playwright tests green.
 
 ---
 
 ## Verification
 
-<!-- /build fills this after gates pass -->
+| Gate | Status |
+|------|--------|
+| `npm run build` | ✅ clean build |
+| `npx vitest run` (90 tests) | ✅ 90/90 passed |
+| `npx playwright test` (25 tests) | ✅ 25/25 passed |
+| `lastLoginAt` cooldown: `lib/auth.ts:92-99` | ✅ 5-min guard before update |
+| Stats endpoint: `app/api/student-attendance/stats/route.ts` | ✅ admin-only, groupBy query |
+| Admin page: single fetch to `/stats` | ✅ replaces 4 parallel calls |
+| Session config: `supabase/config.toml` `[auth.sessions]` | ✅ timebox=24h, inactivity_timeout=24h |
+| Admin idle timeout: `proxy.ts` `enforceAdminIdle()` | ✅ 4h cookie-based idle check on /admin/* |
 
 ---
 
 ## Ship Notes
 
-<!-- /ship fills this -->
+### DB migrations
+None — all changes are application code and config.
+
+### Supabase Cloud configuration (manual)
+After merge, apply these settings in **Supabase Dashboard > Authentication > Policies > Session Limits**:
+- **Session timebox:** 24 hours
+- **Inactivity timeout:** 24 hours
+- The `supabase/config.toml` changes only apply to self-hosted Supabase; Cloud needs manual config.
+
+### New env vars
+None.
+
+### Rollback plan
+- All changes are additive — revert any file safely with no data migration.
+- The admin idle timeout cookie (`school-erp-admin-last-active`) is self-healing — if deleted, users get a fresh 4h window on next admin page load.
+- The `lastLoginAt` cooldown is backward-compatible — existing timestamps remain valid.
+
+### Session policy summary
+```
+Role          Supabase timebox    Middleware idle timeout
+Teacher       24h                 none
+Guardian      24h                 none
+SCHOOL_ADMIN  24h (upper bound)   4h idle (cookie-based)
+SUPER_ADMIN   24h (upper bound)   4h idle (cookie-based)
+```
