@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { SessionUser } from "@/lib/auth";
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -32,7 +33,7 @@ vi.mock("@/lib/rate-limit", () => ({
   getClientIp: () => "127.0.0.1",
 }));
 
-function makeSession(role: string) {
+function makeSession(role: SessionUser["role"]): SessionUser {
   return { id: "u1", email: "test@test.com", name: "Test", role, tenantId: "t1", employeeId: null, parentId: null };
 }
 

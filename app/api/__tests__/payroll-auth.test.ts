@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "../payroll/route";
+import type { SessionUser } from "@/lib/auth";
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -19,7 +20,7 @@ function makeReq() {
   return new Request("http://localhost:3000/api/payroll");
 }
 
-function makeSession(role: string) {
+function makeSession(role: SessionUser["role"]): SessionUser {
   return { id: "u1", email: "test@test.com", name: "Test", role, tenantId: "t1", employeeId: null, parentId: null };
 }
 

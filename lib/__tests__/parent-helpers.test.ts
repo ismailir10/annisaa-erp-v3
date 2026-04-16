@@ -51,7 +51,7 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
     const result = await getStudentInvoices("student-123");
 
@@ -91,7 +91,7 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
     const result = await getStudentInvoices("student-123");
 
@@ -113,7 +113,7 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
     await getStudentInvoices("student-123");
 
@@ -129,7 +129,7 @@ describe("getStudentInvoices", () => {
   });
 
   it("should return empty array if student has no unpaid invoices", async () => {
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
 
     const result = await getStudentInvoices("student-123");
 
@@ -149,7 +149,7 @@ describe("getStudentInvoices", () => {
       createdAt: new Date(`2024-${String(i + 1).padStart(2, "0")}-01`),
     }));
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices.slice(0, 5));
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices.slice(0, 5) as never);
 
     const result = await getStudentInvoices("student-123");
 
@@ -185,7 +185,7 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
     await getStudentInvoices("student-123");
 
@@ -210,7 +210,7 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
     await getStudentInvoices("student-123");
 
@@ -255,7 +255,7 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
     await getStudentInvoices("student-456");
     expect(prisma.invoice.findMany).toHaveBeenCalledWith(
@@ -292,7 +292,7 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
     const result = await getStudentInvoices("student-123");
 

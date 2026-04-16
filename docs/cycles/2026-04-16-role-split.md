@@ -436,6 +436,12 @@ Also add to the "Security Checklist for New Routes" section:
 | `npx vitest run` | T1–T10 ✓ 90/90 (end-of-cycle confirmed) |
 | `npx playwright test` | T9 ✓ 25/25 (end-of-cycle confirmed, all portals green) |
 
+### CI fix (post-cycle)
+
+PR #29 had two failing CI checks. Fixed in follow-up commit:
+- **TypeScript**: `makeSession(role: string)` → `makeSession(role: SessionUser["role"])` in payroll/employee-salary auth tests; added missing `email`/`name`/`parentId` to mock `SessionUser` objects in attendance-my and slips-my tests; cast `Request` to `never` for `NextRequest` params; cast partial invoice mocks to `never`
+- **Playwright e2e job**: Added PostgreSQL service container, `prisma migrate deploy`, `prisma db seed`, and `npm run build` steps so the job has a live DB and a `.next` artifact before running tests
+
 ---
 
 ## Ship Notes
