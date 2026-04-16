@@ -58,23 +58,24 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 
 Audited 2026-04-16, updated after CRUD completion sweep (see [`docs/cycles/2026-04-16-crud-completion-sweep.md`](docs/cycles/2026-04-16-crud-completion-sweep.md)).
 
-**Fully complete (14/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef, Student, StudentGuardian, StudentEnrollment, TeachingAssignment, AssessmentTemplate, StudentAssessment/Score
-**Partially complete (8/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Employee, Program, ClassSection, Admission, AttendanceRecord, PayrollRun, Invoice, StudentAttendance.
+**Fully complete (15/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef, Student, Employee, StudentGuardian, StudentEnrollment, TeachingAssignment, AssessmentTemplate, StudentAssessment/Score
+**Partially complete (7/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Program, ClassSection, Admission, AttendanceRecord, PayrollRun, Invoice, StudentAttendance.
 **Missing admin UI (4/27):** EmailLog, PayrollItem, InvoiceLine, Payment (admin-side). AssessmentCategory and AssessmentIndicator are only reachable via the AssessmentTemplate create flow and have no standalone management UI. ProgramFeeStructure uses FeeComponentDef.isEnabled as its deactivate mechanism (bulk upsert, no hard-delete path).
 
-**Overall: ~85% CRUD completion** (14 full + 8 partial / 27 admin-relevant entities)
+**Overall: ~87% CRUD completion** (15 full + 7 partial / 27 admin-relevant entities)
 
 | Module | Complete | Partial | Missing |
 |---|---|---|---|
 | CORE | 4 (User, Campus, Holiday, OrgConfig) | — | 1 (EmailLog) |
-| HR | 2 (LeaveRequest, SalaryComponentDef) | 3 (Employee, AttendanceRecord, PayrollRun) | 1 (PayrollItem) |
+| HR | 3 (LeaveRequest, SalaryComponentDef, Employee) | 2 (AttendanceRecord, PayrollRun) | 1 (PayrollItem) |
 | ACADEMIC | 2 (AcademicYear, TeachingAssignment) | 2 (Program, ClassSection) | — |
 | STUDENTS | 3 (Student, StudentEnrollment, StudentGuardian) | 1 (Admission) | — |
 | FINANCE | 2 (FeeComponentDef, ProgramFeeStructure) | 1 (Invoice) | 2 (InvoiceLine, Payment) |
 | LEARNING | 2 (AssessmentTemplate, StudentAssessment/Score) | 1 (StudentAttendance) | — |
 
 **Previous gaps resolved in CRUD sweep (2026-04-16):**
-- Student: added deactivate/activate action in DataTable row actions
+- Student: added Edit + Deactivate/Activate row actions in DataTable, Tambah Siswa dialog, Zod validation on PUT
+- Employee: added Edit + Deactivate row actions in DataTable, Zod validation on PUT
 - Guardian: added standalone admin list page at `/admin/guardians`
 - StudentEnrollment: added standalone admin list page at `/admin/enrollments`
 - TeachingAssignment: added standalone admin list page at `/admin/teaching-assignments`
@@ -133,9 +134,10 @@ Three portals, three roles.
 - **Student attendance history tab (2026-04-16)**: new Kehadiran tab on `/admin/students/[id]` with month filter and 4 stat cards — see [`docs/cycles/2026-04-16-crud-audit-t13.md`](docs/cycles/2026-04-16-crud-audit-t13.md)
 - **Role split: SUPER_ADMIN + SCHOOL_ADMIN (2026-04-16)**: salary/payroll protected behind SUPER_ADMIN; SCHOOL_ADMIN gets full HR access minus compensation data — see [`docs/cycles/2026-04-16-role-split.md`](docs/cycles/2026-04-16-role-split.md)
 - **Student & Guardian CRUD completion (2026-04-16)**: Tambah Siswa dialog, Edit + Deactivate row actions on list page, INACTIVE status support, StudentGuardian soft-delete (status field + migration), standalone `/api/guardians/[id]` PUT+PATCH — see [`docs/cycles/2026-04-16-student-crud-sweep.md`](docs/cycles/2026-04-16-student-crud-sweep.md)
+- **CRUD sweep — Student + Employee list row actions (2026-04-16)**: Edit + Deactivate row actions on Student and Employee DataTables; Zod validation wired to `PUT /api/students/[id]` and `PUT /api/employees/[id]`; INACTIVE added to student status enum — see [`docs/cycles/2026-04-16-crud-sweep-list-actions.md`](docs/cycles/2026-04-16-crud-sweep-list-actions.md)
 
 **In progress:**
-- CRUD completion: remaining 8 partial entities (edit dialogs + deactivate)
+- CRUD completion: remaining 7 partial entities (edit dialogs + deactivate)
 - Audit logging: record critical operations
 
 ---
