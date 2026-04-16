@@ -6,7 +6,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Receipt, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -43,34 +43,10 @@ type InvoiceItem = {
   sentAt: string | null;
   paidAt: string | null;
   createdAt: string;
-  // For detail view
-  lines: Array<{
-    id: string;
-    labelSnapshot: string;
-    amount: number;
-    finalAmount: number;
-    adjustmentAmount: number;
-    adjustmentNote: string | null;
-  }>;
-  payments: Array<{
-    id: string;
-    amount: number;
-    method: string;
-    reference: string | null;
-    paidAt: string;
-  }>;
-  student: {
-    name: string;
-    nickname: string | null;
-    classSection: {
-      name: string;
-      program: { name: string };
-    } | null;
-  };
 };
 
 export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
-  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("unpaid");
   const loading = data === null;
 
@@ -167,7 +143,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       header: "",
       cell: ({ row }) => (
         <DataTableRowActions
-          onView={() => setSelectedInvoice(row.original)}
+          onView={() => setSelectedInvoiceId(row.original.id)}
         />
       ),
     },
@@ -196,9 +172,9 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       />
 
       <InvoiceDetailSheet
-        open={!!selectedInvoice}
-        onOpenChange={(open) => !open && setSelectedInvoice(null)}
-        invoice={selectedInvoice}
+        open={!!selectedInvoiceId}
+        onOpenChange={(open) => !open && setSelectedInvoiceId(null)}
+        invoiceId={selectedInvoiceId}
       />
     </div>
   );
