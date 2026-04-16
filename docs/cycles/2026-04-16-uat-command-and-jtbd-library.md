@@ -83,7 +83,7 @@ Each task is commit-sized. Between-task gate (`npm run build && npx vitest run`)
   - Edit `.claude/skills/ship/SKILL.md` preflight to add the JTBD freshness checkbox
   - **Acceptance:** all three skill files updated, each diff is <15 lines; `npm run build && npx vitest run` green.
 
-- [ ] **Task 5 — `CLAUDE.md` + `README.md` doc sync**
+- [x] **Task 5 — `CLAUDE.md` + `README.md` doc sync**
   - `CLAUDE.md`: new "Standalone: `/uat`" subsection under Development Workflow, Key Documents table rows for `.claude/personas/*`, `docs/uat/jobs/*`, `docs/uat/reports/*`, bump "Last updated" footer
   - `README.md`: one-line mention of `/uat` under workflow section
   - **Acceptance:** both files touched, CLAUDE.md subsection explicitly frames `/uat` as heuristic (not a substitute for real UAT), pre-commit doc-sync rule passes; `npm run build && npx vitest run` green.
@@ -118,6 +118,10 @@ Each task is commit-sized. Between-task gate (`npm run build && npx vitest run`)
 - `.claude/skills/spec/SKILL.md` step 2 — added UAT report consumption: read `docs/uat/reports/` for overlapping area, apply 60-day staleness rule, surface blocker/major findings into Context, `git add -f` the consumed report at commit time
 - `.claude/skills/build/SKILL.md` step 7 — added JTBD library maintenance bullet: if a task changes user-facing capability, update `docs/uat/jobs/<portal>.md`
 - `.claude/skills/ship/SKILL.md` preflight — added check #6: JTBD freshness confirmation before shipping
+
+**Task 5 — CLAUDE.md + README.md doc sync** (this commit)
+- `CLAUDE.md` — added "Standalone: `/uat`" subsection under Development Workflow, Key Documents table rows for personas/jobs/reports, bumped "Last updated" footer
+- `README.md` — one-line `/uat` mention under the workflow section
 
 ## Verification
 
