@@ -182,6 +182,7 @@ Run `npm run build && npx vitest run && npx playwright test` — all must pass b
 - Task 3: build + 90 vitest tests passed
 - Task 4: build + 90 vitest tests passed
 - Task 5: build + 90 vitest tests passed
+- Task 6 (end-of-cycle): build ✓ + 90 vitest ✓ + 25 Playwright tests ✓
 
 ## Ship Notes
 
@@ -189,3 +190,5 @@ Run `npm run build && npx vitest run && npx playwright test` — all must pass b
 - No new env vars
 - Rollback: revert the PR — no schema or data changes
 - After deploy: verify Xendit webhook by sending a test payload with a mismatched token length from Xendit dashboard — should return 401, not 500
+- Note: `revalidateTag` S2 finding is a false positive — Next.js 16 requires a second `profile` arg; `{}` is valid as empty CacheLifeConfig
+- SCHOOL_ADMIN users who previously accessed payroll slip PDFs will now receive 403 — expected and correct behaviour
