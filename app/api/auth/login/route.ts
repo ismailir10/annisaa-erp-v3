@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isAdminRole } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -42,6 +43,6 @@ export async function POST(req: NextRequest) {
     data: { lastLoginAt: new Date() },
   });
 
-  const redirectUrl = user.role === "SCHOOL_ADMIN" ? "/admin" : "/teacher";
+  const redirectUrl = isAdminRole(user.role) ? "/admin" : "/teacher";
   return NextResponse.json({ ok: true, role: user.role, redirectUrl });
 }

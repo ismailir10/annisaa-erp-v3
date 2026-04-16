@@ -510,14 +510,20 @@ Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
 
 | Role | Access |
 |------|--------|
-| SCHOOL_ADMIN | All tenant data |
-| TEACHER | Own attendance, own slips, assigned classes only |
-| GUARDIAN | Own child's data only (invoices, attendance, reports) |
+| `SUPER_ADMIN` | All tenant data, including payroll and salary fields |
+| `SCHOOL_ADMIN` | All tenant data **EXCEPT**: `/api/payroll/*`, `/api/employees/*/salary`, and salary fields stripped from employee responses |
+| `TEACHER` | Own attendance, own slips, assigned classes only |
+| `GUARDIAN` | Own child's data only (invoices, attendance, reports) |
+
+**Auth helpers** (`lib/auth.ts`):
+- `isAdminRole(role)` — true for both `SUPER_ADMIN` and `SCHOOL_ADMIN`; use for general admin gates
+- `canViewSalary(role)` — true for `SUPER_ADMIN` only; use for payroll/salary routes and UI
 
 ### Security Checklist for New Routes
 
 - [ ] `getSession()` at top of handler
-- [ ] Role check: `session.role !== "SCHOOL_ADMIN"`
+- [ ] Role check: `!isAdminRole(session.role)` (for general admin routes)
+- [ ] Salary-bearing routes: use `!canViewSalary(session.role)` — not just `isAdminRole()`
 - [ ] Tenant filter: `where: { tenantId: session.tenantId }`
 - [ ] Zod validation on request body
 - [ ] Rate limiting: `rateLimit()` on POST/PUT
@@ -577,4 +583,4 @@ All use demo-mode auth — no live Supabase or env vars required to run locally.
 | `CLAUDE.md` | This file — AI operating manual (standards, patterns, rules) | When standards or workflow change |
 | `docs/cycles/YYYY-MM-DD-<slug>.md` | One per cycle — Context / Spec / Tasks / Implementation / Verification / Ship Notes | Created by `/spec`, updated by `/build` and `/ship` |
 
-**Last updated:** 2026-04-16 (workflow improvement cycle — PR model for all roles, staging→main cadence, mandatory README check, pre-push hardening)
+**Last updated:** 2026-04-16 (role split — SUPER_ADMIN + SCHOOL_ADMIN; salary/payroll gated behind SUPER_ADMIN; isAdminRole/canViewSalary helpers; security checklist updated)

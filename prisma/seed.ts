@@ -109,16 +109,30 @@ async function main() {
   }
   console.log(`✅ Salary components: ${salaryComponents.length}`);
 
-  // 6. Create admin user
+  // 6. Create admin users
+  // Primary owner — SUPER_ADMIN (full access including payroll/salary)
   const adminUser = await prisma.user.create({
     data: {
+      id: "u_super_admin",
       tenantId: tenant.id,
       email: "admin@annisaa.sch.id",
-      role: "SCHOOL_ADMIN",
+      role: "SUPER_ADMIN",
       name: "Admin Annisaa",
     },
   });
-  console.log(`✅ Admin user: admin@annisaa.sch.id`);
+  console.log(`✅ Super admin user: ${adminUser.email}`);
+
+  // Restricted admin — SCHOOL_ADMIN (no salary/payroll access — demo fixture)
+  await prisma.user.create({
+    data: {
+      id: "u_school_admin",
+      tenantId: tenant.id,
+      email: "schooladmin@annisaa.sch.id",
+      role: "SCHOOL_ADMIN",
+      name: "Admin Sekolah",
+    },
+  });
+  console.log(`✅ School admin user: schooladmin@annisaa.sch.id`);
 
   // 7. Employees + Teacher users + Salary values
   const employeeIds: Record<string, string> = {};

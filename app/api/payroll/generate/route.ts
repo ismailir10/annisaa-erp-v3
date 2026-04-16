@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, canViewSalary } from "@/lib/auth";
 import { calculateWorkingDays } from "@/lib/payroll/working-days";
 import { calculatePayroll, SalaryComponent } from "@/lib/payroll/engine";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !canViewSalary(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
