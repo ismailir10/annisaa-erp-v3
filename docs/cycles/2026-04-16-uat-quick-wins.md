@@ -64,6 +64,7 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
 - Task 2: Auto-create Xendit link on invoice send — `lib/xendit/helpers.ts` (new), `app/api/invoices/[id]/route.ts`, `app/api/xendit/create-session/route.ts` — Extracted per-invoice session creation into shared helper; PUT /api/invoices/[id] auto-calls it when transitioning to SENT
 - Task 3: Improve parent invoice fallback message — `app/parent/invoices/invoice-detail-sheet.tsx` — Replaced "Hubungi admin" dead end with softer "sedang disiapkan" message in both status banner and payment section
 - Task 4: Update UAT jobs library — `docs/uat/jobs/teacher.md` — Updated JTBD-TEACHER-ATT-01 known friction note to reflect class selector fix
+- Task 5 (CI fix): Fix seed script for PostgreSQL CI — `prisma/seed.ts` — Replaced hardcoded LibSQL adapter (`file:dev.db`) with PrismaPg adapter using `DATABASE_URL` env var, matching `lib/db.ts` pattern
 
 ## Verification
 
@@ -72,11 +73,13 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
 - Task 3: gates passed (build + vitest: 9 files, 90 tests green)
 - Task 4: no gate needed (doc-only update)
 - End-of-cycle: build ✅, vitest 9/9 files 90/90 tests ✅, playwright 25/25 tests ✅ (17.1s)
+- CI fix: build ✅, vitest 9/9 files 90/90 tests ✅ (seed script fix will be validated by CI on PR)
 
 ## Ship Notes
 
 - **No migrations needed** — no schema changes in this cycle
 - **No new env vars** — reuses existing `XENDIT_SECRET_KEY` and `NEXT_PUBLIC_APP_URL`
 - **New file:** `lib/xendit/helpers.ts` — shared Xendit session creation helper
+- **Seed fix:** `prisma/seed.ts` now uses PrismaPg adapter + DATABASE_URL instead of hardcoded LibSQL adapter — this is what was causing the CI e2e job to fail (`role "root" does not exist`)
 - **Manual smoke on preview:** Verify the class selector on `/teacher/class-attendance` shows class name, and that PUT `/api/invoices/[id]` with `{ status: "SENT" }` auto-creates a Xendit link (check invoice row in DB for `xenditPaymentUrl`)
 - **Rollback:** Revert the 4 commits. The `lib/xendit/helpers.ts` file can be deleted — the create-session route will fall back to its old inline logic if reverted independently (but reverting the whole branch is cleaner)
