@@ -188,3 +188,4 @@ Fixed 10 pre-existing Playwright failures caused by PII-scrubbed seed data. E2E 
 
 ### README.md updated
 CRUD completion status table updated from ~70% to ~85% (14 full + 8 partial + 4 missing).
+
