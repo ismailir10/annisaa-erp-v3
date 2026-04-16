@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+
 import { toast } from "sonner";
 import { ArrowLeft, Save, Send } from "lucide-react";
 
@@ -65,14 +65,18 @@ export default function ScoresPage() {
 
   useEffect(() => {
     if (!assessmentId) { setLoading(false); return; }
-    fetch(`/api/assessments/student/${assessmentId}`)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching pattern
+    fetchAssessment(assessmentId);
+  }, [assessmentId]);
+
+  function fetchAssessment(id: string) {
+    fetch(`/api/assessments/student/${id}`)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();
       })
       .then((data: Assessment) => {
         setAssessment(data);
-        // Initialize score map from existing scores
         const sMap: Record<string, string> = {};
         const nMap: Record<string, string> = {};
         for (const s of data.scores) {
@@ -84,7 +88,7 @@ export default function ScoresPage() {
       })
       .catch(() => toast.error("Penilaian tidak ditemukan"))
       .finally(() => setLoading(false));
-  }, [assessmentId]);
+  }
 
   async function handleSave(publish: boolean) {
     if (!assessment) return;
