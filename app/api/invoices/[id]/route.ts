@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -36,5 +37,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       sentAt: body.status === "SENT" ? new Date() : existing.sentAt,
     },
   });
+
+  // Auto-create Xendit payment link when transitioning to SENT
+  if (body.status === "SENT" && !existing.xenditPaymentUrl) {
+    try {
+      await createXenditSessionForInvoice(id, session.tenantId);
+    } catch (e) {
+      console.error("[INVOICE PUT] Failed to auto-create Xendit session:", e);
+    }
+  }
+
   return NextResponse.json(invoice);
 }

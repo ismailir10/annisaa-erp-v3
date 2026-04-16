@@ -46,7 +46,7 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
   - _Acceptance: collapsed selector shows "KB Aster — Kelompok Bermain", not "cs_kb_aster"_
   - Files: `app/teacher/class-attendance/page.tsx`
 
-- [ ] **2. Auto-create Xendit link on invoice send** — In `app/api/invoices/[id]/route.ts` PUT handler, when `body.status === "SENT"` and the invoice has no `xenditPaymentUrl`, call `createXenditSession()` and store the result. Reuse the same logic from `app/api/xendit/create-session/route.ts` (fetch invoice details, create session, update fields). If Xendit fails, still update status but log the error.
+- [x] **2. Auto-create Xendit link on invoice send** — In `app/api/invoices/[id]/route.ts` PUT handler, when `body.status === "SENT"` and the invoice has no `xenditPaymentUrl`, call `createXenditSession()` and store the result. Reuse the same logic from `app/api/xendit/create-session/route.ts` (fetch invoice details, create session, update fields). If Xendit fails, still update status but log the error.
   - _Acceptance: PUT /api/invoices/[id] with status=SENT creates Xendit link automatically; parent sees pay button_
   - Files: `app/api/invoices/[id]/route.ts`, possibly `lib/xendit/helpers.ts` (extract shared session creation logic)
 
@@ -61,10 +61,12 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
 ## Implementation
 
 - Task 1: Fix teacher class selector display — `app/teacher/class-attendance/page.tsx` — Find selected assignment by ID and render class name + program name as SelectValue children instead of relying on default value display
+- Task 2: Auto-create Xendit link on invoice send — `lib/xendit/helpers.ts` (new), `app/api/invoices/[id]/route.ts`, `app/api/xendit/create-session/route.ts` — Extracted per-invoice session creation into shared helper; PUT /api/invoices/[id] auto-calls it when transitioning to SENT
 
 ## Verification
 
 - Task 1: gates passed (build + vitest: 9 files, 90 tests green)
+- Task 2: gates passed (build + vitest: 9 files, 90 tests green)
 
 ## Ship Notes
 
