@@ -456,12 +456,14 @@ model StudentGuardian {
   relationship String  // AYAH | IBU | WALI | OTHER
   isPrimary    Boolean @default(false) // Primary billing contact for this student
   childOrder   Int?    // Anak ke- (this student's position in the parent's family)
+  status       String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete)
 
   student Student @relation(fields: [studentId], references: [id])
   parent  Parent  @relation(fields: [parentId], references: [id])
 
   @@unique([studentId, parentId])
   @@index([parentId])
+  @@index([studentId, status])
 }
 
 // ── STUDENT ENROLLMENT ───────────────────────────────────────

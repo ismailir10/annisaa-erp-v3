@@ -85,6 +85,7 @@ actions. The guardian model uses hard DELETE (a CLAUDE.md violation) and has no 
 - T1: Student Create dialog — `app/admin/students/page.tsx` (dialog added, button changed), deleted `app/admin/students/new/page.tsx` — replaces /new page with inline "Tambah Siswa" dialog; fields: name, nickname, gender, dateOfBirth, NIS, NISN, notes; on success navigates to new student detail
 - T2: Student Edit dialog — `app/admin/students/page.tsx` — added `editTarget`/`editForm`/`editing` state, Edit row action via `onEdit`, pre-filled Edit dialog, PUT /api/students/[id] on submit
 - T3: Student Deactivate — `lib/validations/student.ts` (added INACTIVE to enum), `app/api/students/[id]/route.ts` (added Zod validation via validateBody), `app/admin/students/page.tsx` (ConfirmDialog + deactivateTarget state + onDeactivate row action)
+- T4: Guardian soft delete — `prisma/schema.prisma` (status field + index on StudentGuardian), `prisma/migrations/20260416000002_add_guardian_status/migration.sql` (ALTER TABLE + CREATE INDEX), `app/api/students/[id]/guardians/[guardianId]/route.ts` (DELETE replaced by PATCH status toggle); Prisma client regenerated; Note: `prisma migrate dev` hangs in non-interactive shell (pooler URL); migration file created manually + `prisma db push` pending (DB connection issues) — run `npx prisma migrate deploy` on deploy
 
 ---
 
@@ -93,6 +94,7 @@ actions. The guardian model uses hard DELETE (a CLAUDE.md violation) and has no 
 - T1: build + vitest (69/69) passed
 - T2: build + vitest (69/69) passed
 - T3: build + vitest (69/69) passed
+- T4: build + vitest (69/69) passed; migration file created manually (DB connection issue with pooler in non-interactive shell — migration to be applied via `prisma migrate deploy` on first deploy)
 
 ---
 

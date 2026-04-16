@@ -59,8 +59,8 @@ export async function PUT(
   return NextResponse.json(updated);
 }
 
-export async function DELETE(
-  _req: NextRequest,
+export async function PATCH(
+  req: NextRequest,
   { params }: { params: Promise<{ id: string; guardianId: string }> }
 ) {
   const session = await getSession();
@@ -75,15 +75,19 @@ export async function DELETE(
   });
   if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
 
-  // Verify guardian link belongs to student
   const guardian = await prisma.studentGuardian.findFirst({
     where: { id: guardianId, studentId },
+  });
+  if (!guardian) return NextResponse.json({ error: "Wali tidak ditemukan" }, { status: 404 });
+
+  const body = await req.json();
+  const newStatus = body.status === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+
+  const updated = await prisma.studentGuardian.update({
+    where: { id: guardianId },
+    data: { status: newStatus },
     include: { parent: true },
   });
-  if (!guardian) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Intentional hard delete — junction table, no status field. Removes the student↔guardian link only.
-  await prisma.studentGuardian.delete({ where: { id: guardianId } });
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(updated);
 }
