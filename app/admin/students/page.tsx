@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 
@@ -190,6 +191,9 @@ export default function StudentsPage() {
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
 
+  // Deactivate dialog state
+  const [deactivateTarget, setDeactivateTarget] = useState<Student | null>(null);
+
   // Edit dialog state
   const [editTarget, setEditTarget] = useState<Student | null>(null);
   const [editForm, setEditForm] = useState(EMPTY_CREATE_FORM);
@@ -257,6 +261,23 @@ export default function StudentsPage() {
     setSortOrder(order);
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
+
+  async function handleDeactivate(student: Student) {
+    const newStatus = student.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+    const res = await fetch(`/api/students/${student.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (res.ok) {
+      toast.success(newStatus === "INACTIVE" ? "Siswa dinonaktifkan" : "Siswa diaktifkan kembali");
+      fetchStudents();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal mengubah status siswa");
+    }
+    setDeactivateTarget(null);
+  }
 
   function openEdit(student: Student) {
     setEditForm({
@@ -342,6 +363,8 @@ export default function StudentsPage() {
           <DataTableRowActions
             onView={() => router.push(`/admin/students/${row.original.id}`)}
             onEdit={() => openEdit(row.original)}
+            onDeactivate={() => setDeactivateTarget(row.original)}
+            isActive={row.original.status !== "INACTIVE"}
           />
         ),
       },
@@ -400,6 +423,17 @@ export default function StudentsPage() {
         loading={loading}
         emptyTitle="Belum ada siswa terdaftar"
         emptyDescription="Mulai dengan menambahkan siswa baru."
+      />
+
+      {/* ── Deactivate / Activate ConfirmDialog ──────────────────── */}
+      <ConfirmDialog
+        open={!!deactivateTarget}
+        onOpenChange={(open) => { if (!open) setDeactivateTarget(null); }}
+        title={deactivateTarget?.status === "INACTIVE" ? `Aktifkan ${deactivateTarget?.name}?` : `Nonaktifkan ${deactivateTarget?.name}?`}
+        description={deactivateTarget?.status === "INACTIVE" ? "Siswa akan dikembalikan ke status aktif." : "Siswa akan dinonaktifkan. Pendaftaran kelas aktif akan dicabut dan tagihan DRAFT/SENT akan dibatalkan."}
+        confirmLabel={deactivateTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
+        destructive={deactivateTarget?.status !== "INACTIVE"}
+        onConfirm={() => deactivateTarget && handleDeactivate(deactivateTarget)}
       />
 
       {/* ── Edit Student Dialog ───────────────────────────────────── */}
