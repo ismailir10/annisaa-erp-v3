@@ -122,7 +122,8 @@ SUPER_ADMIN   24h (upper bound)   4h idle
 
 ## Implementation
 
-<!-- /build fills this per-task -->
+- Task 1 (2026-04-16): `lib/auth.ts` — added 5-minute cooldown to `lastLoginAt` update in `getSession()`. Reduces ~1809 writes/day to ~288. Build + 90 tests green.
+- Task 2 (2026-04-16): New `app/api/student-attendance/stats/route.ts` — single `prisma.studentAttendance.groupBy({ by: ["status"] })` query, admin-only, returns `{ present, absent, sick, permission }`. Replaces 4 parallel list API calls. Build + 90 tests green.
 
 ---
 
