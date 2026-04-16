@@ -63,8 +63,10 @@ export default function ScoresPage() {
   const [scoreMap, setScoreMap] = useState<Record<string, string>>({});
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
 
-  function fetchAssessment(id: string) {
-    fetch(`/api/assessments/student/${id}`)
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching: setState in async .then callback is intentional
+  useEffect(() => {
+    if (!assessmentId) { setLoading(false); return; }
+    fetch(`/api/assessments/student/${assessmentId}`)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();
@@ -82,12 +84,6 @@ export default function ScoresPage() {
       })
       .catch(() => toast.error("Penilaian tidak ditemukan"))
       .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    if (!assessmentId) { setLoading(false); return; }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching pattern
-    fetchAssessment(assessmentId);
   }, [assessmentId]);
 
   async function handleSave(publish: boolean) {
