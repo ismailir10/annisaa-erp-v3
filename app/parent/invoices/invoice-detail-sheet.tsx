@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ExternalLink, Info, CheckCircle, AlertCircle, Calendar } from "lucide-react";
 import { formatRupiah, formatDateShort } from "@/lib/format";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 
@@ -84,16 +84,13 @@ export function InvoiceDetailSheet({
 }) {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [prevInvoiceId, setPrevInvoiceId] = useState<string | null>(null);
 
-  // Fetch invoice detail when the sheet opens
-  useEffect(() => {
-    if (!open || !invoiceId) {
-      setInvoice(null);
-      return;
-    }
-
-    let cancelled = false;
+  // Reset state when sheet closes, fetch when it opens with a new invoiceId
+  if (open && invoiceId && invoiceId !== prevInvoiceId) {
+    setPrevInvoiceId(invoiceId);
     setLoading(true);
+    setInvoice(null);
 
     fetch(`/api/guardian/invoices/${invoiceId}`)
       .then((res) => {
@@ -101,17 +98,20 @@ export function InvoiceDetailSheet({
         return res.json();
       })
       .then((data) => {
-        if (!cancelled) setInvoice(data);
+        setInvoice(data);
+        setLoading(false);
       })
       .catch(() => {
-        if (!cancelled) toast.error("Gagal memuat detail tagihan");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        toast.error("Gagal memuat detail tagihan");
+        setLoading(false);
       });
+  }
 
-    return () => { cancelled = true; };
-  }, [open, invoiceId]);
+  if (!open && prevInvoiceId !== null) {
+    setPrevInvoiceId(null);
+    setInvoice(null);
+    setLoading(false);
+  }
 
   if (!invoiceId) return null;
 

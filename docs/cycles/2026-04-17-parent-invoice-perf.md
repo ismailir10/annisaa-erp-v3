@@ -48,6 +48,7 @@ A previous perf cycle added `unstable_cache` to `getParentWithChildren`, but it 
 
 - Task 1: Replace heavy includes with select-based projection — `app/parent/invoices/page.tsx`, `app/parent/invoices/client.tsx`, `app/parent/invoices/invoice-detail-sheet.tsx`, `app/api/guardian/invoices/[id]/route.ts` (new) — Replaced 4-level nested Prisma include with scalar-only `select` on the list page. Created a new guardian-scoped API endpoint (`GET /api/guardian/invoices/[id]`) for lazy-loading invoice detail (lines, payments, student enrollment) when the user opens the detail sheet. The detail sheet now fetches on open instead of receiving all data inline.
 - Task 2: Add safe caching with parent-scoped keys — `lib/parent-helpers.ts`, `app/parent/invoices/page.tsx` — Added `getParentInvoiceList` cached function using `unstable_cache` with 2-min TTL. Cache key automatically scoped per `[parentId, studentId, tenantId]` via function arguments (prevents the cross-parent data leak from the previous `["parent-children"]` static key). Page now calls the cached function directly — no inline Prisma query.
+- CI fix: Replaced `useEffect`+`setState` pattern in invoice detail sheet with derived state pattern (prevInvoiceId tracking) to satisfy `react-hooks/set-state-in-effect` lint rule.
 
 ## Verification
 
