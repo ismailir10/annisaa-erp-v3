@@ -50,7 +50,7 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
   - _Acceptance: PUT /api/invoices/[id] with status=SENT creates Xendit link automatically; parent sees pay button_
   - Files: `app/api/invoices/[id]/route.ts`, possibly `lib/xendit/helpers.ts` (extract shared session creation logic)
 
-- [ ] **3. Improve parent invoice fallback message** — In `app/parent/invoices/invoice-detail-sheet.tsx`, replace the "Hubungi admin untuk membuat link pembayaran" dead end with a softer message: "Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat." Remove the duplicate (it appears in both the status banner and the payment section).
+- [x] **3. Improve parent invoice fallback message** — In `app/parent/invoices/invoice-detail-sheet.tsx`, replace the "Hubungi admin untuk membuat link pembayaran" dead end with a softer message: "Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat." Remove the duplicate (it appears in both the status banner and the payment section).
   - _Acceptance: single, softer fallback message; no duplicate; no "hubungi admin"_
   - Files: `app/parent/invoices/invoice-detail-sheet.tsx`
 
@@ -62,11 +62,13 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
 
 - Task 1: Fix teacher class selector display — `app/teacher/class-attendance/page.tsx` — Find selected assignment by ID and render class name + program name as SelectValue children instead of relying on default value display
 - Task 2: Auto-create Xendit link on invoice send — `lib/xendit/helpers.ts` (new), `app/api/invoices/[id]/route.ts`, `app/api/xendit/create-session/route.ts` — Extracted per-invoice session creation into shared helper; PUT /api/invoices/[id] auto-calls it when transitioning to SENT
+- Task 3: Improve parent invoice fallback message — `app/parent/invoices/invoice-detail-sheet.tsx` — Replaced "Hubungi admin" dead end with softer "sedang disiapkan" message in both status banner and payment section
 
 ## Verification
 
 - Task 1: gates passed (build + vitest: 9 files, 90 tests green)
 - Task 2: gates passed (build + vitest: 9 files, 90 tests green)
+- Task 3: gates passed (build + vitest: 9 files, 90 tests green)
 
 ## Ship Notes
 
