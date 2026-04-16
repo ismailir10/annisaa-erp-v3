@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/admin/page-header";
@@ -15,7 +15,7 @@ const getEmployeeCount = unstable_cache(
 
 export default async function AdminDashboard() {
   const session = await getSession();
-  if (!session || session.role !== "SCHOOL_ADMIN") redirect("/");
+  if (!session || !isAdminRole(session.role)) redirect("/");
 
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
@@ -88,6 +88,7 @@ export default async function AdminDashboard() {
         })}
       />
       <DashboardClient
+        canSeeSalary={canViewSalary(session.role)}
         totalEmployees={totalEmployees}
         present={present}
         late={late}

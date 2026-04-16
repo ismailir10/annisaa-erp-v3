@@ -91,6 +91,21 @@ If you're committing manually outside `/build`, run at minimum:
 npm run build && npx vitest run
 ```
 
+### Standalone: `/uat` — heuristic user-acceptance testing
+
+`/uat <area>` is **not** part of the 3-step loop. Run it on demand when you want a synthetic first-pass on UX friction and performance in a specific portal area — e.g. `/uat parent/invoices`, `/uat teacher/class-attendance`, `/uat admin/payroll`.
+
+The command role-plays a fixed persona (Pak Budi, Bu Sari, or Ibu Nur) through scripted Jobs-to-be-Done via Playwright MCP, measures page/API/click-to-visible timings against strict thresholds, and produces a severity-gated report at `docs/uat/reports/YYYY-MM-DD-<area>.md`.
+
+**Key points:**
+- **Heuristic, not real UAT.** An LLM persona cannot replicate thumb reach, sunlight glare, or emotional distrust. The report is a cheap first pass, not a substitute for real users.
+- **Reports are gitignored by default.** They only enter git when a `/spec` cycle consumes one (via `git add -f`).
+- **`/spec` integration:** when starting a new cycle, `/spec` reads the latest relevant UAT report, applies a 60-day staleness rule, and surfaces blocker/major findings into the cycle doc's Context.
+- **`/build` maintenance:** after each task that changes user-facing capability, update `docs/uat/jobs/<portal>.md` to keep the JTBD library current.
+- **Performance thresholds** (page load >4s = blocker, API >2s = blocker, click-to-visible >3s = blocker) are strict for the Indonesian PAUD/TKIT deployment reality (mid-range Android + intermittent 4G).
+
+Jobs library: `docs/uat/jobs/{admin,teacher,parent}.md`. Personas: `.claude/personas/{pak-budi,bu-sari,ibu-nur}.md`. Skill definition: `.claude/skills/uat/SKILL.md`.
+
 ---
 
 ## Multi-LLM Safety
@@ -510,14 +525,20 @@ Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
 
 | Role | Access |
 |------|--------|
-| SCHOOL_ADMIN | All tenant data |
-| TEACHER | Own attendance, own slips, assigned classes only |
-| GUARDIAN | Own child's data only (invoices, attendance, reports) |
+| `SUPER_ADMIN` | All tenant data, including payroll and salary fields |
+| `SCHOOL_ADMIN` | All tenant data **EXCEPT**: `/api/payroll/*`, `/api/employees/*/salary`, and salary fields stripped from employee responses |
+| `TEACHER` | Own attendance, own slips, assigned classes only |
+| `GUARDIAN` | Own child's data only (invoices, attendance, reports) |
+
+**Auth helpers** (`lib/auth.ts`):
+- `isAdminRole(role)` — true for both `SUPER_ADMIN` and `SCHOOL_ADMIN`; use for general admin gates
+- `canViewSalary(role)` — true for `SUPER_ADMIN` only; use for payroll/salary routes and UI
 
 ### Security Checklist for New Routes
 
 - [ ] `getSession()` at top of handler
-- [ ] Role check: `session.role !== "SCHOOL_ADMIN"`
+- [ ] Role check: `!isAdminRole(session.role)` (for general admin routes)
+- [ ] Salary-bearing routes: use `!canViewSalary(session.role)` — not just `isAdminRole()`
 - [ ] Tenant filter: `where: { tenantId: session.tenantId }`
 - [ ] Zod validation on request body
 - [ ] Rate limiting: `rateLimit()` on POST/PUT
@@ -576,5 +597,8 @@ All use demo-mode auth — no live Supabase or env vars required to run locally.
 | `README.md` | Project map: modules, CRUD status, roadmap, ADRs, workflow, setup | Every cycle |
 | `CLAUDE.md` | This file — AI operating manual (standards, patterns, rules) | When standards or workflow change |
 | `docs/cycles/YYYY-MM-DD-<slug>.md` | One per cycle — Context / Spec / Tasks / Implementation / Verification / Ship Notes | Created by `/spec`, updated by `/build` and `/ship` |
+| `.claude/personas/*.md` | Fixed UAT personas (Pak Budi, Bu Sari, Ibu Nur) — device, context, frustrations, give-up triggers | Rarely — personas are stable |
+| `docs/uat/jobs/*.md` | Per-portal Jobs-to-be-Done library — maintained by `/build` when user-facing capability changes | Each cycle that touches portal UX |
+| `docs/uat/reports/*.md` | UAT reports (gitignored) — produced by `/uat`, consumed by `/spec` | On demand |
 
-**Last updated:** 2026-04-16 (workflow improvement cycle — PR model for all roles, staging→main cadence, mandatory README check, pre-push hardening)
+**Last updated:** 2026-04-16 (role split — SUPER_ADMIN + SCHOOL_ADMIN; added standalone `/uat` command, JTBD library, personas, `/spec` UAT integration, branch hygiene preflight)

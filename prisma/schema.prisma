@@ -599,6 +599,8 @@ model InvoiceLine {
 
   invoice      Invoice         @relation(fields: [invoiceId], references: [id])
   feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
+
+  @@index([invoiceId])
 }
 
 // ── PAYMENT ──────────────────────────────────────────────────
@@ -641,6 +643,7 @@ model StudentAttendance {
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
   @@unique([studentId, date])
+  @@index([studentId, date])
   @@index([classSectionId, date])
   @@index([date])
 }
@@ -660,6 +663,8 @@ model AssessmentTemplate {
   program    Program              @relation(fields: [programId], references: [id])
   categories AssessmentCategory[]
   assessments StudentAssessment[]
+
+  @@index([tenantId])
 }
 
 model AssessmentCategory {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const revalidate = 86400; // 24h — academic years rarely change
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

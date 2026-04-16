@@ -95,13 +95,19 @@ function CollapsibleNavGroup({
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
     Object.fromEntries(adminNav.groups.map((g) => [g.id, true]))
   );
   const [settingsOpen, setSettingsOpen] = useState(true);
+
+  const visibleGroups = adminNav.groups.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => !item.superAdminOnly || canSeeSalary),
+  })).filter((g) => g.items.length > 0);
+  const visibleSettings = adminNav.settings.filter((item) => !item.superAdminOnly || canSeeSalary);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -161,7 +167,7 @@ export function AppSidebar() {
         <SidebarSeparator />
 
         {/* Module groups — SDM, Akademik, Keuangan */}
-        {adminNav.groups.map((group) => (
+        {visibleGroups.map((group) => (
           <CollapsibleNavGroup
             key={group.id}
             group={group}
@@ -189,7 +195,7 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <CollapsibleContent>
               <SidebarGroupContent>
-                <NavMenuItems items={adminNav.settings} pathname={pathname} />
+                <NavMenuItems items={visibleSettings} pathname={pathname} />
               </SidebarGroupContent>
             </CollapsibleContent>
           </SidebarGroup>

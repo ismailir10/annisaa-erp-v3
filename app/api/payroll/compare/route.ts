@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, canViewSalary } from "@/lib/auth";
 
 // Compare two payroll runs: current vs previous
 // Returns per-employee net pay from both periods for delta analysis
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
-    return NextResponse.json(null, { status: 403 });
+  if (!session?.tenantId || !canViewSalary(session.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -17,17 +17,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "current payroll ID required" }, { status: 400 });
   }
 
-  // Get current payroll
-  const current = await prisma.payrollRun.findUnique({
-    where: { id: currentId },
-    include: {
+  // Get current payroll — tenant check in where clause, narrow item select
+  const current = await prisma.payrollRun.findFirst({
+    where: { id: currentId, tenantId: session.tenantId },
+    select: {
+      periodStart: true,
+      periodEnd: true,
       items: {
-        include: { employee: { select: { id: true, nama: true, kode: true } } },
+        select: {
+          netAmount: true,
+          employee: { select: { id: true, nama: true, kode: true } },
+        },
       },
     },
   });
 
-  if (!current || current.tenantId !== session.tenantId) {
+  if (!current) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -38,9 +43,14 @@ export async function GET(req: NextRequest) {
       periodStart: { lt: current.periodStart },
     },
     orderBy: { periodStart: "desc" },
-    include: {
+    select: {
+      periodStart: true,
+      periodEnd: true,
       items: {
-        include: { employee: { select: { id: true } } },
+        select: {
+          netAmount: true,
+          employee: { select: { id: true } },
+        },
       },
     },
   });

@@ -10,6 +10,7 @@ export async function GET() {
   const requests = await prisma.leaveRequest.findMany({
     where: { employeeId: session.employeeId },
     orderBy: { createdAt: "desc" },
+    take: 50,
   });
 
   return NextResponse.json(requests);

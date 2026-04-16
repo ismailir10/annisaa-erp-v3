@@ -46,7 +46,7 @@ test.describe("Teacher flows", () => {
   test("profile page loads", async ({ page }) => {
     await page.goto("/teacher/profile");
     await expect(page.locator("text=Profil Saya")).toBeVisible();
-    await expect(page.locator("text=Eneng Rina").first()).toBeVisible();
+    await expect(page.locator("text=Jabatan").first()).toBeVisible();
   });
 
   test("logout works", async ({ page }) => {
