@@ -28,6 +28,7 @@ export async function GET() {
       },
     },
     orderBy: { payrollRun: { periodStart: "desc" } },
+    take: 24,
   });
 
   return NextResponse.json(items);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Bulk generate monthly invoices for all active enrolled students
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -65,6 +65,28 @@ export async function POST(req: NextRequest) {
 
   // Get next invoice number
   const year = new Date().getFullYear();
+  const tenantId = session.tenantId!;
+
+  // Pre-fetch datasets outside the transaction to eliminate N+1 queries in the loop.
+  // The advisory lock inside the transaction still guards invoiceNumber uniqueness.
+  const studentIds = enrollments.map((e) => e.student.id);
+  const trimmedPeriodLabel = periodLabel.trim();
+
+  const [existingInvoices, primaryGuardians] = await Promise.all([
+    // Dedup check: which students already have an invoice for this period?
+    prisma.invoice.findMany({
+      where: { tenantId, periodLabel: trimmedPeriodLabel, studentId: { in: studentIds } },
+      select: { studentId: true },
+    }),
+    // Primary guardian lookup for parentId on each invoice
+    prisma.studentGuardian.findMany({
+      where: { studentId: { in: studentIds }, isPrimary: true },
+      select: { studentId: true, parentId: true },
+    }),
+  ]);
+
+  const existingStudentIds = new Set(existingInvoices.map((i) => i.studentId));
+  const guardianByStudent = new Map(primaryGuardians.map((g) => [g.studentId, g.parentId]));
 
   let created = 0;
   let skipped = 0;
@@ -72,7 +94,6 @@ export async function POST(req: NextRequest) {
   // Atomic invoice generation with advisory lock to prevent race conditions
   await prisma.$transaction(async (tx) => {
     // Acquire advisory lock per tenant — lock is released when transaction ends
-    const tenantId = session.tenantId!;
     const lockKey = tenantId.split("").reduce((h, c) => h + c.charCodeAt(0), 0);
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
 
@@ -96,11 +117,8 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Check if invoice already exists for this student + period
-      const existing = await tx.invoice.findFirst({
-        where: { studentId, periodLabel: periodLabel.trim(), tenantId },
-      });
-      if (existing) {
+      // Use pre-fetched Set for dedup check — no per-student query
+      if (existingStudentIds.has(studentId)) {
         skipped++;
         continue;
       }
@@ -110,18 +128,13 @@ export async function POST(req: NextRequest) {
 
       const totalDue = programFees.reduce((s, f) => s + Number(f.amount), 0);
 
-      // Look up primary guardian for parentId
-      const primaryGuardian = await tx.studentGuardian.findFirst({
-        where: { studentId, isPrimary: true },
-      });
-
       await tx.invoice.create({
         data: {
           tenantId,
           studentId,
-          parentId: primaryGuardian?.parentId ?? null,
+          parentId: guardianByStudent.get(studentId) ?? null,
           invoiceNumber,
-          periodLabel: periodLabel.trim(),
+          periodLabel: trimmedPeriodLabel,
           dueDate,
           totalDue,
           createdBy: session.id,

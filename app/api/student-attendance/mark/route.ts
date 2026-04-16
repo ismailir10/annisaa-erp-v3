@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Mark attendance for multiple students at once (teacher submits class attendance)
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Allow admin OR assigned teacher
-  if (!assignment && session.role !== "SCHOOL_ADMIN") {
+  if (!assignment && !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Anda tidak ditugaskan di kelas ini" }, { status: 403 });
   }
 

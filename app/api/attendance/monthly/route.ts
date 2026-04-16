@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 
 export const revalidate = 3600; // 1h — historical monthly data
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json([], { status: 403 });
   }
 
@@ -25,7 +25,12 @@ export async function GET(req: NextRequest) {
 
   const employees = await prisma.employee.findMany({
     where: empWhere,
-    include: { campus: { select: { name: true } } },
+    select: {
+      id: true,
+      kode: true,
+      nama: true,
+      campus: { select: { name: true } },
+    },
     orderBy: { nama: "asc" },
   });
 
@@ -34,6 +39,7 @@ export async function GET(req: NextRequest) {
       employeeId: { in: employees.map((e) => e.id) },
       date: { gte: startDate, lt: endDate },
     },
+    select: { id: true, employeeId: true, date: true, status: true, checkInTime: true, checkOutTime: true, isLocked: true },
   });
 
   // Group records by employee

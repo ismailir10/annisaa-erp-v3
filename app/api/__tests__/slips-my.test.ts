@@ -35,9 +35,12 @@ describe("GET /api/slips/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: null,
+        parentId: null,
       });
 
       const response = await GET();
@@ -51,9 +54,12 @@ describe("GET /api/slips/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "TEACHER",
         tenantId: null,
         employeeId: "employee-1",
+        parentId: null,
       });
 
       const response = await GET();
@@ -69,9 +75,12 @@ describe("GET /api/slips/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "SCHOOL_ADMIN",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       const response = await GET();
@@ -85,9 +94,12 @@ describe("GET /api/slips/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "GUARDIAN",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       const response = await GET();
@@ -103,9 +115,12 @@ describe("GET /api/slips/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);
@@ -123,9 +138,12 @@ describe("GET /api/slips/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);
@@ -152,9 +170,12 @@ describe("GET /api/slips/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);
@@ -180,9 +201,12 @@ describe("GET /api/slips/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);
@@ -212,9 +236,12 @@ describe("GET /api/slips/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "t@t.com",
+        name: "Test",
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);

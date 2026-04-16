@@ -18,6 +18,7 @@ export function DashboardClient({
   pendingLeave,
   lastPayroll,
   weeklyTrend,
+  canSeeSalary = true,
 }: {
   totalEmployees: number;
   present: number;
@@ -26,6 +27,7 @@ export function DashboardClient({
   pendingLeave: number;
   lastPayroll: { period: string; status: string; employeeCount: number } | null;
   weeklyTrend: WeeklyTrend[];
+  canSeeSalary?: boolean;
 }) {
   const maxTrendValue = Math.max(...weeklyTrend.map((d) => d.present + d.late + d.absent), 1);
 
@@ -128,7 +130,8 @@ export function DashboardClient({
                 )}
               </Link>
 
-              {/* Last payroll */}
+              {/* Last payroll — hidden for SCHOOL_ADMIN */}
+              {canSeeSalary && (
               <Link href="/admin/payroll" className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -145,6 +148,7 @@ export function DashboardClient({
                   <Badge variant="secondary" className="text-[10px]">{lastPayroll.status}</Badge>
                 )}
               </Link>
+              )}
             </div>
           </Card>
         </motion.div>
@@ -157,7 +161,7 @@ export function DashboardClient({
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {[
-            { label: "Jalankan Penggajian", href: "/admin/payroll/new", emoji: "💰" },
+            ...(canSeeSalary ? [{ label: "Jalankan Penggajian", href: "/admin/payroll/new", emoji: "💰" }] : []),
             { label: "Lihat Kehadiran", href: "/admin/attendance", emoji: "📋" },
             { label: "Pengajuan Cuti", href: "/admin/leave", emoji: "📝" },
             { label: "Tambah Karyawan", href: "/admin/employees/new", emoji: "👤" },

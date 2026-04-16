@@ -21,7 +21,17 @@ Run these checks first. If any fails, stop and surface the error.
    ```
    Claude Code sessions can use the `EnterWorktree` tool instead. `cto` sessions work in the main checkout — no worktree needed.
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh` first.
-4. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
+4. **Branch hygiene?** Run `git branch --show-current` and `git status --porcelain`.
+   - **On `staging` or `main` with a dirty tree:** stop and print a clear error: *"You're on <branch> with uncommitted changes. Stash or resolve them first: `git stash -m 'description'`."* Do not proceed.
+   - **On `staging` or `main` with a clean tree:** auto-create a feature branch from latest remote:
+     ```bash
+     git fetch origin staging
+     git checkout -b feat/<slug> origin/staging
+     ```
+     Print: *"Created feat/<slug> from origin/staging."* Then proceed.
+   - **Already on `feat/*`:** proceed silently — you're already where you should be.
+   - **On any other branch:** warn the user and ask whether to continue or switch.
+5. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
 
 ## Step 1: Understand the request (optionally refine)
 
@@ -35,6 +45,8 @@ Use the `Explore` subagent (or direct `Glob`/`Grep` for small targeted work) to 
 - Existing utilities and patterns you can reuse
 - Files that will need to change
 - Prior cycles that touched the same area (check `docs/cycles/`)
+
+Also check `docs/uat/reports/` for UAT reports whose area overlaps the spec target. If any exist, read the most recent matching report and apply the **staleness rule**: if the report is older than 60 days OR older than the most recent `docs/cycles/` entry touching the same files, mark its findings as *"possibly stale — verify before acting"* in the Context section rather than treating them as fact. For fresh reports, surface any **blocker** or **major** findings into the cycle doc's `## Context` as explicit inputs. Ignore minors. When staging the cycle doc for commit, also `git add -f` the consumed report so it enters git history alongside the cycle that used it.
 
 Do **not** start writing code. This is the define phase.
 

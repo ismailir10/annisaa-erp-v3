@@ -4,12 +4,22 @@ import { prisma } from "./db";
 export type SessionUser = {
   id: string;
   email: string;
-  role: "SCHOOL_ADMIN" | "TEACHER" | "GUARDIAN";
+  role: "SUPER_ADMIN" | "SCHOOL_ADMIN" | "TEACHER" | "GUARDIAN";
   name: string | null;
   tenantId: string | null;
   employeeId: string | null;
   parentId: string | null;
 };
+
+/** Full access including payroll and salary data. */
+export const isSuperAdmin = (role: string): boolean => role === "SUPER_ADMIN";
+
+/** Either admin persona — can access /admin but not necessarily salary data. */
+export const isAdminRole = (role: string): boolean =>
+  role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN";
+
+/** Guard for salary-bearing routes and UI. Only SUPER_ADMIN passes. */
+export const canViewSalary = (role: string): boolean => role === "SUPER_ADMIN";
 
 /**
  * Get the current session user.

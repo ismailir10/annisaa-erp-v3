@@ -25,7 +25,7 @@ export const createStudentSchema = z.object({
 });
 
 export const updateStudentSchema = createStudentSchema.partial().extend({
-  status: z.enum(["ACTIVE", "GRADUATED", "WITHDRAWN"]).optional(),
+  status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"]).optional(),
 });
 
 export const enrollStudentSchema = z.object({

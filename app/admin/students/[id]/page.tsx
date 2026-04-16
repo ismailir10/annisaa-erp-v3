@@ -21,7 +21,7 @@ import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Tras
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
-type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; education: string | null; occupation: string | null; employer: string | null; incomeRange: string | null; childrenTotal: number | null } };
+type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; education: string | null; occupation: string | null; employer: string | null; incomeRange: string | null; childrenTotal: number | null } };
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
@@ -155,11 +155,22 @@ export default function StudentDetailPage() {
     setSavingGuardian(false);
   }
 
-  async function deleteGuardian() {
+  async function deactivateGuardian() {
     if (!deleteGuardianTarget) return;
-    const res = await fetch(`/api/students/${id}/guardians/${deleteGuardianTarget.id}`, { method: "DELETE" });
-    if (res.ok) { toast.success("Wali dihapus"); setDeleteGuardianTarget(null); fetchStudent(); }
-    else toast.error("Gagal menghapus");
+    const newStatus = deleteGuardianTarget.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+    const res = await fetch(`/api/guardians/${deleteGuardianTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (res.ok) {
+      toast.success(newStatus === "INACTIVE" ? "Wali dinonaktifkan" : "Wali diaktifkan kembali");
+      setDeleteGuardianTarget(null);
+      fetchStudent();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal mengubah status wali");
+    }
   }
 
   // --- Enroll ---
@@ -417,11 +428,11 @@ export default function StudentDetailPage() {
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Orang Tua / Wali</h3>
               <Button size="sm" variant="ghost" onClick={openAddGuardian}><Plus size={12} className="mr-1" /> Tambah</Button>
             </div>
-            {student.guardians.length === 0 ? (
+            {student.guardians.filter(g => g.status !== "INACTIVE").length === 0 ? (
               <EmptyState title="Belum ada data wali" description="Tambahkan orang tua atau wali siswa." />
             ) : (
               <div className="space-y-3">
-                {student.guardians.map(g => (
+                {student.guardians.filter(g => g.status !== "INACTIVE").map(g => (
                   <div key={g.id} className="border-b border-border/50 last:border-0 pb-3 last:pb-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -432,7 +443,7 @@ export default function StudentDetailPage() {
                       </div>
                       <div className="flex gap-1">
                         <button onClick={() => openEditGuardian(g)} className="p-1 rounded hover:bg-accent text-muted-foreground"><Pencil size={12} /></button>
-                        <button onClick={() => setDeleteGuardianTarget(g)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 size={12} /></button>
+                        <button onClick={() => setDeleteGuardianTarget(g)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></button>
                       </div>
                     </div>
                     <div className="mt-1 space-y-0.5">
@@ -688,7 +699,15 @@ export default function StudentDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog open={!!deleteGuardianTarget} onOpenChange={(o) => !o && setDeleteGuardianTarget(null)} title="Hapus Wali" description={`Hapus data wali "${deleteGuardianTarget?.parent?.name}"?`} onConfirm={deleteGuardian} confirmLabel="Hapus" />
+      <ConfirmDialog
+        open={!!deleteGuardianTarget}
+        onOpenChange={(o) => !o && setDeleteGuardianTarget(null)}
+        title={deleteGuardianTarget?.status === "INACTIVE" ? `Aktifkan wali ${deleteGuardianTarget?.parent?.name}?` : `Nonaktifkan wali ${deleteGuardianTarget?.parent?.name}?`}
+        description={deleteGuardianTarget?.status === "INACTIVE" ? "Wali akan ditampilkan kembali di daftar wali aktif." : "Wali tidak akan ditampilkan. Data tetap tersimpan dan bisa diaktifkan kembali."}
+        confirmLabel={deleteGuardianTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
+        destructive={deleteGuardianTarget?.status !== "INACTIVE"}
+        onConfirm={deactivateGuardian}
+      />
     </>
   );
 }
