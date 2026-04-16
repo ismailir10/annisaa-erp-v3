@@ -83,12 +83,14 @@ actions. The guardian model uses hard DELETE (a CLAUDE.md violation) and has no 
 ## Implementation
 
 - T1: Student Create dialog — `app/admin/students/page.tsx` (dialog added, button changed), deleted `app/admin/students/new/page.tsx` — replaces /new page with inline "Tambah Siswa" dialog; fields: name, nickname, gender, dateOfBirth, NIS, NISN, notes; on success navigates to new student detail
+- T2: Student Edit dialog — `app/admin/students/page.tsx` — added `editTarget`/`editForm`/`editing` state, Edit row action via `onEdit`, pre-filled Edit dialog, PUT /api/students/[id] on submit
 
 ---
 
 ## Verification
 
 - T1: build + vitest (69/69) passed
+- T2: build + vitest (69/69) passed
 
 ---
 
