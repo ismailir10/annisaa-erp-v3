@@ -289,6 +289,8 @@ model StudentAttendance {
 
 - Tasks 1–6 (2026-04-16): `app/api/leave/balance/route.ts` (findMany+reduce → Promise.all aggregate×2), `app/api/leave/my/route.ts` (take:50), `app/api/slips/my/route.ts` (take:24), `app/api/leave/requests/route.ts` (2 findUnique → 1 + findMany → aggregate), `app/api/payroll/generate/route.ts` (select on employee + attendance — drops 25 unused fields), `app/api/payroll/compare/route.ts` (tenant in where clause, select on items), `app/api/attendance/monthly/route.ts` (select on employee + record — drops 20 unused fields). Build + 69 tests green.
 - Task 7 (2026-04-16): `app/api/invoices/generate/route.ts` — pre-fetch existing invoices (dedup Set) + primary guardians (Map) before $transaction. Eliminates 2 per-student queries inside loop. For 500 students: 1,000 serial queries → 2 parallel pre-fetches. Build + 69 tests green.
+- Task 8 (2026-04-16): `app/api/assessments/student/[id]/route.ts` — replace N-upsert loop with `deleteMany` + `createMany`. For 50 indicators: 50 sequential upserts → 2 statements. Build + 69 tests green.
+- Task 9 (2026-04-16): `prisma/schema.prisma` (+3 `@@index`), `prisma/migrations/20260416000002_add_learning_indexes/migration.sql` — adds `AssessmentTemplate.tenantId`, `InvoiceLine.invoiceId`, `StudentAttendance(studentId,date)` indexes. `prisma generate` clean. Build + 69 tests green.
 
 ---
 
