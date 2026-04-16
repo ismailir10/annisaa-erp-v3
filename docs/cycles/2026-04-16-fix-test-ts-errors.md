@@ -61,8 +61,10 @@ check inside the build itself was already clean once Prisma Client had been gene
 npx tsc --noEmit     → exit 0 (0 errors)
 npx vitest run       → 6 files, 69/69 pass
 npm run build        → TypeScript clean, 80 routes compiled
+npm run lint         → 0 errors, 4 warnings (warnings only, exit 0)
 ```
 
 ## Ship Notes
 
-No migrations, no new env vars, no rollback needed. Pure type fix.
+No migrations, no new env vars. Pure type + lint fix.
+Rollback: `git revert HEAD~1 HEAD` (reverts both commits on this branch).

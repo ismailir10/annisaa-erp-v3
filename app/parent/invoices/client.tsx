@@ -72,14 +72,7 @@ type InvoiceItem = {
 export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("unpaid");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate loading state
-    if (data !== null) {
-      setLoading(false);
-    }
-  }, [data]);
+  const loading = data === null;
 
   useEffect(() => {
     if (data === null) {
