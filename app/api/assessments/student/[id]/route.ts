@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 
 // Save assessment scores
 export async function PUT(
@@ -11,7 +11,7 @@ export async function PUT(
   if (!session?.tenantId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   // Only TEACHER or SCHOOL_ADMIN can save scores
-  if (session.role !== "TEACHER" && session.role !== "SCHOOL_ADMIN") {
+  if (session.role !== "TEACHER" && !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

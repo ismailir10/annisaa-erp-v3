@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 // Admin: list all leave requests
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
   }
 

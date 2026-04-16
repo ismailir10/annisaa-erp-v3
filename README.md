@@ -87,9 +87,19 @@ Three portals, three roles.
 
 | Portal | Route | Role | Layout |
 |---|---|---|---|
-| Admin | `/admin` | `SCHOOL_ADMIN` | Desktop — sidebar + data tables |
+| Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop — sidebar + data tables; full access including payroll |
+| Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop — sidebar + data tables; no payroll/salary |
 | Teacher | `/teacher` | `TEACHER` | Mobile-first, `max-w-md`, bottom nav |
 | Parent | `/parent` | `GUARDIAN` | Mobile-first, `max-w-md`, bottom nav |
+
+### Data Access Rules
+
+| Role | Access |
+|------|--------|
+| `SUPER_ADMIN` | Everything — payroll, salary fields, bank data, all HR data, all modules |
+| `SCHOOL_ADMIN` | Students, admissions, academics, attendance, invoices, employees (basic info only — no salary/payroll) |
+| `TEACHER` | Own attendance, own leave slips, assigned classes only |
+| `GUARDIAN` | Own child's data only (invoices, attendance, reports) |
 
 ### Features
 
@@ -118,6 +128,7 @@ Three portals, three roles.
 - **Business logic hardening phase 2 (2026-04-16)**: atomic payment/enroll/attendance/assessment transactions, Xendit webhook advisory lock, parent-portal cache isolation fix — see [`docs/cycles/2026-04-16-biz-logic-audit-phase2.md`](docs/cycles/2026-04-16-biz-logic-audit-phase2.md)
 - **Teacher portal polish (2026-04-16)**: Cuti/Izin as inline bottom sheet on attendance calendar, profile accessible from header, layout padding fix, shared `formatTime` utility — see [`docs/cycles/2026-04-16-teacher-portal-audit.md`](docs/cycles/2026-04-16-teacher-portal-audit.md)
 - **Student attendance history tab (2026-04-16)**: new Kehadiran tab on `/admin/students/[id]` with month filter and 4 stat cards — see [`docs/cycles/2026-04-16-crud-audit-t13.md`](docs/cycles/2026-04-16-crud-audit-t13.md)
+- **Role split: SUPER_ADMIN + SCHOOL_ADMIN (2026-04-16)**: salary/payroll protected behind SUPER_ADMIN; SCHOOL_ADMIN gets full HR access minus compensation data — see [`docs/cycles/2026-04-16-role-split.md`](docs/cycles/2026-04-16-role-split.md)
 
 **In progress:**
 - CRUD completion: add edit + deactivate to all entities (target: 100%)

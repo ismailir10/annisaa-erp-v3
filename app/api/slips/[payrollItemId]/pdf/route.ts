@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, canViewSalary } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import React from "react";
@@ -32,7 +32,7 @@ export async function GET(
   }
 
   // 2. Admin must belong to same tenant
-  if (session.role === "SCHOOL_ADMIN" && item.payrollRun.tenantId !== session.tenantId) {
+  if (canViewSalary(session.role) && item.payrollRun.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

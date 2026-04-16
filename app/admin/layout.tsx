@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/admin/sidebar";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
@@ -11,11 +11,11 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  if (!session || session.role !== "SCHOOL_ADMIN") redirect("/");
+  if (!session || !isAdminRole(session.role)) redirect("/");
 
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar canSeeSalary={canViewSalary(session.role)} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
           <SidebarTrigger className="-ml-1" />

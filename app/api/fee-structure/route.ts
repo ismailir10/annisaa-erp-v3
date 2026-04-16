@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 
 // Cache GET responses for 1 day — fee structures change ~once per academic year
 export const revalidate = 86400;
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 // Bulk save fee structure for a program + academic year
 export async function PUT(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
