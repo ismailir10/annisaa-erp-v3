@@ -71,7 +71,12 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
 - Task 2: gates passed (build + vitest: 9 files, 90 tests green)
 - Task 3: gates passed (build + vitest: 9 files, 90 tests green)
 - Task 4: no gate needed (doc-only update)
+- End-of-cycle: build ✅, vitest 9/9 files 90/90 tests ✅, playwright 25/25 tests ✅ (17.1s)
 
 ## Ship Notes
 
-_Filled by /ship_
+- **No migrations needed** — no schema changes in this cycle
+- **No new env vars** — reuses existing `XENDIT_SECRET_KEY` and `NEXT_PUBLIC_APP_URL`
+- **New file:** `lib/xendit/helpers.ts` — shared Xendit session creation helper
+- **Manual smoke on preview:** Verify the class selector on `/teacher/class-attendance` shows class name, and that PUT `/api/invoices/[id]` with `{ status: "SENT" }` auto-creates a Xendit link (check invoice row in DB for `xenditPaymentUrl`)
+- **Rollback:** Revert the 4 commits. The `lib/xendit/helpers.ts` file can be deleted — the create-session route will fall back to its old inline logic if reverted independently (but reverting the whole branch is cleaner)
