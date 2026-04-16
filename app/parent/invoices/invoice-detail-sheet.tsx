@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ExternalLink, Info, CheckCircle, AlertCircle, Calendar } from "lucide-react";
 import { formatRupiah, formatDateShort } from "@/lib/format";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 
 const PARENT_INVOICE_LABELS: Record<string, string> = {
   SENT: "Belum Dibayar",
@@ -73,13 +76,54 @@ const VARIANT_STYLES: Record<string, string> = {
 export function InvoiceDetailSheet({
   open,
   onOpenChange,
-  invoice,
+  invoiceId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  invoice: InvoiceDetail | null;
+  invoiceId: string | null;
 }) {
-  if (!invoice) return null;
+  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch invoice detail when the sheet opens
+  useEffect(() => {
+    if (!open || !invoiceId) {
+      setInvoice(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    fetch(`/api/guardian/invoices/${invoiceId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load invoice");
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled) setInvoice(data);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Gagal memuat detail tagihan");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [open, invoiceId]);
+
+  if (!invoiceId) return null;
+
+  if (loading || !invoice) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <InvoiceDetailSkeleton />
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   const remaining = invoice.totalDue - invoice.totalPaid;
   const isPayable = remaining > 0 && invoice.status !== "CANCELLED" && invoice.status !== "PAID";
