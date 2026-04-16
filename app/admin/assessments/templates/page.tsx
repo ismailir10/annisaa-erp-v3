@@ -125,7 +125,7 @@ export default function AssessmentTemplatesPage() {
   const [editForm, setEditForm] = useState({ name: "", type: "SEMESTER" });
 
   useEffect(() => {
-    fetch("/api/programs").then(r => r.json()).then(setPrograms).catch(() => {});
+    fetch("/api/programs").then(r => r.json()).then(setPrograms).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   const fetchTemplates = useCallback(async () => {

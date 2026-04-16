@@ -114,7 +114,7 @@ export default function EnrollmentsPage() {
 
   // Load class sections for filter
   useEffect(() => {
-    fetch("/api/class-sections").then(r => r.json()).then(setClassSections).catch(() => {});
+    fetch("/api/class-sections").then(r => r.json()).then(setClassSections).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   // Stats
@@ -129,7 +129,7 @@ export default function EnrollmentsPage() {
         active: active.pagination?.total ?? 0,
         withdrawn: withdrawn.pagination?.total ?? 0,
       });
-    }).catch(() => {});
+    }).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   const fetchEnrollments = useCallback(async () => {
