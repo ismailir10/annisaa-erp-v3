@@ -106,7 +106,7 @@ export default function StudentAssessmentsPage() {
 
   // Load templates for filter
   useEffect(() => {
-    fetch("/api/assessments/templates").then(r => r.json()).then((t: AssessmentTemplate[]) => setTemplates(Array.isArray(t) ? t : [])).catch(() => {});
+    fetch("/api/assessments/templates").then(r => r.json()).then((t: AssessmentTemplate[]) => setTemplates(Array.isArray(t) ? t : [])).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   // Stats
@@ -121,7 +121,7 @@ export default function StudentAssessmentsPage() {
         draft: draft.pagination?.total ?? 0,
         published: published.pagination?.total ?? 0,
       });
-    }).catch(() => {});
+    }).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   const fetchData = useCallback(async () => {

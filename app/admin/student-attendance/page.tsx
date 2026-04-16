@@ -92,7 +92,7 @@ export default function StudentAttendancePage() {
     fetch("/api/class-sections")
       .then((r) => r.json())
       .then((d) => setClassSections(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   // ── Fetch stats (today's date range for context) ────────────────
@@ -110,7 +110,7 @@ export default function StudentAttendancePage() {
         sick: sick.pagination?.total ?? 0,
         permission: permission.pagination?.total ?? 0,
       });
-    }).catch(() => {});
+    }).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   // ── Fetch list ──────────────────────────────────────────────────

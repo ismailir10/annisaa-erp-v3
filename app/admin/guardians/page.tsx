@@ -110,7 +110,7 @@ export default function GuardiansPage() {
         active: active.pagination?.total ?? 0,
         inactive: inactive.pagination?.total ?? 0,
       });
-    }).catch(() => {});
+    }).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   const fetchGuardians = useCallback(async () => {

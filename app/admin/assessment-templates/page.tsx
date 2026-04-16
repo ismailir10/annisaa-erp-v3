@@ -87,7 +87,7 @@ export default function AssessmentTemplatesPage() {
     fetch("/api/programs")
       .then((r) => r.json())
       .then((d) => setPrograms(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   // ── Fetch stats once ────────────────────────────────────────────
@@ -102,7 +102,7 @@ export default function AssessmentTemplatesPage() {
         active: active.pagination?.total ?? 0,
         inactive: inactive.pagination?.total ?? 0,
       });
-    }).catch(() => {});
+    }).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
   // ── Fetch list ──────────────────────────────────────────────────
