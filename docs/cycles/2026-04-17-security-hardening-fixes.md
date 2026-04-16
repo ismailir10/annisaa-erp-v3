@@ -173,6 +173,7 @@ Run `npm run build && npx vitest run && npx playwright test` — all must pass b
 - Task 2: Harden rate-limit keys — `lib/rate-limit.ts`, `app/api/attendance/check-in/route.ts`, `app/api/attendance/check-out/route.ts`, `app/api/student-attendance/[id]/route.ts`, `app/api/config/org/route.ts` — getClientIp uses last X-Forwarded-For entry; authenticated routes restructured to session-first and keyed by session.id/employeeId
 - Task 3: Fix SUPER_ADMIN attendance access — `app/api/student-attendance/[id]/route.ts` — replaced `role !== "SCHOOL_ADMIN"` with `!isAdminRole()` in PUT and DELETE
 - Task 4: Org config Zod + seed guard — `app/api/config/org/route.ts`, `app/api/admin/seed/route.ts` — Zod schema with coerce on integer fields; seed blocked in production and requires isSuperAdmin
+- Task 5: Payroll PDF + guardian Zod — `app/api/slips/[payrollItemId]/pdf/route.ts`, `app/api/students/[id]/guardians/route.ts`, `lib/validations/guardian.ts` — PDF route uses exhaustive if/else (TEACHER→own only, SUPER_ADMIN→same tenant, else→403); createGuardianSchema added and used in guardian POST
 
 ## Verification
 
@@ -180,6 +181,7 @@ Run `npm run build && npx vitest run && npx playwright test` — all must pass b
 - Task 2: build + 90 vitest tests passed
 - Task 3: build + 90 vitest tests passed
 - Task 4: build + 90 vitest tests passed
+- Task 5: build + 90 vitest tests passed
 
 ## Ship Notes
 
