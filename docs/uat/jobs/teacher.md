@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-04-16 in cycle `uat-command-and-jtbd-library`
+> Last audited: 2026-04-16 in cycle `uat-quick-wins`
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -24,7 +24,7 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Done when:** All students have a status for today. The save completes with visible confirmation. Reopening the page shows today's state preserved.
 - **Why this job matters:** Bu Sari's #1 daily task. She has 3 minutes before morning circle. Every extra tap is expensive.
 - **Expected perf:** full page load <1.5s; save click-to-confirm <800ms; any slower is noticeable and graded accordingly.
-- **Known friction (from last UAT):** <filled by /uat reports>
+- **Known friction (from last UAT):** Class selector now displays human-readable class name (fixed in `uat-quick-wins` cycle, previously showed raw DB ID like `cs_kb_aster`)
 
 ---
 

@@ -54,7 +54,7 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
   - _Acceptance: single, softer fallback message; no duplicate; no "hubungi admin"_
   - Files: `app/parent/invoices/invoice-detail-sheet.tsx`
 
-- [ ] **4. Update UAT jobs library** — Update `docs/uat/jobs/teacher.md` to reflect the class selector fix. Stage consumed UAT reports via `git add -f`.
+- [x] **4. Update UAT jobs library** — Update `docs/uat/jobs/teacher.md` to reflect the class selector fix. Stage consumed UAT reports via `git add -f`.
   - _Acceptance: JTBD entries updated_
   - Files: `docs/uat/jobs/teacher.md`
 
@@ -63,12 +63,14 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
 - Task 1: Fix teacher class selector display — `app/teacher/class-attendance/page.tsx` — Find selected assignment by ID and render class name + program name as SelectValue children instead of relying on default value display
 - Task 2: Auto-create Xendit link on invoice send — `lib/xendit/helpers.ts` (new), `app/api/invoices/[id]/route.ts`, `app/api/xendit/create-session/route.ts` — Extracted per-invoice session creation into shared helper; PUT /api/invoices/[id] auto-calls it when transitioning to SENT
 - Task 3: Improve parent invoice fallback message — `app/parent/invoices/invoice-detail-sheet.tsx` — Replaced "Hubungi admin" dead end with softer "sedang disiapkan" message in both status banner and payment section
+- Task 4: Update UAT jobs library — `docs/uat/jobs/teacher.md` — Updated JTBD-TEACHER-ATT-01 known friction note to reflect class selector fix
 
 ## Verification
 
 - Task 1: gates passed (build + vitest: 9 files, 90 tests green)
 - Task 2: gates passed (build + vitest: 9 files, 90 tests green)
 - Task 3: gates passed (build + vitest: 9 files, 90 tests green)
+- Task 4: no gate needed (doc-only update)
 
 ## Ship Notes
 
