@@ -130,6 +130,7 @@ SUPER_ADMIN   24h (upper bound)   4h idle
 - Task 6 (2026-04-16): `proxy.ts` — generalized `enforceAdminIdle` → `enforceIdleTimeout` with per-portal thresholds: `/admin` = 4h, `/teacher` = 24h, `/parent` = 24h. Single `school-erp-last-active` cookie (path `/`). Works independently of Supabase plan (no Pro required). Build + 90 tests + 25 Playwright tests green.
 - Task 7 (2026-04-16): `supabase/config.toml` — reverted session policy to commented-out state with a note that these require Supabase Pro plan. Idle timeouts are fully enforced at middleware level instead.
 - Task 8 (2026-04-16): `prisma/seed.ts` — fixed hardcoded LibSQL adapter (`file:dev.db`) that crashed CI seed. Now detects DATABASE_URL: uses `PrismaLibSql` for `file:` URLs (local dev), `PrismaPg` for `postgres:` URLs (CI/prod), aligned with `lib/db.ts`.
+- Task 9 (2026-04-16): `prisma/migrations/20260415000000_add_perf_indexes/migration.sql` + `20260416000000_add_fk_indexes/migration.sql` — wrapped CREATE INDEX in DO blocks with table-existence checks. Prevents `relation does not exist` errors when migrations run on databases where some tables haven't been created yet.
 
 ---
 
