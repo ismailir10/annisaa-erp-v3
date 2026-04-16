@@ -129,6 +129,7 @@ SUPER_ADMIN   24h (upper bound)   4h idle
 - Task 5 (2026-04-16): `proxy.ts` — added `enforceAdminIdle()` middleware function. Uses `school-erp-admin-last-active` cookie (httpOnly, sameSite lax, path /admin). Only activates on `/admin/*` page routes. If cookie timestamp > 4h old → redirect to login. On every admin page request → refresh cookie. Works for both Supabase Auth and demo mode. Build + 90 tests + 25 Playwright tests green.
 - Task 6 (2026-04-16): `proxy.ts` — generalized `enforceAdminIdle` → `enforceIdleTimeout` with per-portal thresholds: `/admin` = 4h, `/teacher` = 24h, `/parent` = 24h. Single `school-erp-last-active` cookie (path `/`). Works independently of Supabase plan (no Pro required). Build + 90 tests + 25 Playwright tests green.
 - Task 7 (2026-04-16): `supabase/config.toml` — reverted session policy to commented-out state with a note that these require Supabase Pro plan. Idle timeouts are fully enforced at middleware level instead.
+- Task 8 (2026-04-16): `prisma/seed.ts` — fixed hardcoded LibSQL adapter (`file:dev.db`) that crashed CI seed. Now detects DATABASE_URL: uses `PrismaLibSql` for `file:` URLs (local dev), `PrismaPg` for `postgres:` URLs (CI/prod), aligned with `lib/db.ts`.
 
 ---
 

@@ -1,12 +1,17 @@
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
 import { holidays } from "./data/holidays";
 import { students } from "./data/students";
 
-const adapter = new PrismaLibSql({ url: "file:dev.db" });
+// SQLite locally (file:dev.db), Postgres adapter for CI/prod
+const dbUrl = process.env.DATABASE_URL ?? "file:dev.db";
+const adapter = dbUrl.startsWith("file:")
+  ? new PrismaLibSql({ url: dbUrl })
+  : new PrismaPg({ connectionString: dbUrl });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
