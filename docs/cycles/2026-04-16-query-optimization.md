@@ -298,22 +298,44 @@ model StudentAttendance {
 
 | Gate | Status |
 |------|--------|
-| `npm run build` | ⏳ |
-| `npx vitest run` | ⏳ |
-| `npx playwright test` (end-of-cycle) | ⏳ |
-| leave/balance: no `findMany` call remaining | ⏳ |
-| leave/my: `take: 50` present | ⏳ |
-| slips/my: `take: 24` present | ⏳ |
-| leave/requests POST: single `findUnique` + `aggregate` | ⏳ |
-| payroll/generate: `select` on employee include | ⏳ |
-| payroll/compare: tenant in `where` clause | ⏳ |
-| attendance/monthly: `select` on employee + record | ⏳ |
-| invoices/generate: no `findFirst` inside transaction loop | ⏳ |
-| assessments/student/[id]: no upsert loop | ⏳ |
-| Schema: 3 new `@@index` in schema.prisma | ⏳ |
+| `npm run build` | ✅ clean build |
+| `npx vitest run` (69 tests) | ✅ 69/69 passed |
+| `npx playwright test` (end-of-cycle) | ⚠️ 10 passed, 10 pre-existing failures (see note) |
+| leave/balance: no `findMany` call remaining | ✅ |
+| leave/my: `take: 50` present | ✅ |
+| slips/my: `take: 24` present | ✅ |
+| leave/requests POST: single `findUnique` + `aggregate` | ✅ |
+| payroll/generate: `select` on employee include | ✅ |
+| payroll/compare: tenant in `where` clause | ✅ |
+| attendance/monthly: `select` on employee + record | ✅ |
+| invoices/generate: no `findFirst` inside transaction loop | ✅ |
+| assessments/student/[id]: no upsert loop | ✅ |
+| Schema: 3 new `@@index` in schema.prisma | ✅ |
+
+**Playwright note:** 10 admin + teacher-profile tests fail with `waitForURL timeout` on navigation to
+`/admin`. Root cause: `u_admin` cookie ID is a PII-scrubbed placeholder — no `User` with that ID
+exists in the current staging DB. Pre-existing issue, unrelated to this cycle's query changes.
+10 parent + teacher (non-profile) tests pass, confirming DEMO_MODE auth + navigation are healthy
+for the two portals that have valid DB user IDs in the spec files.
 
 ---
 
 ## Ship Notes
 
-<!-- /ship fills this section -->
+### DB migrations
+- `prisma/migrations/20260416000002_add_learning_indexes/migration.sql` — 3 new indexes.
+  Apply to staging: `npx prisma migrate deploy` (or Supabase MCP `apply_migration`).
+  Apply to production: Supabase MCP with the same SQL.
+
+### New env vars
+None.
+
+### Rollback plan
+- All query changes are pure API logic — no schema changes that affect data shape. Reverting any
+  route file is safe with no data migration required.
+- DB indexes: additive-only, can be dropped at any time with no data loss.
+
+### Pre-existing Playwright issue to fix separately
+E2E admin tests use `u_admin` as cookie user ID — a placeholder from the PII scrub. Needs the
+staging DB to have a `User` row with `id='u_admin'` or the spec updated to use the actual staging
+admin user ID. Separate cycle, not a regression from this cycle.
