@@ -46,6 +46,8 @@ Use the `Explore` subagent (or direct `Glob`/`Grep` for small targeted work) to 
 - Files that will need to change
 - Prior cycles that touched the same area (check `docs/cycles/`)
 
+Also check `docs/uat/reports/` for UAT reports whose area overlaps the spec target. If any exist, read the most recent matching report and apply the **staleness rule**: if the report is older than 60 days OR older than the most recent `docs/cycles/` entry touching the same files, mark its findings as *"possibly stale — verify before acting"* in the Context section rather than treating them as fact. For fresh reports, surface any **blocker** or **major** findings into the cycle doc's `## Context` as explicit inputs. Ignore minors. When staging the cycle doc for commit, also `git add -f` the consumed report so it enters git history alongside the cycle that used it.
+
 Do **not** start writing code. This is the define phase.
 
 ## Step 3: Write the cycle doc

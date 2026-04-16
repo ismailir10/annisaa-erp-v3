@@ -77,7 +77,7 @@ Each task is commit-sized. Between-task gate (`npm run build && npx vitest run`)
   - When already on `feat/*`, proceed silently
   - **Acceptance:** preflight section in spec SKILL.md has the new check documented; `npm run build && npx vitest run` green.
 
-- [ ] **Task 4 — `/spec` UAT integration + `/build` maintenance + `/ship` preflight**
+- [x] **Task 4 — `/spec` UAT integration + `/build` maintenance + `/ship` preflight**
   - Edit `.claude/skills/spec/SKILL.md` step 2 to add the UAT-report read step with the 60-day staleness rule (and `git add -f` when staging a consumed report)
   - Edit `.claude/skills/build/SKILL.md` after-each-task checklist to add the JTBD maintenance bullet
   - Edit `.claude/skills/ship/SKILL.md` preflight to add the JTBD freshness checkbox
@@ -113,6 +113,11 @@ Each task is commit-sized. Between-task gate (`npm run build && npx vitest run`)
 **Task 3 — `/spec` branch hygiene preflight** (this commit)
 - `.claude/skills/spec/SKILL.md` — added preflight check #4 (branch hygiene): refuse to start a cycle on `staging`/`main` with dirty tree, auto-create `feat/<slug>` from `origin/staging` when clean, pass silently on `feat/*`, warn on other branches
 - Root-cause fix for the parallel-session conflict that stomped this branch twice in the main checkout
+
+**Task 4 — `/spec` UAT integration + `/build` maintenance + `/ship` preflight** (this commit)
+- `.claude/skills/spec/SKILL.md` step 2 — added UAT report consumption: read `docs/uat/reports/` for overlapping area, apply 60-day staleness rule, surface blocker/major findings into Context, `git add -f` the consumed report at commit time
+- `.claude/skills/build/SKILL.md` step 7 — added JTBD library maintenance bullet: if a task changes user-facing capability, update `docs/uat/jobs/<portal>.md`
+- `.claude/skills/ship/SKILL.md` preflight — added check #6: JTBD freshness confirmation before shipping
 
 ## Verification
 
