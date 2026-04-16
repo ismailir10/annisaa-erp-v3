@@ -12,6 +12,7 @@ import {
   Building2,
   Clock,
   Shield,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -65,6 +66,8 @@ export const adminNav: NavConfig = {
         { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
+        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
+        { label: "Template Penilaian", href: "/admin/assessment-templates", icon: ClipboardList },
       ],
     },
     {

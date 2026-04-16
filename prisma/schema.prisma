@@ -633,6 +633,7 @@ model StudentAttendance {
   checkOutTime   DateTime?
   checkedInBy    String?  // Employee ID who marked attendance
   notes          String?
+  isVoided       Boolean  @default(false) // soft-delete; voided = admin marked incorrect
   createdAt      DateTime @default(now())
 
   student      Student      @relation(fields: [studentId], references: [id])
@@ -641,6 +642,7 @@ model StudentAttendance {
   @@unique([studentId, date])
   @@index([classSectionId, date])
   @@index([date])
+  @@index([isVoided])
 }
 
 // ══════════════════════════════════════════════════════════════
