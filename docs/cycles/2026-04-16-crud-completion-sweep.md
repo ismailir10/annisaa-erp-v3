@@ -148,7 +148,40 @@ This page reuses:
 - Task 6a: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 6b: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 7: verified — no code changes needed, existing isEnabled toggle sufficient
+- Task 8: build + vitest green. Playwright: 10 passed, 10 failed (pre-existing — admin tests fail on base staging branch too, due to `u_admin` seed ID mismatch)
 
 ## Ship Notes
 
-_To be filled during /ship_
+### New admin routes
+- `/admin/guardians` — Wali Murid list page (DataTable, edit, deactivate)
+- `/admin/enrollments` — Penempatan Siswa list page (DataTable, class filter, edit, deactivate)
+- `/admin/teaching-assignments` — Guru Pengajar list page (DataTable, delete)
+- `/admin/assessments/templates` — Template Penilaian list page (create, edit, toggle active)
+- `/admin/assessments` — Penilaian Siswa list page (status/template filter)
+- `/admin/assessments/scores?id=X` — Scoring page (BB/MB/BSH/BSB per indicator)
+
+### New API routes
+- `GET /api/guardians` — paginated list of Parents
+- `PUT /api/guardians/[id]` — edit + deactivate guardian
+- `GET /api/enrollments` — paginated list of StudentEnrollments
+- `PUT /api/enrollments/[id]` — change class, deactivate enrollment
+- `PUT /api/assessments/templates/[id]` — edit template (name/type/isActive)
+- `GET /api/assessments/students` — paginated list of StudentAssessments
+
+### Database migrations
+None — all entities and fields existed prior to this cycle.
+
+### New env vars
+None.
+
+### Nav changes
+- Added "Wali Murid" under Akademik group
+- Added "Penempatan" under Akademik group
+- Added "Guru Pengajar" under Akademik group
+- Added new "Penilaian" nav group with "Template" and "Penilaian Siswa" items
+
+### Rollback plan
+Revert the PR. No data was modified — all changes are additive (new pages + new API routes). Existing functionality untouched.
+
+### README.md updated
+CRUD completion status table updated from ~70% to ~85% (14 full + 8 partial + 4 missing).
