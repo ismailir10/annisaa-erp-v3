@@ -13,6 +13,23 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 
@@ -27,6 +44,9 @@ type Student = {
   dateOfBirth: string | null;
   gender: string | null;
   status: string;
+  nis: string | null;
+  nisn: string | null;
+  notes: string | null;
   createdAt: string;
   guardians: { parent: { name: string; phone: string | null } }[];
   enrollments: {
@@ -39,6 +59,16 @@ type Pagination = {
   pageSize: number;
   total: number;
   totalPages: number;
+};
+
+const EMPTY_CREATE_FORM = {
+  name: "",
+  nickname: "",
+  gender: "",
+  dateOfBirth: "",
+  nis: "",
+  nisn: "",
+  notes: "",
 };
 
 // ------------------------------------------------------------------
@@ -155,6 +185,11 @@ export default function StudentsPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, enrolled: 0, graduated: 0 });
 
+  // Create dialog state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
+
   // Stats fetch once
   useEffect(() => {
     Promise.all([
@@ -192,7 +227,6 @@ export default function StudentsPage() {
     }
   }, [pagination.page, pagination.pageSize, search, status, sortBy, sortOrder]);
 
-  // Fetch on mount and when deps change
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
   const handleSearchChange = useCallback((value: string) => {
@@ -219,6 +253,39 @@ export default function StudentsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
+  async function handleCreate() {
+    if (!createForm.name.trim()) {
+      toast.error("Nama siswa wajib diisi");
+      return;
+    }
+    setCreating(true);
+    const res = await fetch("/api/students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: createForm.name.trim(),
+        nickname: createForm.nickname.trim() || null,
+        gender: createForm.gender || null,
+        dateOfBirth: createForm.dateOfBirth || null,
+        nis: createForm.nis.trim() || null,
+        nisn: createForm.nisn.trim() || null,
+        notes: createForm.notes.trim() || null,
+      }),
+    });
+
+    if (res.ok) {
+      const student = await res.json();
+      toast.success("Siswa berhasil ditambahkan");
+      setCreateOpen(false);
+      setCreateForm(EMPTY_CREATE_FORM);
+      router.push(`/admin/students/${student.id}`);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal menambahkan siswa");
+    }
+    setCreating(false);
+  }
+
   const columnsWithActions = useMemo<ColumnDef<Student>[]>(
     () => [
       ...columns,
@@ -241,11 +308,9 @@ export default function StudentsPage() {
         title="Siswa"
         description={`${pagination.total} siswa terdaftar`}
         actions={
-          <Link href="/admin/students/new">
-            <Button size="sm">
-              <Plus size={14} className="mr-1.5" /> Daftarkan Siswa
-            </Button>
-          </Link>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus size={14} className="mr-1.5" /> Tambah Siswa
+          </Button>
         }
       />
 
@@ -287,8 +352,102 @@ export default function StudentsPage() {
         defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
         emptyTitle="Belum ada siswa terdaftar"
-        emptyDescription="Mulai dengan mendaftarkan siswa baru atau konversi dari pendaftaran."
+        emptyDescription="Mulai dengan menambahkan siswa baru."
       />
+
+      {/* ── Create Student Dialog ─────────────────────────────────── */}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tambah Siswa</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>Nama Lengkap *</FieldLabel>
+                <Input
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  placeholder="Aisyah Putri"
+                  autoFocus
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Nama Panggilan</FieldLabel>
+                <Input
+                  value={createForm.nickname}
+                  onChange={(e) => setCreateForm({ ...createForm, nickname: e.target.value })}
+                  placeholder="Aisyah"
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>Jenis Kelamin</FieldLabel>
+                <Select
+                  value={createForm.gender}
+                  onValueChange={(v) => v && setCreateForm({ ...createForm, gender: v })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="L">Laki-laki</SelectItem>
+                    <SelectItem value="P">Perempuan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Tanggal Lahir</FieldLabel>
+                <Input
+                  type="date"
+                  value={createForm.dateOfBirth}
+                  onChange={(e) => setCreateForm({ ...createForm, dateOfBirth: e.target.value })}
+                  max={new Date().toISOString().split("T")[0]}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>NIS</FieldLabel>
+                <Input
+                  value={createForm.nis}
+                  onChange={(e) => setCreateForm({ ...createForm, nis: e.target.value })}
+                  placeholder="Nomor Induk Siswa"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>NISN</FieldLabel>
+                <Input
+                  value={createForm.nisn}
+                  onChange={(e) => setCreateForm({ ...createForm, nisn: e.target.value })}
+                  placeholder="Nomor Induk Siswa Nasional"
+                />
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel>Catatan</FieldLabel>
+              <Textarea
+                value={createForm.notes}
+                onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                placeholder="Alergi, kebutuhan khusus, dll."
+                rows={2}
+              />
+            </Field>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }} disabled={creating}>
+              Batal
+            </Button>
+            <Button onClick={handleCreate} disabled={creating}>
+              {creating ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
