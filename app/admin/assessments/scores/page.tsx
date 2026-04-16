@@ -63,7 +63,7 @@ export default function ScoresPage() {
   const [scoreMap, setScoreMap] = useState<Record<string, string>>({});
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching: setState in async .then callback is intentional
+  /* eslint-disable react-hooks/set-state-in-effect -- data fetching: setState in async .then callback is intentional */
   useEffect(() => {
     if (!assessmentId) { setLoading(false); return; }
     fetch(`/api/assessments/student/${assessmentId}`)
@@ -85,6 +85,7 @@ export default function ScoresPage() {
       .catch(() => toast.error("Penilaian tidak ditemukan"))
       .finally(() => setLoading(false));
   }, [assessmentId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleSave(publish: boolean) {
     if (!assessment) return;
