@@ -1,0 +1,5 @@
+
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "withdrawalReason" TEXT;
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "withdrawalDate" TEXT;
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "graduationDate" TEXT;
+;
