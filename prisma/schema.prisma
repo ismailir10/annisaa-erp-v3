@@ -456,12 +456,14 @@ model StudentGuardian {
   relationship String  // AYAH | IBU | WALI | OTHER
   isPrimary    Boolean @default(false) // Primary billing contact for this student
   childOrder   Int?    // Anak ke- (this student's position in the parent's family)
+  status       String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete)
 
   student Student @relation(fields: [studentId], references: [id])
   parent  Parent  @relation(fields: [parentId], references: [id])
 
   @@unique([studentId, parentId])
   @@index([parentId])
+  @@index([studentId, status])
 }
 
 // ── STUDENT ENROLLMENT ───────────────────────────────────────
@@ -597,6 +599,8 @@ model InvoiceLine {
 
   invoice      Invoice         @relation(fields: [invoiceId], references: [id])
   feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
+
+  @@index([invoiceId])
 }
 
 // ── PAYMENT ──────────────────────────────────────────────────
@@ -633,14 +637,17 @@ model StudentAttendance {
   checkOutTime   DateTime?
   checkedInBy    String?  // Employee ID who marked attendance
   notes          String?
+  isVoided       Boolean  @default(false) // soft-delete; voided = admin marked incorrect
   createdAt      DateTime @default(now())
 
   student      Student      @relation(fields: [studentId], references: [id])
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
   @@unique([studentId, date])
+  @@index([studentId, date])
   @@index([classSectionId, date])
   @@index([date])
+  @@index([isVoided])
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -658,6 +665,8 @@ model AssessmentTemplate {
   program    Program              @relation(fields: [programId], references: [id])
   categories AssessmentCategory[]
   assessments StudentAssessment[]
+
+  @@index([tenantId])
 }
 
 model AssessmentCategory {

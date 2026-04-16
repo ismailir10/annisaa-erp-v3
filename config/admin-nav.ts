@@ -12,6 +12,9 @@ import {
   Building2,
   Clock,
   Shield,
+  Heart,
+  BookOpen,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +23,7 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   matchExact?: boolean;
+  superAdminOnly?: boolean;
 };
 
 export type NavGroup = {
@@ -54,7 +58,7 @@ export const adminNav: NavConfig = {
         { label: "Karyawan", href: "/admin/employees", icon: Users },
         { label: "Kehadiran", href: "/admin/attendance", icon: CalendarCheck },
         { label: "Pengajuan Cuti", href: "/admin/leave", icon: CalendarOff },
-        { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
+        { label: "Penggajian", href: "/admin/payroll", icon: Banknote, superAdminOnly: true },
       ],
     },
     {
@@ -64,7 +68,12 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
+        { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
+        { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
+        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
+        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
+        { label: "Template Penilaian", href: "/admin/assessment-templates", icon: ClipboardList },
       ],
     },
     {
@@ -74,6 +83,15 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Biaya", href: "/admin/fees", icon: Coins },
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
+      ],
+    },
+    {
+      id: "learning",
+      label: "Penilaian",
+      icon: ClipboardList,
+      items: [
+        { label: "Template", href: "/admin/assessments/templates", icon: ClipboardList },
+        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
       ],
     },
   ],
@@ -90,6 +108,7 @@ export const adminNav: NavConfig = {
       label: "Komponen Gaji",
       href: "/admin/settings/salary-components",
       icon: Coins,
+      superAdminOnly: true,
     },
     { label: "Pengguna", href: "/admin/settings/users", icon: Users },
     { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield },

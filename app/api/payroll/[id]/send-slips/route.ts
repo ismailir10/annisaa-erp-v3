@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, canViewSalary } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import { sendSalarySlipEmail } from "@/lib/email/send-slip";
@@ -22,7 +22,7 @@ export async function POST(
   }
 
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !canViewSalary(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

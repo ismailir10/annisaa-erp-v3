@@ -5,6 +5,7 @@ import { InvoicesClient } from "../client";
 
 // Mock InvoiceDetailSheet
 vi.mock("@/components/parent/invoice-detail-sheet", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   InvoiceDetailSheet: ({ open, onOpenChange, invoice }: any) => (
     <div data-testid="invoice-detail-sheet">
       {open && <div>Invoice Sheet: {invoice?.invoiceNumber}</div>}
@@ -23,6 +24,7 @@ vi.mock("sonner", () => ({
 // Mock Framer Motion to avoid animation issues in tests
 vi.mock("framer-motion", () => ({
   motion: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     div: ({ children, className, ...props }: any) => (
       <div className={className} {...props}>{children}</div>
     ),

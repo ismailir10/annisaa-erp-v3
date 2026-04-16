@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, canViewSalary } from "@/lib/auth";
 
 // Cache salary components for 1 hour (static data)
 export const revalidate = 3600;
@@ -19,7 +19,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !canViewSalary(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

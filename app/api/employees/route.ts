@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
@@ -44,7 +44,15 @@ export async function GET(req: NextRequest) {
     prisma.employee.count({ where }),
   ]);
 
-  return NextResponse.json(paginatedResponse(employees, total, page, pageSize));
+  const canSeeSalary = canViewSalary(session.role);
+  const safeEmployees = canSeeSalary
+    ? employees
+    : employees.map((e) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { bankAccountNo, bankName, bpjsEnrolled, ...rest } = e;
+        return rest;
+      });
+  return NextResponse.json(paginatedResponse(safeEmployees, total, page, pageSize));
 }
 
 export async function POST(req: NextRequest) {
@@ -52,7 +60,7 @@ export async function POST(req: NextRequest) {
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

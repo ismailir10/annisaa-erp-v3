@@ -109,16 +109,30 @@ async function main() {
   }
   console.log(`✅ Salary components: ${salaryComponents.length}`);
 
-  // 6. Create admin user
+  // 6. Create admin users
+  // Primary owner — SUPER_ADMIN (full access including payroll/salary)
   const adminUser = await prisma.user.create({
     data: {
+      id: "u_super_admin",
       tenantId: tenant.id,
       email: "admin@annisaa.sch.id",
-      role: "SCHOOL_ADMIN",
+      role: "SUPER_ADMIN",
       name: "Admin Annisaa",
     },
   });
-  console.log(`✅ Admin user: admin@annisaa.sch.id`);
+  console.log(`✅ Super admin user: ${adminUser.email}`);
+
+  // Restricted admin — SCHOOL_ADMIN (no salary/payroll access — demo fixture)
+  await prisma.user.create({
+    data: {
+      id: "u_school_admin",
+      tenantId: tenant.id,
+      email: "schooladmin@annisaa.sch.id",
+      role: "SCHOOL_ADMIN",
+      name: "Admin Sekolah",
+    },
+  });
+  console.log(`✅ School admin user: schooladmin@annisaa.sch.id`);
 
   // 7. Employees + Teacher users + Salary values
   const employeeIds: Record<string, string> = {};
@@ -144,8 +158,11 @@ async function main() {
     });
     employeeIds[emp.kode] = created.id;
 
+    // First teacher (E003, Guru Tiga) gets explicit ID for E2E demo auth
+    const teacherUserId = emp.kode === "E003" ? "u_teacher" : undefined;
     await prisma.user.create({
       data: {
+        ...(teacherUserId ? { id: teacherUserId } : {}),
         tenantId: tenant.id,
         email: emp.email,
         role: "TEACHER",
@@ -280,15 +297,34 @@ async function main() {
   }
   console.log(`✅ Students: ${studentCount} (with guardians & enrollments)`);
 
+  // ── 7b-5. Parent user for E2E demo auth (first student's primary guardian)
+  const firstParent = await prisma.parent.findFirst({
+    where: { tenantId: tenant.id },
+    orderBy: { createdAt: "asc" },
+  });
+  if (firstParent) {
+    await prisma.user.create({
+      data: {
+        id: "u_rightjet",
+        tenantId: tenant.id,
+        email: "parent01@example.test",
+        role: "GUARDIAN",
+        name: firstParent.name,
+        parentId: firstParent.id,
+      },
+    });
+    console.log(`✅ Parent user: parent01@example.test (linked to ${firstParent.name})`);
+  }
+
   // ── 7c. TEACHING ASSIGNMENTS (link teachers to classes) ────
-  // Map teachers by jabatan to classes
+  // Map teachers by jabatan to classes (using synthetic employee codes)
   const teacherClassMap: { empKode: string; classKey: string; role: string }[] = [
-    { empKode: "NNF6", classKey: "TKIT_A", role: "HOMEROOM" },   // redacted - Class A1
-    { empKode: "YN7", classKey: "TKIT_B", role: "HOMEROOM" },    // Yohana - Class A2
-    { empKode: "NK20", classKey: "KB_ASTER", role: "HOMEROOM" },  // Redacted Employee - Ka Paud
-    { empKode: "EH21", classKey: "KB_METLAND", role: "HOMEROOM" },// Elvriani - Pj Dcare Metland
-    { empKode: "SNF17", classKey: "DCARE", role: "HOMEROOM" },    // Redacted Employee - Class Dcare
-    { empKode: "HH3", classKey: "POPUP", role: "HOMEROOM" },      // Redacted Employee - Ka Dcare
+    { empKode: "E003", classKey: "TKIT_A", role: "HOMEROOM" },
+    { empKode: "E004", classKey: "TKIT_B", role: "HOMEROOM" },
+    { empKode: "E005", classKey: "KB_ASTER", role: "HOMEROOM" },
+    { empKode: "E006", classKey: "KB_METLAND", role: "HOMEROOM" },
+    { empKode: "E001", classKey: "DCARE", role: "HOMEROOM" },
+    { empKode: "E002", classKey: "POPUP", role: "HOMEROOM" },
   ];
 
   let assignmentCount = 0;

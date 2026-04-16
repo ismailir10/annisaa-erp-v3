@@ -14,6 +14,23 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 
@@ -28,6 +45,9 @@ type Student = {
   dateOfBirth: string | null;
   gender: string | null;
   status: string;
+  nis: string | null;
+  nisn: string | null;
+  notes: string | null;
   createdAt: string;
   guardians: { parent: { name: string; phone: string | null } }[];
   enrollments: {
@@ -40,6 +60,16 @@ type Pagination = {
   pageSize: number;
   total: number;
   totalPages: number;
+};
+
+const EMPTY_CREATE_FORM = {
+  name: "",
+  nickname: "",
+  gender: "",
+  dateOfBirth: "",
+  nis: "",
+  nisn: "",
+  notes: "",
 };
 
 // ------------------------------------------------------------------
@@ -155,7 +185,19 @@ export default function StudentsPage() {
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, enrolled: 0, graduated: 0 });
+
+  // Create dialog state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
+
+  // Deactivate dialog state
   const [deactivateTarget, setDeactivateTarget] = useState<Student | null>(null);
+
+  // Edit dialog state
+  const [editTarget, setEditTarget] = useState<Student | null>(null);
+  const [editForm, setEditForm] = useState(EMPTY_CREATE_FORM);
+  const [editing, setEditing] = useState(false);
 
   // Stats fetch once
   useEffect(() => {
@@ -194,7 +236,6 @@ export default function StudentsPage() {
     }
   }, [pagination.page, pagination.pageSize, search, status, sortBy, sortOrder]);
 
-  // Fetch on mount and when deps change
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
   const handleSearchChange = useCallback((value: string) => {
@@ -221,22 +262,97 @@ export default function StudentsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  const handleDeactivate = useCallback(async () => {
+  async function handleStatusToggle() {
     if (!deactivateTarget) return;
+    const newStatus = deactivateTarget.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
     const res = await fetch(`/api/students/${deactivateTarget.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "INACTIVE" }),
+      body: JSON.stringify({ status: newStatus }),
     });
-    if (res.ok) {
-      toast.success(`${deactivateTarget.name} dinonaktifkan`);
-      setDeactivateTarget(null);
-      fetchStudents();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal menonaktifkan siswa");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal mengubah status siswa");
+      return;
     }
-  }, [deactivateTarget, fetchStudents]);
+    toast.success(newStatus === "ACTIVE" ? "Siswa diaktifkan kembali" : "Siswa dinonaktifkan");
+    setDeactivateTarget(null);
+    fetchStudents();
+  }
+
+  function openEdit(student: Student) {
+    setEditForm({
+      name: student.name,
+      nickname: student.nickname ?? "",
+      gender: student.gender ?? "",
+      dateOfBirth: student.dateOfBirth ?? "",
+      nis: student.nis ?? "",
+      nisn: student.nisn ?? "",
+      notes: student.notes ?? "",
+    });
+    setEditTarget(student);
+  }
+
+  async function handleEdit() {
+    if (!editTarget) return;
+    if (!editForm.name.trim()) { toast.error("Nama siswa wajib diisi"); return; }
+    setEditing(true);
+    const res = await fetch(`/api/students/${editTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editForm.name.trim(),
+        nickname: editForm.nickname.trim() || null,
+        gender: editForm.gender || null,
+        dateOfBirth: editForm.dateOfBirth || null,
+        nis: editForm.nis.trim() || null,
+        nisn: editForm.nisn.trim() || null,
+        notes: editForm.notes.trim() || null,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal memperbarui data siswa");
+    } else {
+      toast.success("Data siswa berhasil diperbarui");
+      setEditTarget(null);
+      fetchStudents();
+    }
+    setEditing(false);
+  }
+
+  async function handleCreate() {
+    if (!createForm.name.trim()) {
+      toast.error("Nama siswa wajib diisi");
+      return;
+    }
+    setCreating(true);
+    const res = await fetch("/api/students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: createForm.name.trim(),
+        nickname: createForm.nickname.trim() || null,
+        gender: createForm.gender || null,
+        dateOfBirth: createForm.dateOfBirth || null,
+        nis: createForm.nis.trim() || null,
+        nisn: createForm.nisn.trim() || null,
+        notes: createForm.notes.trim() || null,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal menambahkan siswa");
+    } else {
+      const student = await res.json();
+      toast.success("Siswa berhasil ditambahkan");
+      setCreateOpen(false);
+      setCreateForm(EMPTY_CREATE_FORM);
+      router.push(`/admin/students/${student.id}`);
+    }
+    setCreating(false);
+  }
 
   const columnsWithActions = useMemo<ColumnDef<Student>[]>(
     () => [
@@ -244,18 +360,19 @@ export default function StudentsPage() {
       {
         id: "actions",
         header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/students/${row.original.id}`)}
-            onEdit={() => router.push(`/admin/students/${row.original.id}`)}
-            onDeactivate={
-              row.original.status === "ACTIVE" || row.original.status === "ENROLLED"
-                ? () => setDeactivateTarget(row.original)
-                : undefined
-            }
-            isActive={row.original.status === "ACTIVE" || row.original.status === "ENROLLED"}
-          />
-        ),
+        cell: ({ row }) => {
+          const s = row.original;
+          const isActive = s.status !== "INACTIVE";
+          return (
+            <DataTableRowActions
+              onView={() => router.push(`/admin/students/${s.id}`)}
+              onEdit={() => openEdit(s)}
+              onDeactivate={isActive ? () => setDeactivateTarget(s) : undefined}
+              onActivate={!isActive ? () => setDeactivateTarget(s) : undefined}
+              isActive={isActive}
+            />
+          );
+        },
       },
     ],
     [router],
@@ -267,11 +384,9 @@ export default function StudentsPage() {
         title="Siswa"
         description={`${pagination.total} siswa terdaftar`}
         actions={
-          <Link href="/admin/students/new">
-            <Button size="sm">
-              <Plus size={14} className="mr-1.5" /> Daftarkan Siswa
-            </Button>
-          </Link>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus size={14} className="mr-1.5" /> Tambah Siswa
+          </Button>
         }
       />
 
@@ -313,17 +428,207 @@ export default function StudentsPage() {
         defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
         emptyTitle="Belum ada siswa terdaftar"
-        emptyDescription="Mulai dengan mendaftarkan siswa baru atau konversi dari pendaftaran."
+        emptyDescription="Mulai dengan menambahkan siswa baru."
       />
 
+      {/* Deactivate / Activate ConfirmDialog */}
       <ConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
-        title="Nonaktifkan Siswa"
-        description={`Nonaktifkan "${deactivateTarget?.name}"? Semua pendaftaran kelas aktif akan diakhiri dan tagihan DRAFT/SENT akan dibatalkan.`}
-        onConfirm={handleDeactivate}
-        confirmLabel="Nonaktifkan"
+        title={deactivateTarget?.status === "INACTIVE" ? `Aktifkan ${deactivateTarget?.name}?` : `Nonaktifkan ${deactivateTarget?.name}?`}
+        description={deactivateTarget?.status === "INACTIVE" ? "Siswa akan dikembalikan ke status aktif." : "Siswa akan dinonaktifkan. Pendaftaran kelas aktif akan dicabut dan tagihan DRAFT/SENT akan dibatalkan."}
+        confirmLabel={deactivateTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
+        onConfirm={handleStatusToggle}
+        destructive={deactivateTarget?.status !== "INACTIVE"}
       />
+
+      {/* Edit Student Dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Siswa</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>Nama Lengkap *</FieldLabel>
+                <Input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="Aisyah Putri"
+                  autoFocus
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Nama Panggilan</FieldLabel>
+                <Input
+                  value={editForm.nickname}
+                  onChange={(e) => setEditForm({ ...editForm, nickname: e.target.value })}
+                  placeholder="Aisyah"
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>Jenis Kelamin</FieldLabel>
+                <Select
+                  value={editForm.gender}
+                  onValueChange={(v) => v && setEditForm({ ...editForm, gender: v })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="L">Laki-laki</SelectItem>
+                    <SelectItem value="P">Perempuan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Tanggal Lahir</FieldLabel>
+                <Input
+                  type="date"
+                  value={editForm.dateOfBirth}
+                  onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                  max={new Date().toISOString().split("T")[0]}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>NIS</FieldLabel>
+                <Input
+                  value={editForm.nis}
+                  onChange={(e) => setEditForm({ ...editForm, nis: e.target.value })}
+                  placeholder="Nomor Induk Siswa"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>NISN</FieldLabel>
+                <Input
+                  value={editForm.nisn}
+                  onChange={(e) => setEditForm({ ...editForm, nisn: e.target.value })}
+                  placeholder="Nomor Induk Siswa Nasional"
+                />
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel>Catatan</FieldLabel>
+              <Textarea
+                value={editForm.notes}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                placeholder="Alergi, kebutuhan khusus, dll."
+                rows={2}
+              />
+            </Field>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+              Batal
+            </Button>
+            <Button onClick={handleEdit} disabled={editing}>
+              {editing ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Student Dialog */}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tambah Siswa</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>Nama Lengkap *</FieldLabel>
+                <Input
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  placeholder="Aisyah Putri"
+                  autoFocus
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Nama Panggilan</FieldLabel>
+                <Input
+                  value={createForm.nickname}
+                  onChange={(e) => setCreateForm({ ...createForm, nickname: e.target.value })}
+                  placeholder="Aisyah"
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>Jenis Kelamin</FieldLabel>
+                <Select
+                  value={createForm.gender}
+                  onValueChange={(v) => v && setCreateForm({ ...createForm, gender: v })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="L">Laki-laki</SelectItem>
+                    <SelectItem value="P">Perempuan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Tanggal Lahir</FieldLabel>
+                <Input
+                  type="date"
+                  value={createForm.dateOfBirth}
+                  onChange={(e) => setCreateForm({ ...createForm, dateOfBirth: e.target.value })}
+                  max={new Date().toISOString().split("T")[0]}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>NIS</FieldLabel>
+                <Input
+                  value={createForm.nis}
+                  onChange={(e) => setCreateForm({ ...createForm, nis: e.target.value })}
+                  placeholder="Nomor Induk Siswa"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>NISN</FieldLabel>
+                <Input
+                  value={createForm.nisn}
+                  onChange={(e) => setCreateForm({ ...createForm, nisn: e.target.value })}
+                  placeholder="Nomor Induk Siswa Nasional"
+                />
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel>Catatan</FieldLabel>
+              <Textarea
+                value={createForm.notes}
+                onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                placeholder="Alergi, kebutuhan khusus, dll."
+                rows={2}
+              />
+            </Field>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }} disabled={creating}>
+              Batal
+            </Button>
+            <Button onClick={handleCreate} disabled={creating}>
+              {creating ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

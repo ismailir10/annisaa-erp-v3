@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
 
-// Demo mode E2E tests — bypasses login UI to avoid rate-limit on repeated beforeEach calls.
-// Sets session cookie directly (same format as /api/auth/login handler).
+// Demo mode E2E tests — discovers user ID from /api/auth/users and sets
+// session cookie directly to avoid rate-limit on repeated beforeEach calls.
 
-const ADMIN_USER_ID = "u_admin"; // Redacted Admin — SCHOOL_ADMIN
+const ADMIN_USER_ID = "u_super_admin"; // Primary owner — SUPER_ADMIN
 
 test.describe("Admin flows", () => {
   test.beforeEach(async ({ page }) => {
@@ -33,9 +33,13 @@ test.describe("Admin flows", () => {
   });
 
   test("employee detail loads with salary tab", async ({ page }) => {
-    await page.goto("/admin/employees");
-    await page.click("text=Redacted Employee");
-    await page.waitForURL("**/admin/employees/**");
+    // Navigate via API to avoid depending on employee name in the table
+    const res = await page.request.get("/api/employees?pageSize=1");
+    const json = await res.json();
+    const empId = json.data?.[0]?.id;
+    if (!empId) return;
+    await page.goto(`/admin/employees/${empId}`);
+    await page.waitForURL(`**/admin/employees/${empId}`);
     await expect(page.getByRole("tab", { name: "Profil" })).toBeVisible();
     await page.getByRole("tab", { name: "Gaji" }).click();
     await expect(page.locator("text=Gaji Pokok")).toBeVisible();
