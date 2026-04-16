@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 import { GET } from "../attendance/my/route";
 
 // Mock dependencies
@@ -24,7 +25,7 @@ describe("GET /api/attendance/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue(null);
 
-      const request = new Request("http://localhost:3000/api/attendance/my");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my");
       const response = await GET(request);
 
       expect(response.status).toBe(401);
@@ -36,12 +37,15 @@ describe("GET /api/attendance/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "test@example.com",
+        name: null,
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: null,
+        parentId: null,
       });
 
-      const request = new Request("http://localhost:3000/api/attendance/my");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my");
       const response = await GET(request);
 
       expect(response.status).toBe(401);
@@ -53,12 +57,15 @@ describe("GET /api/attendance/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "test@example.com",
+        name: null,
         role: "TEACHER",
         tenantId: null,
         employeeId: "employee-1",
+        parentId: null,
       });
 
-      const request = new Request("http://localhost:3000/api/attendance/my");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my");
       const response = await GET(request);
 
       expect(response.status).toBe(401);
@@ -72,12 +79,15 @@ describe("GET /api/attendance/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "test@example.com",
+        name: null,
         role: "SCHOOL_ADMIN",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
-      const request = new Request("http://localhost:3000/api/attendance/my");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my");
       const response = await GET(request);
 
       expect(response.status).toBe(403);
@@ -89,12 +99,15 @@ describe("GET /api/attendance/my", () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "test@example.com",
+        name: null,
         role: "GUARDIAN",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
-      const request = new Request("http://localhost:3000/api/attendance/my");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my");
       const response = await GET(request);
 
       expect(response.status).toBe(403);
@@ -108,14 +121,17 @@ describe("GET /api/attendance/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "test@example.com",
+        name: null,
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.attendanceRecord.findMany).mockResolvedValue([]);
 
-      const request = new Request("http://localhost:3000/api/attendance/my");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my");
       const response = await GET(request);
 
       expect(response.status).toBe(200);
@@ -129,14 +145,17 @@ describe("GET /api/attendance/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "test@example.com",
+        name: null,
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.attendanceRecord.findMany).mockResolvedValue([]);
 
-      const request = new Request("http://localhost:3000/api/attendance/my");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my");
       await GET(request);
 
       expect(prisma.attendanceRecord.findMany).toHaveBeenCalledWith(
@@ -159,14 +178,17 @@ describe("GET /api/attendance/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "test@example.com",
+        name: null,
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.attendanceRecord.findMany).mockResolvedValue([]);
 
-      const request = new Request("http://localhost:3000/api/attendance/my");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my");
       await GET(request);
 
       const currentDate = new Date();
@@ -190,14 +212,17 @@ describe("GET /api/attendance/my", () => {
 
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
+        email: "test@example.com",
+        name: null,
         role: "TEACHER",
         tenantId: "tenant-1",
         employeeId: "employee-1",
+        parentId: null,
       });
 
       vi.mocked(prisma.attendanceRecord.findMany).mockResolvedValue([]);
 
-      const request = new Request("http://localhost:3000/api/attendance/my?month=2&year=2025");
+      const request = new NextRequest("http://localhost:3000/api/attendance/my?month=2&year=2025");
       await GET(request);
 
       expect(prisma.attendanceRecord.findMany).toHaveBeenCalledWith(

@@ -51,7 +51,8 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as any);
 
     const result = await getStudentInvoices("student-123");
 
@@ -91,7 +92,8 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as any);
 
     const result = await getStudentInvoices("student-123");
 
@@ -113,7 +115,8 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as any);
 
     await getStudentInvoices("student-123");
 
@@ -149,7 +152,8 @@ describe("getStudentInvoices", () => {
       createdAt: new Date(`2024-${String(i + 1).padStart(2, "0")}-01`),
     }));
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices.slice(0, 5));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices.slice(0, 5) as any);
 
     const result = await getStudentInvoices("student-123");
 
@@ -185,7 +189,8 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as any);
 
     await getStudentInvoices("student-123");
 
@@ -210,7 +215,8 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as any);
 
     await getStudentInvoices("student-123");
 
@@ -255,7 +261,8 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as any);
 
     await getStudentInvoices("student-456");
     expect(prisma.invoice.findMany).toHaveBeenCalledWith(
@@ -292,7 +299,8 @@ describe("getStudentInvoices", () => {
       },
     ];
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as any);
 
     const result = await getStudentInvoices("student-123");
 
