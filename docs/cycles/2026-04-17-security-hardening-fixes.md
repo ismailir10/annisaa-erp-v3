@@ -171,11 +171,13 @@ Run `npm run build && npx vitest run && npx playwright test` — all must pass b
 
 - Task 1: Fix Xendit webhook timingSafeEqual RangeError — `app/api/xendit/webhook/route.ts` — length check before timingSafeEqual prevents RangeError; returns 401 on any length mismatch
 - Task 2: Harden rate-limit keys — `lib/rate-limit.ts`, `app/api/attendance/check-in/route.ts`, `app/api/attendance/check-out/route.ts`, `app/api/student-attendance/[id]/route.ts`, `app/api/config/org/route.ts` — getClientIp uses last X-Forwarded-For entry; authenticated routes restructured to session-first and keyed by session.id/employeeId
+- Task 3: Fix SUPER_ADMIN attendance access — `app/api/student-attendance/[id]/route.ts` — replaced `role !== "SCHOOL_ADMIN"` with `!isAdminRole()` in PUT and DELETE
 
 ## Verification
 
 - Task 1: build + 90 vitest tests passed
 - Task 2: build + 90 vitest tests passed
+- Task 3: build + 90 vitest tests passed
 
 ## Ship Notes
 
