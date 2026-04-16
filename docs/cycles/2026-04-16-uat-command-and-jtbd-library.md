@@ -70,7 +70,7 @@ Each task is commit-sized. Between-task gate (`npm run build && npx vitest run`)
   - Skill prompt must be explicit that major/blocker timing breaches are promoted to Findings regardless of job completion status
   - **Acceptance:** file exists, all 8 steps and the 3 report sub-sections (Findings/Performance/Follow-up) are present, severity rules and thresholds table are embedded verbatim from the plan; `npm run build && npx vitest run` green.
 
-- [ ] **Task 3 — `/spec` branch hygiene preflight (workflow fix)**
+- [x] **Task 3 — `/spec` branch hygiene preflight (workflow fix)**
   - Edit `.claude/skills/spec/SKILL.md` preflight to add a new check: detect current branch via `git branch --show-current`, and working tree state via `git status --porcelain`
   - Refuse to proceed if on `staging` or `main` with a dirty tree (print a clear error with instructions to stash or resolve)
   - When on `staging`/`main` with a clean tree, auto-run `git fetch origin staging && git checkout -b feat/<slug> origin/staging` and confirm to the user via stdout
@@ -109,6 +109,10 @@ Each task is commit-sized. Between-task gate (`npm run build && npx vitest run`)
 - Embeds report schema, performance thresholds table (page load/API/click-to-visible across fine/minor/major/blocker), severity rules, and the auto-drafted `/spec` follow-up template verbatim from the plan
 - `disable-model-invocation: true` so the skill only fires on explicit `/uat` invocation, never model-autoinvoked
 - Rules section locks: no-padding, timing breaches are first-class findings, disclaimer is load-bearing, never modify app to make a job pass, never touch the JTBD library from `/uat`
+
+**Task 3 — `/spec` branch hygiene preflight** (this commit)
+- `.claude/skills/spec/SKILL.md` — added preflight check #4 (branch hygiene): refuse to start a cycle on `staging`/`main` with dirty tree, auto-create `feat/<slug>` from `origin/staging` when clean, pass silently on `feat/*`, warn on other branches
+- Root-cause fix for the parallel-session conflict that stomped this branch twice in the main checkout
 
 ## Verification
 

@@ -21,7 +21,17 @@ Run these checks first. If any fails, stop and surface the error.
    ```
    Claude Code sessions can use the `EnterWorktree` tool instead. `cto` sessions work in the main checkout — no worktree needed.
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh` first.
-4. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
+4. **Branch hygiene?** Run `git branch --show-current` and `git status --porcelain`.
+   - **On `staging` or `main` with a dirty tree:** stop and print a clear error: *"You're on <branch> with uncommitted changes. Stash or resolve them first: `git stash -m 'description'`."* Do not proceed.
+   - **On `staging` or `main` with a clean tree:** auto-create a feature branch from latest remote:
+     ```bash
+     git fetch origin staging
+     git checkout -b feat/<slug> origin/staging
+     ```
+     Print: *"Created feat/<slug> from origin/staging."* Then proceed.
+   - **Already on `feat/*`:** proceed silently — you're already where you should be.
+   - **On any other branch:** warn the user and ask whether to continue or switch.
+5. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
 
 ## Step 1: Understand the request (optionally refine)
 
