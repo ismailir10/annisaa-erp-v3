@@ -40,7 +40,7 @@ A previous perf cycle added `unstable_cache` to `getParentWithChildren`, but it 
   Wrap the invoice list query in `unstable_cache` with a key scoped to `["parent-invoices", parentId, studentId]` and a 2-minute TTL with revalidation tags. This prevents the cross-parent leak that caused the previous cache removal.
   _Acceptance: cache key includes both parentId and studentId; warm reload hits cache; cold nav triggers at most one Prisma query._
 
-- [ ] **Task 3 — Run between-task gate + end-of-cycle smoke**
+- [x] **Task 3 — Run between-task gate + end-of-cycle smoke**
   `npm run build && npx vitest run` must pass. Then run `npx playwright test` (25 tests) to confirm no regressions.
   _Acceptance: all 25 Playwright tests pass; build output clean._
 
@@ -53,7 +53,16 @@ A previous perf cycle added `unstable_cache` to `getParentWithChildren`, but it 
 
 - Task 1: `npm run build` ✓ clean, `npx vitest run` ✓ 90/90 tests pass
 - Task 2: `npm run build` ✓ clean, `npx vitest run` ✓ 90/90 tests pass
+- End-of-cycle: `npm run build` ✓ clean, `npx vitest run` ✓ 90/90 tests pass, `npx playwright test` ✓ 25/25 pass
 
 ## Ship Notes
 
-<!-- /ship fills this -->
+**No database migrations.** No new env vars.
+
+**New API route:** `GET /api/guardian/invoices/[id]` — guardian-scoped invoice detail endpoint. Returns lines, payments, and student enrollment info. Accessible only by GUARDIAN role, only for invoices belonging to their own children. Tenant-isolated.
+
+**Behavioral change:** Invoice detail sheet now lazy-loads via API call instead of receiving all data inline from the server component. There is a brief skeleton loading state (~200-500ms) when opening the detail sheet for the first time. Subsequent opens within the same session are instant (client-side state).
+
+**Cache behavior:** Invoice list is cached for 2 minutes per `[parentId, studentId, tenantId]` combination. Warm reloads within 2 minutes hit cache (no DB query). Cold nav triggers one scalar-only Prisma query (no nested includes).
+
+**Rollback:** Revert the 2 commits. No data migration needed. The old behavior fetched all invoice data inline on page load.
