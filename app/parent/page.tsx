@@ -143,7 +143,7 @@ export default async function ParentDashboard({
       </div>
 
       {/* Unpaid invoices */}
-      {unpaidInvoices.length > 0 && (
+      {unpaidInvoices.length > 0 ? (
         <div>
           <h3 className="text-sm font-semibold mb-3">Tagihan Belum Lunas</h3>
           <UnpaidInvoicesTable
@@ -158,6 +158,10 @@ export default async function ParentDashboard({
               xenditPaymentUrl: inv.xenditPaymentUrl,
             }))}
           />
+        </div>
+      ) : (
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">Semua tagihan lunas</p>
         </div>
       )}
     </div>

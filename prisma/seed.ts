@@ -1,12 +1,15 @@
 import { PrismaClient } from "../lib/generated/prisma/client";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
 import { holidays } from "./data/holidays";
 import { students } from "./data/students";
 
-const adapter = new PrismaLibSql({ url: "file:dev.db" });
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not configured");
+
+const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {

@@ -135,7 +135,14 @@ export default function ClassAttendancePage() {
       {/* Class + Date selector */}
       <div className="flex gap-2 mb-4">
         <Select value={selectedClass} onValueChange={v => v && setSelectedClass(v)}>
-          <SelectTrigger className="flex-1"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+          <SelectTrigger className="flex-1">
+            <SelectValue placeholder="Pilih kelas">
+              {(() => {
+                const a = assignments.find(a => a.classSection.id === selectedClass);
+                return a ? `${a.classSection.name} — ${a.classSection.program.name}` : null;
+              })()}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             {assignments.map(a => (
               <SelectItem key={a.classSection.id} value={a.classSection.id}>
