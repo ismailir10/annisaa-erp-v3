@@ -65,6 +65,7 @@ UAT on 2026-04-16 surfaced 4 blockers and 2 majors across the parent and teacher
 - Task 3: Improve parent invoice fallback message — `app/parent/invoices/invoice-detail-sheet.tsx` — Replaced "Hubungi admin" dead end with softer "sedang disiapkan" message in both status banner and payment section
 - Task 4: Update UAT jobs library — `docs/uat/jobs/teacher.md` — Updated JTBD-TEACHER-ATT-01 known friction note to reflect class selector fix
 - Task 5 (CI fix): Fix seed script for PostgreSQL CI — `prisma/seed.ts` — Replaced hardcoded LibSQL adapter (`file:dev.db`) with PrismaPg adapter using `DATABASE_URL` env var, matching `lib/db.ts` pattern
+- Task 6 (CI fix): Parent dashboard empty state — `app/parent/page.tsx` — Added "Semua tagihan lunas" message when no unpaid invoices exist; Playwright test expected this text but the page rendered nothing in the empty case
 
 ## Verification
 
