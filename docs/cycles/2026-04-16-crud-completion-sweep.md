@@ -148,7 +148,7 @@ This page reuses:
 - Task 6a: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 6b: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 7: verified — no code changes needed, existing isEnabled toggle sufficient
-- Task 8: build + vitest green. Playwright: 10 passed, 10 failed (pre-existing — admin tests fail on base staging branch too, due to `u_admin` seed ID mismatch)
+- Task 8: build + vitest green. Playwright: 20 passed, 0 failed. Fixed pre-existing E2E test failures caused by PII-scrubbed seed data (user IDs and employee names no longer matched hardcoded E2E values). Fixed by making tests discover user IDs dynamically via `/api/auth/users` and using generic selectors instead of hardcoded names.
 
 ## Ship Notes
 
@@ -182,6 +182,9 @@ None.
 
 ### Rollback plan
 Revert the PR. No data was modified — all changes are additive (new pages + new API routes). Existing functionality untouched.
+
+### E2E test fixes (pre-existing)
+Fixed 10 pre-existing Playwright failures caused by PII-scrubbed seed data. E2E tests now dynamically discover user IDs via `/api/auth/users` instead of hardcoding stale staging DB IDs. Seed also updated with explicit IDs and corrected teaching assignment employee codes.
 
 ### README.md updated
 CRUD completion status table updated from ~70% to ~85% (14 full + 8 partial + 4 missing).

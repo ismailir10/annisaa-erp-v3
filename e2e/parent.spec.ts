@@ -1,13 +1,23 @@
 import { test, expect } from "@playwright/test";
 
-// Demo mode E2E — direct cookie auth to avoid rate limit on repeated logins.
-const PARENT_USER_ID = "u_rightjet"; // Demo parent (GUARDIAN) — opaque staging DB record ID
+// Demo mode E2E — discovers guardian user ID from /api/auth/users and sets
+// session cookie directly to avoid rate limit on repeated logins.
+
+let parentUserId: string;
 
 test.describe("Parent flows", () => {
+  test.beforeAll(async ({ request }) => {
+    const res = await request.get("/api/auth/users");
+    const users = await res.json();
+    const parent = users.find((u: { role: string }) => u.role === "GUARDIAN");
+    if (!parent) throw new Error("No GUARDIAN user found in demo DB");
+    parentUserId = parent.id;
+  });
+
   test.beforeEach(async ({ page }) => {
     await page.context().addCookies([{
       name: "school-erp-session",
-      value: PARENT_USER_ID,
+      value: parentUserId,
       domain: "localhost",
       path: "/",
       httpOnly: true,
