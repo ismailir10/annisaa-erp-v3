@@ -57,13 +57,13 @@ Full design rationale (including all locked decisions on runner choice, commit p
 
 Each task is commit-sized. Between-task gate (`npm run build && npx vitest run`) must pass before committing. Order matters: Task 1 is pure data, Task 2 is the big skill definition, Task 3 wires the workflow fix, Task 4 wires integration, Task 5 is doc sync, Task 6 is the end-to-end smoke.
 
-- [ ] **Task 1 — JTBD library + personas + gitignore**
+- [x] **Task 1 — JTBD library + personas + gitignore**
   - Create `.claude/personas/{bu-sari,pak-budi,ibu-nur}.md` (under 40 lines each, device/context/goals/frustrations/give-up triggers)
   - Create `docs/uat/jobs/{admin,teacher,parent}.md` with the strict JTBD template, seeded with 12 jobs per plan (3 parent + 3 teacher + 6 admin, one payroll job tagged for Ibu Nur with a follow-up note referencing the future Bu Lina persona)
   - Add `docs/uat/reports/` to `.gitignore`
   - **Acceptance:** all 6 new markdown files exist, gitignore entry in place, `git status` shows personas + jobs tracked but reports ignored; `npm run build && npx vitest run` green.
 
-- [ ] **Task 2 — `/uat` skill definition**
+- [x] **Task 2 — `/uat` skill definition**
   - Create `.claude/skills/uat/SKILL.md` (~120 lines) implementing the 8 steps from the plan
   - Embed the full report schema, performance thresholds table, severity rules, and auto-drafted `/spec` follow-up template
   - Preflight must reuse `scripts/check-role.sh` pattern and check port 3000 before spinning up the server
@@ -98,7 +98,17 @@ Each task is commit-sized. Between-task gate (`npm run build && npx vitest run`)
 
 ## Implementation
 
-<filled by /build>
+**Task 1 — JTBD library + personas + gitignore** (commit `529ce32`)
+- `.claude/personas/{pak-budi,bu-sari,ibu-nur}.md` — three fixed personas under 40 lines each
+- `docs/uat/jobs/{parent,teacher,admin}.md` — 12 JTBDs seeded (3+3+6); payroll job tagged `persona: ibu-nur` with follow-up note for future Bu Lina variant
+- `.gitignore` — added `docs/uat/reports/` so reports stay untracked until a consuming cycle does `git add -f`
+- Recovery note: this commit survived two parallel-session branch stomps on the main checkout; final resolution moved this branch into an isolated worktree at `.worktrees/uat` so no further races are possible
+
+**Task 2 — `/uat` skill definition** (this commit)
+- `.claude/skills/uat/SKILL.md` — 201-line skill implementing all 7 steps: preflight (role/hooks/jobs/port/MCP), job selection with 6-cap, persona load, demo-mode server spin-up, per-job Playwright MCP role-play with timing capture (`browser_evaluate` navigation timing, `browser_network_requests` API duration, snapshot-poll click-to-visible), report write, server stop, stdout summary
+- Embeds report schema, performance thresholds table (page load/API/click-to-visible across fine/minor/major/blocker), severity rules, and the auto-drafted `/spec` follow-up template verbatim from the plan
+- `disable-model-invocation: true` so the skill only fires on explicit `/uat` invocation, never model-autoinvoked
+- Rules section locks: no-padding, timing breaches are first-class findings, disclaimer is load-bearing, never modify app to make a job pass, never touch the JTBD library from `/uat`
 
 ## Verification
 
