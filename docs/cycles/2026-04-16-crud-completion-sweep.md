@@ -134,6 +134,7 @@ This page reuses:
 - Task 3: Enrollment standalone list page — `app/api/enrollments/route.ts`, `app/api/enrollments/[id]/route.ts`, `app/admin/enrollments/page.tsx`, `config/admin-nav.ts` — full list with class section filter, edit dialog, deactivate
 - Task 4: Teaching assignment standalone list page — `app/admin/teaching-assignments/page.tsx`, `config/admin-nav.ts` — list with client-side search, delete via ConfirmDialog (junction table — hard delete intentional)
 - Task 5: Assessment template admin UI — `app/api/assessments/templates/[id]/route.ts`, `app/admin/assessments/templates/page.tsx`, `config/admin-nav.ts` — list page with create dialog (nested categories+indicators), edit dialog, toggle isActive, new "Penilaian" nav group
+- Task 6a: Student assessment list page — `app/api/assessments/students/route.ts`, `app/admin/assessments/page.tsx`, `config/admin-nav.ts` — paginated list with status + template filters, links to scoring page
 
 ## Verification
 
@@ -142,6 +143,7 @@ This page reuses:
 - Task 3: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 4: gates passed (build + vitest run — 6 files, 69 tests green)
 - Task 5: gates passed (build + vitest run — 6 files, 69 tests green)
+- Task 6a: gates passed (build + vitest run — 6 files, 69 tests green)
 
 ## Ship Notes
 

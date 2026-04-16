@@ -88,6 +88,7 @@ export const adminNav: NavConfig = {
       icon: ClipboardList,
       items: [
         { label: "Template", href: "/admin/assessments/templates", icon: ClipboardList },
+        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
       ],
     },
   ],
