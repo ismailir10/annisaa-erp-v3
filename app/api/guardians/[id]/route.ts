@@ -1,29 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+
+/**
+ * Standalone guardian routes — operate on a StudentGuardian record by its own ID.
+ * Ownership verified via guardian.student.tenantId === session.tenantId.
+ *
+ * PUT  /api/guardians/[id]  — edit parent contact fields + relationship
+ * PATCH /api/guardians/[id] — toggle status (ACTIVE ↔ INACTIVE)
+ */
+
+async function findGuardian(id: string, tenantId: string) {
+  return prisma.studentGuardian.findFirst({
+    where: { id },
+    include: { student: { select: { tenantId: true } }, parent: true },
+  }).then((g) => (g?.student.tenantId === tenantId ? g : null));
+}
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string; guardianId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { success } = rateLimit(`edit-guardian:${getClientIp(req)}`, 20, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id: studentId, guardianId } = await params;
-
-  // Verify student belongs to tenant
-  const student = await prisma.student.findFirst({
-    where: { id: studentId, tenantId: session.tenantId },
-  });
-  if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
-
-  // Verify guardian belongs to student
-  const guardian = await prisma.studentGuardian.findFirst({
-    where: { id: guardianId, studentId },
-    include: { parent: true },
-  });
+  const { id } = await params;
+  const guardian = await findGuardian(id, session.tenantId);
   if (!guardian) return NextResponse.json({ error: "Wali tidak ditemukan" }, { status: 404 });
 
   const body = await req.json();
@@ -46,9 +54,9 @@ export async function PUT(
     },
   });
 
-  // Update relationship/isPrimary on the junction record
+  // Update relationship / isPrimary on the junction record
   const updated = await prisma.studentGuardian.update({
-    where: { id: guardianId },
+    where: { id },
     data: {
       relationship: body.relationship || guardian.relationship,
       isPrimary: body.isPrimary !== undefined ? body.isPrimary : guardian.isPrimary,
@@ -61,30 +69,22 @@ export async function PUT(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string; guardianId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id: studentId, guardianId } = await params;
-
-  const student = await prisma.student.findFirst({
-    where: { id: studentId, tenantId: session.tenantId },
-  });
-  if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
-
-  const guardian = await prisma.studentGuardian.findFirst({
-    where: { id: guardianId, studentId },
-  });
+  const { id } = await params;
+  const guardian = await findGuardian(id, session.tenantId);
   if (!guardian) return NextResponse.json({ error: "Wali tidak ditemukan" }, { status: 404 });
 
   const body = await req.json();
   const newStatus = body.status === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 
   const updated = await prisma.studentGuardian.update({
-    where: { id: guardianId },
+    where: { id },
     data: { status: newStatus },
     include: { parent: true },
   });
