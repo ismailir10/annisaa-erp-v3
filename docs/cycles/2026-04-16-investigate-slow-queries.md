@@ -127,6 +127,8 @@ SUPER_ADMIN   24h (upper bound)   4h idle
 - Task 3 (2026-04-16): `app/admin/student-attendance/page.tsx` — replaced 4 parallel `fetch` calls with single call to `/api/student-attendance/stats`. Build + 90 tests green.
 - Task 4 (2026-04-16): `supabase/config.toml` — enabled `[auth.sessions]` with `timebox = "24h"` and `inactivity_timeout = "24h"`. Note: for Supabase Cloud, apply same settings in Dashboard > Authentication > Policies > Session Limits. Build + 90 tests green.
 - Task 5 (2026-04-16): `proxy.ts` — added `enforceAdminIdle()` middleware function. Uses `school-erp-admin-last-active` cookie (httpOnly, sameSite lax, path /admin). Only activates on `/admin/*` page routes. If cookie timestamp > 4h old → redirect to login. On every admin page request → refresh cookie. Works for both Supabase Auth and demo mode. Build + 90 tests + 25 Playwright tests green.
+- Task 6 (2026-04-16): `proxy.ts` — generalized `enforceAdminIdle` → `enforceIdleTimeout` with per-portal thresholds: `/admin` = 4h, `/teacher` = 24h, `/parent` = 24h. Single `school-erp-last-active` cookie (path `/`). Works independently of Supabase plan (no Pro required). Build + 90 tests + 25 Playwright tests green.
+- Task 7 (2026-04-16): `supabase/config.toml` — reverted session policy to commented-out state with a note that these require Supabase Pro plan. Idle timeouts are fully enforced at middleware level instead.
 
 ---
 
@@ -141,7 +143,8 @@ SUPER_ADMIN   24h (upper bound)   4h idle
 | Stats endpoint: `app/api/student-attendance/stats/route.ts` | ✅ admin-only, groupBy query |
 | Admin page: single fetch to `/stats` | ✅ replaces 4 parallel calls |
 | Session config: `supabase/config.toml` `[auth.sessions]` | ✅ timebox=24h, inactivity_timeout=24h |
-| Admin idle timeout: `proxy.ts` `enforceAdminIdle()` | ✅ 4h cookie-based idle check on /admin/* |
+| Admin idle timeout: `proxy.ts` `enforceIdleTimeout()` | ✅ per-portal: admin 4h, teacher 24h, parent 24h |
+| Config.toml session policy: commented out with Pro plan note | ✅ idle timeouts enforced at middleware level |
 
 ---
 
@@ -150,25 +153,22 @@ SUPER_ADMIN   24h (upper bound)   4h idle
 ### DB migrations
 None — all changes are application code and config.
 
-### Supabase Cloud configuration (manual)
-After merge, apply these settings in **Supabase Dashboard > Authentication > Policies > Session Limits**:
-- **Session timebox:** 24 hours
-- **Inactivity timeout:** 24 hours
-- The `supabase/config.toml` changes only apply to self-hosted Supabase; Cloud needs manual config.
+### Supabase Cloud configuration
+No manual steps needed. Session limits in `config.toml` require Supabase Pro plan — idle timeouts are fully enforced at middleware level instead (no plan dependency).
 
 ### New env vars
 None.
 
 ### Rollback plan
 - All changes are additive — revert any file safely with no data migration.
-- The admin idle timeout cookie (`school-erp-admin-last-active`) is self-healing — if deleted, users get a fresh 4h window on next admin page load.
+- The idle timeout cookie (`school-erp-last-active`) is self-healing — if deleted, users get a fresh window on next page load.
 - The `lastLoginAt` cooldown is backward-compatible — existing timestamps remain valid.
 
 ### Session policy summary
+All enforced at middleware level (proxy.ts), no Supabase plan dependency:
 ```
-Role          Supabase timebox    Middleware idle timeout
-Teacher       24h                 none
-Guardian      24h                 none
-SCHOOL_ADMIN  24h (upper bound)   4h idle (cookie-based)
-SUPER_ADMIN   24h (upper bound)   4h idle (cookie-based)
+Route          Idle timeout    Cookie
+/admin/*       4 hours         school-erp-last-active
+/teacher/*     24 hours        school-erp-last-active
+/parent/*      24 hours        school-erp-last-active
 ```
