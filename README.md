@@ -58,23 +58,22 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 
 Audited 2026-04-16 against actual `app/admin/**` pages and `app/api/**` routes.
 
-**Fully complete (8/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef
-**Partially complete (12/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Employee, Student, Program, ClassSection, TeachingAssignment, Admission, AttendanceRecord, PayrollRun, Invoice, StudentEnrollment, StudentGuardian, StudentAttendance.
+**Fully complete (10/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef, **Student, Employee**
+**Partially complete (10/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Program, ClassSection, TeachingAssignment, Admission, AttendanceRecord, PayrollRun, Invoice, StudentEnrollment, StudentGuardian, StudentAttendance.
 **Missing admin UI (7/27):** EmailLog, PayrollItem, ProgramFeeStructure (deactivate), InvoiceLine, Payment (admin-side), StudentAssessment, StudentAssessmentScore. AssessmentCategory and AssessmentIndicator are only reachable via the AssessmentTemplate create flow and have no standalone management UI.
 
-**Overall: ~70% CRUD completion** (8 full + 12 partial / 27 admin-relevant entities)
+**Overall: ~74% CRUD completion** (10 full + 10 partial / 27 admin-relevant entities)
 
 | Module | Complete | Partial | Missing |
 |---|---|---|---|
 | CORE | 4 (User, Campus, Holiday, OrgConfig) | — | 1 (EmailLog) |
-| HR | 2 (LeaveRequest, SalaryComponentDef) | 4 (Employee, AttendanceRecord, PayrollRun, TeachingAssignment) | 1 (PayrollItem) |
+| HR | 3 (LeaveRequest, SalaryComponentDef, **Employee**) | 3 (AttendanceRecord, PayrollRun, TeachingAssignment) | 1 (PayrollItem) |
 | ACADEMIC | 1 (AcademicYear) | 2 (Program, ClassSection) | — |
-| STUDENTS | — | 4 (Student, StudentEnrollment, StudentGuardian, Admission) | — |
+| STUDENTS | **1 (Student)** | 3 (StudentEnrollment, StudentGuardian, Admission) | — |
 | FINANCE | 1 (FeeComponentDef) | 2 (Invoice, ProgramFeeStructure) | 2 (InvoiceLine, Payment) |
 | LEARNING | — | 2 (StudentAttendance, AssessmentTemplate) | 4 (StudentAssessment, StudentAssessmentScore, AssessmentCategory, AssessmentIndicator) |
 
 **Known gaps before 100% CRUD:**
-- Student needs an explicit deactivate action in its DataTable row actions (detail page already supports edit).
 - Guardian, StudentEnrollment, and TeachingAssignment are managed only inline via parent-entity detail pages — no standalone list or deactivate.
 - AssessmentTemplate has API support (`/api/assessments/templates`) but no admin list or detail page.
 - StudentAssessment / StudentAssessmentScore are read-only from the parent portal; no admin create/edit UI.
@@ -118,9 +117,10 @@ Three portals, three roles.
 - **Business logic hardening phase 2 (2026-04-16)**: atomic payment/enroll/attendance/assessment transactions, Xendit webhook advisory lock, parent-portal cache isolation fix — see [`docs/cycles/2026-04-16-biz-logic-audit-phase2.md`](docs/cycles/2026-04-16-biz-logic-audit-phase2.md)
 - **Teacher portal polish (2026-04-16)**: Cuti/Izin as inline bottom sheet on attendance calendar, profile accessible from header, layout padding fix, shared `formatTime` utility — see [`docs/cycles/2026-04-16-teacher-portal-audit.md`](docs/cycles/2026-04-16-teacher-portal-audit.md)
 - **Student attendance history tab (2026-04-16)**: new Kehadiran tab on `/admin/students/[id]` with month filter and 4 stat cards — see [`docs/cycles/2026-04-16-crud-audit-t13.md`](docs/cycles/2026-04-16-crud-audit-t13.md)
+- **CRUD sweep — Student + Employee list row actions (2026-04-16)**: Edit + Deactivate row actions on Student and Employee DataTables; Zod validation wired to `PUT /api/students/[id]` and `PUT /api/employees/[id]`; INACTIVE added to student status enum — see [`docs/cycles/2026-04-16-crud-sweep-list-actions.md`](docs/cycles/2026-04-16-crud-sweep-list-actions.md)
 
 **In progress:**
-- CRUD completion: add edit + deactivate to all entities (target: 100%)
+- CRUD completion: remaining partial entities (AssessmentTemplate admin UI, AttendanceRecord edit, TeachingAssignment standalone)
 - Admin interface for LEARNING module (assessment management, student attendance)
 
 ---
