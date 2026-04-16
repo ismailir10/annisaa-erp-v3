@@ -9,6 +9,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
@@ -30,7 +31,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 
@@ -262,21 +262,22 @@ export default function StudentsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  async function handleDeactivate(student: Student) {
-    const newStatus = student.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
-    const res = await fetch(`/api/students/${student.id}`, {
+  async function handleStatusToggle() {
+    if (!deactivateTarget) return;
+    const newStatus = deactivateTarget.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+    const res = await fetch(`/api/students/${deactivateTarget.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
-    if (res.ok) {
-      toast.success(newStatus === "INACTIVE" ? "Siswa dinonaktifkan" : "Siswa diaktifkan kembali");
-      fetchStudents();
-    } else {
+    if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       toast.error(err.error || "Gagal mengubah status siswa");
+      return;
     }
+    toast.success(newStatus === "ACTIVE" ? "Siswa diaktifkan kembali" : "Siswa dinonaktifkan");
     setDeactivateTarget(null);
+    fetchStudents();
   }
 
   function openEdit(student: Student) {
@@ -309,13 +310,13 @@ export default function StudentsPage() {
         notes: editForm.notes.trim() || null,
       }),
     });
-    if (res.ok) {
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal memperbarui data siswa");
+    } else {
       toast.success("Data siswa berhasil diperbarui");
       setEditTarget(null);
       fetchStudents();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal memperbarui data siswa");
     }
     setEditing(false);
   }
@@ -340,15 +341,15 @@ export default function StudentsPage() {
       }),
     });
 
-    if (res.ok) {
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal menambahkan siswa");
+    } else {
       const student = await res.json();
       toast.success("Siswa berhasil ditambahkan");
       setCreateOpen(false);
       setCreateForm(EMPTY_CREATE_FORM);
       router.push(`/admin/students/${student.id}`);
-    } else {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal menambahkan siswa");
     }
     setCreating(false);
   }
@@ -359,14 +360,19 @@ export default function StudentsPage() {
       {
         id: "actions",
         header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/students/${row.original.id}`)}
-            onEdit={() => openEdit(row.original)}
-            onDeactivate={() => setDeactivateTarget(row.original)}
-            isActive={row.original.status !== "INACTIVE"}
-          />
-        ),
+        cell: ({ row }) => {
+          const s = row.original;
+          const isActive = s.status !== "INACTIVE";
+          return (
+            <DataTableRowActions
+              onView={() => router.push(`/admin/students/${s.id}`)}
+              onEdit={() => openEdit(s)}
+              onDeactivate={isActive ? () => setDeactivateTarget(s) : undefined}
+              onActivate={!isActive ? () => setDeactivateTarget(s) : undefined}
+              isActive={isActive}
+            />
+          );
+        },
       },
     ],
     [router],
@@ -428,12 +434,12 @@ export default function StudentsPage() {
       {/* Deactivate / Activate ConfirmDialog */}
       <ConfirmDialog
         open={!!deactivateTarget}
-        onOpenChange={(open) => { if (!open) setDeactivateTarget(null); }}
+        onOpenChange={(o) => !o && setDeactivateTarget(null)}
         title={deactivateTarget?.status === "INACTIVE" ? `Aktifkan ${deactivateTarget?.name}?` : `Nonaktifkan ${deactivateTarget?.name}?`}
         description={deactivateTarget?.status === "INACTIVE" ? "Siswa akan dikembalikan ke status aktif." : "Siswa akan dinonaktifkan. Pendaftaran kelas aktif akan dicabut dan tagihan DRAFT/SENT akan dibatalkan."}
         confirmLabel={deactivateTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
+        onConfirm={handleStatusToggle}
         destructive={deactivateTarget?.status !== "INACTIVE"}
-        onConfirm={async () => { if (deactivateTarget) await handleDeactivate(deactivateTarget); }}
       />
 
       {/* Edit Student Dialog */}

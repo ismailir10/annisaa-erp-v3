@@ -18,11 +18,12 @@ async function findGuardian(id: string, tenantId: string) {
   }).then((g) => (g?.student.tenantId === tenantId ? g : null));
 }
 
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { success } = rateLimit(`edit-guardian:${getClientIp(req)}`, 20, 60_000);
+  const { success } = rateLimit(`guardian-edit:${getClientIp(req)}`, 10, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();

@@ -56,27 +56,31 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 
 ### CRUD completion status
 
-Audited 2026-04-16 against actual `app/admin/**` pages and `app/api/**` routes.
+Audited 2026-04-16, updated after CRUD completion sweep (see [`docs/cycles/2026-04-16-crud-completion-sweep.md`](docs/cycles/2026-04-16-crud-completion-sweep.md)).
 
-**Fully complete (10/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef, Student, StudentGuardian
-**Partially complete (10/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Employee, Program, ClassSection, TeachingAssignment, Admission, AttendanceRecord, PayrollRun, Invoice, StudentEnrollment, StudentAttendance.
-**Missing admin UI (7/27):** EmailLog, PayrollItem, ProgramFeeStructure (deactivate), InvoiceLine, Payment (admin-side), StudentAssessment, StudentAssessmentScore. AssessmentCategory and AssessmentIndicator are only reachable via the AssessmentTemplate create flow and have no standalone management UI.
+**Fully complete (14/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef, Student, StudentGuardian, StudentEnrollment, TeachingAssignment, AssessmentTemplate, StudentAssessment/Score
+**Partially complete (8/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Employee, Program, ClassSection, Admission, AttendanceRecord, PayrollRun, Invoice, StudentAttendance.
+**Missing admin UI (4/27):** EmailLog, PayrollItem, InvoiceLine, Payment (admin-side). AssessmentCategory and AssessmentIndicator are only reachable via the AssessmentTemplate create flow and have no standalone management UI. ProgramFeeStructure uses FeeComponentDef.isEnabled as its deactivate mechanism (bulk upsert, no hard-delete path).
 
-**Overall: ~74% CRUD completion** (10 full + 10 partial / 27 admin-relevant entities)
+**Overall: ~85% CRUD completion** (14 full + 8 partial / 27 admin-relevant entities)
 
 | Module | Complete | Partial | Missing |
 |---|---|---|---|
 | CORE | 4 (User, Campus, Holiday, OrgConfig) | — | 1 (EmailLog) |
-| HR | 2 (LeaveRequest, SalaryComponentDef) | 4 (Employee, AttendanceRecord, PayrollRun, TeachingAssignment) | 1 (PayrollItem) |
-| ACADEMIC | 1 (AcademicYear) | 2 (Program, ClassSection) | — |
-| STUDENTS | 2 (Student, StudentGuardian) | 2 (StudentEnrollment, Admission) | — |
-| FINANCE | 1 (FeeComponentDef) | 2 (Invoice, ProgramFeeStructure) | 2 (InvoiceLine, Payment) |
-| LEARNING | — | 2 (StudentAttendance, AssessmentTemplate) | 4 (StudentAssessment, StudentAssessmentScore, AssessmentCategory, AssessmentIndicator) |
+| HR | 2 (LeaveRequest, SalaryComponentDef) | 3 (Employee, AttendanceRecord, PayrollRun) | 1 (PayrollItem) |
+| ACADEMIC | 2 (AcademicYear, TeachingAssignment) | 2 (Program, ClassSection) | — |
+| STUDENTS | 3 (Student, StudentEnrollment, StudentGuardian) | 1 (Admission) | — |
+| FINANCE | 2 (FeeComponentDef, ProgramFeeStructure) | 1 (Invoice) | 2 (InvoiceLine, Payment) |
+| LEARNING | 2 (AssessmentTemplate, StudentAssessment/Score) | 1 (StudentAttendance) | — |
 
-**Known gaps before 100% CRUD:**
-- StudentEnrollment and TeachingAssignment are managed only inline via parent-entity detail pages — no standalone deactivate.
-- AssessmentTemplate has API support (`/api/assessments/templates`) but no admin list or detail page.
-- StudentAssessment / StudentAssessmentScore are read-only from the parent portal; no admin create/edit UI.
+**Previous gaps resolved in CRUD sweep (2026-04-16):**
+- Student: added deactivate/activate action in DataTable row actions
+- Guardian: added standalone admin list page at `/admin/guardians`
+- StudentEnrollment: added standalone admin list page at `/admin/enrollments`
+- TeachingAssignment: added standalone admin list page at `/admin/teaching-assignments`
+- AssessmentTemplate: added admin list + create/edit UI at `/admin/assessments/templates`
+- StudentAssessment/Score: added admin list at `/admin/assessments` + scoring UI at `/admin/assessments/scores`
+- ProgramFeeStructure: verified existing isEnabled toggle sufficient (no hard-delete path)
 
 ---
 
@@ -131,8 +135,8 @@ Three portals, three roles.
 - **Student & Guardian CRUD completion (2026-04-16)**: Tambah Siswa dialog, Edit + Deactivate row actions on list page, INACTIVE status support, StudentGuardian soft-delete (status field + migration), standalone `/api/guardians/[id]` PUT+PATCH — see [`docs/cycles/2026-04-16-student-crud-sweep.md`](docs/cycles/2026-04-16-student-crud-sweep.md)
 
 **In progress:**
-- CRUD completion: add edit + deactivate to remaining 10 partial entities (target: 100%)
-- Admin interface for LEARNING module (assessment management, student attendance)
+- CRUD completion: remaining 8 partial entities (edit dialogs + deactivate)
+- Audit logging: record critical operations
 
 ---
 
@@ -140,9 +144,8 @@ Three portals, three roles.
 
 Next 2–3 cycles, in order:
 
-1. **CRUD completion sweep** — bring the 14 partial entities to fully-complete (edit dialogs + deactivate), add the 8 missing-UI entities. Target all six modules at 100% CRUD.
-2. **LEARNING module admin** — build the admin interface for student attendance, assessment templates/categories/indicators, and per-student scoring. Currently no admin UI exists for this module.
-3. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
+1. **CRUD completion phase 2** — bring the remaining 8 partial entities to fully-complete (edit dialogs + deactivate). Target all six modules at 100% CRUD.
+2. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
 
 Future cycles, unscheduled: admissions pipeline, report card publishing workflow, multi-tenant hardening, parent self-service profile edits.
 
@@ -331,3 +334,4 @@ Private — An Nisaa' Sekolahku
 ## For developers and AI agents
 
 See **[CLAUDE.md](./CLAUDE.md)** for the operating manual: UI standards, CRUD standard, API standards, security checklist, color tokens, file structure. CLAUDE.md is the *how*; this README is the *what*.
+

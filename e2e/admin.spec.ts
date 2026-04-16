@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-// Demo mode E2E tests — bypasses login UI to avoid rate-limit on repeated beforeEach calls.
-// Sets session cookie directly (same format as /api/auth/login handler).
+// Demo mode E2E tests — discovers user ID from /api/auth/users and sets
+// session cookie directly to avoid rate-limit on repeated beforeEach calls.
 
 const ADMIN_USER_ID = "u_super_admin"; // Primary owner — SUPER_ADMIN
 
