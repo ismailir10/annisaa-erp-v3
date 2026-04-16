@@ -408,6 +408,7 @@ Also add to the "Security Checklist for New Routes" section:
 - T8: Vitest unit tests — `lib/__tests__/auth-helpers.test.ts`, `app/api/__tests__/payroll-auth.test.ts`, `app/api/__tests__/employee-salary-auth.test.ts` — 21 new tests covering all three helper functions, payroll route role gating, employee salary route gating, and field stripping behavior
 - T9: Playwright spec — `e2e/admin-school-admin.spec.ts` (new), `e2e/admin.spec.ts` + `e2e/teacher.spec.ts` (updated), `app/admin/page.tsx` + `app/admin/dashboard-client.tsx` (canSeeSalary filtering on dashboard), `app/auth/callback/route.ts` + 46 API routes (isAdminRole sweep) — all 25 Playwright tests green; fixed PII-scrub test regressions (navigate-via-API pattern, stable field selectors)
 - T10: Docs — `README.md` (Portals table updated to SUPER_ADMIN/SCHOOL_ADMIN, Data Access Rules table added, cycle logged), `CLAUDE.md` (Data Access Rules table updated, auth helper docs added, Security Checklist updated with canViewSalary rule)
+- Ship preflight: `eslint.config.mjs` — added `coverage/**` to globalIgnores (vitest output, not source); `app/api/employees/route.ts` + `[id]/route.ts` — `eslint-disable-next-line` on destructuring-to-omit lines; lint now exits 0
 
 ---
 

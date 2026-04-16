@@ -21,6 +21,7 @@ export async function GET(
   }
 
   if (!canViewSalary(session.role)) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { bankAccountNo, bankName, bpjsEnrolled, ...rest } = employee;
     return NextResponse.json(rest);
   }
