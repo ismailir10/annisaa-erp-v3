@@ -65,6 +65,8 @@ Edit the cycle doc:
 
 Do not create any other markdown file.
 
+**JTBD library maintenance:** If this task added, removed, or materially changed a user-facing capability in admin/teacher/parent portal, update the relevant `docs/uat/jobs/<portal>.md`. Add, remove, or edit affected JTBD entries. Bump the "Last audited" date. This is manual discipline — no hook enforces it, but stale jobs make `/uat` produce stale reports.
+
 ### 8. Commit
 Create **one commit for this task**. Subject starts with the task title. Body is brief — the cycle doc has the details. The `prepare-commit-msg` hook auto-appends `Model-Trailer` and `Role`, but include them explicitly when building the HEREDOC as a belt-and-suspenders measure:
 

@@ -18,6 +18,7 @@ You are shipping a completed cycle. `/build` has finished all tasks and filled `
    - All tasks in `## Tasks` are checked.
    - `## Implementation`, `## Verification`, `## Ship Notes` are filled.
    If not, stop and tell the user to finish `/build`.
+6. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
 
 ## Step 1: Re-run gates
 

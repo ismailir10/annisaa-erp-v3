@@ -183,6 +183,8 @@ Every cycle uses exactly these three commands and exactly **one** markdown file 
 
 All 20 upstream `agent-skills:*` skills are still in play — they're folded into one of the three commands. See `CLAUDE.md` for the full coverage table.
 
+**Standalone heuristic UAT** available via `/uat <area>` — role-plays fixed personas through scripted Jobs-to-be-Done (library in `docs/uat/jobs/`) via Playwright MCP, measures timings, produces severity-gated reports. Not part of the 3-step loop; run on demand.
+
 ### Multi-LLM session safety
 
 Other LLMs (Sonnet, Haiku, GLM 5.2, GPT) may work on this repo. Three mechanisms keep this safe:
