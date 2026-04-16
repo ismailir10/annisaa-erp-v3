@@ -91,11 +91,6 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
   });
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    fetchData();
-  }, [open]);
-
   async function fetchData() {
     setLoading(true);
     try {
@@ -115,6 +110,12 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
     }
     setLoading(false);
   }
+
+  useEffect(() => {
+    if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, [open]);
 
   async function handleSubmit() {
     if (!form.startDate || !form.endDate || !form.reason.trim()) {
