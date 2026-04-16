@@ -425,7 +425,7 @@ export default function StudentsPage() {
         emptyDescription="Mulai dengan menambahkan siswa baru."
       />
 
-      {/* ── Deactivate / Activate ConfirmDialog ──────────────────── */}
+      {/* Deactivate / Activate ConfirmDialog */}
       <ConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(open) => { if (!open) setDeactivateTarget(null); }}
@@ -433,10 +433,10 @@ export default function StudentsPage() {
         description={deactivateTarget?.status === "INACTIVE" ? "Siswa akan dikembalikan ke status aktif." : "Siswa akan dinonaktifkan. Pendaftaran kelas aktif akan dicabut dan tagihan DRAFT/SENT akan dibatalkan."}
         confirmLabel={deactivateTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
         destructive={deactivateTarget?.status !== "INACTIVE"}
-        onConfirm={() => deactivateTarget && handleDeactivate(deactivateTarget)}
+        onConfirm={async () => { if (deactivateTarget) await handleDeactivate(deactivateTarget); }}
       />
 
-      {/* ── Edit Student Dialog ───────────────────────────────────── */}
+      {/* Edit Student Dialog */}
       <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -530,7 +530,7 @@ export default function StudentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Create Student Dialog ─────────────────────────────────── */}
+      {/* Create Student Dialog */}
       <Dialog open={createOpen} onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 // Demo mode E2E tests — bypasses login UI to avoid rate-limit on repeated beforeEach calls.
 // Sets session cookie directly (same format as /api/auth/login handler).
 
-const ADMIN_USER_ID = "u_admin"; // Redacted Admin — SCHOOL_ADMIN
+const ADMIN_USER_ID = "u_school_admin"; // SCHOOL_ADMIN on staging DB
 
 test.describe("Admin flows", () => {
   test.beforeEach(async ({ page }) => {
@@ -34,7 +34,7 @@ test.describe("Admin flows", () => {
 
   test("employee detail loads with salary tab", async ({ page }) => {
     await page.goto("/admin/employees");
-    await page.click("text=Redacted Employee");
+    await page.click("text=Amelia Yulyanti");
     await page.waitForURL("**/admin/employees/**");
     await expect(page.getByRole("tab", { name: "Profil" })).toBeVisible();
     await page.getByRole("tab", { name: "Gaji" }).click();
