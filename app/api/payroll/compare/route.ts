@@ -17,17 +17,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "current payroll ID required" }, { status: 400 });
   }
 
-  // Get current payroll
-  const current = await prisma.payrollRun.findUnique({
-    where: { id: currentId },
-    include: {
+  // Get current payroll — tenant check in where clause, narrow item select
+  const current = await prisma.payrollRun.findFirst({
+    where: { id: currentId, tenantId: session.tenantId },
+    select: {
+      periodStart: true,
+      periodEnd: true,
       items: {
-        include: { employee: { select: { id: true, nama: true, kode: true } } },
+        select: {
+          netAmount: true,
+          employee: { select: { id: true, nama: true, kode: true } },
+        },
       },
     },
   });
 
-  if (!current || current.tenantId !== session.tenantId) {
+  if (!current) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -38,9 +43,14 @@ export async function GET(req: NextRequest) {
       periodStart: { lt: current.periodStart },
     },
     orderBy: { periodStart: "desc" },
-    include: {
+    select: {
+      periodStart: true,
+      periodEnd: true,
       items: {
-        include: { employee: { select: { id: true } } },
+        select: {
+          netAmount: true,
+          employee: { select: { id: true } },
+        },
       },
     },
   });

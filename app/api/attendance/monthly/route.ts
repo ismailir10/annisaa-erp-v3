@@ -25,7 +25,12 @@ export async function GET(req: NextRequest) {
 
   const employees = await prisma.employee.findMany({
     where: empWhere,
-    include: { campus: { select: { name: true } } },
+    select: {
+      id: true,
+      kode: true,
+      nama: true,
+      campus: { select: { name: true } },
+    },
     orderBy: { nama: "asc" },
   });
 
@@ -34,6 +39,7 @@ export async function GET(req: NextRequest) {
       employeeId: { in: employees.map((e) => e.id) },
       date: { gte: startDate, lt: endDate },
     },
+    select: { id: true, employeeId: true, date: true, status: true, checkInTime: true, checkOutTime: true, isLocked: true },
   });
 
   // Group records by employee
