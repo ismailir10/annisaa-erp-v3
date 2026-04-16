@@ -44,26 +44,19 @@ export async function PUT(
   const { scores, status } = await req.json();
   // scores: [{ indicatorId, score, notes }]
 
-  // Validate scores
-  if (scores?.length) {
-    for (const s of scores) {
-      const scoreVal = Number(s.score);
-      if (Number.isNaN(scoreVal) || scoreVal < 0) {
-        return NextResponse.json({ error: `Nilai tidak valid untuk indikator ${s.indicatorId}: harus >= 0` }, { status: 400 });
-      }
-    }
-  }
-
   // Atomic: save all scores + update status in a single transaction
+  // deleteMany + createMany replaces N upserts with 2 statements
   await prisma.$transaction(async (tx) => {
     if (scores?.length) {
-      for (const s of scores) {
-        await tx.studentAssessmentScore.upsert({
-          where: { assessmentId_indicatorId: { assessmentId: id, indicatorId: s.indicatorId } },
-          update: { score: s.score, notes: s.notes ?? null },
-          create: { assessmentId: id, indicatorId: s.indicatorId, score: s.score, notes: s.notes ?? null },
-        });
-      }
+      await tx.studentAssessmentScore.deleteMany({ where: { assessmentId: id } });
+      await tx.studentAssessmentScore.createMany({
+        data: scores.map((s: { indicatorId: string; score: string; notes?: string }) => ({
+          assessmentId: id,
+          indicatorId: s.indicatorId,
+          score: s.score,
+          notes: s.notes ?? null,
+        })),
+      });
     }
 
     if (status) {

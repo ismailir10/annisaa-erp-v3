@@ -65,10 +65,12 @@ export async function POST(req: NextRequest) {
     }),
     prisma.employee.findMany({
       where: { tenantId: session.tenantId, status: "ACTIVE" },
-      include: {
-        salaryValues: true,
+      select: {
+        id: true,
+        salaryValues: { select: { componentDefId: true, value: true } },
         attendanceRecords: {
           where: { date: { gte: periodStart, lte: periodEnd } },
+          select: { status: true },
         },
       },
     }),

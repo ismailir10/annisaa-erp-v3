@@ -14,18 +14,22 @@ export async function GET() {
 
   if (!employee) return NextResponse.json(null, { status: 404 });
 
-  // Count used leave days this year
+  // Count used leave days this year via DB aggregation (no rows fetched to app layer)
   const year = new Date().getFullYear();
-  const approved = await prisma.leaveRequest.findMany({
-    where: {
-      employeeId: session.employeeId,
-      status: "APPROVED",
-      startDate: { gte: `${year}-01-01` },
-    },
-  });
+  const yearStart = `${year}-01-01`;
+  const [annualAgg, sickAgg] = await Promise.all([
+    prisma.leaveRequest.aggregate({
+      _sum: { days: true },
+      where: { employeeId: session.employeeId, status: "APPROVED", leaveType: "ANNUAL", startDate: { gte: yearStart } },
+    }),
+    prisma.leaveRequest.aggregate({
+      _sum: { days: true },
+      where: { employeeId: session.employeeId, status: "APPROVED", leaveType: "SICK", startDate: { gte: yearStart } },
+    }),
+  ]);
 
-  const usedAnnual = approved.filter((r) => r.leaveType === "ANNUAL").reduce((s, r) => s + r.days, 0);
-  const usedSick = approved.filter((r) => r.leaveType === "SICK").reduce((s, r) => s + r.days, 0);
+  const usedAnnual = annualAgg._sum.days ?? 0;
+  const usedSick = sickAgg._sum.days ?? 0;
 
   return NextResponse.json({
     annual: { total: employee.leaveBalanceAnnual, used: usedAnnual, remaining: employee.leaveBalanceAnnual - usedAnnual },
