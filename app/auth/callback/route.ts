@@ -28,6 +28,19 @@ export async function GET(request: NextRequest) {
     for (const { name, value, options } of pending) {
       res.cookies.set(name, value, options);
     }
+    // Reset idle-timeout cookie on fresh login. Without this, a stale
+    // `school-erp-last-active` from a previous session (e.g. demo mode)
+    // makes proxy.ts's enforceIdleTimeout redirect /admin → / immediately
+    // after the OAuth callback succeeds, producing the login loop.
+    if (path === "/admin" || path === "/teacher" || path === "/parent") {
+      res.cookies.set("school-erp-last-active", String(Date.now()), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24,
+      });
+    }
     console.log(
       `[AUTH-DBG] callback redirect: path=${path} base=${base} attached=${pending.length}`
     );

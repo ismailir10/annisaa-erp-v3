@@ -130,3 +130,25 @@ Merged #58 at 17:28 UTC; user retried Google sign-in at 17:30 and 17:32 — both
 - `[AUTH-DBG] middleware /admin: user=ismailir10@gmail.com sb-cookies=[sb-...,...]`
 
 If middleware still logs `user=null` despite cookies being present, the bug is not cookie persistence — it's Supabase JWT validation. Different fix path.
+
+## Follow-up 2 (PR #59 merged, login still looping)
+
+User retested after PR #59 merged. Pulled Vercel runtime logs at 17:46 UTC on deployment `dpl_466w6ts...` (commit `35bfbfe`, running PR #59). Log sequence:
+
+```
+17:46:48  GET  /auth/callback  307  [AUTH-DBG] callback setAll: …
+17:46:52  GET  /admin          307  [AUTH-DBG] middleware /admin: user=ismailir10@gmail.com sb-cookies=[…]
+17:46:53  GET  /               200
+```
+
+**Middleware DID see the user.** The `getUser()` call in `lib/supabase/middleware.ts` returned `ismailir10@gmail.com` — cookies persisted correctly, JWT validated fine. So PR #58 + #59 actually fixed the Supabase auth layer. The 307 on `/admin` is not coming from Supabase auth.
+
+**Actual root cause:** `proxy.ts:86-92` — after `updateSession` returns a 200 `supabaseResponse`, control falls through to `enforceIdleTimeout(request, response)`. That function checks `school-erp-last-active` cookie; if the timestamp is older than 4h (admin threshold), it redirects to `/` with a 307. The cookie is set by demo mode and any prior admin page visit. Since user had been testing demo mode extensively today (PR #54 landed today), the browser held a stale `school-erp-last-active` from earlier. On fresh OAuth login, first `/admin` hit finds that stale timestamp → redirect to `/`. Browser treats this identically to the earlier Supabase failure, producing the "same" loop behavior.
+
+**Fix (PR #60, commit TBD):** in `app/auth/callback/route.ts`, when responding with a redirect to `/admin`, `/teacher`, or `/parent`, set `school-erp-last-active` to `Date.now()` on the redirect response. Fresh login = fresh idle timestamp. No other code touched.
+
+**Verification plan:** after deploy, user signs in once. Expected log sequence:
+- `[AUTH-DBG] callback redirect: path=/admin …`
+- `[AUTH-DBG] middleware /admin: user=ismailir10@gmail.com sb-cookies=[…]`
+- `/admin` returns **200** (not 307).
+- Page renders. No loop.
