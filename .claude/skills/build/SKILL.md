@@ -86,14 +86,19 @@ Then move to the next task.
 
 ## After the last task
 
-1. Run the full gates one final time: `npm run build && npx vitest run`.
-2. Fill `## Ship Notes` in the cycle doc with anything the shipper needs to know:
+1. Run the **end-of-cycle gate** — the full three-command sweep including Playwright (~2 min cold):
+   ```bash
+   npm run build && npx vitest run && npx playwright test
+   ```
+   Playwright runs against the production build in demo mode (see `playwright.config.ts`). If it fails, apply `agent-skills:debugging-and-error-recovery` and fix before committing. Do NOT skip Playwright — `/ship` refuses to promote a cycle without a recorded Playwright pass.
+2. Record the Playwright result in the cycle doc's `## Verification` section — e.g. `- End-of-cycle: build + vitest + playwright all green (N/N e2e tests passed)`. This is what `/ship` reads to confirm the precondition.
+3. Fill `## Ship Notes` in the cycle doc with anything the shipper needs to know:
    - Database migrations to run
    - New env vars
    - Manual smoke-test steps on preview URL
    - Rollback plan if the change is risky
-3. Commit the Ship Notes update as the final commit of the cycle.
-4. Hand off to `/ship`.
+4. Commit the Ship Notes + end-of-cycle Verification update as the final commit of the cycle.
+5. Hand off to `/ship`.
 
 ## Rules
 
