@@ -52,6 +52,24 @@ A workflow audit surfaced drift between `.claude/skills/{spec,build,ship}/SKILL.
 - Task 3: gates passed (build green, vitest 104/104). Role gate short-circuits non-CTO sessions before any `gh` call.
 - Task 4: gates passed (build green, vitest 104/104). Playwright itself deferred to this cycle's end-of-cycle gate below.
 - Task 5: gates passed (build green, vitest 104/104). New step 1a creates a clean precondition that `/build` must satisfy before `/ship` opens a PR.
+- End-of-cycle: full gate green — `npm run build` ✅, `npx vitest run` 104/104 ✅, `npx playwright test` 25/25 ✅ (admin, teacher, parent, school-admin suites).
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Scope:** Workflow-only. Three files changed: `.claude/skills/{spec,build,ship}/SKILL.md`. No app code, no schema, no API, no migrations.
+
+**Migrations:** None.
+
+**New env vars:** None.
+
+**Runtime impact:** None. Changes only affect how future `/spec`, `/build`, `/ship` invocations behave.
+
+**Preconditions for next `/ship` call (this cycle):** This cycle's end-of-cycle Verification line above records `npx playwright test` 25/25 — satisfies the new `/ship` step 1a precondition.
+
+**Manual smoke on merge:** None required — no user-facing surface changed. First real validation happens on the next unrelated cycle's `/ship` call: confirm it opens a PR (no direct push), enables auto-merge, and the `/build` end-of-cycle gate runs Playwright.
+
+**Rollback:** `git revert` the five cycle commits (75978d4, 27f5c28, 284405e, f2f5a00, 8ef0969). Skill markdown has no runtime coupling — revert is safe.
+
+**One thing to verify on the repo side before relying on auto-merge:** GitHub "Allow auto-merge" must be enabled (Settings → General → Pull Requests). Without it, `gh pr merge --auto` will error and the skill now stops rather than falling back to a direct push — which is correct but will block `/ship` until the setting is flipped. Flag this to the user at first failure.
+
+**Branch protection assumption:** The skill assumes four required CI checks (`build`, `typecheck`, `test`, `e2e`) exist on `staging` and `main`. If they don't, `gh pr merge --auto` has nothing to wait for and will merge immediately — which defeats the safety model. Flag for a follow-up if branch protection isn't configured.
