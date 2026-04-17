@@ -28,9 +28,12 @@ Run these checks in order. If any fails, stop and surface the error.
 
 1. **Session role set?** Read `.claude/session-role`. If missing or stale (>12h), use `AskUserQuestion` to ask the user, then write the file. Do not proceed until it exists.
 2. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh`.
-3. **Jobs file exists?** Resolve `<portal>` from `<area>` (e.g. `parent/invoices` → `parent`) and confirm `docs/uat/jobs/<portal>.md` exists. If not, tell the user to add it.
-4. **Port 3000 free?** Run `lsof -ti:3000 || echo free`. If a server is already listening, stop and ask the user whether to kill it or pick a different port. Do not silently run against a dev server — the timings would be wrong.
-5. **Playwright MCP available?** Confirm `mcp__plugin_playwright_playwright__*` tools are loadable. If not, tell the user to install the plugin.
+3. **Demo DB seeded?** `POST /api/admin/seed` must have been run since the last DB reset. Without it, invoices/payments/admissions are absent and UAT findings may reflect seed gaps rather than product bugs.
+   - Check by calling `GET /api/admin/seed-status` if it exists, OR look for sentinel data (e.g. `INV-2026-0001` in the invoices list). If uncertain, call `POST /api/admin/seed` now.
+   - **Why this matters:** `prisma/seed.ts` (run by CI Playwright) creates only minimal academic data — no invoices, payments, or Xendit links. The richer admin seed (`POST /api/admin/seed`) is what UAT needs. Skipping this step caused INV-UAT-BLOCKER-01 on 2026-04-17 to be misclassified as a product bug when it was a seed artifact.
+4. **Jobs file exists?** Resolve `<portal>` from `<area>` (e.g. `parent/invoices` → `parent`) and confirm `docs/uat/jobs/<portal>.md` exists. If not, tell the user to add it.
+5. **Port 3000 free?** Run `lsof -ti:3000 || echo free`. If a server is already listening, stop and ask the user whether to kill it or pick a different port. Do not silently run against a dev server — the timings would be wrong.
+6. **Playwright MCP available?** Confirm `mcp__plugin_playwright_playwright__*` tools are loadable. If not, tell the user to install the plugin.
 
 ## Step 1 — Select jobs
 

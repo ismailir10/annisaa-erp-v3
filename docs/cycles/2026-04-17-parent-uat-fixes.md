@@ -79,7 +79,10 @@ UAT on 2026-04-17 (`docs/uat/reports/2026-04-17-parent.md`, persona Pak Budi, mo
 - `app/api/admin/seed/route.ts`: added `needsPaymentLink` check; sets deterministic `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` for SENT/PARTIALLY_PAID invoices.
 - `app/api/__tests__/seed-invoice-url.test.ts`: 7 unit tests covering all invoice statuses.
 
-### Task 4 — Today's attendance badge on home Kehadiran card (this commit)
+### Task 5 — Seed-hydration preflight in /run-uat skill (this commit)
+- `.claude/skills/uat/SKILL.md`: inserted Preflight step 3 "Demo DB seeded?" with check instructions and a note on the prisma/seed.ts vs admin-seed distinction. Explains the 2026-04-17 incident where INV-UAT-BLOCKER-01 was misclassified as a product bug.
+
+### Task 4 — Today's attendance badge on home Kehadiran card
 - `lib/parent-helpers.ts`: added `getTodayStudentAttendance(studentId, tenantId)` — Prisma scalar select of today's `StudentAttendance.status`, filtered by `isVoided: false` and tenant ownership. Returns `null` when no record exists.
 - `app/parent/page.tsx`: `Promise.all` fetches invoices + attendance in parallel. Kehadiran card shows `<StatusBadge>` when status exists, "Belum dicatat" chip otherwise.
 - `app/api/__tests__/today-attendance.test.ts`: 4 unit tests covering PRESENT, ABSENT, null, and query-shape assertions.
