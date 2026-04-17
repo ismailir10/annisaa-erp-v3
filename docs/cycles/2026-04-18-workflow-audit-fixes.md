@@ -37,19 +37,21 @@ A workflow audit surfaced drift between `.claude/skills/{spec,build,ship}/SKILL.
 
 - [x] **Task 4 — Add Playwright to `/build` end-of-cycle gate.** In `.claude/skills/build/SKILL.md` "After the last task" section, change the single `npm run build && npx vitest run` to the full three-command gate, and require recording the Playwright result in the cycle doc's Verification section before the final commit. Between-task gate stays as build+vitest only (per CLAUDE.md's two-tier design). *Acceptance: end-of-cycle gate invocation in build skill contains `npx playwright test`; Verification section update step explicitly mentions Playwright outcome.*
 
-- [ ] **Task 5 — Fix `/ship` step-1 re-run gate.** In `.claude/skills/ship/SKILL.md` step 1, replace `npm run build && npx vitest run` with the full end-of-cycle gate. Add a pre-step that reads the cycle doc's Verification section and warns if Playwright wasn't recorded by `/build`. *Acceptance: `/ship` re-runs the full gate; missing Playwright evidence in the cycle doc is surfaced before the PR is opened.*
+- [x] **Task 5 — Fix `/ship` step-1 re-run gate.** In `.claude/skills/ship/SKILL.md` step 1, replace `npm run build && npx vitest run` with the full end-of-cycle gate. Add a pre-step that reads the cycle doc's Verification section and warns if Playwright wasn't recorded by `/build`. *Acceptance: `/ship` re-runs the full gate; missing Playwright evidence in the cycle doc is surfaced before the PR is opened.*
 
 ## Implementation
 - Task 1: Fix worktree preflight — `.claude/skills/{spec,build,ship}/SKILL.md` — replaced role-gated checks with unconditional "every session" enforcement; `/spec` now points at `scripts/setup-worktree.sh` automation instead of a manual command block.
 - Task 2: Rewrite /ship for PR-for-all-roles + auto-merge — `.claude/skills/ship/SKILL.md` — removed cto direct-push branch; single flow opens PR to staging then `gh pr merge --auto --squash --delete-branch`; removed Opus/non-Opus framing; added label `model:<model>` (dropped `needs-cto-review` since auto-merge supersedes human gating).
 - Task 3: Implement /ship --to-main — `.claude/skills/ship/SKILL.md` — added Invocation modes section; added Step 2 (--to-main) with CTO role gate, staging-ahead-of-main check, PR staging → main with commit summary, and auto-merge via `gh pr merge --auto --squash` (no --delete-branch since staging is permanent).
 - Task 4: Add Playwright to /build end-of-cycle gate — `.claude/skills/build/SKILL.md` — expanded "After the last task" step 1 to the full three-command gate (`build && vitest run && playwright test`); added step 2 requiring Playwright outcome be recorded in cycle doc Verification as `/ship`'s precondition.
+- Task 5: Fix /ship step-1 re-run gate — `.claude/skills/ship/SKILL.md` — split step 1 into 1a (grep cycle doc Verification for Playwright evidence; refuse without it) and 1b (re-run full three-command gate on the exact commit being shipped).
 
 ## Verification
 - Task 1: gates passed (`npm run build` green, `npx vitest run` 104/104). Doc-only skill edits — no runtime surface to smoke.
 - Task 2: gates passed (build green, vitest 104/104). Reviewed diff: no `git push origin staging` or `git push origin main` remain in the skill.
 - Task 3: gates passed (build green, vitest 104/104). Role gate short-circuits non-CTO sessions before any `gh` call.
 - Task 4: gates passed (build green, vitest 104/104). Playwright itself deferred to this cycle's end-of-cycle gate below.
+- Task 5: gates passed (build green, vitest 104/104). New step 1a creates a clean precondition that `/build` must satisfy before `/ship` opens a PR.
 
 ## Ship Notes
 <!-- filled by /ship -->

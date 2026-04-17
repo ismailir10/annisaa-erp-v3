@@ -27,15 +27,24 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
    If not, stop and tell the user to finish `/build`.
 6. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
 
-## Step 1: Re-run gates
+## Step 1: Re-run the end-of-cycle gate
 
-Belt-and-suspenders. `/build` already ran these, but a final run on the exact commit being shipped catches drift:
+**1a. Confirm `/build` recorded a Playwright pass.** Grep the current cycle doc's `## Verification` section for a line mentioning `playwright` (case-insensitive). If none is found, stop:
 
-```bash
-npm run build && npx vitest run
+```
+/ship precondition failed: cycle doc Verification section has no Playwright
+pass recorded. Run the end-of-cycle gate in /build first
+(npm run build && npx vitest run && npx playwright test) and commit the
+updated Verification before calling /ship again.
 ```
 
-If either fails, stop and hand back to the user.
+**1b. Re-run the full gate on the exact commit being shipped** (belt-and-suspenders — catches drift since `/build` last ran):
+
+```bash
+npm run build && npx vitest run && npx playwright test
+```
+
+If any of the three fails, stop and hand back to the user. Do not open a PR on a broken commit.
 
 ## Step 2: Open the PR (same flow for every role)
 
