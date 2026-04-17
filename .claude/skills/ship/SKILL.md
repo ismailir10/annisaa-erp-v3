@@ -1,12 +1,12 @@
 ---
 name: ship
-description: Push a completed cycle to staging. For cto (Opus) sessions, pushes directly to staging. For product-builder (non-Opus) sessions, creates a feature branch and opens a PR to staging. Never touches main. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
+description: Ship a completed cycle via PR. All roles open a PR from feat/* → staging and let CI auto-merge on green. Never pushes directly to staging or main. Supports `/ship --to-main` for CTO-initiated staging → main promotion. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
 disable-model-invocation: true
 ---
 
-# /ship — push (direct or via PR)
+# /ship — open a PR, let CI auto-merge
 
-You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command pushes the code and stops — it **never** touches `main`.
+You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR and enables auto-merge — GitHub merges it when required CI checks pass. No direct pushes to `staging` or `main`, ever — the `pre-push` hook would reject them and so would branch protection.
 
 ## Preflight
 
@@ -30,71 +30,70 @@ npm run build && npx vitest run
 
 If either fails, stop and hand back to the user.
 
-## Step 2: Branch decision based on role
+## Step 2: Open the PR (same flow for every role)
 
-### Role = `cto` (Opus)
+Every role opens a PR from `feat/*` → `staging`. Auto-merge is enabled so the PR merges itself when the four required CI checks (`build`, `typecheck`, `test`, `e2e`) go green.
 
-Push directly to `staging`:
-
-```bash
-# If on a feature branch, merge it into staging first (fast-forward only)
-git checkout staging
-git merge --ff-only <feature-branch>   # only if you were on a feature branch
-git push origin staging
-```
-
-If you were already on `staging`, just:
-```bash
-git push origin staging
-```
-
-Print the Vercel preview URL reminder: staging auto-deploys to the project's preview URL within ~60s.
-
-### Role = `product-builder` (non-Opus)
-
-Open a PR instead. Never push to `staging` directly.
-
-1. If current branch is `staging`, create a feature branch from HEAD and reset staging to its upstream:
+1. Ensure you are on a feature branch. If somehow on `staging`, create one from HEAD:
    ```bash
-   SLUG=$(basename docs/cycles/*.md | tail -1 | sed 's/^[0-9-]*//;s/\.md$//')
-   FEAT_BRANCH="feat/$SLUG"
-   git checkout -b "$FEAT_BRANCH"
+   CURRENT=$(git branch --show-current)
+   if [ "$CURRENT" = "staging" ] || [ "$CURRENT" = "main" ]; then
+     SLUG=$(ls -t docs/cycles/*.md | head -1 | xargs basename | sed 's/^[0-9-]*//;s/\.md$//')
+     git checkout -b "feat/$SLUG"
+   fi
+   FEAT_BRANCH=$(git branch --show-current)
    ```
-   (If you were already on a feature branch, skip this step.)
 
 2. Push the feature branch:
    ```bash
    git push -u origin "$FEAT_BRANCH"
    ```
 
-3. Open a PR targeting `staging`:
+3. Open the PR to `staging`:
    ```bash
-   CYCLE_TITLE=$(head -1 docs/cycles/<current-cycle>.md | sed 's/^# *//')
+   CYCLE_FILE=$(ls -t docs/cycles/*.md | head -1)
+   CYCLE_TITLE=$(head -1 "$CYCLE_FILE" | sed 's/^# *//')
+   MODEL=$(grep '^model=' .claude/session-role | cut -d= -f2-)
+   ROLE=$(grep '^role=' .claude/session-role | cut -d= -f2-)
    gh pr create \
      --base staging \
      --head "$FEAT_BRANCH" \
      --title "[$MODEL] $CYCLE_TITLE" \
-     --body-file .github/pull_request_template.md \
-     --label needs-cto-review \
+     --body "$(cat <<BODY
+## Summary
+$(awk '/^## Context/{flag=1; next} /^## /{flag=0} flag' "$CYCLE_FILE")
+
+## Ship Notes
+$(awk '/^## Ship Notes/{flag=1; next} /^## /{flag=0} flag' "$CYCLE_FILE")
+
+Cycle: $CYCLE_FILE
+Role: $ROLE
+Model: $MODEL
+BODY
+)" \
      --label "model:$MODEL"
    ```
 
-4. Edit the PR body to fill in the template fields from the cycle doc (Summary from Context, Model/Role from `.claude/session-role`, Gates checked off, cycle doc link).
+4. Enable auto-merge so it merges when CI is green:
+   ```bash
+   gh pr merge --auto --squash --delete-branch
+   ```
+   If `gh` reports auto-merge is not enabled on the repo, stop and tell the user to enable it in repo settings (Settings → General → Pull Requests → Allow auto-merge). Do not fall back to a direct push.
 
-5. Return the PR URL to the user.
+5. Return the PR URL to the user and print: *"PR opened with auto-merge. It will squash-merge when all required checks pass. Staging auto-deploys to the Vercel preview within ~60s of merge."*
 
 ## Step 3: Post-ship checklist
 
 Print (don't execute — just remind the user):
 
-- [ ] Check the Vercel preview deploy succeeded
+- [ ] PR auto-merges when CI passes — watch `gh pr checks <number>` if you want live status
+- [ ] Once merged, check the Vercel preview deploy on staging succeeded
 - [ ] Smoke-test the feature on the preview URL (follow `## Ship Notes` instructions)
-- [ ] For product-builder sessions: tag the PR for CTO review
-- [ ] Staging → main promotion is a separate manual decision, not automated
+- [ ] Staging → main promotion is a separate `/ship --to-main` call, CTO-initiated
 
 ## Rules
 
-- **Never push to `main`.** Only humans merge staging → main.
-- **Never bypass hooks** (`--no-verify`). GitHub branch protection should reject it anyway.
-- **Role is authoritative.** If `.claude/session-role` says `product-builder`, you open a PR no matter what the user asks in chat. The user can change the role by editing the file, and `/ship` will pick it up next run.
+- **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook and GitHub branch protection both reject them. All shipping is PR-based.
+- **Never bypass hooks** (`--no-verify`). GitHub branch protection would reject it anyway.
+- **Auto-merge is the contract.** Don't manually merge the PR. Let CI gate it.
 - **Single source of truth.** Don't update README.md or CLAUDE.md in `/ship` — that's `/build`'s job via the cycle doc. `/ship` only moves bits, it doesn't author docs.

@@ -31,7 +31,7 @@ A workflow audit surfaced drift between `.claude/skills/{spec,build,ship}/SKILL.
 
 - [x] **Task 1 — Fix worktree preflight in all three skills.** Replace role-gated worktree checks in `.claude/skills/{spec,build,ship}/SKILL.md` with unconditional checks that match `check-role.sh`. Point at `scripts/setup-worktree.sh` automation rather than manual git commands. *Acceptance: all three skills enforce worktree for every role; manual command block in `/spec` replaced with a pointer to the setup script.*
 
-- [ ] **Task 2 — Rewrite `/ship` to PR-for-all-roles with auto-merge.** In `.claude/skills/ship/SKILL.md`: remove the `role=cto → git push origin staging` branch. Single flow: ensure `feat/*` branch, push it, `gh pr create --base staging`, then `gh pr merge --auto --squash --delete-branch`. Remove Opus/non-Opus framing from description and prose. *Acceptance: the skill contains zero `git push origin staging` or `git push origin main` invocations; PR flow applies to both roles; auto-merge command present.*
+- [x] **Task 2 — Rewrite `/ship` to PR-for-all-roles with auto-merge.** In `.claude/skills/ship/SKILL.md`: remove the `role=cto → git push origin staging` branch. Single flow: ensure `feat/*` branch, push it, `gh pr create --base staging`, then `gh pr merge --auto --squash --delete-branch`. Remove Opus/non-Opus framing from description and prose. *Acceptance: the skill contains zero `git push origin staging` or `git push origin main` invocations; PR flow applies to both roles; auto-merge command present.*
 
 - [ ] **Task 3 — Implement `/ship --to-main` for CTO promotion.** Detect the `--to-main` arg in the skill's invocation handling. Require `role=cto`; refuse otherwise. Flow: create PR `staging` → `main` with `gh pr create --base main --head staging`, attach summary pulled from the last N merged cycle docs, then `gh pr merge --auto --squash`. *Acceptance: `/ship --to-main` documented and implemented; refuses when role ≠ cto; only targets main via PR.*
 
@@ -41,9 +41,11 @@ A workflow audit surfaced drift between `.claude/skills/{spec,build,ship}/SKILL.
 
 ## Implementation
 - Task 1: Fix worktree preflight — `.claude/skills/{spec,build,ship}/SKILL.md` — replaced role-gated checks with unconditional "every session" enforcement; `/spec` now points at `scripts/setup-worktree.sh` automation instead of a manual command block.
+- Task 2: Rewrite /ship for PR-for-all-roles + auto-merge — `.claude/skills/ship/SKILL.md` — removed cto direct-push branch; single flow opens PR to staging then `gh pr merge --auto --squash --delete-branch`; removed Opus/non-Opus framing; added label `model:<model>` (dropped `needs-cto-review` since auto-merge supersedes human gating).
 
 ## Verification
 - Task 1: gates passed (`npm run build` green, `npx vitest run` 104/104). Doc-only skill edits — no runtime surface to smoke.
+- Task 2: gates passed (build green, vitest 104/104). Reviewed diff: no `git push origin staging` or `git push origin main` remain in the skill.
 
 ## Ship Notes
 <!-- filled by /ship -->
