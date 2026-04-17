@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { getSession, isSuperAdmin } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { students } from "../../../../prisma/data/students";
 
@@ -13,8 +13,12 @@ export async function POST(req: NextRequest) {
   const { success } = rateLimit(`admin-seed:${getClientIp(req)}`, 1, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not available in production" }, { status: 403 });
+  }
+
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isSuperAdmin(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

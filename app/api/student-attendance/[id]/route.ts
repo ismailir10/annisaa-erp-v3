@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getSession, isAdminRole } from "@/lib/auth";
+import { rateLimit } from "@/lib/rate-limit";
 import { updateStudentAttendanceSchema } from "@/lib/validations/student-attendance";
 
 type Params = { params: Promise<{ id: string }> };
@@ -27,13 +27,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PUT(req: NextRequest, { params }: Params) {
-  const { success } = rateLimit(`update-attendance:${getClientIp(req)}`, 30, 60_000);
-  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
-
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const { success } = rateLimit(`update-attendance:${session.id}`, 30, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const { id } = await params;
   const existing = await getOwnedRecord(id, session.tenantId);
@@ -59,13 +59,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 // Soft delete — sets isVoided = true
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const { success } = rateLimit(`void-attendance:${getClientIp(req)}`, 20, 60_000);
-  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
-
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const { success } = rateLimit(`void-attendance:${session.id}`, 20, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const { id } = await params;
   const existing = await getOwnedRecord(id, session.tenantId);
