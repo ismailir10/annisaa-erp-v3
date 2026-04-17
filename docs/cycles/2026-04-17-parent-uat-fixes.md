@@ -79,7 +79,10 @@ UAT on 2026-04-17 (`docs/uat/reports/2026-04-17-parent.md`, persona Pak Budi, mo
 - `app/api/admin/seed/route.ts`: added `needsPaymentLink` check; sets deterministic `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` for SENT/PARTIALLY_PAID invoices.
 - `app/api/__tests__/seed-invoice-url.test.ts`: 7 unit tests covering all invoice statuses.
 
-### Task 2 — Remove duplicate payment-link fallback (this commit)
+### Task 3 — Mobile card list for /parent/reports (this commit)
+- `app/parent/assessments-table.tsx`: replaced 5-col `DataTable` with `space-y-3` card stack. Each card: truncated template name + `StatusBadge`, period+program subtitle, full-width "Lihat" button. Detail sheet unchanged. `EmptyState` for empty data. Export name preserved.
+
+### Task 2 — Remove duplicate payment-link fallback
 - `app/parent/invoices/invoice-detail-sheet.tsx`: collapsed `isPayable && (hasPaymentLink ? button : fallback-copy)` to `isPayable && hasPaymentLink && button`. The status banner already shows the "sedang disiapkan" message — no duplicate needed.
 
 ## Verification

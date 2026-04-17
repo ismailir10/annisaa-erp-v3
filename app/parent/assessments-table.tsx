@@ -1,12 +1,11 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "@/components/ui/data-table";
-import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Eye } from "lucide-react";
 import { useState } from "react";
 
 const SCORE_LABELS: Record<string, { label: string; color: string }> = {
@@ -43,43 +42,14 @@ type AssessmentsTableProps = {
 export function AssessmentsTable({ data }: AssessmentsTableProps) {
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentItem | null>(null);
 
-  const columns: ColumnDef<AssessmentItem>[] = [
-    {
-      accessorKey: "templateName",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Template" />,
-      cell: ({ row }) => (
-        <span className="text-sm font-medium">{row.original.templateName}</span>
-      ),
-    },
-    {
-      accessorKey: "period",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Periode" />,
-      cell: ({ row }) => (
-        <span className="text-sm">{row.original.period}</span>
-      ),
-    },
-    {
-      accessorKey: "programName",
-      header: "Program",
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">{row.original.programName}</span>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <DataTableRowActions
-          onView={() => setSelectedAssessment(row.original)}
-        />
-      ),
-    },
-  ];
+  if (data.length === 0) {
+    return (
+      <EmptyState
+        title="Belum ada rapor"
+        description="Rapor akan tersedia setelah guru menilai dan admin menerbitkan."
+      />
+    );
+  }
 
   const scoreMap = selectedAssessment
     ? new Map(selectedAssessment.scores.map((s) => [s.indicatorId, s]))
@@ -87,13 +57,33 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        data={data}
-        defaultSort={{ field: "period", order: "desc" }}
-        emptyTitle="Belum ada rapor"
-        emptyDescription="Rapor akan tersedia setelah guru menilai dan admin menerbitkan."
-      />
+      <div className="space-y-3">
+        {data.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-lg border border-border bg-card p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold leading-snug truncate flex-1">
+                {item.templateName}
+              </p>
+              <StatusBadge status={item.status} />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {item.period} · {item.programName}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-3"
+              onClick={() => setSelectedAssessment(item)}
+            >
+              <Eye size={14} className="mr-2" />
+              Lihat
+            </Button>
+          </div>
+        ))}
+      </div>
 
       <Sheet open={!!selectedAssessment} onOpenChange={() => setSelectedAssessment(null)}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
@@ -123,9 +113,7 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
                             key={ind.id}
                             className="flex items-start justify-between py-2 border-b border-border/50 last:border-0"
                           >
-                            <p className="text-xs flex-1 pr-3">
-                              {ind.description}
-                            </p>
+                            <p className="text-xs flex-1 pr-3">{ind.description}</p>
                             <div className="text-right shrink-0">
                               {scoreInfo ? (
                                 <Badge
@@ -135,9 +123,7 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
                                   {score!.score}
                                 </Badge>
                               ) : (
-                                <span className="text-[10px] text-muted-foreground">
-                                  —
-                                </span>
+                                <span className="text-[10px] text-muted-foreground">—</span>
                               )}
                             </div>
                           </div>
