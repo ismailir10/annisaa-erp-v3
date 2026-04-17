@@ -8,6 +8,13 @@ disable-model-invocation: true
 
 You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR and enables auto-merge — GitHub merges it when required CI checks pass. No direct pushes to `staging` or `main`, ever — the `pre-push` hook would reject them and so would branch protection.
 
+## Invocation modes
+
+- `/ship` — default. Opens PR `feat/<cycle>` → `staging`, enables auto-merge. All roles.
+- `/ship --to-main` — CTO-initiated staging → main promotion. Opens PR `staging` → `main`, enables auto-merge. Only runs when `role=cto`; refuse otherwise with a one-line error. Use after 2–4 cycles have accumulated on staging, or when the user explicitly says "ship to prod".
+
+If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** section below instead of the default Step 2.
+
 ## Preflight
 
 1. **Session role set?** Read `.claude/session-role`. Extract `role=` and `model=`. If missing, stop.
@@ -81,6 +88,61 @@ BODY
    If `gh` reports auto-merge is not enabled on the repo, stop and tell the user to enable it in repo settings (Settings → General → Pull Requests → Allow auto-merge). Do not fall back to a direct push.
 
 5. Return the PR URL to the user and print: *"PR opened with auto-merge. It will squash-merge when all required checks pass. Staging auto-deploys to the Vercel preview within ~60s of merge."*
+
+## Step 2 (--to-main): promote staging → main
+
+Only runs when the user invoked `/ship --to-main`. Skip the default Step 2 entirely.
+
+1. **Role gate.** Read `role=` from `.claude/session-role`. If not `cto`, refuse:
+   ```
+   /ship --to-main is CTO-only. Current role is <role>. Abort.
+   ```
+   Do not proceed.
+
+2. **Staging must be ahead of main.** Otherwise there is nothing to promote:
+   ```bash
+   git fetch origin main staging
+   AHEAD=$(git rev-list --count origin/main..origin/staging)
+   if [ "$AHEAD" = "0" ]; then
+     echo "staging is not ahead of main — nothing to promote."; exit 0
+   fi
+   ```
+
+3. **Summarize cycles being promoted.** Collect titles of every cycle doc merged since main diverged:
+   ```bash
+   CYCLES=$(git log --format='%s' origin/main..origin/staging -- docs/cycles/ | grep -oE 'docs/cycles/[^ ]+\.md' | sort -u)
+   ```
+   Fall back to `git log --format='- %s' origin/main..origin/staging` if no cycle files are referenced.
+
+4. **Open the PR staging → main:**
+   ```bash
+   MODEL=$(grep '^model=' .claude/session-role | cut -d= -f2-)
+   gh pr create \
+     --base main \
+     --head staging \
+     --title "[$MODEL] Promote staging → main ($AHEAD commits)" \
+     --body "$(cat <<BODY
+## Summary
+Promoting $AHEAD commits from staging to main.
+
+## Cycles included
+$(echo "$CYCLES" | sed 's/^/- /')
+
+## Commits
+$(git log --format='- %s' origin/main..origin/staging)
+BODY
+)" \
+     --label "model:$MODEL" \
+     --label "promotion"
+   ```
+
+5. **Enable auto-merge:**
+   ```bash
+   gh pr merge --auto --squash
+   ```
+   Note: no `--delete-branch` — `staging` is a permanent branch.
+
+6. Return the PR URL and print: *"staging → main PR opened with auto-merge. Will merge when CI passes. Watch `gh pr checks <number>` for status."* Do not proceed past Step 2.
 
 ## Step 3: Post-ship checklist
 
