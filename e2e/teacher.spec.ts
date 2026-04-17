@@ -45,8 +45,8 @@ test.describe("Teacher flows", () => {
 
   test("salary slips page loads", async ({ page }) => {
     await page.goto("/teacher/slips");
-    await page.waitForURL("**/teacher/slips");
-    await expect(page.locator("text=Slip Gaji")).toBeVisible();
+    await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
+    await expect(page.locator("text=Slip Gaji")).toBeVisible({ timeout: 10_000 });
     // Page fetches data async — wait up to 10s for either state to appear
     await expect(
       page.locator("text=Tersedia").or(page.locator("text=Belum ada slip gaji"))

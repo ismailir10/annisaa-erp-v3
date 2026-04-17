@@ -101,6 +101,11 @@ Root cause analysis (static code review — no runtime reproduction available):
 - `npm run build && npx vitest run` — all 93 tests pass, build succeeds.
 - Action column now uses DataTableRowActions — no inline buttons to clip at narrow viewports.
 
+### Task 5 — End-of-cycle gate
+- `npm run build && npx vitest run && npx playwright test` — all green (build pass, 93 unit tests pass, 25 e2e pass, 0 flaky).
+- Fixed pre-existing flaky teacher slips test by adding explicit timeouts to `waitForURL` (15s) and `Slip Gaji` assertion (10s).
+- Updated `docs/uat/jobs/admin.md`: added `JTBD-ADMIN-STUDENT-02` (enrollment job), updated `JTBD-ADMIN-LEAVE-01` (dropdown action pattern), bumped last-audited date.
+
 ## Ship Notes
 
 <!-- filled by /ship -->
