@@ -16,7 +16,9 @@ const getEmployeeCount = unstable_cache(
 export default async function AdminDashboard() {
   const session = await getSession();
   if (!session || !isAdminRole(session.role)) redirect("/");
+  if (!session.tenantId) redirect("/");
 
+  const tenantId = session.tenantId;
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
 
@@ -31,24 +33,24 @@ export default async function AdminDashboard() {
 
   // Parallel queries for dashboard data
   const [totalEmployees, todayAttendance, pendingLeave, lastPayroll, weeklyTrendRaw] = await Promise.all([
-    getEmployeeCount(session.tenantId!),
+    getEmployeeCount(tenantId),
     prisma.attendanceRecord.groupBy({
       by: ["status"],
-      where: { date: todayStr },
+      where: { employee: { tenantId }, date: todayStr },
       _count: true,
     }),
     prisma.leaveRequest.count({
-      where: { employee: { tenantId: session.tenantId! }, status: "PENDING" },
+      where: { employee: { tenantId }, status: "PENDING" },
     }),
     prisma.payrollRun.findFirst({
-      where: { tenantId: session.tenantId! },
+      where: { tenantId },
       orderBy: { periodStart: "desc" },
       include: { _count: { select: { items: true } } },
     }),
     // Attendance trend: single query for all 7 weekdays
     prisma.attendanceRecord.groupBy({
       by: ["date", "status"],
-      where: { date: { in: last7Weekdays } },
+      where: { employee: { tenantId }, date: { in: last7Weekdays } },
       _count: true,
     }),
   ]);

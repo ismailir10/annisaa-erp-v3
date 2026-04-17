@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-04-16 in cycle `uat-command-and-jtbd-library`
+> Last audited: 2026-04-17 in cycle `admin-uat-fixes`
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -23,6 +23,23 @@ This file is the living catalog of what an admin user can and should be able to 
   5. See the new student in the list
 - **Done when:** New student appears in the list with `ACTIVE` status, assigned to the chosen class, with ≥1 guardian linked. List refresh does not lose scroll/filter position.
 - **Why this job matters:** Ibu Nur onboards students frequently during admissions season. Target: under 5 minutes per student. Friction here compounds across hundreds of rows.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-STUDENT-02 — Enroll a student into a class section
+- **Persona:** Ibu Nur
+- **Preconditions:** Logged in as SUPER_ADMIN, ≥1 active student not yet enrolled, ≥1 class section with capacity
+- **Steps:**
+  1. Open a student's detail page
+  2. Click "Daftarkan ke Kelas"
+  3. Pick a class section
+  4. Submit
+  5. See success toast + enrollment in the student's "Riwayat Kelas" tab
+- **Done when:** Student has an ACTIVE enrollment in the chosen class. If class is full, duplicate enrollment, or age-out-of-range: toast shows the specific error message in Indonesian. "Daftarkan" button never stays stuck (spinner resets on both success and error).
+- **Error scenarios to verify:**
+  - Duplicate enrollment → 400 "Siswa sudah terdaftar di kelas lain"
+  - Full class → 400 "Kelas penuh (X/Y)"
+  - Network error → toast "Terjadi kesalahan jaringan"
+- **Why this job matters:** Every new student must be enrolled. Button stuck = admin confused.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -87,10 +104,11 @@ This file is the living catalog of what an admin user can and should be able to 
 - **Steps:**
   1. Open the leave area
   2. See pending requests first (or filter to pending)
-  3. Open a request
-  4. Approve it
-  5. See the request's status change to `APPROVED`
-- **Done when:** Request is `APPROVED`, the teacher who requested it sees the status updated in their portal (or would, in a subsequent login). Audit trail records who approved and when.
+  3. Click "Lihat" to view the request details in a dialog
+  4. Use the ⋮ dropdown to pick "Setujui"
+  5. Confirm in the review dialog
+  6. See the request's status change to `APPROVED`
+- **Done when:** Request is `APPROVED`, the teacher who requested it sees the status updated in their portal (or would, in a subsequent login). Audit trail records who approved and when. Action buttons (approve/reject) are accessible via dropdown at all viewport widths ≥1024px — no horizontal clipping.
 - **Why this job matters:** Weekly rhythm. If Ibu Nur can't find pending requests in under 3 seconds, they pile up.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
