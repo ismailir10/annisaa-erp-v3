@@ -108,4 +108,11 @@ Root cause analysis (static code review — no runtime reproduction available):
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migrations:** None. No schema changes.
+- **New env vars:** None.
+- **Rollback plan:** Revert the 4 commits on this branch. No data migration to undo.
+- **Smoke test on preview:**
+  1. Login as SUPER_ADMIN → verify dashboard shows 4 stat cards with numeric values.
+  2. Go to `/admin/payroll` → verify 4 stat cards render (not stuck at 0 if data exists).
+  3. Go to `/admin/leave` → verify ⋮ dropdown contains Setujui/Tolak for PENDING rows, only Lihat for non-PENDING. Verify "Lihat" opens read-only dialog at 1280px viewport.
+  4. Go to a student detail page → click "Daftarkan ke Kelas" → verify dialog works, error toast shows Indonesian message on failure, button resets.
