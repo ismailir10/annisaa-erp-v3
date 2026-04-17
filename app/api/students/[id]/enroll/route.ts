@@ -42,35 +42,51 @@ export async function POST(
 
   // Atomic capacity check + duplicate enrollment guard
   const today = new Date().toISOString().split("T")[0];
-  const enrollment = await prisma.$transaction(async (tx) => {
-    // Check for existing ACTIVE enrollment in any class
-    const existingEnrollment = await tx.studentEnrollment.findFirst({
-      where: { studentId, status: "ACTIVE" },
+  try {
+    const enrollment = await prisma.$transaction(async (tx) => {
+      // Check for existing ACTIVE enrollment in any class
+      const existingEnrollment = await tx.studentEnrollment.findFirst({
+        where: { studentId, status: "ACTIVE" },
+      });
+      if (existingEnrollment) {
+        throw new EnrollError("Siswa sudah terdaftar di kelas lain. Tarik siswa dari kelas sebelumnya terlebih dahulu.");
+      }
+
+      // Lock the class section row to prevent concurrent enrollment
+      const section = await tx.$queryRaw<Array<{ id: string; capacity: number; active_count: bigint }>>`
+        SELECT cs.id, cs.capacity, COUNT(se.id)::int as active_count
+        FROM "ClassSection" cs
+        LEFT JOIN "StudentEnrollment" se ON se."classSectionId" = cs.id AND se.status = 'ACTIVE'
+        WHERE cs.id = ${classSectionId}
+        GROUP BY cs.id, cs.capacity
+        FOR UPDATE OF cs
+      `;
+      if (section.length === 0) {
+        throw new EnrollError("Kelas tidak ditemukan", 404);
+      }
+      if (Number(section[0].active_count) >= section[0].capacity) {
+        throw new EnrollError(`Kelas penuh (${Number(section[0].active_count)}/${section[0].capacity})`);
+      }
+
+      return tx.studentEnrollment.create({
+        data: { studentId, classSectionId, enrollDate: today },
+      });
     });
-    if (existingEnrollment) {
-      throw new Error("Siswa sudah terdaftar di kelas lain. Tarik siswa dari kelas sebelumnya terlebih dahulu.");
-    }
 
-    // Lock the class section row to prevent concurrent enrollment
-    const section = await tx.$queryRaw<Array<{ id: string; capacity: number; active_count: bigint }>>`
-      SELECT cs.id, cs.capacity, COUNT(se.id)::int as active_count
-      FROM "ClassSection" cs
-      LEFT JOIN "StudentEnrollment" se ON se."classSectionId" = cs.id AND se.status = 'ACTIVE'
-      WHERE cs.id = ${classSectionId}
-      GROUP BY cs.id, cs.capacity
-      FOR UPDATE OF cs
-    `;
-    if (section.length === 0) {
-      throw new Error("Kelas tidak ditemukan");
+    return NextResponse.json(enrollment, { status: 201 });
+  } catch (err) {
+    if (err instanceof EnrollError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
     }
-    if (Number(section[0].active_count) >= section[0].capacity) {
-      throw new Error(`Kelas penuh (${Number(section[0].active_count)}/${section[0].capacity})`);
-    }
+    console.error("enroll:", err);
+    return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
+  }
+}
 
-    return tx.studentEnrollment.create({
-      data: { studentId, classSectionId, enrollDate: today },
-    });
-  });
-
-  return NextResponse.json(enrollment, { status: 201 });
+class EnrollError extends Error {
+  status: number;
+  constructor(message: string, status = 400) {
+    super(message);
+    this.status = status;
+  }
 }
