@@ -41,9 +41,6 @@ export async function GET(request: NextRequest) {
         maxAge: 60 * 60 * 24,
       });
     }
-    console.log(
-      `[AUTH-DBG] callback redirect: path=${path} base=${base} attached=${pending.length}`
-    );
     return res;
   };
 
@@ -62,11 +59,6 @@ export async function GET(request: NextRequest) {
             for (const c of cookiesToSet) {
               pending.push({ name: c.name, value: c.value, options: c.options });
             }
-            console.log(
-              `[AUTH-DBG] callback setAll: ${cookiesToSet.length} cookies — ${cookiesToSet
-                .map((c) => c.name)
-                .join(",")}`
-            );
           },
         },
       }
