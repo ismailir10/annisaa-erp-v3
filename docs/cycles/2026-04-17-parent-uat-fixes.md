@@ -49,27 +49,27 @@ UAT on 2026-04-17 (`docs/uat/reports/2026-04-17-parent.md`, persona Pak Budi, mo
 
 ## Tasks
 
-- [ ] **Task 1 — Seed SENT/PARTIALLY_PAID/OVERDUE invoices with Xendit URL**
+- [x] **Task 1 — Seed SENT/PARTIALLY_PAID/OVERDUE invoices with Xendit URL**
   Edit `app/api/admin/seed/route.ts` (around line 245): when creating invoices, set `xenditPaymentUrl: \`https://checkout-staging.xendit.co/web/demo-${invoiceNumber}\`` if the rolled status is `SENT`, `PARTIALLY_PAID`, or `OVERDUE`. Leave `null` for `PAID` / `DRAFT` / `CANCELLED`. Deterministic so repeat seeding is idempotent.
   _Acceptance: re-run seed in demo mode, open any unpaid invoice in parent portal, "Bayar Sekarang" button renders. Vitest covers the URL-shape logic if a unit seam is easy; otherwise rely on manual + Playwright smoke._
 
-- [ ] **Task 2 — Clean up duplicate fallback in invoice detail sheet**
+- [x] **Task 2 — Clean up duplicate fallback in invoice detail sheet**
   Edit `app/parent/invoices/invoice-detail-sheet.tsx`: remove the bottom fallback block at lines 293–299 entirely. The top status banner (line 196) already carries the "sedang disiapkan" message — no need to duplicate it. When `isPayable && !hasPaymentLink`, render nothing in the Payment Action block (no button, no repeated copy). When `isPayable && hasPaymentLink`, render the "Bayar Sekarang" button as today. This is a pure UI cleanup — no state changes, no new fields.
   _Acceptance: snapshot/visual check — in every invoice state (SENT-with-link, SENT-without-link, PAID, CANCELLED, PARTIALLY_PAID) there is exactly one status indicator; never two stacked messages._
 
-- [ ] **Task 3 — Replace /parent/reports DataTable with mobile card list**
+- [x] **Task 3 — Replace /parent/reports DataTable with mobile card list**
   Rewrite `app/parent/assessments-table.tsx` as a card-list component. Each card: report template name (bold, truncated w/ ellipsis), period + program (muted subtitle), `StatusBadge` on the right, full-width "Lihat" button at the bottom opening the existing detail sheet. Use `space-y-3` stacking inside the `max-w-md` layout. Empty state uses `EmptyState` component per portal standard. Preserve the `<AssessmentsTable>` export name so `app/parent/reports/page.tsx` doesn't need updates.
   _Acceptance: Playwright resize to 375px — zero horizontal overflow, every "Lihat" button fully tappable. Existing detail sheet behavior unchanged._
 
-- [ ] **Task 4 — Add today's-attendance badge to home Kehadiran quick-link**
+- [x] **Task 4 — Add today's-attendance badge to home Kehadiran quick-link**
   Add `getTodayStudentAttendance(studentId, tenantId)` helper to `lib/parent-helpers.ts` — scalar-only select of today's `StudentAttendance.status` for the student; returns `null` if no record. In `app/parent/page.tsx`, await it alongside the existing home fetches and pass the status into the Kehadiran card (lines 119–129). Render `<StatusBadge status={status} />` when a status exists, else a neutral muted "Belum dicatat" chip. Keep within the `grid grid-cols-3` layout; badge sits below icon+label; no card overflow at 375px.
   _Acceptance: mobile viewport — badge visible on home without scroll; manually flip demo student's attendance status between PRESENT/ABSENT, force-refresh home, confirm reflection._
 
-- [ ] **Task 5 — Add seed-hydration preflight to /run-uat skill**
+- [x] **Task 5 — Add seed-hydration preflight to /run-uat skill**
   Edit `.claude/skills/uat/SKILL.md`: add a preflight step before UAT execution that verifies the demo DB has been seeded via `POST /api/admin/seed` (or explicitly invokes it if missing). Note the distinction between `prisma/seed.ts` (minimal, used by CI Playwright) and the richer admin seed (invoices, payments, admissions — needed for UAT). One short section, ~10 lines.
   _Acceptance: skill doc shows the preflight step; next `/run-uat` run will read it and hydrate before probing._
 
-- [ ] **Task 6 — End-of-cycle gate + docs**
+- [x] **Task 6 — End-of-cycle gate + docs**
   Run `npm run build && npx vitest run && npx playwright test` — all must pass. Update `docs/uat/jobs/parent.md` to mark INV-01, REP-01, HOME-01 as addressed this cycle (one-line reference each). Stage `docs/uat/reports/2026-04-17-parent.md` via `git add -f` so the consumed report enters history. README.md only needs updating if roadmap/ADR content shifts — not expected here.
   _Acceptance: 25/25 Playwright tests green; all vitest green; cycle doc Verification + Ship Notes filled._
 
