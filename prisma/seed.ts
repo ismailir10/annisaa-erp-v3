@@ -137,6 +137,18 @@ async function main() {
   });
   console.log(`✅ School admin user: schooladmin@annisaa.sch.id`);
 
+  // Owner — SUPER_ADMIN (real owner email, always seeded)
+  await prisma.user.create({
+    data: {
+      id: "u_owner",
+      tenantId: tenant.id,
+      email: "ismailir10@gmail.com",
+      role: "SUPER_ADMIN",
+      name: "Ismail Rabbani",
+    },
+  });
+  console.log(`✅ Owner user: ismailir10@gmail.com`);
+
   // 7. Employees + Teacher users + Salary values
   const employeeIds: Record<string, string> = {};
   let empCount = 0;
