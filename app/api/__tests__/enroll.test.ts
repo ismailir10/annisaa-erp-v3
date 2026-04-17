@@ -44,7 +44,8 @@ describe("POST /api/students/[id]/enroll — error surface returns JSON", () => 
       program: { ageMin: null, ageMax: null },
     } as never);
     // Simulate transaction running the callback with a tx that finds an existing enrollment
-    vi.mocked(prisma.$transaction).mockImplementation(async (cb: never) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma.$transaction as any).mockImplementation(async (cb: any) => {
       const tx = {
         studentEnrollment: {
           findFirst: vi.fn().mockResolvedValue({ id: "e1" }),
@@ -52,7 +53,7 @@ describe("POST /api/students/[id]/enroll — error surface returns JSON", () => 
         },
         $queryRaw: vi.fn(),
       };
-      return (cb as unknown as (t: typeof tx) => unknown)(tx);
+      return cb(tx);
     });
 
     const res = await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
@@ -70,15 +71,16 @@ describe("POST /api/students/[id]/enroll — error surface returns JSON", () => 
       id: "cs1",
       program: { ageMin: null, ageMax: null },
     } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(async (cb: never) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma.$transaction as any).mockImplementation(async (cb: any) => {
       const tx = {
         studentEnrollment: {
           findFirst: vi.fn().mockResolvedValue(null),
           create: vi.fn(),
         },
-        $queryRaw: vi.fn().mockResolvedValue([{ id: "cs1", capacity: 10, active_count: 10n }]),
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "cs1", capacity: 10, active_count: BigInt(10) }]),
       };
-      return (cb as unknown as (t: typeof tx) => unknown)(tx);
+      return cb(tx);
     });
 
     const res = await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
@@ -96,15 +98,16 @@ describe("POST /api/students/[id]/enroll — error surface returns JSON", () => 
       id: "cs1",
       program: { ageMin: null, ageMax: null },
     } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(async (cb: never) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma.$transaction as any).mockImplementation(async (cb: any) => {
       const tx = {
         studentEnrollment: {
           findFirst: vi.fn().mockResolvedValue(null),
           create: vi.fn().mockResolvedValue({ id: "e1", studentId: "s1", classSectionId: "cs1" }),
         },
-        $queryRaw: vi.fn().mockResolvedValue([{ id: "cs1", capacity: 10, active_count: 3n }]),
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "cs1", capacity: 10, active_count: BigInt(3) }]),
       };
-      return (cb as unknown as (t: typeof tx) => unknown)(tx);
+      return cb(tx);
     });
 
     const res = await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
