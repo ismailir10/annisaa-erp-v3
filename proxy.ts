@@ -74,7 +74,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Supabase auth takes PRIORITY over demo cookie
+  // Demo mode takes priority when enabled — skip Supabase auth entirely
+  if (process.env.DEMO_MODE === "true") {
+    const demoCookie = request.cookies.get(DEMO_COOKIE)?.value;
+    if (demoCookie) {
+      return NextResponse.next();
+    }
+  }
+
+  // Supabase auth (production)
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const response = await updateSession(request);
     // If updateSession redirected (no user), don't check idle
