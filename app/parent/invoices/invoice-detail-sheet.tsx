@@ -275,28 +275,20 @@ export function InvoiceDetailSheet({
           )}
         </div>
 
-        {/* Payment Action */}
-        {isPayable && (
+        {/* Payment Action — only render when link is available; no-link fallback is in the status banner above */}
+        {isPayable && hasPaymentLink && (
           <div className="mt-6 pt-4 border-t border-border">
-            {hasPaymentLink ? (
-              <a
-                href={invoice.xenditPaymentUrl!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full"
-              >
-                <Button className="w-full" size="lg">
-                  <ExternalLink size={16} className="mr-2" />
-                  Bayar Sekarang
-                </Button>
-              </a>
-            ) : (
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-3">
-                  Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
-                </p>
-              </div>
-            )}
+            <a
+              href={invoice.xenditPaymentUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full"
+            >
+              <Button className="w-full" size="lg">
+                <ExternalLink size={16} className="mr-2" />
+                Bayar Sekarang
+              </Button>
+            </a>
           </div>
         )}
 

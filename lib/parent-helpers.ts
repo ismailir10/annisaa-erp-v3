@@ -143,6 +143,27 @@ export const getStudentInvoices = unstable_cache(
   { revalidate: 120, tags: ["student-invoices"] }
 );
 
+/**
+ * Fetch today's attendance status for a student.
+ * Returns null when no record exists for today (e.g. weekend, no class).
+ */
+export async function getTodayStudentAttendance(
+  studentId: string,
+  tenantId: string,
+): Promise<string | null> {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const record = await prisma.studentAttendance.findFirst({
+    where: {
+      studentId,
+      date: today,
+      isVoided: false,
+      student: { tenantId },
+    },
+    select: { status: true },
+  });
+  return record?.status ?? null;
+}
+
 export type InvoiceListItem = {
   id: string;
   invoiceNumber: string;

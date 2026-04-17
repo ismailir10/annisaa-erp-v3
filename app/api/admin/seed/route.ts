@@ -246,6 +246,7 @@ export async function POST(req: NextRequest) {
     const status = statuses[invoiceCount % statuses.length];
     const totalPaid = status === "PAID" ? totalDue : status === "PARTIALLY_PAID" ? Math.round(totalDue * 0.5) : 0;
 
+    const needsPaymentLink = status === "SENT" || status === "PARTIALLY_PAID";
     const invoice = await prisma.invoice.create({
       data: {
         tenantId,
@@ -256,6 +257,7 @@ export async function POST(req: NextRequest) {
         totalDue,
         totalPaid,
         status,
+        xenditPaymentUrl: needsPaymentLink ? `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` : null,
         createdBy: adminUserId,
         lines: { create: lines },
       },
