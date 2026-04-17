@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { updateGuardianSchema, toggleGuardianStatusSchema } from "@/lib/validations/guardian";
 
@@ -28,7 +28,7 @@ export async function PUT(
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -42,21 +42,23 @@ export async function PUT(
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Input tidak valid" }, { status: 400 });
   }
 
+  const d = parsed.data;
+
   // Update parent contact fields
   await prisma.parent.update({
     where: { id: guardian.parentId },
     data: {
-      name: body.name?.trim() || guardian.parent.name,
-      phone: body.phone !== undefined ? (body.phone?.trim() || null) : guardian.parent.phone,
-      email: body.email !== undefined ? (body.email?.trim() || null) : guardian.parent.email,
-      whatsapp: body.whatsapp !== undefined ? (body.whatsapp?.trim() || null) : guardian.parent.whatsapp,
-      nik: body.parentNik !== undefined ? (body.parentNik?.trim() || null) : undefined,
-      education: body.education !== undefined ? (body.education?.trim() || null) : undefined,
-      occupation: body.occupation !== undefined ? (body.occupation?.trim() || null) : undefined,
-      employer: body.employer !== undefined ? (body.employer?.trim() || null) : undefined,
-      employerAddress: body.employerAddress !== undefined ? (body.employerAddress?.trim() || null) : undefined,
-      employerCity: body.employerCity !== undefined ? (body.employerCity?.trim() || null) : undefined,
-      incomeRange: body.incomeRange !== undefined ? (body.incomeRange?.trim() || null) : undefined,
+      name: d.name?.trim() || guardian.parent.name,
+      phone: d.phone !== undefined ? (d.phone?.trim() || null) : guardian.parent.phone,
+      email: d.email !== undefined ? (d.email?.trim() || null) : guardian.parent.email,
+      whatsapp: d.whatsapp !== undefined ? (d.whatsapp?.trim() || null) : guardian.parent.whatsapp,
+      nik: d.parentNik !== undefined ? (d.parentNik?.trim() || null) : undefined,
+      education: d.education !== undefined ? (d.education?.trim() || null) : undefined,
+      occupation: d.occupation !== undefined ? (d.occupation?.trim() || null) : undefined,
+      employer: d.employer !== undefined ? (d.employer?.trim() || null) : undefined,
+      employerAddress: d.employerAddress !== undefined ? (d.employerAddress?.trim() || null) : undefined,
+      employerCity: d.employerCity !== undefined ? (d.employerCity?.trim() || null) : undefined,
+      incomeRange: d.incomeRange !== undefined ? (d.incomeRange?.trim() || null) : undefined,
     },
   });
 
@@ -64,8 +66,8 @@ export async function PUT(
   const updated = await prisma.studentGuardian.update({
     where: { id },
     data: {
-      relationship: body.relationship || guardian.relationship,
-      isPrimary: body.isPrimary !== undefined ? body.isPrimary : guardian.isPrimary,
+      relationship: d.relationship || guardian.relationship,
+      isPrimary: d.isPrimary !== undefined ? d.isPrimary : guardian.isPrimary,
     },
     include: { parent: true },
   });
@@ -78,7 +80,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "SCHOOL_ADMIN") {
+  if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
