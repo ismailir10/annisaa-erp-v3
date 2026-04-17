@@ -79,7 +79,12 @@ UAT on 2026-04-17 (`docs/uat/reports/2026-04-17-parent.md`, persona Pak Budi, mo
 - `app/api/admin/seed/route.ts`: added `needsPaymentLink` check; sets deterministic `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` for SENT/PARTIALLY_PAID invoices.
 - `app/api/__tests__/seed-invoice-url.test.ts`: 7 unit tests covering all invoice statuses.
 
-### Task 3 — Mobile card list for /parent/reports (this commit)
+### Task 4 — Today's attendance badge on home Kehadiran card (this commit)
+- `lib/parent-helpers.ts`: added `getTodayStudentAttendance(studentId, tenantId)` — Prisma scalar select of today's `StudentAttendance.status`, filtered by `isVoided: false` and tenant ownership. Returns `null` when no record exists.
+- `app/parent/page.tsx`: `Promise.all` fetches invoices + attendance in parallel. Kehadiran card shows `<StatusBadge>` when status exists, "Belum dicatat" chip otherwise.
+- `app/api/__tests__/today-attendance.test.ts`: 4 unit tests covering PRESENT, ABSENT, null, and query-shape assertions.
+
+### Task 3 — Mobile card list for /parent/reports
 - `app/parent/assessments-table.tsx`: replaced 5-col `DataTable` with `space-y-3` card stack. Each card: truncated template name + `StatusBadge`, period+program subtitle, full-width "Lihat" button. Detail sheet unchanged. `EmptyState` for empty data. Export name preserved.
 
 ### Task 2 — Remove duplicate payment-link fallback
