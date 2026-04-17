@@ -48,6 +48,14 @@ The fix: when `DEMO_MODE=true`, check the demo cookie in `proxy.ts` before deleg
   - `lib/validations/student-attendance.ts` — added (referenced by student-attendance routes but was untracked)
   - `lib/auth.ts` — added `isAdminRole` export (referenced by guardian routes but was only in working tree)
 
+- CTO review fixes (post-merge review):
+  - `app/api/guardians/[id]/route.ts` — hardcoded `SCHOOL_ADMIN` → `isAdminRole()` in both PUT and PATCH handlers (allow SUPER_ADMIN); use `parsed.data` instead of raw `body` after Zod validation; restored PATCH entry in JSDoc (PATCH stayed because staging already has `StudentGuardian.status`)
+  - `app/api/student-attendance/[id]/route.ts` — hardcoded `SCHOOL_ADMIN` → `isAdminRole()` in both PUT and DELETE handlers
+
+- Rebase notes (CTO merge, 2026-04-18):
+  - Rebased onto `origin/staging`; two commits dropped: `7bee3ef` (duplicate of #49 admin audit) and `3a55ca4` (vitest `.worktrees` exclude already in #49)
+  - All conflicts in `app/api/guardians/[id]/route.ts`, `app/api/student-attendance/[id]/route.ts`, `app/api/students/[id]/guardians/[guardianId]/route.ts`, `lib/validations/guardian.ts`, `prisma/schema.prisma` resolved to staging — PR's "pre-existing build-blocker" removals were obsolete because staging now has `StudentGuardian.status` and the re-added files
+
 ## Verification
 
 - Build: `npm run build` — passed (Next.js 16.2.3 Turbopack, TypeScript type-check clean)
