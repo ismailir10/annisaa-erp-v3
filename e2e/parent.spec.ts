@@ -62,9 +62,9 @@ test.describe("Parent flows", () => {
     await page.waitForURL("**/parent/reports");
     // Use first() — "Laporan Perkembangan" appears in heading and in table rows
     await expect(page.locator("text=Laporan Perkembangan").first()).toBeVisible();
-    // Wait for DataTable to hydrate — uses literal <table> selector
+    // Wait for card list or empty state — DataTable replaced by card stack in Task 3
     await expect(
-      page.locator("text=Belum ada rapor").or(page.locator("table")).first()
+      page.locator("text=Belum ada rapor").or(page.locator("button:has-text('Lihat')")).first()
     ).toBeVisible({ timeout: 5_000 });
   });
 

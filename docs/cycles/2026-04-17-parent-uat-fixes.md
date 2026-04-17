@@ -94,7 +94,27 @@ UAT on 2026-04-17 (`docs/uat/reports/2026-04-17-parent.md`, persona Pak Budi, mo
 - `app/parent/invoices/invoice-detail-sheet.tsx`: collapsed `isPayable && (hasPaymentLink ? button : fallback-copy)` to `isPayable && hasPaymentLink && button`. The status banner already shows the "sedang disiapkan" message — no duplicate needed.
 
 ## Verification
-<!-- filled by /build -->
+
+### Between-task gates
+All passed. `npm run build && npx vitest run` green after each commit:
+- Task 1: 10 test files / 97 tests
+- Tasks 2–3: 10 test files / 97 tests
+- Task 4: 11 test files / 101 tests (4 new tests for `getTodayStudentAttendance`)
+- Task 5: no code change
+
+### End-of-cycle gate
+- `npm run build`: ✅ clean
+- `npx vitest run`: ✅ 11 files / 101 tests
+- `npx playwright test`: ✅ 25/25 (1 flaky transient failure on first run due to stale server; 25/25 clean on second run; also updated `e2e/parent.spec.ts` reports assertion from `<table>` to `button:has-text('Lihat')`)
+
+### Manual smoke (acceptance criteria)
+- [ ] Re-seed (`POST /api/admin/seed`) → open unpaid invoice in parent portal → "Bayar Sekarang" button renders _(to verify after seed)_
+- [ ] `/parent/reports` at 375px → zero horizontal scroll, "Lihat" button fully visible _(verified by Playwright)_
+- [ ] Home Kehadiran card shows "Belum dicatat" when no today record _(verified by unit test)_
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Migrations:** none — no schema changes.
+**New env vars:** none.
+**Seed:** run `POST /api/admin/seed` after deploy to populate `xenditPaymentUrl` on demo invoices. Existing production invoices are unaffected (bulk-gen path was always correct).
+**Rollback:** all changes are UI + seed-only. Rolling back via `git revert` is safe at any point.
