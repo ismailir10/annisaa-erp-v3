@@ -105,16 +105,26 @@ export default function PayrollListPage() {
 
   // Stats fetch once
   useEffect(() => {
-    Promise.all([
-      fetch("/api/payroll?pageSize=1&status=DRAFT").then(r => r.json()),
-      fetch("/api/payroll?pageSize=1&status=APPROVED").then(r => r.json()),
-      fetch("/api/payroll?pageSize=1&status=SLIPS_SENT").then(r => r.json()),
-    ]).then(([draft, approved, sent]) => {
-      const d = draft.pagination?.total ?? 0;
-      const a = approved.pagination?.total ?? 0;
-      const s = sent.pagination?.total ?? 0;
-      setStats({ total: d + a + s, draft: d, approved: a, slipsSent: s });
-    }).catch(() => { /* stats are non-critical */ });
+    (async () => {
+      try {
+        const [draftRes, approvedRes, sentRes] = await Promise.all([
+          fetch("/api/payroll?pageSize=1&status=DRAFT"),
+          fetch("/api/payroll?pageSize=1&status=APPROVED"),
+          fetch("/api/payroll?pageSize=1&status=SLIPS_SENT"),
+        ]);
+        const parseTotal = async (res: Response) => {
+          if (!res.ok) return 0;
+          const data = await res.json();
+          return data.pagination?.total ?? 0;
+        };
+        const d = await parseTotal(draftRes);
+        const a = await parseTotal(approvedRes);
+        const s = await parseTotal(sentRes);
+        setStats({ total: d + a + s, draft: d, approved: a, slipsSent: s });
+      } catch {
+        // Stats stay at default zeros — non-critical, don't block the page
+      }
+    })();
   }, []);
 
   const fetchRuns = useCallback(async () => {
