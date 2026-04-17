@@ -69,11 +69,30 @@ Ordered with smallest-blast-radius first so the blocker lands green quickly:
 
 ## Implementation
 
-<!-- filled by /build per task -->
+### Task 1 — Enrollment API + UI error surface (BLOCKER)
+- `app/api/students/[id]/enroll/route.ts`: Introduced `EnrollError` class extending `Error` with a `status` field. Transaction throws `EnrollError` instead of raw `Error`. Outer try/catch maps `EnrollError` to its status (400/404), unknown errors to 500. All paths return `NextResponse.json({ error })`.
+- `app/admin/students/[id]/page.tsx`: `handleEnroll()` wrapped in try/catch/finally. Network errors get `toast.error("Terjadi kesalahan jaringan")`. Non-2xx responses parse JSON safely via `.catch(() => ({}))`. `setEnrolling(false)` in `finally` — button never stuck.
+- `app/api/__tests__/enroll.test.ts`: 3 tests — duplicate enrollment → 400, full class → 400, success → 201.
+
+### Task 2 — Stat-card investigation
+Root cause analysis (static code review — no runtime reproduction available):
+1. **Dashboard `session.tenantId!` non-null assertion** (`app/admin/page.tsx:34`). If tenantId is null (possible for SUPER_ADMIN), the `getEmployeeCount` cached function and all other queries either return wrong data or throw. Added explicit null guard + redirect.
+2. **Dashboard attendance queries missing tenantId filter**. The `todayAttendance` and `weeklyTrendRaw` groupBy queries had no `tenantId` filter — they returned cross-tenant counts. Added `employee: { tenantId }` filter.
+3. **Payroll stat fetch `.catch(() => {})`** (`app/admin/payroll/page.tsx:117`). Violated CLAUDE.md error handling standard. The fetch chain also didn't check `res.ok` before calling `.json()`, so 403 responses were parsed as `{ error: "Forbidden" }` with undefined `pagination`.
+
+### Task 3 — Stat-card fixes
+- `app/admin/page.tsx`: Added `if (!session.tenantId) redirect("/")` guard. Replaced all `session.tenantId!` with const `tenantId = session.tenantId` (guaranteed non-null after guard). Added tenantId filter to all attendance queries.
+- `app/admin/payroll/page.tsx`: Replaced chained `.then().catch(() => {})` with async/await + `!res.ok` check per CLAUDE.md standard. Each response is checked before parsing; non-2xx returns 0 for that stat.
 
 ## Verification
 
-<!-- filled by /build -->
+### Task 1
+- `npm run build && npx vitest run` — all 93 tests pass, build succeeds.
+- Enrollment test file covers 3 scenarios: duplicate (400), full class (400), success (201).
+
+### Task 2-3
+- `npm run build && npx vitest run` — all 93 tests pass, build succeeds.
+- No runtime reproduction — fixes address static code issues: null safety, tenant isolation, error handling compliance.
 
 ## Ship Notes
 
