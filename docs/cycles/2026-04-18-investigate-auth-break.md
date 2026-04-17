@@ -113,3 +113,20 @@ Helper lives in `lib/` not the route file so the test doesn't transitively pull 
 - **Manual smoke on preview URL after `/ship`:** open the deployed preview, complete OTP login as `ismailir10@gmail.com`, confirm the browser lands on `/admin` and stays there (not bouncing to `/`). Expected: one `/auth/callback → 307` followed by one `/admin → 200` in Vercel runtime logs, no loop.
 - **End-of-cycle Playwright:** `e2e/` suite uses demo-mode cookies, which don't exercise the Supabase callback path — so it won't regress-test this fix directly. Running it anyway as the standard gate; the real verification is the manual smoke above.
 - **Follow-up worth considering (not in this cycle):** `lib/supabase/middleware.ts` still redirects unauthenticated `/api/*` requests with a 307 to `/` instead of JSON 401. Clients expecting JSON get HTML. Separate cycle.
+
+## Follow-up (PR #58 merged but user still reporting loop)
+
+Merged #58 at 17:28 UTC; user retried Google sign-in at 17:30 and 17:32 — both still looped `/auth/callback → /admin → /`. The `x-forwarded-host` fix was **not sufficient on its own**. First hypothesis was wrong or incomplete.
+
+**Revised hypothesis:** cookies written by the Supabase client via `cookies().set()` (ambient `next/headers` cookie store) are not being attached to the `NextResponse.redirect(...)` response that the route handler returns. The Set-Cookie headers never reach the browser, so the next `/admin` request has no session.
+
+**What shipped (commit TBD on follow-up branch):**
+1. **Refactored callback** to capture cookies via `setAll` into a local `pending[]` list, then explicitly apply them to each redirect response via `res.cookies.set(name, value, options)`. Replaces reliance on ambient cookie propagation. Matches the Remix SSR pattern from Supabase docs adapted for Next.js `NextResponse`.
+2. **Temporary diagnostic logging** (`[AUTH-DBG]` prefix) in both the callback (setAll count + cookie names + redirect path + base origin) and `lib/supabase/middleware.ts` (incoming `sb-*` cookie names + `getUser` result). To be removed in the next cycle once root cause is confirmed.
+
+**Verification plan:** after deploy, user attempts Google sign-in once. Pull Vercel runtime logs. Expected success signal:
+- `[AUTH-DBG] callback setAll: N cookies — sb-...` with N ≥ 1
+- `[AUTH-DBG] callback redirect: path=/admin base=https://<host> attached=N`
+- `[AUTH-DBG] middleware /admin: user=ismailir10@gmail.com sb-cookies=[sb-...,...]`
+
+If middleware still logs `user=null` despite cookies being present, the bug is not cookie persistence — it's Supabase JWT validation. Different fix path.
