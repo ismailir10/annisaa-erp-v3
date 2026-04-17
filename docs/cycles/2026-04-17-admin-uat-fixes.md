@@ -72,7 +72,7 @@ Ordered with smallest-blast-radius first so the blocker lands green quickly:
 ### Task 1 — Enrollment API + UI error surface (BLOCKER)
 - `app/api/students/[id]/enroll/route.ts`: Introduced `EnrollError` class extending `Error` with a `status` field. Transaction throws `EnrollError` instead of raw `Error`. Outer try/catch maps `EnrollError` to its status (400/404), unknown errors to 500. All paths return `NextResponse.json({ error })`.
 - `app/admin/students/[id]/page.tsx`: `handleEnroll()` wrapped in try/catch/finally. Network errors get `toast.error("Terjadi kesalahan jaringan")`. Non-2xx responses parse JSON safely via `.catch(() => ({}))`. `setEnrolling(false)` in `finally` — button never stuck.
-- `app/api/__tests__/enroll.test.ts`: 3 tests — duplicate enrollment → 400, full class → 400, success → 201.
+- `app/api/__tests__/enroll.test.ts`: 3 tests — duplicate enrollment → 400, full class → 400, success → 201. Fixed TS errors: `(prisma.$transaction as any)` cast, `BigInt()` instead of `10n`/`3n` literals.
 
 ### Task 2 — Stat-card investigation
 Root cause analysis (static code review — no runtime reproduction available):
