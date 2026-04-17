@@ -45,6 +45,8 @@ The fix: when `DEMO_MODE=true`, check the demo cookie in `proxy.ts` before deleg
   - `prisma/schema.prisma` — added `isVoided Boolean @default(false)` to StudentAttendance model (was referenced in code but missing from schema)
   - `app/api/student-attendance/[id]/route.ts` — restored DELETE handler now that isVoided exists in schema
   - `lib/validations/guardian.ts` — removed unused `toggleGuardianStatusSchema`
+  - `lib/validations/student-attendance.ts` — added (referenced by student-attendance routes but was untracked)
+  - `lib/auth.ts` — added `isAdminRole` export (referenced by guardian routes but was only in working tree)
 
 ## Verification
 
