@@ -11,7 +11,7 @@ You are shipping a completed cycle. `/build` has finished all tasks and filled `
 ## Preflight
 
 1. **Session role set?** Read `.claude/session-role`. Extract `role=` and `model=`. If missing, stop.
-2. **Worktree isolation?** If `role=product-builder` and you are in the main checkout (git-dir == git-common-dir), stop. You should have been working in a worktree from the start of the cycle.
+2. **Worktree isolation?** Every session MUST work in a worktree. If you are in the main checkout (git-dir == git-common-dir), stop — you should have been in a worktree since `/spec`. Ask the user whether to continue in a fresh worktree (unusual mid-cycle) or abort.
 3. **Hooks installed?** Check `.githooks/.installed`.
 4. **Working tree clean?** If not, abort and tell the user to commit or stash.
 5. **Cycle doc complete?** Find the most recent `docs/cycles/*.md`. Verify:

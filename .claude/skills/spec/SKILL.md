@@ -13,13 +13,12 @@ You are starting a new development cycle. This command produces **one** artifact
 Run these checks first. If any fails, stop and surface the error.
 
 1. **Session role set?** Read `.claude/session-role`. If missing, stop and use `AskUserQuestion` to ask the user whether this session is `cto` or `product-builder` — include your own model name in the question. Write the file. Do not proceed until it exists.
-2. **Worktree isolation?** If `role=product-builder`, verify you are in a git worktree (not the main checkout). Check: `git rev-parse --git-dir` must differ from `git rev-parse --git-common-dir`. If you are in the main checkout, stop and tell the user to create a worktree:
-   ```
-   git worktree add .worktrees/<slug> -b feat/<slug>
-   cd .worktrees/<slug>
-   ./scripts/install-hooks.sh
-   ```
-   Claude Code sessions can use the `EnterWorktree` tool instead. `cto` sessions work in the main checkout — no worktree needed.
+2. **Worktree isolation?** Every session — regardless of role — MUST work in a git worktree, not the main checkout. Check: `git rev-parse --git-dir` must differ from `git rev-parse --git-common-dir`. If you are in the main checkout, do NOT ask the user to run commands — set the worktree up yourself:
+   1. Derive a kebab-case slug from the user's request (2–4 words).
+   2. Run `bash scripts/setup-worktree.sh <slug>` via the Bash tool. The script branches from `origin/staging`, symlinks `.env` and `node_modules`, and installs hooks.
+   3. Use the `EnterWorktree` tool with `path=.worktrees/<slug>` to move into it.
+   4. Rewrite `.claude/session-role` inside the worktree with your actual model ID.
+   5. Then proceed with the user's original request. The user should never have to touch worktree setup.
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh` first.
 4. **Branch hygiene?** Run `git branch --show-current` and `git status --porcelain`.
    - **On `staging` or `main` with a dirty tree:** stop and print a clear error: *"You're on <branch> with uncommitted changes. Stash or resolve them first: `git stash -m 'description'`."* Do not proceed.
