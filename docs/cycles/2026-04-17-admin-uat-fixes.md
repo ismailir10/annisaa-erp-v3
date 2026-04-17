@@ -84,6 +84,9 @@ Root cause analysis (static code review — no runtime reproduction available):
 - `app/admin/page.tsx`: Added `if (!session.tenantId) redirect("/")` guard. Replaced all `session.tenantId!` with const `tenantId = session.tenantId` (guaranteed non-null after guard). Added tenantId filter to all attendance queries.
 - `app/admin/payroll/page.tsx`: Replaced chained `.then().catch(() => {})` with async/await + `!res.ok` check per CLAUDE.md standard. Each response is checked before parsing; non-2xx returns 0 for that stat.
 
+### Task 4 — Leave table actions to dropdown
+- `app/admin/leave/page.tsx`: Replaced inline "Setuju"/"Tolak" buttons with `<DataTableRowActions>` component using `extraActions` prop. "Lihat" button opens a view-only detail dialog (new `viewOnly` state). Non-PENDING rows show only "Lihat"; PENDING rows show "Setujui" and "Tolak" in the ⋮ dropdown. Also fixed the stat fetch `.catch(() => {})` to use async/await with `res.ok` check.
+
 ## Verification
 
 ### Task 1
@@ -93,6 +96,10 @@ Root cause analysis (static code review — no runtime reproduction available):
 ### Task 2-3
 - `npm run build && npx vitest run` — all 93 tests pass, build succeeds.
 - No runtime reproduction — fixes address static code issues: null safety, tenant isolation, error handling compliance.
+
+### Task 4
+- `npm run build && npx vitest run` — all 93 tests pass, build succeeds.
+- Action column now uses DataTableRowActions — no inline buttons to clip at narrow viewports.
 
 ## Ship Notes
 
