@@ -74,7 +74,13 @@ UAT on 2026-04-17 (`docs/uat/reports/2026-04-17-parent.md`, persona Pak Budi, mo
   _Acceptance: 25/25 Playwright tests green; all vitest green; cycle doc Verification + Ship Notes filled._
 
 ## Implementation
-<!-- filled by /build -->
+
+### Task 1 — Seed xenditPaymentUrl (commit f54e7a0)
+- `app/api/admin/seed/route.ts`: added `needsPaymentLink` check; sets deterministic `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` for SENT/PARTIALLY_PAID invoices.
+- `app/api/__tests__/seed-invoice-url.test.ts`: 7 unit tests covering all invoice statuses.
+
+### Task 2 — Remove duplicate payment-link fallback (this commit)
+- `app/parent/invoices/invoice-detail-sheet.tsx`: collapsed `isPayable && (hasPaymentLink ? button : fallback-copy)` to `isPayable && hasPaymentLink && button`. The status banner already shows the "sedang disiapkan" message — no duplicate needed.
 
 ## Verification
 <!-- filled by /build -->
