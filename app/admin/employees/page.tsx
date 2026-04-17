@@ -162,7 +162,7 @@ export default function EmployeesPage() {
     fetch("/api/config/campuses")
       .then((r) => r.json())
       .then((c) => setCampuses(Array.isArray(c) ? c : []))
-      .catch(() => { /* stats are non-critical */ });
+      .catch((err) => console.error("[employees] campuses fetch failed", err));
     // Quick stats — fetch all with minimal data
     Promise.all([
       fetch("/api/employees?pageSize=1&status=ACTIVE").then(r => r.json()),
@@ -171,7 +171,7 @@ export default function EmployeesPage() {
       const a = active.pagination?.total ?? 0;
       const i = inactive.pagination?.total ?? 0;
       setStats({ total: a + i, active: a, inactive: i });
-    }).catch(() => { /* stats are non-critical */ });
+    }).catch((err) => console.error("[employees] stats fetch failed", err));
   }, []);
 
   const fetchEmployees = useCallback(async () => {

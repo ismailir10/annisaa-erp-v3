@@ -91,7 +91,7 @@ export default function AdminLeavePage() {
       const a = approved.pagination?.total ?? 0;
       const r = rejected.pagination?.total ?? 0;
       setStats({ total: p + a + r, pending: p, approved: a, rejected: r });
-    }).catch(() => { /* stats are non-critical */ });
+    }).catch((err) => console.error("[leave] stats fetch failed", err));
   }, []);
 
   // Review dialog
@@ -220,7 +220,7 @@ export default function AdminLeavePage() {
               <span className="text-xs font-medium">{r.days} hari</span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {r.startDate} — {r.endDate}
+              {formatDateShort(r.startDate)} — {formatDateShort(r.endDate)}
             </p>
           </div>
         );
@@ -353,8 +353,8 @@ export default function AdminLeavePage() {
           <div className="py-2 space-y-3">
             <div className="text-sm">
               <p>
-                <strong>Tanggal:</strong> {reviewTarget?.startDate} —{" "}
-                {reviewTarget?.endDate}
+                <strong>Tanggal:</strong> {reviewTarget?.startDate ? formatDateShort(reviewTarget.startDate) : ""} —{" "}
+                {reviewTarget?.endDate ? formatDateShort(reviewTarget.endDate) : ""}
               </p>
               <p>
                 <strong>Alasan:</strong> {reviewTarget?.reason}

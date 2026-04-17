@@ -210,7 +210,7 @@ export default function StudentsPage() {
       const e = enrolled.pagination?.total ?? 0;
       const g = graduated.pagination?.total ?? 0;
       setStats({ total: a + e + g, active: a, enrolled: e, graduated: g });
-    }).catch(() => { /* stats are non-critical */ });
+    }).catch((err) => console.error("[students] stats fetch failed", err));
   }, []);
 
   const fetchStudents = useCallback(async () => {

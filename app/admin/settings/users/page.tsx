@@ -193,7 +193,7 @@ export default function UsersPage() {
     fetch("/api/roles")
       .then((r) => r.json())
       .then((json) => setRoles(json.data ?? []))
-      .catch(() => { /* non-critical */ });
+      .catch((err) => console.error("[users] roles fetch failed", err));
   }, []);
 
   // Stats fetch
@@ -223,7 +223,7 @@ export default function UsersPage() {
           inactive: i,
         });
       })
-      .catch(() => { /* non-critical */ });
+      .catch((err) => console.error("[users] stats fetch failed", err));
   }, []);
 
   const fetchUsers = useCallback(async () => {

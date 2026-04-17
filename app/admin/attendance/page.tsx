@@ -15,6 +15,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Download } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
+import { toast } from "sonner";
 
 type EmployeeAttendance = {
   employee: { id: string; kode: string; nama: string; jabatan: string; campusName: string };
@@ -44,14 +45,23 @@ export default function AttendancePage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ date, campusId });
-    const [attRes, campRes] = await Promise.all([
-      fetch(`/api/attendance/today?${params}`),
-      fetch("/api/config/campuses"),
-    ]);
-    setData(await attRes.json());
-    setCampuses(await campRes.json());
-    setLoading(false);
+    try {
+      const params = new URLSearchParams({ date, campusId });
+      const [attRes, campRes] = await Promise.all([
+        fetch(`/api/attendance/today?${params}`),
+        fetch("/api/config/campuses"),
+      ]);
+      if (!attRes.ok || !campRes.ok) {
+        toast.error("Gagal memuat data kehadiran");
+        return;
+      }
+      setData(await attRes.json());
+      setCampuses(await campRes.json());
+    } catch {
+      toast.error("Gagal memuat data kehadiran");
+    } finally {
+      setLoading(false);
+    }
   }, [date, campusId]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
