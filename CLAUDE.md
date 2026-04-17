@@ -61,9 +61,9 @@ The upstream `agent-skills` plugin (addyosmani/agent-skills) remains installed �
 - After the **last task**: run the **end-of-cycle gate** before committing (see below)
 - Fill Ship Notes in the cycle doc
 
-**`/ship`** — create a PR from the feature branch to `staging` and auto-merge it once CI is green. **Both `cto` and `product-builder` use this same flow — no direct pushes to `staging` or `main` for anyone.**
-- `/ship` → PR feat/* → staging, auto-merged when CI passes
-- `/ship --to-main` → PR staging → main, auto-merged when CI passes (explicit ask only; CTO-initiated)
+**`/ship`** — create a PR from the feature branch to `staging` and hand off a two-command merge instruction to the user. `/ship` opens the PR and stops; the user watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all four checks are green. **Both `cto` and `product-builder` use this same flow — no direct pushes to `staging` or `main` for anyone.**
+- `/ship` → PR feat/* → staging, merged manually by the author when CI is green
+- `/ship --to-main` → PR staging → main, merged manually by the CTO when CI is green (explicit ask only; CTO-initiated)
 
 Playwright must have passed (recorded in the cycle doc Verification section) before running `/ship`.
 
@@ -186,7 +186,7 @@ test          # npx vitest run
 e2e           # npx playwright test (production server)
 ```
 
-The `/ship` auto-merge only proceeds when all CI checks pass. Without these checks configured, the "auto-merge on green" model has no enforcement.
+`/ship` opens the PR and stops — the author merges manually after confirming all four checks are green. (Note: branch protection, required status checks, and "Allow auto-merge" require GitHub Pro and are **not active** on this repo today. The settings above are the aspirational target for when the repo moves to Pro. On the free plan, the only real safety net is the `pre-push` hook blocking direct pushes to `staging`/`main` plus the CTO's discipline to wait for green CI before clicking merge.)
 
 **staging → main cadence:** After every 2-4 merged cycles on staging (or when the user says "ship to prod"), CTO runs `/ship --to-main` to create the staging → main PR. CTO reviews and merges after CI passes.
 
@@ -622,4 +622,4 @@ All use demo-mode auth — no live Supabase or env vars required to run locally.
 | `docs/uat/jobs/*.md` | Per-portal Jobs-to-be-Done library — maintained by `/build` when user-facing capability changes | Each cycle that touches portal UX |
 | `docs/uat/reports/*.md` | UAT reports (gitignored) — produced by `/uat`, consumed by `/spec` | On demand |
 
-**Last updated:** 2026-04-17 (CI hardening — seed drift hook, empty state contract, worktree for all roles)
+**Last updated:** 2026-04-18 (/ship switched to manual-merge-on-green — GitHub free plan does not support branch protection or auto-merge)
