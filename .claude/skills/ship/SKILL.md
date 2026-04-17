@@ -1,17 +1,19 @@
 ---
 name: ship
-description: Ship a completed cycle via PR. All roles open a PR from feat/* → staging and let CI auto-merge on green. Never pushes directly to staging or main. Supports `/ship --to-main` for CTO-initiated staging → main promotion. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
+description: Ship a completed cycle via PR. All roles open a PR from feat/* → staging and print a two-command hand-off so the user can watch CI and merge manually when green. Never pushes directly to staging or main. Supports `/ship --to-main` for CTO-initiated staging → main promotion. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
 disable-model-invocation: true
 ---
 
-# /ship — open a PR, let CI auto-merge
+# /ship — open a PR, hand off to the user for manual merge
 
-You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR and enables auto-merge — GitHub merges it when required CI checks pass. No direct pushes to `staging` or `main`, ever — the `pre-push` hook would reject them and so would branch protection.
+You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR and stops — the user watches CI and merges manually when all checks are green. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
+
+> **Why manual merge:** this repo is private on GitHub's free plan, which does not support branch protection or "Allow auto-merge" (the API returns `403 Upgrade to GitHub Pro`). Server-side enforcement is therefore unavailable — see the Rules section for the enforcement-gap note. If the repo ever moves to Pro, revisit this skill to restore auto-merge.
 
 ## Invocation modes
 
-- `/ship` — default. Opens PR `feat/<cycle>` → `staging`, enables auto-merge. All roles.
-- `/ship --to-main` — CTO-initiated staging → main promotion. Opens PR `staging` → `main`, enables auto-merge. Only runs when `role=cto`; refuse otherwise with a one-line error. Use after 2–4 cycles have accumulated on staging, or when the user explicitly says "ship to prod".
+- `/ship` — default. Opens PR `feat/<cycle>` → `staging`, then prints a two-command hand-off. All roles.
+- `/ship --to-main` — CTO-initiated staging → main promotion. Opens PR `staging` → `main`, then prints a two-command hand-off. Only runs when `role=cto`; refuse otherwise with a one-line error. Use after 2–4 cycles have accumulated on staging, or when the user explicitly says "ship to prod".
 
 If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** section below instead of the default Step 2.
 
@@ -48,7 +50,7 @@ If any of the three fails, stop and hand back to the user. Do not open a PR on a
 
 ## Step 2: Open the PR (same flow for every role)
 
-Every role opens a PR from `feat/*` → `staging`. Auto-merge is enabled so the PR merges itself when the four required CI checks (`build`, `typecheck`, `test`, `e2e`) go green.
+Every role opens a PR from `feat/*` → `staging`, then hands off to the user. The user watches CI and merges manually when all four checks (`build`, `typecheck`, `test`, `e2e`) are green.
 
 1. Ensure you are on a feature branch. If somehow on `staging`, create one from HEAD:
    ```bash
@@ -65,13 +67,13 @@ Every role opens a PR from `feat/*` → `staging`. Auto-merge is enabled so the 
    git push -u origin "$FEAT_BRANCH"
    ```
 
-3. Open the PR to `staging`:
+3. Open the PR to `staging` and capture its number:
    ```bash
    CYCLE_FILE=$(ls -t docs/cycles/*.md | head -1)
    CYCLE_TITLE=$(head -1 "$CYCLE_FILE" | sed 's/^# *//')
    MODEL=$(grep '^model=' .claude/session-role | cut -d= -f2-)
    ROLE=$(grep '^role=' .claude/session-role | cut -d= -f2-)
-   gh pr create \
+   PR_URL=$(gh pr create \
      --base staging \
      --head "$FEAT_BRANCH" \
      --title "[$MODEL] $CYCLE_TITLE" \
@@ -87,16 +89,23 @@ Role: $ROLE
 Model: $MODEL
 BODY
 )" \
-     --label "model:$MODEL"
+     --label "model:$MODEL")
+   PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
    ```
 
-4. Enable auto-merge so it merges when CI is green:
-   ```bash
-   gh pr merge --auto --squash --delete-branch
+4. **Stop and hand off to the user.** Do not invoke `gh pr merge`. Print the PR URL followed by exactly these two commands, with the real PR number substituted:
    ```
-   If `gh` reports auto-merge is not enabled on the repo, stop and tell the user to enable it in repo settings (Settings → General → Pull Requests → Allow auto-merge). Do not fall back to a direct push.
+   PR opened: $PR_URL
 
-5. Return the PR URL to the user and print: *"PR opened with auto-merge. It will squash-merge when all required checks pass. Staging auto-deploys to the Vercel preview within ~60s of merge."*
+   Watch CI live:
+     gh pr checks $PR_NUMBER --watch
+
+   Merge when all four checks (build, typecheck, test, e2e) are green:
+     gh pr merge $PR_NUMBER --squash --delete-branch
+
+   Staging auto-deploys to the Vercel preview within ~60s of merge.
+   ```
+   Exit after printing. The user is responsible for waiting for green and running the merge command themselves.
 
 ## Step 2 (--to-main): promote staging → main
 
@@ -123,10 +132,10 @@ Only runs when the user invoked `/ship --to-main`. Skip the default Step 2 entir
    ```
    Fall back to `git log --format='- %s' origin/main..origin/staging` if no cycle files are referenced.
 
-4. **Open the PR staging → main:**
+4. **Open the PR staging → main and capture its number:**
    ```bash
    MODEL=$(grep '^model=' .claude/session-role | cut -d= -f2-)
-   gh pr create \
+   PR_URL=$(gh pr create \
      --base main \
      --head staging \
      --title "[$MODEL] Promote staging → main ($AHEAD commits)" \
@@ -142,29 +151,35 @@ $(git log --format='- %s' origin/main..origin/staging)
 BODY
 )" \
      --label "model:$MODEL" \
-     --label "promotion"
+     --label "promotion")
+   PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
    ```
 
-5. **Enable auto-merge:**
-   ```bash
-   gh pr merge --auto --squash
+5. **Stop and hand off to the user.** Do not invoke `gh pr merge`. Print the PR URL followed by exactly these two commands, with the real PR number substituted. Note: no `--delete-branch` — `staging` is a permanent branch.
    ```
-   Note: no `--delete-branch` — `staging` is a permanent branch.
+   staging → main PR opened: $PR_URL
 
-6. Return the PR URL and print: *"staging → main PR opened with auto-merge. Will merge when CI passes. Watch `gh pr checks <number>` for status."* Do not proceed past Step 2.
+   Watch CI live:
+     gh pr checks $PR_NUMBER --watch
+
+   Merge when all four checks (build, typecheck, test, e2e) are green:
+     gh pr merge $PR_NUMBER --squash
+   ```
+   Exit after printing. Do not proceed past Step 2. The CTO is responsible for waiting for green and running the merge command themselves.
 
 ## Step 3: Post-ship checklist
 
 Print (don't execute — just remind the user):
 
-- [ ] PR auto-merges when CI passes — watch `gh pr checks <number>` if you want live status
+- [ ] Wait for all four CI checks green via `gh pr checks <number> --watch`, then run `gh pr merge <number> --squash --delete-branch` yourself
 - [ ] Once merged, check the Vercel preview deploy on staging succeeded
 - [ ] Smoke-test the feature on the preview URL (follow `## Ship Notes` instructions)
 - [ ] Staging → main promotion is a separate `/ship --to-main` call, CTO-initiated
 
 ## Rules
 
-- **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook and GitHub branch protection both reject them. All shipping is PR-based.
-- **Never bypass hooks** (`--no-verify`). GitHub branch protection would reject it anyway.
-- **Auto-merge is the contract.** Don't manually merge the PR. Let CI gate it.
+- **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them — that hook is the only real safety net on this plan (see next bullet). All shipping is PR-based.
+- **Never bypass hooks** (`--no-verify`).
+- **Merge manually when CI is green.** `/ship` opens the PR and stops. You watch `gh pr checks <number> --watch`, wait for all four checks (build, typecheck, test, e2e) to pass, then run `gh pr merge <number> --squash --delete-branch` yourself. Do not merge a PR with red or pending checks — there is no server-side gate to catch that mistake.
+- **Zero server-side enforcement on this plan.** This repo is private on GitHub free, which disables branch protection, required status checks, and "Allow auto-merge" (the API returns `403 Upgrade to GitHub Pro`). That means the only things preventing a broken merge are (a) the `pre-push` hook blocking direct pushes to `staging`/`main`, and (b) the CTO's discipline to wait for green CI before clicking merge. If the repo moves to GitHub Pro, revisit this skill to restore `gh pr merge --auto` and wire up required status checks.
 - **Single source of truth.** Don't update README.md or CLAUDE.md in `/ship` — that's `/build`'s job via the cycle doc. `/ship` only moves bits, it doesn't author docs.
