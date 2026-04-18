@@ -32,16 +32,6 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/teacher") || pathname.startsWith("/parent")) {
-    const sbCookies = request.cookies
-      .getAll()
-      .filter((c) => c.name.startsWith("sb-"))
-      .map((c) => c.name);
-    console.log(
-      `[AUTH-DBG] middleware ${pathname}: user=${user?.email ?? "null"} sb-cookies=[${sbCookies.join(",")}]`
-    );
-  }
-
   // Public routes
   if (
     pathname === "/" ||
