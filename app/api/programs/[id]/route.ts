@@ -27,7 +27,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       type: body.type,
       ageMin: body.ageMin,
       ageMax: body.ageMax,
-      isActive: body.isActive,
+      status: body.status,
     },
   });
   return NextResponse.json(program);

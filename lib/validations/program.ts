@@ -15,6 +15,5 @@ export const updateProgramSchema = z.object({
   type: z.enum(["SEMESTER", "YEARLY"]).optional(),
   ageMin: z.number().int().min(0).max(30).optional().nullable(),
   ageMax: z.number().int().min(0).max(30).optional().nullable(),
-  isActive: z.boolean().optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });

@@ -346,7 +346,7 @@ model Program {
   type        String  // SEMESTER | YEAR_ROUND | SESSION
   ageMin      Int?    // Minimum age in months
   ageMax      Int?    // Maximum age in months
-  isActive    Boolean @default(true)
+  status      String  @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
   classSections       ClassSection[]
