@@ -1,6 +1,6 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-04-17 in cycle `parent-uat-fixes`
+> Last audited: 2026-04-18 in cycle `fix-parent-payment-backfill`
 > Portal root: `app/parent/`
 > Default persona: Pak Budi (see `.claude/personas/pak-budi.md`)
 
@@ -22,7 +22,7 @@ This file is the living catalog of what a parent user can and should be able to 
   4. Reach a confirmation state they can trust — amount, reference number, visible success
 - **Done when:** User sees a clear success state with amount + reference. If Xendit redirect is involved, the redirect back to the portal shows the invoice as `PAID` or `PENDING_CONFIRMATION`.
 - **Why this job matters:** Pak Budi's #1 priority. If this is slow or confusing, he stops trusting the whole ERP.
-- **Known friction:** BLOCKER resolved 2026-04-17 (cycle `parent-uat-fixes`): demo invoices lacked `xenditPaymentUrl`; seed now populates deterministic placeholder. Duplicate "sedang disiapkan" message also removed.
+- **Known friction:** BLOCKER resolved 2026-04-17 (cycle `parent-uat-fixes`): demo invoices lacked `xenditPaymentUrl`; seed now populates deterministic placeholder. Duplicate "sedang disiapkan" message also removed. BACKFILL resolved 2026-04-18 (cycle `fix-parent-payment-backfill`): seed idempotency guard now patches existing null-URL SENT/PARTIALLY_PAID/OVERDUE rows on re-run; previously skipped them unconditionally.
 
 ---
 
@@ -52,7 +52,7 @@ This file is the living catalog of what a parent user can and should be able to 
   3. Open the most recent report card and see scores/assessments
 - **Done when:** User reaches the published report card. If there is no report yet, the empty state explains when it will be available (not a blank page).
 - **Why this job matters:** Low frequency (once per quarter) but high emotional weight. Pak Budi wants to read it without being a power user.
-- **Known friction:** MAJOR resolved 2026-04-17 (cycle `parent-uat-fixes`): replaced 5-col DataTable with mobile card stack; "Lihat" button now fully visible at 375px.
+- **Known friction:** MAJOR resolved 2026-04-17 (cycle `parent-uat-fixes`): replaced 5-col DataTable with mobile card stack; "Lihat" button now fully visible at 375px. BLOCKER (timing) resolved 2026-04-18 (cycle `fix-parent-payment-backfill`): list query now uses `select` with only list-level fields; categories/indicators/scores lazy-loaded via `/api/guardian/assessments/[id]` on sheet open. Page load reduced from 5.3s to expected sub-2s.
 
 ---
 
