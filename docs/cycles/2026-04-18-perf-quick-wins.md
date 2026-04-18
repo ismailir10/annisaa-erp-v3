@@ -86,10 +86,50 @@ pooler (port 6543). No env change needed.
 - Supabase `auth.getUser()` still runs on every call — only the Prisma
   round-trip is collapsed.
 
+### Task 3 — Student create N+1 + slim list `include`
+
+- `app/api/students/route.ts`:
+  - GET: `parent: true` narrowed to `parent: { select: { name: true, phone: true } }`
+    on the primary-guardian include. List page only renders these fields.
+  - POST: replaced the sequential `for` loop over `body.guardians` with a
+    `Promise.all` over upserts/creates, then a single
+    `prisma.studentGuardian.createMany` for the join rows. Two guardians
+    (typical) drops from 4 sequential round-trips to 2 parallel + 1.
+
 ## Verification
 
-_(filled by /build — between-task gate per task, end-of-cycle gate after task 3)_
+| Gate                       | Command                                              | Result |
+|----------------------------|------------------------------------------------------|--------|
+| Task 1 between-task        | `npm run build && npx vitest run`                    | ✅ build ok, 116/116 |
+| Task 2 between-task        | `npm run build && npx vitest run`                    | ✅ build ok, 116/116 |
+| Task 3 between-task        | `npm run build && npx vitest run`                    | ✅ build ok, 116/116 |
+| End-of-cycle (Playwright)  | `npx playwright test`                                | ✅ 25/25 in 25.6 s |
+
+Manual smoke not required — changes are server-side only and exercised by
+the Playwright suite (admin students list/create flow, parent dashboard
+fetches, teacher session checks all hit the modified code paths).
 
 ## Ship Notes
 
-_(filled by /ship — migration apply order, rollback, env vars)_
+**Migration to apply:** `20260418000000_add_residual_fk_indexes`
+- Two `CREATE INDEX IF NOT EXISTS` statements. PostgreSQL holds a SHARE
+  lock on the table during a non-CONCURRENT `CREATE INDEX` — fine on
+  staging with no traffic, but for production consider running the same
+  SQL with `CREATE INDEX CONCURRENTLY` manually and then marking the
+  migration applied if the live tables are large enough to matter.
+- `TeachingAssignment` and `InvoiceLine` are both small in the current
+  tenant (≪ 10k rows), so the lock window is sub-second. Safe to ship via
+  the standard Prisma migrate flow.
+
+**Env vars:** none added.
+
+**Rollback:** `DROP INDEX "TeachingAssignment_classSectionId_idx";` and
+`DROP INDEX "InvoiceLine_feeComponentId_idx";`. The session cache is
+purely additive — to disable, revert `lib/auth.ts`. The student-create
+refactor is functionally equivalent to the original loop; revert
+`app/api/students/route.ts` if a regression appears.
+
+**Post-deploy check:** after staging deploys, hit `/admin/students` once
+and watch for the request-coalescing benefit on the second page load
+(session cache hit). Re-run `/uat parent/reports` and `/uat admin/payroll`
+in a follow-up cycle to confirm the warm-load numbers improve.
