@@ -238,8 +238,23 @@ export async function POST(req: NextRequest) {
     // Check if this invoice already exists
     const existingInvoice = await prisma.invoice.findFirst({
       where: { tenantId, invoiceNumber },
+      select: { id: true, status: true, xenditPaymentUrl: true },
     });
-    if (existingInvoice) { invoiceCount++; continue; }
+    if (existingInvoice) {
+      // Backfill: patch null-URL payable invoices that were seeded before the URL fix shipped
+      const backfillStatuses = ["SENT", "PARTIALLY_PAID", "OVERDUE"] as const;
+      if (
+        existingInvoice.xenditPaymentUrl === null &&
+        (backfillStatuses as readonly string[]).includes(existingInvoice.status)
+      ) {
+        await prisma.invoice.update({
+          where: { id: existingInvoice.id },
+          data: { xenditPaymentUrl: `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` },
+        });
+      }
+      invoiceCount++;
+      continue;
+    }
 
     // Vary statuses across the batch
     const statuses = ["PAID", "PAID", "PAID", "PARTIALLY_PAID", "PARTIALLY_PAID", "SENT", "SENT", "SENT", "DRAFT", "DRAFT"] as const;
