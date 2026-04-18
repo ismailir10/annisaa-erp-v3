@@ -70,7 +70,21 @@ pooler (port 6543). No env change needed.
 
 ## Implementation
 
-_(filled by /build)_
+### Task 1 — FK indexes (commit 541c4c6)
+
+- `prisma/schema.prisma` — added `@@index([classSectionId])` to
+  `TeachingAssignment` and `@@index([feeComponentId])` to `InvoiceLine`.
+- `prisma/migrations/20260418000000_add_residual_fk_indexes/migration.sql` —
+  `CREATE INDEX IF NOT EXISTS` for both columns. Non-blocking, safe online.
+
+### Task 2 — Session user cache
+
+- `lib/auth.ts` — added module-level `Map<email, { user, expiresAt }>` with
+  60 s TTL. `getSession()` checks cache before `prisma.user.findUnique`. The
+  cache is refreshed on user auto-create and on every `lastLoginAt` bump so
+  the cached row never lags writes the same request just made.
+- Supabase `auth.getUser()` still runs on every call — only the Prisma
+  round-trip is collapsed.
 
 ## Verification
 
