@@ -165,6 +165,7 @@ model TeachingAssignment {
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
   @@unique([employeeId, classSectionId])
+  @@index([classSectionId])
 }
 
 // ── LEAVE ────────────────────────────────────────────────────
@@ -601,6 +602,7 @@ model InvoiceLine {
   feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
 
   @@index([invoiceId])
+  @@index([feeComponentId])
 }
 
 // ── PAYMENT ──────────────────────────────────────────────────
