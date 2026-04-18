@@ -39,7 +39,7 @@ README lists 7 entities as "partially complete" against the CRUD Standard and 4 
 
 - [x] **Task 1 — Evolve CRUD Standard in CLAUDE.md.** Rewrite the `## CRUD Standard` section to split into two sub-standards: **"Binary soft-delete entities"** (existing spec: Deactivate row action → PUT with `status: INACTIVE`) and **"State-machine entities"** (terminal row action named for the domain — Void/Cancel/etc. — wired to a domain endpoint; `status` follows the entity's state machine, not ACTIVE/INACTIVE). Include an explicit list of which entities belong to each category. Document that event-log entities (StudentAttendance, AttendanceRecord) use `isVoided` flag instead of `status` and why. *Acceptance: CLAUDE.md CRUD Standard section has two sub-standards with entity lists; `grep "state-machine"` in CLAUDE.md returns the new section.*
 
-- [ ] **Task 2 — Add Zod validation on PUT routes.** Create or extend Zod schemas for Program, ClassSection, Admission, Invoice update inputs in `lib/validations/`. Wire each into its `PUT /api/{entity}/[id]` route using the `.safeParse()` + 400 response pattern. *Acceptance: each of the 4 PUT routes calls `.safeParse()` and returns `{ error: "Validation failed", issues: ... }` on invalid input; vitest still green.*
+- [x] **Task 2 — Add Zod validation on PUT routes.** Create or extend Zod schemas for Program, ClassSection, Admission, Invoice update inputs in `lib/validations/`. Wire each into its `PUT /api/{entity}/[id]` route using the `.safeParse()` + 400 response pattern. *Acceptance: each of the 4 PUT routes calls `.safeParse()` and returns `{ error: "Validation failed", issues: ... }` on invalid input; vitest still green.*
 
 - [ ] **Task 3 — Migrate Program from `isActive` to `status`.** Add Prisma migration: add `status String @default("ACTIVE")`, backfill from `isActive` (`UPDATE "Program" SET status = CASE WHEN "isActive" THEN 'ACTIVE' ELSE 'INACTIVE' END`), then drop `isActive`. Update `app/api/programs/[id]/route.ts` and `route.ts` to read/write `status`. Update `app/admin/academic/page.tsx` (type at line 27, row action at line 205) to use `status`. Update `prisma/seed.ts` if it sets `isActive`. *Acceptance: `grep -r "isActive" app/admin/academic app/api/programs prisma/seed.ts` returns no matches; Prisma migration file exists under `prisma/migrations/`; vitest + build green.*
 
@@ -53,9 +53,11 @@ README lists 7 entities as "partially complete" against the CRUD Standard and 4 
 
 ## Implementation
 - Task 1: Evolve CRUD Standard in CLAUDE.md — `CLAUDE.md` — split `## CRUD Standard` into three categories: A (binary soft-delete, default), B (state-machine: Admission/Invoice/PayrollRun with Cancel/Void terminal actions), C (event-log: AttendanceRecord/StudentAttendance with `isVoided` flag). Added entity roster per category, API patterns per category, and a "which category fits" decision tree.
+- Task 2: Zod on PUT routes — `lib/validations/{program,class-section}.ts` (new), `lib/validations/invoice.ts` (extended with `updateInvoiceSchema`), `app/api/{programs,class-sections,admissions,invoices}/[id]/route.ts` — each PUT now safeParses the body, returns 400 `{ error, issues }` on invalid input. `updateAdmissionSchema` already existed; wired it in. Preserves existing state-transition check in admissions (Zod handles shape; custom code handles transition rules).
 
 ## Verification
 - Task 1: gates passed (`npm run build` green, `npx vitest run` 116/116). Doc-only edit — no runtime surface to smoke.
+- Task 2: gates passed (build green, vitest 116/116). Reviewed existing PUT callers: academic page sends `{ status }` on program/class-section deactivate — Zod accepts. Admissions sends `{ status: CANCELLED }` via existing handleCancel — Zod accepts + state-transition check still enforced. Invoice PUT has no direct UI callers in admin (status transitions happen via `/send`, `/void` endpoints) — Zod-gated now regardless.
 
 ## Ship Notes
 <!-- filled by /ship -->

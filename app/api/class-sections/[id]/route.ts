@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { updateClassSectionSchema } from "@/lib/validations/class-section";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -9,15 +10,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const { id } = await params;
 
-  // Verify tenant ownership via program→tenant
   const existing = await prisma.classSection.findFirst({
     where: { id, program: { tenantId: session.tenantId } },
   });
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-  const body = await req.json();
+  const parsed = updateClassSectionSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
+  }
+  const body = parsed.data;
 
-  // Prevent reducing capacity below current enrollment
   if (body.capacity !== undefined) {
     const currentEnrollment = await prisma.studentEnrollment.count({
       where: { classSectionId: id, status: "ACTIVE" },
@@ -29,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const section = await prisma.classSection.update({
     where: { id },
-    data: { name: body.name?.trim(), capacity: body.capacity, campusId: body.campusId },
+    data: { name: body.name?.trim(), capacity: body.capacity, campusId: body.campusId, status: body.status },
   });
   return NextResponse.json(section);
 }

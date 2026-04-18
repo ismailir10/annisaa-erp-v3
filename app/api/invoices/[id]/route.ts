@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { updateInvoiceSchema } from "@/lib/validations/invoice";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -29,7 +30,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const existing = await prisma.invoice.findUnique({ where: { id } });
   if (!existing || existing.tenantId !== session.tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const body = await req.json();
+  const parsed = updateInvoiceSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
+  }
+  const body = parsed.data;
+
   const invoice = await prisma.invoice.update({
     where: { id },
     data: {
