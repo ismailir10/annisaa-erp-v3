@@ -106,4 +106,8 @@ Manual sanity checks:
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **No migrations, no new env vars, no runtime code changes.** Docs-only cycle scoped to four files: `docs/uat/jobs/{admin,teacher,parent}.md` and `.claude/skills/uat/SKILL.md`.
+- **No rollback hazard.** Revert is `git revert` of the four commits — no data, no infra, no consumers downstream of the JTBD library outside the `/uat` skill itself.
+- **Downstream behavior change:** next `/uat admin` invocation will hit the 6-job cap differently (17 eligible jobs instead of 7). Recommend running `/uat admin/<group>` forms going forward for honest coverage; the old `/uat admin` still works but will drop jobs.
+- **Deferred scope:** Bu Lina (`SCHOOL_ADMIN`) persona and the three negative-access JTBDs stay in Appendix until the `role-split` cycle creates the persona file and wires the demo cookie.
+- **PR:** `feat/uat-jtbd-enrichment` → `staging`, manual-merge-on-green per `/ship` flow.
