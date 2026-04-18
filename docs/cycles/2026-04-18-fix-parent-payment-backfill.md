@@ -52,7 +52,7 @@ UAT on 2026-04-18 (`docs/uat/reports/2026-04-18-parent.md`, persona Pak Budi as 
   Edit `app/api/admin/seed/route.ts` at lines 238-242: when an existing invoice is found with `xenditPaymentUrl === null` and its status is SENT, PARTIALLY_PAID, or OVERDUE, issue a `prisma.invoice.update` to set the deterministic URL (`https://checkout-staging.xendit.co/web/demo-${invoiceNumber}`), then `invoiceCount++; continue`. If the URL is already set, skip as before. Also extend `needsPaymentLink` at line 249 to include OVERDUE.
   _Acceptance: run seed twice; first run patches nulls, second run skips (URL already set). Opening any seeded SENT/PARTIALLY_PAID invoice in parent portal shows "Bayar Sekarang" button._
 
-- [ ] **Task 2 — Add `/api/guardian/assessments/[id]` detail endpoint**
+- [x] **Task 2 — Add `/api/guardian/assessments/[id]` detail endpoint**
   Create `app/api/guardian/assessments/[id]/route.ts`: guardian-scoped GET, same auth pattern as `guardian/invoices/[id]`. Verify the assessment belongs to one of the guardian's children via student ownership. Return full detail: `id`, `templateName`, `period`, `programName`, `categories` (with `indicators`), `scores`. Serialize all Decimal/Date fields.
   _Acceptance: `GET /api/guardian/assessments/<id>` with GUARDIAN session returns full rubric; 403 for SCHOOL_ADMIN; 404 for other guardian's child._
 
@@ -66,10 +66,12 @@ UAT on 2026-04-18 (`docs/uat/reports/2026-04-18-parent.md`, persona Pak Budi as 
 
 ## Implementation
 
+- Task 2: Assessment detail endpoint — `app/api/guardian/assessments/[id]/route.ts` (new) — guardian-scoped GET returning full rubric (categories/indicators/scores); tenant+child ownership check mirrors invoice pattern.
 - Task 1: Seed backfill — `app/api/admin/seed/route.ts`, `app/api/__tests__/seed-invoice-url.test.ts` — changed idempotency guard from hard-skip to conditional backfill: when an existing invoice has `xenditPaymentUrl === null` and status is SENT/PARTIALLY_PAID/OVERDUE, issues a `prisma.invoice.update` to set the deterministic URL. Added 7 new unit tests for `shouldBackfill` decision logic (116 tests total).
 
 ## Verification
 
+- Task 2: build ✅ clean, vitest ✅ 116/116. Endpoint type-checks; auth pattern mirrors guardian/invoices/[id].
 - Task 1: build ✅ clean, vitest ✅ 116/116. Backfill logic unit-tested: SENT/PARTIALLY_PAID/OVERDUE with null URL → backfills; already-set URL → skips; PAID/DRAFT/CANCELLED → skips.
 
 ## Ship Notes
