@@ -1,6 +1,30 @@
 import { createClient } from "./supabase/server";
 import { prisma } from "./db";
 
+type CachedUser = Awaited<ReturnType<typeof prisma.user.findUnique>>;
+
+// In-memory cache of Prisma User rows keyed by email. Every API route and
+// every server-rendered page calls getSession(), and previously each call hit
+// the database for the same User row. Cache TTL is 60s — long enough to
+// collapse the cluster of fetches a single page render makes, short enough
+// that role/tenant changes propagate quickly.
+const USER_CACHE_TTL_MS = 60_000;
+const userCache = new Map<string, { user: CachedUser; expiresAt: number }>();
+
+function getCachedUser(email: string): CachedUser | undefined {
+  const entry = userCache.get(email);
+  if (!entry) return undefined;
+  if (entry.expiresAt < Date.now()) {
+    userCache.delete(email);
+    return undefined;
+  }
+  return entry.user;
+}
+
+function setCachedUser(email: string, user: CachedUser) {
+  userCache.set(email, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS });
+}
+
 export type SessionUser = {
   id: string;
   email: string;
@@ -39,10 +63,14 @@ export async function getSession(): Promise<SessionUser | null> {
 
     if (!authUser?.email) return null;
 
-    // Look up Prisma User by email
-    let user = await prisma.user.findUnique({
-      where: { email: authUser.email },
-    });
+    // Look up Prisma User by email — serve from cache if fresh.
+    let user = getCachedUser(authUser.email);
+    if (user === undefined) {
+      user = await prisma.user.findUnique({
+        where: { email: authUser.email },
+      });
+      if (user) setCachedUser(authUser.email, user);
+    }
 
     // Auto-create User on first Supabase Auth login
     if (!user) {
@@ -62,6 +90,7 @@ export async function getSession(): Promise<SessionUser | null> {
             employeeId: employee.id,
           },
         });
+        setCachedUser(authUser.email, user);
       } else {
         // Check if there's a parent with this email
         const parent = await prisma.parent.findFirst({
@@ -78,6 +107,7 @@ export async function getSession(): Promise<SessionUser | null> {
               parentId: parent.id,
             },
           });
+          setCachedUser(authUser.email, user);
         } else {
           // Not an employee, not a guardian, no existing User → deny access
           return null;
@@ -92,10 +122,12 @@ export async function getSession(): Promise<SessionUser | null> {
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     if (!user.lastLoginAt || user.lastLoginAt < fiveMinutesAgo) {
-      await prisma.user.update({
+      const updated = await prisma.user.update({
         where: { id: user.id },
         data: { lastLoginAt: now },
       });
+      setCachedUser(updated.email, updated);
+      user = updated;
     }
 
     // For guardian users, find their parent ID
