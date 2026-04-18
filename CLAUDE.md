@@ -300,25 +300,40 @@ Any list >10 items: use `<DataTable>` with server-side pagination, column sortin
 
 ### DataTable Action Column Standard
 
-Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx`):
-- **Primary:** "Lihat" button (Eye icon) — visible, navigates to detail or opens Sheet
-- **Dropdown (⋮):** Edit, Deactivate/Activate — context-dependent actions
-- Never hard delete — always soft delete via status change
+Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx`). The prop you pass for the terminal action depends on the entity's CRUD category (see `## CRUD Standard` below):
+
+| Category | Terminal prop | Menu label |
+|---|---|---|
+| A — Binary soft-delete | `onDeactivate` / `onActivate` + `isActive` | Nonaktifkan / Aktifkan |
+| B — State-machine (Admission) | `onCancel` | Batalkan |
+| B — State-machine (Invoice) | `onVoid` | Batalkan |
+| C — Event-log (StudentAttendance) | `onVoid` | Batalkan |
+
+- **Primary:** "Lihat" button (Eye icon) — visible, navigates to detail or opens Sheet. Only pass `onView` when a detail route exists.
+- **Dropdown (⋮):** `onEdit` + one terminal prop (`onDeactivate` | `onCancel` | `onVoid`).
+- Never hard delete. Never use `extraActions` for "Batalkan" / "Nonaktifkan" — use the dedicated prop so menu labels and icons stay consistent.
+- `extraActions` is reserved for **domain-specific** actions (e.g. "Konversi ke Siswa" on Admission, "Setujui" / "Tolak" on LeaveRequest approval queue).
 
 ```tsx
-// Standard action column definition:
-{
-  id: "actions",
-  cell: ({ row }) => (
-    <DataTableRowActions
-      onView={() => router.push(`/admin/students/${row.original.id}`)}
-      onEdit={() => setEditTarget(row.original)}
-      onDeactivate={() => setDeactivateTarget(row.original)}
-      isActive={row.original.status === "ACTIVE"}
-    />
-  ),
-}
+// Category A — binary:
+<DataTableRowActions
+  onView={() => router.push(`/admin/students/${row.original.id}`)}
+  onEdit={() => setEditTarget(row.original)}
+  onDeactivate={() => setDeactivateTarget(row.original)}
+  isActive={row.original.status === "ACTIVE"}
+/>
+
+// Category B — state-machine (Invoice):
+<DataTableRowActions
+  onView={() => router.push(`/admin/invoices/${inv.id}`)}
+  onVoid={canVoid ? () => setVoidTarget(inv) : undefined}
+/>
 ```
+
+**Workflow-queue exceptions** (documented — do NOT "fix"):
+- **PayrollRun list** (`/admin/payroll`): row shows `onView` only. All state transitions (approve, export, send-slips) happen on the detail page. The list is a directory, not an editor.
+- **LeaveRequest approval queue** (`/admin/leave`): `onView` + `extraActions` ("Setujui" / "Tolak"). Approvals ARE the domain action — there is no generic edit or deactivate.
+- **Daily attendance views** (`/admin/attendance`, `/admin/assessments/*` score entry): single-purpose cell editors, no terminal state. Override-only is correct.
 
 ---
 
