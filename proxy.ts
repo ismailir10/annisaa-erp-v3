@@ -59,6 +59,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // OAuth PKCE callback — bypass updateSession entirely. Running getUser() here
+  // before the route handler exchanges the code risks interfering with the PKCE
+  // code verifier cookie, producing "PKCE code verifier not found in storage".
+  if (pathname === "/auth/callback" && request.nextUrl.searchParams.has("code")) {
+    return NextResponse.next();
+  }
+
   // Public routes — allow but still refresh Supabase session if present
   if (
     pathname === "/" ||

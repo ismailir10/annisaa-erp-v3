@@ -14,7 +14,15 @@ describe("resolveCallbackOrigin", () => {
     vi.unstubAllEnvs();
   });
 
-  it("prefers x-forwarded-host in production (Vercel load-balancer case)", () => {
+  it("prefers NEXT_PUBLIC_SITE_URL over x-forwarded-host (avoids per-deployment URL mismatch)", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://annisaa-erp-v3.vercel.app");
+    const req = makeRequest("https://internal.vercel.app/auth/callback?code=abc", {
+      "x-forwarded-host": "annisaa-erp-v3-858q41m0i-ismails-projects-196d40d3.vercel.app",
+    });
+    expect(resolveCallbackOrigin(req)).toBe("https://annisaa-erp-v3.vercel.app");
+  });
+
+  it("falls back to x-forwarded-host in production when NEXT_PUBLIC_SITE_URL is unset", () => {
     const req = makeRequest("https://internal.vercel.app/auth/callback?code=abc", {
       "x-forwarded-host": "annisaa-erp-v3.vercel.app",
     });
