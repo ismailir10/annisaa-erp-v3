@@ -91,6 +91,30 @@ export async function POST(req: NextRequest) {
   let created = 0;
   let skipped = 0;
 
+  // Pre-build the invoices-to-create list outside the transaction
+  type InvoiceToBuild = {
+    studentId: string;
+    parentId: string | null;
+    totalDue: number;
+    programFees: typeof feeStructures;
+  };
+  const invoicesToBuild: InvoiceToBuild[] = [];
+
+  for (const enrollment of enrollments) {
+    const studentId = enrollment.student.id;
+    const programFees = feesByProgram.get(enrollment.classSection.programId) ?? [];
+    if (programFees.length === 0 || existingStudentIds.has(studentId)) {
+      skipped++;
+      continue;
+    }
+    invoicesToBuild.push({
+      studentId,
+      parentId: guardianByStudent.get(studentId) ?? null,
+      totalDue: programFees.reduce((s, f) => s + Number(f.amount), 0),
+      programFees,
+    });
+  }
+
   // Atomic invoice generation with advisory lock to prevent race conditions
   await prisma.$transaction(async (tx) => {
     // Acquire advisory lock per tenant — lock is released when transaction ends
@@ -108,48 +132,50 @@ export async function POST(req: NextRequest) {
       if (match) nextNum = parseInt(match[1]) + 1;
     }
 
-    for (const enrollment of enrollments) {
-      const studentId = enrollment.student.id;
-      const programFees = feesByProgram.get(enrollment.classSection.programId) ?? [];
+    if (invoicesToBuild.length === 0) return;
 
-      if (programFees.length === 0) {
-        skipped++;
-        continue;
-      }
-
-      // Use pre-fetched Set for dedup check — no per-student query
-      if (existingStudentIds.has(studentId)) {
-        skipped++;
-        continue;
-      }
-
+    // Assign invoice numbers and build row data
+    const invoiceRows = invoicesToBuild.map((inv) => {
       const invoiceNumber = `INV-${year}-${String(nextNum).padStart(4, "0")}`;
       nextNum++;
+      return { ...inv, invoiceNumber };
+    });
 
-      const totalDue = programFees.reduce((s, f) => s + Number(f.amount), 0);
+    // 1. Bulk-insert all invoices in one round-trip
+    await tx.invoice.createMany({
+      data: invoiceRows.map((inv) => ({
+        tenantId,
+        studentId: inv.studentId,
+        parentId: inv.parentId,
+        invoiceNumber: inv.invoiceNumber,
+        periodLabel: trimmedPeriodLabel,
+        dueDate,
+        totalDue: inv.totalDue,
+        createdBy: session.id,
+      })),
+    });
 
-      await tx.invoice.create({
-        data: {
-          tenantId,
-          studentId,
-          parentId: guardianByStudent.get(studentId) ?? null,
-          invoiceNumber,
-          periodLabel: trimmedPeriodLabel,
-          dueDate,
-          totalDue,
-          createdBy: session.id,
-          lines: {
-            create: programFees.map((f) => ({
-              feeComponentId: f.feeComponentId,
-              labelSnapshot: f.feeComponent.label,
-              amount: f.amount,
-              finalAmount: f.amount,
-            })),
-          },
-        },
-      });
-      created++;
-    }
+    // 2. Fetch the created invoice IDs (keyed by invoiceNumber for line mapping)
+    const createdInvoices = await tx.invoice.findMany({
+      where: { tenantId, periodLabel: trimmedPeriodLabel, invoiceNumber: { in: invoiceRows.map((r) => r.invoiceNumber) } },
+      select: { id: true, invoiceNumber: true },
+    });
+    const idByNumber = new Map(createdInvoices.map((i) => [i.invoiceNumber, i.id]));
+
+    // 3. Bulk-insert all invoice lines in one round-trip
+    await tx.invoiceLine.createMany({
+      data: invoiceRows.flatMap((inv) =>
+        inv.programFees.map((f) => ({
+          invoiceId: idByNumber.get(inv.invoiceNumber)!,
+          feeComponentId: f.feeComponentId,
+          labelSnapshot: f.feeComponent.label,
+          amount: f.amount,
+          finalAmount: f.amount,
+        }))
+      ),
+    });
+
+    created = invoicesToBuild.length;
   });
 
   return NextResponse.json({ created, skipped, total: enrollments.length });
