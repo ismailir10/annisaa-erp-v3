@@ -89,6 +89,11 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // API routes call getSession() themselves — skip the redundant middleware getUser()
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   // Supabase auth (production)
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const response = await updateSession(request);

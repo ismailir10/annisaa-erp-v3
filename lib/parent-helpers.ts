@@ -36,16 +36,10 @@ export type ParentChild = {
   };
 };
 
-/**
- * Find a parent record from session (parentId or email fallback).
- * Returns the parent with all linked children via StudentGuardian.
- */
-export async function getParentWithChildren(session: SessionUser) {
-    const parentId = session.parentId;
-
+async function _getParentWithChildren(parentId: string | null, email: string, tenantId: string | null) {
     const whereClause = parentId
-      ? { id: parentId, tenantId: session.tenantId ?? undefined }
-      : { email: session.email, tenantId: session.tenantId ?? undefined };
+      ? { id: parentId, tenantId: tenantId ?? undefined }
+      : { email, tenantId: tenantId ?? undefined };
 
     const parent = await prisma.parent.findFirst({
       where: whereClause,
@@ -71,7 +65,7 @@ export async function getParentWithChildren(session: SessionUser) {
     });
 
     if (!parent || parent.guardians.length === 0) {
-      return { parent: null, children: [] };
+      return { parent: null, children: [] as ParentChild[] };
     }
 
     const children: ParentChild[] = parent.guardians.map((sg) => {
@@ -88,6 +82,25 @@ export async function getParentWithChildren(session: SessionUser) {
     });
 
     return { parent, children };
+}
+
+const _cachedGetParentWithChildren = unstable_cache(
+  _getParentWithChildren,
+  ["parent-children"],
+  { revalidate: 60, tags: ["parent-children"] }
+);
+
+/**
+ * Find a parent record from session (parentId or email fallback).
+ * Returns the parent with all linked children via StudentGuardian.
+ * Cached 60s per parent — keyed by parentId or email + tenantId.
+ */
+export async function getParentWithChildren(session: SessionUser) {
+  return _cachedGetParentWithChildren(
+    session.parentId,
+    session.email,
+    session.tenantId
+  );
 }
 
 /**

@@ -27,19 +27,12 @@ export async function GET(req: NextRequest) {
     const dateFrom = searchParams.get("dateFrom") ?? "";
     const dateTo = searchParams.get("dateTo") ?? "";
 
-    // Scope to tenant via classSectionId tenant filter
-    const tenantClassIds = await prisma.classSection.findMany({
-      where: { tenantId: session.tenantId },
-      select: { id: true },
-    });
-    const tenantClassIdSet = new Set(tenantClassIds.map((c) => c.id));
-
-    // Build final where with tenant scope
+    // Tenant scope via relation filter — collapses two round-trips to one
     const finalWhere = {
       isVoided: false,
-      classSectionId: classSectionId
-        ? (tenantClassIdSet.has(classSectionId) ? classSectionId : "none")
-        : { in: Array.from(tenantClassIdSet) },
+      classSection: classSectionId
+        ? { id: classSectionId, tenantId: session.tenantId }
+        : { tenantId: session.tenantId },
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(dateFrom || dateTo
         ? {
