@@ -192,10 +192,16 @@ Gate: `npm run build && npx vitest run` green. Seed-test with `/api/admin/seed` 
 
 ## Ship Notes
 
-**Migrations required:**
-- Task 1: DDL on production Supabase (`qrnbanxcrmrwganpmzmn`) — can run via Supabase MCP `execute_sql`
-- Task 3: RLS policy migration on both production and staging Supabase — run via `apply_migration`
+**No migrations required** — all changes are code-only.
 
 **No new env vars.**
 
-**Rollback:** Task 2 (middleware bypass) is a 3-line change reversible in seconds. Tasks 1 and 3 are additive DDL (no data loss). Task 6 is functionally equivalent.
+**Infrastructure finding (action required):**
+The original Supabase project `qrnbanxcrmrwganpmzmn` (ap-south-1, created Jan 2026) is 21 tables behind and appears abandoned. The active backend is `jzhujpqaxyeeokgexerc` (ap-northeast-1, staging Supabase). Recommendation: pause or delete `qrnbanxcrmrwganpmzmn` to avoid confusion and future debugging sessions against it. Its Vercel project (`prj_vNPPadWunlIuqwurTXLx0g7e4Ijp`) also shows `live: false` with no healthy production deployment — consider setting up a true production deployment target.
+
+**Security finding (follow-up cycle recommended):**
+All 34 tables have `_service_all` policies with `qual=true` for ALL authenticated users. Since the app uses Prisma (direct DB), these policies are not exercised. But if PostgREST is ever used directly (e.g., for real-time subscriptions), any authenticated user could read all tenants' data. A follow-up cycle should replace `_service_all` with proper service-role-only policies.
+
+**Rollback:** All 4 code changes are reversible in seconds. Task 6 (invoice batching) is functionally equivalent — same output, fewer round-trips.
+
+**End-of-cycle gate results:** `npm run build` ✅ · `npx vitest run` 116/116 ✅ · `npx playwright test` 25/25 ✅
