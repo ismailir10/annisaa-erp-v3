@@ -56,7 +56,7 @@ UAT on 2026-04-18 (`docs/uat/reports/2026-04-18-parent.md`, persona Pak Budi as 
   Create `app/api/guardian/assessments/[id]/route.ts`: guardian-scoped GET, same auth pattern as `guardian/invoices/[id]`. Verify the assessment belongs to one of the guardian's children via student ownership. Return full detail: `id`, `templateName`, `period`, `programName`, `categories` (with `indicators`), `scores`. Serialize all Decimal/Date fields.
   _Acceptance: `GET /api/guardian/assessments/<id>` with GUARDIAN session returns full rubric; 403 for SCHOOL_ADMIN; 404 for other guardian's child._
 
-- [ ] **Task 3 — Slim the reports list query + wire up lazy detail fetch**
+- [x] **Task 3 — Slim the reports list query + wire up lazy detail fetch**
   In `app/parent/reports/page.tsx`: change `prisma.studentAssessment.findMany` to select only `id`, `template.name`, `template.program.name`, `period`, `status` — drop `categories`, `indicators`, `scores` from the list query. Update the data shape passed to `<AssessmentsTable>`. In `app/parent/assessments-table.tsx`: accept the slimmed list prop; when "Lihat" is clicked, fetch from the new `/api/guardian/assessments/[id]` endpoint (same fetch+loading pattern as `invoice-detail-sheet.tsx`). Show `Skeleton` while loading. Export name `AssessmentsTable` unchanged.
   _Acceptance: network tab shows list request returns ~10× less payload; detail sheet still shows all six rubric domains._
 
@@ -66,11 +66,13 @@ UAT on 2026-04-18 (`docs/uat/reports/2026-04-18-parent.md`, persona Pak Budi as 
 
 ## Implementation
 
+- Task 3: Slim reports list query + lazy detail — `app/parent/reports/page.tsx`, `app/parent/assessments-table.tsx` — list query uses `select` with only id/period/status/template.name/program.name (drops categories/indicators/scores); component now fetches `/api/guardian/assessments/[id]` on "Lihat" click with Skeleton loading state.
 - Task 2: Assessment detail endpoint — `app/api/guardian/assessments/[id]/route.ts` (new) — guardian-scoped GET returning full rubric (categories/indicators/scores); tenant+child ownership check mirrors invoice pattern.
 - Task 1: Seed backfill — `app/api/admin/seed/route.ts`, `app/api/__tests__/seed-invoice-url.test.ts` — changed idempotency guard from hard-skip to conditional backfill: when an existing invoice has `xenditPaymentUrl === null` and status is SENT/PARTIALLY_PAID/OVERDUE, issues a `prisma.invoice.update` to set the deterministic URL. Added 7 new unit tests for `shouldBackfill` decision logic (116 tests total).
 
 ## Verification
 
+- Task 3: build ✅ clean, vitest ✅ 116/116. Playwright `button:has-text('Lihat')` assertion preserved. List query no longer loads categories/indicators/scores.
 - Task 2: build ✅ clean, vitest ✅ 116/116. Endpoint type-checks; auth pattern mirrors guardian/invoices/[id].
 - Task 1: build ✅ clean, vitest ✅ 116/116. Backfill logic unit-tested: SENT/PARTIALLY_PAID/OVERDUE with null URL → backfills; already-set URL → skips; PAID/DRAFT/CANCELLED → skips.
 
