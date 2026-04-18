@@ -22,6 +22,20 @@ Where `<area>` is a portal or portal subroute:
 - `/uat teacher/class-attendance` — one specific area
 - `/uat admin/payroll` — one specific area
 
+### Admin area-group invocation
+
+Admin has 17+ JTBDs across five navigation groups in `config/admin-nav.ts`. Running `/uat admin` alone would blow past the 6-job cap and silently drop two-thirds of coverage. Use the group sub-invocations to get full coverage across multiple runs:
+
+| Invocation | Covers JTBDs in groups | Notes |
+|---|---|---|
+| `/uat admin/hr` | HR (employees, attendance, leave, payroll) | Run when touching HR flows; payroll/salary jobs require SUPER_ADMIN. |
+| `/uat admin/academic` | Akademik (students, student-attendance, admissions, academic years, guardians, teaching-assignments) | Broadest group — may still cap at 6. |
+| `/uat admin/finance` | Keuangan (invoices, fees) | Smallest group; pair with `/uat admin/hr` if you want finance + payroll together. |
+| `/uat admin/penilaian` | Penilaian (assessments, templates, scores) | Low-frequency but high-stakes; run end-of-term. |
+| `/uat admin/settings` | Pengaturan (holidays, users, campuses, roles, salary-components) | Run when touching config/infra. |
+
+`/uat admin` (no group) is still valid but will cap at 6 jobs — prefer the group form when you want honest coverage.
+
 ## Preflight
 
 Run these checks in order. If any fails, stop and surface the error.
@@ -32,8 +46,12 @@ Run these checks in order. If any fails, stop and surface the error.
    - Check by calling `GET /api/admin/seed-status` if it exists, OR look for sentinel data (e.g. `INV-2026-0001` in the invoices list). If uncertain, call `POST /api/admin/seed` now.
    - **Why this matters:** `prisma/seed.ts` (run by CI Playwright) creates only minimal academic data — no invoices, payments, or Xendit links. The richer admin seed (`POST /api/admin/seed`) is what UAT needs. Skipping this step caused INV-UAT-BLOCKER-01 on 2026-04-17 to be misclassified as a product bug when it was a seed artifact.
 4. **Jobs file exists?** Resolve `<portal>` from `<area>` (e.g. `parent/invoices` → `parent`) and confirm `docs/uat/jobs/<portal>.md` exists. If not, tell the user to add it.
-5. **Port 3000 free?** Run `lsof -ti:3000 || echo free`. If a server is already listening, stop and ask the user whether to kill it or pick a different port. Do not silently run against a dev server — the timings would be wrong.
-6. **Playwright MCP available?** Confirm `mcp__plugin_playwright_playwright__*` tools are loadable. If not, tell the user to install the plugin.
+5. **Jobs file fresh?** Read the `> Last audited: YYYY-MM-DD` line at the top of the jobs file. If it is >60 days old, print a non-blocking warning before proceeding:
+   > ⚠️  `docs/uat/jobs/<portal>.md` was last audited on YYYY-MM-DD (N days ago). The JTBD library may have drifted behind shipped capabilities. Consider running a docs-only enrichment cycle before trusting the run's coverage claim.
+
+   This is a warning, not a blocker — the run continues. But it must appear in the final stdout summary too, so the user is reminded at the end.
+6. **Port 3000 free?** Run `lsof -ti:3000 || echo free`. If a server is already listening, stop and ask the user whether to kill it or pick a different port. Do not silently run against a dev server — the timings would be wrong.
+7. **Playwright MCP available?** Confirm `mcp__plugin_playwright_playwright__*` tools are loadable. If not, tell the user to install the plugin.
 
 ## Step 1 — Select jobs
 
@@ -42,6 +60,31 @@ Read `docs/uat/jobs/<portal>.md`. Filter to jobs matching the requested area:
 - `parent/invoices` → every job under `## Area: invoices`
 
 **Cap: 6 jobs per run.** If more than 6 jobs match, pick the ones marked highest priority by the "Why this job matters" notes — drop the rest and record the skip in the report Summary.
+
+### Role routing (admin jobs only)
+
+Admin JTBDs declare a `Role:` field with one of three values:
+
+| `Role:` value | Persona / seed user | Cookie value |
+|---|---|---|
+| `SUPER_ADMIN` | Ibu Nur (`.claude/personas/ibu-nur.md`) | existing super-admin demo cookie |
+| `SCHOOL_ADMIN` | **Deferred to `role-split` cycle.** Bu Lina persona not yet created. | n/a |
+| `either` | Run as Ibu Nur by default | existing super-admin demo cookie |
+
+Rules:
+- **`SUPER_ADMIN` or `either`** → run the job.
+- **`SCHOOL_ADMIN`-only** → skip with note "deferred: Bu Lina persona pending role-split cycle" in the report Summary. Do not try to fake it by running as Ibu Nur — the access pattern is different and the finding would be misleading.
+- **Missing `Role:` field** → treat as `SUPER_ADMIN` for now and flag the missing metadata as a minor finding.
+
+### Negative-access grading rule
+
+Some deferred admin JTBDs (explicitly tagged in the Appendix as "negative-access" — e.g. "Bu Lina MUST NOT see salary amounts") are testing the *absence* of a capability, not a timing. For these, performance thresholds do not apply. Grade as follows:
+
+- **Expected 403 received** → job passes. Record as `completed: yes`, no severity.
+- **Expected 403 but got 200 with data** → `completed: no`, severity **blocker** (security regression). Performance table omitted.
+- **Expected 403 but got 500** → `completed: partial`, severity **major**. Note the stack trace location.
+
+Do not put these jobs through the page-load / API-response / click-to-visible tables — those thresholds are meaningless for a route the persona should never reach.
 
 ## Step 2 — Load personas
 
@@ -98,6 +141,8 @@ For every navigation, capture page timing via `browser_evaluate`:
 For every data-loading action (list open, form submit), capture network requests via `browser_network_requests` and record the slowest relevant request duration.
 
 For every click that should produce a visible result, measure wall clock from the click call to the moment the new state is visible via `browser_snapshot` polling.
+
+**Per-job `Expected perf` takes precedence over the global threshold table.** If a JTBD declares e.g. `Expected perf: save click-to-confirm <800ms`, use that specific budget instead of the generic click-to-visible tier below. The global table in "Performance thresholds" remains the fallback for any action the job does not budget explicitly. When a per-job budget is breached, it is automatically at least **major** severity (use the magnitude — 2× over = blocker, 1.2× over = major, within 20% = minor).
 
 ### 4d. Score the job
 Record: `completed` (yes/partial/no), severity of any friction (blocker/major/minor), observations, evidence.
@@ -189,6 +234,7 @@ Jobs run: N (cap 6)
 Blockers: X | Majors: Y | Minors: Z
 Runtime: Mm Ss
 Report: docs/uat/reports/YYYY-MM-DD-<area>.md
+[if staleness warning tripped at preflight step 5, repeat it here]
 ```
 
 Do not print the report body to stdout — the user reads it from the file.

@@ -69,11 +69,40 @@ Each task is a single atomic commit. Between-task gate (`npm run build && npx vi
 
 ## Implementation
 
-<!-- filled by /build -->
+**Task 1 — Admin JTBD enrichment** (commit `6005051`):
+- `docs/uat/jobs/admin.md` now carries 17 first-class JTBDs plus an area-group intro table mapping every group in `config/admin-nav.ts` to its JTBD prefixes.
+- Added `Role:` + `Expected perf:` to all existing jobs (STUDENT-01/02, INV-01, PAY-01, EMP-01, LEAVE-01, ACAD-01).
+- New JTBDs: INV-02 (view invoice detail + payment history), INV-03 (mark paid offline), PAY-03 (BSI Excel export), EMP-02 (create employee with salary), LEAVE-02 (reject with reason), ASSESS-02 (enter scores), GUARD-01 (edit guardian), TA-01 (wali-kelas assignment), FEE-01 (create fee component), SET-HOLIDAY-01, SET-USER-01.
+- Appendix rewritten: "not yet catalogued" + "Negative-access deferred" (PAY-02, SAL-02, EMP-SAL-02 stubs waiting on Bu Lina / `role-split` cycle).
+
+**Task 2 — Teacher JTBD enrichment** (commit `e1d5877`):
+- `docs/uat/jobs/teacher.md` — added `Expected perf:` to ATT-01, SLIP-01, PROFILE-01.
+- New JTBDs: ATT-02 (correct yesterday's attendance — parent-call scenario), SLIP-02 (clean screenshot/PDF download of slip).
+
+**Task 3 — Parent JTBD enrichment** (commit `a7fb16f`):
+- `docs/uat/jobs/parent.md` — added `Expected perf:` to INV-01, ATT-01, REP-01.
+- New JTBDs: INV-02 (invoice line-item breakdown — graduated from Appendix), INV-03 (paid-invoice history), REP-02 (indicator-by-indicator report reading — core to PAUD narrative reports).
+
+**Task 4 — UAT skill flow changes** (this commit):
+- `.claude/skills/uat/SKILL.md` — added admin area-group invocation table under `## Invocation`, Role routing rules + negative-access grading rule under Step 1, 60-day staleness warning as preflight step 5 (renumbered 5→6 and 6→7), per-job `Expected perf` precedence rule under Step 4c, staleness repeat in Step 7 stdout summary.
 
 ## Verification
 
-<!-- filled by /build -->
+Between-task gate (`npm run build && npx vitest run`) ran and passed green after Tasks 1, 2, and 3:
+- build: ✓ Compiled successfully
+- tests: 13 test files, 116 tests passing
+
+End-of-cycle gate (`npm run build && npx vitest run && npx playwright test`) ran after Task 4 and passed:
+- build: ✓ Compiled successfully
+- vitest: 116/116 passed
+- playwright: 25/25 passed (admin 14, parent 6, teacher 5) in 17.6s
+
+Manual sanity checks:
+- `grep -c '^### JTBD-ADMIN-' docs/uat/jobs/admin.md` ≥ 17 ✓
+- `grep -c '^### JTBD-TEACHER-' docs/uat/jobs/teacher.md` ≥ 6 ✓ (includes moved jobs and new ATT-02/SLIP-02)
+- `grep -c '^### JTBD-PARENT-' docs/uat/jobs/parent.md` ≥ 6 ✓
+- Every admin JTBD carries a `Role:` line ✓
+- All three jobs files show `Last audited: 2026-04-18 in cycle uat-jtbd-enrichment` ✓
 
 ## Ship Notes
 
