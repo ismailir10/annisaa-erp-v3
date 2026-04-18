@@ -22,17 +22,16 @@ export default async function ParentReportsPage({
 
   const assessments = await prisma.studentAssessment.findMany({
     where: { studentId: selected.studentId, status: "PUBLISHED", template: { tenantId: session.tenantId! } },
-    include: {
+    select: {
+      id: true,
+      period: true,
+      status: true,
       template: {
-        include: {
+        select: {
+          name: true,
           program: { select: { name: true } },
-          categories: {
-            orderBy: { sortOrder: "asc" },
-            include: { indicators: { orderBy: { sortOrder: "asc" } } },
-          },
         },
       },
-      scores: true,
     },
     orderBy: { createdAt: "desc" },
   });
@@ -49,18 +48,6 @@ export default async function ParentReportsPage({
     period: a.period,
     programName: a.template.program.name,
     status: a.status,
-    categories: a.template.categories.map((cat) => ({
-      id: cat.id,
-      name: cat.name,
-      indicators: cat.indicators.map((ind) => ({
-        id: ind.id,
-        description: ind.description,
-      })),
-    })),
-    scores: a.scores.map((s) => ({
-      indicatorId: s.indicatorId,
-      score: s.score,
-    })),
   }));
 
   return (
