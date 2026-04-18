@@ -18,21 +18,11 @@ export async function GET(req: NextRequest) {
   const dateFrom = searchParams.get("dateFrom") ?? new Date().toISOString().split("T")[0];
   const dateTo = searchParams.get("dateTo") ?? dateFrom;
 
-  // Get tenant-scoped class section IDs
-  const tenantClassIds = await prisma.classSection.findMany({
-    where: { tenantId: session.tenantId },
-    select: { id: true },
-  });
-  const classIds = tenantClassIds.map((c) => c.id);
-  if (classIds.length === 0) {
-    return NextResponse.json({ present: 0, absent: 0, sick: 0, permission: 0 });
-  }
-
   const stats = await prisma.studentAttendance.groupBy({
     by: ["status"],
     where: {
       isVoided: false,
-      classSectionId: { in: classIds },
+      classSection: { tenantId: session.tenantId },
       date: { gte: dateFrom, lte: dateTo },
     },
     _count: { status: true },

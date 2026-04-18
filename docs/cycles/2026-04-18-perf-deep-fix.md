@@ -174,6 +174,7 @@ Gate: `npm run build && npx vitest run` green. Seed-test with `/api/admin/seed` 
 - Task 2: Skip `updateSession()` for `/api/*` in middleware — `proxy.ts` — added 3-line early return before the Supabase auth block; API routes handle their own auth via `getSession()`.
 - Task 3: N/A — app uses Prisma with direct DB connection, not PostgREST; RLS policies are never evaluated for app queries so merging them has zero perf impact. Separately noted: `_service_all` policies with `qual=true` for ALL authenticated users are a security concern if PostgREST ever becomes used directly.
 - Task 4: Cache `getParentWithChildren` — `lib/parent-helpers.ts` — extracted inner function, wrapped with `unstable_cache` (60s TTL, `parent-children` tag); public API unchanged.
+- Task 5: Fix student-attendance pre-fetch anti-pattern — `app/api/student-attendance/route.ts`, `stats/route.ts` — replaced `findMany(classSection IDs) + IN list` with `classSection: { tenantId }` relation filter; removed early-return dead path in stats route.
 
 ---
 
@@ -181,6 +182,7 @@ Gate: `npm run build && npx vitest run` green. Seed-test with `/api/admin/seed` 
 
 - Task 2: `npm run build` ✅ `npx vitest run` 116/116 ✅. Also ran `npm install` in worktree — Speed Insights dependency (#68) was missing from the symlinked node_modules.
 - Task 4: `npm run build` ✅ `npx vitest run` 116/116 ✅.
+- Task 5: `npm run build` ✅ `npx vitest run` 116/116 ✅.
 
 **End-of-cycle gate:** `npm run build && npx vitest run && npx playwright test`
 
