@@ -8,15 +8,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Eye, MoreHorizontal, Pencil, Power, PowerOff } from "lucide-react";
+import { Ban, Eye, MoreHorizontal, Pencil, Power, PowerOff, XCircle } from "lucide-react";
 
 interface DataTableRowActionsProps {
   onView?: () => void;
   onEdit?: () => void;
+  /** Category A: binary soft-delete entities (Program, Student, Employee, ...). */
   onDeactivate?: () => void;
   onActivate?: () => void;
   isActive?: boolean;
-  /** Extra menu items rendered before deactivate */
+  /** Category B: state-machine entities — Admission uses Cancel as its terminal action. */
+  onCancel?: () => void;
+  /** Category B: state-machine entities — Invoice uses Void as its terminal action. */
+  onVoid?: () => void;
+  /** Extra menu items rendered before the terminal action. */
   extraActions?: { label: string; icon?: React.ReactNode; onClick: () => void; destructive?: boolean }[];
 }
 
@@ -26,9 +31,12 @@ export function DataTableRowActions({
   onDeactivate,
   onActivate,
   isActive = true,
+  onCancel,
+  onVoid,
   extraActions,
 }: DataTableRowActionsProps) {
-  const hasDropdownItems = onEdit || onDeactivate || onActivate || (extraActions && extraActions.length > 0);
+  const hasTerminal = onDeactivate || onActivate || onCancel || onVoid;
+  const hasDropdownItems = onEdit || hasTerminal || (extraActions && extraActions.length > 0);
 
   return (
     <div className="flex items-center gap-1">
@@ -64,7 +72,7 @@ export function DataTableRowActions({
               </DropdownMenuItem>
             ))}
 
-            {(onDeactivate || onActivate) && (onEdit || extraActions?.length) && (
+            {hasTerminal && (onEdit || extraActions?.length) && (
               <DropdownMenuSeparator />
             )}
 
@@ -79,6 +87,20 @@ export function DataTableRowActions({
               <DropdownMenuItem onClick={onActivate}>
                 <Power size={14} className="mr-2" />
                 Aktifkan
+              </DropdownMenuItem>
+            )}
+
+            {onCancel && (
+              <DropdownMenuItem onClick={onCancel} className="text-destructive focus:text-destructive">
+                <XCircle size={14} className="mr-2" />
+                Batalkan
+              </DropdownMenuItem>
+            )}
+
+            {onVoid && (
+              <DropdownMenuItem onClick={onVoid} className="text-destructive focus:text-destructive">
+                <Ban size={14} className="mr-2" />
+                Batalkan
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
