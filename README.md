@@ -36,7 +36,7 @@ School management system for **An Nisaa' Sekolahku** — an Islamic PAUD/TKIT in
 | Email | Resend (branded HTML template + PDF attachment) |
 | PDF | @react-pdf/renderer |
 | Hosting | Vercel |
-| CI | GitHub Actions (lint, typecheck, vitest) |
+| CI | GitHub Actions (build, typecheck, test, e2e) |
 | Testing | Vitest (unit) + Playwright (E2E) |
 
 ---
@@ -214,7 +214,7 @@ npm install
 ./scripts/install-hooks.sh
 ```
 
-This enables pre-commit (markdown allowlist + doc sync), prepare-commit-msg (model trailer), and pre-push (role gate). Without this, commits may be rejected by CI or GitHub branch protection later.
+This enables pre-commit (markdown allowlist + doc sync + seed drift), prepare-commit-msg (model trailer), and pre-push (blocks direct pushes to `staging`/`main` for all roles — use `/ship` instead). Without the hooks, commits may be rejected by CI or, when the repo moves to GitHub Pro, by branch protection.
 
 ### Database (local demo mode)
 

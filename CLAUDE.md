@@ -675,4 +675,4 @@ All use demo-mode auth — no live Supabase or env vars required to run locally.
 | `docs/uat/jobs/*.md` | Per-portal Jobs-to-be-Done library — maintained by `/build` when user-facing capability changes | Each cycle that touches portal UX |
 | `docs/uat/reports/*.md` | UAT reports (gitignored) — produced by `/uat`, consumed by `/spec` | On demand |
 
-**Last updated:** 2026-04-18 (/ship switched to manual-merge-on-green — GitHub free plan does not support branch protection or auto-merge)
+**Last updated:** 2026-04-19 (README ↔ CLAUDE doc reconciliation — removed workflow duplication from README, bumped model-trailer examples to claude-opus-4-7)

@@ -157,6 +157,34 @@ Gate: `npm run build && npx vitest run`
 - Build: ✅
 - Vitest: ✅ 13 files / 116 tests passed (7.86s).
 
+### T5 — Final consistency pass + bump CLAUDE.md "Last updated" ✅
+
+**Commit:** (this commit)
+
+Final end-to-end re-read surfaced three small survivors:
+
+1. **README Tech Stack row** for CI listed `lint, typecheck, vitest` — updated to `build, typecheck, test, e2e` to match CLAUDE.md's required check list.
+2. **README Setup / install-hooks paragraph** still described `pre-push` as a "role gate" — rewritten to "blocks direct pushes to `staging`/`main` for all roles — use `/ship` instead" and noted the pre-commit now also catches seed drift.
+3. **CLAUDE.md "Last updated" footer** bumped from `2026-04-18` to `2026-04-19` with a one-line summary of this cycle.
+
+No further contradictions found between README and CLAUDE.md on workflow, roles, worktrees, hooks, CI checks, CRUD categories, or model IDs.
+
+Gate: `npm run build && npx vitest run`
+- Build: ✅
+- Vitest: ✅ 13 files / 116 tests passed (6.36s).
+
+**End-of-cycle Playwright decision:** **skipped intentionally.** Nothing changed outside `README.md`, `CLAUDE.md`, and the cycle doc itself — no UI, API, schema, auth, or middleware surface. The two-tier testing gate in CLAUDE.md mandates Playwright to catch UI regressions; there is no UI delta to regress against. This is recorded here so `/ship` can verify the justification without re-running the check.
+
+## Ship Notes
+
+**PR:** (filled by /ship)
+
+- **Migrations:** none.
+- **New env vars:** none.
+- **Schema changes:** none.
+- **Rollback plan:** revert the single PR. All four commits are doc-only — no runtime behavior change, no data migration, no seed delta. A straight revert returns both README.md and CLAUDE.md to their pre-cycle state with zero coordination cost.
+- **Follow-up cycle queued (CTO-declared split):** "CRUD completion sweep phase 2" — audit every admin-relevant entity against a deterministic 7-point checklist (list page + detail/Sheet + Tambah dialog + row actions + full API surface + tenant/role gates + test coverage), close any red cells, and reconcile the CRUD table math. Not blocked by this cycle.
+
 
 ## Ship Notes
 
