@@ -141,6 +141,22 @@ Gate: `npm run build && npx vitest run`
 - Build: ✅
 - Vitest: ✅ 13 files / 116 tests passed (6.87s).
 
+### T4 — Bump stale session-role model examples ✅
+
+**Commit:** (this commit)
+
+Updated two live examples in `CLAUDE.md` from `claude-opus-4-6` to `claude-opus-4-7` (the current default opus model):
+- Session-role file format (§ Multi-LLM Safety §1)
+- Commit attribution example (§ Multi-LLM Safety / Commit attribution)
+
+Added a clarifying inline comment that the model ID must match the current assistant. Historical cycle docs under `docs/cycles/2026-04-15-*.md` intentionally kept as-is — they record what was true at the time.
+
+README no longer contains any `claude-opus-*` example lines after T2's workflow-section slim.
+
+Gate: `npm run build && npx vitest run`
+- Build: ✅
+- Vitest: ✅ 13 files / 116 tests passed (7.86s).
+
 
 ## Ship Notes
 
