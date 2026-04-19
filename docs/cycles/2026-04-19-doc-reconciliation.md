@@ -131,6 +131,16 @@ Gate: `npm run build && npx vitest run`
 - Build: ✅ compiled successfully.
 - Vitest: ✅ 13 files / 116 tests passed (7.38s).
 
+### T3 — Update ADR row for role-gated push ✅
+
+**Commit:** (this commit)
+
+Replaced the 2026-04-15 row *"Role-gated push: cto pushes to staging, product-builder opens PR"* with a 2026-04-18 row describing the current unified manual-merge PR flow. Rationale column spells out the GitHub free plan limitation and notes the row supersedes the 2026-04-15 one, preserving the history pointer without carrying a stale rule.
+
+Gate: `npm run build && npx vitest run`
+- Build: ✅
+- Vitest: ✅ 13 files / 116 tests passed (6.87s).
+
 
 ## Ship Notes
 
