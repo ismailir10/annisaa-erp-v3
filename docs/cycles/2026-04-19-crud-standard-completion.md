@@ -70,4 +70,22 @@ README lists 7 entities as "partially complete" against the CRUD Standard and 4 
 - Task 7: gates passed (build green, vitest 116/116). Doc-only; no runtime surface.
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Migrations (runtime):**
+- `prisma/migrations/20260419000000_program_isactive_to_status/migration.sql` — adds `Program.status String @default("ACTIVE")`, backfills from `isActive`, drops `isActive`. Runs automatically on Vercel deploy via `prisma migrate deploy`. No manual step.
+
+**New env vars:** none.
+
+**Manual smoke (preview URL) — 3 min:**
+1. `/admin/academic` → toggle a Program deactivate from ⋮ menu; row flips to "Tidak Aktif"; toggle back works.
+2. `/admin/admissions` → open ⋮ on an INQUIRY row; menu shows "Batalkan" (not "Nonaktifkan"); cancel flips status to CANCELLED; ⋮ no longer shows Batalkan on cancelled rows.
+3. `/admin/invoices` → open ⋮ on a DRAFT/SENT invoice; click "Batalkan"; confirm; row status → CANCELLED. On PAID row, Batalkan is hidden.
+4. `/admin/student-attendance` → open ⋮ on a row with an existing mark; "Batalkan" voids the record.
+5. Send invalid PUT to `/api/programs/[id]` (e.g. `{status: "FOO"}`) → 400 `{error, issues}`.
+
+**Rollback plan:**
+- Revert feature branch merge commit on `staging`.
+- To reverse Program migration: `ALTER TABLE "Program" ADD COLUMN "isActive" BOOLEAN NOT NULL DEFAULT true; UPDATE "Program" SET "isActive" = ("status" = 'ACTIVE'); ALTER TABLE "Program" DROP COLUMN "status";` — no production data loss; `status` only carries ACTIVE/INACTIVE which map cleanly to boolean.
+- All other changes are UI / API validation / Zod wiring — revert is code-only, no data fixup.
+
+**Risk:** Low. Binary migration is reversible; Zod validation only rejects inputs the UI wouldn't send anyway; row-action standardization is cosmetic label swap (Nonaktifkan → Batalkan) plus plumbing. End-of-cycle gate: build + vitest 116/116 + playwright 25/25 all green.
