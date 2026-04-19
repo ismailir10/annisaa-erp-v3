@@ -146,8 +146,13 @@ _Filled during `/build`, one subsection per task._
 - EXPLAIN: N/A — no schema change; the single-table `studentAttendance.findMany({ studentId, isVoided, date >= start })` is served by the existing `(studentId, date)` index.
 
 ### Task 5 — Parent attendance summary strip
-- Files: TBD
-- Summary: TBD
+- Files:
+  - `lib/parent-helpers.ts` — new `mondayOfWeek(ref)` + `countAttendanceThisWeek(records, now)` pure helpers. Monday→today window. Uses local calendar components (not `toISOString`) because the worktree runs in Asia/Jakarta (UTC+7) and `toISOString().split('T')[0]` was shifting the Monday boundary backward by one day.
+  - `app/parent/attendance/week-summary-strip.tsx` (new) — server component rendering four `StatusBadge` pills with counts. `data-testid="attendance-week-summary"` for Playwright.
+  - `app/parent/attendance/page.tsx` — compute weekly counts from the already-fetched 30-day window (no extra query) and render the strip above `AttendanceClient`.
+  - `lib/__tests__/parent-helpers.test.ts` — 4 `mondayOfWeek` boundary tests + 4 `countAttendanceThisWeek` scenarios (Monday boundary, future weekend filtering, mixed-status, all-absent).
+  - `e2e/parent.spec.ts` — attendance spec asserts the strip renders and contains "Minggu ini".
+- Summary: Counts are derived from the same 30-day attendance fetch already used by the DataTable, so no extra DB round-trip. Placing the computation in a pure helper made the timezone bug testable in a 3-line unit test rather than a flaky staging observation.
 
 ---
 
@@ -159,11 +164,16 @@ _Filled during `/build`._
 **End-of-cycle gate**: `npm run build && npx vitest run && npx playwright test`
 
 **Task-level checks:**
-- T1: unit test asserts idempotency (run twice → second run skips all); manual staging hit shows INV-2026-0201 Bayar CTA after prep.
-- T2–T4: before/after timings + EXPLAIN plans captured here.
-- T5: unit test for week-count helper (4 scenarios); Playwright assertion for strip text.
+- T1: unit test asserts idempotency (run twice → second run skips all); manual staging hit shows INV-2026-0201 Bayar CTA after prep. ✅ Unit test green (6 tests in `lib/__tests__/uat-scenarios.test.ts`). Staging verification pending `/uat parent/invoices` re-run.
+- T2–T4: before/after timings + EXPLAIN plans captured here. ✅ Build + unit tests green. Staging re-measurement pending.
+- T5: unit test for week-count helper (4 scenarios); Playwright assertion for strip text. ✅ 8 new tests in `parent-helpers.test.ts` (4 `mondayOfWeek` + 4 `countAttendanceThisWeek`). Playwright assertion on `[data-testid="attendance-week-summary"]` green.
 
-**Post-ship:** re-run `/uat parent/invoices` and `/uat parent/reports` — blocker #1 and #2 must clear.
+**End-of-cycle gate (2026-04-20):**
+- `npm run build` ✅
+- `npx vitest run` ✅ 14 files, 130 tests, 0 failures
+- `npx playwright test` ✅ 25 tests, 0 failures (admin 14, parent 6, teacher 5)
+
+**Post-ship:** re-run `/uat parent/invoices` and `/uat parent/reports` — blocker #1 and #2 must clear. Capture warm-load numbers on `/parent/reports`, `/admin/payroll`, and the three parent routes, and backfill the Before/After rows above.
 
 ---
 

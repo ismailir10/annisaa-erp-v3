@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getStudentInvoices } from "../parent-helpers";
+import {
+  countAttendanceThisWeek,
+  getStudentInvoices,
+  mondayOfWeek,
+} from "../parent-helpers";
 import { prisma } from "@/lib/db";
 
 // Mock next/cache so unstable_cache is a no-op (no Next.js incrementalCache runtime in Vitest)
@@ -298,5 +302,76 @@ describe("getStudentInvoices", () => {
 
     expect(result[0].totalDue).toBe(1250000);
     expect(result[0].totalPaid).toBe(500000);
+  });
+});
+
+describe("mondayOfWeek", () => {
+  it("returns the same day when given a Monday", () => {
+    // 2026-04-13 is a Monday
+    expect(mondayOfWeek(new Date("2026-04-13T15:00:00"))).toBe("2026-04-13");
+  });
+
+  it("returns prior Monday when given a Sunday", () => {
+    // 2026-04-19 is a Sunday → previous Monday is 2026-04-13
+    expect(mondayOfWeek(new Date("2026-04-19T10:00:00"))).toBe("2026-04-13");
+  });
+
+  it("returns prior Monday when given a Saturday", () => {
+    // 2026-04-18 is a Saturday → Monday of that ISO week is 2026-04-13
+    expect(mondayOfWeek(new Date("2026-04-18T23:59:00"))).toBe("2026-04-13");
+  });
+
+  it("returns prior Monday when given a mid-week day", () => {
+    // 2026-04-16 is a Thursday → Monday 2026-04-13
+    expect(mondayOfWeek(new Date("2026-04-16T08:00:00"))).toBe("2026-04-13");
+  });
+});
+
+describe("countAttendanceThisWeek", () => {
+  // Reference "now" = Friday 2026-04-17. Week window: Mon 2026-04-13 → Fri 2026-04-17.
+  const now = new Date("2026-04-17T12:00:00");
+
+  it("ignores records before Monday (weekend boundary)", () => {
+    const records = [
+      { date: "2026-04-12", status: "PRESENT" }, // prior Sunday — outside
+      { date: "2026-04-11", status: "PRESENT" }, // prior Saturday — outside
+      { date: "2026-04-13", status: "PRESENT" }, // Monday — inside
+    ];
+    const counts = countAttendanceThisWeek(records, now);
+    expect(counts).toEqual({ PRESENT: 1, SICK: 0, PERMISSION: 0, ABSENT: 0 });
+  });
+
+  it("ignores records after today (future Saturday/Sunday)", () => {
+    const records = [
+      { date: "2026-04-17", status: "PRESENT" }, // today — inside
+      { date: "2026-04-18", status: "PRESENT" }, // Saturday (future) — outside
+      { date: "2026-04-19", status: "PRESENT" }, // Sunday (future) — outside
+    ];
+    const counts = countAttendanceThisWeek(records, now);
+    expect(counts).toEqual({ PRESENT: 1, SICK: 0, PERMISSION: 0, ABSENT: 0 });
+  });
+
+  it("counts a mixed-status week correctly", () => {
+    const records = [
+      { date: "2026-04-13", status: "PRESENT" },
+      { date: "2026-04-14", status: "PRESENT" },
+      { date: "2026-04-15", status: "SICK" },
+      { date: "2026-04-16", status: "PERMISSION" },
+      { date: "2026-04-17", status: "PRESENT" },
+    ];
+    const counts = countAttendanceThisWeek(records, now);
+    expect(counts).toEqual({ PRESENT: 3, SICK: 1, PERMISSION: 1, ABSENT: 0 });
+  });
+
+  it("counts an all-absent week correctly", () => {
+    const records = [
+      { date: "2026-04-13", status: "ABSENT" },
+      { date: "2026-04-14", status: "ABSENT" },
+      { date: "2026-04-15", status: "ABSENT" },
+      { date: "2026-04-16", status: "ABSENT" },
+      { date: "2026-04-17", status: "ABSENT" },
+    ];
+    const counts = countAttendanceThisWeek(records, now);
+    expect(counts).toEqual({ PRESENT: 0, SICK: 0, PERMISSION: 0, ABSENT: 5 });
   });
 });

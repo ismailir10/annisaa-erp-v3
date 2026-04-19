@@ -1,10 +1,12 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import {
+  countAttendanceThisWeek,
   getParentWithChildren,
   getStudentAttendanceRecent,
   resolveSelectedChild,
 } from "@/lib/parent-helpers";
+import { WeekSummaryStrip } from "./week-summary-strip";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { AttendanceClient } from "./client";
 
@@ -24,6 +26,7 @@ export default async function ParentAttendancePage({
   if (!selected) redirect("/parent");
 
   const data = await getStudentAttendanceRecent(selected.studentId, 30);
+  const weekCounts = countAttendanceThisWeek(data);
 
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
@@ -37,6 +40,7 @@ export default async function ParentAttendancePage({
         items={childTabsData}
         selectedChildId={selected.studentId}
       />
+      <WeekSummaryStrip counts={weekCounts} />
       <AttendanceClient data={data} />
     </div>
   );

@@ -224,6 +224,63 @@ export const getPublishedAssessmentsForStudent = unstable_cache(
   { revalidate: 120, tags: ["parent-published-assessments"] },
 );
 
+/**
+ * Attendance status values come from StudentAttendance.status:
+ * PRESENT | SICK | PERMISSION | ABSENT (see prisma/schema.prisma).
+ */
+export type WeekAttendanceCounts = {
+  PRESENT: number;
+  SICK: number;
+  PERMISSION: number;
+  ABSENT: number;
+};
+
+/**
+ * Format a Date as YYYY-MM-DD using LOCAL calendar components.
+ * We avoid `toISOString()` here because it coerces to UTC and would shift
+ * the date by one day for positive-UTC machines (e.g. Asia/Jakarta).
+ */
+function toLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Return YYYY-MM-DD for the Monday of the ISO week containing `ref`.
+ * Monday = start of week (getDay() returns 1 for Monday, 0 for Sunday).
+ */
+export function mondayOfWeek(ref: Date): string {
+  const d = new Date(ref);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return toLocalYmd(d);
+}
+
+/**
+ * Count attendance records falling inside the current ISO week
+ * (Monday → `today` inclusive). Records are string dates in YYYY-MM-DD.
+ * Records outside the window are ignored. Unknown statuses are ignored.
+ */
+export function countAttendanceThisWeek(
+  records: { date: string; status: string }[],
+  now: Date = new Date(),
+): WeekAttendanceCounts {
+  const monday = mondayOfWeek(now);
+  const today = toLocalYmd(now);
+  const counts: WeekAttendanceCounts = { PRESENT: 0, SICK: 0, PERMISSION: 0, ABSENT: 0 };
+  for (const r of records) {
+    if (r.date < monday || r.date > today) continue;
+    if (r.status in counts) {
+      counts[r.status as keyof WeekAttendanceCounts] += 1;
+    }
+  }
+  return counts;
+}
+
 export type StudentAttendanceRecent = {
   id: string;
   date: string;
