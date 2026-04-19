@@ -117,7 +117,7 @@ Other LLMs (Sonnet, Haiku, GLM 5.2, GPT, etc.) may work on this repo. Three mech
 Every session declares its role on turn one. File format:
 ```
 role=cto              # opus sessions — can push staging directly
-model=claude-opus-4-6 # or claude-sonnet-4-6, glm-5.2, gpt-5, human
+model=claude-opus-4-7 # or claude-sonnet-4-6, glm-5.2, gpt-5, human — must match the current assistant's model ID
 ```
 
 If the file is missing or stale (>12h), the `SessionStart` hook (`scripts/check-role.sh`) prints an instruction telling the assistant to ask the user. The three slash commands refuse to run until it's set.
@@ -196,7 +196,7 @@ If you are setting up a fresh clone or forking this repo, configure the Actions 
 
 Every commit carries:
 ```
-Model-Trailer: claude-opus-4-6
+Model-Trailer: claude-opus-4-7
 Role: cto
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
@@ -675,4 +675,4 @@ All use demo-mode auth — no live Supabase or env vars required to run locally.
 | `docs/uat/jobs/*.md` | Per-portal Jobs-to-be-Done library — maintained by `/build` when user-facing capability changes | Each cycle that touches portal UX |
 | `docs/uat/reports/*.md` | UAT reports (gitignored) — produced by `/uat`, consumed by `/spec` | On demand |
 
-**Last updated:** 2026-04-18 (/ship switched to manual-merge-on-green — GitHub free plan does not support branch protection or auto-merge)
+**Last updated:** 2026-04-19 (README ↔ CLAUDE doc reconciliation — removed workflow duplication from README, bumped model-trailer examples to claude-opus-4-7)

@@ -36,7 +36,7 @@ School management system for **An Nisaa' Sekolahku** — an Islamic PAUD/TKIT in
 | Email | Resend (branded HTML template + PDF attachment) |
 | PDF | @react-pdf/renderer |
 | Hosting | Vercel |
-| CI | GitHub Actions (lint, typecheck, vitest) |
+| CI | GitHub Actions (build, typecheck, test, e2e) |
 | Testing | Vitest (unit) + Playwright (E2E) |
 
 ---
@@ -173,76 +173,24 @@ Short log. Each entry is a decision that constrains future work.
 | 2026-04 | Performance optimization phase 2: bundle analyzer + dynamic imports | Initial bundle was >400KB; see [`docs/cycles/2025-04-15-performance-optimization-phase2.md`](docs/cycles/2025-04-15-performance-optimization-phase2.md) |
 | 2026-04-15 | 3-command workflow (`/spec`, `/build`, `/ship`) over upstream 7 | Lower friction for small cycles; every upstream skill is still mapped into one of the three |
 | 2026-04-15 | One markdown file per cycle, enforced by pre-commit hook | Stop scratch-file proliferation from non-Opus sessions |
-| 2026-04-15 | Role-gated push: `cto` pushes to staging, `product-builder` opens PR | Let other LLMs contribute without bypassing review |
+| 2026-04-18 | Unified PR-based `/ship`: all roles open a PR to `staging` and merge manually when CI is green — no direct pushes to `staging` or `main` | GitHub free plan doesn't support branch protection / auto-merge; manual merge + pre-push hook + CTO discipline is the enforcement layer (supersedes 2026-04-15 role-gated push) |
 | 2026-04-15 | `prd.md` retired; README.md becomes single source of truth for status/roadmap/ADRs | Eliminate three-way doc drift |
 
 ---
 
 ## Development Workflow
 
-### The 3-step loop
-
-Every cycle uses exactly these three commands and exactly **one** markdown file (`docs/cycles/YYYY-MM-DD-<slug>.md`):
+Every development cycle runs through three slash commands and exactly one markdown file (`docs/cycles/YYYY-MM-DD-<slug>.md`):
 
 ```
 /spec   →   /build   →   /ship
 ```
 
-- **`/spec`** — define + plan. Creates the cycle doc with Context, Spec, and Tasks sections. Combines `agent-skills:spec-driven-development`, `planning-and-task-breakdown`, and (when needed) `idea-refine`.
-- **`/build`** — build + test + review, looping over the tasks. One commit per task with gates (`npm run build && npx vitest run`) enforced between tasks. Combines `incremental-implementation`, `test-driven-development`, `source-driven-development`, `frontend-ui-engineering`, `api-and-interface-design`, `security-and-hardening`, `browser-testing-with-devtools`, `debugging-and-error-recovery`, `code-review-and-quality`, and `code-simplification`.
-- **`/ship`** — push to staging. `cto` role pushes directly; `product-builder` role opens a PR to staging. Never touches `main`.
+The operating manual for these commands — per-command responsibilities, the 20 upstream `agent-skills:*` coverage mapping, the multi-LLM safety model (session role, worktree isolation, git hooks, GitHub branch protection), the one-file-per-cycle rule, and doc-maintenance rules — lives in **[CLAUDE.md](./CLAUDE.md)**. This section intentionally stays thin; CLAUDE.md is the source of truth for *how* the repo is operated.
 
-All 20 upstream `agent-skills:*` skills are still in play — they're folded into one of the three commands. See `CLAUDE.md` for the full coverage table.
+README's job is the *what*: modules, CRUD status, roadmap, ADRs, setup, environments. When those change, update this file. When the workflow, standards, or safety model change, update CLAUDE.md.
 
 **Standalone heuristic UAT** available via `/uat <area>` — role-plays fixed personas through scripted Jobs-to-be-Done (library in `docs/uat/jobs/`) via Playwright MCP, measures timings, produces severity-gated reports. Not part of the 3-step loop; run on demand.
-
-### Multi-LLM session safety
-
-Other LLMs (Sonnet, Haiku, GLM 5.2, GPT) may work on this repo. Three mechanisms keep this safe:
-
-**1. Session role (`.claude/session-role`).** Every session declares `role=cto` or `role=product-builder` plus its model name on turn one. The `SessionStart` hook reminds the assistant to set this before running any command. Commands refuse to run without it. File format:
-```
-role=cto
-model=claude-opus-4-6
-```
-
-**2. Worktree isolation.** Every `product-builder` session works in its own git worktree, never the main checkout. This prevents parallel sessions from stomping on each other's lockfiles, build artifacts, and in-progress edits.
-
-```bash
-# At the start of a product-builder cycle:
-git worktree add .worktrees/<slug> -b feat/<slug>
-cd .worktrees/<slug>
-./scripts/install-hooks.sh
-```
-
-`cto` sessions work in the main checkout (single-threaded, human-driven). The `SessionStart` hook warns if a `product-builder` session is in the main checkout, and the three slash commands refuse to run until the session is inside a worktree.
-
-**3. Git hooks.** Installed via `scripts/install-hooks.sh`:
-- `pre-commit` — enforces the markdown allowlist (no scratch `.md` files) and doc-sync (code changes must update the cycle doc, README.md, or CLAUDE.md).
-- `prepare-commit-msg` — appends `Model-Trailer` and `Role` to every commit from `.claude/session-role`.
-- `pre-push` — blocks pushes to `staging` or `main` unless `role=cto`. Non-cto sessions must use `/ship` (which opens a PR).
-
-**GitHub branch protection is the real boundary.** Client hooks can be bypassed with `--no-verify`. Enable in Settings → Branches:
-- `staging`: require PR + 1 review, status checks (`lint`, `typecheck`, `test`, `build`), restrict direct push to `ismailir10`
-- `main`: require PR from `staging` only, 1 review, same status checks
-
-### One-file-per-cycle rule
-
-The only markdown files allowed in the repo are:
-- `README.md`, `CLAUDE.md`, `LICENSE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (repo root)
-- `docs/**` (including `docs/cycles/YYYY-MM-DD-<slug>.md`, one per cycle)
-- `.github/**`, `.claude/**`, `.agent-skills/**`, `.githooks/**`
-
-Any other staged `.md` file is rejected by the pre-commit hook. All cycle notes live inside the cycle doc — no `PLAN.md`, `SPEC.md`, `TEST-REPORT.md`, etc.
-
-### Documentation maintenance
-
-Every cycle updates docs as part of `/build`:
-- New module/page/feature → update README.md "Current Phase" and/or "Modules" table
-- UI pattern change or new standard → update CLAUDE.md
-- Cycle-specific history → the cycle doc itself (not README/CLAUDE)
-
-The `pre-commit` hook rejects code changes that don't accompany at least one of: cycle doc, README.md, or CLAUDE.md.
 
 ---
 
@@ -266,7 +214,7 @@ npm install
 ./scripts/install-hooks.sh
 ```
 
-This enables pre-commit (markdown allowlist + doc sync), prepare-commit-msg (model trailer), and pre-push (role gate). Without this, commits may be rejected by CI or GitHub branch protection later.
+This enables pre-commit (markdown allowlist + doc sync + seed drift), prepare-commit-msg (model trailer), and pre-push (blocks direct pushes to `staging`/`main` for all roles — use `/ship` instead). Without the hooks, commits may be rejected by CI or, when the repo moves to GitHub Pro, by branch protection.
 
 ### Database (local demo mode)
 
