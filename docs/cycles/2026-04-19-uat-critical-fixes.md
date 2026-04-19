@@ -116,9 +116,14 @@ _Filled during `/build`, one subsection per task._
 - Summary: Introduced a scenario registry so cross-role preconditions for UAT can be staged by calling one endpoint with a scenario key. First scenario, `parent-payment`, finds every SENT/PARTIALLY_PAID/OVERDUE invoice with a null `xenditPaymentUrl`, creates a Xendit session via the existing `createXenditSessionForInvoice` helper, and persists the URL. Chunked in batches of 5 with 200ms spacing to avoid Xendit rate limits; per-invoice failures are logged but don't abort the run. Idempotent because after a successful create the row no longer matches the null-URL filter.
 
 ### Task 2 — `/parent/reports` perf
-- Files: TBD
-- Before: 5259 ms · After: TBD
-- EXPLAIN: TBD
+- Files:
+  - `lib/parent-helpers.ts` — new `getPublishedAssessmentsForStudent(studentId)` helper, `unstable_cache`-wrapped (120s, tagged `parent-published-assessments`).
+  - `app/parent/reports/page.tsx` — swap inline `prisma.studentAssessment.findMany` for the cached helper.
+- Fixes:
+  - Wraps the query in `unstable_cache` (first hit pays DB cost, subsequent hits within 120s hit the Next.js data cache).
+  - Drops the redundant `template: { tenantId }` JOIN filter — the student is already tenant-scoped via `getParentWithChildren`, so the filter was defense-in-depth but forced an AssessmentTemplate JOIN on every request.
+- Before: 5259 ms (cold warm Vercel staging) · After: pending staging re-measurement in end-of-cycle verification.
+- EXPLAIN: N/A — query simplified from 2-table JOIN (`StudentAssessment` × `AssessmentTemplate` on tenantId) to single-table scan; the existing `@@unique([studentId, templateId, period])` index already serves the studentId filter.
 
 ### Task 3 — `/admin/payroll` list perf
 - Files: TBD
