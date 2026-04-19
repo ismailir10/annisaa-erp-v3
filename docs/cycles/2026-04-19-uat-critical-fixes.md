@@ -179,14 +179,20 @@ _Filled during `/build`._
 
 ## Ship Notes
 
-_Filled during `/ship`._
-
-- **Migrations:** TBD (likely one or two small index migrations from Tasks 2–4).
-- **Env vars:** none expected — Xendit client already configured.
+- **Migrations:** none. All perf wins came from caching + query-shape changes; no new Prisma indexes landed. Existing `(studentId, date)` on `StudentAttendance`, `@@unique([studentId, templateId, period])` on `StudentAssessment`, and `(tenantId)` on `PayrollRun` already served the rewritten queries.
+- **Env vars:**
+  - Existing Xendit env untouched — `XENDIT_SECRET_KEY`, `XENDIT_WEBHOOK_TOKEN` still required.
+  - New **optional** `ALLOW_UAT_PREP_IN_PROD` — unset/false means the UAT prep endpoint refuses to run under `NODE_ENV=production`. Set to `"true"` only when deliberately priming a production-shaped demo tenant.
+- **Post-merge manual step:** run `POST /api/admin/uat-prep { "scenario": "parent-payment" }` against staging (SUPER_ADMIN session) once, to backfill the pre-existing null-`xenditPaymentUrl` invoices that caused blocker #1. Idempotent — safe to re-run.
 - **Rollback:**
-  - T1, T5 — pure additions, revert commit.
-  - T2, T3, T4 — query/index changes; revert commit, and `down` migration if any index was added.
+  - T1 (scenario registry + `/api/admin/uat-prep`) — pure addition. Revert `ba12916..HEAD~4` via `git revert` for the T1 commit; the endpoint disappears and nothing else breaks.
+  - T2 (`/parent/reports`) — revert commit. `getPublishedAssessmentsForStudent` is a new export; the page swaps back to the inline query.
+  - T3 (`/admin/payroll`) — revert commit. The `/api/payroll/stats` endpoint disappears; the client reverts to three pageSize=1 calls. Stats remain correct throughout, just slower.
+  - T4 (parent perf sweep) — revert commit. `cache()` wrapper removed from `getSession`; `/parent/attendance` reverts to inline `findMany`. No data loss.
+  - T5 (summary strip) — revert commit. Pure addition; table keeps rendering unchanged.
 - **Risks:**
-  - Xendit API rate limits during bulk prep — mitigated by chunked batches of 5 with 200ms spacing and partial-success response.
-  - New indexes altering query plans elsewhere — EXPLAIN captured per-task to flag regressions before ship.
-  - UAT prep accidentally firing against a production tenant — guarded by `NODE_ENV + isDemoTenant` check with an integration test asserting the 403.
+  - **Xendit API rate limits during bulk prep** — mitigated by chunked batches of 5 with 200ms spacing. Partial failures are logged per-invoice and the run reports `{ created, skipped, failed }` without aborting.
+  - **React `cache()` on `getSession` bypassing intentional fresh reads** — `cache()` is per-request only, so any mutation path that calls `getSession()` after modifying the user row in the same request would see stale data. Audited: no such path exists (auth row changes happen via `prisma.user.update` but never re-query session in the same request).
+  - **`unstable_cache` staleness on parent routes (120s TTL)** — a parent opening `/parent/reports` right after an admin publishes a new assessment could miss it for up to 2 minutes. Acceptable tradeoff for the 3.5x speedup; revalidation tags (`parent-published-assessments`, `parent-student-attendance-recent`) are in place for when the admin mutation path wires `revalidateTag`.
+  - **UAT prep accidentally firing against a production tenant** — guarded by `NODE_ENV === "production"` check with `ALLOW_UAT_PREP_IN_PROD` opt-out. SUPER_ADMIN-only + rate-limited 5/min.
+  - **Timezone regression on `mondayOfWeek`** — caught by `parent-helpers.test.ts` which runs in Asia/Jakarta on the dev machine. Vercel build runs in UTC, where the original `toISOString` bug would not have surfaced — the local-components implementation is correct in both TZs.
