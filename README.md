@@ -180,58 +180,17 @@ Short log. Each entry is a decision that constrains future work.
 
 ## Development Workflow
 
-### The 3-step loop
-
-Every cycle uses exactly these three commands and exactly **one** markdown file (`docs/cycles/YYYY-MM-DD-<slug>.md`):
+Every development cycle runs through three slash commands and exactly one markdown file (`docs/cycles/YYYY-MM-DD-<slug>.md`):
 
 ```
 /spec   →   /build   →   /ship
 ```
 
-- **`/spec`** — define + plan. Creates the cycle doc with Context, Spec, and Tasks sections. Combines `agent-skills:spec-driven-development`, `planning-and-task-breakdown`, and (when needed) `idea-refine`.
-- **`/build`** — build + test + review, looping over the tasks. One commit per task with gates (`npm run build && npx vitest run`) enforced between tasks. Combines `incremental-implementation`, `test-driven-development`, `source-driven-development`, `frontend-ui-engineering`, `api-and-interface-design`, `security-and-hardening`, `browser-testing-with-devtools`, `debugging-and-error-recovery`, `code-review-and-quality`, and `code-simplification`.
-- **`/ship`** — opens a PR from the feature branch to `staging` and merges it manually once CI is green. **All roles use the same flow** — no direct pushes to `staging` or `main` for anyone (including `cto`). `/ship --to-main` opens the `staging` → `main` PR (CTO-initiated only).
+The operating manual for these commands — per-command responsibilities, the 20 upstream `agent-skills:*` coverage mapping, the multi-LLM safety model (session role, worktree isolation, git hooks, GitHub branch protection), the one-file-per-cycle rule, and doc-maintenance rules — lives in **[CLAUDE.md](./CLAUDE.md)**. This section intentionally stays thin; CLAUDE.md is the source of truth for *how* the repo is operated.
 
-All 20 upstream `agent-skills:*` skills are still in play — they're folded into one of the three commands. See `CLAUDE.md` for the full coverage table.
+README's job is the *what*: modules, CRUD status, roadmap, ADRs, setup, environments. When those change, update this file. When the workflow, standards, or safety model change, update CLAUDE.md.
 
 **Standalone heuristic UAT** available via `/uat <area>` — role-plays fixed personas through scripted Jobs-to-be-Done (library in `docs/uat/jobs/`) via Playwright MCP, measures timings, produces severity-gated reports. Not part of the 3-step loop; run on demand.
-
-### Multi-LLM session safety
-
-Other LLMs (Sonnet, Haiku, GLM 5.2, GPT) may work on this repo. Three mechanisms keep this safe:
-
-**1. Session role (`.claude/session-role`).** Every session declares `role=cto` or `role=product-builder` plus its model name on turn one. The `SessionStart` hook reminds the assistant to set this before running any command. Commands refuse to run without it. File format:
-```
-role=cto
-model=claude-opus-4-6
-```
-
-**2. Worktree isolation.** Every session — regardless of role — works in its own git worktree, never the main checkout. This prevents parallel sessions from stomping on each other's lockfiles, build artifacts, and in-progress edits, and gives each cycle a clean slate. The `SessionStart` hook creates the worktree automatically when a session is started in the main checkout; the user never runs `git worktree add` manually. The three slash commands refuse to run until the session is inside a worktree.
-
-**3. Git hooks.** Installed via `scripts/install-hooks.sh`:
-- `pre-commit` — enforces the markdown allowlist (no scratch `.md` files) and doc-sync (code changes must update the cycle doc, README.md, or CLAUDE.md).
-- `prepare-commit-msg` — appends `Model-Trailer` and `Role` to every commit from `.claude/session-role`.
-- `pre-push` — blocks direct pushes to `staging` or `main` for **all roles** (including `cto`). Everyone uses `/ship` to open a PR instead. Direct pushes to feature branches (`feat/*`) are always allowed.
-
-**GitHub branch protection is the intended real boundary.** Client hooks can be bypassed with `--no-verify`, so the CI check list on PRs — `build`, `typecheck`, `test`, `e2e` — is what actually enforces quality. On the GitHub free plan, branch protection rules on private repos are unavailable, so enforcement currently relies on the pre-push hook plus CTO discipline (verifying CI is green before clicking Merge). When the repo moves to a paid plan or becomes public, enable required-status-checks on `staging` (`build`, `typecheck`, `test`, `e2e`) and `main` (same, PR from `staging` only).
-
-### One-file-per-cycle rule
-
-The only markdown files allowed in the repo are:
-- `README.md`, `CLAUDE.md`, `LICENSE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (repo root)
-- `docs/**` (including `docs/cycles/YYYY-MM-DD-<slug>.md`, one per cycle)
-- `.github/**`, `.claude/**`, `.agent-skills/**`, `.githooks/**`
-
-Any other staged `.md` file is rejected by the pre-commit hook. All cycle notes live inside the cycle doc — no `PLAN.md`, `SPEC.md`, `TEST-REPORT.md`, etc.
-
-### Documentation maintenance
-
-Every cycle updates docs as part of `/build`:
-- New module/page/feature → update README.md "Current Phase" and/or "Modules" table
-- UI pattern change or new standard → update CLAUDE.md
-- Cycle-specific history → the cycle doc itself (not README/CLAUDE)
-
-The `pre-commit` hook rejects code changes that don't accompany at least one of: cycle doc, README.md, or CLAUDE.md.
 
 ---
 

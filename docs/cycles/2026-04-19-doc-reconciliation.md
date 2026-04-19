@@ -115,6 +115,22 @@ Manual re-read of lines ~190–230 in README.md vs CLAUDE.md sections "Per-comma
 
 Playwright intentionally skipped at the end-of-cycle (doc-only changes — no UI, API, or auth surface touched).
 
+### T2 — Slim duplicated workflow content ✅
+
+**Commit:** (this commit)
+
+Collapsed four README subsections ("The 3-step loop", "Multi-LLM session safety", "One-file-per-cycle rule", "Documentation maintenance") — roughly 55 lines of content that duplicated CLAUDE.md — into a single ~10-line `## Development Workflow` section that:
+- States the 3-step loop in one line.
+- Points to CLAUDE.md as the source of truth for per-command responsibilities, the `agent-skills` coverage map, multi-LLM safety, the one-file-per-cycle rule, and doc-maintenance rules.
+- Names the split explicitly: README = *what* (modules, CRUD, roadmap, ADRs, setup), CLAUDE = *how*.
+- Retains the standalone heuristic UAT paragraph (user-facing, not operator-facing).
+
+Net: -48 lines in README. No information lost — everything removed is already covered in CLAUDE.md sections "Per-command responsibilities", "Multi-LLM Safety" (§1–§4), "One-File-Per-Cycle Rule", and "Documentation Maintenance".
+
+Gate: `npm run build && npx vitest run`
+- Build: ✅ compiled successfully.
+- Vitest: ✅ 13 files / 116 tests passed (7.38s).
+
 
 ## Ship Notes
 
