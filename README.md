@@ -190,7 +190,7 @@ Every cycle uses exactly these three commands and exactly **one** markdown file 
 
 - **`/spec`** — define + plan. Creates the cycle doc with Context, Spec, and Tasks sections. Combines `agent-skills:spec-driven-development`, `planning-and-task-breakdown`, and (when needed) `idea-refine`.
 - **`/build`** — build + test + review, looping over the tasks. One commit per task with gates (`npm run build && npx vitest run`) enforced between tasks. Combines `incremental-implementation`, `test-driven-development`, `source-driven-development`, `frontend-ui-engineering`, `api-and-interface-design`, `security-and-hardening`, `browser-testing-with-devtools`, `debugging-and-error-recovery`, `code-review-and-quality`, and `code-simplification`.
-- **`/ship`** — push to staging. `cto` role pushes directly; `product-builder` role opens a PR to staging. Never touches `main`.
+- **`/ship`** — opens a PR from the feature branch to `staging` and merges it manually once CI is green. **All roles use the same flow** — no direct pushes to `staging` or `main` for anyone (including `cto`). `/ship --to-main` opens the `staging` → `main` PR (CTO-initiated only).
 
 All 20 upstream `agent-skills:*` skills are still in play — they're folded into one of the three commands. See `CLAUDE.md` for the full coverage table.
 
@@ -206,25 +206,14 @@ role=cto
 model=claude-opus-4-6
 ```
 
-**2. Worktree isolation.** Every `product-builder` session works in its own git worktree, never the main checkout. This prevents parallel sessions from stomping on each other's lockfiles, build artifacts, and in-progress edits.
-
-```bash
-# At the start of a product-builder cycle:
-git worktree add .worktrees/<slug> -b feat/<slug>
-cd .worktrees/<slug>
-./scripts/install-hooks.sh
-```
-
-`cto` sessions work in the main checkout (single-threaded, human-driven). The `SessionStart` hook warns if a `product-builder` session is in the main checkout, and the three slash commands refuse to run until the session is inside a worktree.
+**2. Worktree isolation.** Every session — regardless of role — works in its own git worktree, never the main checkout. This prevents parallel sessions from stomping on each other's lockfiles, build artifacts, and in-progress edits, and gives each cycle a clean slate. The `SessionStart` hook creates the worktree automatically when a session is started in the main checkout; the user never runs `git worktree add` manually. The three slash commands refuse to run until the session is inside a worktree.
 
 **3. Git hooks.** Installed via `scripts/install-hooks.sh`:
 - `pre-commit` — enforces the markdown allowlist (no scratch `.md` files) and doc-sync (code changes must update the cycle doc, README.md, or CLAUDE.md).
 - `prepare-commit-msg` — appends `Model-Trailer` and `Role` to every commit from `.claude/session-role`.
-- `pre-push` — blocks pushes to `staging` or `main` unless `role=cto`. Non-cto sessions must use `/ship` (which opens a PR).
+- `pre-push` — blocks direct pushes to `staging` or `main` for **all roles** (including `cto`). Everyone uses `/ship` to open a PR instead. Direct pushes to feature branches (`feat/*`) are always allowed.
 
-**GitHub branch protection is the real boundary.** Client hooks can be bypassed with `--no-verify`. Enable in Settings → Branches:
-- `staging`: require PR + 1 review, status checks (`lint`, `typecheck`, `test`, `build`), restrict direct push to `ismailir10`
-- `main`: require PR from `staging` only, 1 review, same status checks
+**GitHub branch protection is the intended real boundary.** Client hooks can be bypassed with `--no-verify`, so the CI check list on PRs — `build`, `typecheck`, `test`, `e2e` — is what actually enforces quality. On the GitHub free plan, branch protection rules on private repos are unavailable, so enforcement currently relies on the pre-push hook plus CTO discipline (verifying CI is green before clicking Merge). When the repo moves to a paid plan or becomes public, enable required-status-checks on `staging` (`build`, `typecheck`, `test`, `e2e`) and `main` (same, PR from `staging` only).
 
 ### One-file-per-cycle rule
 
