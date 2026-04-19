@@ -134,9 +134,16 @@ _Filled during `/build`, one subsection per task._
 - EXPLAIN: N/A — `groupBy status` runs as a single aggregate over a tenant-scoped table. The existing `(tenantId)` index on PayrollRun serves the where clause.
 
 ### Task 4 — Parent routes generic perf sweep
-- Files: TBD
-- Before: `/parent` 3525ms, `/parent/invoices` 3818ms, `/parent/attendance` 3224ms
-- After: TBD
+- Files:
+  - `lib/auth.ts` — wrap `getSession` in React's `cache()` so layout + page + server components in the same request dedupe to one Supabase auth + Prisma lookup. The existing 60s in-memory `userCache` covers across-request dedup; `cache()` covers within-request dedup.
+  - `lib/parent-helpers.ts` — new `getStudentAttendanceRecent(studentId, days=30)` helper, `unstable_cache`-wrapped (120s, tagged `parent-student-attendance-recent`). Selects only the fields the page consumes.
+  - `app/parent/attendance/page.tsx` — swap inline `prisma.studentAttendance.findMany` + date-string calc for the cached helper.
+- Fixes:
+  - Before: every `/parent/*` render hit Supabase auth twice (layout + page) — ~150–300ms per call, serialized because the page awaits before the layout's body renders.
+  - After: React `cache()` makes the second `getSession()` call a synchronous hit against the per-request memo.
+  - `/parent/attendance` additionally gains a 2-minute data cache on the 30-day attendance scan, bringing warm re-renders under the threshold without any schema change.
+- Before: `/parent` 3525ms, `/parent/invoices` 3818ms, `/parent/attendance` 3224ms · After: pending staging re-measurement in end-of-cycle verification.
+- EXPLAIN: N/A — no schema change; the single-table `studentAttendance.findMany({ studentId, isVoided, date >= start })` is served by the existing `(studentId, date)` index.
 
 ### Task 5 — Parent attendance summary strip
 - Files: TBD

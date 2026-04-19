@@ -224,6 +224,54 @@ export const getPublishedAssessmentsForStudent = unstable_cache(
   { revalidate: 120, tags: ["parent-published-assessments"] },
 );
 
+export type StudentAttendanceRecent = {
+  id: string;
+  date: string;
+  status: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  notes: string | null;
+};
+
+/**
+ * Fetch recent attendance records for a student (default last 30 days).
+ * Cached 2 minutes, tagged so attendance mutations can invalidate.
+ *
+ * Tenant safety: callers resolve `studentId` via `getParentWithChildren()`,
+ * which already tenant-scopes the student.
+ */
+export const getStudentAttendanceRecent = unstable_cache(
+  async (studentId: string, days = 30): Promise<StudentAttendanceRecent[]> => {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const startDate = since.toISOString().split("T")[0];
+
+    const records = await prisma.studentAttendance.findMany({
+      where: { studentId, isVoided: false, date: { gte: startDate } },
+      orderBy: { date: "desc" },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+        checkInTime: true,
+        checkOutTime: true,
+        notes: true,
+      },
+    });
+
+    return records.map((r) => ({
+      id: r.id,
+      date: r.date,
+      status: r.status,
+      checkInTime: r.checkInTime?.toISOString() ?? null,
+      checkOutTime: r.checkOutTime?.toISOString() ?? null,
+      notes: r.notes,
+    }));
+  },
+  ["parent-student-attendance-recent"],
+  { revalidate: 120, tags: ["parent-student-attendance-recent"] },
+);
+
 export type InvoiceListItem = {
   id: string;
   invoiceNumber: string;

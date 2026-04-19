@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "./supabase/server";
 import { prisma } from "./db";
 
@@ -49,8 +50,15 @@ export const canViewSalary = (role: string): boolean => role === "SUPER_ADMIN";
  * Get the current session user.
  * Reads Supabase Auth session, then looks up the Prisma User by email.
  * Auto-creates the Prisma User on first login if employee exists with that email.
+ *
+ * Wrapped in React's `cache()` so that layout + page + server components in
+ * the same request dedupe to a single Supabase auth + Prisma lookup. This is
+ * complementary to the 60s in-memory `userCache` above: `cache()` dedupes
+ * within a single request, `userCache` dedupes across requests.
  */
-export async function getSession(): Promise<SessionUser | null> {
+export const getSession = cache(_getSession);
+
+async function _getSession(): Promise<SessionUser | null> {
   // Demo mode requires explicit opt-in via DEMO_MODE=true env var.
   // This prevents accidental demo activation in production if Supabase is down.
   if (process.env.DEMO_MODE === "true") {
