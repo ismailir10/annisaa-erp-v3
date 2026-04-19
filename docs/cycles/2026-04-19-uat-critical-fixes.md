@@ -126,9 +126,12 @@ _Filled during `/build`, one subsection per task._
 - EXPLAIN: N/A — query simplified from 2-table JOIN (`StudentAssessment` × `AssessmentTemplate` on tenantId) to single-table scan; the existing `@@unique([studentId, templateId, period])` index already serves the studentId filter.
 
 ### Task 3 — `/admin/payroll` list perf
-- Files: TBD
-- Before: 2831 ms · After: TBD
-- EXPLAIN: TBD
+- Files:
+  - `app/api/payroll/stats/route.ts` (new) — single groupBy endpoint returning `{ total, draft, approved, slipsSent }`.
+  - `app/admin/payroll/page.tsx` — swap three parallel `pageSize=1` list fetches for one call to `/api/payroll/stats`.
+- Fixes: The client was firing 3 pageSize=1 list queries in parallel just to read `pagination.total` per status. Each was a separate lambda invocation with its own session check and DB round-trip. One groupBy on `PayrollRun.status` produces the same numbers in one request.
+- Before: 2831 ms warm · After: pending staging re-measurement. Expected saving: 2 lambda cold-starts + 2 HTTP round-trips.
+- EXPLAIN: N/A — `groupBy status` runs as a single aggregate over a tenant-scoped table. The existing `(tenantId)` index on PayrollRun serves the where clause.
 
 ### Task 4 — Parent routes generic perf sweep
 - Files: TBD
