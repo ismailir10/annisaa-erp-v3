@@ -17,3 +17,7 @@ export const adjustInvoiceLineSchema = z.object({
   adjustmentAmount: z.number(),
   adjustmentNote: z.string().min(1, "Catatan penyesuaian wajib diisi"),
 });
+
+export const updateInvoiceSchema = z.object({
+  status: z.enum(["DRAFT", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"]).optional(),
+});

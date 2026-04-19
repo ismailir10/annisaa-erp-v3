@@ -340,8 +340,7 @@ export default function AdmissionsPage() {
               });
               setDialogOpen(true);
             }}
-            onDeactivate={a.status !== "CANCELLED" ? () => setCancelTarget(a) : undefined}
-            isActive={a.status !== "CANCELLED"}
+            onCancel={a.status !== "CANCELLED" ? () => setCancelTarget(a) : undefined}
             extraActions={a.status !== "CANCELLED" ? [{
               label: "Konversi ke Siswa",
               icon: <UserPlus size={14} />,

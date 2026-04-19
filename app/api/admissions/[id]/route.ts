@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { updateAdmissionSchema } from "@/lib/validations/admission";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -9,7 +10,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const existing = await prisma.admission.findUnique({ where: { id } });
   if (!existing || existing.tenantId !== session.tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const body = await req.json();
+  const parsed = updateAdmissionSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
+  }
+  const body = parsed.data;
 
   // Validate status transitions
   const VALID_TRANSITIONS: Record<string, string[]> = {

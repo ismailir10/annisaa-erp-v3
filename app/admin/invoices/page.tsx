@@ -26,7 +26,7 @@ import {
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatCard } from "@/components/admin/stat-card";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, Ban } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
 
@@ -339,18 +339,7 @@ export default function InvoicesPage() {
           return (
             <DataTableRowActions
               onView={() => router.push(`/admin/invoices/${inv.id}`)}
-              extraActions={
-                canVoid
-                  ? [
-                      {
-                        label: "Batalkan",
-                        icon: <Ban size={14} />,
-                        destructive: true,
-                        onClick: () => setVoidTarget(inv),
-                      },
-                    ]
-                  : undefined
-              }
+              onVoid={canVoid ? () => setVoidTarget(inv) : undefined}
             />
           );
         },

@@ -238,13 +238,7 @@ export default function StudentAttendancePage() {
       cell: ({ row }) => (
         <DataTableRowActions
           onEdit={() => openEdit(row.original)}
-          extraActions={[
-            {
-              label: "Batalkan",
-              onClick: () => setVoidTarget(row.original),
-              destructive: true,
-            },
-          ]}
+          onVoid={() => setVoidTarget(row.original)}
         />
       ),
     },
