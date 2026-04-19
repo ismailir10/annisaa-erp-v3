@@ -108,8 +108,12 @@ Across both reports the top-5 critical findings cluster into three shapes: (a) a
 _Filled during `/build`, one subsection per task._
 
 ### Task 1 — UAT prep scenario registry
-- Files: TBD
-- Summary: TBD
+- Files:
+  - `lib/uat/scenarios.ts` (new) — scenario registry, `UatScenario` type, `parent-payment` implementation.
+  - `app/api/admin/uat-prep/route.ts` (new) — `POST` endpoint, SUPER_ADMIN-gated, Zod body validation, rate-limited, production guard with `ALLOW_UAT_PREP_IN_PROD` opt-out.
+  - `lib/__tests__/uat-scenarios.test.ts` (new) — registry lookup + four scenario tests (no-op, create-all, idempotency, partial-failure reporting).
+  - `.claude/skills/uat/SKILL.md` — new preflight step 8 with area → scenario mapping table.
+- Summary: Introduced a scenario registry so cross-role preconditions for UAT can be staged by calling one endpoint with a scenario key. First scenario, `parent-payment`, finds every SENT/PARTIALLY_PAID/OVERDUE invoice with a null `xenditPaymentUrl`, creates a Xendit session via the existing `createXenditSessionForInvoice` helper, and persists the URL. Chunked in batches of 5 with 200ms spacing to avoid Xendit rate limits; per-invoice failures are logged but don't abort the run. Idempotent because after a successful create the row no longer matches the null-URL filter.
 
 ### Task 2 — `/parent/reports` perf
 - Files: TBD

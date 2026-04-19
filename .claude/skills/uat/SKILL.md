@@ -52,6 +52,13 @@ Run these checks in order. If any fails, stop and surface the error.
    This is a warning, not a blocker — the run continues. But it must appear in the final stdout summary too, so the user is reminded at the end.
 6. **Port 3000 free?** Run `lsof -ti:3000 || echo free`. If a server is already listening, stop and ask the user whether to kill it or pick a different port. Do not silently run against a dev server — the timings would be wrong.
 7. **Playwright MCP available?** Confirm `mcp__plugin_playwright_playwright__*` tools are loadable. If not, tell the user to install the plugin.
+8. **Scenario prep?** Some areas need cross-role state staged before a single-persona run can exercise a JTBD end-to-end (e.g. parent cannot pay an invoice unless the invoice row has a Xendit URL, which only admin-side code produces). If the requested `<area>` matches the table below, call `POST /api/admin/uat-prep` with the scenario key **before** starting jobs. The endpoint is SUPER_ADMIN-only and idempotent — safe to call every run.
+
+   | Area | Scenario key | What it stages |
+   |---|---|---|
+   | `parent`, `parent/invoices` | `parent-payment` | Backfills Xendit payment URLs on every SENT/PARTIALLY_PAID/OVERDUE invoice missing one, so the Bayar CTA renders. |
+
+   New scenarios live in `lib/uat/scenarios.ts` — add a row here whenever a new key is registered. If a scenario returns `{ ok: false }` or throws, stop and surface the error as a preflight failure; the UAT findings would otherwise misattribute the state gap to a product bug.
 
 ## Step 1 — Select jobs
 
