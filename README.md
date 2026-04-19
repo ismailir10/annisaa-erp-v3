@@ -56,32 +56,39 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 
 ### CRUD completion status
 
-Audited 2026-04-16, updated after CRUD completion sweep (see [`docs/cycles/2026-04-16-crud-completion-sweep.md`](docs/cycles/2026-04-16-crud-completion-sweep.md)).
+Audited 2026-04-19 after the CRUD Standard Completion cycle (see [`docs/cycles/2026-04-19-crud-standard-completion.md`](docs/cycles/2026-04-19-crud-standard-completion.md)). CLAUDE.md now splits the standard into three categories — see [CLAUDE.md `## CRUD Standard`](CLAUDE.md) for the canonical definitions.
 
-**Fully complete (15/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef, Student, Employee, StudentGuardian, StudentEnrollment, TeachingAssignment, AssessmentTemplate, StudentAssessment/Score
-**Partially complete (7/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Program, ClassSection, Admission, AttendanceRecord, PayrollRun, Invoice, StudentAttendance.
-**Missing admin UI (4/27):** EmailLog, PayrollItem, InvoiceLine, Payment (admin-side). AssessmentCategory and AssessmentIndicator are only reachable via the AssessmentTemplate create flow and have no standalone management UI. ProgramFeeStructure uses FeeComponentDef.isEnabled as its deactivate mechanism (bulk upsert, no hard-delete path).
+**Category A — Binary soft-delete (19/27): ✅ Complete**
+User, Campus, Holiday, OrgConfig, AcademicYear, Program, ClassSection, FeeComponentDef, SalaryComponentDef, LeaveRequest, Student, Employee, StudentGuardian, StudentEnrollment, TeachingAssignment, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, Guardian.
 
-**Overall: ~87% CRUD completion** (15 full + 7 partial / 27 admin-relevant entities)
+**Category B — State-machine (3/27): ✅ Complete**
+Admission (Cancel), Invoice (Void), PayrollRun (workflow-only — list view is `onView` only, transitions on detail page).
 
-| Module | Complete | Partial | Missing |
-|---|---|---|---|
-| CORE | 4 (User, Campus, Holiday, OrgConfig) | — | 1 (EmailLog) |
-| HR | 3 (LeaveRequest, SalaryComponentDef, Employee) | 2 (AttendanceRecord, PayrollRun) | 1 (PayrollItem) |
-| ACADEMIC | 2 (AcademicYear, TeachingAssignment) | 2 (Program, ClassSection) | — |
-| STUDENTS | 3 (Student, StudentEnrollment, StudentGuardian) | 1 (Admission) | — |
-| FINANCE | 2 (FeeComponentDef, ProgramFeeStructure) | 1 (Invoice) | 2 (InvoiceLine, Payment) |
-| LEARNING | 2 (AssessmentTemplate, StudentAssessment/Score) | 1 (StudentAttendance) | — |
+**Category C — Event-log (2/27): ✅ Complete**
+AttendanceRecord (override-only, daily view), StudentAttendance (edit + void via `isVoided` flag).
 
-**Previous gaps resolved in CRUD sweep (2026-04-16):**
-- Student: added Edit + Deactivate/Activate row actions in DataTable, Tambah Siswa dialog, Zod validation on PUT
-- Employee: added Edit + Deactivate row actions in DataTable, Zod validation on PUT
-- Guardian: added standalone admin list page at `/admin/guardians`
-- StudentEnrollment: added standalone admin list page at `/admin/enrollments`
-- TeachingAssignment: added standalone admin list page at `/admin/teaching-assignments`
-- AssessmentTemplate: added admin list + create/edit UI at `/admin/assessments/templates`
-- StudentAssessment/Score: added admin list at `/admin/assessments` + scoring UI at `/admin/assessments/scores`
-- ProgramFeeStructure: verified existing isEnabled toggle sufficient (no hard-delete path)
+**Intentionally no standalone admin UI (3/27):**
+- InvoiceLine, PayrollItem — nested children of Invoice / PayrollRun, managed via their parent's detail page.
+- EmailLog — observability surface only; no user-facing CRUD required.
+
+**Overall: 100% CRUD coverage** across the CRUD Standard's three categories (27/27 admin-relevant entities conform to their assigned category; 24 have UI, 3 are structurally nested/observability).
+
+| Module | Category A | Category B | Category C | Nested/Log |
+|---|---|---|---|---|
+| CORE | User, Campus, Holiday, OrgConfig | — | — | EmailLog |
+| HR | Employee, LeaveRequest, SalaryComponentDef | PayrollRun | AttendanceRecord | PayrollItem |
+| ACADEMIC | AcademicYear, Program, ClassSection, TeachingAssignment | — | — | — |
+| STUDENTS | Student, StudentGuardian, StudentEnrollment | Admission | — | — |
+| FINANCE | FeeComponentDef, ProgramFeeStructure | Invoice | — | InvoiceLine, Payment¹ |
+| LEARNING | AssessmentTemplate, AssessmentCategory, AssessmentIndicator | — | StudentAttendance | — |
+
+¹ Payment is managed via Invoice detail page (record payment dialog), not a top-level list.
+
+**Cycle highlights:**
+- CRUD Standard in CLAUDE.md now formally defines Category A / B / C — prior sweeps couldn't close Admission/Invoice/PayrollRun because the old standard forced binary soft-delete on state-machine entities.
+- Program migrated from `isActive: Boolean` to `status: String` — fixes a silent bug where the admin deactivate action wrote to a nonexistent field.
+- Zod validation added to `PUT /api/{programs,class-sections,admissions,invoices}/[id]`.
+- `DataTableRowActions` gained `onCancel` / `onVoid` props; Invoice + StudentAttendance converted from `extraActions` label → dedicated props. Workflow-queue exceptions (PayrollRun list, LeaveRequest approval, daily attendance editors) now documented in CLAUDE.md.
 
 ---
 
@@ -135,9 +142,9 @@ Three portals, three roles.
 - **Role split: SUPER_ADMIN + SCHOOL_ADMIN (2026-04-16)**: salary/payroll protected behind SUPER_ADMIN; SCHOOL_ADMIN gets full HR access minus compensation data — see [`docs/cycles/2026-04-16-role-split.md`](docs/cycles/2026-04-16-role-split.md)
 - **Student & Guardian CRUD completion (2026-04-16)**: Tambah Siswa dialog, Edit + Deactivate row actions on list page, INACTIVE status support, StudentGuardian soft-delete (status field + migration), standalone `/api/guardians/[id]` PUT+PATCH — see [`docs/cycles/2026-04-16-student-crud-sweep.md`](docs/cycles/2026-04-16-student-crud-sweep.md)
 - **CRUD sweep — Student + Employee list row actions (2026-04-16)**: Edit + Deactivate row actions on Student and Employee DataTables; Zod validation wired to `PUT /api/students/[id]` and `PUT /api/employees/[id]`; INACTIVE added to student status enum — see [`docs/cycles/2026-04-16-crud-sweep-list-actions.md`](docs/cycles/2026-04-16-crud-sweep-list-actions.md)
+- **CRUD Standard completion (2026-04-19)**: Category A/B/C framework (binary soft-delete / state-machine / event-log); Zod on Program + ClassSection + Admission + Invoice PUTs; Program `isActive` → `status` migration; DataTableRowActions gains `onCancel`/`onVoid`; standardized action columns across Admissions, Invoices, Student Attendance — see [`docs/cycles/2026-04-19-crud-standard-completion.md`](docs/cycles/2026-04-19-crud-standard-completion.md)
 
 **In progress:**
-- CRUD completion: remaining 7 partial entities (edit dialogs + deactivate)
 - Audit logging: record critical operations
 
 ---
@@ -146,8 +153,7 @@ Three portals, three roles.
 
 Next 2–3 cycles, in order:
 
-1. **CRUD completion phase 2** — bring the remaining 8 partial entities to fully-complete (edit dialogs + deactivate). Target all six modules at 100% CRUD.
-2. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
+1. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
 
 Future cycles, unscheduled: admissions pipeline, report card publishing workflow, multi-tenant hardening, parent self-service profile edits.
 
