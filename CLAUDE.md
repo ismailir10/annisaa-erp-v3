@@ -116,7 +116,7 @@ Other LLMs (Sonnet, Haiku, GLM 5.2, GPT, etc.) may work on this repo. Three mech
 
 Every session declares its role on turn one. File format:
 ```
-role=cto              # opus sessions — can push staging directly
+role=cto              # cto or product-builder — both open PRs via /ship; no direct pushes to staging
 model=claude-opus-4-7 # or claude-sonnet-4-6, glm-5.2, gpt-5, human — must match the current assistant's model ID
 ```
 
