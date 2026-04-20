@@ -123,6 +123,17 @@ Jobs library: `docs/uat/jobs/{admin,teacher,parent}.md`. Personas: `.claude/pers
 
 Other LLMs (Sonnet, Haiku, GLM 5.2, GPT, etc.) may work on this repo. Three mechanisms keep this safe:
 
+### 0. Auto staging/main sync (`scripts/sync-staging.sh`)
+
+Every `SessionStart` runs `scripts/sync-staging.sh` in the main checkout. If the session opens on `staging` or `main` and the local branch lags `origin/<branch>`, the hook fast-forwards. Behavior:
+
+- Runs only in the main checkout (`$GIT_DIR == $GIT_COMMON_DIR`); linked worktrees are skipped so feature branches are never moved.
+- Fast-forward only — never merges, rebases, or rewrites history.
+- Dirty tree or local-only commits → hook warns and takes no action. Assistant must surface this to the user.
+- Offline or fetch failure → silent exit.
+
+This closes the "local staging drifts behind origin for days" gap: new cycles now always branch from up-to-date staging.
+
 ### 1. Session role (`.claude/session-role`)
 
 Every session declares its role on turn one. File format:
