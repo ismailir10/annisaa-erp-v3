@@ -80,11 +80,32 @@ export async function POST(req: NextRequest) {
   });
   if (!program) return NextResponse.json({ error: "Program tidak ditemukan" }, { status: 404 });
 
+  const name = parsed.data.name.trim();
+
+  const existing = await prisma.assessmentTemplate.findFirst({
+    where: {
+      tenantId: session.tenantId,
+      programId: parsed.data.programId,
+      name,
+      type: parsed.data.type,
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return NextResponse.json(
+      {
+        error: "Template dengan nama dan tipe yang sama sudah ada untuk program ini.",
+        existingId: existing.id,
+      },
+      { status: 409 },
+    );
+  }
+
   const template = await prisma.assessmentTemplate.create({
     data: {
       tenantId: session.tenantId,
       programId: parsed.data.programId,
-      name: parsed.data.name.trim(),
+      name,
       type: parsed.data.type,
     },
   });

@@ -53,6 +53,21 @@ test.describe("Teacher flows", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
+  test("assessments landing page loads from Nilai tab", async ({ page }) => {
+    // Nilai tab should be visible in bottom nav
+    await expect(page.locator("nav").locator("text=Nilai")).toBeVisible();
+    await page.locator("nav").locator("text=Nilai").click();
+    await page.waitForURL("**/teacher/assessments", { timeout: 15_000 });
+    await expect(page.locator("h1", { hasText: "Nilai Siswa" })).toBeVisible({ timeout: 10_000 });
+    // Either shows classes ("siswa" count) or the empty-state — both are valid
+    await expect(
+      page
+        .locator("text=Belum ada kelas mengajar")
+        .or(page.locator("text=siswa"))
+        .first()
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
   test("profile page loads", async ({ page }) => {
     await page.goto("/teacher/profile");
     await expect(page.locator("text=Profil Saya")).toBeVisible();
