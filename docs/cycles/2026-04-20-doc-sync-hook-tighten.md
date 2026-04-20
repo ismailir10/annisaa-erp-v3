@@ -186,7 +186,7 @@ exit 0
 
 Files touched: `.githooks/commit-msg` (new).
 
-### Task 3 — Wire commit-msg into `scripts/install-hooks.sh`
+### Task 3 — Wire commit-msg into `scripts/install-hooks.sh` ✅
 
 Update the installer to chmod +x the new hook and mention it in the completion
 message. Users who already ran install-hooks.sh will auto-pick-up the new hook
@@ -274,6 +274,19 @@ Regex sanity-tested inline against `feat:`, `feat(scope):`, `feat!:`,
 correctly exits 0 without checking staging.
 
 Files touched: `.githooks/commit-msg` (new, executable).
+
+### Task 3 — `scripts/install-hooks.sh`
+
+Added `.githooks/commit-msg` to the `chmod +x` list and updated the
+completion-message echo to list all four hooks. Ran the installer to confirm
+no regressions — output now reads
+`pre-commit, prepare-commit-msg, commit-msg, pre-push enabled.`
+
+Existing clones pick up the new hook on next `git pull` because
+`core.hooksPath` is already set; re-running `install-hooks.sh` only matters
+for fresh clones or to re-chmod after a file-mode loss.
+
+Files touched: `scripts/install-hooks.sh`.
 
 ## Verification
 
