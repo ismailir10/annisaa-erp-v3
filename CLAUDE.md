@@ -21,7 +21,18 @@ Every development cycle uses exactly these three commands and exactly **one** ma
 /spec   →   /build   →   /ship
 ```
 
-The upstream `agent-skills` plugin (addyosmani/agent-skills) remains installed — it still provides the underlying skills. Our three project-level commands wrap the plugin's skills and fold all 20 of them into the 3-step flow, so nothing from the upstream framework is lost.
+The upstream `agent-skills` plugin (addyosmani/agent-skills) remains installed — it still provides the underlying skills. Our three project-level commands wrap the plugin's skills and fold all 20 of them into the 3-step flow, so nothing from the upstream framework is lost. Where a `superpowers:*` skill is stronger than its `agent-skills:*` counterpart (brainstorming, writing-plans, subagent-driven-development, code-reviewer), our commands prefer the superpowers variant.
+
+### Canonical entry points
+
+Users should not have to think about worktrees, hooks, or role files. The two entry sentences are:
+
+| Role | Entry sentence | What the assistant does automatically |
+|------|----------------|----------------------------------------|
+| Product builder | `you are product-builder, <request>` | Writes `.claude/session-role`, derives a slug, runs `setup-worktree.sh`, enters the worktree, then runs `/spec` on `<request>` |
+| CTO | `you are cto, <request>` | Writes `.claude/session-role` (main checkout stays), then executes the request directly |
+
+No other setup ceremony. The `SessionStart` hook (`scripts/check-role.sh`) plus `/spec` Step 0 enforce this end-to-end.
 
 ### Coverage mapping — nothing is dropped
 
