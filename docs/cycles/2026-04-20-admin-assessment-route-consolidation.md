@@ -157,6 +157,12 @@ test('deleted flat assessment-templates URL redirects to nested', async ({ page 
 
 Replaced client `useMemo(() => data.filter(...))` with server-side pagination (`?page=&pageSize=&search=&isActive=`). Added `pagination` state, `isActiveFilter` state, `stats` state. Added three parallel count fetches in `fetchStats` (`?pageSize=1` with/without `isActive` params) so stat cards stay accurate across pages. Added status filter to `DataTableToolbar.filters` with all/active/inactive options. Dropped dead `Skeleton` import, added `Power` / `PowerOff` lucide icons for stat cards. Kept `TYPE_LABELS.QUARTERLY = "Kuartal"` (did not regress to flat's "Triwulan"). Did not touch the nested categories/indicators create dialog — that UI is the whole reason nested was canonical. After create/edit/toggle mutations, `refreshAll()` now re-fetches both list and stats.
 
+### T2 — Delete flat tree and remove duplicate nav entry
+
+**Files:** DELETE `app/admin/assessment-templates/page.tsx` (447 lines), modify `config/admin-nav.ts`.
+
+Removed the `{ label: "Template Penilaian", href: "/admin/assessment-templates", ... }` line from the Akademik group (L76). The two Penilaian-group entries (`/admin/assessments/templates` and `/admin/assessments`) are untouched. Grep-verified before delete: only `config/admin-nav.ts` and the historical cycle doc `2026-04-16-learning-crud-completion.md` referenced the flat path — the cycle doc is history and stays.
+
 ## Verification
 
 <!-- Filled by /build after end-of-cycle gate -->

@@ -73,7 +73,6 @@ export const adminNav: NavConfig = {
         { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
         { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
-        { label: "Template Penilaian", href: "/admin/assessment-templates", icon: ClipboardList },
       ],
     },
     {
