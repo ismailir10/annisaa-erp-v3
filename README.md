@@ -294,7 +294,7 @@ Private — An Nisaa' Sekolahku
 
 ## For developers and AI agents
 
-See **[CLAUDE.md](./CLAUDE.md)** for the operating manual: UI standards, CRUD standard, API standards, security checklist, color tokens, file structure. CLAUDE.md is the *how*; this README is the *what*.
+See **[CLAUDE.md](./CLAUDE.md)** for the operating manual: the 3-step `/spec` → `/build` → `/ship` loop, multi-LLM session safety, one-file-per-cycle rule, file structure. Domain standards (UI / CRUD / Portal / API / Security / Colors) live in **[`.claude/standards/*.md`](./.claude/standards)** and are loaded on demand by `/build` based on globs of staged files. CLAUDE.md is the *how*; this README is the *what*.
 
 
 
