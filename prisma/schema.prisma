@@ -15,22 +15,22 @@ model Tenant {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
 
-  users           User[]
-  roles           Role[]
-  parents         Parent[]
-  campuses        Campus[]
-  employees       Employee[]
-  holidays        Holiday[]
-  orgConfig       OrgConfig?
-  salaryDefs      SalaryComponentDef[]
-  payrollRuns     PayrollRun[]
-  academicYears   AcademicYear[]
-  programs        Program[]
-  classSections   ClassSection[]
-  students        Student[]
-  admissions      Admission[]
-  feeDefs         FeeComponentDef[]
-  invoices        Invoice[]
+  users         User[]
+  roles         Role[]
+  parents       Parent[]
+  campuses      Campus[]
+  employees     Employee[]
+  holidays      Holiday[]
+  orgConfig     OrgConfig?
+  salaryDefs    SalaryComponentDef[]
+  payrollRuns   PayrollRun[]
+  academicYears AcademicYear[]
+  programs      Program[]
+  classSections ClassSection[]
+  students      Student[]
+  admissions    Admission[]
+  feeDefs       FeeComponentDef[]
+  invoices      Invoice[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ model User {
 
   parentId     String?
   customRoleId String?
-  status       String    @default("ACTIVE") // ACTIVE | INACTIVE
+  status       String  @default("ACTIVE") // ACTIVE | INACTIVE
 
   tenant     Tenant?   @relation(fields: [tenantId], references: [id])
   employee   Employee? @relation(fields: [employeeId], references: [id])
@@ -59,11 +59,11 @@ model User {
 model Role {
   id          String   @id @default(cuid())
   tenantId    String
-  name        String   // "Kepala Sekolah", "Admin Keuangan"
-  code        String   // "HEAD", "FINANCE_ADMIN"
+  name        String // "Kepala Sekolah", "Admin Keuangan"
+  code        String // "HEAD", "FINANCE_ADMIN"
   description String?
   isSystem    Boolean  @default(false)
-  permissions String   // JSON array: ["payroll.approve", "invoice.void"]
+  permissions String // JSON array: ["payroll.approve", "invoice.void"]
   createdAt   DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
@@ -74,7 +74,7 @@ model Role {
 
 // ── CAMPUS ───────────────────────────────────────────────────
 model Campus {
-  id       String  @id @default(cuid())
+  id       String   @id @default(cuid())
   tenantId String
   name     String
   address  String?
@@ -119,7 +119,7 @@ model Holiday {
 
 // ── EMPLOYEE ─────────────────────────────────────────────────
 model Employee {
-  id            String  @id @default(cuid())
+  id            String   @id @default(cuid())
   tenantId      String
   kode          String
   nama          String
@@ -129,24 +129,24 @@ model Employee {
   jabatan       String
   campusId      String
   hireDate      String
-  status        String  @default("ACTIVE")
+  status        String   @default("ACTIVE")
   bankAccountNo String?
   bankName      String?
-  bpjsEnrolled  Boolean @default(false)
+  bpjsEnrolled  Boolean  @default(false)
   createdAt     DateTime @default(now())
 
   // Leave balances (reset annually)
   leaveBalanceAnnual Int @default(12)
   leaveBalanceSick   Int @default(14)
 
-  tenant            Tenant                @relation(fields: [tenantId], references: [id])
-  campus            Campus                @relation(fields: [campusId], references: [id])
-  user              User?
-  salaryValues         EmployeeSalaryValue[]
-  attendanceRecords    AttendanceRecord[]
-  payrollItems         PayrollItem[]
-  leaveRequests        LeaveRequest[]
-  teachingAssignments  TeachingAssignment[]
+  tenant              Tenant                @relation(fields: [tenantId], references: [id])
+  campus              Campus                @relation(fields: [campusId], references: [id])
+  user                User?
+  salaryValues        EmployeeSalaryValue[]
+  attendanceRecords   AttendanceRecord[]
+  payrollItems        PayrollItem[]
+  leaveRequests       LeaveRequest[]
+  teachingAssignments TeachingAssignment[]
 
   @@unique([tenantId, kode])
   @@index([tenantId, status])
@@ -155,10 +155,10 @@ model Employee {
 
 // ── TEACHING ASSIGNMENT ──────────────────────────────────────
 model TeachingAssignment {
-  id             String @id @default(cuid())
+  id             String   @id @default(cuid())
   employeeId     String
   classSectionId String
-  role           String @default("HOMEROOM") // HOMEROOM | ASSISTANT
+  role           String   @default("HOMEROOM") // HOMEROOM | ASSISTANT
   createdAt      DateTime @default(now())
 
   employee     Employee     @relation(fields: [employeeId], references: [id])
@@ -170,18 +170,18 @@ model TeachingAssignment {
 
 // ── LEAVE ────────────────────────────────────────────────────
 model LeaveRequest {
-  id          String   @id @default(cuid())
-  employeeId  String
-  leaveType   String   // ANNUAL | SICK | PERMISSION | OTHER
-  startDate   String   // YYYY-MM-DD
-  endDate     String   // YYYY-MM-DD
-  days        Int      // Calculated duration
-  reason      String
-  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
-  reviewedBy  String?
-  reviewedAt  DateTime?
-  reviewNote  String?
-  createdAt   DateTime @default(now())
+  id         String    @id @default(cuid())
+  employeeId String
+  leaveType  String // ANNUAL | SICK | PERMISSION | OTHER
+  startDate  String // YYYY-MM-DD
+  endDate    String // YYYY-MM-DD
+  days       Int // Calculated duration
+  reason     String
+  status     String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  reviewedBy String?
+  reviewedAt DateTime?
+  reviewNote String?
+  createdAt  DateTime  @default(now())
 
   employee Employee @relation(fields: [employeeId], references: [id])
 
@@ -208,7 +208,7 @@ model SalaryComponentDef {
 }
 
 model EmployeeSalaryValue {
-  id             String @id @default(cuid())
+  id             String  @id @default(cuid())
   employeeId     String
   componentDefId String
   value          Decimal @default(0) @db.Decimal(15, 2)
@@ -222,21 +222,21 @@ model EmployeeSalaryValue {
 
 // ── ATTENDANCE ───────────────────────────────────────────────
 model AttendanceRecord {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   employeeId       String
   date             String
   checkInTime      DateTime?
   checkOutTime     DateTime?
-  checkInLat       Decimal? @db.Decimal(10, 8)
-  checkInLng       Decimal? @db.Decimal(11, 8)
-  checkOutLat      Decimal? @db.Decimal(10, 8)
-  checkOutLng       Decimal? @db.Decimal(11, 8)
+  checkInLat       Decimal?  @db.Decimal(10, 8)
+  checkInLng       Decimal?  @db.Decimal(11, 8)
+  checkOutLat      Decimal?  @db.Decimal(10, 8)
+  checkOutLng      Decimal?  @db.Decimal(11, 8)
   status           String
-  isManualOverride Boolean  @default(false)
+  isManualOverride Boolean   @default(false)
   overrideReason   String?
   overriddenBy     String?
   overriddenAt     DateTime?
-  isLocked         Boolean  @default(false)
+  isLocked         Boolean   @default(false)
 
   employee Employee @relation(fields: [employeeId], references: [id])
 
@@ -267,7 +267,7 @@ model PayrollRun {
 }
 
 model PayrollItem {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   payrollRunId String
   employeeId   String
   grossAmount  Decimal @default(0) @db.Decimal(15, 2)
@@ -275,12 +275,12 @@ model PayrollItem {
   netAmount    Decimal @default(0) @db.Decimal(15, 2)
 
   overtimeHours     Decimal @default(0) @db.Decimal(5, 2)
-  outdoorDays       Int   @default(0)
-  holidayWorkedDays Int   @default(0)
-  dcDays            Int   @default(0)
+  outdoorDays       Int     @default(0)
+  holidayWorkedDays Int     @default(0)
+  dcDays            Int     @default(0)
 
-  payrollRun PayrollRun      @relation(fields: [payrollRunId], references: [id])
-  employee   Employee        @relation(fields: [employeeId], references: [id])
+  payrollRun PayrollRun        @relation(fields: [payrollRunId], references: [id])
+  employee   Employee          @relation(fields: [employeeId], references: [id])
   lines      PayrollItemLine[]
 
   @@index([payrollRunId, employeeId])
@@ -288,7 +288,7 @@ model PayrollItem {
 }
 
 model PayrollItemLine {
-  id               String @id @default(cuid())
+  id               String  @id @default(cuid())
   payrollItemId    String
   componentDefId   String
   labelSnapshot    String
@@ -329,9 +329,9 @@ model AcademicYear {
   endDate   String // YYYY-MM-DD
   status    String @default("PLANNING") // PLANNING | ACTIVE | ARCHIVED
 
-  tenant         Tenant               @relation(fields: [tenantId], references: [id])
-  classSections  ClassSection[]
-  feeStructures  ProgramFeeStructure[]
+  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  classSections ClassSection[]
+  feeStructures ProgramFeeStructure[]
 
   @@unique([tenantId, name])
 }
@@ -340,15 +340,15 @@ model AcademicYear {
 model Program {
   id          String  @id @default(cuid())
   tenantId    String
-  code        String  // "DCARE", "KB", "TKIT", "POPUP"
-  name        String  // "Day Care", "Kelompok Bermain", etc.
+  code        String // "DCARE", "KB", "TKIT", "POPUP"
+  name        String // "Day Care", "Kelompok Bermain", etc.
   description String?
-  type        String  // SEMESTER | YEAR_ROUND | SESSION
-  ageMin      Int?    // Minimum age in months
-  ageMax      Int?    // Maximum age in months
+  type        String // SEMESTER | YEAR_ROUND | SESSION
+  ageMin      Int? // Minimum age in months
+  ageMax      Int? // Maximum age in months
   status      String  @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
 
-  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  tenant              Tenant                @relation(fields: [tenantId], references: [id])
   classSections       ClassSection[]
   admissions          Admission[]
   feeStructures       ProgramFeeStructure[]
@@ -359,14 +359,14 @@ model Program {
 
 // ── CLASS SECTION ────────────────────────────────────────────
 model ClassSection {
-  id              String  @id @default(cuid())
-  tenantId        String
-  programId       String
-  academicYearId  String
-  name            String  // "TKIT A", "KB Aster", "D'Care Metland"
-  capacity        Int     @default(20)
-  campusId        String
-  status          String  @default("ACTIVE") // ACTIVE | INACTIVE
+  id             String @id @default(cuid())
+  tenantId       String
+  programId      String
+  academicYearId String
+  name           String // "TKIT A", "KB Aster", "D'Care Metland"
+  capacity       Int    @default(20)
+  campusId       String
+  status         String @default("ACTIVE") // ACTIVE | INACTIVE
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
   program             Program              @relation(fields: [programId], references: [id])
@@ -381,7 +381,7 @@ model ClassSection {
 
 // ── STUDENT ──────────────────────────────────────────────────
 model Student {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   tenantId    String
   name        String
   nickname    String?
@@ -391,26 +391,26 @@ model Student {
   photoUrl    String?
   notes       String?
   metadata    String? // JSON for custom fields (hobby, blood type, allergies, etc.)
-  status      String  @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
+  status      String   @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
   createdAt   DateTime @default(now())
 
   // Government compliance fields
-  nis         String?  // Nomor Induk Siswa (school-assigned)
-  nisn        String?  // Nomor Induk Siswa Nasional
-  birthPlace  String?  // Tempat lahir
-  nik         String?  // NIK anak (16 digits)
-  kkNumber    String?  // No. Kartu Keluarga
-  livingWith  String?  // ORANG_TUA | WALI | LAINNYA
+  nis        String? // Nomor Induk Siswa (school-assigned)
+  nisn       String? // Nomor Induk Siswa Nasional
+  birthPlace String? // Tempat lahir
+  nik        String? // NIK anak (16 digits)
+  kkNumber   String? // No. Kartu Keluarga
+  livingWith String? // ORANG_TUA | WALI | LAINNYA
 
   // Lifecycle tracking
   withdrawalReason String?
-  withdrawalDate   String?  // YYYY-MM-DD
-  graduationDate   String?  // YYYY-MM-DD
+  withdrawalDate   String? // YYYY-MM-DD
+  graduationDate   String? // YYYY-MM-DD
 
-  tenant      Tenant              @relation(fields: [tenantId], references: [id])
-  guardians   StudentGuardian[]
-  enrollments StudentEnrollment[]
-  admission   Admission?
+  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  guardians          StudentGuardian[]
+  enrollments        StudentEnrollment[]
+  admission          Admission?
   invoices           Invoice[]
   studentAttendances StudentAttendance[]
   assessments        StudentAssessment[]
@@ -426,21 +426,21 @@ model Parent {
   email     String?
   phone     String?
   whatsapp  String?
-  address         String?
-  status          String   @default("ACTIVE") // ACTIVE | INACTIVE
-  createdAt       DateTime @default(now())
+  address   String?
+  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt DateTime @default(now())
 
   // Government compliance fields
-  nik             String?  // NIK orang tua (16 digits)
-  education       String?  // SMA | D1-D3 | S1 | S2 | S3 | Profesi
-  occupation      String?  // Karyawan Swasta | ASN | Guru | Wiraswasta | Ibu Rumah Tangga
-  employer        String?  // Nama perusahaan
-  employerAddress String?  // Alamat kantor
-  employerCity    String?  // Kota/Kab
-  incomeRange     String?  // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
-  childrenTotal   Int?     // Total anak (including non-students at this school)
+  nik             String? // NIK orang tua (16 digits)
+  education       String? // SMA | D1-D3 | S1 | S2 | S3 | Profesi
+  occupation      String? // Karyawan Swasta | ASN | Guru | Wiraswasta | Ibu Rumah Tangga
+  employer        String? // Nama perusahaan
+  employerAddress String? // Alamat kantor
+  employerCity    String? // Kota/Kab
+  incomeRange     String? // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
+  childrenTotal   Int? // Total anak (including non-students at this school)
 
-  tenant    Tenant             @relation(fields: [tenantId], references: [id])
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
   guardians StudentGuardian[]
   invoices  Invoice[]
   users     User[]
@@ -454,9 +454,9 @@ model StudentGuardian {
   id           String  @id @default(cuid())
   studentId    String
   parentId     String
-  relationship String  // AYAH | IBU | WALI | OTHER
+  relationship String // AYAH | IBU | WALI | OTHER
   isPrimary    Boolean @default(false) // Primary billing contact for this student
-  childOrder   Int?    // Anak ke- (this student's position in the parent's family)
+  childOrder   Int? // Anak ke- (this student's position in the parent's family)
   status       String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete)
 
   student Student @relation(fields: [studentId], references: [id])
@@ -472,7 +472,7 @@ model StudentEnrollment {
   id             String   @id @default(cuid())
   studentId      String
   classSectionId String
-  enrollDate     String   // YYYY-MM-DD
+  enrollDate     String // YYYY-MM-DD
   status         String   @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
   notes          String?
   createdAt      DateTime @default(now())
@@ -490,22 +490,22 @@ model Admission {
   id               String   @id @default(cuid())
   tenantId         String
   childName        String
-  childAge         String?  // e.g., "4 tahun"
-  childGender      String?  // L | P
-  dateOfBirth      String?  // YYYY-MM-DD
+  childAge         String? // e.g., "4 tahun"
+  childGender      String? // L | P
+  dateOfBirth      String? // YYYY-MM-DD
   parentName       String
   parentPhone      String?
   parentEmail      String?
   parentWhatsapp   String?
-  parentEducation  String?  // SMA | D1-D3 | S1 | S2 | S3
-  parentOccupation String?  // Karyawan Swasta | ASN | Guru | Wiraswasta | BUMN | Ibu Rumah Tangga | Lainnya
-  parentIncome     String?  // < Rp 1 Juta | Rp 1-2 Juta | Rp 3-5 Juta | Rp 5-10 Juta | > Rp 10 Juta
-  programId        String?  // Program of interest
-  campusPreference String?  // Campus ID
+  parentEducation  String? // SMA | D1-D3 | S1 | S2 | S3
+  parentOccupation String? // Karyawan Swasta | ASN | Guru | Wiraswasta | BUMN | Ibu Rumah Tangga | Lainnya
+  parentIncome     String? // < Rp 1 Juta | Rp 1-2 Juta | Rp 3-5 Juta | Rp 5-10 Juta | > Rp 10 Juta
+  programId        String? // Program of interest
+  campusPreference String? // Campus ID
   source           String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER
   status           String   @default("INQUIRY") // INQUIRY | VISIT_SCHEDULED | VISITED | ADMITTED | REGISTERED | CANCELLED
   notes            String?
-  followUpDate     String?  // YYYY-MM-DD
+  followUpDate     String? // YYYY-MM-DD
   studentId        String?  @unique // Linked when converted to student
   createdAt        DateTime @default(now())
 
@@ -522,30 +522,30 @@ model Admission {
 
 // ── FEE COMPONENT DEFINITION ─────────────────────────────────
 model FeeComponentDef {
-  id         String  @id @default(cuid())
-  tenantId   String
-  code       String  // e.g., "spp", "uang_pangkal", "seragam"
-  label      String  // e.g., "SPP Bulanan", "Uang Pangkal"
-  category   String  // TUITION | REGISTRATION | ACTIVITY | MATERIAL | OTHER
-  isRecurring Boolean @default(true)  // monthly vs one-time
-  isEnabled  Boolean @default(true)
-  sortOrder  Int     @default(0)
+  id          String  @id @default(cuid())
+  tenantId    String
+  code        String // e.g., "spp", "uang_pangkal", "seragam"
+  label       String // e.g., "SPP Bulanan", "Uang Pangkal"
+  category    String // TUITION | REGISTRATION | ACTIVITY | MATERIAL | OTHER
+  isRecurring Boolean @default(true) // monthly vs one-time
+  isEnabled   Boolean @default(true)
+  sortOrder   Int     @default(0)
 
-  tenant         Tenant               @relation(fields: [tenantId], references: [id])
-  feeStructures  ProgramFeeStructure[]
-  invoiceLines   InvoiceLine[]
+  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  feeStructures ProgramFeeStructure[]
+  invoiceLines  InvoiceLine[]
 
   @@unique([tenantId, code])
 }
 
 // ── PROGRAM FEE STRUCTURE ────────────────────────────────────
 model ProgramFeeStructure {
-  id              String @id @default(cuid())
-  programId       String
-  academicYearId  String
-  feeComponentId  String
-  amount          Decimal @default(0) @db.Decimal(15, 2)
-  notes           String?
+  id             String  @id @default(cuid())
+  programId      String
+  academicYearId String
+  feeComponentId String
+  amount         Decimal @default(0) @db.Decimal(15, 2)
+  notes          String?
 
   program      Program         @relation(fields: [programId], references: [id])
   academicYear AcademicYear    @relation(fields: [academicYearId], references: [id])
@@ -556,22 +556,22 @@ model ProgramFeeStructure {
 
 // ── INVOICE ──────────────────────────────────────────────────
 model Invoice {
-  id            String    @id @default(cuid())
-  tenantId      String
-  studentId     String
-  invoiceNumber String    // Auto-generated: INV-2026-0001
-  periodLabel   String    // "April 2026" or "Semester 1 2025/2026"
-  dueDate       String    // YYYY-MM-DD
-  totalDue      Decimal   @default(0) @db.Decimal(15, 2)
-  totalPaid     Decimal   @default(0) @db.Decimal(15, 2)
-  status        String    @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
-  createdBy     String
-  sentAt        DateTime?
-  paidAt        DateTime?
-  parentId      String?   // Billing contact (Parent)
-  xenditSessionId  String?  // Xendit checkout session ID
-  xenditPaymentUrl String?  // Xendit hosted checkout URL
-  createdAt     DateTime  @default(now())
+  id               String    @id @default(cuid())
+  tenantId         String
+  studentId        String
+  invoiceNumber    String // Auto-generated: INV-2026-0001
+  periodLabel      String // "April 2026" or "Semester 1 2025/2026"
+  dueDate          String // YYYY-MM-DD
+  totalDue         Decimal   @default(0) @db.Decimal(15, 2)
+  totalPaid        Decimal   @default(0) @db.Decimal(15, 2)
+  status           String    @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
+  createdBy        String
+  sentAt           DateTime?
+  paidAt           DateTime?
+  parentId         String? // Billing contact (Parent)
+  xenditSessionId  String? // Xendit checkout session ID
+  xenditPaymentUrl String? // Xendit hosted checkout URL
+  createdAt        DateTime  @default(now())
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id])
   student  Student       @relation(fields: [studentId], references: [id])
@@ -589,14 +589,14 @@ model Invoice {
 
 // ── INVOICE LINE ─────────────────────────────────────────────
 model InvoiceLine {
-  id              String @id @default(cuid())
-  invoiceId       String
-  feeComponentId  String
-  labelSnapshot   String
-  amount          Decimal @default(0) @db.Decimal(15, 2)
+  id               String  @id @default(cuid())
+  invoiceId        String
+  feeComponentId   String
+  labelSnapshot    String
+  amount           Decimal @default(0) @db.Decimal(15, 2)
   adjustmentAmount Decimal @default(0) @db.Decimal(15, 2)
-  adjustmentNote  String?
-  finalAmount     Decimal @default(0) @db.Decimal(15, 2)
+  adjustmentNote   String?
+  finalAmount      Decimal @default(0) @db.Decimal(15, 2)
 
   invoice      Invoice         @relation(fields: [invoiceId], references: [id])
   feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
@@ -607,17 +607,17 @@ model InvoiceLine {
 
 // ── PAYMENT ──────────────────────────────────────────────────
 model Payment {
-  id               String   @id @default(cuid())
-  invoiceId        String
-  amount           Decimal  @db.Decimal(15, 2)
-  method           String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
-  reference        String?  // Bank transfer ref
-  notes            String?
-  status           String   @default("RECORDED") // RECORDED | APPROVED | REVERSED
-  createdBy        String?  // User ID who recorded
-  xenditPaymentId  String?  @unique // Idempotency key for Xendit webhooks
-  paidAt           DateTime @default(now())
-  createdAt        DateTime @default(now())
+  id              String   @id @default(cuid())
+  invoiceId       String
+  amount          Decimal  @db.Decimal(15, 2)
+  method          String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
+  reference       String? // Bank transfer ref
+  notes           String?
+  status          String   @default("RECORDED") // RECORDED | APPROVED | REVERSED
+  createdBy       String? // User ID who recorded
+  xenditPaymentId String?  @unique // Idempotency key for Xendit webhooks
+  paidAt          DateTime @default(now())
+  createdAt       DateTime @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id])
 
@@ -630,17 +630,17 @@ model Payment {
 // ══════════════════════════════════════════════════════════════
 
 model StudentAttendance {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   studentId      String
   classSectionId String
-  date           String   // YYYY-MM-DD
-  status         String   @default("PRESENT") // PRESENT | ABSENT | SICK | PERMISSION
+  date           String // YYYY-MM-DD
+  status         String    @default("PRESENT") // PRESENT | ABSENT | SICK | PERMISSION
   checkInTime    DateTime?
   checkOutTime   DateTime?
-  checkedInBy    String?  // Employee ID who marked attendance
+  checkedInBy    String? // Employee ID who marked attendance
   notes          String?
-  isVoided       Boolean  @default(false) // soft-delete; voided = admin marked incorrect
-  createdAt      DateTime @default(now())
+  isVoided       Boolean   @default(false) // soft-delete; voided = admin marked incorrect
+  createdAt      DateTime  @default(now())
 
   student      Student      @relation(fields: [studentId], references: [id])
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
@@ -657,17 +657,18 @@ model StudentAttendance {
 // ══════════════════════════════════════════════════════════════
 
 model AssessmentTemplate {
-  id            String @id @default(cuid())
-  tenantId      String
-  programId     String
-  name          String // "Laporan Perkembangan Semester 1"
-  type          String @default("SEMESTER") // SEMESTER | QUARTERLY | MONTHLY
-  isActive      Boolean @default(true)
+  id        String  @id @default(cuid())
+  tenantId  String
+  programId String
+  name      String // "Laporan Perkembangan Semester 1"
+  type      String  @default("SEMESTER") // SEMESTER | QUARTERLY | MONTHLY
+  isActive  Boolean @default(true)
 
-  program    Program              @relation(fields: [programId], references: [id])
-  categories AssessmentCategory[]
+  program     Program              @relation(fields: [programId], references: [id])
+  categories  AssessmentCategory[]
   assessments StudentAssessment[]
 
+  @@unique([tenantId, programId, name, type])
   @@index([tenantId])
 }
 
@@ -677,7 +678,7 @@ model AssessmentCategory {
   name       String // "Perkembangan Motorik Halus"
   sortOrder  Int    @default(0)
 
-  template   AssessmentTemplate     @relation(fields: [templateId], references: [id])
+  template   AssessmentTemplate    @relation(fields: [templateId], references: [id])
   indicators AssessmentIndicator[]
 }
 
@@ -695,14 +696,14 @@ model StudentAssessment {
   id          String    @id @default(cuid())
   studentId   String
   templateId  String
-  period      String    // "Semester 1 2025/2026"
+  period      String // "Semester 1 2025/2026"
   status      String    @default("DRAFT") // DRAFT | PUBLISHED
   createdBy   String
   publishedAt DateTime?
   createdAt   DateTime  @default(now())
 
-  student  Student              @relation(fields: [studentId], references: [id])
-  template AssessmentTemplate   @relation(fields: [templateId], references: [id])
+  student  Student                  @relation(fields: [studentId], references: [id])
+  template AssessmentTemplate       @relation(fields: [templateId], references: [id])
   scores   StudentAssessmentScore[]
 
   @@unique([studentId, templateId, period])
