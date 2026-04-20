@@ -247,7 +247,14 @@ Two docs are kept current every cycle:
 
 **The cycle doc** is where per-cycle history lives. Do not duplicate cycle details into README.md or CLAUDE.md — link to the cycle doc instead.
 
-The `pre-commit` hook enforces that code changes stage at least one of: the current cycle doc, README.md, or CLAUDE.md. This catches missed doc updates before they become drift.
+Two hooks enforce doc-sync, in layers:
+
+1. **`pre-commit` (broad rule):** code changes (anything under `app/**`, `components/**`, `lib/**`, `prisma/**`) must stage at least one of the current cycle doc, README.md, or CLAUDE.md. Catches "code without any docs update".
+2. **`commit-msg` (narrow rule, added 2026-04-20):** if the commit subject matches `^(feat|perf)(\([^)]+\))?!?:` AND staged files touch `app/**` or `lib/**`, **README.md must be staged** — cycle doc alone is insufficient. This is the stricter rule for user-visible-behavior commits. `fix:`/`refactor:`/`chore:`/`docs:`/`test:`/`style:`/`build:`/`ci:`/`release:` remain covered only by the broad rule. Merge/Revert/fixup!/squash!/amend! subjects always bypass.
+
+Rationale: on 2026-04-20 PR #74 had to retroactively add five cycles to the README history that had merged weeks earlier — each `feat:`/`perf:` PR passed the broad rule by staging only its own cycle doc, and the README narrative drifted. See `docs/cycles/2026-04-20-doc-sync-hook-tighten.md`.
+
+The exact rule table and all test scenarios live in `scripts/test-hooks.sh` — run it to see every case the hook blocks or allows.
 
 ---
 

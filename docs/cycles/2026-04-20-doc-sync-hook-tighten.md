@@ -213,7 +213,7 @@ Why bash and not Playwright (`e2e/hooks.spec.ts`): hook behavior is pure shell,
 no browser involved. Shell fixtures are faster, simpler, and don't pull the
 e2e suite's dev-server overhead. They can be invoked from CI later.
 
-### Task 5 — Document the tightened rule in CLAUDE.md
+### Task 5 — Document the tightened rule in CLAUDE.md ✅
 
 Update §"Documentation Maintenance" to replace the current paragraph:
 > "The `pre-commit` hook enforces that code changes stage at least one of:
@@ -307,6 +307,16 @@ Scenario coverage beyond the stated AC:
 Run: `bash scripts/test-hooks.sh` — all 17 pass.
 
 Files touched: `scripts/test-hooks.sh` (new, executable).
+
+### Task 5 — CLAUDE.md §Documentation Maintenance
+
+Replaced the single-sentence pre-commit description with a two-layer rule
+description (broad pre-commit + narrow commit-msg), a short rationale
+pointing at PR #74 and this cycle doc, and a pointer to `scripts/test-hooks.sh`
+as the source-of-truth rule table. Kept the surrounding paragraphs
+(`prd.md is retired`, `cycle doc is where per-cycle history lives`) intact.
+
+Files touched: `CLAUDE.md`.
 
 ## Verification
 
