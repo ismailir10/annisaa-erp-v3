@@ -50,7 +50,7 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 
 - [x] **T5 — Admin sidebar auto-expands active group.** In `components/admin/sidebar.tsx` (around the `useState` at :101), add a `useEffect` that calls `getActiveGroup(pathname, visibleGroups)` whenever `pathname` changes and forces that group `open: true` in the state map, leaving other groups' user-chosen state alone. *Acceptance:* collapse "Akademik", then click a breadcrumb into an academic route — sidebar now shows "Akademik" expanded with the active item highlighted. Independent.
 
-- [ ] **T6 — Parent bottom-nav query-param whitelist.** `components/parent/bottom-nav.tsx:32`. Replace `searchParams.toString()` with an explicit construction that only carries `child` (if present). Unknown params dropped. *Acceptance:* navigating `/parent/invoices?child=c1&month=2026-04` then tapping "Rapor" tab lands on `/parent/reports?child=c1` (no `month`). Independent.
+- [x] **T6 — Parent bottom-nav query-param whitelist.** `components/parent/bottom-nav.tsx:32`. Replace `searchParams.toString()` with an explicit construction that only carries `child` (if present). Unknown params dropped. *Acceptance:* navigating `/parent/invoices?child=c1&month=2026-04` then tapping "Rapor" tab lands on `/parent/reports?child=c1` (no `month`). Independent.
 
 - [ ] **T7 — Sweep doc in-place resolution markers.** Edit `docs/reviews/2026-04-21-sweep.md` §7: append `✅ [cycle: 2026-04-21-nav-ia-hygiene]` next to each resolved finding (Majors 1–4, Minors 1–2, Nit 1). For Minor 3 (teacher/profile surface), append `✅ stale — header avatar already links to /teacher/profile` with the same cycle tag. Run after T1–T6 merge on the branch. *Acceptance:* grep for `✅ [cycle: 2026-04-21-nav-ia-hygiene]` in sweep doc returns 8 hits. No other sweep-doc section touched.
 
@@ -62,6 +62,7 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 - Task 3: Generalize `getBreadcrumbs()` — added `SEGMENT_LABELS` map (`new`/`edit`/`monthly`/`templates`/`guardians`/`score[s]`); unknown segments render as "Detail" (assumed dynamic id); settings paths now also support sub-trails. Added `config/__tests__/admin-nav.test.ts` with 10 cases covering dashboard, 2-level, 3-level ([id]), 4-level (id/edit), settings, unknown paths.
 - Task 4: Teacher bottom-nav 5→4 tabs — removed `Gaji`/`Wallet` from `components/teacher/bottom-nav.tsx`; added a "Slip Gaji" quick-link card at the top of `app/teacher/profile/page.tsx` (`Link`→`/teacher/slips` with Wallet icon + description). Tabs now: Beranda / Kehadiran / Kelas / Penilaian. Existing `/teacher/slips` route and e2e `salary slips page loads` test unchanged (direct `page.goto`).
 - Task 5: Admin sidebar auto-expand — added `useEffect` on `pathname` in `components/admin/sidebar.tsx` that sets the active group's open state to `true` (functional setState bails out when already open, preserving user-collapsed state for inactive groups). Also expands Settings group if the active route is a settings item.
+- Task 6: Parent bottom-nav query whitelist — added `PARENT_NAV_FORWARDED_PARAMS = ["child"]` in `components/parent/bottom-nav.tsx`; href constructed from a filtered `URLSearchParams` containing only allowed keys. Unknown params (e.g. invoice month filter) are dropped on tab switch.
 
 ## Verification
 
@@ -70,6 +71,7 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 - Task 3: gates passed — build ✅, vitest 19 files / 167 tests (added 10 new breadcrumb cases). All key shapes verified: `/admin/employees/abc123/edit` → `SDM / Karyawan / Detail / Ubah`; `/admin/assessments/abc123` → `Penilaian / Penilaian Siswa / Detail`; `/admin/assessments/templates/tmpl1` → `Penilaian / Template / Detail`.
 - Task 4: gates passed — build ✅, vitest 19/167. Teacher bottom-nav renders 4 tabs; `/teacher/slips` reachable in 2 taps (avatar → profile → "Slip Gaji" card).
 - Task 5: gates passed — build ✅, vitest 19/167. Effect dep = `pathname` only; functional setState shape (`prev[activeGroupId] ? prev : {...prev, [activeGroupId]: true}`) prevents unnecessary re-renders.
+- Task 6: gates passed — build ✅, vitest 19/167. Whitelist constant co-located with nav config for easy future additions.
 
 ## Ship Notes
 
