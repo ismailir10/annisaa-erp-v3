@@ -55,6 +55,9 @@ test.describe("Parent flows", () => {
     await page.waitForURL("**/parent/attendance");
     // Use first() — "Kehadiran" appears in both nav and page heading
     await expect(page.locator("text=Kehadiran").first()).toBeVisible();
+    // Week summary strip rendered above the table (Task 5)
+    await expect(page.getByTestId("attendance-week-summary")).toBeVisible();
+    await expect(page.getByTestId("attendance-week-summary")).toContainText("Minggu ini");
   });
 
   test("reports page loads", async ({ page }) => {

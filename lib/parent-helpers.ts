@@ -177,6 +177,158 @@ export async function getTodayStudentAttendance(
   return record?.status ?? null;
 }
 
+export type PublishedAssessmentListItem = {
+  id: string;
+  templateName: string;
+  period: string;
+  programName: string;
+  status: string;
+};
+
+/**
+ * Fetch every published assessment for a specific student.
+ *
+ * Tenant safety: callers resolve `studentId` via `getParentWithChildren()`,
+ * which already applies the tenant filter; an assessment row is locked to a
+ * tenant-scoped student, so the original `template: { tenantId }` JOIN was
+ * defensive-in-depth but strictly redundant. Dropping it removes a JOIN.
+ *
+ * Cached 2 minutes, tagged so publish/unpublish mutations can invalidate.
+ */
+export const getPublishedAssessmentsForStudent = unstable_cache(
+  async (studentId: string): Promise<PublishedAssessmentListItem[]> => {
+    const rows = await prisma.studentAssessment.findMany({
+      where: { studentId, status: "PUBLISHED" },
+      select: {
+        id: true,
+        period: true,
+        status: true,
+        template: {
+          select: {
+            name: true,
+            program: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      templateName: r.template.name,
+      period: r.period,
+      programName: r.template.program.name,
+      status: r.status,
+    }));
+  },
+  ["parent-published-assessments"],
+  { revalidate: 120, tags: ["parent-published-assessments"] },
+);
+
+/**
+ * Attendance status values come from StudentAttendance.status:
+ * PRESENT | SICK | PERMISSION | ABSENT (see prisma/schema.prisma).
+ */
+export type WeekAttendanceCounts = {
+  PRESENT: number;
+  SICK: number;
+  PERMISSION: number;
+  ABSENT: number;
+};
+
+/**
+ * Format a Date as YYYY-MM-DD using LOCAL calendar components.
+ * We avoid `toISOString()` here because it coerces to UTC and would shift
+ * the date by one day for positive-UTC machines (e.g. Asia/Jakarta).
+ */
+function toLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Return YYYY-MM-DD for the Monday of the ISO week containing `ref`.
+ * Monday = start of week (getDay() returns 1 for Monday, 0 for Sunday).
+ */
+export function mondayOfWeek(ref: Date): string {
+  const d = new Date(ref);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return toLocalYmd(d);
+}
+
+/**
+ * Count attendance records falling inside the current ISO week
+ * (Monday → `today` inclusive). Records are string dates in YYYY-MM-DD.
+ * Records outside the window are ignored. Unknown statuses are ignored.
+ */
+export function countAttendanceThisWeek(
+  records: { date: string; status: string }[],
+  now: Date = new Date(),
+): WeekAttendanceCounts {
+  const monday = mondayOfWeek(now);
+  const today = toLocalYmd(now);
+  const counts: WeekAttendanceCounts = { PRESENT: 0, SICK: 0, PERMISSION: 0, ABSENT: 0 };
+  for (const r of records) {
+    if (r.date < monday || r.date > today) continue;
+    if (r.status in counts) {
+      counts[r.status as keyof WeekAttendanceCounts] += 1;
+    }
+  }
+  return counts;
+}
+
+export type StudentAttendanceRecent = {
+  id: string;
+  date: string;
+  status: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  notes: string | null;
+};
+
+/**
+ * Fetch recent attendance records for a student (default last 30 days).
+ * Cached 2 minutes, tagged so attendance mutations can invalidate.
+ *
+ * Tenant safety: callers resolve `studentId` via `getParentWithChildren()`,
+ * which already tenant-scopes the student.
+ */
+export const getStudentAttendanceRecent = unstable_cache(
+  async (studentId: string, days = 30): Promise<StudentAttendanceRecent[]> => {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const startDate = since.toISOString().split("T")[0];
+
+    const records = await prisma.studentAttendance.findMany({
+      where: { studentId, isVoided: false, date: { gte: startDate } },
+      orderBy: { date: "desc" },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+        checkInTime: true,
+        checkOutTime: true,
+        notes: true,
+      },
+    });
+
+    return records.map((r) => ({
+      id: r.id,
+      date: r.date,
+      status: r.status,
+      checkInTime: r.checkInTime?.toISOString() ?? null,
+      checkOutTime: r.checkOutTime?.toISOString() ?? null,
+      notes: r.notes,
+    }));
+  },
+  ["parent-student-attendance-recent"],
+  { revalidate: 120, tags: ["parent-student-attendance-recent"] },
+);
+
 export type InvoiceListItem = {
   id: string;
   invoiceNumber: string;
