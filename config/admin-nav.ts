@@ -124,7 +124,11 @@ export function getActiveGroup(
   groups: NavGroup[]
 ): string | null {
   for (const group of groups) {
-    if (group.items.some((item) => isItemActive(pathname, item))) {
+    // Sort by href length descending so longer prefixes match first
+    const sorted = [...group.items].sort(
+      (a, b) => b.href.length - a.href.length
+    );
+    if (sorted.some((item) => isItemActive(pathname, item))) {
       return group.id;
     }
   }
@@ -142,14 +146,17 @@ export function getBreadcrumbs(
     }
   }
 
-  // Check groups
+  // Check groups — sort items by href length descending to avoid prefix collision
   for (const group of adminNav.groups) {
-    for (const item of group.items) {
+    const sorted = [...group.items].sort(
+      (a, b) => b.href.length - a.href.length
+    );
+    for (const item of sorted) {
       if (isItemActive(pathname, item)) {
         // If on exact page, no link on last item
         if (pathname === item.href) {
           return [
-            { label: group.label, href: item.href },
+            { label: group.label },
             { label: item.label },
           ];
         }
@@ -158,6 +165,7 @@ export function getBreadcrumbs(
         let subLabel = "Detail";
         if (suffix === "new") subLabel = "Tambah";
         else if (suffix === "monthly") subLabel = "Bulanan";
+        else if (suffix === "scores") subLabel = "Nilai";
 
         return [
           { label: group.label },
