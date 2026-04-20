@@ -169,6 +169,12 @@ Removed the `{ label: "Template Penilaian", href: "/admin/assessment-templates",
 
 Added `async redirects()` with two entries: `/admin/assessment-templates` → `/admin/assessments/templates` and `/admin/assessment-templates/:path*` → `/admin/assessments/templates/:path*`, both with `permanent: true` (Next.js 308). Covers bookmarks, stale browser tabs, and any hypothetical nested URLs. Merged into the existing config object alongside `images`, `headers`, etc.
 
+### T4 — E2E smoke test
+
+**Files:** `e2e/admin.spec.ts`
+
+Added one test to the admin suite: navigate to `/admin/assessment-templates`, assert final URL is `/admin/assessments/templates`, assert the "Template Penilaian" heading renders. Verifies both halves of the consolidation (redirect lands, canonical page mounts) in a single production-build smoke.
+
 ## Verification
 
 <!-- Filled by /build after end-of-cycle gate -->
