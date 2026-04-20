@@ -52,7 +52,7 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 
 - [x] **T6 — Parent bottom-nav query-param whitelist.** `components/parent/bottom-nav.tsx:32`. Replace `searchParams.toString()` with an explicit construction that only carries `child` (if present). Unknown params dropped. *Acceptance:* navigating `/parent/invoices?child=c1&month=2026-04` then tapping "Rapor" tab lands on `/parent/reports?child=c1` (no `month`). Independent.
 
-- [ ] **T7 — Sweep doc in-place resolution markers.** Edit `docs/reviews/2026-04-21-sweep.md` §7: append `✅ [cycle: 2026-04-21-nav-ia-hygiene]` next to each resolved finding (Majors 1–4, Minors 1–2, Nit 1). For Minor 3 (teacher/profile surface), append `✅ stale — header avatar already links to /teacher/profile` with the same cycle tag. Run after T1–T6 merge on the branch. *Acceptance:* grep for `✅ [cycle: 2026-04-21-nav-ia-hygiene]` in sweep doc returns 8 hits. No other sweep-doc section touched.
+- [x] **T7 — Sweep doc in-place resolution markers.** Edit `docs/reviews/2026-04-21-sweep.md` §7: append `✅ [cycle: 2026-04-21-nav-ia-hygiene]` next to each resolved finding (Majors 1–4, Minors 1–2, Nit 1). For Minor 3 (teacher/profile surface), append `✅ stale — header avatar already links to /teacher/profile` with the same cycle tag. Run after T1–T6 merge on the branch. *Acceptance:* grep for `✅ [cycle: 2026-04-21-nav-ia-hygiene]` in sweep doc returns 8 hits. No other sweep-doc section touched.
 
 ## Implementation
 
@@ -63,6 +63,7 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 - Task 4: Teacher bottom-nav 5→4 tabs — removed `Gaji`/`Wallet` from `components/teacher/bottom-nav.tsx`; added a "Slip Gaji" quick-link card at the top of `app/teacher/profile/page.tsx` (`Link`→`/teacher/slips` with Wallet icon + description). Tabs now: Beranda / Kehadiran / Kelas / Penilaian. Existing `/teacher/slips` route and e2e `salary slips page loads` test unchanged (direct `page.goto`).
 - Task 5: Admin sidebar auto-expand — added `useEffect` on `pathname` in `components/admin/sidebar.tsx` that sets the active group's open state to `true` (functional setState bails out when already open, preserving user-collapsed state for inactive groups). Also expands Settings group if the active route is a settings item.
 - Task 6: Parent bottom-nav query whitelist — added `PARENT_NAV_FORWARDED_PARAMS = ["child"]` in `components/parent/bottom-nav.tsx`; href constructed from a filtered `URLSearchParams` containing only allowed keys. Unknown params (e.g. invoice month filter) are dropped on tab switch.
+- Task 7: Sweep doc markers — 8 entries in `docs/reviews/2026-04-21-sweep.md` §7 now carry `✅ [cycle: 2026-04-21-nav-ia-hygiene]` (Majors 1–4, Minors 1–2, Nit 1, plus Minor 3 as `✅ stale` with an explanatory note pointing at `components/teacher/header.tsx:27`).
 
 ## Verification
 
@@ -72,7 +73,24 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 - Task 4: gates passed — build ✅, vitest 19/167. Teacher bottom-nav renders 4 tabs; `/teacher/slips` reachable in 2 taps (avatar → profile → "Slip Gaji" card).
 - Task 5: gates passed — build ✅, vitest 19/167. Effect dep = `pathname` only; functional setState shape (`prev[activeGroupId] ? prev : {...prev, [activeGroupId]: true}`) prevents unnecessary re-renders.
 - Task 6: gates passed — build ✅, vitest 19/167. Whitelist constant co-located with nav config for easy future additions.
+- Task 7: verification — `grep -c "\[cycle: 2026-04-21-nav-ia-hygiene\]" docs/reviews/2026-04-21-sweep.md` returns 8. No other sweep-doc section modified.
+
+**End-of-cycle gates:** `npm run build` ✅. `npx vitest run` ✅ 19 files / 167 tests. `npx playwright test` — 22 passed, 5 failed in `e2e/admin-school-admin.spec.ts` (payroll/salary role-gate assertions for the `u_school_admin` demo persona). Investigation:
+- All 5 failures are in a spec this cycle does not modify; cycle diff against `origin/staging` for `app/api/payroll`, `app/api/employees/[id]/salary`, `middleware.ts`, `lib/auth.ts`, `app/admin/employees/[id]/page.tsx`, and `components/admin/sidebar.tsx`'s `superAdminOnly` filter shows zero overlap (only an additive `useEffect` in sidebar — unrelated to role filtering).
+- `gh run list --branch staging` shows the current staging tip (`95cb992`) CI passed on the same spec file → failures are not a regression caused by this cycle.
+- Most likely cause: local demo DB is missing the `u_school_admin` seed row or is stale. Not actionable from inside this cycle. Surfacing in Ship Notes for manual verification on the PR preview build.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migrations:** none.
+- **New env vars:** none.
+- **Manual smoke on preview URL:**
+  1. Log in as an admin → sidebar shows "Penilaian" group (was "learning" id, now "assessment"). Collapse another group (e.g. "Akademik"), then click a breadcrumb into an admin entity under a third group — previously collapsed groups stay collapsed, active group auto-expands.
+  2. Navigate to `/admin/assessments` → click a row's ⋮ menu → "Detail"/"Edit Nilai" — URL is `/admin/assessments/<id>` (path segment, not `?id=<id>`).
+  3. Hit old bookmark `/admin/assessments/scores?id=<real-id>` → 307/308 to `/admin/assessments/<id>`.
+  4. Log in as a teacher → bottom-nav shows 4 tabs (Beranda / Kehadiran / Kelas / Penilaian). Tap avatar → profile page has a "Slip Gaji" card at top that links to `/teacher/slips`.
+  5. Log in as a parent → navigate `/parent/invoices?child=<child-id>&month=2026-04` → tap "Rapor" tab → URL is `/parent/reports?child=<child-id>` (no `month`).
+  6. Admin breadcrumbs render correctly on deep paths: `/admin/employees/<id>/edit` → `SDM / Karyawan / Detail / Ubah`; `/admin/assessments/templates/<id>` → `Penilaian / Template / Detail`.
+- **Known local test noise:** 5 Playwright tests in `e2e/admin-school-admin.spec.ts` (SCHOOL_ADMIN role restrictions) fail locally. Verified unrelated to this cycle — staging CI is green on the same spec file at HEAD. Likely local demo-DB is missing the `u_school_admin` seed row. CI on the PR will be authoritative.
+- **Rollback plan:** single-squash revert is safe. All changes are frontend-only, no schema, no API contract change. Worst-case regression is a cosmetic label or breadcrumb difference — no data impact.
+- **README.md update:** not required for this cycle — no new modules, routes (new detail path replaces old query-param path, zero new entities), CRUD status changes, or ADRs. The route migration is an internal refactor.
