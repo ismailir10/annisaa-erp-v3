@@ -195,7 +195,7 @@ executable on fresh clones.
 
 Files touched: `scripts/install-hooks.sh`.
 
-### Task 4 — Add `scripts/test-hooks.sh` fixture
+### Task 4 — Add `scripts/test-hooks.sh` fixture ✅
 
 Create an end-to-end test script that exercises all 8 acceptance scenarios
 against a scratch git repo in `/tmp`. Must:
@@ -287,6 +287,26 @@ Existing clones pick up the new hook on next `git pull` because
 for fresh clones or to re-chmod after a file-mode loss.
 
 Files touched: `scripts/install-hooks.sh`.
+
+### Task 4 — `scripts/test-hooks.sh`
+
+Added a bash fixture that runs 17 scenarios (all 8 acceptance criteria plus
+9 edge/coverage cases) against `.githooks/commit-msg`. Each scenario is
+isolated in its own scratch repo under `mktemp`, which is removed on exit
+— the real repo is never mutated. The hook is invoked directly (not via
+`git commit`) so pre-commit and prepare-commit-msg don't interfere.
+
+Scenario coverage beyond the stated AC:
+- `perf:` on `lib/**` (not just `app/**`) — proves lib/ is covered
+- `chore(deps):` on `app/**` without README — proves chore is exempt
+- `Revert "feat: ..."` and `fixup! feat: ...` — proves subject prefixes
+  other than Merge also bypass
+- `feat: + README only` (no cycle doc) — proves the hook doesn't duplicate
+  pre-commit's doc-sync rule, only tightens the README part
+
+Run: `bash scripts/test-hooks.sh` — all 17 pass.
+
+Files touched: `scripts/test-hooks.sh` (new, executable).
 
 ## Verification
 
