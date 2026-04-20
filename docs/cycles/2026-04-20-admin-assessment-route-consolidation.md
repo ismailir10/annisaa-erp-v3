@@ -177,7 +177,17 @@ Added one test to the admin suite: navigate to `/admin/assessment-templates`, as
 
 ## Verification
 
-<!-- Filled by /build after end-of-cycle gate -->
+End-of-cycle gate run after T4 commit — all green.
+
+- `npm run build` — clean production build, no type errors.
+- `npx vitest run` — **130/130 passed** across 14 files.
+- `DEMO_MODE=true npx playwright test` — **26/26 passed** including the new redirect smoke at `e2e/admin.spec.ts:85` ("deleted flat assessment-templates URL redirects to nested"). The test navigates to `/admin/assessment-templates`, asserts the browser lands on `/admin/assessments/templates`, and asserts the canonical heading mounts — covering both halves of the consolidation in one assertion.
+- README.md — `grep -n "assessment-templates" README.md` returns no matches, so no README rewrite is needed. The flat path was never documented at the project-map level.
+- Manual smoke — nested templates page loads with the merged-in stat cards, status filter, and server pagination. Create dialog still opens with categories+indicators inline (feature preserved through the merge). Deactivate toggle still refreshes the stat buckets via `refreshAll()`.
+
+### Out-of-scope caveat
+
+Playwright's webserver log surfaces a pre-existing Prisma drift — `The column \`public.Program.status\` does not exist in the current database` — when the assessments hub fetches programs. This predates the cycle (it shows on the pre-T1 baseline too), does not fail any test, and is unrelated to route consolidation. Flagging here so `/ship` doesn't mistake it for new damage; the schema/database reconciliation belongs in its own cycle.
 
 ## Ship Notes
 
