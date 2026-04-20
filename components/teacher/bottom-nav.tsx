@@ -9,7 +9,7 @@ const tabs = [
   { label: "Beranda", href: "/teacher", icon: Home },
   { label: "Kehadiran", href: "/teacher/attendance", icon: CalendarDays },
   { label: "Kelas", href: "/teacher/class-attendance", icon: School },
-  { label: "Nilai", href: "/teacher/assessments", icon: ClipboardCheck },
+  { label: "Penilaian", href: "/teacher/assessments", icon: ClipboardCheck },
   { label: "Gaji", href: "/teacher/slips", icon: Wallet },
 ];
 

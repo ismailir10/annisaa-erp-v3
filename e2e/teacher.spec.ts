@@ -53,12 +53,12 @@ test.describe("Teacher flows", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
-  test("assessments landing page loads from Nilai tab", async ({ page }) => {
-    // Nilai tab should be visible in bottom nav
-    await expect(page.locator("nav").locator("text=Nilai")).toBeVisible();
-    await page.locator("nav").locator("text=Nilai").click();
+  test("assessments landing page loads from Penilaian tab", async ({ page }) => {
+    // Penilaian tab should be visible in bottom nav
+    await expect(page.locator("nav").locator("text=Penilaian")).toBeVisible();
+    await page.locator("nav").locator("text=Penilaian").click();
     await page.waitForURL("**/teacher/assessments", { timeout: 15_000 });
-    await expect(page.locator("h1", { hasText: "Nilai Siswa" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("h1", { hasText: "Penilaian" })).toBeVisible({ timeout: 10_000 });
     // Either shows classes ("siswa" count) or the empty-state — both are valid
     await expect(
       page

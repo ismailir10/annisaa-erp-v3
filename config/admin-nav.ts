@@ -85,7 +85,7 @@ export const adminNav: NavConfig = {
       ],
     },
     {
-      id: "learning",
+      id: "assessment",
       label: "Penilaian",
       icon: ClipboardList,
       items: [
