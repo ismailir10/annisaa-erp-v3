@@ -11,7 +11,7 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 ## Preflight
 
 1. **Session role set?** Check `.claude/session-role`. If missing, stop and ask the user.
-2. **Worktree isolation?** Every session — regardless of role — MUST work in a git worktree. If `git rev-parse --git-dir` equals `git rev-parse --git-common-dir`, you are in the main checkout. Stop and set up a worktree per `/spec` preflight step 2 (run `scripts/setup-worktree.sh <slug>`, then `EnterWorktree`). Do not ask the user to do it — automate it.
+2. **Worktree isolation?** If `role=product-builder` and `git rev-parse --git-dir` equals `git rev-parse --git-common-dir` (you're in the main checkout, not a worktree), stop and tell the user to create a worktree first. See `/spec` preflight step 2 for the commands.
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh`.
 4. **Current cycle doc?** Find the most recent `docs/cycles/*.md`. If its Tasks section is empty or missing, tell the user to run `/spec` first.
 5. **Working tree clean?** If not, ask whether to commit existing work, stash it, or abort. Never silently inherit someone else's dirty state.
@@ -22,6 +22,19 @@ For each unchecked task in the cycle doc's `## Tasks` section, in order:
 
 ### 1. Load context
 Apply **`agent-skills:context-engineering`**. Read only the files this task needs. Check prior cycles in `docs/cycles/` if the area was recently touched.
+
+**Domain standards — load on demand.** For each task, identify which `.claude/standards/*.md` files the task's file list matches and read them before implementing. Load the **union** of matches — not the most specific — and re-check on every task (a previous task's loads do not carry forward).
+
+| Staged file glob | Load |
+|---|---|
+| `components/**`, `app/*/page.tsx`, `lib/format.ts` | `.claude/standards/ui.md` |
+| `app/api/**`, `lib/validations/**`, `middleware.ts` | `.claude/standards/api.md` + `.claude/standards/security.md` |
+| `app/admin/**` **and** file contains `<Dialog` / `FormField` / `<Field` / a create-or-edit form pattern | **+** `.claude/standards/crud.md` |
+| `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` | **+** `.claude/standards/portal.md` |
+| `app/globals.css`, `tailwind.config.*`, className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`) | **+** `.claude/standards/colors.md` |
+| `lib/auth*`, `middleware.ts` | **+** `.claude/standards/security.md` |
+
+If a task touches files in multiple categories, load all matching standards files (e.g. an admin CRUD form that posts to an API route loads `ui.md` + `crud.md` + `api.md` + `security.md`).
 
 ### 2. Verify against official docs (when relevant)
 If the task uses a framework, library, or API whose current behavior you're not 100% sure of, apply **`agent-skills:source-driven-development`**:
@@ -86,19 +99,14 @@ Then move to the next task.
 
 ## After the last task
 
-1. Run the **end-of-cycle gate** — the full three-command sweep including Playwright (~2 min cold):
-   ```bash
-   npm run build && npx vitest run && npx playwright test
-   ```
-   Playwright runs against the production build in demo mode (see `playwright.config.ts`). If it fails, apply `agent-skills:debugging-and-error-recovery` and fix before committing. Do NOT skip Playwright — `/ship` refuses to promote a cycle without a recorded Playwright pass.
-2. Record the Playwright result in the cycle doc's `## Verification` section — e.g. `- End-of-cycle: build + vitest + playwright all green (N/N e2e tests passed)`. This is what `/ship` reads to confirm the precondition.
-3. Fill `## Ship Notes` in the cycle doc with anything the shipper needs to know:
+1. Run the full gates one final time: `npm run build && npx vitest run`.
+2. Fill `## Ship Notes` in the cycle doc with anything the shipper needs to know:
    - Database migrations to run
    - New env vars
    - Manual smoke-test steps on preview URL
    - Rollback plan if the change is risky
-4. Commit the Ship Notes + end-of-cycle Verification update as the final commit of the cycle.
-5. Hand off to `/ship`.
+3. Commit the Ship Notes update as the final commit of the cycle.
+4. Hand off to `/ship`.
 
 ## Rules
 

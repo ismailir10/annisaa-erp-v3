@@ -1,6 +1,6 @@
 # School ERP — Operating Manual
 
-> **Read this file completely before making any changes.** This is the operating manual for AI development sessions on this repo. For project status, modules, roadmap, and architecture decisions, see [README.md](./README.md).
+> **Read this file completely before making any changes.** This is the operating manual for AI development sessions on this repo. For project status, modules, roadmap, and architecture decisions, see [README.md](./README.md). For domain standards (UI / CRUD / Portal / API / Security / Colors), see `.claude/standards/*.md` — loaded on demand by `/build`, not on every session.
 
 ## Project quick reference
 
@@ -242,7 +242,7 @@ Two docs are kept current every cycle:
 | Document | Role | Update when |
 |---|---|---|
 | **README.md** | Single source of truth — project map, modules, CRUD status, roadmap, ADRs, workflow, setup | Modules change, CRUD status changes, roadmap shifts, architecture decisions made, new user-facing features |
-| **CLAUDE.md** | This file — operating manual for AI agents (standards, patterns, rules) | UI/CRUD/API standards change, security practices change, workflow process changes |
+| **CLAUDE.md** | This file — operating manual for AI agents (workflow + safety rules) | Workflow process, safety mechanism, or one-file-per-cycle rule changes. Domain standards live in `.claude/standards/*.md` and update independently. |
 
 **`prd.md` is retired.** All product/roadmap/ADR content lives in README.md. Do not recreate prd.md.
 
@@ -259,373 +259,20 @@ The exact rule table and all test scenarios live in `scripts/test-hooks.sh` — 
 
 ---
 
-## UI Standards
+## Standards (loaded on demand by `/build`)
 
-### Rule: Shadcn FIRST. Never build custom when Shadcn has it.
+Domain standards are no longer inlined here — they live under `.claude/standards/` and are loaded only when relevant files are staged. `/build` consults the dispatcher table in `.claude/skills/build/SKILL.md` (Step 1 — Load context) and loads the **union** of matching standards per task.
 
-**All 62 Shadcn components are installed.** Use them. Do not build custom.
-
-| Need | Use | NEVER |
-|------|-----|-------|
-| Sidebar / Nav | `<Sidebar>` + all sub-components | Custom `<aside>` with hardcoded styles |
-| Collapsible section | `<Collapsible>` | Custom toggle with useState |
-| Page location | `<Breadcrumb>` | Custom breadcrumb divs |
-| Sidebar trigger | `<SidebarTrigger>` | Custom hamburger button |
-| Sidebar layout | `<SidebarProvider>` + `<SidebarInset>` | Manual `lg:pl-60` offsets |
-| Data list | `<DataTable>` | Custom card loops |
-| Status | `<StatusBadge>` | Inline `<Badge>` with hardcoded colors |
-| Empty list | `<EmptyState>` | Plain `<p>` |
-| Confirm | `<ConfirmDialog>` | `window.confirm()` |
-| Destructive confirm | `<AlertDialog>` | `window.confirm()` for delete |
-| Form field | `<Field>` + `<FieldLabel>` + `<FieldDescription>` | Raw `<Label>` + `<Input>` or custom `<FormField>` |
-| Loading | `<Skeleton>` | `animate-pulse` divs |
-| Progress | `<Progress>` | Custom progress bars |
-| Accordion | `<Accordion>` | Custom expand/collapse |
-| Scroll area | `<ScrollArea>` | Custom overflow divs |
-| Currency | `formatRupiah()` | Inline formatting |
-| Date | `formatDate()` / `formatDateShort()` | Inline `.toLocaleDateString()` |
-
-**Note:** Shadcn `base-nova` style uses `render` prop (not `asChild`) for composition:
-```tsx
-// Correct (base-nova):
-<SidebarMenuButton render={<Link href="/admin" />}>
-<BreadcrumbLink render={<Link href="/admin" />}>
-
-// Wrong (old style):
-<SidebarMenuButton asChild><Link href="/admin">
-```
-
-### DataTable Standard
-
-Any list >10 items: use `<DataTable>` with server-side pagination, column sorting, search, status filter.
-
-**Every DataTable MUST have:**
-1. Sortable column headers (`DataTableColumnHeader`)
-2. Skeleton loading state (Shadcn `Skeleton`)
-3. Status filter (Aktif/Tidak Aktif at minimum)
-4. Action column with: **View button** + **⋮ dropdown** (Edit, Deactivate)
-
-### DataTable Action Column Standard
-
-Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx`). The prop you pass for the terminal action depends on the entity's CRUD category (see `## CRUD Standard` below):
-
-| Category | Terminal prop | Menu label |
+| File | Covers | Loaded when staged paths match |
 |---|---|---|
-| A — Binary soft-delete | `onDeactivate` / `onActivate` + `isActive` | Nonaktifkan / Aktifkan |
-| B — State-machine (Admission) | `onCancel` | Batalkan |
-| B — State-machine (Invoice) | `onVoid` | Batalkan |
-| C — Event-log (StudentAttendance) | `onVoid` | Batalkan |
-
-- **Primary:** "Lihat" button (Eye icon) — visible, navigates to detail or opens Sheet. Only pass `onView` when a detail route exists.
-- **Dropdown (⋮):** `onEdit` + one terminal prop (`onDeactivate` | `onCancel` | `onVoid`).
-- Never hard delete. Never use `extraActions` for "Batalkan" / "Nonaktifkan" — use the dedicated prop so menu labels and icons stay consistent.
-- `extraActions` is reserved for **domain-specific** actions (e.g. "Konversi ke Siswa" on Admission, "Setujui" / "Tolak" on LeaveRequest approval queue).
-
-```tsx
-// Category A — binary:
-<DataTableRowActions
-  onView={() => router.push(`/admin/students/${row.original.id}`)}
-  onEdit={() => setEditTarget(row.original)}
-  onDeactivate={() => setDeactivateTarget(row.original)}
-  isActive={row.original.status === "ACTIVE"}
-/>
-
-// Category B — state-machine (Invoice):
-<DataTableRowActions
-  onView={() => router.push(`/admin/invoices/${inv.id}`)}
-  onVoid={canVoid ? () => setVoidTarget(inv) : undefined}
-/>
-```
-
-**Workflow-queue exceptions** (documented — do NOT "fix"):
-- **PayrollRun list** (`/admin/payroll`): row shows `onView` only. All state transitions (approve, export, send-slips) happen on the detail page. The list is a directory, not an editor.
-- **LeaveRequest approval queue** (`/admin/leave`): `onView` + `extraActions` ("Setujui" / "Tolak"). Approvals ARE the domain action — there is no generic edit or deactivate.
-- **Daily attendance views** (`/admin/attendance`, `/admin/assessments/*` score entry): single-purpose cell editors, no terminal state. Override-only is correct.
-
----
-
-## CRUD Standard (Inspired by ERPNext)
-
-> Every entity in the system MUST support full CRUD. No create-only or read-only entities.
-
-Entities fall into **three categories**. Pick the right one before you build — forcing the wrong pattern makes the UI lie.
-
-### Category A — Binary soft-delete entities (default)
-
-**Who:** User, Campus, Holiday, OrgConfig, Employee, Student, Guardian (StudentGuardian), StudentEnrollment, TeachingAssignment, Program, ClassSection, FeeComponentDef, ProgramFeeStructure, AcademicYear, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, SalaryComponentDef, LeaveRequest.
-
-| Operation | UI Pattern | API Pattern |
-|-----------|-----------|-------------|
-| **Create** | Dialog form or `/new` page | `POST /api/{entity}` with Zod validation |
-| **Read** | DataTable (list) + Detail page/Sheet | `GET /api/{entity}` paginated, `GET /api/{entity}/[id]` |
-| **Update** | Edit dialog (same form as create, pre-filled) | `PUT /api/{entity}/[id]` with Zod validation |
-| **Deactivate** | ConfirmDialog via dropdown action | `PUT /api/{entity}/[id]` with `{ status: "INACTIVE" }` |
-
-- **NEVER hard delete records.** Use `status` field with `ACTIVE` / `INACTIVE`.
-- All list queries default to `WHERE status IN ('ACTIVE')` unless filter says otherwise.
-- DataTable status filter always includes "Semua Status", "Aktif", "Tidak Aktif".
-- DataTable action column: `<DataTableRowActions>` with `onView` + `onEdit` + `onDeactivate`.
-
-### Category B — State-machine entities (workflow)
-
-**Who:** Admission, Invoice, PayrollRun.
-
-Status is a state machine, not a binary flag — `Deactivate` doesn't apply. The terminal action is named for the domain:
-
-| Entity | States | Terminal action | UI label | API |
-|--------|--------|-----------------|----------|-----|
-| Admission | `INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → REGISTERED` · `CANCELLED` | Cancel | "Batalkan" | `PUT /api/admissions/[id]` with `{ status: "CANCELLED" }` |
-| Invoice | `DRAFT → SENT → PARTIALLY_PAID → PAID` · `OVERDUE` · `CANCELLED` | Void | "Batalkan" | `POST /api/invoices/[id]/void` |
-| PayrollRun | `DRAFT → APPROVED → SLIPS_SENT` | (none — workflow-only) | — | `POST /api/payroll/[id]/{approve,send-slips,export/bsi}` |
-
-- Row action column: `<DataTableRowActions>` with `onView` + `onEdit` + `onCancel` **or** `onVoid` (domain-appropriate). Terminal action is **hidden or disabled** when the row is already in a terminal state (`CANCELLED` / `PAID` / `VOIDED`).
-- PayrollRun has no terminal "cancel" — its actions are workflow transitions handled on the detail page, not the list. Its list row exposes `onView` only; this is a **documented exception**.
-- All mutation endpoints still require Zod validation and `canViewSalary(session.role)` where relevant.
-
-### Category C — Event-log entities (no CRUD, event + void)
-
-**Who:** AttendanceRecord (employee check-in/out), StudentAttendance (daily marking).
-
-Immutable events appended by the system; correction via override/void, not edit.
-
-| Operation | UI Pattern | API Pattern |
-|-----------|-----------|-------------|
-| Create | Auto (check-in/out) or bulk-mark dialog | `POST /api/attendance/check-in`, `POST /api/student-attendance/mark` |
-| Read | Daily/monthly grid (not a DataTable of events) | `GET /api/attendance?date=...` |
-| Correct | Override modal on the event row | `POST /api/attendance/[id]/override`, `PUT /api/student-attendance/[id]` |
-| Void | Dropdown action — clears the event | `isVoided = true` (boolean flag, not `status`) |
-
-- These entities intentionally use `isVoided: Boolean` instead of `status: String` because voiding is reversible audit, not a lifecycle state.
-- Daily-view pages (AttendanceRecord) do **not** use the standard list layout — they render a per-day grid or today-only view. Documented exception.
-
-### Which category fits a new entity?
-
-- Does the entity have a single "trash it" meaning? → **Category A**.
-- Does it have multiple states with different terminal outcomes (cancel vs complete vs void)? → **Category B**.
-- Is it an immutable event the system generates? → **Category C**.
-
-### List Page Layout Standard
-
-Every admin list page follows this exact structure:
-```
-PageHeader (title + count + "Tambah" button)
-├── StatCards (3-4 key metrics, grid cols-2 lg:cols-4)
-├── DataTableToolbar (search + status filter + any domain filters)
-└── DataTable (sortable columns + standard action column)
-```
-
-### Detail Page Layout Standard
-
-```
-Back link ("← Kembali ke Daftar {Entity}")
-PageHeader (title + description + StatusBadge + action buttons)
-├── Summary Card (read-only info grid, 2-col)
-└── Tabs (if entity has multiple concerns)
-    ├── Tab 1: Primary related data
-    ├── Tab 2: Secondary data
-    └── Tab 3: History
-```
-
-### Edit Toggle Pattern (Detail Pages)
-
-- **View mode** (default): fields displayed as read-only text (label + value pairs)
-- Click **"Edit"** button in PageHeader → switches to **Edit mode**
-- Edit mode: same layout positions, values become `<Field>` + `<FieldLabel>` + `<Input>`
-- **Save** + **Cancel** (X) buttons appear in the card header
-- Cancel reverts to view mode (resets form state)
-- Nested entities (guardians, payments) still use **Dialog** for add/edit
-
-```tsx
-// Edit toggle pattern:
-const [isEditing, setIsEditing] = useState(false);
-const [editForm, setEditForm] = useState({ ... });
-
-// View mode: read-only text
-<div><p className="text-[10px] text-muted-foreground">Label</p><p className="text-sm font-medium">{value}</p></div>
-
-// Edit mode: Field + Input
-<Field><FieldLabel>Label</FieldLabel><Input value={editForm.field} onChange={...} /></Field>
-```
-
-### Form Field Standard
-
-Use Shadcn `Field` component (`components/ui/field.tsx`) — **never** raw `Label` + `Input` or custom `FormField`.
-
-```tsx
-import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field"
-
-<Field>
-  <FieldLabel>Nama Lengkap</FieldLabel>
-  <Input value={...} onChange={...} />
-  <FieldDescription>Optional help text</FieldDescription>
-  <FieldError>{error}</FieldError>
-</Field>
-```
-
-### Edit Dialog Standard (for nested entities)
-
-- Same form fields as create dialog, pre-filled with current values
-- Title: "Edit {EntityName}" (e.g., "Edit Wali")
-- Save button: "Simpan" with loading state
-- Cancel button: "Batal"
-- On success: `toast.success()` + close dialog + refetch data
-
-### Color Standard
-
-**Never use hardcoded hex colors.** Use CSS variables defined in `globals.css`:
-
-| Need | Use | NEVER |
-|------|-----|-------|
-| Success/present | `text-status-present`, `bg-status-present` | `text-[#00B37E]` |
-| Warning/late | `text-status-late`, `text-warning` | `text-[#FF8C00]` |
-| Error/absent | `text-destructive`, `text-status-absent` | `text-[#FF3B3B]` |
-| Leave/info | `text-status-leave`, `text-info` | `text-[#0EA5E9]` |
-| Status text (badges) | `text-status-present-text` | `text-[#00875A]` |
-| Status backgrounds | `bg-status-present-subtle` | `bg-[#E6F9F1]` |
-
----
-
-## Portal Consistency Standard
-
-> Admin, Teacher, and Parent portals MUST use the same Shadcn components and patterns.
-
-### All Portals Must Use:
-
-| Need | Use | NEVER |
-|------|-----|-------|
-| Data display | `DataTable` (if >10 items) or Card list (if <10) | Custom divs with `.map()` |
-| Status display | `StatusBadge` | Inline `Badge` with hardcoded colors |
-| Empty state | `EmptyState` component | Plain `<p>` or `<div>` |
-| Loading state | Shadcn `Skeleton` | `animate-pulse` divs |
-| Currency | `formatRupiah()` from `@/lib/format` | Inline `.toLocaleString()` |
-| Dates | `formatDate()` / `formatDateShort()` from `@/lib/format` | Inline `new Date().toLocaleDateString()` |
-| Time | `formatTime()` from `@/lib/format` | Inline formatting |
-| Colors | CSS variables (`text-primary`, `text-destructive`, etc.) | Hardcoded hex (`text-[#5DB4B8]`, `bg-[#00B37E]`) |
-| Errors | `toast.error()` from sonner | `alert()` or `console.error()` only |
-| Confirmations | `ConfirmDialog` | `window.confirm()` |
-| Forms | `FormField` + Zod validation | Raw `Label` + `Input` |
-
-### Portal Navigation Standard
-
-**Teacher Portal** (mobile-first, max-w-md):
-- Header: logo + school name + user name + logout button
-- Bottom nav: 5 tabs with icons + labels + active indicator
-- Content: centered `max-w-md`
-
-**Parent Portal** (mobile-first, max-w-md — MUST match teacher pattern):
-- Header: logo + school name + user name + logout button (same as teacher)
-- Bottom nav: 4 tabs (Beranda, Tagihan, Kehadiran, Rapor) with icons + active indicator
-- Content: centered `max-w-md` (NOT max-w-2xl — parents are mobile users)
-- Logout: accessible from header (same pattern as teacher)
-
-**Both portals MUST have:**
-- Active state on current tab (teal underline + icon color)
-- Logout button in header with `title="Keluar"` for accessibility
-- Framer Motion `layoutId` for smooth active indicator animation
-- Safe area padding for mobile (`safe-area-bottom` on bottom nav)
-
-### Empty State Contract
-
-**Every conditional list render MUST have an explicit else branch that renders visible content.** Rendering nothing in the empty case is a Playwright test failure waiting to happen — every E2E test asserts visible text on the page.
-
-```tsx
-// CORRECT — always render something
-{items.length > 0 ? (
-  <ul>{items.map(i => <li key={i.id}>{i.name}</li>)}</ul>
-) : (
-  <EmptyState title="Belum ada data" description="Data akan muncul setelah ditambahkan" />
-)}
-
-// WRONG — renders literally nothing when empty (test will fail)
-{items.length > 0 && (
-  <ul>{items.map(i => <li key={i.id}>{i.name}</li>)}</ul>
-)}
-```
-
-**Rule:** If a page or component conditionally renders a list based on fetched data, it MUST render an `<EmptyState>` or at minimum visible text in the empty branch. This applies to all portals (admin, teacher, parent) and all page types (list pages, detail pages, dashboard cards).
-
-### Error Handling Standard
-
-Every `fetch()` call MUST check response:
-```tsx
-const res = await fetch("/api/...");
-if (!res.ok) {
-  const err = await res.json().catch(() => ({}));
-  toast.error(err.error || "Terjadi kesalahan");
-  return;
-}
-const data = await res.json();
-```
-
-Never silently ignore errors: `.catch(() => {})` is forbidden.
-
-### Brand
-
-| Token | Value |
-|-------|-------|
-| Primary | `#5DB4B8` (teal) |
-| Sidebar | `#1A2E2F` (dark teal) |
-| Success | `#00B37E` |
-| Warning | `#FF8C00` |
-| Error | `#FF3B3B` |
-
----
-
-## API Standards
-
-### GET Lists
-
-Support: `?page=1&pageSize=20&search=X&sortBy=field&sortOrder=asc&status=Y`
-
-Use: `lib/api/pagination.ts`, `lib/api/response.ts`
-
-Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
-
-### Mutations (POST/PUT/DELETE)
-
-1. `getSession()` → auth check
-2. `session.role` → role check
-3. `tenantId` → tenant ownership
-4. Zod validation → reject bad input
-5. Structured errors: `{ error: "message" }`
-
----
-
-## Security
-
-### Every API Route Must:
-
-1. `getSession()` → auth check (return 401 if missing)
-2. `session.role` → role check (return 403 if wrong role)
-3. `tenantId` → tenant ownership on every query (never return cross-tenant data)
-4. Zod validation on all POST/PUT inputs (`lib/validations/`)
-5. Rate limiting on all write endpoints (`lib/rate-limit.ts`)
-6. `Number()` wrapper on all Decimal fields from Prisma (they come as strings)
-
-### Data Access Rules
-
-| Role | Access |
-|------|--------|
-| `SUPER_ADMIN` | All tenant data, including payroll and salary fields |
-| `SCHOOL_ADMIN` | All tenant data **EXCEPT**: `/api/payroll/*`, `/api/employees/*/salary`, and salary fields stripped from employee responses |
-| `TEACHER` | Own attendance, own slips, assigned classes only |
-| `GUARDIAN` | Own child's data only (invoices, attendance, reports) |
-
-**Auth helpers** (`lib/auth.ts`):
-- `isAdminRole(role)` — true for both `SUPER_ADMIN` and `SCHOOL_ADMIN`; use for general admin gates
-- `canViewSalary(role)` — true for `SUPER_ADMIN` only; use for payroll/salary routes and UI
-
-### Security Checklist for New Routes
-
-- [ ] `getSession()` at top of handler
-- [ ] Role check: `!isAdminRole(session.role)` (for general admin routes)
-- [ ] Salary-bearing routes: use `!canViewSalary(session.role)` — not just `isAdminRole()`
-- [ ] Tenant filter: `where: { tenantId: session.tenantId }`
-- [ ] Zod validation on request body
-- [ ] Rate limiting: `rateLimit()` on POST/PUT
-- [ ] `Number()` on any Decimal field used in arithmetic
-- [ ] Never hard delete — use status change
-- [ ] Xendit webhook: verify `x-callback-token`
+| `.claude/standards/ui.md` | Shadcn-FIRST rule, DataTable + action-column standard | `components/**`, `app/*/page.tsx`, `lib/format.ts` |
+| `.claude/standards/crud.md` | ERPNext-inspired CRUD (Categories A/B/C), soft-delete, list/detail layouts, form field, edit dialog, edit toggle | `app/admin/**` **with** `<Dialog` / `FormField` / `<Field` / create-or-edit form content |
+| `.claude/standards/portal.md` | Portal consistency, portal navigation, Empty State Contract, fetch error-handling contract | `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` |
+| `.claude/standards/api.md` | GET list pagination contract, mutation shape | `app/api/**`, `lib/validations/**`, `middleware.ts` |
+| `.claude/standards/security.md` | API route checklist, data-access roles table, new-route security checklist | `app/api/**`, `lib/auth*`, `middleware.ts` |
+| `.claude/standards/colors.md` | Color Standard + Brand tokens | `app/globals.css`, `tailwind.config.*`, `bg-status-*` / `text-status-*` className edits, or files containing arbitrary-color classNames `text-[#…]` / `bg-[#…]` / `border-[#…]` |
+
+The table above is the breadcrumb — former top-level sections (UI Standards, CRUD Standard, Portal Consistency Standard, API Standards, Security, Color Standard + Brand) now live in the listed files.
 
 ---
 
@@ -647,39 +294,23 @@ lib/email/          Resend integration
 prisma/             Schema + seed data
 docs/cycles/        One markdown file per development cycle
 .claude/skills/     Project slash commands (spec/, build/, ship/ — each a SKILL.md)
+.claude/standards/  Domain standards loaded on demand by /build
 .githooks/          Pre-commit, prepare-commit-msg, pre-push hooks
 scripts/            check-role.sh, install-hooks.sh
 ```
 
----
-
-## Testing
-
-```bash
-# Between-task gate (run before every commit)
-npm run build && npx vitest run
-
-# End-of-cycle gate (run after last task, before final commit)
-npm run build && npx vitest run && npx playwright test
-
-# Lint
-npm run lint
-```
-
-E2E specs: `e2e/admin.spec.ts` (9 tests), `e2e/teacher.spec.ts` (5 tests), `e2e/parent.spec.ts` (6 tests).
-All use demo-mode auth — no live Supabase or env vars required to run locally.
-
----
+E2E specs: `e2e/admin.spec.ts` (9), `e2e/teacher.spec.ts` (5), `e2e/parent.spec.ts` (6). Demo-mode auth — no live Supabase or env vars needed locally. Lint: `npm run lint`.
 
 ## Key Documents
 
 | Doc | Purpose | Updated |
 |-----|---------|---------|
 | `README.md` | Project map: modules, CRUD status, roadmap, ADRs, workflow, setup | Every cycle |
-| `CLAUDE.md` | This file — AI operating manual (standards, patterns, rules) | When standards or workflow change |
+| `CLAUDE.md` | This file — AI operating manual (workflow + safety rules) | When workflow, safety, or one-file-per-cycle rules change |
+| `.claude/standards/*.md` | On-demand reference loaded by `/build` (ui, crud, portal, api, security, colors) | When a standard itself needs correction |
 | `docs/cycles/YYYY-MM-DD-<slug>.md` | One per cycle — Context / Spec / Tasks / Implementation / Verification / Ship Notes | Created by `/spec`, updated by `/build` and `/ship` |
 | `.claude/personas/*.md` | Fixed UAT personas (Pak Budi, Bu Sari, Ibu Nur) — device, context, frustrations, give-up triggers | Rarely — personas are stable |
 | `docs/uat/jobs/*.md` | Per-portal Jobs-to-be-Done library — maintained by `/build` when user-facing capability changes | Each cycle that touches portal UX |
 | `docs/uat/reports/*.md` | UAT reports (gitignored) — produced by `/uat`, consumed by `/spec` | On demand |
 
-**Last updated:** 2026-04-19 (README ↔ CLAUDE doc reconciliation — removed workflow duplication from README, bumped model-trailer examples to claude-opus-4-7)
+**Last updated:** 2026-04-20 (standards split — domain reference moved to `.claude/standards/*.md`, loaded on demand by `/build`).
