@@ -16,15 +16,20 @@ export const updateAssessmentTemplateSchema = z.object({
 // MB (Mulai Berkembang), BSH (Berkembang Sesuai Harapan), BSB (Berkembang Sangat Baik).
 export const assessmentScoreEnum = z.enum(["BB", "MB", "BSH", "BSB"]);
 
+// `publish` is the canonical teacher flow (boolean). `status` is accepted for
+// backwards compatibility with the admin scores page which POSTs
+// `{ status: "PUBLISHED" }` explicitly. Handler normalises both to a final
+// PUBLISHED/DRAFT decision.
 export const studentAssessmentSaveSchema = z.object({
   scores: z
     .array(
       z.object({
         indicatorId: z.string().min(1),
         score: assessmentScoreEnum,
-        notes: z.string().max(500).optional(),
+        notes: z.string().max(500).nullish(),
       }),
     )
     .optional(),
   publish: z.boolean().optional(),
+  status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
 });
