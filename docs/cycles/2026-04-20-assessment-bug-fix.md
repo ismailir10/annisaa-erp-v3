@@ -116,7 +116,8 @@ Migration SQL (in order):
 
 ## Implementation
 
-<!-- Filled by /build -->
+- **T1 — schema uniqueness + dedupe migration.** `prisma/schema.prisma` now has `@@unique([tenantId, programId, name, type])` on `AssessmentTemplate`; existing `@@index([tenantId])` preserved. New migration `20260420000000_assessment_template_unique` does a defensive dedupe pass (picks survivor per group by `StudentAssessment` count desc, `id` asc; reparents or drops colliding StudentAssessment + scores + AssessmentCategory + indicators + scores) before adding the unique index. Rest of the schema diff is pure `prisma format` whitespace. Gate: `npm run build` ✓, `npx vitest run` 130/130 ✓. Commit: `20b1869`.
+- **T2 — POST 409 guard + extended validator.** `app/api/assessments/templates/route.ts` POST now trims the name, checks `findFirst` on `(tenantId, programId, name, type)`, and returns `409 { error, existingId }` on duplicate. Rate limit + `isAdminRole` + Zod + `revalidatePath` preserved. `lib/validations/assessment-template.ts` gained `assessmentScoreEnum` (`BB|MB|BSH|BSB`) and `studentAssessmentSaveSchema` (optional scores batch + optional `publish` flag) for the T4 teacher entry flow. New tests: `app/api/__tests__/assessment-templates.test.ts` (6 cases — 403 non-admin, 400 Zod, 404 program missing, 409 + `existingId` on dup, trim-before-check, 201 happy path), `lib/__tests__/assessment-template.test.ts` (11 cases). Gate: `npm run build` ✓, `npx vitest run` 147/147 ✓. Commit: `<pending>`.
 
 ## Verification
 
