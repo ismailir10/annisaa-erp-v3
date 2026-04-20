@@ -79,6 +79,7 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 - All 5 failures are in a spec this cycle does not modify; cycle diff against `origin/staging` for `app/api/payroll`, `app/api/employees/[id]/salary`, `middleware.ts`, `lib/auth.ts`, `app/admin/employees/[id]/page.tsx`, and `components/admin/sidebar.tsx`'s `superAdminOnly` filter shows zero overlap (only an additive `useEffect` in sidebar — unrelated to role filtering).
 - `gh run list --branch staging` shows the current staging tip (`95cb992`) CI passed on the same spec file → failures are not a regression caused by this cycle.
 - Most likely cause: local demo DB is missing the `u_school_admin` seed row or is stale. Not actionable from inside this cycle. Surfacing in Ship Notes for manual verification on the PR preview build.
+- **Explicit regression check:** ran `git checkout origin/staging -- components/admin/sidebar.tsx` and re-ran `sidebar has no Penggajian` test — still failed with origin/staging's sidebar code. Confirms the failures pre-exist on staging HEAD (`95cb992`) and are local-env artifacts, not introduced by this cycle.
 
 ## Ship Notes
 
