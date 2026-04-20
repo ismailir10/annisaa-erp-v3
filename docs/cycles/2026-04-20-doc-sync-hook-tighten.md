@@ -132,7 +132,7 @@ or whether bypass was the real cause.
 
 Files touched: none (read-only audit).
 
-### Task 2 — Add `.githooks/commit-msg`
+### Task 2 — Add `.githooks/commit-msg` ✅
 
 Create `.githooks/commit-msg` implementing the rule above.
 
@@ -259,6 +259,21 @@ No retroactive fixup required: PR #74 already reconciled the README on
 2026-04-20.
 
 Files touched: none (cycle doc only).
+
+### Task 2 — `.githooks/commit-msg`
+
+Added a new executable shell hook that enforces the rule described in Spec.
+Exits 0 immediately for merge/revert/fixup/squash/amend subjects and for any
+subject whose first line doesn't match `^(feat|perf)(\([^)]+\))?!?:`. When
+the subject matches AND the staged diff touches `app/**` or `lib/**`, the
+hook rejects the commit unless `README.md` is also staged. Exits 1 with an
+error message listing exempt types and pointing to `scripts/test-hooks.sh`.
+
+Regex sanity-tested inline against `feat:`, `feat(scope):`, `feat!:`,
+`feat(scope)!:`, `perf:`, `perf(scope):` — all match. `chore: something`
+correctly exits 0 without checking staging.
+
+Files touched: `.githooks/commit-msg` (new, executable).
 
 ## Verification
 
