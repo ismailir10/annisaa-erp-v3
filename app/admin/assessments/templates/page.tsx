@@ -16,10 +16,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Plus, ClipboardList, Trash2 } from "lucide-react";
+import { Plus, ClipboardList, Trash2, Power, PowerOff } from "lucide-react";
 
 // ------------------------------------------------------------------
 // Types
@@ -44,7 +43,9 @@ type AssessmentTemplate = {
   createdAt: string;
 };
 
-type Program = { id: string; name: string };
+type Program = { id: string; name: string; code?: string };
+
+type Pagination = { page: number; pageSize: number; total: number; totalPages: number };
 
 // ------------------------------------------------------------------
 // Constants
@@ -105,8 +106,13 @@ const columns: ColumnDef<AssessmentTemplate>[] = [
 
 export default function AssessmentTemplatesPage() {
   const [data, setData] = useState<AssessmentTemplate[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1, pageSize: 20, total: 0, totalPages: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [isActiveFilter, setIsActiveFilter] = useState("all");
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [programs, setPrograms] = useState<Program[]>([]);
   const [createDialog, setCreateDialog] = useState(false);
   const [editTarget, setEditTarget] = useState<AssessmentTemplate | null>(null);
@@ -124,34 +130,69 @@ export default function AssessmentTemplatesPage() {
   // Edit form (top-level only)
   const [editForm, setEditForm] = useState({ name: "", type: "SEMESTER" });
 
+  // ── Fetch programs once ────────────────────────────────────
   useEffect(() => {
-    fetch("/api/programs").then(r => r.json()).then(setPrograms).catch(() => toast.error("Gagal memuat data"));
+    fetch("/api/programs")
+      .then((r) => r.json())
+      .then((d) => setPrograms(Array.isArray(d) ? d : []))
+      .catch(() => toast.error("Gagal memuat data"));
   }, []);
 
+  // ── Fetch stats (re-run after mutations) ──────────────────
+  const fetchStats = useCallback(() => {
+    Promise.all([
+      fetch("/api/assessments/templates?page=1&pageSize=1").then((r) => r.json()),
+      fetch("/api/assessments/templates?page=1&pageSize=1&isActive=true").then((r) => r.json()),
+      fetch("/api/assessments/templates?page=1&pageSize=1&isActive=false").then((r) => r.json()),
+    ]).then(([all, active, inactive]) => {
+      setStats({
+        total: all.pagination?.total ?? 0,
+        active: active.pagination?.total ?? 0,
+        inactive: inactive.pagination?.total ?? 0,
+      });
+    }).catch(() => toast.error("Gagal memuat data"));
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  // ── Fetch list (server paginated) ─────────────────────────
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/assessments/templates");
-      if (!res.ok) { toast.error("Gagal memuat template"); return; }
+      const params = new URLSearchParams({
+        page: String(pagination.page),
+        pageSize: String(pagination.pageSize),
+      });
+      if (search) params.set("search", search);
+      if (isActiveFilter !== "all") params.set("isActive", isActiveFilter);
+
+      const res = await fetch(`/api/assessments/templates?${params}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Gagal memuat template");
+        return;
+      }
       const json = await res.json();
-      setData(Array.isArray(json) ? json : []);
+      setData(json.data ?? []);
+      if (json.pagination) setPagination(json.pagination);
     } catch {
       toast.error("Gagal memuat template penilaian");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pagination.page, pagination.pageSize, search, isActiveFilter]);
 
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 
-  const filtered = useMemo(() => {
-    if (!search) return data;
-    const q = search.toLowerCase();
-    return data.filter((t) =>
-      t.name.toLowerCase().includes(q) ||
-      t.program.name.toLowerCase().includes(q)
-    );
-  }, [data, search]);
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
+
+  function refreshAll() {
+    fetchTemplates();
+    fetchStats();
+  }
 
   // ── Create ──────────────────────────────────────────────
   async function handleCreate() {
@@ -182,7 +223,7 @@ export default function AssessmentTemplatesPage() {
     setCreateDialog(false);
     setCreateForm({ name: "", programId: "", type: "SEMESTER", categories: [{ ...EMPTY_CATEGORY }] });
     setSaving(false);
-    fetchTemplates();
+    refreshAll();
   }
 
   // ── Edit ────────────────────────────────────────────────
@@ -198,7 +239,7 @@ export default function AssessmentTemplatesPage() {
     toast.success("Template diperbarui");
     setEditTarget(null);
     setSaving(false);
-    fetchTemplates();
+    refreshAll();
   }
 
   // ── Deactivate ──────────────────────────────────────────
@@ -213,7 +254,7 @@ export default function AssessmentTemplatesPage() {
     if (!res.ok) { const e = await res.json().catch(() => ({})); toast.error(e.error || "Gagal mengubah status"); return; }
     toast.success(newState ? "Template diaktifkan" : "Template dinonaktifkan");
     setDeactivateTarget(null);
-    fetchTemplates();
+    refreshAll();
   }
 
   // ── Form helpers ────────────────────────────────────────
@@ -268,15 +309,11 @@ export default function AssessmentTemplatesPage() {
     [],
   );
 
-  if (loading) return <Skeleton className="h-96 rounded-xl" />;
-
-  const activeCount = data.filter((t) => t.isActive).length;
-
   return (
     <>
       <PageHeader
         title="Template Penilaian"
-        description={`${data.length} template`}
+        description={`${stats.total} template`}
         actions={
           <Button size="sm" onClick={() => { setCreateForm({ name: "", programId: "", type: "SEMESTER", categories: [{ ...EMPTY_CATEGORY }] }); setCreateDialog(true); }}>
             <Plus size={14} className="mr-1.5" /> Buat Template
@@ -285,16 +322,38 @@ export default function AssessmentTemplatesPage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-        <StatCard label="Total Template" value={data.length} icon={ClipboardList} color="primary" index={0} />
-        <StatCard label="Aktif" value={activeCount} icon={ClipboardList} color="success" index={1} />
-        <StatCard label="Nonaktif" value={data.length - activeCount} icon={ClipboardList} color="warning" index={2} />
+        <StatCard label="Total Template" value={stats.total} icon={ClipboardList} color="primary" index={0} />
+        <StatCard label="Aktif" value={stats.active} icon={Power} color="success" index={1} />
+        <StatCard label="Tidak Aktif" value={stats.inactive} icon={PowerOff} color="error" index={2} />
       </div>
 
-      <DataTableToolbar searchPlaceholder="Cari template atau program..." onSearchChange={setSearch} />
+      <DataTableToolbar
+        searchPlaceholder="Cari template atau program..."
+        onSearchChange={handleSearchChange}
+        filters={[
+          {
+            key: "isActive",
+            label: "Status",
+            value: isActiveFilter,
+            onChange: (v) => {
+              setIsActiveFilter(v);
+              setPagination((p) => ({ ...p, page: 1 }));
+            },
+            options: [
+              { value: "all", label: "Semua Status" },
+              { value: "true", label: "Aktif" },
+              { value: "false", label: "Tidak Aktif" },
+            ],
+          },
+        ]}
+      />
 
       <DataTable
         columns={columnsWithActions}
-        data={filtered}
+        data={data}
+        pagination={pagination}
+        onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
+        onPageSizeChange={(pageSize) => setPagination((p) => ({ ...p, page: 1, pageSize }))}
         defaultSort={{ field: "name", order: "asc" }}
         loading={loading}
         emptyTitle="Belum ada template penilaian"

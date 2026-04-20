@@ -151,7 +151,11 @@ test('deleted flat assessment-templates URL redirects to nested', async ({ page 
 
 ## Implementation
 
-<!-- Filled by /build, per task -->
+### T1 — Merge server pagination + status filter + stat-card buckets into nested templates page
+
+**Files:** `app/admin/assessments/templates/page.tsx`
+
+Replaced client `useMemo(() => data.filter(...))` with server-side pagination (`?page=&pageSize=&search=&isActive=`). Added `pagination` state, `isActiveFilter` state, `stats` state. Added three parallel count fetches in `fetchStats` (`?pageSize=1` with/without `isActive` params) so stat cards stay accurate across pages. Added status filter to `DataTableToolbar.filters` with all/active/inactive options. Dropped dead `Skeleton` import, added `Power` / `PowerOff` lucide icons for stat cards. Kept `TYPE_LABELS.QUARTERLY = "Kuartal"` (did not regress to flat's "Triwulan"). Did not touch the nested categories/indicators create dialog — that UI is the whole reason nested was canonical. After create/edit/toggle mutations, `refreshAll()` now re-fetches both list and stats.
 
 ## Verification
 
