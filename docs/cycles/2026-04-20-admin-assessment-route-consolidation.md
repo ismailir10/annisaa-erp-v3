@@ -163,6 +163,12 @@ Replaced client `useMemo(() => data.filter(...))` with server-side pagination (`
 
 Removed the `{ label: "Template Penilaian", href: "/admin/assessment-templates", ... }` line from the Akademik group (L76). The two Penilaian-group entries (`/admin/assessments/templates` and `/admin/assessments`) are untouched. Grep-verified before delete: only `config/admin-nav.ts` and the historical cycle doc `2026-04-16-learning-crud-completion.md` referenced the flat path — the cycle doc is history and stays.
 
+### T3 — Add permanent redirect
+
+**Files:** `next.config.ts`
+
+Added `async redirects()` with two entries: `/admin/assessment-templates` → `/admin/assessments/templates` and `/admin/assessment-templates/:path*` → `/admin/assessments/templates/:path*`, both with `permanent: true` (Next.js 308). Covers bookmarks, stale browser tabs, and any hypothetical nested URLs. Merged into the existing config object alongside `images`, `headers`, etc.
+
 ## Verification
 
 <!-- Filled by /build after end-of-cycle gate -->
