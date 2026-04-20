@@ -135,6 +135,24 @@ export function getActiveGroup(
   return null;
 }
 
+/**
+ * Fixed labels for well-known sub-path segments. Any segment not in this
+ * map is assumed to be a dynamic id and renders as "Detail".
+ */
+const SEGMENT_LABELS: Record<string, string> = {
+  new: "Tambah",
+  edit: "Ubah",
+  monthly: "Bulanan",
+  templates: "Template",
+  guardians: "Wali Murid",
+  score: "Nilai",
+  scores: "Nilai",
+};
+
+function segmentLabel(segment: string): string {
+  return SEGMENT_LABELS[segment] ?? "Detail";
+}
+
 /** Build breadcrumb trail from pathname */
 export function getBreadcrumbs(
   pathname: string
@@ -146,31 +164,34 @@ export function getBreadcrumbs(
     }
   }
 
-  // Check groups — sort items by href length descending to avoid prefix collision
+  // Check groups — sort items by href length descending so longer prefixes
+  // (e.g. /admin/assessments/templates) match before shorter ones
+  // (e.g. /admin/assessments). Then parse each remaining sub-segment into
+  // its own crumb via SEGMENT_LABELS, falling back to "Detail" for ids.
   for (const group of adminNav.groups) {
     const sorted = [...group.items].sort(
       (a, b) => b.href.length - a.href.length
     );
     for (const item of sorted) {
       if (isItemActive(pathname, item)) {
-        // If on exact page, no link on last item
+        // Exact match — last crumb has no link
         if (pathname === item.href) {
           return [
             { label: group.label },
             { label: item.label },
           ];
         }
-        // On a sub-page — detect context from path suffix
-        const suffix = pathname.slice(item.href.length + 1); // e.g. "new", "monthly", "[id]"
-        let subLabel = "Detail";
-        if (suffix === "new") subLabel = "Tambah";
-        else if (suffix === "monthly") subLabel = "Bulanan";
-        else if (suffix === "scores") subLabel = "Nilai";
+        // Sub-page — parse each remaining segment into its own crumb
+        const suffix = pathname.slice(item.href.length + 1);
+        const subTrail = suffix
+          .split("/")
+          .filter(Boolean)
+          .map((seg) => ({ label: segmentLabel(seg) }));
 
         return [
           { label: group.label },
           { label: item.label, href: item.href },
-          { label: subLabel },
+          ...subTrail,
         ];
       }
     }
@@ -179,7 +200,19 @@ export function getBreadcrumbs(
   // Check settings
   for (const item of adminNav.settings) {
     if (isItemActive(pathname, item)) {
-      return [{ label: "Pengaturan" }, { label: item.label }];
+      if (pathname === item.href) {
+        return [{ label: "Pengaturan" }, { label: item.label }];
+      }
+      const suffix = pathname.slice(item.href.length + 1);
+      const subTrail = suffix
+        .split("/")
+        .filter(Boolean)
+        .map((seg) => ({ label: segmentLabel(seg) }));
+      return [
+        { label: "Pengaturan" },
+        { label: item.label, href: item.href },
+        ...subTrail,
+      ];
     }
   }
 
