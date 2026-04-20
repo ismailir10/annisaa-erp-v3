@@ -46,13 +46,23 @@ export default function FeesPage() {
   const [structureSaving, setStructureSaving] = useState(false);
 
   async function fetchAll() {
-    const [c, p, y] = await Promise.all([
-      fetch("/api/fee-components").then(r => r.json()),
-      fetch("/api/programs").then(r => r.json()),
-      fetch("/api/academic-years").then(r => r.json()),
-    ]);
-    setComponents(c); setPrograms(p); setYears(y);
-    setLoading(false);
+    try {
+      const [cRes, pRes, yRes] = await Promise.all([
+        fetch("/api/fee-components"),
+        fetch("/api/programs"),
+        fetch("/api/academic-years"),
+      ]);
+      if (!cRes.ok || !pRes.ok || !yRes.ok) {
+        toast.error("Gagal memuat data biaya");
+        return;
+      }
+      const [c, p, y] = await Promise.all([cRes.json(), pRes.json(), yRes.json()]);
+      setComponents(c); setPrograms(p); setYears(y);
+    } catch {
+      toast.error("Gagal memuat data biaya");
+    } finally {
+      setLoading(false);
+    }
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -69,20 +79,27 @@ export default function FeesPage() {
   }
 
   async function toggleComponent(c: FeeComponent) {
-    await fetch(`/api/fee-components/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isEnabled: !c.isEnabled }) });
+    const res = await fetch(`/api/fee-components/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isEnabled: !c.isEnabled }) });
+    if (!res.ok) { toast.error("Gagal mengubah status komponen"); return; }
     fetchAll();
   }
 
   async function fetchStructure() {
     if (!selectedProgram || !selectedYear) return;
     setStructureLoading(true);
-    const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
-    const data: FeeStructure[] = await res.json();
-    setStructures(data);
-    const amounts: Record<string, number> = {};
-    for (const s of data) amounts[s.feeComponentId] = s.amount;
-    setStructureAmounts(amounts);
-    setStructureLoading(false);
+    try {
+      const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
+      if (!res.ok) { toast.error("Gagal memuat struktur biaya"); return; }
+      const data: FeeStructure[] = await res.json();
+      setStructures(data);
+      const amounts: Record<string, number> = {};
+      for (const s of data) amounts[s.feeComponentId] = s.amount;
+      setStructureAmounts(amounts);
+    } catch {
+      toast.error("Gagal memuat struktur biaya");
+    } finally {
+      setStructureLoading(false);
+    }
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps

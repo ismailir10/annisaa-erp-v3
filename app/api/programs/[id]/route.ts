@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { updateProgramSchema } from "@/lib/validations/program";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -9,11 +10,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const { id } = await params;
 
-  // Verify tenant ownership
   const existing = await prisma.program.findFirst({ where: { id, tenantId: session.tenantId } });
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-  const body = await req.json();
+  const parsed = updateProgramSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
+  }
+  const body = parsed.data;
+
   const program = await prisma.program.update({
     where: { id },
     data: {
@@ -22,7 +27,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       type: body.type,
       ageMin: body.ageMin,
       ageMax: body.ageMax,
-      isActive: body.isActive,
+      status: body.status,
     },
   });
   return NextResponse.json(program);

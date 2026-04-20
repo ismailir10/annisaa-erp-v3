@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
+import { validateBody } from "@/lib/api/validate";
+import { updateEmployeeSchema } from "@/lib/validations/employee";
 
 export async function GET(
   _req: NextRequest,
@@ -45,10 +47,10 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const rawBody = await req.json();
 
-  // Deactivate
-  if ("status" in body && body.status === "INACTIVE") {
+  // Deactivate shortcut — only status field, skip full validation
+  if (Object.keys(rawBody).length === 1 && rawBody.status === "INACTIVE") {
     const employee = await prisma.employee.update({
       where: { id },
       data: { status: "INACTIVE" },
@@ -56,6 +58,10 @@ export async function PUT(
     revalidateTag("employees-count", {});
     return NextResponse.json(employee);
   }
+
+  const result = await validateBody(updateEmployeeSchema, rawBody);
+  if (result.error) return result.error;
+  const body = result.data;
 
   const employee = await prisma.employee.update({
     where: { id },

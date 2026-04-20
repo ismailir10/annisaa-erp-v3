@@ -12,6 +12,9 @@ import {
   Building2,
   Clock,
   Shield,
+  Heart,
+  BookOpen,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -65,7 +68,11 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
+        { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
+        { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
+        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
+        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
       ],
     },
     {
@@ -75,6 +82,15 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Biaya", href: "/admin/fees", icon: Coins },
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
+      ],
+    },
+    {
+      id: "learning",
+      label: "Penilaian",
+      icon: ClipboardList,
+      items: [
+        { label: "Template", href: "/admin/assessments/templates", icon: ClipboardList },
+        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
       ],
     },
   ],

@@ -36,7 +36,7 @@ School management system for **An Nisaa' Sekolahku** — an Islamic PAUD/TKIT in
 | Email | Resend (branded HTML template + PDF attachment) |
 | PDF | @react-pdf/renderer |
 | Hosting | Vercel |
-| CI | GitHub Actions (lint, typecheck, vitest) |
+| CI | GitHub Actions (build, typecheck, test, e2e) |
 | Testing | Vitest (unit) + Playwright (E2E) |
 
 ---
@@ -56,27 +56,39 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 
 ### CRUD completion status
 
-Audited 2026-04-16 against actual `app/admin/**` pages and `app/api/**` routes.
+Audited 2026-04-19 after the CRUD Standard Completion cycle (see [`docs/cycles/2026-04-19-crud-standard-completion.md`](docs/cycles/2026-04-19-crud-standard-completion.md)). CLAUDE.md now splits the standard into three categories — see [CLAUDE.md `## CRUD Standard`](CLAUDE.md) for the canonical definitions.
 
-**Fully complete (10/27):** User, Campus, Holiday, AcademicYear, OrgConfig, LeaveRequest, SalaryComponentDef, FeeComponentDef, Student, StudentGuardian
-**Partially complete (10/27):** Admin list + detail exist, but at least one of edit / deactivate row action / standalone list is missing. Covers Employee, Program, ClassSection, TeachingAssignment, Admission, AttendanceRecord, PayrollRun, Invoice, StudentEnrollment, StudentAttendance.
-**Missing admin UI (7/27):** EmailLog, PayrollItem, ProgramFeeStructure (deactivate), InvoiceLine, Payment (admin-side), StudentAssessment, StudentAssessmentScore. AssessmentCategory and AssessmentIndicator are only reachable via the AssessmentTemplate create flow and have no standalone management UI.
+**Category A — Binary soft-delete (19/27): ✅ Complete**
+User, Campus, Holiday, OrgConfig, AcademicYear, Program, ClassSection, FeeComponentDef, SalaryComponentDef, LeaveRequest, Student, Employee, StudentGuardian, StudentEnrollment, TeachingAssignment, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, Guardian.
 
-**Overall: ~74% CRUD completion** (10 full + 10 partial / 27 admin-relevant entities)
+**Category B — State-machine (3/27): ✅ Complete**
+Admission (Cancel), Invoice (Void), PayrollRun (workflow-only — list view is `onView` only, transitions on detail page).
 
-| Module | Complete | Partial | Missing |
-|---|---|---|---|
-| CORE | 4 (User, Campus, Holiday, OrgConfig) | — | 1 (EmailLog) |
-| HR | 2 (LeaveRequest, SalaryComponentDef) | 4 (Employee, AttendanceRecord, PayrollRun, TeachingAssignment) | 1 (PayrollItem) |
-| ACADEMIC | 1 (AcademicYear) | 2 (Program, ClassSection) | — |
-| STUDENTS | 2 (Student, StudentGuardian) | 2 (StudentEnrollment, Admission) | — |
-| FINANCE | 1 (FeeComponentDef) | 2 (Invoice, ProgramFeeStructure) | 2 (InvoiceLine, Payment) |
-| LEARNING | — | 2 (StudentAttendance, AssessmentTemplate) | 4 (StudentAssessment, StudentAssessmentScore, AssessmentCategory, AssessmentIndicator) |
+**Category C — Event-log (2/27): ✅ Complete**
+AttendanceRecord (override-only, daily view), StudentAttendance (edit + void via `isVoided` flag).
 
-**Known gaps before 100% CRUD:**
-- StudentEnrollment and TeachingAssignment are managed only inline via parent-entity detail pages — no standalone deactivate.
-- AssessmentTemplate has API support (`/api/assessments/templates`) but no admin list or detail page.
-- StudentAssessment / StudentAssessmentScore are read-only from the parent portal; no admin create/edit UI.
+**Intentionally no standalone admin UI (3/27):**
+- InvoiceLine, PayrollItem — nested children of Invoice / PayrollRun, managed via their parent's detail page.
+- EmailLog — observability surface only; no user-facing CRUD required.
+
+**Overall: 100% CRUD coverage** across the CRUD Standard's three categories (27/27 admin-relevant entities conform to their assigned category; 24 have UI, 3 are structurally nested/observability).
+
+| Module | Category A | Category B | Category C | Nested/Log |
+|---|---|---|---|---|
+| CORE | User, Campus, Holiday, OrgConfig | — | — | EmailLog |
+| HR | Employee, LeaveRequest, SalaryComponentDef | PayrollRun | AttendanceRecord | PayrollItem |
+| ACADEMIC | AcademicYear, Program, ClassSection, TeachingAssignment | — | — | — |
+| STUDENTS | Student, StudentGuardian, StudentEnrollment | Admission | — | — |
+| FINANCE | FeeComponentDef, ProgramFeeStructure | Invoice | — | InvoiceLine, Payment¹ |
+| LEARNING | AssessmentTemplate, AssessmentCategory, AssessmentIndicator | — | StudentAttendance | — |
+
+¹ Payment is managed via Invoice detail page (record payment dialog), not a top-level list.
+
+**Cycle highlights:**
+- CRUD Standard in CLAUDE.md now formally defines Category A / B / C — prior sweeps couldn't close Admission/Invoice/PayrollRun because the old standard forced binary soft-delete on state-machine entities.
+- Program migrated from `isActive: Boolean` to `status: String` — fixes a silent bug where the admin deactivate action wrote to a nonexistent field.
+- Zod validation added to `PUT /api/{programs,class-sections,admissions,invoices}/[id]`.
+- `DataTableRowActions` gained `onCancel` / `onVoid` props; Invoice + StudentAttendance converted from `extraActions` label → dedicated props. Workflow-queue exceptions (PayrollRun list, LeaveRequest approval, daily attendance editors) now documented in CLAUDE.md.
 
 ---
 
@@ -104,7 +116,7 @@ Three portals, three roles.
 
 **Parent Portal** — Dashboard (child overview + unpaid invoices), Invoices (pay via Xendit, PDF download), Attendance (30 days), Reports (published assessments)
 
-**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Salary Slips (PDF), Profile (accessible via header avatar)
+**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Salary Slips (PDF), Profile (accessible via header avatar)
 
 **Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (draft → variables → review → approve → BSI CSV → PDF slips → email), Settings (campus, org config, holidays, salary components)
 
@@ -129,10 +141,17 @@ Three portals, three roles.
 - **Student attendance history tab (2026-04-16)**: new Kehadiran tab on `/admin/students/[id]` with month filter and 4 stat cards — see [`docs/cycles/2026-04-16-crud-audit-t13.md`](docs/cycles/2026-04-16-crud-audit-t13.md)
 - **Role split: SUPER_ADMIN + SCHOOL_ADMIN (2026-04-16)**: salary/payroll protected behind SUPER_ADMIN; SCHOOL_ADMIN gets full HR access minus compensation data — see [`docs/cycles/2026-04-16-role-split.md`](docs/cycles/2026-04-16-role-split.md)
 - **Student & Guardian CRUD completion (2026-04-16)**: Tambah Siswa dialog, Edit + Deactivate row actions on list page, INACTIVE status support, StudentGuardian soft-delete (status field + migration), standalone `/api/guardians/[id]` PUT+PATCH — see [`docs/cycles/2026-04-16-student-crud-sweep.md`](docs/cycles/2026-04-16-student-crud-sweep.md)
+- **CRUD sweep — Student + Employee list row actions (2026-04-16)**: Edit + Deactivate row actions on Student and Employee DataTables; Zod validation wired to `PUT /api/students/[id]` and `PUT /api/employees/[id]`; INACTIVE added to student status enum — see [`docs/cycles/2026-04-16-crud-sweep-list-actions.md`](docs/cycles/2026-04-16-crud-sweep-list-actions.md)
+- **Perf Phase 6 — query optimization (2026-04-16)**: eliminated unbounded fetches, fat rows, and N+1 in 8 hot routes (leave balance/history, slips/my, leave submit, payroll generate + compare, monthly attendance grid, invoice batch, assessment score save); added missing `@@index` on AssessmentTemplate / InvoiceLine / StudentAttendance — see [`docs/cycles/2026-04-16-query-optimization.md`](docs/cycles/2026-04-16-query-optimization.md)
+- **Parent invoice cold-nav perf (2026-04-17)**: fixed the slow first-load path on `/parent/invoices` — see [`docs/cycles/2026-04-17-parent-invoice-perf.md`](docs/cycles/2026-04-17-parent-invoice-perf.md)
+- **Perf deep-fix (2026-04-18)**: observability-driven investigation — added timing instrumentation, then targeted fixes driven by real latency data — see [`docs/cycles/2026-04-18-perf-deep-fix.md`](docs/cycles/2026-04-18-perf-deep-fix.md)
+- **Perf quick wins (2026-04-18)**: session cache, FK indexes, student-create path — see [`docs/cycles/2026-04-18-perf-quick-wins.md`](docs/cycles/2026-04-18-perf-quick-wins.md)
+- **CRUD Standard completion (2026-04-19)**: Category A/B/C framework (binary soft-delete / state-machine / event-log); Zod on Program + ClassSection + Admission + Invoice PUTs; Program `isActive` → `status` migration; DataTableRowActions gains `onCancel`/`onVoid`; standardized action columns across Admissions, Invoices, Student Attendance — see [`docs/cycles/2026-04-19-crud-standard-completion.md`](docs/cycles/2026-04-19-crud-standard-completion.md)
+- **UAT critical fixes 1–5 (2026-04-19)**: parent blockers + perf majors fixed; reusable UAT prep mechanism added — see [`docs/cycles/2026-04-19-uat-critical-fixes.md`](docs/cycles/2026-04-19-uat-critical-fixes.md)
+- **Assessment bug fix (2026-04-20)**: `AssessmentTemplate` `@@unique([tenantId, programId, name, type])` + dedupe migration, `POST /api/assessments/templates` 409 guard, new teacher Nilai portal (landing page + per-student BB/MB/BSH/BSB entry with debounced autosave + publish), class-level authz tightening on `PUT/POST /api/assessments/student/*` — see [`docs/cycles/2026-04-20-assessment-bug-fix.md`](docs/cycles/2026-04-20-assessment-bug-fix.md)
 
 **In progress:**
-- CRUD completion: add edit + deactivate to remaining 10 partial entities (target: 100%)
-- Admin interface for LEARNING module (assessment management, student attendance)
+- Audit logging: record critical operations
 
 ---
 
@@ -140,9 +159,7 @@ Three portals, three roles.
 
 Next 2–3 cycles, in order:
 
-1. **CRUD completion sweep** — bring the 14 partial entities to fully-complete (edit dialogs + deactivate), add the 8 missing-UI entities. Target all six modules at 100% CRUD.
-2. **LEARNING module admin** — build the admin interface for student attendance, assessment templates/categories/indicators, and per-student scoring. Currently no admin UI exists for this module.
-3. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
+1. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
 
 Future cycles, unscheduled: admissions pipeline, report card publishing workflow, multi-tenant hardening, parent self-service profile edits.
 
@@ -162,76 +179,24 @@ Short log. Each entry is a decision that constrains future work.
 | 2026-04 | Performance optimization phase 2: bundle analyzer + dynamic imports | Initial bundle was >400KB; see [`docs/cycles/2025-04-15-performance-optimization-phase2.md`](docs/cycles/2025-04-15-performance-optimization-phase2.md) |
 | 2026-04-15 | 3-command workflow (`/spec`, `/build`, `/ship`) over upstream 7 | Lower friction for small cycles; every upstream skill is still mapped into one of the three |
 | 2026-04-15 | One markdown file per cycle, enforced by pre-commit hook | Stop scratch-file proliferation from non-Opus sessions |
-| 2026-04-15 | Role-gated push: `cto` pushes to staging, `product-builder` opens PR | Let other LLMs contribute without bypassing review |
+| 2026-04-18 | Unified PR-based `/ship`: all roles open a PR to `staging` and merge manually when CI is green — no direct pushes to `staging` or `main` | GitHub free plan doesn't support branch protection / auto-merge; manual merge + pre-push hook + CTO discipline is the enforcement layer (supersedes 2026-04-15 role-gated push) |
 | 2026-04-15 | `prd.md` retired; README.md becomes single source of truth for status/roadmap/ADRs | Eliminate three-way doc drift |
 
 ---
 
 ## Development Workflow
 
-### The 3-step loop
-
-Every cycle uses exactly these three commands and exactly **one** markdown file (`docs/cycles/YYYY-MM-DD-<slug>.md`):
+Every development cycle runs through three slash commands and exactly one markdown file (`docs/cycles/YYYY-MM-DD-<slug>.md`):
 
 ```
 /spec   →   /build   →   /ship
 ```
 
-- **`/spec`** — define + plan. Creates the cycle doc with Context, Spec, and Tasks sections. Combines `agent-skills:spec-driven-development`, `planning-and-task-breakdown`, and (when needed) `idea-refine`.
-- **`/build`** — build + test + review, looping over the tasks. One commit per task with gates (`npm run build && npx vitest run`) enforced between tasks. Combines `incremental-implementation`, `test-driven-development`, `source-driven-development`, `frontend-ui-engineering`, `api-and-interface-design`, `security-and-hardening`, `browser-testing-with-devtools`, `debugging-and-error-recovery`, `code-review-and-quality`, and `code-simplification`.
-- **`/ship`** — push to staging. `cto` role pushes directly; `product-builder` role opens a PR to staging. Never touches `main`.
+The operating manual for these commands — per-command responsibilities, the 20 upstream `agent-skills:*` coverage mapping, the multi-LLM safety model (session role, worktree isolation, git hooks, GitHub branch protection), the one-file-per-cycle rule, and doc-maintenance rules — lives in **[CLAUDE.md](./CLAUDE.md)**. This section intentionally stays thin; CLAUDE.md is the source of truth for *how* the repo is operated.
 
-All 20 upstream `agent-skills:*` skills are still in play — they're folded into one of the three commands. See `CLAUDE.md` for the full coverage table.
+README's job is the *what*: modules, CRUD status, roadmap, ADRs, setup, environments. When those change, update this file. When the workflow, standards, or safety model change, update CLAUDE.md.
 
 **Standalone heuristic UAT** available via `/uat <area>` — role-plays fixed personas through scripted Jobs-to-be-Done (library in `docs/uat/jobs/`) via Playwright MCP, measures timings, produces severity-gated reports. Not part of the 3-step loop; run on demand.
-
-### Multi-LLM session safety
-
-Other LLMs (Sonnet, Haiku, GLM 5.2, GPT) may work on this repo. Three mechanisms keep this safe:
-
-**1. Session role (`.claude/session-role`).** Every session declares `role=cto` or `role=product-builder` plus its model name on turn one. The `SessionStart` hook reminds the assistant to set this before running any command. Commands refuse to run without it. File format:
-```
-role=cto
-model=claude-opus-4-6
-```
-
-**2. Worktree isolation.** Every `product-builder` session works in its own git worktree, never the main checkout. This prevents parallel sessions from stomping on each other's lockfiles, build artifacts, and in-progress edits.
-
-```bash
-# At the start of a product-builder cycle:
-git worktree add .worktrees/<slug> -b feat/<slug>
-cd .worktrees/<slug>
-./scripts/install-hooks.sh
-```
-
-`cto` sessions work in the main checkout (single-threaded, human-driven). The `SessionStart` hook warns if a `product-builder` session is in the main checkout, and the three slash commands refuse to run until the session is inside a worktree.
-
-**3. Git hooks.** Installed via `scripts/install-hooks.sh`:
-- `pre-commit` — enforces the markdown allowlist (no scratch `.md` files) and doc-sync (code changes must update the cycle doc, README.md, or CLAUDE.md).
-- `prepare-commit-msg` — appends `Model-Trailer` and `Role` to every commit from `.claude/session-role`.
-- `pre-push` — blocks pushes to `staging` or `main` unless `role=cto`. Non-cto sessions must use `/ship` (which opens a PR).
-
-**GitHub branch protection is the real boundary.** Client hooks can be bypassed with `--no-verify`. Enable in Settings → Branches:
-- `staging`: require PR + 1 review, status checks (`lint`, `typecheck`, `test`, `build`), restrict direct push to `ismailir10`
-- `main`: require PR from `staging` only, 1 review, same status checks
-
-### One-file-per-cycle rule
-
-The only markdown files allowed in the repo are:
-- `README.md`, `CLAUDE.md`, `LICENSE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (repo root)
-- `docs/**` (including `docs/cycles/YYYY-MM-DD-<slug>.md`, one per cycle)
-- `.github/**`, `.claude/**`, `.agent-skills/**`, `.githooks/**`
-
-Any other staged `.md` file is rejected by the pre-commit hook. All cycle notes live inside the cycle doc — no `PLAN.md`, `SPEC.md`, `TEST-REPORT.md`, etc.
-
-### Documentation maintenance
-
-Every cycle updates docs as part of `/build`:
-- New module/page/feature → update README.md "Current Phase" and/or "Modules" table
-- UI pattern change or new standard → update CLAUDE.md
-- Cycle-specific history → the cycle doc itself (not README/CLAUDE)
-
-The `pre-commit` hook rejects code changes that don't accompany at least one of: cycle doc, README.md, or CLAUDE.md.
 
 ---
 
@@ -255,7 +220,7 @@ npm install
 ./scripts/install-hooks.sh
 ```
 
-This enables pre-commit (markdown allowlist + doc sync), prepare-commit-msg (model trailer), and pre-push (role gate). Without this, commits may be rejected by CI or GitHub branch protection later.
+This enables pre-commit (markdown allowlist + doc sync + seed drift), prepare-commit-msg (model trailer), and pre-push (blocks direct pushes to `staging`/`main` for all roles — use `/ship` instead). Without the hooks, commits may be rejected by CI or, when the repo moves to GitHub Pro, by branch protection.
 
 ### Database (local demo mode)
 
@@ -330,4 +295,7 @@ Private — An Nisaa' Sekolahku
 
 ## For developers and AI agents
 
-See **[CLAUDE.md](./CLAUDE.md)** for the operating manual: UI standards, CRUD standard, API standards, security checklist, color tokens, file structure. CLAUDE.md is the *how*; this README is the *what*.
+See **[CLAUDE.md](./CLAUDE.md)** for the operating manual: the 3-step `/spec` → `/build` → `/ship` loop, multi-LLM session safety, one-file-per-cycle rule, file structure. Domain standards (UI / CRUD / Portal / API / Security / Colors) live in **[`.claude/standards/*.md`](./.claude/standards)** and are loaded on demand by `/build` based on globs of staged files. CLAUDE.md is the *how*; this README is the *what*.
+
+
+

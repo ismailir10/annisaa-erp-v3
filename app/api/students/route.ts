@@ -33,7 +33,11 @@ export async function GET(req: NextRequest) {
       skip,
       take,
       include: {
-        guardians: { where: { isPrimary: true }, take: 1, include: { parent: true } },
+        guardians: {
+          where: { isPrimary: true },
+          take: 1,
+          include: { parent: { select: { name: true, phone: true } } },
+        },
         enrollments: {
           where: { status: "ACTIVE" },
           include: { classSection: { select: { name: true, program: { select: { name: true } } } } },
@@ -81,29 +85,33 @@ export async function POST(req: NextRequest) {
   });
 
   if (body.guardians?.length) {
-    for (const g of body.guardians) {
-      const email = g.email?.trim() || null;
-      let parent;
-      if (email) {
-        parent = await prisma.parent.upsert({
-          where: { tenantId_email: { tenantId: session.tenantId, email } },
-          create: { tenantId: session.tenantId, name: g.name, email, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
-          update: { name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+    const tenantId = session.tenantId;
+    // Resolve every parent row in parallel — upsert when email present so we
+    // dedupe against existing parents, plain create when no email is supplied.
+    const parents = await Promise.all(
+      body.guardians.map((g) => {
+        const email = g.email?.trim() || null;
+        if (email) {
+          return prisma.parent.upsert({
+            where: { tenantId_email: { tenantId, email } },
+            create: { tenantId, name: g.name, email, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+            update: { name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+          });
+        }
+        return prisma.parent.create({
+          data: { tenantId, name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
         });
-      } else {
-        parent = await prisma.parent.create({
-          data: { tenantId: session.tenantId, name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
-        });
-      }
-      await prisma.studentGuardian.create({
-        data: {
-          studentId: student.id,
-          parentId: parent.id,
-          relationship: g.relationship,
-          isPrimary: g.isPrimary,
-        },
-      });
-    }
+      }),
+    );
+    // Insert all StudentGuardian links in a single round-trip.
+    await prisma.studentGuardian.createMany({
+      data: body.guardians.map((g, i) => ({
+        studentId: student.id,
+        parentId: parents[i].id,
+        relationship: g.relationship,
+        isPrimary: g.isPrimary,
+      })),
+    });
   }
 
   return NextResponse.json(student, { status: 201 });

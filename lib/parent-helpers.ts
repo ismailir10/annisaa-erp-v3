@@ -36,16 +36,10 @@ export type ParentChild = {
   };
 };
 
-/**
- * Find a parent record from session (parentId or email fallback).
- * Returns the parent with all linked children via StudentGuardian.
- */
-export async function getParentWithChildren(session: SessionUser) {
-    const parentId = session.parentId;
-
+async function _getParentWithChildren(parentId: string | null, email: string, tenantId: string | null) {
     const whereClause = parentId
-      ? { id: parentId, tenantId: session.tenantId ?? undefined }
-      : { email: session.email, tenantId: session.tenantId ?? undefined };
+      ? { id: parentId, tenantId: tenantId ?? undefined }
+      : { email, tenantId: tenantId ?? undefined };
 
     const parent = await prisma.parent.findFirst({
       where: whereClause,
@@ -71,7 +65,7 @@ export async function getParentWithChildren(session: SessionUser) {
     });
 
     if (!parent || parent.guardians.length === 0) {
-      return { parent: null, children: [] };
+      return { parent: null, children: [] as ParentChild[] };
     }
 
     const children: ParentChild[] = parent.guardians.map((sg) => {
@@ -88,6 +82,25 @@ export async function getParentWithChildren(session: SessionUser) {
     });
 
     return { parent, children };
+}
+
+const _cachedGetParentWithChildren = unstable_cache(
+  _getParentWithChildren,
+  ["parent-children"],
+  { revalidate: 60, tags: ["parent-children"] }
+);
+
+/**
+ * Find a parent record from session (parentId or email fallback).
+ * Returns the parent with all linked children via StudentGuardian.
+ * Cached 60s per parent — keyed by parentId or email + tenantId.
+ */
+export async function getParentWithChildren(session: SessionUser) {
+  return _cachedGetParentWithChildren(
+    session.parentId,
+    session.email,
+    session.tenantId
+  );
 }
 
 /**
@@ -141,4 +154,234 @@ export const getStudentInvoices = unstable_cache(
   },
   ["student-invoices"],
   { revalidate: 120, tags: ["student-invoices"] }
+);
+
+/**
+ * Fetch today's attendance status for a student.
+ * Returns null when no record exists for today (e.g. weekend, no class).
+ */
+export async function getTodayStudentAttendance(
+  studentId: string,
+  tenantId: string,
+): Promise<string | null> {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const record = await prisma.studentAttendance.findFirst({
+    where: {
+      studentId,
+      date: today,
+      isVoided: false,
+      student: { tenantId },
+    },
+    select: { status: true },
+  });
+  return record?.status ?? null;
+}
+
+export type PublishedAssessmentListItem = {
+  id: string;
+  templateName: string;
+  period: string;
+  programName: string;
+  status: string;
+};
+
+/**
+ * Fetch every published assessment for a specific student.
+ *
+ * Tenant safety: callers resolve `studentId` via `getParentWithChildren()`,
+ * which already applies the tenant filter; an assessment row is locked to a
+ * tenant-scoped student, so the original `template: { tenantId }` JOIN was
+ * defensive-in-depth but strictly redundant. Dropping it removes a JOIN.
+ *
+ * Cached 2 minutes, tagged so publish/unpublish mutations can invalidate.
+ */
+export const getPublishedAssessmentsForStudent = unstable_cache(
+  async (studentId: string): Promise<PublishedAssessmentListItem[]> => {
+    const rows = await prisma.studentAssessment.findMany({
+      where: { studentId, status: "PUBLISHED" },
+      select: {
+        id: true,
+        period: true,
+        status: true,
+        template: {
+          select: {
+            name: true,
+            program: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      templateName: r.template.name,
+      period: r.period,
+      programName: r.template.program.name,
+      status: r.status,
+    }));
+  },
+  ["parent-published-assessments"],
+  { revalidate: 120, tags: ["parent-published-assessments"] },
+);
+
+/**
+ * Attendance status values come from StudentAttendance.status:
+ * PRESENT | SICK | PERMISSION | ABSENT (see prisma/schema.prisma).
+ */
+export type WeekAttendanceCounts = {
+  PRESENT: number;
+  SICK: number;
+  PERMISSION: number;
+  ABSENT: number;
+};
+
+/**
+ * Format a Date as YYYY-MM-DD using LOCAL calendar components.
+ * We avoid `toISOString()` here because it coerces to UTC and would shift
+ * the date by one day for positive-UTC machines (e.g. Asia/Jakarta).
+ */
+function toLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Return YYYY-MM-DD for the Monday of the ISO week containing `ref`.
+ * Monday = start of week (getDay() returns 1 for Monday, 0 for Sunday).
+ */
+export function mondayOfWeek(ref: Date): string {
+  const d = new Date(ref);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return toLocalYmd(d);
+}
+
+/**
+ * Count attendance records falling inside the current ISO week
+ * (Monday → `today` inclusive). Records are string dates in YYYY-MM-DD.
+ * Records outside the window are ignored. Unknown statuses are ignored.
+ */
+export function countAttendanceThisWeek(
+  records: { date: string; status: string }[],
+  now: Date = new Date(),
+): WeekAttendanceCounts {
+  const monday = mondayOfWeek(now);
+  const today = toLocalYmd(now);
+  const counts: WeekAttendanceCounts = { PRESENT: 0, SICK: 0, PERMISSION: 0, ABSENT: 0 };
+  for (const r of records) {
+    if (r.date < monday || r.date > today) continue;
+    if (r.status in counts) {
+      counts[r.status as keyof WeekAttendanceCounts] += 1;
+    }
+  }
+  return counts;
+}
+
+export type StudentAttendanceRecent = {
+  id: string;
+  date: string;
+  status: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  notes: string | null;
+};
+
+/**
+ * Fetch recent attendance records for a student (default last 30 days).
+ * Cached 2 minutes, tagged so attendance mutations can invalidate.
+ *
+ * Tenant safety: callers resolve `studentId` via `getParentWithChildren()`,
+ * which already tenant-scopes the student.
+ */
+export const getStudentAttendanceRecent = unstable_cache(
+  async (studentId: string, days = 30): Promise<StudentAttendanceRecent[]> => {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const startDate = since.toISOString().split("T")[0];
+
+    const records = await prisma.studentAttendance.findMany({
+      where: { studentId, isVoided: false, date: { gte: startDate } },
+      orderBy: { date: "desc" },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+        checkInTime: true,
+        checkOutTime: true,
+        notes: true,
+      },
+    });
+
+    return records.map((r) => ({
+      id: r.id,
+      date: r.date,
+      status: r.status,
+      checkInTime: r.checkInTime?.toISOString() ?? null,
+      checkOutTime: r.checkOutTime?.toISOString() ?? null,
+      notes: r.notes,
+    }));
+  },
+  ["parent-student-attendance-recent"],
+  { revalidate: 120, tags: ["parent-student-attendance-recent"] },
+);
+
+export type InvoiceListItem = {
+  id: string;
+  invoiceNumber: string;
+  periodLabel: string;
+  dueDate: string;
+  totalDue: number;
+  totalPaid: number;
+  status: string;
+  xenditPaymentUrl: string | null;
+  sentAt: string | null;
+  paidAt: string | null;
+  createdAt: string;
+};
+
+/**
+ * Fetch all non-DRAFT invoices for a specific student.
+ * Cached for 2 minutes with parent-scoped key to prevent cross-parent data leak.
+ * Key includes parentId + studentId + tenantId for triple isolation.
+ */
+export const getParentInvoiceList = unstable_cache(
+  async (parentId: string, studentId: string, tenantId: string): Promise<InvoiceListItem[]> => {
+    const invoices = await prisma.invoice.findMany({
+      where: { studentId, tenantId, status: { not: "DRAFT" } },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        periodLabel: true,
+        dueDate: true,
+        totalDue: true,
+        totalPaid: true,
+        status: true,
+        xenditPaymentUrl: true,
+        sentAt: true,
+        paidAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return invoices.map((inv) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      periodLabel: inv.periodLabel,
+      dueDate: inv.dueDate,
+      totalDue: Number(inv.totalDue),
+      totalPaid: Number(inv.totalPaid),
+      status: inv.status,
+      xenditPaymentUrl: inv.xenditPaymentUrl,
+      sentAt: inv.sentAt?.toISOString() ?? null,
+      paidAt: inv.paidAt?.toISOString() ?? null,
+      createdAt: inv.createdAt.toISOString(),
+    }));
+  },
+  ["parent-invoice-list"],
+  { revalidate: 120, tags: ["parent-invoice-list"] }
 );
