@@ -15,6 +15,7 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh`.
 4. **Current cycle doc?** Find the most recent `docs/cycles/*.md`. If its Tasks section is empty or missing, tell the user to run `/spec` first.
 5. **Working tree clean?** If not, ask whether to commit existing work, stash it, or abort. Never silently inherit someone else's dirty state.
+6. **Base branch fresh?** Run `git fetch origin staging` and `git rev-list --count $(git merge-base HEAD origin/staging)..origin/staging`. If the count is >5, stop and tell the user: *"This cycle branch is behind origin/staging by <N> commits. Rebase before building: `git fetch origin staging && git rebase origin/staging`."* Do not proceed until the user resolves. This prevents shipping a PR built on a stale base that will conflict at merge time.
 
 ## Planning — subagent dispatch decision
 

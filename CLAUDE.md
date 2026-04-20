@@ -134,6 +134,8 @@ Every `SessionStart` runs `scripts/sync-staging.sh` in the main checkout. If the
 
 This closes the "local staging drifts behind origin for days" gap: new cycles now always branch from up-to-date staging.
 
+**Complementary preflight gate:** `/spec` and `/build` both refuse to proceed if the current `feat/*` branch is >5 commits behind `origin/staging`. The user is told to rebase before the cycle can continue. This prevents the SessionStart ff (which only moves `staging`/`main`) from silently leaving feature branches stale.
+
 ### 1. Session role (`.claude/session-role`)
 
 Every session declares its role on turn one. File format:
