@@ -16,6 +16,18 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 4. **Current cycle doc?** Find the most recent `docs/cycles/*.md`. If its Tasks section is empty or missing, tell the user to run `/spec` first.
 5. **Working tree clean?** If not, ask whether to commit existing work, stash it, or abort. Never silently inherit someone else's dirty state.
 
+## Planning — subagent dispatch decision
+
+Before entering the loop, invoke **`superpowers:subagent-driven-development`** to classify the cycle's tasks:
+
+- **Independent tasks** (no shared files, no sequential deps) → dispatch in parallel via subagents.
+- **Sequential tasks** (shared state, ordering matters) → execute inline in the loop below.
+
+Record the classification as a bullet in the cycle doc's `## Implementation` section before starting:
+`- Subagent plan: tasks [N,M] dispatched in parallel; tasks [X,Y,Z] sequential.`
+
+If all tasks are sequential, note that and proceed.
+
 ## The task loop
 
 For each unchecked task in the cycle doc's `## Tasks` section, in order:
@@ -66,9 +78,16 @@ If either fails, apply **`agent-skills:debugging-and-error-recovery`**:
 
 Do **not** move to the next task until this task's gates pass.
 
-### 6. Review and simplify
-- **`agent-skills:code-review-and-quality`** on the task's diff — correctness, readability, architecture, security, performance.
-- **`agent-skills:code-simplification`** — reduce complexity without changing behavior.
+### 6. Review and simplify (mandatory agent pass)
+
+Before committing, dispatch the **`feature-dev:code-reviewer`** agent on the task's staged diff. Prompt must include: task title, files touched, cycle doc path. Agent returns high-confidence issues only.
+
+- **Blocker / high-confidence bug or security issue** → fix in this task, re-run gates, re-review. Do not commit until clean.
+- **Low-confidence or style nits** → note in the cycle doc's Implementation bullet; do not block the commit.
+
+Then apply **`agent-skills:code-simplification`** inline — reduce complexity without changing behavior.
+
+For security-sensitive diffs (`app/api/**`, `lib/auth*`, `middleware.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
 
 ### 7. Update the cycle doc
 Edit the cycle doc:
@@ -115,3 +134,4 @@ Then move to the next task.
 - **Cycle doc is the only markdown you touch.** If you feel the urge to create `NOTES.md`, resist — the pre-commit hook will reject it anyway.
 - **Scope discipline.** Touch only what the tasks require. Don't refactor adjacent code.
 - **If the spec is wrong, stop.** Don't silently adjust the spec — ask the user or update `/spec`'s output.
+- **No commit without a code-reviewer pass.** Every task commit must be preceded by a `feature-dev:code-reviewer` agent pass on the staged diff. Security-sensitive diffs require `superpowers:code-reviewer` too. Unreviewed commits violate the workflow and must be amended.

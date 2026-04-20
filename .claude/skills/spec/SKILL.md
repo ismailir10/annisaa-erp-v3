@@ -8,6 +8,20 @@ disable-model-invocation: true
 
 You are starting a new development cycle. This command produces **one** artifact: `docs/cycles/YYYY-MM-DD-<slug>.md`. No scratch files, no sibling planning docs.
 
+## Step 0: Canonical entry
+
+The user's expected entry for a new cycle is a single sentence:
+
+> `you are product-builder, <what to build>`
+
+When you see this (or an equivalent: "act as product-builder, …", "product-builder mode, …"), immediately:
+
+1. Rewrite `.claude/session-role` with `role=product-builder` and your own model ID.
+2. If you are in the main checkout, follow the `SessionStart` hook's instructions: derive a kebab-case slug from the request, run `bash scripts/setup-worktree.sh <slug>`, `EnterWorktree` into `.worktrees/<slug>`, rewrite `.claude/session-role` inside the worktree.
+3. Then proceed with Preflight and Step 1 on the user's original request — no extra confirmation needed for the role switch itself.
+
+The user should never have to run `setup-worktree.sh` or `install-hooks.sh` by hand.
+
 ## Preflight
 
 Run these checks first. If any fails, stop and surface the error.
@@ -34,9 +48,9 @@ Run these checks first. If any fails, stop and surface the error.
 
 ## Step 1: Understand the request (optionally refine)
 
-If the user's request is vague ("make it faster", "clean up the parent portal"), run the **`agent-skills:idea-refine`** process first to turn it into a concrete goal. Capture the refined problem statement in the cycle doc's `## Context` section.
+If the user's request is vague ("make it faster", "clean up parent portal", or a one-liner like "you are product-builder, fix attendance"), invoke **`superpowers:brainstorming`** to turn it into a concrete goal before writing the cycle doc. Capture the refined problem statement in the cycle doc's `## Context` section. The upstream `agent-skills:idea-refine` stays available as a fallback if `superpowers:brainstorming` is unavailable.
 
-If the request is already concrete, skip refinement.
+If the request is already concrete, skip brainstorming.
 
 ## Step 2: Explore before specifying
 
@@ -57,10 +71,10 @@ Do **not** start writing code. This is the define phase.
    - Acceptance criteria as a checklist
    - Non-goals (what this cycle will *not* touch)
    - Assumptions you are making — surface them for the user to correct
-4. Apply **`agent-skills:planning-and-task-breakdown`** to fill `## Tasks`:
-   - Ordered list of atomic tasks
-   - Each task has its own one-line acceptance criterion
-   - Each task is small enough to commit independently
+4. Apply **`superpowers:writing-plans`** to fill `## Tasks`:
+   - Ordered list of atomic tasks, each committable independently
+   - Each task has a one-line acceptance criterion
+   - Mark dependencies explicitly so `/build` can classify independent vs. sequential tasks for subagent dispatch
 5. Leave `## Implementation`, `## Verification`, `## Ship Notes` empty — they are owned by `/build` and `/ship`.
 
 ### Cycle doc template
