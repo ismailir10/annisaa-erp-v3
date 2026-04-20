@@ -1,10 +1,11 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { User, Mail, Phone, Building2, Briefcase, CreditCard } from "lucide-react";
+import { User, Mail, Phone, Building2, Briefcase, CreditCard, Wallet, ChevronRight } from "lucide-react";
 
 export default async function TeacherProfilePage() {
   const session = await getSession();
@@ -43,6 +44,21 @@ export default async function TeacherProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Quick links */}
+      <Card className="p-0 overflow-hidden mb-4">
+        <Link
+          href="/teacher/slips"
+          className="flex items-center gap-3 px-4 py-3.5 hover:bg-accent transition-colors"
+        >
+          <Wallet size={16} className="text-muted-foreground shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Slip Gaji</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Lihat slip gaji bulanan</p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+        </Link>
+      </Card>
 
       {/* Info Card */}
       <Card className="p-0 overflow-hidden">

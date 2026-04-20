@@ -46,7 +46,7 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 
 - [x] **T3 — Generalize `getBreadcrumbs()` for arbitrary depth.** Refactor `config/admin-nav.ts:135`. Parse all segments after the matched nav item; map each: `new` → "Tambah", `edit` → "Ubah", `monthly` → "Bulanan", `templates` → "Template", `[id]` (detected via not-in-known-segments heuristic) → "Detail". Return the full trail. *Acceptance:* unit assertions (or `/uat` quick pass) show `/admin/employees/abc123/edit` → `SDM / Karyawan / Detail / Ubah`, `/admin/assessments/xyz` → `Penilaian / Penilaian Siswa / Detail`, `/admin/assessments/templates/tmpl1` → `Penilaian / Template / Detail`. Depends on T2 for the `/admin/assessments/[id]` path-shape case.
 
-- [ ] **T4 — Reduce teacher bottom-nav to 4 tabs; surface "Gaji" in profile page.** Remove the `Gaji` tab from `components/teacher/bottom-nav.tsx:13`. In `app/teacher/profile/page.tsx`, add a linked card/section "Slip Gaji" → `/teacher/slips`. *Acceptance:* bottom-nav renders 4 tabs; teacher can still reach `/teacher/slips` in two taps (avatar → profile → slip gaji card); `e2e/teacher.spec.ts` updated if it asserted tab count. Independent of T1/T2/T3.
+- [x] **T4 — Reduce teacher bottom-nav to 4 tabs; surface "Gaji" in profile page.** Remove the `Gaji` tab from `components/teacher/bottom-nav.tsx:13`. In `app/teacher/profile/page.tsx`, add a linked card/section "Slip Gaji" → `/teacher/slips`. *Acceptance:* bottom-nav renders 4 tabs; teacher can still reach `/teacher/slips` in two taps (avatar → profile → slip gaji card); `e2e/teacher.spec.ts` updated if it asserted tab count. Independent of T1/T2/T3.
 
 - [ ] **T5 — Admin sidebar auto-expands active group.** In `components/admin/sidebar.tsx` (around the `useState` at :101), add a `useEffect` that calls `getActiveGroup(pathname, visibleGroups)` whenever `pathname` changes and forces that group `open: true` in the state map, leaving other groups' user-chosen state alone. *Acceptance:* collapse "Akademik", then click a breadcrumb into an academic route — sidebar now shows "Akademik" expanded with the active item highlighted. Independent.
 
@@ -60,12 +60,14 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 - Task 1: Rename nav id + assessment labels — `config/admin-nav.ts` (id `learning`→`assessment`), `components/teacher/bottom-nav.tsx` (label `Nilai`→`Penilaian`), `app/teacher/assessments/page.tsx` (header `Nilai Siswa`→`Penilaian`), `e2e/teacher.spec.ts` (test name + selectors updated). Pure rename, no logic change.
 - Task 2: Migrate admin assessment detail route — created `app/admin/assessments/[id]/page.tsx` (copy of scoring UI, reads id via `useParams()`); replaced `app/admin/assessments/scores/page.tsx` with server-side redirect to `/admin/assessments/${id}` (preserves bookmarks); updated two callers in `app/admin/assessments/page.tsx` to push to new path.
 - Task 3: Generalize `getBreadcrumbs()` — added `SEGMENT_LABELS` map (`new`/`edit`/`monthly`/`templates`/`guardians`/`score[s]`); unknown segments render as "Detail" (assumed dynamic id); settings paths now also support sub-trails. Added `config/__tests__/admin-nav.test.ts` with 10 cases covering dashboard, 2-level, 3-level ([id]), 4-level (id/edit), settings, unknown paths.
+- Task 4: Teacher bottom-nav 5→4 tabs — removed `Gaji`/`Wallet` from `components/teacher/bottom-nav.tsx`; added a "Slip Gaji" quick-link card at the top of `app/teacher/profile/page.tsx` (`Link`→`/teacher/slips` with Wallet icon + description). Tabs now: Beranda / Kehadiran / Kelas / Penilaian. Existing `/teacher/slips` route and e2e `salary slips page loads` test unchanged (direct `page.goto`).
 
 ## Verification
 
 - Task 1: gates passed — `npm run build` ✅, `npx vitest run` ✅ 18 files / 157 tests. No teacher-portal `"Nilai"`/`"Nilai Siswa"` strings remain (grep clean).
 - Task 2: gates passed — build shows `/admin/assessments/[id]` + legacy `/admin/assessments/scores` routes both compiled; vitest 18/157 still green. Grep confirms no live callers of `assessments/scores?id=` remain (only the redirect page's own comment).
 - Task 3: gates passed — build ✅, vitest 19 files / 167 tests (added 10 new breadcrumb cases). All key shapes verified: `/admin/employees/abc123/edit` → `SDM / Karyawan / Detail / Ubah`; `/admin/assessments/abc123` → `Penilaian / Penilaian Siswa / Detail`; `/admin/assessments/templates/tmpl1` → `Penilaian / Template / Detail`.
+- Task 4: gates passed — build ✅, vitest 19/167. Teacher bottom-nav renders 4 tabs; `/teacher/slips` reachable in 2 taps (avatar → profile → "Slip Gaji" card).
 
 ## Ship Notes
 

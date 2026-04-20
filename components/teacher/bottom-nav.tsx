@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CalendarDays, Wallet, School, ClipboardCheck } from "lucide-react";
+import { Home, CalendarDays, School, ClipboardCheck } from "lucide-react";
 import { motion } from "framer-motion";
 
 const tabs = [
@@ -10,7 +10,6 @@ const tabs = [
   { label: "Kehadiran", href: "/teacher/attendance", icon: CalendarDays },
   { label: "Kelas", href: "/teacher/class-attendance", icon: School },
   { label: "Penilaian", href: "/teacher/assessments", icon: ClipboardCheck },
-  { label: "Gaji", href: "/teacher/slips", icon: Wallet },
 ];
 
 export function BottomNav() {
