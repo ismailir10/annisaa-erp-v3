@@ -47,11 +47,55 @@ Kept the comment (orientation is useful since `role=` is a two-value field) but 
 
 **Between-task gate:** `npm run build` ✅, `npx vitest run` → 130 passed (14 files).
 
+### T2 — Five missing cycles added to README "Current Phase → Completed"
+
+- **File:** [`README.md`](../../README.md) — between the 2026-04-16 CRUD sweep bullet and the 2026-04-19 CRUD Standard completion bullet.
+
+Inserted chronologically:
+
+| Cycle | Date | Anchor |
+|---|---|---|
+| Perf Phase 6 — query optimization | 2026-04-16 | [`docs/cycles/2026-04-16-query-optimization.md`](2026-04-16-query-optimization.md) |
+| Parent invoice cold-nav perf | 2026-04-17 | [`docs/cycles/2026-04-17-parent-invoice-perf.md`](2026-04-17-parent-invoice-perf.md) |
+| Perf deep-fix (observability) | 2026-04-18 | [`docs/cycles/2026-04-18-perf-deep-fix.md`](2026-04-18-perf-deep-fix.md) |
+| Perf quick wins | 2026-04-18 | [`docs/cycles/2026-04-18-perf-quick-wins.md`](2026-04-18-perf-quick-wins.md) |
+| UAT critical fixes 1–5 | 2026-04-19 | [`docs/cycles/2026-04-19-uat-critical-fixes.md`](2026-04-19-uat-critical-fixes.md) |
+
+Intentionally **not** added (meta/tooling cycles that update CLAUDE.md or workflow machinery, not user-visible behavior):
+- `2026-04-18-workflow-audit-fixes.md`
+- `2026-04-18-uat-jtbd-enrichment.md`
+- `2026-04-19-doc-reconciliation.md`
+
+**Between-task gate:** `npm run build` ✅, `npx vitest run` → 130 passed (14 files).
+
 
 ## Verification
 
-<!-- filled by /build -->
+### Gates
+
+| Gate | Command | Result |
+|---|---|---|
+| T1 between-task | `npm run build && npx vitest run` | ✅ build green · 130/130 vitest |
+| T2 between-task | `npm run build && npx vitest run` | ✅ build green · 130/130 vitest |
+| End-of-cycle | `npx playwright test` | ✅ 25/25 passed (30.7s) — 14 admin, 5 teacher, 6 parent |
+
+### Manual smoke
+
+- **CLAUDE.md:119 self-consistency:** grep-checked that no remaining line in the file asserts any role can push staging directly. The `pre-push` hook description, the `/ship` per-command section, the `Rule` subsection under Worktree isolation, and the ADR table entry in README all now say the same thing: PR-only for every role.
+- **README link check:** each of the five new bullet links points to a file that exists in `docs/cycles/`.
+- **One-file-per-cycle rule:** only `CLAUDE.md`, `README.md`, and `docs/cycles/2026-04-20-docs-cleanup.md` are staged across the two commits. Pre-commit hook accepted both.
+- **Doc-sync rule:** each commit stages either CLAUDE.md (T1) or README.md (T2) alongside the cycle doc, satisfying the hook.
+
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migrations:** none.
+- **New env vars:** none.
+- **Breaking changes:** none. Docs-only PR.
+- **Rollback plan:** `git revert <merge-commit>` on staging. No schema, no data, no runtime behavior changed.
+- **Branch:** `feat/docs-cleanup` → `staging`.
+- **CI expectations:** all four required checks (`build`, `typecheck`, `test`, `e2e`) should pass; no code changed.
+- **Follow-ups to consider (not in this cycle):**
+  - Audit the `pre-commit` doc-sync hook — the five cycles added here all merged with README un-updated, so either the hook allowed it (by staging the cycle doc only) or the hook was bypassed. If the former, consider tightening the rule so "perf" / "feat" cycles require README staging specifically.
+  - CLAUDE.md is ~680 lines and loaded every session. Session-critical rules are buried under ~400 lines of UI/CRUD/Portal/API reference material. Worth considering splitting reference standards into `.claude/standards/*.md` loaded on demand.
+
