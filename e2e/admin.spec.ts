@@ -82,6 +82,12 @@ test.describe("Admin flows", () => {
     await expect(page.getByRole("heading", { name: "Tambah Karyawan" })).toBeVisible({ timeout: 15_000 });
   });
 
+  test("deleted flat assessment-templates URL redirects to nested", async ({ page }) => {
+    await page.goto("/admin/assessment-templates");
+    await expect(page).toHaveURL("/admin/assessments/templates");
+    await expect(page.getByRole("heading", { name: /Template Penilaian/i })).toBeVisible();
+  });
+
   test("payroll detail shows employee lines", async ({ page }) => {
     await page.goto("/admin/payroll");
     const payrollLink = page.locator("a[href*='/admin/payroll/']").first();
