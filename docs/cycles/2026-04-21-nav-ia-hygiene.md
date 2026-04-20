@@ -42,7 +42,7 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 
 - [x] **T1 — Rename nav id + assessment labels across portals.** `config/admin-nav.ts:88` id `learning` → `assessment`. `components/teacher/bottom-nav.tsx:12` label `Nilai` → `Penilaian`. `app/teacher/assessments/page.tsx:59,133` header `Nilai Siswa` → `Penilaian`. No structural change — pure rename. *Acceptance:* grep shows zero remaining `"Nilai"` / `"Nilai Siswa"` strings in teacher portal files; sidebar still renders group under correct label.
 
-- [ ] **T2 — Migrate admin assessment detail from query-param to path-segment route.** Create `app/admin/assessments/[id]/page.tsx` with the current `scores/page.tsx` logic (read `id` from `params` instead of `useSearchParams`). Update the two callers in `app/admin/assessments/page.tsx:162,167` to push to `/admin/assessments/${id}`. Replace `app/admin/assessments/scores/page.tsx` with a server component that calls `redirect()` when `id` query param present (preserves bookmarks), else redirects to `/admin/assessments`. Verify breadcrumb renders correctly on new path after T3 lands. *Acceptance:* navigating via row-action "View" lands on `/admin/assessments/<id>`; old query-param URL 308-redirects to new path; no lingering `useSearchParams("id")` in assessment code.
+- [x] **T2 — Migrate admin assessment detail from query-param to path-segment route.** Create `app/admin/assessments/[id]/page.tsx` with the current `scores/page.tsx` logic (read `id` from `params` instead of `useSearchParams`). Update the two callers in `app/admin/assessments/page.tsx:162,167` to push to `/admin/assessments/${id}`. Replace `app/admin/assessments/scores/page.tsx` with a server component that calls `redirect()` when `id` query param present (preserves bookmarks), else redirects to `/admin/assessments`. Verify breadcrumb renders correctly on new path after T3 lands. *Acceptance:* navigating via row-action "View" lands on `/admin/assessments/<id>`; old query-param URL 308-redirects to new path; no lingering `useSearchParams("id")` in assessment code.
 
 - [ ] **T3 — Generalize `getBreadcrumbs()` for arbitrary depth.** Refactor `config/admin-nav.ts:135`. Parse all segments after the matched nav item; map each: `new` → "Tambah", `edit` → "Ubah", `monthly` → "Bulanan", `templates` → "Template", `[id]` (detected via not-in-known-segments heuristic) → "Detail". Return the full trail. *Acceptance:* unit assertions (or `/uat` quick pass) show `/admin/employees/abc123/edit` → `SDM / Karyawan / Detail / Ubah`, `/admin/assessments/xyz` → `Penilaian / Penilaian Siswa / Detail`, `/admin/assessments/templates/tmpl1` → `Penilaian / Template / Detail`. Depends on T2 for the `/admin/assessments/[id]` path-shape case.
 
@@ -58,10 +58,12 @@ Each task is independently committable; most are parallel-safe. Dependencies cal
 
 - Subagent plan: T1, T3 share `config/admin-nav.ts` → sequential. T1, T4 share `components/teacher/bottom-nav.tsx` → sequential. All tasks executed inline in declared order for safety.
 - Task 1: Rename nav id + assessment labels — `config/admin-nav.ts` (id `learning`→`assessment`), `components/teacher/bottom-nav.tsx` (label `Nilai`→`Penilaian`), `app/teacher/assessments/page.tsx` (header `Nilai Siswa`→`Penilaian`), `e2e/teacher.spec.ts` (test name + selectors updated). Pure rename, no logic change.
+- Task 2: Migrate admin assessment detail route — created `app/admin/assessments/[id]/page.tsx` (copy of scoring UI, reads id via `useParams()`); replaced `app/admin/assessments/scores/page.tsx` with server-side redirect to `/admin/assessments/${id}` (preserves bookmarks); updated two callers in `app/admin/assessments/page.tsx` to push to new path.
 
 ## Verification
 
 - Task 1: gates passed — `npm run build` ✅, `npx vitest run` ✅ 18 files / 157 tests. No teacher-portal `"Nilai"`/`"Nilai Siswa"` strings remain (grep clean).
+- Task 2: gates passed — build shows `/admin/assessments/[id]` + legacy `/admin/assessments/scores` routes both compiled; vitest 18/157 still green. Grep confirms no live callers of `assessments/scores?id=` remain (only the redirect page's own comment).
 
 ## Ship Notes
 

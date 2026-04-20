@@ -159,12 +159,12 @@ export default function StudentAssessmentsPage() {
         header: "",
         cell: ({ row }) => (
           <DataTableRowActions
-            onView={() => router.push(`/admin/assessments/scores?id=${row.original.id}`)}
+            onView={() => router.push(`/admin/assessments/${row.original.id}`)}
             extraActions={[
               {
                 label: "Edit Nilai",
                 icon: <FileEdit size={14} />,
-                onClick: () => router.push(`/admin/assessments/scores?id=${row.original.id}`),
+                onClick: () => router.push(`/admin/assessments/${row.original.id}`),
               },
             ]}
           />
