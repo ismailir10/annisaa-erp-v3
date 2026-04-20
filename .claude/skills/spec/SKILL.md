@@ -42,7 +42,7 @@ Run these checks first. If any fails, stop and surface the error.
      git checkout -b feat/<slug> origin/staging
      ```
      Print: *"Created feat/<slug> from origin/staging."* Then proceed.
-   - **Already on `feat/*`:** proceed silently — you're already where you should be.
+   - **Already on `feat/*`:** run `git fetch origin staging` and `git rev-list --count $(git merge-base HEAD origin/staging)..origin/staging`. If the count is >5, stop and print: *"feat/<slug> is behind origin/staging by <N> commits. Rebase before continuing: `git fetch origin staging && git rebase origin/staging`."* The user must resolve before `/spec` proceeds. Otherwise proceed silently.
    - **On any other branch:** warn the user and ask whether to continue or switch.
 5. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
 
