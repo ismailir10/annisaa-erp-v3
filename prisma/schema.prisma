@@ -31,12 +31,13 @@ model Tenant {
   admissions    Admission[]
   feeDefs       FeeComponentDef[]
   invoices      Invoice[]
+  emailLogs     EmailLog[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
 model User {
   id          String    @id @default(cuid())
-  tenantId    String?
+  tenantId    String
   email       String    @unique
   role        String
   employeeId  String?   @unique
@@ -47,7 +48,7 @@ model User {
   customRoleId String?
   status       String  @default("ACTIVE") // ACTIVE | INACTIVE
 
-  tenant     Tenant?   @relation(fields: [tenantId], references: [id])
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
   employee   Employee? @relation(fields: [employeeId], references: [id])
   parent     Parent?   @relation(fields: [parentId], references: [id])
   customRole Role?     @relation(fields: [customRoleId], references: [id])
@@ -70,6 +71,7 @@ model Role {
   users  User[]
 
   @@unique([tenantId, code])
+  @@index([tenantId])
 }
 
 // ── CAMPUS ───────────────────────────────────────────────────
@@ -115,6 +117,7 @@ model Holiday {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, date])
+  @@index([tenantId])
 }
 
 // ── EMPLOYEE ─────────────────────────────────────────────────
@@ -205,6 +208,8 @@ model SalaryComponentDef {
   payrollLines PayrollItemLine[]
 
   @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, isEnabled])
 }
 
 model EmployeeSalaryValue {
@@ -308,12 +313,17 @@ model PayrollItemLine {
 // ── EMAIL LOG ────────────────────────────────────────────────
 model EmailLog {
   id       String   @id @default(cuid())
+  tenantId String
   to       String
   subject  String
   template String
   status   String   @default("PENDING")
   error    String?
   sentAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -334,6 +344,7 @@ model AcademicYear {
   feeStructures ProgramFeeStructure[]
 
   @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
 // ── PROGRAM ──────────────────────────────────────────────────
@@ -355,6 +366,7 @@ model Program {
   assessmentTemplates AssessmentTemplate[]
 
   @@unique([tenantId, code])
+  @@index([tenantId])
 }
 
 // ── CLASS SECTION ────────────────────────────────────────────
@@ -530,12 +542,14 @@ model FeeComponentDef {
   isRecurring Boolean @default(true) // monthly vs one-time
   isEnabled   Boolean @default(true)
   sortOrder   Int     @default(0)
+  status      String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete per CRUD Standard)
 
   tenant        Tenant                @relation(fields: [tenantId], references: [id])
   feeStructures ProgramFeeStructure[]
   invoiceLines  InvoiceLine[]
 
   @@unique([tenantId, code])
+  @@index([tenantId, status])
 }
 
 // ── PROGRAM FEE STRUCTURE ────────────────────────────────────
@@ -650,6 +664,102 @@ model StudentAttendance {
   @@index([classSectionId, date])
   @@index([date])
   @@index([isVoided])
+}
+
+// ══════════════════════════════════════════════════════════════
+// PHASE 8: Student Journal (Buku Penghubung)
+// ══════════════════════════════════════════════════════════════
+
+model StudentJournalTemplate {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique
+  academicYearId String?
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  categories StudentJournalCategory[]
+}
+
+model StudentJournalCategory {
+  id         String   @id @default(cuid())
+  templateId String
+  scope      String // SCHOOL | HOME
+  name       String
+  order      Int      @default(0)
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  template   StudentJournalTemplate    @relation(fields: [templateId], references: [id])
+  indicators StudentJournalIndicator[]
+
+  @@index([templateId, scope, status])
+}
+
+model StudentJournalIndicator {
+  id         String   @id @default(cuid())
+  categoryId String
+  label      String
+  order      Int      @default(0)
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category StudentJournalCategory @relation(fields: [categoryId], references: [id])
+  entries  StudentJournalEntry[]
+
+  @@index([categoryId, status])
+}
+
+model StudentJournalEntry {
+  id               String   @id @default(cuid())
+  tenantId         String
+  studentId        String
+  classSectionId   String?
+  indicatorId      String
+  date             String
+  scope            String
+  checked          Boolean
+  recordedByUserId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  indicator StudentJournalIndicator @relation(fields: [indicatorId], references: [id])
+
+  @@unique([studentId, indicatorId, date, scope])
+  @@index([tenantId, classSectionId, date])
+  @@index([tenantId, studentId, date])
+}
+
+model StudentJournalNote {
+  id           String   @id @default(cuid())
+  tenantId     String
+  studentId    String
+  date         String
+  authorUserId String
+  authorRole   String
+  body         String   @db.Text
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId, studentId, date])
+}
+
+model StudentJournalAudit {
+  id              String   @id @default(cuid())
+  tenantId        String
+  entityType      String // ENTRY | NOTE
+  entityId        String
+  action          String // CREATE | UPDATE | DELETE
+  beforeJson      Json?
+  afterJson       Json?
+  changedByUserId String
+  changedAt       DateTime @default(now())
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, changedAt])
 }
 
 // ══════════════════════════════════════════════════════════════

@@ -53,6 +53,7 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 | **students** | Student lifecycle | Student, Guardian, StudentEnrollment, Admission |
 | **finance** | Fees & payments | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
 | **learning** | Academic outcomes | StudentAttendance, AssessmentTemplate, AssessmentCategory, StudentAssessment |
+| **student-journal** | Buku Penghubung (school + home) | StudentJournalTemplate, StudentJournalCategory, StudentJournalIndicator, StudentJournalEntry, StudentJournalNote, StudentJournalAudit |
 
 ### CRUD completion status
 
@@ -87,15 +88,13 @@ EmailLog (read-only viewer), Payment (audit list), StudentAssessment + StudentAs
 
 ¹ Admin UI still missing or partial — see "Open gaps" above. Schema + API exist.
 
-**2026-04-21 cycle highlights:**
-- Closed all 5 Majors and all 4 Minors under sweep §4 CRUD completeness.
-- Program, ClassSection, StudentEnrollment — Deactivate/Reactivate row actions + status filter on `/admin/academic` and `/admin/enrollments`; `rateLimit()` added to the respective `[id]` PUTs.
-- StudentAttendance — override + void via admin ⋮ menu (Category C).
-- PayrollRun — new `PUT /api/payroll/[id]` (SUPER_ADMIN, DRAFT-only, period-overlap guard, rate-limited) + detail-page Edit toggle.
-- TeachingAssignment — `PUT /api/teaching-assignments/[id]` + Edit Penugasan dialog for the `role` field.
-- Admission — contextual transition menu + backend transition-map guard; `REGISTERED` now truly terminal (`[]`).
-- AttendanceRecord — UI drift caught: `onEdit` was triggering the Override modal; relabelled to `extraActions "Timpa (Override)"`; `.claude/standards/crud.md` §Category C updated to pin the contract.
-- Invoice — Void surface added to `/admin/invoices/[id]` detail (list was already wired).
+**Cycle highlights:**
+- **2026-04-21 — CRUD completeness sweep**: closed all 5 Majors and 4 Minors under sweep §4. Program / ClassSection / StudentEnrollment — Deactivate+Reactivate row actions + status filter on `/admin/academic` and `/admin/enrollments`; `rateLimit()` added to the respective `[id]` PUTs. StudentAttendance — override + void via admin ⋮ menu (Category C). PayrollRun — new `PUT /api/payroll/[id]` (SUPER_ADMIN, DRAFT-only, period-overlap guard, rate-limited) + detail-page Edit toggle. TeachingAssignment — `PUT /api/teaching-assignments/[id]` + Edit Penugasan dialog for the `role` field. Admission — contextual transition menu + backend transition-map guard; `REGISTERED` now truly terminal (`[]`). AttendanceRecord — `onEdit` was triggering the Override modal; relabelled to `extraActions "Timpa (Override)"`; `.claude/standards/crud.md` §Category C updated to pin the contract. Invoice — Void surface added to `/admin/invoices/[id]` detail.
+- **2026-04-21 — Tenant isolation hardening** (see [`docs/cycles/2026-04-21-tenant-isolation-hardening.md`](docs/cycles/2026-04-21-tenant-isolation-hardening.md)): `EmailLog.tenantId` now required with FK + index; `User.tenantId` required; `FeeComponentDef` gained `status` for soft-delete parity; added missing `@@index([tenantId])` to `Role`, `Program`, `AcademicYear`, `Holiday`, `SalaryComponentDef`, plus `[tenantId, isEnabled]` on `SalaryComponentDef` and `[tenantId, status]` on `FeeComponentDef`.
+- CRUD Standard in CLAUDE.md now formally defines Category A / B / C.
+- Program migrated from `isActive: Boolean` to `status: String`.
+- Zod validation added to `PUT /api/{programs,class-sections,admissions,invoices}/[id]`.
+- `DataTableRowActions` gained `onCancel` / `onVoid` props.
 
 ---
 
@@ -121,7 +120,7 @@ Three portals, three roles.
 
 ### Features
 
-**Parent Portal** — Dashboard (child overview + unpaid invoices), Invoices (pay via Xendit, PDF download), Attendance (30 days), Reports (published assessments)
+**Parent Portal** — Dashboard (child overview + unpaid invoices), Invoices (pay via Xendit, PDF download), Attendance (30 days), Reports (published assessments), Buku Penghubung (school week view read-only + home indicators editable)
 
 **Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Salary Slips (PDF), Profile (accessible via header avatar)
 
@@ -156,6 +155,7 @@ Three portals, three roles.
 - **CRUD Standard completion (2026-04-19)**: Category A/B/C framework (binary soft-delete / state-machine / event-log); Zod on Program + ClassSection + Admission + Invoice PUTs; Program `isActive` → `status` migration; DataTableRowActions gains `onCancel`/`onVoid`; standardized action columns across Admissions, Invoices, Student Attendance — see [`docs/cycles/2026-04-19-crud-standard-completion.md`](docs/cycles/2026-04-19-crud-standard-completion.md)
 - **UAT critical fixes 1–5 (2026-04-19)**: parent blockers + perf majors fixed; reusable UAT prep mechanism added — see [`docs/cycles/2026-04-19-uat-critical-fixes.md`](docs/cycles/2026-04-19-uat-critical-fixes.md)
 - **Assessment bug fix (2026-04-20)**: `AssessmentTemplate` `@@unique([tenantId, programId, name, type])` + dedupe migration, `POST /api/assessments/templates` 409 guard, new teacher Nilai portal (landing page + per-student BB/MB/BSH/BSB entry with debounced autosave + publish), class-level authz tightening on `PUT/POST /api/assessments/student/*` — see [`docs/cycles/2026-04-20-assessment-bug-fix.md`](docs/cycles/2026-04-20-assessment-bug-fix.md)
+- **Student Journal (Buku Penghubung) — full cycle complete (2026-04-21, T1-T11)**: Phase 8 schema (6 Prisma models), Zod validations, week helpers, idempotent seed (23 default indicators). Admin template/category/indicator CRUD at `/admin/student-journal`, monitoring + class roll-up + student detail + transactional edit + audit trail. Teacher picker + class-day entry grid (batch upsert) + student week view + note thread. Parent portal week view — Di Sekolah read-only, Di Rumah editable (optional, no nag), Catatan note thread. Shared components: `<WeekGrid>`, `<NoteThread>`, `<AuditDiff>`, `<ClassDayGrid>`. Playwright E2E smoke — one test per portal — see [`docs/cycles/2026-04-21-student-journal.md`](docs/cycles/2026-04-21-student-journal.md)
 
 - **CRUD completeness — existing entities (2026-04-21)**: closed all 5 Majors + 4 Minors under sweep §4. Program / ClassSection / StudentEnrollment Deactivate UIs + status filters on `/admin/academic` and `/admin/enrollments`; StudentAttendance override + void on `/admin/student-attendance` (Category C); new `PUT /api/payroll/[id]` (DRAFT-only, period-overlap guard) + detail-page Edit toggle; TeachingAssignment role-edit dialog; Admission contextual transitions + backend transition-map guard (`REGISTERED` terminal); AttendanceRecord mislabel drift fixed + `.claude/standards/crud.md` Category C contract pinned; Invoice Void surface wired on detail page; README §CRUD completion status re-audited (dropped false "100%" claim) — see [`docs/cycles/2026-04-21-crud-completeness-existing.md`](docs/cycles/2026-04-21-crud-completeness-existing.md)
 
@@ -170,7 +170,7 @@ Next 2–3 cycles, in order:
 
 1. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
 
-Future cycles, unscheduled: admissions pipeline, report card publishing workflow, multi-tenant hardening, parent self-service profile edits.
+Future cycles, unscheduled: admissions pipeline, report card publishing workflow, multi-tenant hardening, parent self-service profile edits, Student Journal v2 (drag-and-drop category reorder, parent reply in notes thread, admin create-on-edit for missing entries).
 
 ---
 
@@ -190,6 +190,7 @@ Short log. Each entry is a decision that constrains future work.
 | 2026-04-15 | One markdown file per cycle, enforced by pre-commit hook | Stop scratch-file proliferation from non-Opus sessions |
 | 2026-04-18 | Unified PR-based `/ship`: all roles open a PR to `staging` and merge manually when CI is green — no direct pushes to `staging` or `main` | GitHub free plan doesn't support branch protection / auto-merge; manual merge + pre-push hook + CTO discipline is the enforcement layer (supersedes 2026-04-15 role-gated push) |
 | 2026-04-15 | `prd.md` retired; README.md becomes single source of truth for status/roadmap/ADRs | Eliminate three-way doc drift |
+| 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) instead of two separate templates | Keeps admin config flat (one accordion page, two tabs); parent portal and teacher grid share the same `<WeekGrid>` component; audit trail stays on a single `StudentJournalAudit` table |
 
 ---
 
@@ -248,7 +249,8 @@ Copy `.env.example` to `.env`. Key variables:
 
 | Variable | Local | Staging | Production |
 |---|---|---|---|
-| `DATABASE_URL` | `file:./dev.db` | Supabase Tokyo pooler | Supabase Mumbai pooler |
+| `DATABASE_URL` | `file:./dev.db` | Supabase Tokyo pooler (port 6543) | Supabase Mumbai pooler (port 6543) |
+| `DIRECT_URL` | — (optional) | Supabase Tokyo direct (port 5432) — **required on Vercel** | Supabase Mumbai direct (port 5432) — **required on Vercel** |
 | `NEXT_PUBLIC_SUPABASE_URL` | — | Staging Supabase URL | Production Supabase URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | — | Staging anon key | Production anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Staging service key | Production service key |
@@ -258,6 +260,8 @@ Copy `.env.example` to `.env`. Key variables:
 | `XENDIT_CALLBACK_TOKEN` | — | Staging token | Production token |
 
 Without `RESEND_API_KEY`, emails are simulated (logged, not sent).
+
+**`DIRECT_URL` on Vercel is mandatory.** The `build` script runs `npx prisma migrate deploy` before `next build`, which applies any unapplied migrations in `prisma/migrations/`. This step requires a direct (non-pooler) Postgres connection — pooler connections on port 6543 go through PgBouncer transaction mode, which doesn't support the advisory locks Prisma uses to serialize migrations. Grab the direct URL from Supabase → Project Settings → Database → Connection string → **URI (Direct connection, port 5432)**.
 
 ### Tests
 

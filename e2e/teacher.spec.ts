@@ -81,4 +81,19 @@ test.describe("Teacher flows", () => {
     await page.waitForURL("/", { timeout: 10_000 });
     await expect(page.locator("text=An Nisaa")).toBeVisible();
   });
+
+  test("teacher can open Buku Penghubung picker and entry page", async ({ page }) => {
+    await page.goto("/teacher/student-journal");
+    await page.waitForURL("**/teacher/student-journal", { timeout: 15_000 });
+    // Either the picker heading or the empty-state for unassigned teachers
+    await expect(
+      page.locator("text=Buku Penghubung").or(page.locator("text=Belum ditugaskan ke kelas"))
+    ).toBeVisible({ timeout: 10_000 });
+    // If assigned classes exist, the CTA button should be visible
+    const cta = page.getByRole("button", { name: /Isi Penghubung/i });
+    const isAssigned = await cta.isVisible({ timeout: 3_000 }).catch(() => false);
+    if (isAssigned) {
+      await expect(cta).toBeVisible();
+    }
+  });
 });

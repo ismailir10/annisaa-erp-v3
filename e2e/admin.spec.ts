@@ -350,4 +350,15 @@ test.describe("Admin flows", () => {
     // Void is non-reversible via API (matches T4 pattern — consumes head of DRAFT list
     // across runs; seed ships enough DRAFT invoices that this is safe in practice).
   });
+
+  test("admin can open Buku Penghubung template config and monitoring", async ({ page }) => {
+    await page.goto("/admin/student-journal");
+    await expect(page.getByRole("heading", { name: /Buku Penghubung/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("tab", { name: "Sekolah" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Rumah" })).toBeVisible();
+
+    await page.goto("/admin/student-journal/monitoring");
+    await page.waitForURL("**/admin/student-journal/monitoring");
+    await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 15_000 });
+  });
 });

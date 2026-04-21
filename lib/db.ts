@@ -1,4 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
+// Last verified: 2026-04-21 (tenant-isolation-hardening cycle).
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
