@@ -14,7 +14,8 @@ This cycle wires Vercel up to run `prisma migrate deploy` during every build, an
 ### Acceptance criteria
 
 - [x] `_prisma_migrations` table exists on staging DB with 15 rows, one per disk migration, all marked finished — already baselined manually via Supabase MCP `apply_migration` before this PR opens.
-- [x] `vercel-build` script runs `prisma migrate deploy` before `next build`. Vercel auto-detects this script and uses it instead of `build`. Local `build` + CI `npm run build` stay migrate-free (CI doesn't spin up a DB for the Build job).
+- [x] `vercel-build` → `bash scripts/vercel-build.sh`. Vercel auto-detects this script and uses it instead of `build`. Local `build` + CI `npm run build` stay migrate-free (CI doesn't spin up a DB for the Build job).
+- [x] `scripts/vercel-build.sh` gates `prisma migrate deploy` on `VERCEL_GIT_COMMIT_REF=staging`. All other branches (main, feature previews) skip migrate — protects production DB, which is still Phase-1 stale.
 - [x] README §Development setup documents `DIRECT_URL` as **required** on Vercel, with instructions to grab it from Supabase dashboard.
 - [x] `npx prisma validate` passes.
 
