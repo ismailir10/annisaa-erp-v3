@@ -561,6 +561,7 @@ async function main() {
     // Create email log for salary slip
     await prisma.emailLog.create({
       data: {
+        tenantId: tenant.id,
         to: emp.email,
         subject: `Slip Gaji ${periodStart} - ${periodEnd}`,
         template: "salary_slip",
