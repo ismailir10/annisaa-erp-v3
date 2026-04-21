@@ -2295,6 +2295,10 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 
 - Added rate limiter to `PUT /api/student-journal/notes/[id]` — all other write endpoints in the surface already rate-limit, and this was the one inconsistency the final reviewer flagged. One-liner; no behavior change beyond throttling abusive edit bursts.
 
+### Post-merge lint fix (2026-04-21)
+
+- After merging `staging` into `feat/student-journal`, CI flagged `react-hooks/set-state-in-effect` on `app/teacher/student-journal/entry/page.tsx:87` and `app/teacher/student-journal/students/[id]/page.tsx:82`. Both effects legitimately need to mutate state on dep change. Suppressed with `// eslint-disable-next-line` at the call site.
+
 ---
 
 ## Ship Notes
