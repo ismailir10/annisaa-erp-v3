@@ -109,7 +109,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       cell: ({ row }) => (
         <div>
           <span className="text-sm font-medium">{row.original.periodLabel}</span>
-          <p className="text-[10px] text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
+          <p className="text-xs text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
         </div>
       ),
     },
@@ -124,10 +124,10 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
           <div>
             <span className="font-currency text-sm font-bold">{formatRupiah(inv.totalDue)}</span>
             {inv.totalPaid > 0 && inv.totalPaid < inv.totalDue && (
-              <p className="font-currency text-[10px] text-success">Dibayar: {formatRupiah(inv.totalPaid)}</p>
+              <p className="font-currency text-xs text-success">Dibayar: {formatRupiah(inv.totalPaid)}</p>
             )}
             {remaining > 0 && inv.status !== "DRAFT" && (
-              <p className="font-currency text-[10px] text-destructive">Sisa: {formatRupiah(remaining)}</p>
+              <p className="font-currency text-xs text-destructive">Sisa: {formatRupiah(remaining)}</p>
             )}
           </div>
         );

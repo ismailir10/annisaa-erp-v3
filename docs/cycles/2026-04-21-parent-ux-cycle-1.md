@@ -76,7 +76,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Replace inline flex pills with `PortalTabs`.
   - Acceptance: 3 children render without forced horizontal scroll; scroll affordance visible when list wider than viewport.
 
-- [ ] **T5 — Text-size sweep (non-tab sites). Independent.**
+- [x] **T5 — Text-size sweep (non-tab sites). Independent.**
   - Files: `app/parent/page.tsx`, `components/parent/bottom-nav.tsx`, `components/parent/invoice-card.tsx`, `app/parent/unpaid-invoices-table.tsx`, `app/parent/assessments-table.tsx`.
   - Replace every `text-[10px]` → `text-xs`; replace every `text-[11px]` → `text-xs`.
   - Grep `text-\[10px\]\|text-\[11px\]` in `app/parent` + `components/parent` must return zero.
@@ -128,6 +128,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T2: `components/parent/child-selector-tabs.tsx` — swapped bespoke Link pill row for `PortalTabs`; nav via `useRouter().push()` preserves `?child=` + other params. Known trade-off: avatar circle with initial letter removed (PortalTabs has no leading-slot API this cycle); secondary class-name now `text-xs` via PortalTabs (was `text-[10px]`). Avatar restoration → cycle 2 if needed.
 - T3: `components/parent/invoice-filter.tsx` + `app/parent/invoices/__tests__/client.test.tsx` + `vitest.setup.ts`. Filter refactored to PortalTabs (pills variant, count badges); sticky wrapper preserved. "Dibayar Sebagian" no longer truncates at 375 px. Test selectors migrated from button+aria-label to role=tab+aria-selected to match new a11y contract. Global `scrollIntoView` stub added to vitest setup so any PortalTabs consumer test runs without local stub.
 - T4: `app/parent/student-journal/page.tsx` — child-selector pills replaced with PortalTabs; horizontal scroll + edge fade replace previous `flex-wrap`. `childId ?? ""` guard for nullable activeId (render still gated by `children.length > 1`).
+- T5: text-size sweep across 7 files (page.tsx, unpaid-invoices-table, assessments-table, invoices/client, invoices/invoice-detail-sheet, bottom-nav, invoice-card). Every `text-[10px]`/`text-[11px]` → `text-xs`. Bottom-nav adjusted (`px-1`, `flex-1 min-w-0`, `truncate`) to keep 5 labels on one line at 375 px after the 20 % size bump. Post-sweep grep returns zero matches in `app/parent`, `components/parent`, `components/portal`.
 
 ## Verification
 
@@ -135,6 +136,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T2: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Manual check: `grep -n 'text-\[10px\]' components/parent/child-selector-tabs.tsx` → no matches.
 - T3: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Test selectors updated to tab role; scrollIntoView global stub keeps jsdom-based tests clean for all PortalTabs consumers.
 - T4: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
+- T5: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Grep zero.
 
 ## Ship Notes
 <!-- filled by /ship -->

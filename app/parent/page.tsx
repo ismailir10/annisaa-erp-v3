@@ -134,7 +134,7 @@ export default async function ParentDashboard({
                 <StatusBadge status={todayAttendanceStatus} />
               </div>
             ) : (
-              <p className="text-[10px] text-muted-foreground mt-1">Belum dicatat</p>
+              <p className="text-xs text-muted-foreground mt-1">Belum dicatat</p>
             )}
           </Card>
         </Link>

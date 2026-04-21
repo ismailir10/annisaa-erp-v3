@@ -43,7 +43,7 @@ export function ParentBottomNav() {
             <Link
               key={tab.href}
               href={`${tab.href}${forwardedQs ? `?${forwardedQs}` : ""}`}
-              className="flex flex-col items-center justify-center gap-1 relative py-1 px-4"
+              className="flex flex-1 min-w-0 flex-col items-center justify-center gap-1 relative py-1 px-1"
               aria-label={tab.label}
               aria-current={isActive ? "page" : undefined}
             >
@@ -61,7 +61,7 @@ export function ParentBottomNav() {
                 aria-hidden="true"
               />
               <span
-                className={`text-[10px] font-medium ${
+                className={`text-xs font-medium truncate max-w-full ${
                   isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >

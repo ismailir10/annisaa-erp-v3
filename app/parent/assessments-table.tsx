@@ -166,12 +166,12 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
                               {scoreInfo ? (
                                 <Badge
                                   variant="outline"
-                                  className={`text-[10px] ${scoreInfo.color}`}
+                                  className={`text-xs ${scoreInfo.color}`}
                                 >
                                   {score!.score}
                                 </Badge>
                               ) : (
-                                <span className="text-[10px] text-muted-foreground">—</span>
+                                <span className="text-xs text-muted-foreground">—</span>
                               )}
                             </div>
                           </div>
