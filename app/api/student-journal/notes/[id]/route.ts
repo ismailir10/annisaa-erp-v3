@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { noteUpdateSchema } from "@/lib/validations/student-journal";
 
 export async function PUT(
@@ -13,6 +14,11 @@ export async function PUT(
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rl = rateLimit(`sj-note-put:${getClientIp(req)}`, 20, 60_000);
+  if (!rl.success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
   }
 
   // Parse + validate body

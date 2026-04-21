@@ -2291,6 +2291,10 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 - **Admin audit diff:** `<AuditDiff>` side-by-side renders under 300ms per row.
 - **Empty-state handling:** all three new Playwright tests are written to handle empty DB state gracefully — no assertion failures when demo seed hasn't been applied to the test DB.
 
+### Final review follow-up (2026-04-21)
+
+- Added rate limiter to `PUT /api/student-journal/notes/[id]` — all other write endpoints in the surface already rate-limit, and this was the one inconsistency the final reviewer flagged. One-liner; no behavior change beyond throttling abusive edit bursts.
+
 ---
 
 ## Ship Notes
