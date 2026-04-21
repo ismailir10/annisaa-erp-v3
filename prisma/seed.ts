@@ -15,9 +15,21 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // Clear existing data
+  // Clear existing data — order matters: children before parents to respect FK constraints.
+  await prisma.payment.deleteMany();
+  await prisma.invoiceLine.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.programFeeStructure.deleteMany();
+  await prisma.feeComponentDef.deleteMany();
+  await prisma.admission.deleteMany();
+  await prisma.studentAssessmentScore.deleteMany();
+  await prisma.studentAssessment.deleteMany();
+  await prisma.assessmentIndicator.deleteMany();
+  await prisma.assessmentCategory.deleteMany();
+  await prisma.assessmentTemplate.deleteMany();
   await prisma.studentAttendance.deleteMany();
   await prisma.teachingAssignment.deleteMany();
+  await prisma.leaveRequest.deleteMany();
   await prisma.studentEnrollment.deleteMany();
   await prisma.studentGuardian.deleteMany();
   await prisma.parent.deleteMany();
@@ -34,6 +46,7 @@ async function main() {
   await prisma.salaryComponentDef.deleteMany();
   await prisma.holiday.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.role.deleteMany();
   await prisma.employee.deleteMany();
   await prisma.orgConfig.deleteMany();
   await prisma.campus.deleteMany();
