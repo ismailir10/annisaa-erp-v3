@@ -82,7 +82,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Grep `text-\[10px\]\|text-\[11px\]` in `app/parent` + `components/parent` must return zero.
   - Verify bottom-nav still fits on 360 px via Playwright snapshot.
 
-- [ ] **T6 — Dashboard Tagihan quick-link label. Independent.**
+- [x] **T6 — Dashboard Tagihan quick-link label. Independent.**
   - File: `app/parent/page.tsx` (Tagihan Card block around line 113–120).
   - Add `<span className="text-xs text-muted-foreground">Sisa</span>` above the rupiah amount. Hide label when `totalUnpaid === 0`.
   - Acceptance: screenshot shows "Sisa · Rp 3.000.000" pair, amount colour unchanged.
@@ -129,6 +129,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T3: `components/parent/invoice-filter.tsx` + `app/parent/invoices/__tests__/client.test.tsx` + `vitest.setup.ts`. Filter refactored to PortalTabs (pills variant, count badges); sticky wrapper preserved. "Dibayar Sebagian" no longer truncates at 375 px. Test selectors migrated from button+aria-label to role=tab+aria-selected to match new a11y contract. Global `scrollIntoView` stub added to vitest setup so any PortalTabs consumer test runs without local stub.
 - T4: `app/parent/student-journal/page.tsx` — child-selector pills replaced with PortalTabs; horizontal scroll + edge fade replace previous `flex-wrap`. `childId ?? ""` guard for nullable activeId (render still gated by `children.length > 1`).
 - T5: text-size sweep across 7 files (page.tsx, unpaid-invoices-table, assessments-table, invoices/client, invoices/invoice-detail-sheet, bottom-nav, invoice-card). Every `text-[10px]`/`text-[11px]` → `text-xs`. Bottom-nav adjusted (`px-1`, `flex-1 min-w-0`, `truncate`) to keep 5 labels on one line at 375 px after the 20 % size bump. Post-sweep grep returns zero matches in `app/parent`, `components/parent`, `components/portal`.
+- T6: `app/parent/page.tsx` — Tagihan quick-link Card now renders "Sisa" muted label above rupiah amount when `totalUnpaid > 0`; amount colour stays `text-destructive`. Disambiguates "what is this number". Inline edit (2-line change) — subagent overhead disproportionate.
 
 ## Verification
 
@@ -137,6 +138,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T3: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Test selectors updated to tab role; scrollIntoView global stub keeps jsdom-based tests clean for all PortalTabs consumers.
 - T4: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T5: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Grep zero.
+- T6: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 
 ## Ship Notes
 <!-- filled by /ship -->
