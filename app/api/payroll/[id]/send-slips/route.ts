@@ -110,6 +110,7 @@ export async function POST(
 
       await prisma.emailLog.create({
         data: {
+          tenantId: payroll.tenantId,
           to: item.employee.email,
           subject: `Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}`,
           template: "salary_slip",
@@ -126,6 +127,7 @@ export async function POST(
 
       await prisma.emailLog.create({
         data: {
+          tenantId: payroll.tenantId,
           to: item.employee.email,
           subject: `Slip Gaji ${payroll.periodStart}`,
           template: "salary_slip",

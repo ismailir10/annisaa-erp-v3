@@ -31,12 +31,13 @@ model Tenant {
   admissions    Admission[]
   feeDefs       FeeComponentDef[]
   invoices      Invoice[]
+  emailLogs     EmailLog[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
 model User {
   id          String    @id @default(cuid())
-  tenantId    String?
+  tenantId    String
   email       String    @unique
   role        String
   employeeId  String?   @unique
@@ -47,7 +48,7 @@ model User {
   customRoleId String?
   status       String  @default("ACTIVE") // ACTIVE | INACTIVE
 
-  tenant     Tenant?   @relation(fields: [tenantId], references: [id])
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
   employee   Employee? @relation(fields: [employeeId], references: [id])
   parent     Parent?   @relation(fields: [parentId], references: [id])
   customRole Role?     @relation(fields: [customRoleId], references: [id])
@@ -70,6 +71,7 @@ model Role {
   users  User[]
 
   @@unique([tenantId, code])
+  @@index([tenantId])
 }
 
 // ── CAMPUS ───────────────────────────────────────────────────
@@ -115,6 +117,7 @@ model Holiday {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, date])
+  @@index([tenantId])
 }
 
 // ── EMPLOYEE ─────────────────────────────────────────────────
@@ -205,6 +208,8 @@ model SalaryComponentDef {
   payrollLines PayrollItemLine[]
 
   @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, isEnabled])
 }
 
 model EmployeeSalaryValue {
@@ -308,12 +313,17 @@ model PayrollItemLine {
 // ── EMAIL LOG ────────────────────────────────────────────────
 model EmailLog {
   id       String   @id @default(cuid())
+  tenantId String
   to       String
   subject  String
   template String
   status   String   @default("PENDING")
   error    String?
   sentAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -334,6 +344,7 @@ model AcademicYear {
   feeStructures ProgramFeeStructure[]
 
   @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
 // ── PROGRAM ──────────────────────────────────────────────────
@@ -355,6 +366,7 @@ model Program {
   assessmentTemplates AssessmentTemplate[]
 
   @@unique([tenantId, code])
+  @@index([tenantId])
 }
 
 // ── CLASS SECTION ────────────────────────────────────────────
@@ -530,12 +542,14 @@ model FeeComponentDef {
   isRecurring Boolean @default(true) // monthly vs one-time
   isEnabled   Boolean @default(true)
   sortOrder   Int     @default(0)
+  status      String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete per CRUD Standard)
 
   tenant        Tenant                @relation(fields: [tenantId], references: [id])
   feeStructures ProgramFeeStructure[]
   invoiceLines  InvoiceLine[]
 
   @@unique([tenantId, code])
+  @@index([tenantId, status])
 }
 
 // ── PROGRAM FEE STRUCTURE ────────────────────────────────────

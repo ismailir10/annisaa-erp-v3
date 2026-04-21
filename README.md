@@ -85,6 +85,7 @@ AttendanceRecord (override-only, daily view), StudentAttendance (edit + void via
 ¹ Payment is managed via Invoice detail page (record payment dialog), not a top-level list.
 
 **Cycle highlights:**
+- **2026-04-21 — Tenant isolation hardening** (see [`docs/cycles/2026-04-21-tenant-isolation-hardening.md`](docs/cycles/2026-04-21-tenant-isolation-hardening.md)): `EmailLog.tenantId` now required with FK + index (closes a cross-tenant leak risk); `User.tenantId` promoted from optional to required; `FeeComponentDef` gained `status` (ACTIVE/INACTIVE) for soft-delete parity with other Category-A models; added missing `@@index([tenantId])` to `Role`, `Program`, `AcademicYear`, `Holiday`, `SalaryComponentDef`, plus `[tenantId, isEnabled]` on `SalaryComponentDef` and `[tenantId, status]` on `FeeComponentDef`.
 - CRUD Standard in CLAUDE.md now formally defines Category A / B / C — prior sweeps couldn't close Admission/Invoice/PayrollRun because the old standard forced binary soft-delete on state-machine entities.
 - Program migrated from `isActive: Boolean` to `status: String` — fixes a silent bug where the admin deactivate action wrote to a nonexistent field.
 - Zod validation added to `PUT /api/{programs,class-sections,admissions,invoices}/[id]`.
