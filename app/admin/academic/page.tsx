@@ -25,7 +25,7 @@ import { formatDateShort } from "@/lib/format";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
 type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; status: string; _count: { classSections: number } };
-type ClassSection = { id: string; name: string; capacity: number; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
+type ClassSection = { id: string; name: string; capacity: number; status: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
 type Campus = { id: string; name: string };
 type Employee = { id: string; nama: string; kode: string; jabatan: string };
 type Assignment = { id: string; role: string; employee: { nama: string; kode: string; jabatan: string } };
@@ -57,6 +57,7 @@ export default function AcademicPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
   const [programStatusFilter, setProgramStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
+  const [sectionStatusFilter, setSectionStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
 
   // Teacher assignment
   const [assignDialog, setAssignDialog] = useState(false);
@@ -236,6 +237,10 @@ export default function AcademicPage() {
     ? programs
     : programs.filter(p => p.status === programStatusFilter);
 
+  const filteredSections = sectionStatusFilter === "all"
+    ? sections
+    : sections.filter(s => s.status === sectionStatusFilter);
+
   const yearColumns: ColumnDef<AcademicYear>[] = [
     {
       accessorKey: "name",
@@ -321,6 +326,11 @@ export default function AcademicPage() {
       ),
     },
     {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
       id: "actions",
       cell: ({ row }) => (
         <DataTableRowActions
@@ -331,6 +341,8 @@ export default function AcademicPage() {
             setSectionDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
+          onActivate={() => setReactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
+          isActive={row.original.status === "ACTIVE"}
           extraActions={[{
             label: "Guru Pengajar",
             icon: <Users size={14} />,
@@ -395,11 +407,23 @@ export default function AcademicPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Kelas</h2>
-          <Button size="sm" onClick={() => { setEditingSection(null); setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
-            <Plus size={14} className="mr-1.5" /> Tambah Kelas
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={sectionStatusFilter} onValueChange={(v) => v && setSectionStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")}>
+              <SelectTrigger className="h-8 w-[160px]" data-testid="section-status-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="ACTIVE">Aktif</SelectItem>
+                <SelectItem value="INACTIVE">Tidak Aktif</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => { setEditingSection(null); setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Kelas
+            </Button>
+          </div>
         </div>
-        <DataTable columns={classColumns} data={sections} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada kelas" emptyDescription="Tambahkan kelas untuk program" />
+        <DataTable columns={classColumns} data={filteredSections} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada kelas" emptyDescription="Tambahkan kelas untuk program" />
       </div>
 
       {/* Add Year Dialog */}
