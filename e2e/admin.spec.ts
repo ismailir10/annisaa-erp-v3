@@ -218,4 +218,43 @@ test.describe("Admin flows", () => {
       await expect(page.getByRole("heading").first()).toBeVisible();
     }
   });
+
+  test("payroll DRAFT run can be edited; non-DRAFT returns 409", async ({ page }) => {
+    // API-level coverage — pick a DRAFT and a non-DRAFT run (if any) from the list.
+    const listRes = await page.request.get("/api/payroll?pageSize=50");
+    if (!listRes.ok()) return;
+    const list = await listRes.json();
+    const runs: Array<{ id: string; status: string; periodStart: string; periodEnd: string; actualWorkDays: number }> =
+      list.data ?? [];
+
+    const draft = runs.find((r) => r.status === "DRAFT");
+    if (draft) {
+      // Happy path — edit actualWorkDays (no period shift → avoids overlap guard).
+      const nextDays = (draft.actualWorkDays ?? 0) + 1;
+      const put = await page.request.put(`/api/payroll/${draft.id}`, {
+        data: { actualWorkDays: nextDays },
+      });
+      expect(put.ok()).toBe(true);
+      const after = await put.json();
+      expect(after.actualWorkDays).toBe(nextDays);
+
+      // Restore original value so re-runs stay idempotent.
+      await page.request.put(`/api/payroll/${draft.id}`, {
+        data: { actualWorkDays: draft.actualWorkDays },
+      });
+    }
+
+    const nonDraft = runs.find((r) => r.status !== "DRAFT");
+    if (nonDraft) {
+      // Negative path — non-DRAFT rejects edit with 409, UI hides Edit button.
+      const put = await page.request.put(`/api/payroll/${nonDraft.id}`, {
+        data: { actualWorkDays: (nonDraft.actualWorkDays ?? 0) + 1 },
+      });
+      expect(put.status()).toBe(409);
+
+      await page.goto(`/admin/payroll/${nonDraft.id}`);
+      await page.waitForURL(`**/admin/payroll/${nonDraft.id}`);
+      await expect(page.getByTestId("payroll-edit-btn")).toHaveCount(0);
+    }
+  });
 });

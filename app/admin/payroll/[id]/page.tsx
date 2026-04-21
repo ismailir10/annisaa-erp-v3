@@ -20,7 +20,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Download, Send, Check, Pencil, Settings2, Eye } from "lucide-react";
+import { ArrowLeft, Download, Send, Check, Pencil, Settings2, Eye, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 import Link from "next/link";
@@ -68,6 +68,11 @@ export default function PayrollDetailPage() {
 
   const [approving, setApproving] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Edit toggle for summary card (Category B — Edit Toggle Pattern, DRAFT only)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ periodStart: "", periodEnd: "", actualWorkDays: 0 });
+  const [editSaving, setEditSaving] = useState(false);
   const [comparison, setComparison] = useState<Record<string, number> | null>(null);
   const [prevPeriod, setPrevPeriod] = useState<string | null>(null);
 
@@ -153,6 +158,39 @@ export default function PayrollDetailPage() {
   async function handleExport() {
     window.open(`/api/payroll/${id}/export/bsi`, "_blank");
     setTimeout(fetchData, 1000);
+  }
+
+  function openEdit() {
+    if (!data) return;
+    setEditForm({
+      periodStart: data.periodStart,
+      periodEnd: data.periodEnd,
+      actualWorkDays: data.actualWorkDays,
+    });
+    setIsEditing(true);
+  }
+
+  function cancelEdit() {
+    setIsEditing(false);
+  }
+
+  async function saveEdit() {
+    if (!data) return;
+    setEditSaving(true);
+    const res = await fetch(`/api/payroll/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    if (res.ok) {
+      toast.success("Periode diperbarui");
+      setIsEditing(false);
+      fetchData();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal menyimpan");
+    }
+    setEditSaving(false);
   }
 
   async function handleSendSlips() {
@@ -277,12 +315,84 @@ export default function PayrollDetailPage() {
         description={`${data.items.length} karyawan · ${data.actualWorkDays} hari kerja`}
         actions={
           <div className="flex gap-2">
+            {isDraft && !isEditing && (
+              <Button size="sm" variant="outline" onClick={openEdit} data-testid="payroll-edit-btn">
+                <Pencil size={14} className="mr-1.5" /> Edit
+              </Button>
+            )}
             {isDraft && <Button size="sm" onClick={() => setApproveModal(true)}><Check size={14} className="mr-1.5" /> Setujui</Button>}
             {isApproved && <Button size="sm" variant="outline" onClick={handleExport}><Download size={14} className="mr-1.5" /> Ekspor BSI</Button>}
             {isApproved && <Button size="sm" onClick={() => setSendModal(true)}><Send size={14} className="mr-1.5" /> Kirim Slip</Button>}
           </div>
         }
       />
+
+      {/* Summary card — read-only view or Edit mode (DRAFT only) */}
+      <Card className="p-4 mb-4">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <p className="text-sm font-medium">Ringkasan Periode</p>
+            <p className="text-xs text-muted-foreground">
+              {isEditing ? "Ubah periode atau hari kerja lalu simpan." : "Detail periode penggajian."}
+            </p>
+          </div>
+          {isEditing && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={cancelEdit} disabled={editSaving}>
+                <X size={14} className="mr-1.5" /> Batal
+              </Button>
+              <Button size="sm" onClick={saveEdit} disabled={editSaving} data-testid="payroll-edit-save">
+                {editSaving ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {!isEditing ? (
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <p className="text-[10px] text-muted-foreground">Periode Mulai</p>
+              <p className="text-sm font-medium" data-testid="payroll-period-start">{data.periodStart}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground">Periode Akhir</p>
+              <p className="text-sm font-medium">{data.periodEnd}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground">Hari Kerja Aktual</p>
+              <p className="text-sm font-medium">{data.actualWorkDays}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Field>
+              <FieldLabel>Periode Mulai</FieldLabel>
+              <Input
+                type="date"
+                value={editForm.periodStart}
+                onChange={(e) => setEditForm({ ...editForm, periodStart: e.target.value })}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Periode Akhir</FieldLabel>
+              <Input
+                type="date"
+                value={editForm.periodEnd}
+                onChange={(e) => setEditForm({ ...editForm, periodEnd: e.target.value })}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Hari Kerja Aktual</FieldLabel>
+              <Input
+                type="number"
+                min={0}
+                value={editForm.actualWorkDays}
+                onChange={(e) => setEditForm({ ...editForm, actualWorkDays: parseInt(e.target.value) || 0 })}
+              />
+            </Field>
+          </div>
+        )}
+      </Card>
 
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
