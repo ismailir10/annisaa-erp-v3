@@ -8,7 +8,7 @@ describe("getBreadcrumbs", () => {
 
   it("returns 2-level trail for an exact nav item", () => {
     expect(getBreadcrumbs("/admin/employees")).toEqual([
-      { label: "SDM", href: "/admin/employees" },
+      { label: "SDM" },
       { label: "Karyawan" },
     ]);
   });
