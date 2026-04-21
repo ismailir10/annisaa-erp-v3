@@ -61,7 +61,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 
 ### Group B — parallelisable (dispatch via subagents after T1 lands)
 
-- [ ] **T2 — Refactor `child-selector-tabs` onto `PortalTabs`. Dep: T1.**
+- [x] **T2 — Refactor `child-selector-tabs` onto `PortalTabs`. Dep: T1.**
   - File: `components/parent/child-selector-tabs.tsx`.
   - Drop custom flex markup; pass items. Remove `text-[10px]` for secondary label — use `text-xs text-muted-foreground`.
   - Acceptance: dashboard with 3 children at 375 px — all 3 child names fully readable, active tab scrolled into view on navigation.
@@ -125,10 +125,12 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 
 - Subagent plan: T1 implementer (foundation) first; T2-T10 each dispatched as independent implementer subagents sequentially (same-tree, no parallel write conflicts); T11 (standards doc) last. Per-task feature-dev:code-reviewer pass on staged diff before commit. Controller orchestrates, never writes code inline except for cycle-doc edits + gates.
 - T1: `components/portal/portal-tabs.tsx` + `components/portal/__tests__/portal-tabs.test.tsx` — controlled horizontal tab bar with roving tabindex, edge-fade mask, auto-scroll-into-view, pills + underline variants, badge count, secondary label. Code review flagged redundant `setFocusId` in onClick, mask clipping first-tab focus ring, and missing Home/End + ArrowLeft-wrap + badge tests; all three fixed before commit.
+- T2: `components/parent/child-selector-tabs.tsx` — swapped bespoke Link pill row for `PortalTabs`; nav via `useRouter().push()` preserves `?child=` + other params. Known trade-off: avatar circle with initial letter removed (PortalTabs has no leading-slot API this cycle); secondary class-name now `text-xs` via PortalTabs (was `text-[10px]`). Avatar restoration → cycle 2 if needed.
 
 ## Verification
 
 - T1: `npm run build` green; `npx vitest run components/portal` → 7 passed / 7 total. Manual check: component file holds no `text-[10px]`/`text-[11px]`; controlled API only (no internal `activeId`); edge-fade mask preserves focus ring clearance.
+- T2: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Manual check: `grep -n 'text-\[10px\]' components/parent/child-selector-tabs.tsx` → no matches.
 
 ## Ship Notes
 <!-- filled by /ship -->
