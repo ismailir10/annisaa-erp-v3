@@ -57,40 +57,44 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 
 ### CRUD completion status
 
-Audited 2026-04-19 after the CRUD Standard Completion cycle (see [`docs/cycles/2026-04-19-crud-standard-completion.md`](docs/cycles/2026-04-19-crud-standard-completion.md)). CLAUDE.md now splits the standard into three categories — see [CLAUDE.md `## CRUD Standard`](CLAUDE.md) for the canonical definitions.
+Re-audited 2026-04-21 after the CRUD Completeness — Existing Entities cycle (see [`docs/cycles/2026-04-21-crud-completeness-existing.md`](docs/cycles/2026-04-21-crud-completeness-existing.md)). CLAUDE.md splits the standard into three categories — see [`.claude/standards/crud.md`](.claude/standards/crud.md) for the canonical definitions. A prior "100% CRUD coverage" claim was removed in this pass: 7 entities still have no standalone admin UI (scheduled for a follow-up cycle) and the 2026-04-21 sweep (`docs/reviews/2026-04-21-sweep.md` §4) documents remaining gaps.
 
-**Category A — Binary soft-delete (19/27): ✅ Complete**
-User, Campus, Holiday, OrgConfig, AcademicYear, Program, ClassSection, FeeComponentDef, SalaryComponentDef, LeaveRequest, Student, Employee, StudentGuardian, StudentEnrollment, TeachingAssignment, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, Guardian.
+**Category A — Binary soft-delete (19 entities, all with Deactivate row action):**
+User, Campus, Holiday, OrgConfig, AcademicYear, Program, ClassSection, FeeComponentDef, SalaryComponentDef, LeaveRequest, Student, Employee, StudentGuardian, StudentEnrollment, TeachingAssignment, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, Guardian. Program/ClassSection/StudentEnrollment row actions and TeachingAssignment role edit dialog landed 2026-04-21.
 
-**Category B — State-machine (3/27): ✅ Complete**
-Admission (Cancel), Invoice (Void), PayrollRun (workflow-only — list view is `onView` only, transitions on detail page).
+**Category B — State-machine (3 entities, full CRUD against state machine):**
+- Admission — contextual `Lanjutkan ke <next>` + `Batalkan`; backend rejects illegal transitions (2026-04-21).
+- Invoice — Void wired on list + detail (2026-04-21).
+- PayrollRun — list view is `onView` only (documented exception); detail page exposes an Edit toggle for `periodStart` / `periodEnd` / `actualWorkDays` while `status = DRAFT`, 409 otherwise; approvals and slip-sending remain on the detail page (2026-04-21).
 
-**Category C — Event-log (2/27): ✅ Complete**
-AttendanceRecord (override-only, daily view), StudentAttendance (edit + void via `isVoided` flag).
+**Category C — Event-log (2 entities, override + void, no row Edit):**
+AttendanceRecord (override-only, daily view — row action explicitly labelled "Timpa (Override)" to prevent mislabel drift); StudentAttendance (override via `PUT`, void via `DELETE` flipping `isVoided`). `.claude/standards/crud.md` §Category C now pins the override-not-edit contract (2026-04-21).
 
-**Intentionally no standalone admin UI (3/27):**
+**Intentionally no standalone admin UI (3 entities — structurally nested or observability):**
 - InvoiceLine, PayrollItem — nested children of Invoice / PayrollRun, managed via their parent's detail page.
-- EmailLog — observability surface only; no user-facing CRUD required.
+- Payment — recorded via Invoice detail dialog (no top-level list page today; audit page is a sweep follow-up).
 
-**Overall: 100% CRUD coverage** across the CRUD Standard's three categories (27/27 admin-relevant entities conform to their assigned category; 24 have UI, 3 are structurally nested/observability).
+**Open gaps (7 entities; tracked in sweep §4 "Missing admin UI entirely"):**
+EmailLog (read-only viewer), Payment (audit list), StudentAssessment + StudentAssessmentScore (admin scoring page), ProgramFeeStructure (dedicated manager). PayrollItem and InvoiceLine stay nested by design pending confirmation. Scheduled for a follow-up cycle (§6 on the sweep triage list).
 
-| Module | Category A | Category B | Category C | Nested/Log |
+| Module | Category A | Category B | Category C | Nested/Observability |
 |---|---|---|---|---|
-| CORE | User, Campus, Holiday, OrgConfig | — | — | EmailLog |
+| CORE | User, Campus, Holiday, OrgConfig | — | — | EmailLog¹ |
 | HR | Employee, LeaveRequest, SalaryComponentDef | PayrollRun | AttendanceRecord | PayrollItem |
 | ACADEMIC | AcademicYear, Program, ClassSection, TeachingAssignment | — | — | — |
 | STUDENTS | Student, StudentGuardian, StudentEnrollment | Admission | — | — |
-| FINANCE | FeeComponentDef, ProgramFeeStructure | Invoice | — | InvoiceLine, Payment¹ |
-| LEARNING | AssessmentTemplate, AssessmentCategory, AssessmentIndicator | — | StudentAttendance | — |
+| FINANCE | FeeComponentDef, ProgramFeeStructure¹ | Invoice | — | InvoiceLine, Payment¹ |
+| LEARNING | AssessmentTemplate, AssessmentCategory, AssessmentIndicator | — | StudentAttendance | StudentAssessment¹ |
 
-¹ Payment is managed via Invoice detail page (record payment dialog), not a top-level list.
+¹ Admin UI still missing or partial — see "Open gaps" above. Schema + API exist.
 
 **Cycle highlights:**
-- **2026-04-21 — Tenant isolation hardening** (see [`docs/cycles/2026-04-21-tenant-isolation-hardening.md`](docs/cycles/2026-04-21-tenant-isolation-hardening.md)): `EmailLog.tenantId` now required with FK + index (closes a cross-tenant leak risk); `User.tenantId` promoted from optional to required; `FeeComponentDef` gained `status` (ACTIVE/INACTIVE) for soft-delete parity with other Category-A models; added missing `@@index([tenantId])` to `Role`, `Program`, `AcademicYear`, `Holiday`, `SalaryComponentDef`, plus `[tenantId, isEnabled]` on `SalaryComponentDef` and `[tenantId, status]` on `FeeComponentDef`.
-- CRUD Standard in CLAUDE.md now formally defines Category A / B / C — prior sweeps couldn't close Admission/Invoice/PayrollRun because the old standard forced binary soft-delete on state-machine entities.
-- Program migrated from `isActive: Boolean` to `status: String` — fixes a silent bug where the admin deactivate action wrote to a nonexistent field.
+- **2026-04-21 — CRUD completeness sweep**: closed all 5 Majors and 4 Minors under sweep §4. Program / ClassSection / StudentEnrollment — Deactivate+Reactivate row actions + status filter on `/admin/academic` and `/admin/enrollments`; `rateLimit()` added to the respective `[id]` PUTs. StudentAttendance — override + void via admin ⋮ menu (Category C). PayrollRun — new `PUT /api/payroll/[id]` (SUPER_ADMIN, DRAFT-only, period-overlap guard, rate-limited) + detail-page Edit toggle. TeachingAssignment — `PUT /api/teaching-assignments/[id]` + Edit Penugasan dialog for the `role` field. Admission — contextual transition menu + backend transition-map guard; `REGISTERED` now truly terminal (`[]`). AttendanceRecord — `onEdit` was triggering the Override modal; relabelled to `extraActions "Timpa (Override)"`; `.claude/standards/crud.md` §Category C updated to pin the contract. Invoice — Void surface added to `/admin/invoices/[id]` detail.
+- **2026-04-21 — Tenant isolation hardening** (see [`docs/cycles/2026-04-21-tenant-isolation-hardening.md`](docs/cycles/2026-04-21-tenant-isolation-hardening.md)): `EmailLog.tenantId` now required with FK + index; `User.tenantId` required; `FeeComponentDef` gained `status` for soft-delete parity; added missing `@@index([tenantId])` to `Role`, `Program`, `AcademicYear`, `Holiday`, `SalaryComponentDef`, plus `[tenantId, isEnabled]` on `SalaryComponentDef` and `[tenantId, status]` on `FeeComponentDef`.
+- CRUD Standard in CLAUDE.md now formally defines Category A / B / C.
+- Program migrated from `isActive: Boolean` to `status: String`.
 - Zod validation added to `PUT /api/{programs,class-sections,admissions,invoices}/[id]`.
-- `DataTableRowActions` gained `onCancel` / `onVoid` props; Invoice + StudentAttendance converted from `extraActions` label → dedicated props. Workflow-queue exceptions (PayrollRun list, LeaveRequest approval, daily attendance editors) now documented in CLAUDE.md.
+- `DataTableRowActions` gained `onCancel` / `onVoid` props.
 
 ---
 
@@ -152,6 +156,8 @@ Three portals, three roles.
 - **UAT critical fixes 1–5 (2026-04-19)**: parent blockers + perf majors fixed; reusable UAT prep mechanism added — see [`docs/cycles/2026-04-19-uat-critical-fixes.md`](docs/cycles/2026-04-19-uat-critical-fixes.md)
 - **Assessment bug fix (2026-04-20)**: `AssessmentTemplate` `@@unique([tenantId, programId, name, type])` + dedupe migration, `POST /api/assessments/templates` 409 guard, new teacher Nilai portal (landing page + per-student BB/MB/BSH/BSB entry with debounced autosave + publish), class-level authz tightening on `PUT/POST /api/assessments/student/*` — see [`docs/cycles/2026-04-20-assessment-bug-fix.md`](docs/cycles/2026-04-20-assessment-bug-fix.md)
 - **Student Journal (Buku Penghubung) — full cycle complete (2026-04-21, T1-T11)**: Phase 8 schema (6 Prisma models), Zod validations, week helpers, idempotent seed (23 default indicators). Admin template/category/indicator CRUD at `/admin/student-journal`, monitoring + class roll-up + student detail + transactional edit + audit trail. Teacher picker + class-day entry grid (batch upsert) + student week view + note thread. Parent portal week view — Di Sekolah read-only, Di Rumah editable (optional, no nag), Catatan note thread. Shared components: `<WeekGrid>`, `<NoteThread>`, `<AuditDiff>`, `<ClassDayGrid>`. Playwright E2E smoke — one test per portal — see [`docs/cycles/2026-04-21-student-journal.md`](docs/cycles/2026-04-21-student-journal.md)
+
+- **CRUD completeness — existing entities (2026-04-21)**: closed all 5 Majors + 4 Minors under sweep §4. Program / ClassSection / StudentEnrollment Deactivate UIs + status filters on `/admin/academic` and `/admin/enrollments`; StudentAttendance override + void on `/admin/student-attendance` (Category C); new `PUT /api/payroll/[id]` (DRAFT-only, period-overlap guard) + detail-page Edit toggle; TeachingAssignment role-edit dialog; Admission contextual transitions + backend transition-map guard (`REGISTERED` terminal); AttendanceRecord mislabel drift fixed + `.claude/standards/crud.md` Category C contract pinned; Invoice Void surface wired on detail page; README §CRUD completion status re-audited (dropped false "100%" claim) — see [`docs/cycles/2026-04-21-crud-completeness-existing.md`](docs/cycles/2026-04-21-crud-completeness-existing.md)
 
 **In progress:**
 - Audit logging: record critical operations

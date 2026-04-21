@@ -25,7 +25,7 @@ import { formatDateShort } from "@/lib/format";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
 type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; status: string; _count: { classSections: number } };
-type ClassSection = { id: string; name: string; capacity: number; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
+type ClassSection = { id: string; name: string; capacity: number; status: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
 type Campus = { id: string; name: string };
 type Employee = { id: string; nama: string; kode: string; jabatan: string };
 type Assignment = { id: string; role: string; employee: { nama: string; kode: string; jabatan: string } };
@@ -55,6 +55,9 @@ export default function AcademicPage() {
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [editingSection, setEditingSection] = useState<ClassSection | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
+  const [programStatusFilter, setProgramStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
+  const [sectionStatusFilter, setSectionStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
 
   // Teacher assignment
   const [assignDialog, setAssignDialog] = useState(false);
@@ -152,6 +155,22 @@ export default function AcademicPage() {
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
   }
 
+  async function handleReactivate() {
+    if (!reactivateTarget) return;
+    const urlMap: Record<string, string> = {
+      year: `/api/academic-years/${reactivateTarget.id}`,
+      program: `/api/programs/${reactivateTarget.id}`,
+      section: `/api/class-sections/${reactivateTarget.id}`,
+    };
+    const res = await fetch(urlMap[reactivateTarget.type], {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ACTIVE" }),
+    });
+    if (res.ok) { toast.success("Berhasil diaktifkan"); setReactivateTarget(null); fetchAll(); }
+    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
+  }
+
   // --- Column definitions ---
 
   const programColumns: ColumnDef<Program>[] = [
@@ -192,6 +211,11 @@ export default function AcademicPage() {
       cell: ({ row }) => <span className="font-currency text-sm">{row.original._count.classSections}</span>,
     },
     {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
       id: "actions",
       cell: ({ row }) => (
         <DataTableRowActions
@@ -202,11 +226,20 @@ export default function AcademicPage() {
             setProgramDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "program", id: row.original.id, name: row.original.name })}
+          onActivate={() => setReactivateTarget({ type: "program", id: row.original.id, name: row.original.name })}
           isActive={row.original.status === "ACTIVE"}
         />
       ),
     },
   ];
+
+  const filteredPrograms = programStatusFilter === "all"
+    ? programs
+    : programs.filter(p => p.status === programStatusFilter);
+
+  const filteredSections = sectionStatusFilter === "all"
+    ? sections
+    : sections.filter(s => s.status === sectionStatusFilter);
 
   const yearColumns: ColumnDef<AcademicYear>[] = [
     {
@@ -293,6 +326,11 @@ export default function AcademicPage() {
       ),
     },
     {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
       id: "actions",
       cell: ({ row }) => (
         <DataTableRowActions
@@ -303,6 +341,8 @@ export default function AcademicPage() {
             setSectionDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
+          onActivate={() => setReactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
+          isActive={row.original.status === "ACTIVE"}
           extraActions={[{
             label: "Guru Pengajar",
             icon: <Users size={14} />,
@@ -333,11 +373,23 @@ export default function AcademicPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Program</h2>
-          <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
-            <Plus size={14} className="mr-1.5" /> Tambah Program
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={programStatusFilter} onValueChange={(v) => v && setProgramStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")}>
+              <SelectTrigger className="h-8 w-[160px]" data-testid="program-status-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="ACTIVE">Aktif</SelectItem>
+                <SelectItem value="INACTIVE">Tidak Aktif</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Program
+            </Button>
+          </div>
         </div>
-        <DataTable columns={programColumns} data={programs} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada program" emptyDescription="Tambahkan program pendidikan" />
+        <DataTable columns={programColumns} data={filteredPrograms} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada program" emptyDescription="Tambahkan program pendidikan" />
       </div>
 
       {/* Academic Years Section */}
@@ -355,11 +407,23 @@ export default function AcademicPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Kelas</h2>
-          <Button size="sm" onClick={() => { setEditingSection(null); setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
-            <Plus size={14} className="mr-1.5" /> Tambah Kelas
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={sectionStatusFilter} onValueChange={(v) => v && setSectionStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")}>
+              <SelectTrigger className="h-8 w-[160px]" data-testid="section-status-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="ACTIVE">Aktif</SelectItem>
+                <SelectItem value="INACTIVE">Tidak Aktif</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => { setEditingSection(null); setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Kelas
+            </Button>
+          </div>
         </div>
-        <DataTable columns={classColumns} data={sections} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada kelas" emptyDescription="Tambahkan kelas untuk program" />
+        <DataTable columns={classColumns} data={filteredSections} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada kelas" emptyDescription="Tambahkan kelas untuk program" />
       </div>
 
       {/* Add Year Dialog */}
@@ -500,6 +564,16 @@ export default function AcademicPage() {
         description={`Nonaktifkan "${deactivateTarget?.name}"? Data tidak akan dihapus.`}
         onConfirm={handleDeactivate}
         confirmLabel="Nonaktifkan"
+      />
+
+      {/* Reactivate Confirm */}
+      <ConfirmDialog
+        open={!!reactivateTarget}
+        onOpenChange={(o) => !o && setReactivateTarget(null)}
+        title="Aktifkan"
+        description={`Aktifkan kembali "${reactivateTarget?.name}"?`}
+        onConfirm={handleReactivate}
+        confirmLabel="Aktifkan"
       />
     </>
   );

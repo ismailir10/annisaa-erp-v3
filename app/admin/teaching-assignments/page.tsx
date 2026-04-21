@@ -10,6 +10,17 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 // ------------------------------------------------------------------
@@ -34,6 +45,10 @@ type TeachingAssignment = {
 // ------------------------------------------------------------------
 
 const ROLE_LABELS: Record<string, string> = { HOMEROOM: "Wali Kelas", ASSISTANT: "Asisten" };
+const ROLE_OPTIONS = [
+  { value: "HOMEROOM", label: "Wali Kelas" },
+  { value: "ASSISTANT", label: "Asisten" },
+];
 
 const columns: ColumnDef<TeachingAssignment>[] = [
   {
@@ -81,6 +96,9 @@ export default function TeachingAssignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TeachingAssignment | null>(null);
+  const [editTarget, setEditTarget] = useState<TeachingAssignment | null>(null);
+  const [editRole, setEditRole] = useState<string>("HOMEROOM");
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchAssignments = useCallback(async () => {
     setLoading(true);
@@ -117,6 +135,33 @@ export default function TeachingAssignmentsPage() {
     fetchAssignments();
   }
 
+  function openEdit(row: TeachingAssignment) {
+    setEditTarget(row);
+    setEditRole(row.role);
+  }
+
+  async function handleEditSave() {
+    if (!editTarget) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/teaching-assignments/${editTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: editRole }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        toast.error(e.error || "Gagal menyimpan");
+        return;
+      }
+      toast.success("Penugasan diperbarui");
+      setEditTarget(null);
+      fetchAssignments();
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   const columnsWithActions = useMemo<ColumnDef<TeachingAssignment>[]>(
     () => [
       ...columns,
@@ -125,6 +170,7 @@ export default function TeachingAssignmentsPage() {
         header: "",
         cell: ({ row }) => (
           <DataTableRowActions
+            onEdit={() => openEdit(row.original)}
             extraActions={[
               {
                 label: "Hapus",
@@ -168,6 +214,40 @@ export default function TeachingAssignmentsPage() {
         onConfirm={handleDelete}
         destructive
       />
+
+      <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Penugasan</DialogTitle>
+            <DialogDescription>
+              {editTarget
+                ? `${editTarget.employee.nama} · ${editTarget.classSection.program.name} · ${editTarget.classSection.name}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <Field>
+            <FieldLabel>Peran</FieldLabel>
+            <Select value={editRole} onValueChange={(v) => v && setEditRole(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editSaving}>
+              Batal
+            </Button>
+            <Button onClick={handleEditSave} disabled={editSaving || editRole === editTarget?.role}>
+              {editSaving ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
