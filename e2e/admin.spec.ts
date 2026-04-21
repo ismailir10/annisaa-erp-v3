@@ -88,6 +88,35 @@ test.describe("Admin flows", () => {
     await expect(page.getByRole("heading", { name: /Template Penilaian/i })).toBeVisible();
   });
 
+  test("program deactivate sets status INACTIVE and hides from Aktif filter", async ({ page }) => {
+    // Pick an ACTIVE program via API so we don't depend on seed ordering
+    const list = await page.request.get("/api/programs");
+    const programs = await list.json();
+    const target = (programs as Array<{ id: string; name: string; status: string }>)
+      .find(p => p.status === "ACTIVE");
+    if (!target) {
+      test.skip(true, "No ACTIVE program to deactivate");
+      return;
+    }
+
+    const put = await page.request.put(`/api/programs/${target.id}`, {
+      data: { status: "INACTIVE" },
+    });
+    expect(put.ok()).toBeTruthy();
+
+    // Verify list under Aktif filter no longer includes it
+    const after = await page.request.get("/api/programs");
+    const afterJson = await after.json();
+    const stillActive = (afterJson as Array<{ id: string; status: string }>)
+      .find(p => p.id === target.id && p.status === "ACTIVE");
+    expect(stillActive).toBeUndefined();
+
+    // Restore to ACTIVE so other tests / subsequent runs stay idempotent
+    await page.request.put(`/api/programs/${target.id}`, {
+      data: { status: "ACTIVE" },
+    });
+  });
+
   test("payroll detail shows employee lines", async ({ page }) => {
     await page.goto("/admin/payroll");
     const payrollLink = page.locator("a[href*='/admin/payroll/']").first();

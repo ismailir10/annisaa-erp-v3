@@ -151,6 +151,7 @@ Three portals, three roles.
 - **Assessment bug fix (2026-04-20)**: `AssessmentTemplate` `@@unique([tenantId, programId, name, type])` + dedupe migration, `POST /api/assessments/templates` 409 guard, new teacher Nilai portal (landing page + per-student BB/MB/BSH/BSB entry with debounced autosave + publish), class-level authz tightening on `PUT/POST /api/assessments/student/*` — see [`docs/cycles/2026-04-20-assessment-bug-fix.md`](docs/cycles/2026-04-20-assessment-bug-fix.md)
 
 **In progress:**
+- **CRUD completeness — existing entities (2026-04-21)**: in-flight — closing §4 sweep findings task-by-task. T1 landed: `PUT /api/programs/[id]` now rate-limited, Programs DataTable on `/admin/academic` gains Deactivate/Reactivate row actions, Status column, and Semua/Aktif/Tidak Aktif filter — see [`docs/cycles/2026-04-21-crud-completeness-existing.md`](docs/cycles/2026-04-21-crud-completeness-existing.md)
 - Audit logging: record critical operations
 
 ---
