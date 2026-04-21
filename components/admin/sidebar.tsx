@@ -114,6 +114,10 @@ export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
   // collapsed a group and then navigated into it via breadcrumb/back don't
   // lose sight of their current location. User's collapsed state for
   // inactive groups is preserved.
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing collapsible
+     state from the external system (URL pathname) into local UI state;
+     functional setState bails out when the value already matches, so no
+     cascading renders occur. */
   useEffect(() => {
     const activeGroupId = getActiveGroup(pathname, adminNav.groups);
     if (activeGroupId) {
@@ -125,6 +129,7 @@ export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
       setSettingsOpen(true);
     }
   }, [pathname]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
