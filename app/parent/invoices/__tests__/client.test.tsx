@@ -148,18 +148,12 @@ describe("InvoicesClient", () => {
       render(<InvoicesClient data={mockInvoices} />);
 
       // Click on overdue filter (has 0 invoices)
-      const overdueButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Jatuh Tempo")
-      );
-      expect(overdueButton).toBeDefined();
-
-      if (overdueButton) {
-        await user.click(overdueButton);
-        // The empty state should show "Tidak ada tagihan Jatuh Tempo"
-        // Since it might be broken across elements, use a more flexible matcher
-        const emptyState = screen.queryByText("Jatuh Tempo");
-        expect(emptyState).toBeInTheDocument();
-      }
+      const overdueButton = screen.getByRole("tab", { name: /Jatuh Tempo/ });
+      await user.click(overdueButton);
+      // The empty state should show "Tidak ada tagihan Jatuh Tempo"
+      // Since it might be broken across elements, use a more flexible matcher
+      const emptyState = screen.queryByText("Jatuh Tempo");
+      expect(emptyState).toBeInTheDocument();
     });
 
     it("shows empty state icon", () => {
@@ -198,10 +192,8 @@ describe("InvoicesClient", () => {
     it("defaults to 'unpaid' filter", () => {
       render(<InvoicesClient data={mockInvoices} />);
 
-      const unpaidButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Belum Bayar")
-      );
-      expect(unpaidButton).toHaveAttribute("aria-pressed", "true");
+      const unpaidTab = screen.getByRole("tab", { name: /Belum Bayar/ });
+      expect(unpaidTab).toHaveAttribute("aria-selected", "true");
     });
 
     it("filters invoices by unpaid status", () => {
@@ -218,64 +210,46 @@ describe("InvoicesClient", () => {
       const user = userEvent.setup();
       render(<InvoicesClient data={mockInvoices} />);
 
-      const paidButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Lunas")
-      );
-      expect(paidButton).toBeDefined();
+      const paidTab = screen.getByRole("tab", { name: /^Lunas/ });
+      await user.click(paidTab);
 
-      if (paidButton) {
-        await user.click(paidButton);
+      // Should show only PAID invoices
+      // Use queryAllByText to check presence/absence
+      const inv001 = screen.queryAllByText("INV-2024-001");
+      const inv002 = screen.queryAllByText("INV-2024-002");
+      const inv003 = screen.queryAllByText("INV-2024-003");
 
-        // Should show only PAID invoices
-        // Use queryAllByText to check presence/absence
-        const inv001 = screen.queryAllByText("INV-2024-001");
-        const inv002 = screen.queryAllByText("INV-2024-002");
-        const inv003 = screen.queryAllByText("INV-2024-003");
-
-        expect(inv001.length).toBe(0);
-        expect(inv002.length).toBe(0);
-        expect(inv003.length).toBeGreaterThan(0);
-      }
+      expect(inv001.length).toBe(0);
+      expect(inv002.length).toBe(0);
+      expect(inv003.length).toBeGreaterThan(0);
     });
 
     it("shows all invoices when 'all' filter is selected", async () => {
       const user = userEvent.setup();
       render(<InvoicesClient data={mockInvoices} />);
 
-      const allButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Semua")
-      );
-      expect(allButton).toBeDefined();
+      const allTab = screen.getByRole("tab", { name: /Semua/ });
+      await user.click(allTab);
 
-      if (allButton) {
-        await user.click(allButton);
-
-        await waitFor(() => {
-          expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
-          expect(screen.getAllByText("INV-2024-002").length).toBeGreaterThan(0);
-          expect(screen.getAllByText("INV-2024-003").length).toBeGreaterThan(0);
-        });
-      }
+      await waitFor(() => {
+        expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("INV-2024-002").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("INV-2024-003").length).toBeGreaterThan(0);
+      });
     });
 
     it("filters partially paid invoices correctly", async () => {
       const user = userEvent.setup();
       render(<InvoicesClient data={mockInvoices} />);
 
-      const partialButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Dibayar Sebagian")
-      );
-      expect(partialButton).toBeDefined();
+      const partialTab = screen.getByRole("tab", { name: /Dibayar Sebagian/ });
+      await user.click(partialTab);
 
-      if (partialButton) {
-        await user.click(partialButton);
-
-        await waitFor(() => {
-          expect(screen.queryByText("INV-2024-001")).not.toBeInTheDocument();
-          expect(screen.getAllByText("INV-2024-002").length).toBeGreaterThan(0);
-          expect(screen.queryByText("INV-2024-003")).not.toBeInTheDocument();
-        });
-      }
+      await waitFor(() => {
+        expect(screen.queryByText("INV-2024-001")).not.toBeInTheDocument();
+        expect(screen.getAllByText("INV-2024-002").length).toBeGreaterThan(0);
+        expect(screen.queryByText("INV-2024-003")).not.toBeInTheDocument();
+      });
     });
   });
 
@@ -370,17 +344,11 @@ describe("InvoicesClient", () => {
       render(<InvoicesClient data={mockInvoices} />);
 
       // Click on overdue filter (has 0 invoices)
-      const overdueButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Jatuh Tempo")
-      );
-      expect(overdueButton).toBeDefined();
-
-      if (overdueButton) {
-        await user.click(overdueButton);
-        // Check for partial match since text might be split
-        const emptyState = screen.queryByText("Jatuh Tempo");
-        expect(emptyState).toBeInTheDocument();
-      }
+      const overdueTab = screen.getByRole("tab", { name: /Jatuh Tempo/ });
+      await user.click(overdueTab);
+      // Check for partial match since text might be split
+      const emptyState = screen.queryByText("Jatuh Tempo");
+      expect(emptyState).toBeInTheDocument();
     });
   });
 
@@ -392,7 +360,7 @@ describe("InvoicesClient", () => {
     });
 
     it("has correct component hierarchy", () => {
-      const { container } = render(<InvoicesClient data={mockInvoices} />);
+      render(<InvoicesClient data={mockInvoices} />);
 
       // Page title should be present
       expect(screen.getByText("Tagihan Saya")).toBeInTheDocument();
@@ -454,9 +422,7 @@ describe("InvoicesClient", () => {
       expect(screen.getByText("Belum ada tagihan")).toBeInTheDocument();
 
       // Switch to "Lunas" filter to see all paid invoices
-      const paidButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Lunas")
-      );
+      const paidButton = screen.getByRole("tab", { name: /^Lunas/ });
       if (paidButton) {
         await user.click(paidButton);
         await waitFor(() => {
@@ -475,7 +441,7 @@ describe("InvoicesClient", () => {
 
       render(<InvoicesClient data={overdueInvoices} />);
 
-      const overdueButton = screen.getByRole("button", { name: /Filter Jatuh Tempo:/ });
+      const overdueButton = screen.getByRole("tab", { name: /Jatuh Tempo/ });
       expect(overdueButton).toBeInTheDocument();
     });
   });

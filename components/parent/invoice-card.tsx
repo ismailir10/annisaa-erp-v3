@@ -40,7 +40,7 @@ export function InvoiceCard({
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate">{invoice.periodLabel}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{invoice.invoiceNumber}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">{invoice.invoiceNumber}</p>
           </div>
           <StatusBadge status={invoice.status} label={PARENT_INVOICE_LABELS[invoice.status]} />
         </div>

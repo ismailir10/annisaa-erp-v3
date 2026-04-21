@@ -25,6 +25,7 @@ export function ParentHeader({ userName }: { userName: string }) {
             onClick={handleLogout}
             className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
             title="Keluar"
+            aria-label="Keluar"
           >
             <LogOut size={16} />
           </button>

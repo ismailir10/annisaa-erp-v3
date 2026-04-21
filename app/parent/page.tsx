@@ -113,9 +113,12 @@ export default async function ParentDashboard({
             <CreditCard size={20} className="mx-auto text-primary mb-2" />
             <p className="text-xs font-medium">Tagihan</p>
             {totalUnpaid > 0 && (
-              <p className="font-currency text-xs text-destructive mt-1">
-                {formatRupiah(totalUnpaid)}
-              </p>
+              <>
+                <p className="text-xs text-muted-foreground mt-1">Sisa</p>
+                <p className="font-currency text-xs text-destructive">
+                  {formatRupiah(totalUnpaid)}
+                </p>
+              </>
             )}
           </Card>
         </Link>
@@ -134,7 +137,7 @@ export default async function ParentDashboard({
                 <StatusBadge status={todayAttendanceStatus} />
               </div>
             ) : (
-              <p className="text-[10px] text-muted-foreground mt-1">Belum dicatat</p>
+              <p className="text-xs text-muted-foreground mt-1">Belum dicatat</p>
             )}
           </Card>
         </Link>

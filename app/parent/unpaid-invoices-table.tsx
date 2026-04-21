@@ -37,7 +37,7 @@ export function UnpaidInvoicesTable({ data, childId }: { data: UnpaidInvoiceItem
       cell: ({ row }) => (
         <div>
           <span className="text-sm font-medium">{row.original.periodLabel}</span>
-          <p className="text-[10px] text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
+          <p className="text-xs text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
         </div>
       ),
     },

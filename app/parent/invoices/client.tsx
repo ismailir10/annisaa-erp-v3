@@ -58,13 +58,47 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        {/* Filter skeleton */}
-        <Skeleton className="h-12 w-full rounded-full" />
-        {/* Card skeletons */}
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-40 w-full rounded-2xl" />
-        ))}
+      <div className="pb-24">
+        {/* Header — mirrors "Tagihan Saya" h1 */}
+        <Skeleton className="h-6 w-36 mb-4" />
+
+        {/* Filter tabs — 5 pills mirroring InvoiceFilter (sticky, bg-background) */}
+        <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-3 -mx-5 px-5 mb-4">
+          <div className="flex gap-2 overflow-x-auto">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-8 w-20 rounded-full shrink-0" />
+            ))}
+          </div>
+        </div>
+
+        {/* Row skeletons — match DataTable 3-col + action cell grid */}
+        <div className="rounded-2xl border">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 px-4 py-4 border-b last:border-b-0"
+            >
+              {/* Periode cell: label + invoice number */}
+              <div className="flex-1 min-w-0 space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              {/* Amount cell: currency */}
+              <div className="flex-1 min-w-0 space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              {/* Status cell: badge */}
+              <div className="w-24 shrink-0">
+                <Skeleton className="h-6 w-20 rounded-full" />
+              </div>
+              {/* Action cell */}
+              <div className="w-8 shrink-0">
+                <Skeleton className="h-8 w-8 rounded-md" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -109,7 +143,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       cell: ({ row }) => (
         <div>
           <span className="text-sm font-medium">{row.original.periodLabel}</span>
-          <p className="text-[10px] text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
+          <p className="text-xs text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
         </div>
       ),
     },
@@ -124,10 +158,10 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
           <div>
             <span className="font-currency text-sm font-bold">{formatRupiah(inv.totalDue)}</span>
             {inv.totalPaid > 0 && inv.totalPaid < inv.totalDue && (
-              <p className="font-currency text-[10px] text-success">Dibayar: {formatRupiah(inv.totalPaid)}</p>
+              <p className="font-currency text-xs text-success">Dibayar: {formatRupiah(inv.totalPaid)}</p>
             )}
             {remaining > 0 && inv.status !== "DRAFT" && (
-              <p className="font-currency text-[10px] text-destructive">Sisa: {formatRupiah(remaining)}</p>
+              <p className="font-currency text-xs text-destructive">Sisa: {formatRupiah(remaining)}</p>
             )}
           </div>
         );

@@ -223,7 +223,7 @@ export function InvoiceDetailSheet({
                   <div className="flex-1">
                     <p className="text-sm font-medium">{line.labelSnapshot}</p>
                     {line.adjustmentAmount !== 0 && (
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         Penyesuaian: {formatRupiah(line.adjustmentAmount)}
                         {line.adjustmentNote && ` (${line.adjustmentNote})`}
                       </p>
@@ -264,7 +264,7 @@ export function InvoiceDetailSheet({
                       <span className="text-xs text-muted-foreground">{METHOD_LABELS[p.method] || p.method}</span>
                       <span className="font-currency text-sm font-bold text-success">{formatRupiah(p.amount)}</span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {formatDateShort(p.paidAt)}
                       {p.reference && ` · Ref: ${p.reference}`}
                     </p>
