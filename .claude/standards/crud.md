@@ -53,6 +53,7 @@ Immutable events appended by the system; correction via override/void, not edit.
 
 - These entities intentionally use `isVoided: Boolean` instead of `status: String` because voiding is reversible audit, not a lifecycle state.
 - Daily-view pages (AttendanceRecord) do **not** use the standard list layout — they render a per-day grid or today-only view. Documented exception.
+- **Correction semantics:** AttendanceRecord and StudentAttendance are event logs. Corrections are made via **override** (creates a new canonical event) or **void** (flips `isVoided`). There is NO row-level Edit action on these entities — exposing one (even as a relabeled dropdown item) would contradict the event-log contract. When rendering row actions on an AttendanceRecord list, use `extraActions` with an explicit `"Timpa (Override)"` label, **not** `onEdit`.
 
 ## Which category fits a new entity?
 

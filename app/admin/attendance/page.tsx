@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
-import { UserCheck, Clock, UserX, CalendarDays, Download } from "lucide-react";
+import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -147,8 +147,16 @@ export default function AttendancePage() {
       id: "actions",
       header: "",
       cell: ({ row }) => (
+        // AttendanceRecord is an event-log (Category C): no row Edit action.
+        // Correction is an override (new canonical event), not an edit.
         <DataTableRowActions
-          onEdit={() => openOverride(row.original)}
+          extraActions={[
+            {
+              label: "Timpa (Override)",
+              icon: <Replace size={14} />,
+              onClick: () => openOverride(row.original),
+            },
+          ]}
         />
       ),
     },
