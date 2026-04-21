@@ -821,22 +821,51 @@ async function main() {
     DCARE:{ spp: 1_500_000, daftar_ulang: 3_000_000, seragam: 450_000 },
     POPUP:{ spp: 300_000, daftar_ulang: 500_000,   seragam: 300_000 },
   };
-  // NOTE: raw INSERT — DB has tenantId + status columns that schema.prisma doesn't declare
-  // (schema drift from PR #87 tenant-isolation migration). Separate fix cycle pending.
+  // Staging DB has a `tenantId` NOT NULL column (and optional `status`) on
+  // ProgramFeeStructure that schema.prisma doesn't declare (pre-existing drift).
+  // CI/fresh databases don't have those columns. Detect at runtime and build
+  // the INSERT accordingly so one seed works against both.
+  const pfsCols = await prisma.$queryRawUnsafe<{ column_name: string }[]>(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_name = 'ProgramFeeStructure'`
+  );
+  const pfsColNames = new Set(pfsCols.map((r) => r.column_name));
+  const hasTenantIdCol = pfsColNames.has("tenantId");
+  const hasStatusCol = pfsColNames.has("status");
+
   let feeStructureCount = 0;
   for (const [pCode, amounts] of Object.entries(feeAmounts)) {
     if (!programMap[pCode]) continue;
     for (const [fCode, amount] of Object.entries(amounts)) {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO "ProgramFeeStructure" ("id", "tenantId", "programId", "academicYearId", "feeComponentId", "amount", "status")
-         VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE')`,
-        `pfs_${pCode}_${fCode}`,
-        tenant.id,
-        programMap[pCode],
-        academicYear.id,
-        feeMap[fCode],
-        amount
-      );
+      if (hasTenantIdCol) {
+        const cols = ['"id"', '"programId"', '"academicYearId"', '"feeComponentId"', '"amount"', '"tenantId"'];
+        const vals: (string | number)[] = [
+          `pfs_${pCode}_${fCode}`,
+          programMap[pCode],
+          academicYear.id,
+          feeMap[fCode],
+          amount,
+          tenant.id,
+        ];
+        if (hasStatusCol) {
+          cols.push('"status"');
+          vals.push("ACTIVE");
+        }
+        const placeholders = vals.map((_, i) => `$${i + 1}`).join(", ");
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO "ProgramFeeStructure" (${cols.join(", ")}) VALUES (${placeholders})`,
+          ...vals
+        );
+      } else {
+        await prisma.programFeeStructure.create({
+          data: {
+            programId: programMap[pCode],
+            academicYearId: academicYear.id,
+            feeComponentId: feeMap[fCode],
+            amount,
+          },
+        });
+      }
       feeStructureCount++;
     }
   }

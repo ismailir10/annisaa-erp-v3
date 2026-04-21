@@ -1,4 +1,4 @@
-export const students: {
+type Student = {
   name: string;
   nickname: string;
   dateOfBirth: string;
@@ -12,7 +12,9 @@ export const students: {
     whatsapp: string;
     isPrimary: boolean;
   }[];
-}[] = [
+};
+
+const handCrafted: Student[] = [
   // ── TKIT A (8 students, born 2019-2020) ─────────────────────
   {
     name: "Ahmad Zafran Hidayat",
@@ -385,3 +387,78 @@ export const students: {
     ],
   },
 ];
+
+// ── Bulk procedural students ───────────────────────────────────
+// Scales the synthetic dataset to ~100 students so list pagination,
+// filtering, and attendance grids are exercised under realistic volume.
+// No stable IDs needed — no e2e test references these by name.
+const boyFirstNames = [
+  "Ahmad", "Muhammad", "Abdul", "Fahri", "Fikri", "Rafi", "Razan", "Daffa", "Irsyad",
+  "Naufal", "Zidan", "Aryan", "Hafiz", "Hakam", "Akmal", "Reyhan", "Syauqi",
+  "Luqman", "Hanif", "Yusuf", "Ismail", "Idris", "Ayyub", "Harun", "Zaki",
+];
+const girlFirstNames = [
+  "Aisyah", "Fatimah", "Khadijah", "Hafsah", "Maryam", "Zahra", "Laila",
+  "Nadia", "Nabila", "Aira", "Aqila", "Keisha", "Shafira", "Salma", "Humaira",
+  "Talita", "Hanna", "Alika", "Naila", "Ranti", "Inaya", "Aliyya", "Syakila",
+  "Raisa", "Azzahra",
+];
+const familyNames = [
+  "Santoso", "Wibowo", "Kurniawan", "Suryadi", "Gunawan", "Hidayat", "Rahman",
+  "Mahendra", "Prasetyo", "Pratama", "Nugroho", "Wahyudi", "Iskandar", "Hasibuan",
+  "Siregar", "Harahap", "Tambunan", "Sitompul", "Lubis", "Saragih", "Permana",
+  "Sudirman", "Anggraini", "Firmansyah", "Susanto",
+];
+const addresses = [
+  "Jl. Aster Raya No.", "Jl. Melati Indah No.", "Jl. Dahlia Permai No.",
+  "Jl. Kenanga Asri No.", "Perum Taman Aster Blok", "Perum Metland Cibitung Blok",
+  "Jl. Cempaka Wangi No.", "Jl. Mawar Merah No.", "Jl. Anggrek Biru No.",
+];
+
+const bulkQuota: { classCode: string; n: number; birthYear: [number, number]; campusTag: "aster" | "metland" }[] = [
+  { classCode: "TKIT_A",     n: 12, birthYear: [2019, 2020], campusTag: "aster" },
+  { classCode: "TKIT_B",     n: 12, birthYear: [2019, 2020], campusTag: "aster" },
+  { classCode: "KB_ASTER",   n: 9,  birthYear: [2020, 2021], campusTag: "aster" },
+  { classCode: "KB_METLAND", n: 11, birthYear: [2021, 2022], campusTag: "metland" },
+  { classCode: "DCARE",      n: 7,  birthYear: [2022, 2023], campusTag: "aster" },
+  { classCode: "POPUP",      n: 19, birthYear: [2019, 2022], campusTag: "aster" },
+];
+
+const pad = (n: number, w = 4) => String(n).padStart(w, "0");
+const pick = <T>(arr: T[], i: number) => arr[i % arr.length];
+
+const bulk: Student[] = [];
+let serial = 0;
+for (const q of bulkQuota) {
+  for (let i = 0; i < q.n; i++) {
+    const isBoy = serial % 2 === 0;
+    const first = isBoy ? pick(boyFirstNames, serial) : pick(girlFirstNames, serial);
+    const mid   = pick(isBoy ? girlFirstNames : boyFirstNames, serial + 3); // filler
+    const family = pick(familyNames, serial + 5);
+    const name = `${first} ${mid} ${family}`;
+    const nickname = first;
+    const year = q.birthYear[0] + ((serial + i) % (q.birthYear[1] - q.birthYear[0] + 1));
+    const month = pad(((serial * 7 + i * 3) % 12) + 1, 2);
+    const day   = pad(((serial * 11 + i) % 27) + 1, 2);
+    const dateOfBirth = `${year}-${month}-${day}`;
+    const addr = pick(addresses, serial) + ` ${(serial % 80) + 1}, ${q.campusTag === "aster" ? "Taman Aster, Bekasi" : "Metland Cibitung, Bekasi"}`;
+    const phoneSuffix = pad(1000 + serial * 17, 8);
+    const motherName = `${pick(girlFirstNames, serial + 4)} ${family}`;
+    const fatherName = `${pick(boyFirstNames, serial + 7)} ${family}`;
+    bulk.push({
+      name,
+      nickname,
+      dateOfBirth,
+      gender: isBoy ? "L" : "P",
+      address: addr,
+      classCode: q.classCode,
+      guardians: [
+        { name: motherName, relationship: "IBU", phone: `0812${phoneSuffix}`, whatsapp: `0812${phoneSuffix}`, isPrimary: true },
+        { name: fatherName, relationship: "AYAH", phone: `0813${phoneSuffix}`, whatsapp: `0813${phoneSuffix}`, isPrimary: false },
+      ],
+    });
+    serial++;
+  }
+}
+
+export const students: Student[] = [...handCrafted, ...bulk];
