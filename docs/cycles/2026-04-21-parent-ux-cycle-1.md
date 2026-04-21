@@ -110,7 +110,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 
 ### Group C — closes the loop (sequential after Group B)
 
-- [ ] **T11 — Update `.claude/standards/portal.md`. Dep: T1–T10.**
+- [x] **T11 — Update `.claude/standards/portal.md`. Dep: T1–T10.**
   - Add section **"Portal text-size scale"** — minimum `text-xs` (12 px); banned: `text-[10px]`, `text-[11px]`; rationale (375 px Android + 4G readability).
   - Add section **"PortalTabs primitive"** — when to use (>2 horizontal options that may overflow); props table; example snippet; cross-link to `components/portal/portal-tabs.tsx`.
   - Note cycle 2 scope: teacher portal adopts `PortalTabs` + text-size rule.
@@ -134,6 +134,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T8: `app/parent/assessments-table.tsx` — extracted `AssessmentDetailSkeleton` mirroring real layout (title + subtitle + 6 domain blocks × 2 rating rows using same flex row + border), gated by existing `loadingId` state. Scope note: deviates from original spec wording (Suspense) — chose loading-flag approach because fetch is client-side and Suspense would require throwing-promise shim. Acceptance (skeleton within 100 ms of click, minimal layout shift on data land) is met either way.
 - T9: `app/parent/invoices/client.tsx` — loading branch replaced with layout-matching skeleton (h-6 w-36 header + 5 sticky pill skeletons + 5 DataTable-shaped row skeletons inside rounded-2xl border, `pb-24` for bottom-nav clearance). `app/parent/invoices/loading.tsx` not present; detail skeleton file left alone. Existing test assertions on `.animate-pulse` + `.rounded-2xl` pass.
 - T10: `components/parent/header.tsx` — `aria-label="Keluar"` added to logout button. Audit confirmed other icon-bearing buttons (unpaid-invoices-table, assessments-table, invoices/client, student-journal, invoice-card, invoice-detail-sheet, bottom-nav, invoice-filter) either already have aria-label, have an `sr-only` span, or have visible text siblings — no changes needed. Single real gap was header logout.
+- T11: `.claude/standards/portal.md` — added **Portal Text-Size Scale** (banned `text-[10px]`/`text-[11px]` across parent+teacher+portal files with grep gate) and **PortalTabs Primitive** (API, behaviour, example, consumer-migration status — parent done, teacher pending cycle 2) sections. Inline edit — trivial doc change, no subagent dispatch.
 
 ## Verification
 
@@ -147,6 +148,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T8: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T9: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T10: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
+- T11: standards doc edit; `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 
 ## Ship Notes
 <!-- filled by /ship -->
