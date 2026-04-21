@@ -34,30 +34,42 @@ Prod untouched; staging is a parity DB so the fix can be validated here before p
 
 ## Implementation
 
+**Scope bump (mid-cycle):** user extended scope to cover all advisor categories — ERRORS, WARN, INFO — not just the original 70 perf WARN.
+
 **Files:**
-- `prisma/migrations/20260421000000_rls_perf_cleanup/migration.sql` — 344 lines, idempotent DROP POLICY IF EXISTS + CREATE POLICY across 37 policies (34 `*_service_all` + 34 `*_select_own_tenant` + 3 User/Tenant specials). Applied to staging via Supabase MCP `apply_migration`.
+- `prisma/migrations/20260421000000_rls_perf_cleanup/migration.sql` — 344 lines, idempotent DROP POLICY IF EXISTS + CREATE POLICY across 37 policies (34 `*_service_all` + 34 `*_select_own_tenant` + 3 User/Tenant specials). Clears `auth_rls_initplan` + `multiple_permissive_policies`.
+- `prisma/migrations/20260421000001_rls_security_cleanup/migration.sql` — Enables RLS on 7 unprotected tables (`_prisma_migrations` + 6 `StudentJournal*`), adds `*_service_all` (service_role) + `*_select_own_tenant` policies on the 6 journal tables (Template/Entry/Note/Audit direct `tenantId`; Category joins via `templateId`; Indicator via `categoryId`). Drops ~37 unused indexes flagged by `unused_index` INFO.
+- `prisma/migrations/20260421000002_rls_fk_indexes/migration.sql` — Corrective: recreates 22 FK-covering indexes after unused_index drops re-triggered `unindexed_foreign_keys` INFO. Advisor contradicts itself here; we side with FK coverage (real perf at scale). Non-FK drops remain.
 
 **What changed:**
-- 34 `*_service_all` policies: role `authenticated` → `service_role`. Functionally a no-op (service_role bypasses RLS), but eliminates the (table, authenticated, SELECT) overlap that caused `multiple_permissive_policies` warnings.
-- 34 `*_select_own_tenant` policies: every `auth.uid()` wrapped as `((SELECT auth.uid()))::text` so Postgres planner evaluates once per query, not per row.
-- `User.user_select_own`, `User.user_update_own`, `Tenant.tenant_select_own`: same wrap applied.
+- 34 `*_service_all` policies: role `authenticated` → `service_role`. No-op (service_role bypasses RLS) but eliminates the (table, authenticated, SELECT) overlap that caused `multiple_permissive_policies`.
+- 34 `*_select_own_tenant` policies: `auth.uid()` → `((SELECT auth.uid()))::text`. Planner evaluates once per query.
+- `User.user_select_own`, `User.user_update_own`, `Tenant.tenant_select_own`: same wrap.
+- 7 tables (`_prisma_migrations`, 6 `StudentJournal*`): `ENABLE ROW LEVEL SECURITY` + tenant-scoped policies (except `_prisma_migrations` — RLS enabled with no policy = deny-all to non-service_role, intentional; service_role bypass keeps `prisma migrate deploy` working).
+- Dropped ~37 unused indexes; recreated 22 FK-covering ones.
 
-**No code churn:** no `schema.prisma` changes, no application code touched. RLS is owned by migration SQL, outside the Prisma model.
+**No code churn:** no `schema.prisma` changes, no application code touched.
 
 ## Verification
 
-- **Supabase advisors (performance):** re-ran `get_advisors(type=performance)` post-migration.
+- **Supabase advisors (performance):** post-migration.
   - `auth_rls_initplan`: **0** (was 36)
   - `multiple_permissive_policies`: **0** (was 34)
-  - Only `unused_index` INFO-level lints remain — pre-existing, out of scope for this cycle.
-- **pg_policies sanity:** `authenticated`-scoped ALL policies = 0 (was 34), `service_role`-scoped ALL policies = 34, `authenticated`-scoped SELECT policies = 34. No per-(table, role, action) overlap.
-- **Between-task gate:** `npm run build && npx vitest run` — both green. Build produces all routes; 9 test files / 90 tests pass.
-- **Playwright:** skipped per cycle spec (DDL-only, no app-surface change).
+  - `unindexed_foreign_keys`: **0** (was 22 after corrective)
+  - `unused_index` INFO: 22 remain (FK indexes with no traffic on zero-traffic staging — clears with real use; not a blocker).
+- **Supabase advisors (security):** post-migration.
+  - `rls_disabled_in_public` ERROR: **0** (was 7)
+  - `auth_leaked_password_protection` WARN: **1** remains — **not SQL-fixable.** Must toggle via Supabase Dashboard: Authentication → Providers → Email → "Prevent use of leaked passwords". Flagged to user.
+  - `rls_enabled_no_policy` INFO: **1** on `_prisma_migrations` — intentional (deny-all to authenticated/anon; service_role bypass).
+- **pg_policies sanity:** `authenticated`-scoped ALL policies = 0, `service_role`-scoped ALL policies = 40, `authenticated`-scoped SELECT policies = 40. No per-(table, role, action) overlap.
+- **Between-task gate:** `npm run build && npx vitest run` — both green.
+- **Playwright:** skipped per cycle spec (DDL-only).
 
 ## Ship Notes
 
-- **Migration:** `prisma/migrations/20260421000000_rls_perf_cleanup/migration.sql`. Already applied to staging (`jzhujpqaxyeeokgexerc`) via Supabase MCP; when this branch merges and CI runs `prisma migrate deploy`, staging DB will find the migration already recorded (noop) — no double-apply risk because it is idempotent (DROP IF EXISTS).
+- **Migrations (3):** all three already applied to staging (`jzhujpqaxyeeokgexerc`) via Supabase MCP. On merge, `prisma migrate deploy` finds them recorded (no-op). All idempotent.
 - **Env vars:** none added.
-- **Rollback:** re-create prior policies (run original `*_service_all` with `TO authenticated USING (true)` and `*_select_own_tenant` with unwrapped `auth.uid()`). No data to restore — policies are pure DDL.
-- **Prod promotion:** do NOT apply this cleanup directly to prod DB from this PR. Prod has its own advisors run; same migration can be replayed on prod via `prisma migrate deploy` when staging → main promotion runs.
-- **Worktree note:** `.env` and `.env.local` were missing in this worktree; symlinked from main checkout during build. `setup-worktree.sh` should have done this — if worktrees continue to miss env files, investigate the setup script.
+- **Dashboard follow-up (not code):** enable `auth_leaked_password_protection` in Supabase Dashboard. Only way to clear that WARN.
+- **Rollback:** policies are pure DDL; re-apply prior policy shape. FK indexes can be dropped again if needed.
+- **Prod promotion:** do NOT apply directly to prod from this PR. Replay all 3 migrations on prod via `prisma migrate deploy` on staging → main promotion.
+- **Worktree note:** `.env` and `.env.local` missing in worktree; symlinked from main. `setup-worktree.sh` bug to investigate.
