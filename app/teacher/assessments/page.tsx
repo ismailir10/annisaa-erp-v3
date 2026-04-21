@@ -56,7 +56,7 @@ export default async function TeacherAssessmentsPage() {
   if (classSections.length === 0) {
     return (
       <div className="px-5 pt-6">
-        <h1 className="text-lg font-bold mb-1">Nilai Siswa</h1>
+        <h1 className="text-lg font-bold mb-1">Penilaian</h1>
         <p className="text-xs text-muted-foreground mb-4">Periode: {period}</p>
         <EmptyState
           icon={ClipboardList}
@@ -130,7 +130,7 @@ export default async function TeacherAssessmentsPage() {
 
   return (
     <div className="px-5 pt-6 pb-4">
-      <h1 className="text-lg font-bold mb-1">Nilai Siswa</h1>
+      <h1 className="text-lg font-bold mb-1">Penilaian</h1>
       <p className="text-xs text-muted-foreground mb-4">Periode: {period}</p>
 
       <div className="space-y-4">

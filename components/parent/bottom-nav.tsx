@@ -12,9 +12,21 @@ const tabs = [
   { label: "Rapor", href: "/parent/reports", icon: BookOpen },
 ];
 
+// Only `child` is meaningful across parent tabs (selected student). Other
+// filters (invoice month, attendance range, etc.) are local to their own
+// tab and must not leak when switching tabs.
+const PARENT_NAV_FORWARDED_PARAMS = ["child"] as const;
+
 export function ParentBottomNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const forwarded = new URLSearchParams();
+  for (const key of PARENT_NAV_FORWARDED_PARAMS) {
+    const value = searchParams.get(key);
+    if (value) forwarded.set(key, value);
+  }
+  const forwardedQs = forwarded.toString();
 
   return (
     <nav className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom" aria-label="Navigasi utama orang tua">
@@ -29,7 +41,7 @@ export function ParentBottomNav() {
           return (
             <Link
               key={tab.href}
-              href={`${tab.href}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`}
+              href={`${tab.href}${forwardedQs ? `?${forwardedQs}` : ""}`}
               className="flex flex-col items-center justify-center gap-1 relative py-1 px-4"
               aria-label={tab.label}
               aria-current={isActive ? "page" : undefined}
