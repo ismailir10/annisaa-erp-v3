@@ -234,10 +234,42 @@ export default function ParentStudentJournalPage() {
             />
           </TabsContent>
 
-          {/* Rumah tab — placeholder, filled in Task 8 */}
+          {/* Rumah tab — editable */}
           <TabsContent value="home" className="mt-3">
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Segera hadir.
+            <WeekGrid
+              categories={data.homeCategories}
+              entries={data.homeEntries}
+              dates={data.dates}
+              editable
+              onToggle={async (indicatorId, date, next) => {
+                const res = await fetch("/api/student-journal/entries/home", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({
+                    studentId: childId,
+                    date,
+                    entries: [{ indicatorId, checked: next }],
+                  }),
+                });
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  toast.error((err as { error?: string }).error ?? "Gagal menyimpan");
+                  return;
+                }
+                // Refresh week data so the cell reflects the server state
+                if (childId) {
+                  const refreshed = await fetch(
+                    `/api/student-journal/children/${childId}/week?weekStart=${currentWeek}`,
+                  );
+                  if (refreshed.ok) {
+                    const json = await refreshed.json() as { data: WeekData };
+                    setData(json.data);
+                  }
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Isi kalau sempat. Opsional.
             </p>
           </TabsContent>
 

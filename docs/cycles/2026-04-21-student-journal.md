@@ -2240,6 +2240,7 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 
 - `POST /api/student-journal/entries/home`: Zod-parses `homeEntryBatchSchema`, rate-limits 60/60s per user via `rateLimit()`, authenticates via `requireGuardianForStudent(studentId)`. Validates all distinct indicator IDs have `scope = HOME` and belong to the tenant template (400 "Indikator tidak valid" if any fail). `prisma.$transaction` of per-entry `upsert` keyed on `@@unique([studentId, indicatorId, date, scope])` with `scope: "HOME"`, `classSectionId: null`, `recordedByUserId: session.id`.
 - `app/parent/student-journal/page.tsx` (Rumah tab): replaces placeholder with editable `WeekGrid` using `homeCategories` + `homeEntries`. `onToggle` handler POSTs a single-entry batch, then refreshes full week data via re-fetch so the cell reflects the server state. Error path: `toast.error(err.error ?? "Gagal menyimpan")`. Informational footnote: "Isi kalau sempat. Opsional." — no nag, no streak.
+- Gates: `npm run build` green (`/api/student-journal/entries/home` appears in build manifest), `npx vitest run` green (114 passed / 12 todo).
 
 ---
 

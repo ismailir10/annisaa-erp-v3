@@ -103,7 +103,7 @@ Three portals, three roles.
 
 ### Features
 
-**Parent Portal** — Dashboard (child overview + unpaid invoices), Invoices (pay via Xendit, PDF download), Attendance (30 days), Reports (published assessments)
+**Parent Portal** — Dashboard (child overview + unpaid invoices), Invoices (pay via Xendit, PDF download), Attendance (30 days), Reports (published assessments), Buku Penghubung (school week view read-only + home indicators editable)
 
 **Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Salary Slips (PDF), Profile (accessible via header avatar)
 
