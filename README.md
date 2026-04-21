@@ -240,7 +240,8 @@ Copy `.env.example` to `.env`. Key variables:
 
 | Variable | Local | Staging | Production |
 |---|---|---|---|
-| `DATABASE_URL` | `file:./dev.db` | Supabase Tokyo pooler | Supabase Mumbai pooler |
+| `DATABASE_URL` | `file:./dev.db` | Supabase Tokyo pooler (port 6543) | Supabase Mumbai pooler (port 6543) |
+| `DIRECT_URL` | — (optional) | Supabase Tokyo direct (port 5432) — **required on Vercel** | Supabase Mumbai direct (port 5432) — **required on Vercel** |
 | `NEXT_PUBLIC_SUPABASE_URL` | — | Staging Supabase URL | Production Supabase URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | — | Staging anon key | Production anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | — | Staging service key | Production service key |
@@ -250,6 +251,8 @@ Copy `.env.example` to `.env`. Key variables:
 | `XENDIT_CALLBACK_TOKEN` | — | Staging token | Production token |
 
 Without `RESEND_API_KEY`, emails are simulated (logged, not sent).
+
+**`DIRECT_URL` on Vercel is mandatory.** The `build` script runs `npx prisma migrate deploy` before `next build`, which applies any unapplied migrations in `prisma/migrations/`. This step requires a direct (non-pooler) Postgres connection — pooler connections on port 6543 go through PgBouncer transaction mode, which doesn't support the advisory locks Prisma uses to serialize migrations. Grab the direct URL from Supabase → Project Settings → Database → Connection string → **URI (Direct connection, port 5432)**.
 
 ### Tests
 
