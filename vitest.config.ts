@@ -14,6 +14,7 @@ export default defineConfig({
       reporter: ["text", "json", "html"],
       exclude: [
         "node_modules/**",
+        ".worktrees/**",
         "e2e/**",
         "*.config.ts",
         "vitest.setup.ts",

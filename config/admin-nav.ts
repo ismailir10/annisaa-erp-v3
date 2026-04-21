@@ -12,7 +12,9 @@ import {
   Building2,
   Clock,
   Shield,
+  Heart,
   BookOpen,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -65,9 +67,22 @@ export const adminNav: NavConfig = {
       icon: GraduationCap,
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
-        { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
+        { label: "Siswa", href: "/admin/students", icon: GraduationCap },
+        { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
+        { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
+        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
+        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
         { label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen },
+      ],
+    },
+    {
+      id: "learning",
+      label: "Penilaian",
+      icon: ClipboardList,
+      items: [
+        { label: "Template Penilaian", href: "/admin/assessments/templates", icon: ClipboardList },
+        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
       ],
     },
     {
@@ -105,16 +120,56 @@ export function isItemActive(pathname: string, item: NavItem): boolean {
   return pathname === item.href || pathname.startsWith(item.href + "/");
 }
 
+/**
+ * Returns the single best-matching item from `items` for `pathname`.
+ * When multiple items match (e.g. parent /admin/assessments + child
+ * /admin/assessments/templates), the longer href wins. Prevents both
+ * siblings from rendering as active when one is a prefix of the other.
+ */
+export function getActiveItem(
+  pathname: string,
+  items: NavItem[]
+): NavItem | null {
+  let best: NavItem | null = null;
+  for (const item of items) {
+    if (!isItemActive(pathname, item)) continue;
+    if (!best || item.href.length > best.href.length) best = item;
+  }
+  return best;
+}
+
 export function getActiveGroup(
   pathname: string,
   groups: NavGroup[]
 ): string | null {
   for (const group of groups) {
-    if (group.items.some((item) => isItemActive(pathname, item))) {
+    // Sort by href length descending so longer prefixes match first
+    const sorted = [...group.items].sort(
+      (a, b) => b.href.length - a.href.length
+    );
+    if (sorted.some((item) => isItemActive(pathname, item))) {
       return group.id;
     }
   }
   return null;
+}
+
+/**
+ * Fixed labels for well-known sub-path segments. Any segment not in this
+ * map is assumed to be a dynamic id and renders as "Detail".
+ */
+const SEGMENT_LABELS: Record<string, string> = {
+  new: "Tambah",
+  edit: "Ubah",
+  monthly: "Bulanan",
+  templates: "Template",
+  guardians: "Wali Murid",
+  score: "Nilai",
+  scores: "Nilai",
+};
+
+function segmentLabel(segment: string): string {
+  return SEGMENT_LABELS[segment] ?? "Detail";
 }
 
 /** Build breadcrumb trail from pathname */
@@ -128,27 +183,34 @@ export function getBreadcrumbs(
     }
   }
 
-  // Check groups
+  // Check groups — sort items by href length descending so longer prefixes
+  // (e.g. /admin/assessments/templates) match before shorter ones
+  // (e.g. /admin/assessments). Then parse each remaining sub-segment into
+  // its own crumb via SEGMENT_LABELS, falling back to "Detail" for ids.
   for (const group of adminNav.groups) {
-    for (const item of group.items) {
+    const sorted = [...group.items].sort(
+      (a, b) => b.href.length - a.href.length
+    );
+    for (const item of sorted) {
       if (isItemActive(pathname, item)) {
-        // If on exact page, no link on last item
+        // Exact match — last crumb has no link
         if (pathname === item.href) {
           return [
-            { label: group.label, href: item.href },
+            { label: group.label },
             { label: item.label },
           ];
         }
-        // On a sub-page — detect context from path suffix
-        const suffix = pathname.slice(item.href.length + 1); // e.g. "new", "monthly", "[id]"
-        let subLabel = "Detail";
-        if (suffix === "new") subLabel = "Tambah";
-        else if (suffix === "monthly") subLabel = "Bulanan";
+        // Sub-page — parse each remaining segment into its own crumb
+        const suffix = pathname.slice(item.href.length + 1);
+        const subTrail = suffix
+          .split("/")
+          .filter(Boolean)
+          .map((seg) => ({ label: segmentLabel(seg) }));
 
         return [
           { label: group.label },
           { label: item.label, href: item.href },
-          { label: subLabel },
+          ...subTrail,
         ];
       }
     }
@@ -157,7 +219,19 @@ export function getBreadcrumbs(
   // Check settings
   for (const item of adminNav.settings) {
     if (isItemActive(pathname, item)) {
-      return [{ label: "Pengaturan" }, { label: item.label }];
+      if (pathname === item.href) {
+        return [{ label: "Pengaturan" }, { label: item.label }];
+      }
+      const suffix = pathname.slice(item.href.length + 1);
+      const subTrail = suffix
+        .split("/")
+        .filter(Boolean)
+        .map((seg) => ({ label: segmentLabel(seg) }));
+      return [
+        { label: "Pengaturan" },
+        { label: item.label, href: item.href },
+        ...subTrail,
+      ];
     }
   }
 

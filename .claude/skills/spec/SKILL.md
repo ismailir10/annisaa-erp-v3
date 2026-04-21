@@ -8,18 +8,31 @@ disable-model-invocation: true
 
 You are starting a new development cycle. This command produces **one** artifact: `docs/cycles/YYYY-MM-DD-<slug>.md`. No scratch files, no sibling planning docs.
 
+## Step 0: Canonical entry
+
+The user's expected entry for a new cycle is a single sentence:
+
+> `you are product-builder, <what to build>`
+
+When you see this (or an equivalent: "act as product-builder, …", "product-builder mode, …"), immediately:
+
+1. Rewrite `.claude/session-role` with `role=product-builder` and your own model ID.
+2. If you are in the main checkout, follow the `SessionStart` hook's instructions: derive a kebab-case slug from the request, run `bash scripts/setup-worktree.sh <slug>`, `EnterWorktree` into `.worktrees/<slug>`, rewrite `.claude/session-role` inside the worktree.
+3. Then proceed with Preflight and Step 1 on the user's original request — no extra confirmation needed for the role switch itself.
+
+The user should never have to run `setup-worktree.sh` or `install-hooks.sh` by hand.
+
 ## Preflight
 
 Run these checks first. If any fails, stop and surface the error.
 
 1. **Session role set?** Read `.claude/session-role`. If missing, stop and use `AskUserQuestion` to ask the user whether this session is `cto` or `product-builder` — include your own model name in the question. Write the file. Do not proceed until it exists.
-2. **Worktree isolation?** If `role=product-builder`, verify you are in a git worktree (not the main checkout). Check: `git rev-parse --git-dir` must differ from `git rev-parse --git-common-dir`. If you are in the main checkout, stop and tell the user to create a worktree:
-   ```
-   git worktree add .worktrees/<slug> -b feat/<slug>
-   cd .worktrees/<slug>
-   ./scripts/install-hooks.sh
-   ```
-   Claude Code sessions can use the `EnterWorktree` tool instead. `cto` sessions work in the main checkout — no worktree needed.
+2. **Worktree isolation?** Every session — regardless of role — MUST work in a git worktree, not the main checkout. Check: `git rev-parse --git-dir` must differ from `git rev-parse --git-common-dir`. If you are in the main checkout, do NOT ask the user to run commands — set the worktree up yourself:
+   1. Derive a kebab-case slug from the user's request (2–4 words).
+   2. Run `bash scripts/setup-worktree.sh <slug>` via the Bash tool. The script branches from `origin/staging`, symlinks `.env` and `node_modules`, and installs hooks.
+   3. Use the `EnterWorktree` tool with `path=.worktrees/<slug>` to move into it.
+   4. Rewrite `.claude/session-role` inside the worktree with your actual model ID.
+   5. Then proceed with the user's original request. The user should never have to touch worktree setup.
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh` first.
 4. **Branch hygiene?** Run `git branch --show-current` and `git status --porcelain`.
    - **On `staging` or `main` with a dirty tree:** stop and print a clear error: *"You're on <branch> with uncommitted changes. Stash or resolve them first: `git stash -m 'description'`."* Do not proceed.
@@ -29,15 +42,15 @@ Run these checks first. If any fails, stop and surface the error.
      git checkout -b feat/<slug> origin/staging
      ```
      Print: *"Created feat/<slug> from origin/staging."* Then proceed.
-   - **Already on `feat/*`:** proceed silently — you're already where you should be.
+   - **Already on `feat/*`:** run `git fetch origin staging` and `git rev-list --count $(git merge-base HEAD origin/staging)..origin/staging`. If the count is >5, stop and print: *"feat/<slug> is behind origin/staging by <N> commits. Rebase before continuing: `git fetch origin staging && git rebase origin/staging`."* The user must resolve before `/spec` proceeds. Otherwise proceed silently.
    - **On any other branch:** warn the user and ask whether to continue or switch.
 5. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
 
 ## Step 1: Understand the request (optionally refine)
 
-If the user's request is vague ("make it faster", "clean up the parent portal"), run the **`agent-skills:idea-refine`** process first to turn it into a concrete goal. Capture the refined problem statement in the cycle doc's `## Context` section.
+If the user's request is vague ("make it faster", "clean up parent portal", or a one-liner like "you are product-builder, fix attendance"), invoke **`superpowers:brainstorming`** to turn it into a concrete goal before writing the cycle doc. Capture the refined problem statement in the cycle doc's `## Context` section. The upstream `agent-skills:idea-refine` stays available as a fallback if `superpowers:brainstorming` is unavailable.
 
-If the request is already concrete, skip refinement.
+If the request is already concrete, skip brainstorming.
 
 ## Step 2: Explore before specifying
 
@@ -58,10 +71,10 @@ Do **not** start writing code. This is the define phase.
    - Acceptance criteria as a checklist
    - Non-goals (what this cycle will *not* touch)
    - Assumptions you are making — surface them for the user to correct
-4. Apply **`agent-skills:planning-and-task-breakdown`** to fill `## Tasks`:
-   - Ordered list of atomic tasks
-   - Each task has its own one-line acceptance criterion
-   - Each task is small enough to commit independently
+4. Apply **`superpowers:writing-plans`** to fill `## Tasks`:
+   - Ordered list of atomic tasks, each committable independently
+   - Each task has a one-line acceptance criterion
+   - Mark dependencies explicitly so `/build` can classify independent vs. sequential tasks for subagent dispatch
 5. Leave `## Implementation`, `## Verification`, `## Ship Notes` empty — they are owned by `/build` and `/ship`.
 
 ### Cycle doc template

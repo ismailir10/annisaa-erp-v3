@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, canViewSalary } from "@/lib/auth";
+import { getSession, isSuperAdmin } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import React from "react";
@@ -25,23 +25,25 @@ export async function GET(
 
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // PAYROLL SECURITY: Strict access control
-  // 1. Teachers can ONLY see their own slip
-  if (session.role === "TEACHER" && item.employee.id !== session.employeeId) {
-    return NextResponse.json({ error: "Akses ditolak — Anda hanya dapat melihat slip gaji Anda sendiri" }, { status: 403 });
-  }
-
-  // 2. Admin must belong to same tenant
-  if (canViewSalary(session.role) && item.payrollRun.tenantId !== session.tenantId) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  // 3. No draft slips — teachers should never see unfinished payroll
+  // PAYROLL SECURITY: Exhaustive role-based access control
   if (session.role === "TEACHER") {
+    // Teachers can only see their own slip
+    if (item.employee.id !== session.employeeId) {
+      return NextResponse.json({ error: "Akses ditolak — Anda hanya dapat melihat slip gaji Anda sendiri" }, { status: 403 });
+    }
+    // No draft slips for teachers
     const fullRun = await prisma.payrollRun.findUnique({ where: { id: item.payrollRunId } });
     if (fullRun?.status === "DRAFT") {
       return NextResponse.json({ error: "Slip gaji belum tersedia" }, { status: 403 });
     }
+  } else if (isSuperAdmin(session.role)) {
+    // SUPER_ADMIN: must belong to same tenant
+    if (item.payrollRun.tenantId !== session.tenantId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+  } else {
+    // SCHOOL_ADMIN, GUARDIAN, or any other role: no access to salary PDFs
+    return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
   }
 
   const tenant = await prisma.tenant.findUnique({ where: { id: item.payrollRun.tenantId } });

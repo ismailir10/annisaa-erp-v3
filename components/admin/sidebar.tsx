@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight, LogOut, Settings } from "lucide-react";
 
 import {
@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/collapsible";
 import {
   adminNav,
+  getActiveGroup,
+  getActiveItem,
   isItemActive,
   type NavItem,
   type NavGroup,
@@ -38,11 +40,12 @@ function NavMenuItems({
   items: NavItem[];
   pathname: string;
 }) {
+  const activeItem = getActiveItem(pathname, items);
   return (
     <SidebarMenu>
       {items.map((item) => {
         const Icon = item.icon;
-        const active = isItemActive(pathname, item);
+        const active = item.href === activeItem?.href;
         return (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
@@ -108,6 +111,27 @@ export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
     items: g.items.filter((item) => !item.superAdminOnly || canSeeSalary),
   })).filter((g) => g.items.length > 0);
   const visibleSettings = adminNav.settings.filter((item) => !item.superAdminOnly || canSeeSalary);
+
+  // Auto-expand whichever group contains the active route so users who
+  // collapsed a group and then navigated into it via breadcrumb/back don't
+  // lose sight of their current location. User's collapsed state for
+  // inactive groups is preserved.
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing collapsible
+     state from the external system (URL pathname) into local UI state;
+     functional setState bails out when the value already matches, so no
+     cascading renders occur. */
+  useEffect(() => {
+    const activeGroupId = getActiveGroup(pathname, adminNav.groups);
+    if (activeGroupId) {
+      setOpenGroups((prev) =>
+        prev[activeGroupId] ? prev : { ...prev, [activeGroupId]: true }
+      );
+    }
+    if (adminNav.settings.some((item) => isItemActive(pathname, item))) {
+      setSettingsOpen(true);
+    }
+  }, [pathname]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });

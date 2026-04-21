@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CalendarDays, Wallet, School, BookHeart } from "lucide-react";
+import { Home, CalendarDays, School, ClipboardCheck, BookHeart } from "lucide-react";
 import { motion } from "framer-motion";
 
 const tabs = [
@@ -10,7 +10,7 @@ const tabs = [
   { label: "Kehadiran", href: "/teacher/attendance", icon: CalendarDays },
   { label: "Kelas", href: "/teacher/class-attendance", icon: School },
   { label: "Penghubung", href: "/teacher/student-journal", icon: BookHeart },
-  { label: "Gaji", href: "/teacher/slips", icon: Wallet },
+  { label: "Penilaian", href: "/teacher/assessments", icon: ClipboardCheck },
 ];
 
 export function BottomNav() {
@@ -30,7 +30,7 @@ export function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className="flex flex-col items-center justify-center gap-1 relative py-1 px-4"
+              className="flex flex-col items-center justify-center gap-1 relative py-1 px-2 flex-1"
               aria-label={tab.label}
               aria-current={isActive ? "page" : undefined}
             >

@@ -57,7 +57,7 @@ export async function PUT(
   if (result.error) return result.error;
   const body = result.data;
 
-  // Cascade: withdraw enrollments + cancel draft/sent invoices when student is deactivated
+  // Cascade: withdraw enrollments + cancel draft/sent invoices when student is deactivated or withdrawn
   if (body.status === "INACTIVE" || body.status === "WITHDRAWN") {
     await prisma.$transaction(async (tx) => {
       await tx.studentEnrollment.updateMany({

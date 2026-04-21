@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatCard } from "@/components/admin/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,16 +83,26 @@ export default function AdminLeavePage() {
 
   // Stats fetch once
   useEffect(() => {
-    Promise.all([
-      fetch("/api/leave/requests?pageSize=1&status=PENDING").then(r => r.json()),
-      fetch("/api/leave/requests?pageSize=1&status=APPROVED").then(r => r.json()),
-      fetch("/api/leave/requests?pageSize=1&status=REJECTED").then(r => r.json()),
-    ]).then(([pending, approved, rejected]) => {
-      const p = pending.pagination?.total ?? 0;
-      const a = approved.pagination?.total ?? 0;
-      const r = rejected.pagination?.total ?? 0;
-      setStats({ total: p + a + r, pending: p, approved: a, rejected: r });
-    }).catch(() => { /* stats are non-critical */ });
+    (async () => {
+      try {
+        const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
+          fetch("/api/leave/requests?pageSize=1&status=PENDING"),
+          fetch("/api/leave/requests?pageSize=1&status=APPROVED"),
+          fetch("/api/leave/requests?pageSize=1&status=REJECTED"),
+        ]);
+        const parseTotal = async (res: Response) => {
+          if (!res.ok) return 0;
+          const data = await res.json();
+          return data.pagination?.total ?? 0;
+        };
+        const p = await parseTotal(pendingRes);
+        const a = await parseTotal(approvedRes);
+        const r = await parseTotal(rejectedRes);
+        setStats({ total: p + a + r, pending: p, approved: a, rejected: r });
+      } catch {
+        // Stats stay at default zeros — non-critical
+      }
+    })();
   }, []);
 
   // Review dialog
@@ -99,6 +110,7 @@ export default function AdminLeavePage() {
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
   const [reviewNote, setReviewNote] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [viewOnly, setViewOnly] = useState(false);
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -150,10 +162,15 @@ export default function AdminLeavePage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  function openReview(req: LeaveRequest, action: "approve" | "reject") {
+  function openReview(req: LeaveRequest, action: "approve" | "reject" | "view") {
     setReviewTarget(req);
-    setReviewAction(action);
     setReviewNote("");
+    if (action === "view") {
+      setViewOnly(true);
+    } else {
+      setViewOnly(false);
+      setReviewAction(action);
+    }
   }
 
   async function handleReview() {
@@ -220,7 +237,7 @@ export default function AdminLeavePage() {
               <span className="text-xs font-medium">{r.days} hari</span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {r.startDate} — {r.endDate}
+              {formatDateShort(r.startDate)} — {formatDateShort(r.endDate)}
             </p>
           </div>
         );
@@ -263,26 +280,28 @@ export default function AdminLeavePage() {
       header: "",
       cell: ({ row }) => {
         const r = row.original;
-        if (r.status !== "PENDING") return null;
+        const isPending = r.status === "PENDING";
         return (
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-success border-success/30 hover:bg-success/10"
-              onClick={() => openReview(r, "approve")}
-            >
-              <Check size={12} className="mr-1" /> Setuju
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-destructive border-destructive/30 hover:bg-destructive/10"
-              onClick={() => openReview(r, "reject")}
-            >
-              <X size={12} className="mr-1" /> Tolak
-            </Button>
-          </div>
+          <DataTableRowActions
+            onView={() => openReview(r, "view")}
+            extraActions={
+              isPending
+                ? [
+                    {
+                      label: "Setujui",
+                      icon: <Check size={14} />,
+                      onClick: () => openReview(r, "approve"),
+                    },
+                    {
+                      label: "Tolak",
+                      icon: <X size={14} />,
+                      onClick: () => openReview(r, "reject"),
+                      destructive: true,
+                    },
+                  ]
+                : undefined
+            }
+          />
         );
       },
     },
@@ -338,11 +357,11 @@ export default function AdminLeavePage() {
       />
 
       {/* Review dialog */}
-      <Dialog open={!!reviewTarget} onOpenChange={(o) => !o && setReviewTarget(null)}>
+      <Dialog open={!!reviewTarget} onOpenChange={(o) => { if (!o) { setReviewTarget(null); setViewOnly(false); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
+              {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
             </DialogTitle>
             <DialogDescription>
               {reviewTarget?.employee.nama} —{" "}
@@ -353,56 +372,67 @@ export default function AdminLeavePage() {
           <div className="py-2 space-y-3">
             <div className="text-sm">
               <p>
-                <strong>Tanggal:</strong> {reviewTarget?.startDate} —{" "}
-                {reviewTarget?.endDate}
+                <strong>Tanggal:</strong> {reviewTarget?.startDate ? formatDateShort(reviewTarget.startDate) : ""} —{" "}
+                {reviewTarget?.endDate ? formatDateShort(reviewTarget.endDate) : ""}
               </p>
               <p>
                 <strong>Alasan:</strong> {reviewTarget?.reason}
               </p>
+              {reviewTarget?.reviewNote && (
+                <p>
+                  <strong>Catatan:</strong> {reviewTarget.reviewNote}
+                </p>
+              )}
             </div>
-            <Field>
-              <FieldLabel>
-                {reviewAction === "approve"
-                  ? "Catatan (opsional)"
-                  : "Alasan penolakan *"}
-              </FieldLabel>
-              <Textarea
-                value={reviewNote}
-                onChange={(e) => setReviewNote(e.target.value)}
-                placeholder={
-                  reviewAction === "approve"
-                    ? "Catatan untuk karyawan..."
-                    : "Jelaskan alasan penolakan..."
-                }
-                rows={2}
-              />
-            </Field>
-            {reviewAction === "approve" && (
-              <p className="text-xs text-muted-foreground">
-                Menyetujui akan otomatis membuat record kehadiran LEAVE untuk tanggal
-                tersebut.
-              </p>
+            {!viewOnly && (
+              <>
+                <Field>
+                  <FieldLabel>
+                    {reviewAction === "approve"
+                      ? "Catatan (opsional)"
+                      : "Alasan penolakan *"}
+                  </FieldLabel>
+                  <Textarea
+                    value={reviewNote}
+                    onChange={(e) => setReviewNote(e.target.value)}
+                    placeholder={
+                      reviewAction === "approve"
+                        ? "Catatan untuk karyawan..."
+                        : "Jelaskan alasan penolakan..."
+                    }
+                    rows={2}
+                  />
+                </Field>
+                {reviewAction === "approve" && (
+                  <p className="text-xs text-muted-foreground">
+                    Menyetujui akan otomatis membuat record kehadiran LEAVE untuk tanggal
+                    tersebut.
+                  </p>
+                )}
+              </>
             )}
           </div>
           <DialogFooter>
             <DialogClose>
-              <Button variant="outline">Batal</Button>
+              <Button variant="outline">{viewOnly ? "Tutup" : "Batal"}</Button>
             </DialogClose>
-            <Button
-              onClick={handleReview}
-              disabled={reviewing}
-              className={
-                reviewAction === "reject"
-                  ? "bg-destructive hover:bg-destructive/90"
-                  : ""
-              }
-            >
-              {reviewing
-                ? "Memproses..."
-                : reviewAction === "approve"
-                  ? "Setujui"
-                  : "Tolak"}
-            </Button>
+            {!viewOnly && (
+              <Button
+                onClick={handleReview}
+                disabled={reviewing}
+                className={
+                  reviewAction === "reject"
+                    ? "bg-destructive hover:bg-destructive/90"
+                    : ""
+                }
+              >
+                {reviewing
+                  ? "Memproses..."
+                  : reviewAction === "approve"
+                    ? "Setujui"
+                    : "Tolak"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

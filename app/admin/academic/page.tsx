@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
-type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; isActive: boolean; _count: { classSections: number } };
+type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; status: string; _count: { classSections: number } };
 type ClassSection = { id: string; name: string; capacity: number; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
 type Campus = { id: string; name: string };
 type Employee = { id: string; nama: string; kode: string; jabatan: string };
@@ -202,7 +202,7 @@ export default function AcademicPage() {
             setProgramDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "program", id: row.original.id, name: row.original.name })}
-          isActive={row.original.isActive}
+          isActive={row.original.status === "ACTIVE"}
         />
       ),
     },

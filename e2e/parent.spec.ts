@@ -1,13 +1,23 @@
 import { test, expect } from "@playwright/test";
 
-// Demo mode E2E — direct cookie auth to avoid rate limit on repeated logins.
-const PARENT_USER_ID = "u_rightjet"; // Demo parent (GUARDIAN) — opaque staging DB record ID
+// Demo mode E2E — discovers guardian user ID from /api/auth/users and sets
+// session cookie directly to avoid rate limit on repeated logins.
+
+let parentUserId: string;
 
 test.describe("Parent flows", () => {
+  test.beforeAll(async ({ request }) => {
+    const res = await request.get("/api/auth/users");
+    const users = await res.json();
+    const parent = users.find((u: { role: string }) => u.role === "GUARDIAN");
+    if (!parent) throw new Error("No GUARDIAN user found in demo DB");
+    parentUserId = parent.id;
+  });
+
   test.beforeEach(async ({ page }) => {
     await page.context().addCookies([{
       name: "school-erp-session",
-      value: PARENT_USER_ID,
+      value: parentUserId,
       domain: "localhost",
       path: "/",
       httpOnly: true,
@@ -45,6 +55,9 @@ test.describe("Parent flows", () => {
     await page.waitForURL("**/parent/attendance");
     // Use first() — "Kehadiran" appears in both nav and page heading
     await expect(page.locator("text=Kehadiran").first()).toBeVisible();
+    // Week summary strip rendered above the table (Task 5)
+    await expect(page.getByTestId("attendance-week-summary")).toBeVisible();
+    await expect(page.getByTestId("attendance-week-summary")).toContainText("Minggu ini");
   });
 
   test("reports page loads", async ({ page }) => {
@@ -52,9 +65,9 @@ test.describe("Parent flows", () => {
     await page.waitForURL("**/parent/reports");
     // Use first() — "Laporan Perkembangan" appears in heading and in table rows
     await expect(page.locator("text=Laporan Perkembangan").first()).toBeVisible();
-    // Wait for DataTable to hydrate — uses literal <table> selector
+    // Wait for card list or empty state — DataTable replaced by card stack in Task 3
     await expect(
-      page.locator("text=Belum ada rapor").or(page.locator("table")).first()
+      page.locator("text=Belum ada rapor").or(page.locator("button:has-text('Lihat')")).first()
     ).toBeVisible({ timeout: 5_000 });
   });
 
