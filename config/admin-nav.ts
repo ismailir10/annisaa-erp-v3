@@ -12,6 +12,7 @@ import {
   Building2,
   Clock,
   Shield,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -66,6 +67,7 @@ export const adminNav: NavConfig = {
         { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
+        { label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen },
       ],
     },
     {

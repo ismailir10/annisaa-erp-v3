@@ -53,6 +53,7 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 | **students** | Student lifecycle | Student, Guardian, StudentEnrollment, Admission |
 | **finance** | Fees & payments | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
 | **learning** | Academic outcomes | StudentAttendance, AssessmentTemplate, AssessmentCategory, StudentAssessment |
+| **student-journal** | Buku Penghubung (school + home) | StudentJournalTemplate, StudentJournalCategory, StudentJournalIndicator, StudentJournalEntry, StudentJournalNote, StudentJournalAudit |
 
 ### CRUD completion status
 

@@ -2192,6 +2192,23 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 - Per-tenant log line reports how many categories + indicators were newly upserted so a second `prisma db seed` run prints zeros.
 - `prisma db seed` not executed against the hosted DB (tables not yet migrated — T1 note). `npm run build` + `npx vitest run` green to confirm TS compiles against the generated client.
 
+### T3 — Admin template config (done)
+
+- Admin guard at `lib/student-journal/guards.ts` (`requireAdmin()`): returns `{ session }` with a non-null `tenantId` on success, `{ error: NextResponse }` otherwise. Uses `isAdminRole()` — SUPER_ADMIN + SCHOOL_ADMIN both pass (avoiding the student-CRUD regression).
+- API routes, all tenant-scoped, Zod-validated, rate-limited on writes via `rateLimit()`:
+  - `GET /api/student-journal/template` — upsert-on-read, always returns the tenant singleton.
+  - `GET /api/student-journal/categories?scope=&status=` — status defaults to `ACTIVE`; `ALL` returns every row; includes indicators filtered by the same status.
+  - `POST /api/student-journal/categories` — creates under the tenant template (auto-creating the template on first write).
+  - `PUT /api/student-journal/categories/[id]` — tenant-checked via the category's template; 404 cross-tenant.
+  - `POST /api/student-journal/indicators` — tenant-checked via `categoryId → template.tenantId`; 404 cross-tenant.
+  - `PUT /api/student-journal/indicators/[id]` — same tenant check; additionally rejects cross-tenant `categoryId` swaps.
+- Admin page `app/admin/student-journal/page.tsx`: `PageHeader` + "Tambah Kategori" CTA, `Sekolah`/`Rumah` Tabs, Shadcn `Select` status filter (`Semua Status` / `Aktif` / `Tidak Aktif`), and the `CategoryAccordion` component.
+- `components/student-journal/category-accordion.tsx`: Shadcn `Accordion` (Base-UI `multiple` prop), ⋮ `DropdownMenu` per category and per indicator with Edit / Nonaktifkan / Aktifkan items, `ConfirmDialog` for the status toggle, `Skeleton` loading, `EmptyState` empty-set. Reorder uses up/down arrow buttons that swap `order` with the neighbour (no drag library — none is installed; dnd-kit can ship later as a follow-up).
+- Create/edit dialogs use Shadcn `Dialog` + `Field` + `FieldLabel` + `Input`; category dialog includes a `Select` scope switcher. Save shows `toast.success("Kategori ditambahkan" | "Indikator diperbarui" | …)`, failure shows `toast.error(err.error)`; every `fetch` checks `res.ok`.
+- Added `{ label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen }` to the Akademik group in `config/admin-nav.ts`.
+- Tests: `tests/student-journal/api-admin.test.ts` — 6 schema-contract assertions (create/update category + indicator, status filter, partial order bump) plus 6 `it.todo` entries for route-level behaviour (role 403, tenant scoping, cross-tenant 404 paths, rate-limit) to be wired into the shared API harness in T11.
+- Gates: `npm run build` green (new routes appear in the route list), `npx vitest run` green (106 passed + 6 todo across 12 files).
+
 ---
 
 ## Verification
