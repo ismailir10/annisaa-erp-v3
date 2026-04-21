@@ -79,6 +79,7 @@ export default function TeacherStudentWeekPage() {
   }, [studentId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWeek(ws);
   }, [loadWeek, ws]);
 
