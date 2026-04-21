@@ -138,6 +138,8 @@ Three portals, three roles.
 - **Student Journal — admin monitoring + class roll-up (2026-04-21, T9 done)**: `GET /api/student-journal/admin/classes` (per-class weekly completion summary, active indicator count, completionPct), `GET /api/student-journal/admin/class-roll-up` (per-student checked/totalCells for a class-week). Admin `/admin/student-journal/monitoring` with StatCards + DataTable of classes + week picker. `/admin/student-journal/classes/[id]` with per-student completion bar + drill-in links to student detail — see [`docs/cycles/2026-04-21-student-journal.md`](docs/cycles/2026-04-21-student-journal.md)
 - **Student Journal — admin student detail + edit + audit trail (2026-04-21, T10 done)**: `GET /api/student-journal/admin/students/[id]/week` (no teacher-assignment gate, parallel fetch of SCHOOL+HOME categories/entries/notes). `PUT /api/student-journal/admin/entries/[id]` + `DELETE /api/student-journal/admin/notes/[id]` both transactional (update + audit row in one `prisma.$transaction`). `GET /api/student-journal/admin/audit` (by entityId+entityType or by studentId). Admin `/admin/student-journal/students/[id]` with Sekolah/Rumah/Catatan/Audit tabs, edit-toggle on WeekGrids, ConfirmDialog note delete, `<AuditDiff>` side-by-side JSON viewer. `diffJson` utility + 5 unit tests. V1: admin edit only mutates existing entries — see [`docs/cycles/2026-04-21-student-journal.md`](docs/cycles/2026-04-21-student-journal.md)
 
+- **Student Journal (Buku Penghubung) — full cycle complete (2026-04-21, T1-T11)**: schema (6 Prisma models), Zod validations, week helpers, idempotent seed (23 default indicators), admin template/category/indicator CRUD at `/admin/student-journal`, monitoring + class roll-up + student detail + transactional edit + audit trail. Teacher picker + class-day entry grid (batch upsert). Parent portal week view — Di Sekolah read-only, Di Rumah editable, Catatan note thread. Shared components: `<WeekGrid>`, `<NoteThread>`, `<AuditDiff>`, `<ClassDayGrid>`. Playwright E2E smoke — one test per portal — see [`docs/cycles/2026-04-21-student-journal.md`](docs/cycles/2026-04-21-student-journal.md)
+
 **In progress:**
 - CRUD completion: add edit + deactivate to remaining 10 partial entities (target: 100%)
 - Admin interface for LEARNING module (assessment management, student attendance)
@@ -152,7 +154,7 @@ Next 2–3 cycles, in order:
 2. **LEARNING module admin** — build the admin interface for student attendance, assessment templates/categories/indicators, and per-student scoring. Currently no admin UI exists for this module.
 3. **Audit logging** — record critical operations (payroll approve, attendance override, invoice void) with actor + timestamp + before/after. E2E tests for new CRUD flows.
 
-Future cycles, unscheduled: admissions pipeline, report card publishing workflow, multi-tenant hardening, parent self-service profile edits.
+Future cycles, unscheduled: admissions pipeline, report card publishing workflow, multi-tenant hardening, parent self-service profile edits, Student Journal v2 (drag-and-drop category reorder, parent reply in notes thread, admin create-on-edit for missing entries).
 
 ---
 
@@ -172,6 +174,7 @@ Short log. Each entry is a decision that constrains future work.
 | 2026-04-15 | One markdown file per cycle, enforced by pre-commit hook | Stop scratch-file proliferation from non-Opus sessions |
 | 2026-04-15 | Role-gated push: `cto` pushes to staging, `product-builder` opens PR | Let other LLMs contribute without bypassing review |
 | 2026-04-15 | `prd.md` retired; README.md becomes single source of truth for status/roadmap/ADRs | Eliminate three-way doc drift |
+| 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) instead of two separate templates | Keeps admin config flat (one accordion page, two tabs); parent portal and teacher grid share the same `<WeekGrid>` component; audit trail stays on a single `StudentJournalAudit` table |
 
 ---
 

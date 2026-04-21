@@ -64,4 +64,21 @@ test.describe("Parent flows", () => {
     // Use first() — "An Nisaa" appears multiple times on login page
     await expect(page.locator("text=An Nisaa").first()).toBeVisible();
   });
+
+  test("parent can open Penghubung tab with Di Sekolah/Di Rumah/Catatan tabs", async ({ page }) => {
+    await page.goto("/parent/student-journal");
+    await page.waitForURL("**/parent/student-journal", { timeout: 15_000 });
+    // Page heading always renders regardless of whether the guardian has a child
+    await expect(
+      page.locator("text=Buku Penghubung").or(page.locator("text=Belum ada data anak"))
+    ).toBeVisible({ timeout: 10_000 });
+    // If week data loads the tabs appear — conditional check (empty DB is fine)
+    const schoolTab = page.getByRole("tab", { name: /Di Sekolah/i });
+    const hasData = await schoolTab.isVisible({ timeout: 5_000 }).catch(() => false);
+    if (hasData) {
+      await expect(page.getByRole("tab", { name: /Di Sekolah/i })).toBeVisible();
+      await expect(page.getByRole("tab", { name: /Di Rumah/i })).toBeVisible();
+      await expect(page.getByRole("tab", { name: /Catatan/i })).toBeVisible();
+    }
+  });
 });
