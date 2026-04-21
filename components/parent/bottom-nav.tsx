@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Home, Receipt, CalendarDays, BookOpen } from "lucide-react";
+import { Home, Receipt, CalendarDays, BookOpen, BookHeart } from "lucide-react";
 import { motion } from "framer-motion";
 
 const tabs = [
   { label: "Beranda", href: "/parent", icon: Home },
   { label: "Tagihan", href: "/parent/invoices", icon: Receipt },
   { label: "Kehadiran", href: "/parent/attendance", icon: CalendarDays },
+  { label: "Penghubung", href: "/parent/student-journal", icon: BookHeart },
   { label: "Rapor", href: "/parent/reports", icon: BookOpen },
 ];
 

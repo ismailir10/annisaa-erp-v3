@@ -2217,6 +2217,21 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 - `tests/student-journal/api-teacher.test.ts`: 6 `it.todo` route stubs (T11 harness) + 8 concrete `entryBatchSchema` contract tests covering valid batch, empty entries, missing fields, malformed date, non-boolean `checked`.
 - Gates: `npm run build` + `npx vitest run` green.
 
+### T7 — Parent API + Sekolah UI (done)
+
+- `requireGuardianForStudent(studentId)` appended to `lib/student-journal/guards.ts`: asserts GUARDIAN role, resolves `User.parentId` via `prisma.user.findUnique`, then checks `StudentGuardian` row keyed on `{ studentId, parentId, status: "ACTIVE" }`. Cross-tenant safety relies on the tenantId check in session + StudentGuardian row existence.
+- `GET /api/student-journal/children/[id]/week?weekStart=`: authenticates via `requireGuardianForStudent`, validates optional `weekStart` param (YYYY-MM-DD, 400 if malformed), defaults to current Monday. Returns `{ weekStart, dates, schoolCategories, homeCategories, schoolEntries, homeEntries, notes }` — categories fetched tenant-scoped via template singleton; entries split by scope; notes sorted descending.
+- `GET /api/parent/children`: new lightweight endpoint returning the guardian's linked children list (`id`, `name`, `nickname`, `className`, `programName`, `relationship`) — reuses `getParentWithChildren` from `lib/parent-helpers`.
+- `components/student-journal/week-grid.tsx`: reusable table component; sticky first column (indicator label), 5 date columns (Mon–Fri, MM/DD labels). Category header rows span full width. Each cell shows a check icon (`text-primary`) when checked, empty square border otherwise. `editable` prop makes each cell a button ≥44px tap target that calls `onToggle(indicatorId, date, next)`. `overflow-x-auto` wrapper. No hex colors.
+- `components/student-journal/note-thread.tsx`: card list of notes with `Badge` for author role (GUARDIAN→"Orang Tua", TEACHER→"Guru", admin→"Admin"), short date, and body. "Belum ada catatan." when empty.
+- `app/parent/student-journal/page.tsx`: client component, `max-w-md mx-auto p-4 pb-24`. Loads children from `/api/parent/children`, shows pill selector when >1 child. Week picker with prev/next chevron buttons. Tabs: Di Sekolah (read-only WeekGrid), Di Rumah (placeholder "Segera hadir." — filled T8), Catatan (NoteThread). Skeleton on load; toast on fetch errors.
+- `components/parent/bottom-nav.tsx`: added `BookHeart` tab "Penghubung" between Kehadiran and Rapor — preserves existing Framer Motion `layoutId="bottom-nav-active"` pattern, teal underline active state, `safe-area-bottom`.
+
+### T8 — Parent home-fill UI (done)
+
+- `POST /api/student-journal/entries/home`: Zod-parses `homeEntryBatchSchema`, rate-limits 60/60s per user via `rateLimit()`, authenticates via `requireGuardianForStudent(studentId)`. Validates all distinct indicator IDs have `scope = HOME` and belong to the tenant template (400 "Indikator tidak valid" if any fail). `prisma.$transaction` of per-entry `upsert` keyed on `@@unique([studentId, indicatorId, date, scope])` with `scope: "HOME"`, `classSectionId: null`, `recordedByUserId: session.id`.
+- `app/parent/student-journal/page.tsx` (Rumah tab): replaces placeholder with editable `WeekGrid` using `homeCategories` + `homeEntries`. `onToggle` handler POSTs a single-entry batch, then refreshes full week data via re-fetch so the cell reflects the server state. Error path: `toast.error(err.error ?? "Gagal menyimpan")`. Informational footnote: "Isi kalau sempat. Opsional." — no nag, no streak.
+
 ---
 
 ## Verification
