@@ -30,6 +30,7 @@ model Tenant {
   students      Student[]
   admissions    Admission[]
   feeDefs       FeeComponentDef[]
+  feeStructures ProgramFeeStructure[]
   invoices      Invoice[]
   emailLogs     EmailLog[]
 }
@@ -555,17 +556,21 @@ model FeeComponentDef {
 // ── PROGRAM FEE STRUCTURE ────────────────────────────────────
 model ProgramFeeStructure {
   id             String  @id @default(cuid())
+  tenantId       String
   programId      String
   academicYearId String
   feeComponentId String
   amount         Decimal @default(0) @db.Decimal(15, 2)
   notes          String?
+  status         String  @default("ACTIVE") // ACTIVE | INACTIVE
 
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
   program      Program         @relation(fields: [programId], references: [id])
   academicYear AcademicYear    @relation(fields: [academicYearId], references: [id])
   feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
 
   @@unique([programId, academicYearId, feeComponentId])
+  @@index([tenantId, status])
 }
 
 // ── INVOICE ──────────────────────────────────────────────────
