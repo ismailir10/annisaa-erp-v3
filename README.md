@@ -263,6 +263,8 @@ Without `RESEND_API_KEY`, emails are simulated (logged, not sent).
 
 **`DIRECT_URL` on Vercel is mandatory.** The `build` script runs `npx prisma migrate deploy` before `next build`, which applies any unapplied migrations in `prisma/migrations/`. This step requires a direct (non-pooler) Postgres connection — pooler connections on port 6543 go through PgBouncer transaction mode, which doesn't support the advisory locks Prisma uses to serialize migrations. Grab the direct URL from Supabase → Project Settings → Database → Connection string → **URI (Direct connection, port 5432)**.
 
+**Function region is pinned to `sin1` (Singapore)** via `vercel.json`. Staging Supabase is in `ap-northeast-1` (Tokyo) and most users are in Indonesia — `sin1` is ~35ms from the DB and ~15ms from Jakarta, vs ~180ms for the Vercel default `iad1` (US East). Pages making many sequential Prisma calls are dominated by RTT, so this pin alone removes roughly 1–2s of latency per page with no code change. Production DB (`ap-south-1`, Mumbai) also benefits from `sin1` (~65ms) — if prod moves to a different region later, revisit this.
+
 ### Tests
 
 ```bash
