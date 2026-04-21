@@ -2260,6 +2260,20 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 - `tests/student-journal/api-admin-monitoring.test.ts`: 8 `it.todo` entries covering auth (401, 403), tenant isolation, completionPct edge case, roll-up 404.
 - Gates: `npm run build` + `npx vitest run` green.
 
+### T10 — Admin student detail + edit + audit trail (done)
+
+- `lib/student-journal/audit.ts`: `diffJson(before, after)` — returns `{ before, after }` snapshots; pure, no side effects. Used by admin entry PUT and note DELETE routes.
+- `components/student-journal/audit-diff.tsx`: `<AuditDiff before after />` — side-by-side JSON pre blocks using `bg-destructive/10` (before) and `bg-primary/10` (after). CSS vars only, no hex. Labels "Sebelum" / "Sesudah" in Indonesian.
+- `GET /api/student-journal/admin/students/[id]/week?weekStart=`: admin-gated, no teacher assignment gate. 404 if student not in tenant. Parallel fetch: SCHOOL + HOME active categories (with indicators), all entries for both scopes for the week, active notes desc. Returns `{ weekStart, dates, schoolCategories, homeCategories, schoolEntries, homeEntries, notes }`. Defaults `weekStart` to current Monday.
+- `PUT /api/student-journal/admin/entries/[id]`: admin-gated, rate-limited (60/min/IP). Zod: `adminEntryUpdateSchema` (`{ checked: boolean }`). Cross-tenant 404 guard. `prisma.$transaction`: update entry `checked` + `recordedByUserId`, create `StudentJournalAudit` row (entityType: "ENTRY", action: "UPDATE", beforeJson/afterJson with `{ checked }`). Returns updated entry.
+- `DELETE /api/student-journal/admin/notes/[id]`: admin-gated, rate-limited (30/min/IP). Cross-tenant 404 guard. `prisma.$transaction`: set `status: "INACTIVE"`, create audit row (entityType: "NOTE", action: "DELETE"). Returns `{ ok: true }`.
+- `GET /api/student-journal/admin/audit?entityType=&entityId=` or `?studentId=`: admin-gated. Two modes: (a) entityId + entityType filter by both; (b) studentId — collect all entry/note IDs for student then fetch audit rows whose entityId is IN that set. Ordered `changedAt desc`, limit 100.
+- `app/admin/student-journal/students/[id]/page.tsx`: client component. Back link respects `?from` param (defaults to monitoring). `PageHeader` with student name (fetched from `/api/students/[id]`) + week picker + edit toggle ("Ubah" / "Simpan Perubahan" + "Batal"). Four tabs: Sekolah (`<WeekGrid>` + SCHOOL data), Rumah (`<WeekGrid>` + HOME data), Catatan (`NoteRow` with ⋮ dropdown + `ConfirmDialog` for delete), Audit (lazy-loaded on tab activate, table of audit rows with `<AuditDiff>`). Optimistic toggle: if entry row has no `id`, shows `toast.info("Belum diisi guru/orang tua — tidak dapat diubah admin (V1)")` and skips the PUT. Save button flips editing off and shows "Perubahan tersimpan" toast.
+- `tests/student-journal/audit.test.ts`: 5 unit tests for `diffJson` (before/after capture, null, both null, nested objects, arrays). All green.
+- `tests/student-journal/api-admin-audit.test.ts`: 8 `it.todo` entries for integration tests (403 non-admin, 404 cross-tenant, rollback scenario, soft-delete audit row, audit filters).
+- **V1 limitation**: admin edit only mutates existing entries (those seeded by teacher or guardian). Cells with no row show an info toast. A future cycle can add POST to `/admin/entries` for admin-created entries.
+- Gates: `npm run build` + `npx vitest run` green.
+
 ---
 
 ## Verification
