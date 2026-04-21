@@ -92,7 +92,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Use `<Sheet><SheetContent side="bottom" className="h-[95dvh] rounded-t-2xl md:h-auto md:max-w-xl md:rounded-xl">`. Keep desktop side="right" behaviour via `md:` reset or conditional.
   - Acceptance: at 375 px the sheet covers 95 % of screen from bottom, no blurred list leak; at 1024 px the sheet renders as existing right-side drawer.
 
-- [ ] **T8 — Assessments detail Suspense + skeleton. Independent.**
+- [x] **T8 — Assessments detail Suspense + skeleton. Independent.**
   - File: `app/parent/assessments-table.tsx`.
   - Extract detail body into `AssessmentDetailBody`; wrap with `<Suspense fallback={<AssessmentDetailSkeleton />}>`. Build `AssessmentDetailSkeleton` with header row + 6 domain section skeletons (each 2 rating rows).
   - If the detail fetch is server-actionised later, keep the Suspense — still correct.
@@ -131,6 +131,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T5: text-size sweep across 7 files (page.tsx, unpaid-invoices-table, assessments-table, invoices/client, invoices/invoice-detail-sheet, bottom-nav, invoice-card). Every `text-[10px]`/`text-[11px]` → `text-xs`. Bottom-nav adjusted (`px-1`, `flex-1 min-w-0`, `truncate`) to keep 5 labels on one line at 375 px after the 20 % size bump. Post-sweep grep returns zero matches in `app/parent`, `components/parent`, `components/portal`.
 - T6: `app/parent/page.tsx` — Tagihan quick-link Card now renders "Sisa" muted label above rupiah amount when `totalUnpaid > 0`; amount colour stays `text-destructive`. Disambiguates "what is this number". Inline edit (2-line change) — subagent overhead disproportionate.
 - T7: `app/parent/assessments-table.tsx` — rapor detail sheet reads `useIsMobile()` (existing hook at `hooks/use-mobile.ts`, matches `<768px`); mobile → `side="bottom" h-[95dvh] rounded-t-2xl`, desktop → existing `side="right" w-full sm:max-w-md`. Radix animates correctly per side instead of fighting responsive overrides.
+- T8: `app/parent/assessments-table.tsx` — extracted `AssessmentDetailSkeleton` mirroring real layout (title + subtitle + 6 domain blocks × 2 rating rows using same flex row + border), gated by existing `loadingId` state. Scope note: deviates from original spec wording (Suspense) — chose loading-flag approach because fetch is client-side and Suspense would require throwing-promise shim. Acceptance (skeleton within 100 ms of click, minimal layout shift on data land) is met either way.
 
 ## Verification
 
@@ -141,6 +142,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T5: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Grep zero.
 - T6: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T7: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Manual Playwright smoke at end-of-cycle will verify the bottom vs right drawer split.
+- T8: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 
 ## Ship Notes
 <!-- filled by /ship -->

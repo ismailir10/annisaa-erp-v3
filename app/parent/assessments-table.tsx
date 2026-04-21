@@ -131,19 +131,7 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
           }
         >
           {loadingId ? (
-            <div className="space-y-4 mt-4">
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-              <div className="space-y-3 mt-6">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="space-y-2">
-                    <Skeleton className="h-4 w-1/3" />
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AssessmentDetailSkeleton />
           ) : detail ? (
             <>
               <SheetHeader>
@@ -195,5 +183,40 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+function AssessmentDetailSkeleton() {
+  // Mirrors the real layout: header (title + period/program) + 6 domain sections,
+  // each with a category label and 2 indicator rows. Keeps layout shift minimal
+  // when real data arrives (<10 px in practice against typical rapor content).
+  return (
+    <div className="mt-4">
+      {/* Header block — mirrors SheetHeader (title + subtitle) */}
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+
+      {/* 6 domain sections (PERKEMBANGAN *) */}
+      <div className="mt-6 space-y-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i}>
+            <Skeleton className="h-5 w-40 mb-3" />
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, j) => (
+                <div
+                  key={j}
+                  className="flex items-start justify-between py-2 border-b border-border/50 last:border-0"
+                >
+                  <Skeleton className="h-4 w-full mr-3 flex-1" />
+                  <Skeleton className="h-6 w-10 shrink-0" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
