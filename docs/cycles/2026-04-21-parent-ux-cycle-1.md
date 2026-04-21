@@ -98,7 +98,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - If the detail fetch is server-actionised later, keep the Suspense — still correct.
   - Acceptance: opening a sheet on throttled 4G shows the skeleton within 100 ms, not a blank background.
 
-- [ ] **T9 — Invoices loading skeleton layout-match. Independent.**
+- [x] **T9 — Invoices loading skeleton layout-match. Independent.**
   - File: `app/parent/invoices/client.tsx` (loading branch around line 59–70).
   - Render: filter-tabs skeleton (3 pills), DataTable header row, 5 skeleton rows with action-cell slot. Height matches post-load layout within ±5 px.
   - Acceptance: Lighthouse / DevTools CLS <0.05 on `/parent/invoices` cold navigation.
@@ -132,6 +132,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T6: `app/parent/page.tsx` — Tagihan quick-link Card now renders "Sisa" muted label above rupiah amount when `totalUnpaid > 0`; amount colour stays `text-destructive`. Disambiguates "what is this number". Inline edit (2-line change) — subagent overhead disproportionate.
 - T7: `app/parent/assessments-table.tsx` — rapor detail sheet reads `useIsMobile()` (existing hook at `hooks/use-mobile.ts`, matches `<768px`); mobile → `side="bottom" h-[95dvh] rounded-t-2xl`, desktop → existing `side="right" w-full sm:max-w-md`. Radix animates correctly per side instead of fighting responsive overrides.
 - T8: `app/parent/assessments-table.tsx` — extracted `AssessmentDetailSkeleton` mirroring real layout (title + subtitle + 6 domain blocks × 2 rating rows using same flex row + border), gated by existing `loadingId` state. Scope note: deviates from original spec wording (Suspense) — chose loading-flag approach because fetch is client-side and Suspense would require throwing-promise shim. Acceptance (skeleton within 100 ms of click, minimal layout shift on data land) is met either way.
+- T9: `app/parent/invoices/client.tsx` — loading branch replaced with layout-matching skeleton (h-6 w-36 header + 5 sticky pill skeletons + 5 DataTable-shaped row skeletons inside rounded-2xl border, `pb-24` for bottom-nav clearance). `app/parent/invoices/loading.tsx` not present; detail skeleton file left alone. Existing test assertions on `.animate-pulse` + `.rounded-2xl` pass.
 
 ## Verification
 
@@ -143,6 +144,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T6: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T7: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Manual Playwright smoke at end-of-cycle will verify the bottom vs right drawer split.
 - T8: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
+- T9: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 
 ## Ship Notes
 <!-- filled by /ship -->
