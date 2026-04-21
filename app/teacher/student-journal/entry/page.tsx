@@ -84,6 +84,7 @@ export default function StudentJournalEntryPage() {
   }, [classId, date]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadGrid();
   }, [loadGrid]);
 
