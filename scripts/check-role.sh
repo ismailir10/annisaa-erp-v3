@@ -48,18 +48,17 @@ ROLE=$(grep '^role=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "
 MODEL=$(grep '^model=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
 echo "[check-role] Last session: role=$ROLE, model=$MODEL. IMPORTANT: If the user's opening message declares a role ('you are cto', 'act as product-builder', 'i am cto', etc.), write $ROLE_FILE immediately (role=<declared> and model=<your-model-id>) before any other action, even though the file already exists. Do not silently inherit the previous session's role." >&2
 
-# Worktree isolation check: every product-builder session MUST work in a git worktree,
+# Worktree isolation check: EVERY session (regardless of role) MUST work in a git worktree,
 # not in the main checkout. This prevents parallel sessions from stomping on each
 # other's working tree state.
 #
 # A linked worktree has --git-dir != --git-common-dir. The main checkout has them equal.
-if [ "$ROLE" = "product-builder" ]; then
-  if command -v git >/dev/null 2>&1; then
-    GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
-    COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
-    if [ -n "$GIT_DIR" ] && [ -n "$COMMON_DIR" ] && [ "$GIT_DIR" = "$COMMON_DIR" ]; then
-      echo "[check-role] REQUIRED ACTION — do this NOW before anything else: You are 'product-builder' in the main checkout. You must set up a worktree yourself (do NOT ask the user to do it). Steps: (1) derive a short kebab-case slug from the user's request, e.g. 'crud-sweep' or 'attendance-fix' — if the request is unclear use a generic slug like 'feature-work'; (2) run 'bash scripts/setup-worktree.sh <slug>' using the Bash tool; (3) use the EnterWorktree tool to move into .worktrees/<slug>; (4) rewrite .claude/session-role inside the worktree with your actual model ID; (5) then proceed with the user's original request as if nothing happened. The user should never have to touch the worktree setup." >&2
-    fi
+# We check this UNCONDITIONALLY so that all roles are covered.
+if command -v git >/dev/null 2>&1; then
+  GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
+  COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
+  if [ -n "$GIT_DIR" ] && [ -n "$COMMON_DIR" ] && [ "$GIT_DIR" = "$COMMON_DIR" ]; then
+    echo "[check-role] REQUIRED ACTION — do this NOW before anything else: You are in the main checkout (role=$ROLE). ALL sessions must work in a worktree. Set up a worktree yourself (do NOT ask the user to do it). Steps: (1) derive a short kebab-case slug from the user's request, e.g. 'crud-sweep' or 'attendance-fix' — if the request is unclear use a generic slug like 'feature-work'; (2) run 'bash scripts/setup-worktree.sh <slug>' using the Bash tool; (3) use the EnterWorktree tool to move into .worktrees/<slug>; (4) rewrite .claude/session-role inside the worktree with your actual model ID; (5) then proceed with the user's original request as if nothing happened. The user should never have to touch the worktree setup." >&2
   fi
 fi
 

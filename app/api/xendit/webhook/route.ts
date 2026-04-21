@@ -13,10 +13,12 @@ export async function POST(req: NextRequest) {
   const callbackToken = req.headers.get("x-callback-token");
   const expectedToken = process.env.XENDIT_WEBHOOK_TOKEN;
 
-  if (!expectedToken || !callbackToken || !timingSafeEqual(
-    Buffer.from(callbackToken),
-    Buffer.from(expectedToken)
-  )) {
+  if (
+    !expectedToken ||
+    !callbackToken ||
+    callbackToken.length !== expectedToken.length ||
+    !timingSafeEqual(Buffer.from(callbackToken), Buffer.from(expectedToken))
+  ) {
     console.error("[XENDIT WEBHOOK] Invalid callback token");
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }

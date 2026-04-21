@@ -9,6 +9,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -154,13 +155,14 @@ export default function EmployeesPage() {
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
+  const [deactivateTarget, setDeactivateTarget] = useState<Employee | null>(null);
 
   // Fetch campuses + stats once
   useEffect(() => {
     fetch("/api/config/campuses")
       .then((r) => r.json())
       .then((c) => setCampuses(Array.isArray(c) ? c : []))
-      .catch(() => { /* stats are non-critical */ });
+      .catch((err) => console.error("[employees] campuses fetch failed", err));
     // Quick stats — fetch all with minimal data
     Promise.all([
       fetch("/api/employees?pageSize=1&status=ACTIVE").then(r => r.json()),
@@ -169,7 +171,7 @@ export default function EmployeesPage() {
       const a = active.pagination?.total ?? 0;
       const i = inactive.pagination?.total ?? 0;
       setStats({ total: a + i, active: a, inactive: i });
-    }).catch(() => { /* stats are non-critical */ });
+    }).catch((err) => console.error("[employees] stats fetch failed", err));
   }, []);
 
   const fetchEmployees = useCallback(async () => {
@@ -219,6 +221,23 @@ export default function EmployeesPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
+  const handleDeactivate = useCallback(async () => {
+    if (!deactivateTarget) return;
+    const res = await fetch(`/api/employees/${deactivateTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "INACTIVE" }),
+    });
+    if (res.ok) {
+      toast.success(`${deactivateTarget.nama} dinonaktifkan`);
+      setDeactivateTarget(null);
+      fetchEmployees();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal menonaktifkan karyawan");
+    }
+  }, [deactivateTarget, fetchEmployees]);
+
   const columnsWithActions = useMemo<ColumnDef<Employee>[]>(
     () => [
       ...columns,
@@ -228,6 +247,13 @@ export default function EmployeesPage() {
         cell: ({ row }) => (
           <DataTableRowActions
             onView={() => router.push(`/admin/employees/${row.original.id}`)}
+            onEdit={() => router.push(`/admin/employees/${row.original.id}`)}
+            onDeactivate={
+              row.original.status === "ACTIVE"
+                ? () => setDeactivateTarget(row.original)
+                : undefined
+            }
+            isActive={row.original.status === "ACTIVE"}
           />
         ),
       },
@@ -304,6 +330,15 @@ export default function EmployeesPage() {
         loading={loading}
         emptyTitle="Belum ada karyawan"
         emptyDescription="Tambahkan karyawan baru untuk memulai."
+      />
+
+      <ConfirmDialog
+        open={!!deactivateTarget}
+        onOpenChange={(o) => !o && setDeactivateTarget(null)}
+        title="Nonaktifkan Karyawan"
+        description={`Nonaktifkan "${deactivateTarget?.nama}"? Data tidak akan dihapus dan dapat diaktifkan kembali.`}
+        onConfirm={handleDeactivate}
+        confirmLabel="Nonaktifkan"
       />
     </>
   );

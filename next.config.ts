@@ -9,6 +9,20 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
   },
+  async redirects() {
+    return [
+      {
+        source: "/admin/assessment-templates",
+        destination: "/admin/assessments/templates",
+        permanent: true,
+      },
+      {
+        source: "/admin/assessment-templates/:path*",
+        destination: "/admin/assessments/templates/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

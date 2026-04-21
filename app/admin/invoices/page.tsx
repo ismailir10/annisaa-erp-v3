@@ -26,7 +26,7 @@ import {
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatCard } from "@/components/admin/stat-card";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, Ban } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
 
@@ -95,7 +95,7 @@ const columns: ColumnDef<Invoice>[] = [
       <div>
         <span className="text-sm">{row.original.periodLabel}</span>
         <p className="text-[10px] text-muted-foreground">
-          Jatuh tempo: {row.original.dueDate}
+          Jatuh tempo: {formatDateShort(row.original.dueDate)}
         </p>
       </div>
     ),
@@ -191,14 +191,14 @@ export default function InvoicesPage() {
       const p = paid.pagination?.total ?? 0;
       const o = overdue.pagination?.total ?? 0;
       setStats({ total: d + s + p + o, draft: d, sent: s, paid: p, overdue: o });
-    }).catch(() => { /* stats are non-critical */ });
+    }).catch((err) => console.error("[invoices] stats fetch failed", err));
   }, []);
 
   useEffect(() => {
     fetch("/api/academic-years")
       .then((r) => r.json())
       .then((y) => setYears(Array.isArray(y) ? y : y.data ?? []))
-      .catch(() => { /* academic years lookup is non-critical */ });
+      .catch((err) => console.error("[invoices] academic years fetch failed", err));
   }, []);
 
   const fetchInvoices = useCallback(async () => {
@@ -297,6 +297,12 @@ export default function InvoicesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ invoiceIds: draftIds }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal membuat link pembayaran");
+      setSending(false);
+      return;
+    }
     const d = await res.json();
     if (d.created > 0) {
       toast.success(`${d.created} link pembayaran berhasil dibuat`);
@@ -333,18 +339,7 @@ export default function InvoicesPage() {
           return (
             <DataTableRowActions
               onView={() => router.push(`/admin/invoices/${inv.id}`)}
-              extraActions={
-                canVoid
-                  ? [
-                      {
-                        label: "Batalkan",
-                        icon: <Ban size={14} />,
-                        destructive: true,
-                        onClick: () => setVoidTarget(inv),
-                      },
-                    ]
-                  : undefined
-              }
+              onVoid={canVoid ? () => setVoidTarget(inv) : undefined}
             />
           );
         },

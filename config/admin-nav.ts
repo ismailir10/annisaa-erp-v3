@@ -12,6 +12,9 @@ import {
   Building2,
   Clock,
   Shield,
+  Heart,
+  BookOpen,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -65,7 +68,11 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
+        { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
+        { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
+        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
+        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
       ],
     },
     {
@@ -75,6 +82,15 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Biaya", href: "/admin/fees", icon: Coins },
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
+      ],
+    },
+    {
+      id: "learning",
+      label: "Penilaian",
+      icon: ClipboardList,
+      items: [
+        { label: "Template", href: "/admin/assessments/templates", icon: ClipboardList },
+        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
       ],
     },
   ],
@@ -108,7 +124,11 @@ export function getActiveGroup(
   groups: NavGroup[]
 ): string | null {
   for (const group of groups) {
-    if (group.items.some((item) => isItemActive(pathname, item))) {
+    // Sort by href length descending so longer prefixes match first
+    const sorted = [...group.items].sort(
+      (a, b) => b.href.length - a.href.length
+    );
+    if (sorted.some((item) => isItemActive(pathname, item))) {
       return group.id;
     }
   }
@@ -126,14 +146,17 @@ export function getBreadcrumbs(
     }
   }
 
-  // Check groups
+  // Check groups — sort items by href length descending to avoid prefix collision
   for (const group of adminNav.groups) {
-    for (const item of group.items) {
+    const sorted = [...group.items].sort(
+      (a, b) => b.href.length - a.href.length
+    );
+    for (const item of sorted) {
       if (isItemActive(pathname, item)) {
         // If on exact page, no link on last item
         if (pathname === item.href) {
           return [
-            { label: group.label, href: item.href },
+            { label: group.label },
             { label: item.label },
           ];
         }
@@ -142,6 +165,7 @@ export function getBreadcrumbs(
         let subLabel = "Detail";
         if (suffix === "new") subLabel = "Tambah";
         else if (suffix === "monthly") subLabel = "Bulanan";
+        else if (suffix === "scores") subLabel = "Nilai";
 
         return [
           { label: group.label },

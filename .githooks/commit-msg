@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# commit-msg — require README.md on feat:/perf: commits touching app/** or lib/**
+#
+# Rationale: pre-commit Rule 2 accepts any of README.md, CLAUDE.md, or a
+# docs/cycles/*.md file as sufficient docs staging. That's too permissive for
+# user-visible-behavior commits (feat:/perf:), which caused 5 cycles to drift
+# out of the README history on 2026-04-20 (see cycle
+# docs/cycles/2026-04-20-doc-sync-hook-tighten.md). This hook adds a stricter
+# rule for those two commit types only — fix:/refactor:/chore:/docs:/test:/
+# style:/build:/ci:/release: remain covered by the permissive pre-commit rule.
+#
+# Scope: app/** or lib/** staged changes. Changes limited to prisma/**,
+# components/**, or elsewhere do not trigger this hook.
+#
+# Bypass: git commit --no-verify (discouraged; GitHub branch protection on
+# staging/main is the real enforcement layer).
+
+set -eu
+
+MSG_FILE="$1"
+SUBJECT="$(head -n1 "$MSG_FILE")"
+
+# Skip on merge/revert/fixup/squash/amend — these are not new feature commits
+case "$SUBJECT" in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
+esac
+
+# Does the subject start with feat: or perf: (with optional scope + breaking !)?
+if ! printf '%s' "$SUBJECT" | grep -qE '^(feat|perf)(\([^)]+\))?!?:'; then
+  exit 0
+fi
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+TOUCHES_SCOPE=0
+README_STAGED=0
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    app/*|lib/*) TOUCHES_SCOPE=1 ;;
+  esac
+  [ "$f" = "README.md" ] && README_STAGED=1
+done <<EOF
+$STAGED
+EOF
+
+if [ "$TOUCHES_SCOPE" = "1" ] && [ "$README_STAGED" = "0" ]; then
+  echo "commit-msg: feat:/perf: commits that touch app/** or lib/** must stage README.md." >&2
+  echo "" >&2
+  echo "  Detected subject: $SUBJECT" >&2
+  echo "  Reason: user-visible behavior changes need the README history/module" >&2
+  echo "          narrative updated in the same commit — cycle doc alone is" >&2
+  echo "          insufficient for feat:/perf: (see docs/cycles/2026-04-20-" >&2
+  echo "          doc-sync-hook-tighten.md for why)." >&2
+  echo "" >&2
+  echo "  Fix: stage README.md with a matching entry under 'Completed' or module" >&2
+  echo "       docs, then re-commit." >&2
+  echo "" >&2
+  echo "  Exempt types: fix: refactor: chore: docs: test: style: build: ci: release:" >&2
+  echo "" >&2
+  echo "  Run scripts/test-hooks.sh for the full rule table." >&2
+  exit 1
+fi
+
+exit 0

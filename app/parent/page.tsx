@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
-import { getParentWithChildren, resolveSelectedChild, getStudentInvoices } from "@/lib/parent-helpers";
+import { getParentWithChildren, resolveSelectedChild, getStudentInvoices, getTodayStudentAttendance } from "@/lib/parent-helpers";
 import { UnpaidInvoicesTable } from "./unpaid-invoices-table";
 import Link from "next/link";
 import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
@@ -38,7 +38,10 @@ export default async function ParentDashboard({
 
   const student = selected.student;
   const enrollment = student.enrollments[0];
-  const unpaidInvoices = await getStudentInvoices(student.id);
+  const [unpaidInvoices, todayAttendanceStatus] = await Promise.all([
+    getStudentInvoices(student.id),
+    getTodayStudentAttendance(student.id, session.tenantId!),
+  ]);
   const totalUnpaid = unpaidInvoices.reduce(
     (s, i) => s + (i.totalDue - i.totalPaid),
     0
@@ -126,6 +129,13 @@ export default async function ParentDashboard({
           <Card className="p-4 text-center hover:border-primary/30 transition-colors">
             <CalendarDays size={20} className="mx-auto text-primary mb-2" />
             <p className="text-xs font-medium">Kehadiran</p>
+            {todayAttendanceStatus ? (
+              <div className="mt-1 flex justify-center">
+                <StatusBadge status={todayAttendanceStatus} />
+              </div>
+            ) : (
+              <p className="text-[10px] text-muted-foreground mt-1">Belum dicatat</p>
+            )}
           </Card>
         </Link>
         <Link
@@ -143,7 +153,7 @@ export default async function ParentDashboard({
       </div>
 
       {/* Unpaid invoices */}
-      {unpaidInvoices.length > 0 && (
+      {unpaidInvoices.length > 0 ? (
         <div>
           <h3 className="text-sm font-semibold mb-3">Tagihan Belum Lunas</h3>
           <UnpaidInvoicesTable
@@ -158,6 +168,10 @@ export default async function ParentDashboard({
               xenditPaymentUrl: inv.xenditPaymentUrl,
             }))}
           />
+        </div>
+      ) : (
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">Semua tagihan lunas</p>
         </div>
       )}
     </div>

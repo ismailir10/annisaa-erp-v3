@@ -3,18 +3,18 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { determineCheckInStatus, minutesLate } from "@/lib/attendance/status";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
-  // Rate limit: 5 check-ins per minute per IP
-  const { success } = rateLimit(getClientIp(req), 5, 60_000);
-  if (!success) {
-    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
-  }
-
   const session = await getSession();
   if (!session?.employeeId || session.role !== "TEACHER") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Rate limit: 5 check-ins per minute keyed by employee (not IP — spoofable)
+  const { success } = rateLimit(`check-in:${session.employeeId}`, 5, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
   }
 
   const body = await req.json();

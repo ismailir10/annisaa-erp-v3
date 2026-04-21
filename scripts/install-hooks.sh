@@ -18,7 +18,7 @@ if [ ! -d .githooks ]; then
 fi
 
 # Ensure all hook files are executable
-chmod +x .githooks/pre-commit .githooks/prepare-commit-msg .githooks/pre-push 2>/dev/null || true
+chmod +x .githooks/pre-commit .githooks/prepare-commit-msg .githooks/commit-msg .githooks/pre-push 2>/dev/null || true
 
 # Configure git to use .githooks
 git config core.hooksPath .githooks
@@ -28,4 +28,4 @@ mkdir -p .githooks
 touch .githooks/.installed
 
 echo "install-hooks: active. core.hooksPath = .githooks"
-echo "install-hooks: pre-commit, prepare-commit-msg, pre-push enabled."
+echo "install-hooks: pre-commit, prepare-commit-msg, commit-msg, pre-push enabled."

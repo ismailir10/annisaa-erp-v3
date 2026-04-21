@@ -103,18 +103,23 @@ export default function PayrollListPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, draft: 0, approved: 0, slipsSent: 0 });
 
-  // Stats fetch once
+  // Stats fetch once — single groupBy endpoint, not three pageSize=1 list calls
   useEffect(() => {
-    Promise.all([
-      fetch("/api/payroll?pageSize=1&status=DRAFT").then(r => r.json()),
-      fetch("/api/payroll?pageSize=1&status=APPROVED").then(r => r.json()),
-      fetch("/api/payroll?pageSize=1&status=SLIPS_SENT").then(r => r.json()),
-    ]).then(([draft, approved, sent]) => {
-      const d = draft.pagination?.total ?? 0;
-      const a = approved.pagination?.total ?? 0;
-      const s = sent.pagination?.total ?? 0;
-      setStats({ total: d + a + s, draft: d, approved: a, slipsSent: s });
-    }).catch(() => { /* stats are non-critical */ });
+    (async () => {
+      try {
+        const res = await fetch("/api/payroll/stats");
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          total: number;
+          draft: number;
+          approved: number;
+          slipsSent: number;
+        };
+        setStats(data);
+      } catch {
+        // Stats stay at default zeros — non-critical, don't block the page
+      }
+    })();
   }, []);
 
   const fetchRuns = useCallback(async () => {

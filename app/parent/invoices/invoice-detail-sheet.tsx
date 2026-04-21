@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ExternalLink, Info, CheckCircle, AlertCircle, Calendar } from "lucide-react";
 import { formatRupiah, formatDateShort } from "@/lib/format";
+import { useState } from "react";
+import { toast } from "sonner";
+import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 
 const PARENT_INVOICE_LABELS: Record<string, string> = {
   SENT: "Belum Dibayar",
@@ -73,13 +76,54 @@ const VARIANT_STYLES: Record<string, string> = {
 export function InvoiceDetailSheet({
   open,
   onOpenChange,
-  invoice,
+  invoiceId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  invoice: InvoiceDetail | null;
+  invoiceId: string | null;
 }) {
-  if (!invoice) return null;
+  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [prevInvoiceId, setPrevInvoiceId] = useState<string | null>(null);
+
+  // Reset state when sheet closes, fetch when it opens with a new invoiceId
+  if (open && invoiceId && invoiceId !== prevInvoiceId) {
+    setPrevInvoiceId(invoiceId);
+    setLoading(true);
+    setInvoice(null);
+
+    fetch(`/api/guardian/invoices/${invoiceId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load invoice");
+        return res.json();
+      })
+      .then((data) => {
+        setInvoice(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        toast.error("Gagal memuat detail tagihan");
+        setLoading(false);
+      });
+  }
+
+  if (!open && prevInvoiceId !== null) {
+    setPrevInvoiceId(null);
+    setInvoice(null);
+    setLoading(false);
+  }
+
+  if (!invoiceId) return null;
+
+  if (loading || !invoice) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <InvoiceDetailSkeleton />
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   const remaining = invoice.totalDue - invoice.totalPaid;
   const isPayable = remaining > 0 && invoice.status !== "CANCELLED" && invoice.status !== "PAID";
@@ -123,7 +167,7 @@ export function InvoiceDetailSheet({
     }
     return {
       icon: <Info size={16} className="text-muted-foreground" />,
-      message: "Link pembayaran belum tersedia. Hubungi admin untuk membuat link pembayaran.",
+      message: "Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.",
       variant: "muted" as const,
     };
   };
@@ -231,28 +275,20 @@ export function InvoiceDetailSheet({
           )}
         </div>
 
-        {/* Payment Action */}
-        {isPayable && (
+        {/* Payment Action — only render when link is available; no-link fallback is in the status banner above */}
+        {isPayable && hasPaymentLink && (
           <div className="mt-6 pt-4 border-t border-border">
-            {hasPaymentLink ? (
-              <a
-                href={invoice.xenditPaymentUrl!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full"
-              >
-                <Button className="w-full" size="lg">
-                  <ExternalLink size={16} className="mr-2" />
-                  Bayar Sekarang
-                </Button>
-              </a>
-            ) : (
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-3">
-                  Link pembayaran belum tersedia. Hubungi admin untuk membuat link pembayaran.
-                </p>
-              </div>
-            )}
+            <a
+              href={invoice.xenditPaymentUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full"
+            >
+              <Button className="w-full" size="lg">
+                <ExternalLink size={16} className="mr-2" />
+                Bayar Sekarang
+              </Button>
+            </a>
           </div>
         )}
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { getSession, isSuperAdmin } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { students } from "../../../../prisma/data/students";
 
@@ -13,8 +13,12 @@ export async function POST(req: NextRequest) {
   const { success } = rateLimit(`admin-seed:${getClientIp(req)}`, 1, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not available in production" }, { status: 403 });
+  }
+
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isSuperAdmin(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -234,14 +238,30 @@ export async function POST(req: NextRequest) {
     // Check if this invoice already exists
     const existingInvoice = await prisma.invoice.findFirst({
       where: { tenantId, invoiceNumber },
+      select: { id: true, status: true, xenditPaymentUrl: true },
     });
-    if (existingInvoice) { invoiceCount++; continue; }
+    if (existingInvoice) {
+      // Backfill: patch null-URL payable invoices that were seeded before the URL fix shipped
+      const backfillStatuses = ["SENT", "PARTIALLY_PAID", "OVERDUE"] as const;
+      if (
+        existingInvoice.xenditPaymentUrl === null &&
+        (backfillStatuses as readonly string[]).includes(existingInvoice.status)
+      ) {
+        await prisma.invoice.update({
+          where: { id: existingInvoice.id },
+          data: { xenditPaymentUrl: `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` },
+        });
+      }
+      invoiceCount++;
+      continue;
+    }
 
     // Vary statuses across the batch
     const statuses = ["PAID", "PAID", "PAID", "PARTIALLY_PAID", "PARTIALLY_PAID", "SENT", "SENT", "SENT", "DRAFT", "DRAFT"] as const;
     const status = statuses[invoiceCount % statuses.length];
     const totalPaid = status === "PAID" ? totalDue : status === "PARTIALLY_PAID" ? Math.round(totalDue * 0.5) : 0;
 
+    const needsPaymentLink = status === "SENT" || status === "PARTIALLY_PAID";
     const invoice = await prisma.invoice.create({
       data: {
         tenantId,
@@ -252,6 +272,7 @@ export async function POST(req: NextRequest) {
         totalDue,
         totalPaid,
         status,
+        xenditPaymentUrl: needsPaymentLink ? `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` : null,
         createdBy: adminUserId,
         lines: { create: lines },
       },

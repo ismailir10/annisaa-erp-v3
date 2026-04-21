@@ -187,13 +187,24 @@ export default function StudentDetailPage() {
   async function handleEnroll() {
     if (!selectedSection) { toast.error("Pilih kelas"); return; }
     setEnrolling(true);
-    const res = await fetch(`/api/students/${id}/enroll`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classSectionId: selectedSection }),
-    });
-    if (res.ok) { toast.success("Siswa berhasil didaftarkan ke kelas"); setEnrollDialog(false); fetchStudent(); }
-    else { const d = await res.json(); toast.error(d.error || "Gagal mendaftarkan"); }
-    setEnrolling(false);
+    try {
+      const res = await fetch(`/api/students/${id}/enroll`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classSectionId: selectedSection }),
+      });
+      if (res.ok) {
+        toast.success("Siswa berhasil didaftarkan ke kelas");
+        setEnrollDialog(false);
+        fetchStudent();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Gagal mendaftarkan");
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setEnrolling(false);
+    }
   }
 
   // --- Promote (Naik Kelas) ---

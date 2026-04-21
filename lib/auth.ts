@@ -1,5 +1,30 @@
+import { cache } from "react";
 import { createClient } from "./supabase/server";
 import { prisma } from "./db";
+
+type CachedUser = Awaited<ReturnType<typeof prisma.user.findUnique>>;
+
+// In-memory cache of Prisma User rows keyed by email. Every API route and
+// every server-rendered page calls getSession(), and previously each call hit
+// the database for the same User row. Cache TTL is 60s — long enough to
+// collapse the cluster of fetches a single page render makes, short enough
+// that role/tenant changes propagate quickly.
+const USER_CACHE_TTL_MS = 60_000;
+const userCache = new Map<string, { user: CachedUser; expiresAt: number }>();
+
+function getCachedUser(email: string): CachedUser | undefined {
+  const entry = userCache.get(email);
+  if (!entry) return undefined;
+  if (entry.expiresAt < Date.now()) {
+    userCache.delete(email);
+    return undefined;
+  }
+  return entry.user;
+}
+
+function setCachedUser(email: string, user: CachedUser) {
+  userCache.set(email, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS });
+}
 
 export type SessionUser = {
   id: string;
@@ -25,8 +50,15 @@ export const canViewSalary = (role: string): boolean => role === "SUPER_ADMIN";
  * Get the current session user.
  * Reads Supabase Auth session, then looks up the Prisma User by email.
  * Auto-creates the Prisma User on first login if employee exists with that email.
+ *
+ * Wrapped in React's `cache()` so that layout + page + server components in
+ * the same request dedupe to a single Supabase auth + Prisma lookup. This is
+ * complementary to the 60s in-memory `userCache` above: `cache()` dedupes
+ * within a single request, `userCache` dedupes across requests.
  */
-export async function getSession(): Promise<SessionUser | null> {
+export const getSession = cache(_getSession);
+
+async function _getSession(): Promise<SessionUser | null> {
   // Demo mode requires explicit opt-in via DEMO_MODE=true env var.
   // This prevents accidental demo activation in production if Supabase is down.
   if (process.env.DEMO_MODE === "true") {
@@ -39,10 +71,14 @@ export async function getSession(): Promise<SessionUser | null> {
 
     if (!authUser?.email) return null;
 
-    // Look up Prisma User by email
-    let user = await prisma.user.findUnique({
-      where: { email: authUser.email },
-    });
+    // Look up Prisma User by email — serve from cache if fresh.
+    let user = getCachedUser(authUser.email);
+    if (user === undefined) {
+      user = await prisma.user.findUnique({
+        where: { email: authUser.email },
+      });
+      if (user) setCachedUser(authUser.email, user);
+    }
 
     // Auto-create User on first Supabase Auth login
     if (!user) {
@@ -62,6 +98,7 @@ export async function getSession(): Promise<SessionUser | null> {
             employeeId: employee.id,
           },
         });
+        setCachedUser(authUser.email, user);
       } else {
         // Check if there's a parent with this email
         const parent = await prisma.parent.findFirst({
@@ -78,6 +115,7 @@ export async function getSession(): Promise<SessionUser | null> {
               parentId: parent.id,
             },
           });
+          setCachedUser(authUser.email, user);
         } else {
           // Not an employee, not a guardian, no existing User → deny access
           return null;
@@ -87,11 +125,18 @@ export async function getSession(): Promise<SessionUser | null> {
 
     if (!user) return null;
 
-    // Update last login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    // Update last login — skip if updated within last 5 minutes to avoid
+    // writing on every single getSession() call (every API route + page load).
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+    if (!user.lastLoginAt || user.lastLoginAt < fiveMinutesAgo) {
+      const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: now },
+      });
+      setCachedUser(updated.email, updated);
+      user = updated;
+    }
 
     // For guardian users, find their parent ID
     let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;

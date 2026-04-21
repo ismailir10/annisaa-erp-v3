@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { createGuardianSchema } from "@/lib/validations/guardian";
 
 export async function POST(
   req: NextRequest,
@@ -23,22 +24,21 @@ export async function POST(
   });
   if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
 
-  const body = await req.json();
-  if (!body.name?.trim()) {
-    return NextResponse.json({ error: "Nama wali wajib diisi" }, { status: 400 });
+  const raw = await req.json();
+  const parsed = createGuardianSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Input tidak valid" },
+      { status: 400 }
+    );
   }
 
-  const email = body.email?.trim() || null;
-  const name = body.name.trim();
-  const phone = body.phone?.trim() || null;
-  const whatsapp = body.whatsapp?.trim() || null;
-  const parentNik = body.parentNik?.trim() || null;
-  const education = body.education?.trim() || null;
-  const occupation = body.occupation?.trim() || null;
-  const employer = body.employer?.trim() || null;
-  const employerAddress = body.employerAddress?.trim() || null;
-  const employerCity = body.employerCity?.trim() || null;
-  const incomeRange = body.incomeRange?.trim() || null;
+  const {
+    name, email = null, phone = null, whatsapp = null,
+    relationship, isPrimary,
+    parentNik = null, education = null, occupation = null,
+    employer = null, employerAddress = null, employerCity = null, incomeRange = null,
+  } = parsed.data;
 
   // Validate email doesn't collide with employee/admin
   if (email) {
@@ -67,8 +67,8 @@ export async function POST(
     data: {
       studentId,
       parentId: parent.id,
-      relationship: body.relationship || "WALI",
-      isPrimary: body.isPrimary ?? false,
+      relationship,
+      isPrimary,
     },
     include: { parent: true },
   });

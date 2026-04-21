@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-// Demo mode E2E tests — bypasses login UI to avoid rate-limit on repeated beforeEach calls.
-// Sets session cookie directly (same format as /api/auth/login handler).
+// Demo mode E2E tests — discovers user ID from /api/auth/users and sets
+// session cookie directly to avoid rate-limit on repeated beforeEach calls.
 
 const ADMIN_USER_ID = "u_super_admin"; // Primary owner — SUPER_ADMIN
 
@@ -80,6 +80,12 @@ test.describe("Admin flows", () => {
     await page.goto("/admin/employees/new");
     await page.waitForURL("**/admin/employees/new");
     await expect(page.getByRole("heading", { name: "Tambah Karyawan" })).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("deleted flat assessment-templates URL redirects to nested", async ({ page }) => {
+    await page.goto("/admin/assessment-templates");
+    await expect(page).toHaveURL("/admin/assessments/templates");
+    await expect(page.getByRole("heading", { name: /Template Penilaian/i })).toBeVisible();
   });
 
   test("payroll detail shows employee lines", async ({ page }) => {
