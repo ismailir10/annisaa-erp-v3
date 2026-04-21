@@ -65,19 +65,13 @@ Update `prisma/schema.prisma` with every planned change AND update the 3 EmailLo
 
 ### Task 2 — Single migration with backfill + guard
 
-Create the migration without auto-apply, hand-edit the SQL to insert backfill + guard blocks, then apply.
+- [x] Hand-authored migration SQL at `prisma/migrations/20260421124312_tenant_isolation_hardening/migration.sql` (4 ordered steps: EmailLog nullable→backfill→NOT NULL→FK/index; User guard→NOT NULL; FeeComponentDef.status; 7 missing indexes).
+- [x] Added `prisma/migrations/migration_lock.toml` (was absent — earlier migrations predated Prisma CLI management).
+- [x] `npx prisma validate` ✓, `npx prisma generate` ✓.
 
-- [ ] `npx prisma migrate dev --create-only --name tenant_isolation_hardening`.
-- [ ] Hand-edit the generated `prisma/migrations/YYYYMMDDHHMMSS_tenant_isolation_hardening/migration.sql`:
-  - **Reorder** so EmailLog `ADD COLUMN "tenantId"` is initially nullable.
-  - **Insert** EmailLog backfill block: UPDATE via Employee.email → Employee.tenantId; UPDATE residual via User.email → User.tenantId; RAISE EXCEPTION if orphans remain AND tenant count ≠ 1; else UPDATE orphans to the sole tenant.
-  - **Insert** User.tenantId guard: `DO $$ ... IF EXISTS (SELECT 1 FROM "User" WHERE "tenantId" IS NULL) THEN RAISE EXCEPTION ... END IF; $$;` before the SET NOT NULL.
-  - **Append** SET NOT NULL + FK + indexes for EmailLog.
-  - Leave Prisma-generated blocks for User SET NOT NULL, FeeComponentDef ADD COLUMN status, and all `CREATE INDEX` statements as-is but ordered after the backfills.
-- [ ] `npx prisma migrate dev` — applies cleanly against local dev DB. If it fails, iterate on the SQL.
-- [ ] `npx prisma validate` passes.
+**Why not `prisma migrate dev`:** `DATABASE_URL` points at the shared Supabase pooler and there is no `DIRECT_URL` / `SHADOW_DATABASE_URL` configured in `.env`. Running `migrate dev` would apply the migration against the prod-adjacent pooler — unsafe from a worktree. The migration is hand-authored to exactly match the schema + the agreed backfill/guard plan and will be applied in prod via `npx prisma migrate deploy` (see Ship Notes).
 
-**Acceptance:** `ls prisma/migrations/` shows exactly one new migration dir; `psql \d "EmailLog"` shows tenantId NOT NULL + FK; `psql \d "User"` shows tenantId NOT NULL; migration re-applies cleanly against a freshly reset dev DB.
+**Acceptance:** migration file exists with all 4 steps in order; `prisma validate` passes; schema + migration reviewed in the PR before `migrate deploy`.
 
 ### Task 3 — Wire tenantId into EmailLog write sites
 
@@ -112,10 +106,12 @@ Create the migration without auto-apply, hand-edit the SQL to insert backfill + 
 ## Implementation
 
 - Task 1+3: Schema hardening + EmailLog write-site wiring — `prisma/schema.prisma`, `prisma/seed.ts`, `app/api/payroll/[id]/send-slips/route.ts` — added `EmailLog.tenantId` (required, FK, indexed) with `Tenant.emailLogs` back-reference; `User.tenantId` now required; `FeeComponentDef.status` added with `@@index([tenantId, status])`; `@@index([tenantId])` added to `Role`, `Program`, `AcademicYear`, `Holiday`; `SalaryComponentDef` got `@@index([tenantId])` + `@@index([tenantId, isEnabled])`; 3 EmailLog write sites now pass explicit `tenantId` to `emailLog.create`.
+- Task 2: Migration — `prisma/migrations/20260421124312_tenant_isolation_hardening/migration.sql` (hand-authored, 4 steps) + `prisma/migrations/migration_lock.toml` (new).
 
 ## Verification
 
 - Task 1+3: `npx prisma validate` ✓, `npm run build` ✓, `npx vitest run` ✓ (157 tests passed, 18 files). No migration applied at this point — Task 2 owns that step.
+- Task 2: `npx prisma validate` ✓, `npx prisma generate` ✓. Migration not applied in worktree (no shadow DB; prod applies via `migrate deploy`).
 
 ## Ship Notes
 
