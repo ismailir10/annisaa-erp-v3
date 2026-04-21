@@ -2209,6 +2209,14 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 - Tests: `tests/student-journal/api-admin.test.ts` — 6 schema-contract assertions (create/update category + indicator, status filter, partial order bump) plus 6 `it.todo` entries for route-level behaviour (role 403, tenant scoping, cross-tenant 404 paths, rate-limit) to be wired into the shared API harness in T11.
 - Gates: `npm run build` green (new routes appear in the route list), `npx vitest run` green (106 passed + 6 todo across 12 files).
 
+### T4 — Teacher class-grid API (done)
+
+- `requireTeacherForClass(classSectionId)` added to `lib/student-journal/guards.ts`: authenticates TEACHER role, verifies `session.employeeId` exists, then checks `TeachingAssignment` keyed by `employeeId + classSectionId` with `classSection.tenantId = session.tenantId` cross-tenant guard (no `status` field on the model — row existence is the signal).
+- `GET /api/student-journal/class-grid?classSectionId=&date=`: returns `{ students, categories, entries }` — active enrollments sorted by name, SCHOOL-scope active categories with active indicators (via tenant template), and pre-existing entries for that class-day.
+- `POST /api/student-journal/entries/batch`: Zod-parses `entryBatchSchema`, rate-limits 30/60s per user, validates all indicator IDs are SCHOOL-scope + tenant-owned, validates all student IDs are actively enrolled in the class, then `$transaction` of per-entry `upsert` keyed on `@@unique([studentId, indicatorId, date, scope])`. `scope` hardcoded to `SCHOOL` — not accepted from client.
+- `tests/student-journal/api-teacher.test.ts`: 6 `it.todo` route stubs (T11 harness) + 8 concrete `entryBatchSchema` contract tests covering valid batch, empty entries, missing fields, malformed date, non-boolean `checked`.
+- Gates: `npm run build` + `npx vitest run` green.
+
 ---
 
 ## Verification
