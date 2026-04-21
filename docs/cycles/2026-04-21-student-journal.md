@@ -2251,6 +2251,15 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 - `tests/student-journal/api-teacher-week-notes.test.ts`: 8 `it.todo` route stubs (T11 harness) across three describe blocks (week route, notes POST, notes PUT). 12 concrete Zod contract tests for `noteBodySchema` (valid, empty body, >2000 chars, exactly 2000, missing date, malformed date, missing studentId, empty studentId) and `noteUpdateSchema` (valid, empty body, >2000 chars, missing body field). All green.
 - Gates: `npm run build` green (new routes in build manifest: `/api/student-journal/students/[id]/week`, `/api/student-journal/notes`, `/api/student-journal/notes/[id]`, `/teacher/student-journal/students/[id]`), `npx vitest run` green.
 
+### T9 — Admin monitoring + class roll-up (done)
+
+- `GET /api/student-journal/admin/classes?weekStart=`: admin-gated (`requireAdmin()`). Fetches all active `ClassSection` rows for the tenant joined with `Program.name`. Counts active `StudentEnrollment` per class via `groupBy`. Counts `checked=true` SCHOOL entries for the week per class via `groupBy`. Retrieves `MAX(updatedAt)` per class for `lastFilledAt`. Active SCHOOL indicator count is computed once via `StudentJournalIndicator.count` through the tenant template. `completionPct = round(checkedCount / (studentCount × indicatorCount × 5) × 100)`, 0 when denominator is 0. Sorted by `className asc`.
+- `GET /api/student-journal/admin/class-roll-up?classSectionId=&weekStart=`: admin-gated. Verifies `ClassSection.tenantId = session.tenantId` (404 if missing). Counts active SCHOOL indicators same way. Fetches active enrollments sorted by student name. Groups `checked=true` entries by `studentId` for the week. Returns `{ weekStart, dates, students: [{ studentId, name, checkedCount, totalCells }] }`.
+- `app/admin/student-journal/monitoring/page.tsx`: client component. `PageHeader` + week prev/next picker. 4 `StatCard`s (total entri, kelas sudah isi, siswa aktif, kelas belum isi). `DataTable` with columns: Kelas+Program, Siswa count, Kelengkapan (inline progress bar + %), Terakhir diisi, Lihat action → `/admin/student-journal/classes/[id]?weekStart=`. Skeleton loading; empty state for zero classes. No hard pagination — full list fits one page for a small PAUD/TKIT school.
+- `app/admin/student-journal/classes/[id]/page.tsx`: client component. `useSearchParams` for weekStart default. Back link to `/admin/student-journal/monitoring`. `PageHeader` with class name (fetched from `/admin/classes`). Week prev/next picker updates URL via `router.replace` (no full reload). Card list of students with per-row `CompletionBar` (checked/total) and a Lihat → `/admin/student-journal/students/[id]?weekStart=` button (target built in T10). Skeleton loading; empty state for no enrollments.
+- `tests/student-journal/api-admin-monitoring.test.ts`: 8 `it.todo` entries covering auth (401, 403), tenant isolation, completionPct edge case, roll-up 404.
+- Gates: `npm run build` + `npx vitest run` green.
+
 ---
 
 ## Verification
