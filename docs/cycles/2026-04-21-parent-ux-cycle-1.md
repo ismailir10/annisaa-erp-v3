@@ -149,6 +149,37 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T9: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T10: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T11: standards doc edit; `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
+- End-of-cycle gate: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total); `npx playwright test e2e/parent.spec.ts` → 6 passed + 1 flaky (Penghubung tab wait; retry passed, not a regression — same test marked flaky in prior cycles per e2e output); total 7/7 effective.
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Migrations:** none.
+
+**New env vars:** none.
+
+**New runtime deps:** none.
+
+**Behaviour changes parents will see on staging:**
+- Dashboard Tagihan quick-link shows "Sisa" label above the rupiah amount.
+- Child selector (dashboard + invoices + journal), invoice filter all scroll horizontally with edge fade and full labels — no mid-word truncation.
+- Dashboard child-selector pills no longer show the avatar initial circle (trade-off; raise cycle 2 if the label-only look reads flat in real use).
+- Rapor detail opens as a bottom sheet on phones (was right drawer with blurred-list leak).
+- Rapor detail shows a skeleton immediately instead of a blank sheet on 4G.
+- Invoices list cold-load shows a layout-matching skeleton (bottom-nav stays put during load).
+- Header logout screen-reader announcement: "Keluar".
+- Label text across the portal is a minimum of 12 px (was 10 px in 12+ places).
+
+**Manual smoke-test on preview URL (suggested, 5 min):**
+1. Open `/parent` on a 375 px emulator. Confirm dashboard renders with "Sisa Rp xxx" under Tagihan card.
+2. With 2+ seeded children, confirm child selector tabs auto-centre the active tab and scroll horizontally.
+3. Open `/parent/invoices`. Confirm "Dibayar Sebagian" tab label fully visible.
+4. Open `/parent/reports` → tap "Lihat" on any report. Confirm sheet slides in from the bottom and fills ~95 % of screen.
+5. Open `/parent/student-journal`. Confirm child pills scroll horizontally, not wrap.
+6. Resize window to ≥1024 px, re-open a report → confirm desktop drawer still slides from the right.
+
+**Rollback plan:** revert the `feat/parent-ux-cycle-1` merge commit on staging. All changes are client-side UI + a standards doc — no DB or API state to unwind.
+
+**Cycle 2 follow-ups queued:**
+- Teacher portal adopts `PortalTabs` + text-size rule (mechanical sweep).
+- PortalTabs `leading` slot (optional icon/avatar) so `child-selector-tabs` can restore the initial circle if real users miss it.
+- Friction-tier findings from 2026-04-21 audit (dead-end "Lihat" CTA, vague "sedang disiapkan" copy, assessment grader metadata, retry affordance).
