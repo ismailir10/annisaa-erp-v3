@@ -150,6 +150,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T10: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T11: standards doc edit; `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - End-of-cycle gate: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total); `npx playwright test e2e/parent.spec.ts` → 6 passed + 1 flaky (Penghubung tab wait; retry passed, not a regression — same test marked flaky in prior cycles per e2e output); total 7/7 effective.
+- CI fix after PR open: `npx tsc --noEmit` caught missing `beforeAll` import in `components/portal/__tests__/portal-tabs.test.tsx` (TS2304) — CI job "Lint, Typecheck & Test" failed on this. Added import + dropped one unused `container` destructure in `app/parent/invoices/__tests__/client.test.tsx`. Local re-run: `npx tsc --noEmit` clean, `npm run lint` 0 errors 7 warnings (all pre-existing), `npx vitest run` 222/222. Local typecheck now matches `npm run build`'s typecheck behaviour — worth adding a `npm run typecheck` script to the gate in future.
 
 ## Ship Notes
 

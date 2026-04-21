@@ -360,7 +360,7 @@ describe("InvoicesClient", () => {
     });
 
     it("has correct component hierarchy", () => {
-      const { container } = render(<InvoicesClient data={mockInvoices} />);
+      render(<InvoicesClient data={mockInvoices} />);
 
       // Page title should be present
       expect(screen.getByText("Tagihan Saya")).toBeInTheDocument();
