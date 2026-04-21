@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, BookHeart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { PortalTabs } from "@/components/portal/portal-tabs";
 import { WeekGrid } from "@/components/student-journal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
@@ -151,22 +152,13 @@ export default function ParentStudentJournalPage() {
 
       {/* Child selector (only shown when 2+ children) */}
       {children.length > 1 && (
-        <div className="flex gap-2 flex-wrap">
-          {children.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setChildId(c.id)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                c.id === childId
-                  ? "border-primary bg-primary/10 text-primary font-medium"
-                  : "border-border text-muted-foreground"
-              }`}
-            >
-              {c.nickname ?? c.name}
-            </button>
-          ))}
-        </div>
+        <PortalTabs
+          items={children.map((c) => ({ id: c.id, label: c.nickname ?? c.name }))}
+          activeId={childId ?? ""}
+          onSelect={setChildId}
+          variant="pills"
+          ariaLabel="Pilih anak"
+        />
       )}
 
       {/* Child info */}

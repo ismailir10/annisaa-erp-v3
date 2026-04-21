@@ -71,7 +71,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Keep counts. Use `PortalTabs` pills variant.
   - Acceptance: "Dibayar Sebagian" label fully visible (no ellipsis) at 375 px.
 
-- [ ] **T4 — Refactor student-journal child pills onto `PortalTabs`. Dep: T1.**
+- [x] **T4 — Refactor student-journal child pills onto `PortalTabs`. Dep: T1.**
   - File: `app/parent/student-journal/page.tsx` (pills block only).
   - Replace inline flex pills with `PortalTabs`.
   - Acceptance: 3 children render without forced horizontal scroll; scroll affordance visible when list wider than viewport.
@@ -127,12 +127,14 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T1: `components/portal/portal-tabs.tsx` + `components/portal/__tests__/portal-tabs.test.tsx` — controlled horizontal tab bar with roving tabindex, edge-fade mask, auto-scroll-into-view, pills + underline variants, badge count, secondary label. Code review flagged redundant `setFocusId` in onClick, mask clipping first-tab focus ring, and missing Home/End + ArrowLeft-wrap + badge tests; all three fixed before commit.
 - T2: `components/parent/child-selector-tabs.tsx` — swapped bespoke Link pill row for `PortalTabs`; nav via `useRouter().push()` preserves `?child=` + other params. Known trade-off: avatar circle with initial letter removed (PortalTabs has no leading-slot API this cycle); secondary class-name now `text-xs` via PortalTabs (was `text-[10px]`). Avatar restoration → cycle 2 if needed.
 - T3: `components/parent/invoice-filter.tsx` + `app/parent/invoices/__tests__/client.test.tsx` + `vitest.setup.ts`. Filter refactored to PortalTabs (pills variant, count badges); sticky wrapper preserved. "Dibayar Sebagian" no longer truncates at 375 px. Test selectors migrated from button+aria-label to role=tab+aria-selected to match new a11y contract. Global `scrollIntoView` stub added to vitest setup so any PortalTabs consumer test runs without local stub.
+- T4: `app/parent/student-journal/page.tsx` — child-selector pills replaced with PortalTabs; horizontal scroll + edge fade replace previous `flex-wrap`. `childId ?? ""` guard for nullable activeId (render still gated by `children.length > 1`).
 
 ## Verification
 
 - T1: `npm run build` green; `npx vitest run components/portal` → 7 passed / 7 total. Manual check: component file holds no `text-[10px]`/`text-[11px]`; controlled API only (no internal `activeId`); edge-fade mask preserves focus ring clearance.
 - T2: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Manual check: `grep -n 'text-\[10px\]' components/parent/child-selector-tabs.tsx` → no matches.
 - T3: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Test selectors updated to tab role; scrollIntoView global stub keeps jsdom-based tests clean for all PortalTabs consumers.
+- T4: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 
 ## Ship Notes
 <!-- filled by /ship -->
