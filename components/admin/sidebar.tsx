@@ -27,6 +27,7 @@ import {
 import {
   adminNav,
   getActiveGroup,
+  getActiveItem,
   isItemActive,
   type NavItem,
   type NavGroup,
@@ -39,11 +40,12 @@ function NavMenuItems({
   items: NavItem[];
   pathname: string;
 }) {
+  const activeItem = getActiveItem(pathname, items);
   return (
     <SidebarMenu>
       {items.map((item) => {
         const Icon = item.icon;
-        const active = isItemActive(pathname, item);
+        const active = item.href === activeItem?.href;
         return (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton

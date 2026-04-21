@@ -67,12 +67,21 @@ export const adminNav: NavConfig = {
       icon: GraduationCap,
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
+        { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
         { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
         { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
-        { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
         { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
+      ],
+    },
+    {
+      id: "learning",
+      label: "Penilaian",
+      icon: ClipboardList,
+      items: [
+        { label: "Template Penilaian", href: "/admin/assessments/templates", icon: ClipboardList },
+        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
       ],
     },
     {
@@ -82,15 +91,6 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Biaya", href: "/admin/fees", icon: Coins },
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
-      ],
-    },
-    {
-      id: "assessment",
-      label: "Penilaian",
-      icon: ClipboardList,
-      items: [
-        { label: "Template", href: "/admin/assessments/templates", icon: ClipboardList },
-        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
       ],
     },
   ],
@@ -117,6 +117,24 @@ export const adminNav: NavConfig = {
 export function isItemActive(pathname: string, item: NavItem): boolean {
   if (item.matchExact) return pathname === item.href;
   return pathname === item.href || pathname.startsWith(item.href + "/");
+}
+
+/**
+ * Returns the single best-matching item from `items` for `pathname`.
+ * When multiple items match (e.g. parent /admin/assessments + child
+ * /admin/assessments/templates), the longer href wins. Prevents both
+ * siblings from rendering as active when one is a prefix of the other.
+ */
+export function getActiveItem(
+  pathname: string,
+  items: NavItem[]
+): NavItem | null {
+  let best: NavItem | null = null;
+  for (const item of items) {
+    if (!isItemActive(pathname, item)) continue;
+    if (!best || item.href.length > best.href.length) best = item;
+  }
+  return best;
 }
 
 export function getActiveGroup(
