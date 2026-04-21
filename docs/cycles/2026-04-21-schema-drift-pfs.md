@@ -68,7 +68,7 @@
 - `npx vitest run` → `25 passed | 2 skipped · 215 passed | 42 todo` (100% of active tests green).
 - `npm run build` → `✓ Compiled successfully` (Next 16.2.3 / Turbopack).
 - Migration not yet applied against staging — intentional. `migrate deploy` will run on next staging deploy (via `scripts/vercel-build.sh`); idempotent guards mean it is safe even though staging already has the columns.
-- Playwright not run (fast-loop cycle, no UI changes).
+- `npx playwright test` (end-of-cycle gate, pre-`/ship`): 37 passed, 1 skipped (`invoice void flips status to CANCELLED` — pre-existing demo skip).
 
 ## Ship Notes
 
