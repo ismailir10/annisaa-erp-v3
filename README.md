@@ -129,6 +129,7 @@ Three portals, three roles.
 - **Student attendance history tab (2026-04-16)**: new Kehadiran tab on `/admin/students/[id]` with month filter and 4 stat cards — see [`docs/cycles/2026-04-16-crud-audit-t13.md`](docs/cycles/2026-04-16-crud-audit-t13.md)
 - **Role split: SUPER_ADMIN + SCHOOL_ADMIN (2026-04-16)**: salary/payroll protected behind SUPER_ADMIN; SCHOOL_ADMIN gets full HR access minus compensation data — see [`docs/cycles/2026-04-16-role-split.md`](docs/cycles/2026-04-16-role-split.md)
 - **Student & Guardian CRUD completion (2026-04-16)**: Tambah Siswa dialog, Edit + Deactivate row actions on list page, INACTIVE status support, StudentGuardian soft-delete (status field + migration), standalone `/api/guardians/[id]` PUT+PATCH — see [`docs/cycles/2026-04-16-student-crud-sweep.md`](docs/cycles/2026-04-16-student-crud-sweep.md)
+- **Student Journal (Buku Penghubung) — schema + validations (2026-04-21, T1 in progress)**: Phase 8 Prisma models (`StudentJournalTemplate/Category/Indicator/Entry/Note/Audit`), Zod schemas, weekStart/weekDates helpers — see [`docs/cycles/2026-04-21-student-journal.md`](docs/cycles/2026-04-21-student-journal.md)
 
 **In progress:**
 - CRUD completion: add edit + deactivate to remaining 10 partial entities (target: 100%)

@@ -2176,7 +2176,13 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 
 ## Implementation
 
-_To be filled by `/build` task-by-task._
+### T1 — Schema + validations (done)
+
+- Added Phase 8 Prisma models to `prisma/schema.prisma`: `StudentJournalTemplate`, `StudentJournalCategory`, `StudentJournalIndicator`, `StudentJournalEntry`, `StudentJournalNote`, `StudentJournalAudit` — all use `String` status/scope per repo convention (no Postgres enums).
+- Zod schemas in `lib/validations/student-journal.ts` for category/indicator CRUD, class-grid batch writes, home-scope batch writes, notes, and admin single-entry edits. Indonesian error messages; date validated as strict `YYYY-MM-DD`.
+- Week helpers in `lib/student-journal/week.ts` (`weekStart`, `weekDates`) — UTC-based ISO Monday pivot, Mon–Fri span.
+- Tests: `tests/student-journal/validations.test.ts` (6 cases), `tests/student-journal/week.test.ts` (4 cases). All green in full suite (11 files / 100 tests passing).
+- Migration SQL generated via `prisma migrate diff` at `prisma/migrations/20260421000000_student_journal/migration.sql`. NOT applied to the hosted DB — migrate dev blocked on Supabase pooler (migrations require direct connection). Application will happen via staging CI / `/ship`.
 
 ---
 
