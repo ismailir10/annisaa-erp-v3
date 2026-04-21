@@ -38,7 +38,10 @@ Sidebar rendered `isActive = isItemActive(pathname, item)` per item. `isItemActi
 
 - `npm run build` — pass
 - `npx vitest run` — 164/164 pass (original 157 + 7 new nav tests)
-- Preview server could not start in worktree (npm `uv_cwd` EPERM inside symlinked `.claude/worktrees/...`). Browser verification deferred to staging deploy; logic covered by unit tests asserting exact highlight behaviour on the three problem paths (`/admin/assessments`, `/admin/assessments/templates`, `/admin/assessments/scores`).
+- `npx playwright test` — 17/27 pass. 10 failures are **pre-existing and unrelated** to this change:
+  - 5 × `e2e/admin-school-admin.spec.ts` (SCHOOL_ADMIN role restrictions) — same failures on prior cycle (`2026-04-21-fix-admin-nav-bugs`)
+  - 5 × `e2e/parent.spec.ts` (demo-mode parent session) — confirmed failing on `HEAD~1` (pre-my-commit) on the same env
+- Preview server could not start inside symlinked worktree (npm `uv_cwd` EPERM). Logic covered by 7 unit tests asserting exact highlight on the three problem paths (`/admin/assessments`, `/admin/assessments/templates`, `/admin/assessments/scores`).
 
 ## Ship Notes
 
