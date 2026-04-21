@@ -51,6 +51,7 @@ describe("adminNav IA — ordering + grouping", () => {
       "Penempatan",
       "Guru Pengajar",
       "Kehadiran Siswa",
+      "Buku Penghubung",
     ]);
   });
 

@@ -667,6 +667,102 @@ model StudentAttendance {
 }
 
 // ══════════════════════════════════════════════════════════════
+// PHASE 8: Student Journal (Buku Penghubung)
+// ══════════════════════════════════════════════════════════════
+
+model StudentJournalTemplate {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique
+  academicYearId String?
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  categories StudentJournalCategory[]
+}
+
+model StudentJournalCategory {
+  id         String   @id @default(cuid())
+  templateId String
+  scope      String // SCHOOL | HOME
+  name       String
+  order      Int      @default(0)
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  template   StudentJournalTemplate    @relation(fields: [templateId], references: [id])
+  indicators StudentJournalIndicator[]
+
+  @@index([templateId, scope, status])
+}
+
+model StudentJournalIndicator {
+  id         String   @id @default(cuid())
+  categoryId String
+  label      String
+  order      Int      @default(0)
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category StudentJournalCategory @relation(fields: [categoryId], references: [id])
+  entries  StudentJournalEntry[]
+
+  @@index([categoryId, status])
+}
+
+model StudentJournalEntry {
+  id               String   @id @default(cuid())
+  tenantId         String
+  studentId        String
+  classSectionId   String?
+  indicatorId      String
+  date             String
+  scope            String
+  checked          Boolean
+  recordedByUserId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  indicator StudentJournalIndicator @relation(fields: [indicatorId], references: [id])
+
+  @@unique([studentId, indicatorId, date, scope])
+  @@index([tenantId, classSectionId, date])
+  @@index([tenantId, studentId, date])
+}
+
+model StudentJournalNote {
+  id           String   @id @default(cuid())
+  tenantId     String
+  studentId    String
+  date         String
+  authorUserId String
+  authorRole   String
+  body         String   @db.Text
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId, studentId, date])
+}
+
+model StudentJournalAudit {
+  id              String   @id @default(cuid())
+  tenantId        String
+  entityType      String // ENTRY | NOTE
+  entityId        String
+  action          String // CREATE | UPDATE | DELETE
+  beforeJson      Json?
+  afterJson       Json?
+  changedByUserId String
+  changedAt       DateTime @default(now())
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, changedAt])
+}
+
+// ══════════════════════════════════════════════════════════════
 // PHASE 7: Report Cards / Assessments
 // ══════════════════════════════════════════════════════════════
 
