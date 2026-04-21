@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Eye } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const SCORE_LABELS: Record<string, { label: string; color: string }> = {
   BB: { label: "Belum Berkembang", color: "text-destructive" },
@@ -47,6 +48,7 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
   const [detail, setDetail] = useState<AssessmentDetail | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   // Fetch detail when sheet opens with a new id — same pattern as invoice-detail-sheet
   if (selectedId && selectedId !== prevSelectedId) {
@@ -120,7 +122,14 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
       </div>
 
       <Sheet open={!!selectedId} onOpenChange={() => setSelectedId(null)}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={
+            isMobile
+              ? "h-[95dvh] rounded-t-2xl overflow-y-auto"
+              : "w-full sm:max-w-md overflow-y-auto"
+          }
+        >
           {loadingId ? (
             <div className="space-y-4 mt-4">
               <Skeleton className="h-6 w-3/4" />

@@ -87,7 +87,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Add `<span className="text-xs text-muted-foreground">Sisa</span>` above the rupiah amount. Hide label when `totalUnpaid === 0`.
   - Acceptance: screenshot shows "Sisa · Rp 3.000.000" pair, amount colour unchanged.
 
-- [ ] **T7 — Rapor detail sheet mobile fullscreen. Independent.**
+- [x] **T7 — Rapor detail sheet mobile fullscreen. Independent.**
   - File: `app/parent/assessments-table.tsx` (Sheet block).
   - Use `<Sheet><SheetContent side="bottom" className="h-[95dvh] rounded-t-2xl md:h-auto md:max-w-xl md:rounded-xl">`. Keep desktop side="right" behaviour via `md:` reset or conditional.
   - Acceptance: at 375 px the sheet covers 95 % of screen from bottom, no blurred list leak; at 1024 px the sheet renders as existing right-side drawer.
@@ -130,6 +130,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T4: `app/parent/student-journal/page.tsx` — child-selector pills replaced with PortalTabs; horizontal scroll + edge fade replace previous `flex-wrap`. `childId ?? ""` guard for nullable activeId (render still gated by `children.length > 1`).
 - T5: text-size sweep across 7 files (page.tsx, unpaid-invoices-table, assessments-table, invoices/client, invoices/invoice-detail-sheet, bottom-nav, invoice-card). Every `text-[10px]`/`text-[11px]` → `text-xs`. Bottom-nav adjusted (`px-1`, `flex-1 min-w-0`, `truncate`) to keep 5 labels on one line at 375 px after the 20 % size bump. Post-sweep grep returns zero matches in `app/parent`, `components/parent`, `components/portal`.
 - T6: `app/parent/page.tsx` — Tagihan quick-link Card now renders "Sisa" muted label above rupiah amount when `totalUnpaid > 0`; amount colour stays `text-destructive`. Disambiguates "what is this number". Inline edit (2-line change) — subagent overhead disproportionate.
+- T7: `app/parent/assessments-table.tsx` — rapor detail sheet reads `useIsMobile()` (existing hook at `hooks/use-mobile.ts`, matches `<768px`); mobile → `side="bottom" h-[95dvh] rounded-t-2xl`, desktop → existing `side="right" w-full sm:max-w-md`. Radix animates correctly per side instead of fighting responsive overrides.
 
 ## Verification
 
@@ -139,6 +140,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T4: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
 - T5: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Grep zero.
 - T6: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total).
+- T7: `npm run build` green; `npx vitest run` → 222 passed / 42 todo / 2 skipped (264 total). Manual Playwright smoke at end-of-cycle will verify the bottom vs right drawer split.
 
 ## Ship Notes
 <!-- filled by /ship -->
