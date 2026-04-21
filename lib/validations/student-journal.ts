@@ -46,7 +46,7 @@ export const noteBodySchema = z.object({
   body: z.string().min(1, "Catatan kosong").max(2000, "Catatan maksimal 2000 karakter"),
 });
 export const noteUpdateSchema = z.object({
-  body: z.string().min(1).max(2000),
+  body: z.string().min(1, "Catatan kosong").max(2000, "Catatan maksimal 2000 karakter"),
 });
 
 export const adminEntryUpdateSchema = z.object({

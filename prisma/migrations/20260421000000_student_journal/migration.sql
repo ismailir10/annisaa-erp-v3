@@ -89,9 +89,6 @@ CREATE TABLE "StudentJournalAudit" (
 CREATE UNIQUE INDEX "StudentJournalTemplate_tenantId_key" ON "StudentJournalTemplate"("tenantId");
 
 -- CreateIndex
-CREATE INDEX "StudentJournalTemplate_tenantId_idx" ON "StudentJournalTemplate"("tenantId");
-
--- CreateIndex
 CREATE INDEX "StudentJournalCategory_templateId_scope_status_idx" ON "StudentJournalCategory"("templateId", "scope", "status");
 
 -- CreateIndex

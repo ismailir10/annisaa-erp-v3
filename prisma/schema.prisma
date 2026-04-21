@@ -661,8 +661,6 @@ model StudentJournalTemplate {
   updatedAt      DateTime @updatedAt
 
   categories StudentJournalCategory[]
-
-  @@index([tenantId])
 }
 
 model StudentJournalCategory {
