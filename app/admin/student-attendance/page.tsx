@@ -37,6 +37,7 @@ import {
   CalendarX,
   Heart,
   Info,
+  Pencil,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -78,10 +79,10 @@ export default function StudentAttendancePage() {
   const [dateTo, setDateTo] = useState("");
   const [stats, setStats] = useState({ present: 0, absent: 0, sick: 0, permission: 0 });
 
-  // Edit dialog
-  const [editTarget, setEditTarget] = useState<AttendanceRecord | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ status: "PRESENT", notes: "" });
+  // Override dialog (Category C — event-log override, not a destructive edit)
+  const [overrideTarget, setOverrideTarget] = useState<AttendanceRecord | null>(null);
+  const [overriding, setOverriding] = useState(false);
+  const [overrideForm, setOverrideForm] = useState({ status: "PRESENT", notes: "" });
 
   // Void confirm
   const [voidTarget, setVoidTarget] = useState<AttendanceRecord | null>(null);
@@ -146,28 +147,28 @@ export default function StudentAttendancePage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  function openEdit(r: AttendanceRecord) {
-    setEditTarget(r);
-    setEditForm({ status: r.status, notes: r.notes ?? "" });
+  function openOverride(r: AttendanceRecord) {
+    setOverrideTarget(r);
+    setOverrideForm({ status: r.status, notes: r.notes ?? "" });
   }
 
-  async function handleEdit() {
-    if (!editTarget) return;
-    setEditing(true);
-    const res = await fetch(`/api/student-attendance/${editTarget.id}`, {
+  async function handleOverride() {
+    if (!overrideTarget) return;
+    setOverriding(true);
+    const res = await fetch(`/api/student-attendance/${overrideTarget.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: editForm.status, notes: editForm.notes || null }),
+      body: JSON.stringify({ status: overrideForm.status, notes: overrideForm.notes || null }),
     });
     if (res.ok) {
-      toast.success("Kehadiran berhasil diperbarui");
-      setEditTarget(null);
+      toast.success("Kehadiran berhasil di-override");
+      setOverrideTarget(null);
       fetchData();
     } else {
       const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal memperbarui");
+      toast.error(d.error || "Gagal meng-override");
     }
-    setEditing(false);
+    setOverriding(false);
   }
 
   async function handleVoid() {
@@ -237,7 +238,13 @@ export default function StudentAttendancePage() {
       id: "actions",
       cell: ({ row }) => (
         <DataTableRowActions
-          onEdit={() => openEdit(row.original)}
+          extraActions={[
+            {
+              label: "Override",
+              icon: <Pencil size={14} />,
+              onClick: () => openOverride(row.original),
+            },
+          ]}
           onVoid={() => setVoidTarget(row.original)}
         />
       ),
@@ -346,21 +353,21 @@ export default function StudentAttendancePage() {
         emptyDescription="Record kehadiran siswa akan tampil di sini setelah guru mencatat kehadiran."
       />
 
-      {/* ── Edit dialog ─────────────────────────────────────────── */}
-      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!editing && !o) setEditTarget(null); }}>
+      {/* ── Override dialog (Category C — event-log override) ─── */}
+      <Dialog open={!!overrideTarget} onOpenChange={(o) => { if (!overriding && !o) setOverrideTarget(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Kehadiran</DialogTitle>
+            <DialogTitle>Override Kehadiran</DialogTitle>
             <DialogDescription>
-              {editTarget?.student.name} — {editTarget?.date}
+              {overrideTarget?.student.name} — {overrideTarget?.date}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <Field>
               <FieldLabel>Status Kehadiran</FieldLabel>
               <Select
-                value={editForm.status}
-                onValueChange={(v) => setEditForm((f) => ({ ...f, status: v ?? f.status }))}
+                value={overrideForm.status}
+                onValueChange={(v) => setOverrideForm((f) => ({ ...f, status: v ?? f.status }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -376,8 +383,8 @@ export default function StudentAttendancePage() {
             <Field>
               <FieldLabel>Catatan (opsional)</FieldLabel>
               <Textarea
-                value={editForm.notes}
-                onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                value={overrideForm.notes}
+                onChange={(e) => setOverrideForm((f) => ({ ...f, notes: e.target.value }))}
                 placeholder="Catatan tambahan..."
                 rows={2}
               />
@@ -385,10 +392,10 @@ export default function StudentAttendancePage() {
           </div>
           <DialogFooter>
             <DialogClose>
-              <Button variant="outline" disabled={editing}>Batal</Button>
+              <Button variant="outline" disabled={overriding}>Batal</Button>
             </DialogClose>
-            <Button onClick={handleEdit} disabled={editing}>
-              {editing ? "Menyimpan..." : "Simpan"}
+            <Button onClick={handleOverride} disabled={overriding}>
+              {overriding ? "Menyimpan..." : "Simpan Override"}
             </Button>
           </DialogFooter>
         </DialogContent>

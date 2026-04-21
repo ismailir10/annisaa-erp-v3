@@ -170,6 +170,45 @@ test.describe("Admin flows", () => {
     });
   });
 
+  test("student-attendance override updates status; void flips isVoided and hides row", async ({ page }) => {
+    const list = await page.request.get("/api/student-attendance?mode=list&pageSize=100");
+    const json = await list.json();
+    const target = (json.data as Array<{ id: string; status: string; notes: string | null }> | undefined)?.[0];
+    if (!target) {
+      test.skip(true, "No student-attendance record available");
+      return;
+    }
+
+    // Flip status via override (PUT) — pick a different status than current
+    const nextStatus = target.status === "PRESENT" ? "SICK" : "PRESENT";
+    const put = await page.request.put(`/api/student-attendance/${target.id}`, {
+      data: { status: nextStatus, notes: "e2e override" },
+    });
+    expect(put.ok()).toBeTruthy();
+    const putJson = await put.json();
+    expect(putJson.status).toBe(nextStatus);
+
+    // Restore original status/notes so subsequent runs stay idempotent
+    await page.request.put(`/api/student-attendance/${target.id}`, {
+      data: { status: target.status, notes: target.notes },
+    });
+
+    // Void (DELETE) — should flip isVoided and hide from list
+    const del = await page.request.delete(`/api/student-attendance/${target.id}`);
+    expect(del.ok()).toBeTruthy();
+
+    const after = await page.request.get("/api/student-attendance?mode=list&pageSize=100");
+    const afterJson = await after.json();
+    const stillVisible = (afterJson.data as Array<{ id: string }> | undefined)
+      ?.find(r => r.id === target.id);
+    expect(stillVisible).toBeUndefined();
+
+    // Un-void directly via prisma is not available here; record stays voided.
+    // Idempotency: the next run picks a different first record (page size 100
+    // surfaces plenty of alternates), and a voided record is a realistic state
+    // for the list to handle.
+  });
+
   test("payroll detail shows employee lines", async ({ page }) => {
     await page.goto("/admin/payroll");
     const payrollLink = page.locator("a[href*='/admin/payroll/']").first();
