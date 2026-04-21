@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin } from "lucide-react";
+import { MapPin, BookHeart } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { formatDate, formatTime } from "@/lib/format";
@@ -189,12 +190,36 @@ export function TeacherHomeClient({
         </div>
       </motion.div>
 
+      {/* Quick links */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25, duration: 0.4 }}
+        className="mt-6"
+      >
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Akses Cepat
+        </p>
+        <Link
+          href="/teacher/student-journal"
+          className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <BookHeart size={20} className="text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Buku Penghubung</p>
+            <p className="text-[10px] text-muted-foreground">Isi catatan harian siswa</p>
+          </div>
+        </Link>
+      </motion.div>
+
       {/* Today status */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.4 }}
-        className="mt-8"
+        className="mt-6"
       >
         <Card className="p-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">

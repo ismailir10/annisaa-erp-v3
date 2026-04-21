@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CalendarDays, Wallet, School } from "lucide-react";
+import { Home, CalendarDays, Wallet, School, BookHeart } from "lucide-react";
 import { motion } from "framer-motion";
 
 const tabs = [
   { label: "Beranda", href: "/teacher", icon: Home },
   { label: "Kehadiran", href: "/teacher/attendance", icon: CalendarDays },
   { label: "Kelas", href: "/teacher/class-attendance", icon: School },
+  { label: "Penghubung", href: "/teacher/student-journal", icon: BookHeart },
   { label: "Gaji", href: "/teacher/slips", icon: Wallet },
 ];
 

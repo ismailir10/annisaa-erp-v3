@@ -2217,6 +2217,15 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 - `tests/student-journal/api-teacher.test.ts`: 6 `it.todo` route stubs (T11 harness) + 8 concrete `entryBatchSchema` contract tests covering valid batch, empty entries, missing fields, malformed date, non-boolean `checked`.
 - Gates: `npm run build` + `npx vitest run` green.
 
+### T5 — Teacher entry UI (done)
+
+- `components/student-journal/class-day-grid.tsx`: expandable per-student card (tap name → indicator list per category), each indicator row is a `<button>` min-height 44px with `bg-primary/10 border-primary` checked state and a circular check icon; props `{ students, categories, state, onToggle }`. No hardcoded hex — only CSS variables.
+- `app/teacher/student-journal/page.tsx`: picker page (`max-w-md mx-auto`, `Field` + `Select` for class, `Input[type=date]` max=today, CTA "Isi Penghubung" routes to entry page). Fetches classes from `/api/teaching-assignments/my`. Skeleton loading + `EmptyState` for unassigned teachers.
+- `app/teacher/student-journal/entry/page.tsx`: reads `classId` + `date` from `useSearchParams`, fetches class-grid data, builds `Record<studentId, Record<indicatorId, boolean>>` state from pre-filled entries, renders `<ClassDayGrid>`, sticky save bar (fixed, `safe-area-bottom`) calls `POST /api/student-journal/entries/batch`, shows `toast.success("Tersimpan — N entri")` on success.
+- `components/teacher/bottom-nav.tsx`: added "Penghubung" tab (`BookHeart` icon, href `/teacher/student-journal`) between Kelas and Gaji — 5 tabs total, same Framer Motion `layoutId` active indicator pattern.
+- `app/teacher/home-client.tsx`: added "Akses Cepat" section above "Status Hari Ini" with a Buku Penghubung link card (`BookHeart` icon + `bg-primary/10` background, "Isi catatan harian siswa" subtitle).
+- Gates: `npm run build` green (new routes `/teacher/student-journal` and `/teacher/student-journal/entry` in build manifest), `npx vitest run` green (114 passed / 12 todo).
+
 ### T7 — Parent API + Sekolah UI (done)
 
 - `requireGuardianForStudent(studentId)` appended to `lib/student-journal/guards.ts`: asserts GUARDIAN role, resolves `User.parentId` via `prisma.user.findUnique`, then checks `StudentGuardian` row keyed on `{ studentId, parentId, status: "ACTIVE" }`. Cross-tenant safety relies on the tenantId check in session + StudentGuardian row existence.
