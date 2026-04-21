@@ -290,4 +290,38 @@ test.describe("Admin flows", () => {
       data: { role: target.role },
     });
   });
+
+  test("admission status transitions follow the state machine", async ({ page }) => {
+    // Find an INQUIRY admission to exercise the happy-path + illegal-jump guard
+    const list = await page.request.get("/api/admissions?status=INQUIRY&pageSize=1");
+    expect(list.ok()).toBeTruthy();
+    const json = await list.json();
+    const target = json.data?.[0] as { id: string; status: string } | undefined;
+    if (!target) {
+      test.skip(true, "No INQUIRY admission available");
+      return;
+    }
+
+    // Happy-path: INQUIRY → VISIT_SCHEDULED is allowed
+    const advance = await page.request.put(`/api/admissions/${target.id}`, {
+      data: { status: "VISIT_SCHEDULED" },
+    });
+    expect(advance.ok()).toBeTruthy();
+    const advanced = await advance.json();
+    expect(advanced.status).toBe("VISIT_SCHEDULED");
+
+    // Negative: VISIT_SCHEDULED → REGISTERED skips states and must return 400
+    const skip = await page.request.put(`/api/admissions/${target.id}`, {
+      data: { status: "REGISTERED" },
+    });
+    expect(skip.status()).toBe(400);
+    const skipJson = await skip.json();
+    expect(String(skipJson.error)).toMatch(/Invalid status transition/i);
+
+    // Restore original status so subsequent runs stay idempotent.
+    // INQUIRY is not in allowed[VISIT_SCHEDULED], so we go VISIT_SCHEDULED → CANCELLED
+    // only as a last resort; prefer idempotent restore via direct DB is unavailable.
+    // Instead, leave the row at VISIT_SCHEDULED — the test seeks "an INQUIRY row"
+    // and the seed ships multiple; subsequent runs will pick the next INQUIRY row.
+  });
 });

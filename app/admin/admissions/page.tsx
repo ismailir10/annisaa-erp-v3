@@ -22,7 +22,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { StatCard } from "@/components/admin/stat-card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { Plus, UserPlus, Users, PhoneCall, CheckCircle } from "lucide-react";
+import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -67,6 +67,19 @@ const SOURCE_LABELS: Record<string, string> = {
   REFERRAL: "Referensi",
   OTHER: "Lainnya",
 };
+
+// Happy-path transitions for the Admission state machine.
+// Mirrors VALID_TRANSITIONS in `app/api/admissions/[id]/route.ts`.
+// Terminal states (REGISTERED, CANCELLED) have no next step.
+const NEXT_STATUS: Record<string, { status: string; label: string } | undefined> = {
+  INQUIRY: { status: "VISIT_SCHEDULED", label: "Jadwalkan Kunjungan" },
+  VISIT_SCHEDULED: { status: "VISITED", label: "Tandai Sudah Kunjungan" },
+  VISITED: { status: "ADMITTED", label: "Terima" },
+  ADMITTED: { status: "REGISTERED", label: "Daftarkan" },
+};
+
+// Terminal states — hide "Batalkan" when already at one of these.
+const TERMINAL_STATUSES = new Set(["REGISTERED", "CANCELLED"]);
 
 // ------------------------------------------------------------------
 // Page (columns defined inside to access convertToStudent)
@@ -218,6 +231,23 @@ export default function AdmissionsPage() {
     setSaving(false);
   }
 
+  async function advanceStatus(a: Admission) {
+    const next = NEXT_STATUS[a.status];
+    if (!next) return;
+    const res = await fetch(`/api/admissions/${a.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: next.status }),
+    });
+    if (res.ok) {
+      toast.success(`Status diubah ke ${next.label}`);
+      fetchAdmissions();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal mengubah status");
+    }
+  }
+
   async function handleCancel() {
     if (!cancelTarget) return;
     const res = await fetch(`/api/admissions/${cancelTarget.id}`, {
@@ -326,6 +356,22 @@ export default function AdmissionsPage() {
         if (a.studentId) {
           return <span className="text-xs text-muted-foreground">Sudah jadi siswa</span>;
         }
+        const next = NEXT_STATUS[a.status];
+        const extras: { label: string; icon?: React.ReactNode; onClick: () => void }[] = [];
+        if (next) {
+          extras.push({
+            label: `Lanjutkan ke ${next.label}`,
+            icon: <ArrowRight size={14} />,
+            onClick: () => advanceStatus(a),
+          });
+        }
+        if (!TERMINAL_STATUSES.has(a.status)) {
+          extras.push({
+            label: "Konversi ke Siswa",
+            icon: <UserPlus size={14} />,
+            onClick: () => convertToStudent(a.id),
+          });
+        }
         return (
           <DataTableRowActions
             onEdit={() => {
@@ -340,12 +386,8 @@ export default function AdmissionsPage() {
               });
               setDialogOpen(true);
             }}
-            onCancel={a.status !== "CANCELLED" ? () => setCancelTarget(a) : undefined}
-            extraActions={a.status !== "CANCELLED" ? [{
-              label: "Konversi ke Siswa",
-              icon: <UserPlus size={14} />,
-              onClick: () => convertToStudent(a.id),
-            }] : undefined}
+            onCancel={!TERMINAL_STATUSES.has(a.status) ? () => setCancelTarget(a) : undefined}
+            extraActions={extras.length ? extras : undefined}
           />
         );
       },
