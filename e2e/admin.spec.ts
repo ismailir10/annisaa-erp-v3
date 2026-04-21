@@ -324,4 +324,30 @@ test.describe("Admin flows", () => {
     // Instead, leave the row at VISIT_SCHEDULED — the test seeks "an INQUIRY row"
     // and the seed ships multiple; subsequent runs will pick the next INQUIRY row.
   });
+
+  test("invoice void flips status to CANCELLED", async ({ page }) => {
+    // Find a DRAFT or SENT invoice to void (server accepts either)
+    const list = await page.request.get("/api/invoices?status=DRAFT&pageSize=1");
+    expect(list.ok()).toBeTruthy();
+    const json = await list.json();
+    const target = json.data?.[0] as { id: string; status: string } | undefined;
+    if (!target) {
+      test.skip(true, "No DRAFT invoice available to void");
+      return;
+    }
+
+    const res = await page.request.post(`/api/invoices/${target.id}/void`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+
+    // Confirm the invoice is now CANCELLED
+    const detail = await page.request.get(`/api/invoices/${target.id}`);
+    expect(detail.ok()).toBeTruthy();
+    const detailJson = await detail.json();
+    expect(detailJson.status).toBe("CANCELLED");
+
+    // Void is non-reversible via API (matches T4 pattern — consumes head of DRAFT list
+    // across runs; seed ships enough DRAFT invoices that this is safe in practice).
+  });
 });

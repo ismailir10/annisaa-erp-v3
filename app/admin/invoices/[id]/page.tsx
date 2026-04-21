@@ -10,11 +10,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { ArrowLeft, CreditCard, Phone, Mail } from "lucide-react";
+import { ArrowLeft, Ban, CreditCard, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 
@@ -37,6 +38,8 @@ export default function InvoiceDetailPage() {
   const [payForm, setPayForm] = useState({ amount: "", method: "CASH", reference: "", notes: "" });
   const [paying, setPaying] = useState(false);
   const [creatingXendit, setCreatingXendit] = useState(false);
+  const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
+  const [voiding, setVoiding] = useState(false);
 
   const fetchInvoice = useCallback(async () => {
     const res = await fetch(`/api/invoices/${id}`);
@@ -81,12 +84,27 @@ export default function InvoiceDetailPage() {
     setCreatingXendit(false);
   }
 
+  async function handleVoidInvoice() {
+    setVoiding(true);
+    const res = await fetch(`/api/invoices/${id}/void`, { method: "POST" });
+    if (res.ok) {
+      toast.success("Tagihan dibatalkan");
+      setVoidConfirmOpen(false);
+      fetchInvoice();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal membatalkan tagihan");
+    }
+    setVoiding(false);
+  }
+
   if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-48" /><Skeleton className="h-8 w-64" /><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><Skeleton className="h-64 lg:col-span-2" /><div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-32" /></div></div></div>;
   if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia." />;
 
   const guardianEntry = invoice.student.guardians[0];
   const guardian = guardianEntry?.parent;
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
+  const canVoid = invoice.status === "DRAFT" || invoice.status === "SENT";
 
   return (
     <>
@@ -114,8 +132,29 @@ export default function InvoiceDetailPage() {
                 </Button>
               </>
             )}
+            {canVoid && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setVoidConfirmOpen(true)}
+                data-testid="invoice-void-btn"
+              >
+                <Ban size={14} className="mr-1" /> Batalkan Tagihan
+              </Button>
+            )}
           </div>
         }
+      />
+
+      {/* Void Confirmation */}
+      <ConfirmDialog
+        open={voidConfirmOpen}
+        onOpenChange={(o) => !voiding && setVoidConfirmOpen(o)}
+        title="Batalkan Tagihan"
+        description={`Batalkan tagihan ${invoice.invoiceNumber} untuk ${invoice.student.name}? Tindakan ini tidak dapat dikembalikan.`}
+        onConfirm={handleVoidInvoice}
+        confirmLabel={voiding ? "Membatalkan..." : "Ya, Batalkan"}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
