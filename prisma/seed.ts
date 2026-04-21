@@ -294,6 +294,63 @@ async function main() {
   }
   console.log(`✅ Students: ${studentCount} (with guardians & enrollments)`);
 
+  // ── 7b-5. STUDENT JOURNAL (Buku Penghubung) — idempotent defaults ──
+  const tmpl = await prisma.studentJournalTemplate.upsert({
+    where: { tenantId: tenant.id },
+    update: {},
+    create: { tenantId: tenant.id, status: "ACTIVE" },
+  });
+
+  const journalDefaults: Array<{ scope: "SCHOOL" | "HOME"; name: string; indicators: string[] }> = [
+    { scope: "SCHOOL", name: "Ibadah", indicators: [
+      "Tahfizul Qur'an", "Qiro'atul Qur'an", "Membawa Infaq", "Praktek Sholat Subuh Berjama'ah",
+    ]},
+    { scope: "SCHOOL", name: "Perilaku", indicators: [
+      "Datang di Sekolah tepat waktu",
+      "Berpakaian lengkap dan rapih",
+      "Patuh dan santun pada guru",
+      "Salam dan jabat tangan dengan guru",
+      "Membuang sampah pada tempatnya",
+      "Bersikap baik kepada teman",
+      "Berkata baik dan jujur",
+      "Tertib pada saat belajar",
+      "Membawa Buku Penghubung",
+    ]},
+    { scope: "SCHOOL", name: "Akademis", indicators: [
+      "Semangat mengikuti pelajaran", "Menyelesaikan tugas", "Merapihkan alat tulis",
+    ]},
+    { scope: "HOME", name: "Ibadah Rumah", indicators: [
+      "Sholat 5 waktu", "Mengaji / tilawah", "Doa harian",
+    ]},
+    { scope: "HOME", name: "Akhlak Rumah", indicators: [
+      "Membantu orang tua", "Berkata baik", "Merapihkan kamar", "Tidur tepat waktu",
+    ]},
+  ];
+
+  let journalCatCount = 0;
+  let journalIndCount = 0;
+  for (const [ci, cat] of journalDefaults.entries()) {
+    const existing = await prisma.studentJournalCategory.findFirst({
+      where: { templateId: tmpl.id, scope: cat.scope, name: cat.name },
+    });
+    const category = existing ?? await prisma.studentJournalCategory.create({
+      data: { templateId: tmpl.id, scope: cat.scope, name: cat.name, order: ci },
+    });
+    if (!existing) journalCatCount++;
+    for (const [ii, label] of cat.indicators.entries()) {
+      const existingInd = await prisma.studentJournalIndicator.findFirst({
+        where: { categoryId: category.id, label },
+      });
+      if (!existingInd) {
+        await prisma.studentJournalIndicator.create({
+          data: { categoryId: category.id, label, order: ii },
+        });
+        journalIndCount++;
+      }
+    }
+  }
+  console.log(`✅ Student journal template: ${journalCatCount} categories + ${journalIndCount} indicators upserted`);
+
   // ── 7c. TEACHING ASSIGNMENTS (link teachers to classes) ────
   // Map teachers by jabatan to classes
   const teacherClassMap: { empKode: string; classKey: string; role: string }[] = [

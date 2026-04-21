@@ -1,3 +1,7 @@
+// Runtime Prisma client — uses @prisma/adapter-pg against Supabase.
+// NOTE: prisma/seed.ts uses @prisma/adapter-libsql against a local file:dev.db
+// for local seeding; the seed is run manually (or via CI seed step) and does
+// not share this module's adapter. Keep both in sync when schema changes.
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

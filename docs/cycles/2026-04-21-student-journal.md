@@ -2185,6 +2185,13 @@ git commit -m "test(student-journal): E2E specs + perf smoke + docs update"
 - Migration SQL generated via `prisma migrate diff` at `prisma/migrations/20260421000000_student_journal/migration.sql`. NOT applied to the hosted DB — migrate dev blocked on Supabase pooler (migrations require direct connection). Application will happen via staging CI / `/ship`.
 - Code-review follow-up: dropped the redundant `@@index([tenantId])` on `StudentJournalTemplate` (already covered by `@unique`), and restored the Indonesian error messages on `noteUpdateSchema` to match `noteBodySchema`.
 
+### T2 — Seed defaults (done)
+
+- Extended `prisma/seed.ts` with an idempotent Student Journal block right after the students/guardians loop: upserts one `StudentJournalTemplate` per tenant, then `findFirst`-then-create guards for categories (keyed on `templateId + scope + name`) and indicators (keyed on `categoryId + label`).
+- Seeded defaults match the paper booklet: SCHOOL — Ibadah (4), Perilaku (9), Akademis (3); HOME — Ibadah Rumah (3), Akhlak Rumah (4). Order preserved via enumerated `order` fields.
+- Per-tenant log line reports how many categories + indicators were newly upserted so a second `prisma db seed` run prints zeros.
+- `prisma db seed` not executed against the hosted DB (tables not yet migrated — T1 note). `npm run build` + `npx vitest run` green to confirm TS compiles against the generated client.
+
 ---
 
 ## Verification
