@@ -9,6 +9,7 @@ import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
 import { Save, Users } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
+import { PageHeader } from "@/components/portal/page-header";
 
 type Student = {
   id: string;
@@ -124,7 +125,7 @@ export default function StudentJournalEntryPage() {
     }
 
     const { data } = await res.json();
-    toast.success(`Tersimpan — ${data.saved} entri`);
+    toast.success(`Catatan tersimpan · ${data.saved} entri`);
     setSaving(false);
   }
 
@@ -170,10 +171,7 @@ export default function StudentJournalEntryPage() {
 
   return (
     <div className="px-5 pt-5 pb-32">
-      <h1 className="text-base font-bold mb-0.5">Isi Buku Penghubung</h1>
-      {dateLabel && (
-        <p className="text-xs text-muted-foreground mb-4">{dateLabel}</p>
-      )}
+      <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
 
       <ClassDayGrid
         students={students}

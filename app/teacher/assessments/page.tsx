@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { PageHeader } from "@/components/portal/page-header";
 
 export default async function TeacherAssessmentsPage() {
   const session = await getSession();
@@ -56,8 +57,7 @@ export default async function TeacherAssessmentsPage() {
   if (classSections.length === 0) {
     return (
       <div className="px-5 pt-6">
-        <h1 className="text-lg font-bold mb-1">Penilaian</h1>
-        <p className="text-xs text-muted-foreground mb-4">Periode: {period}</p>
+        <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
         <EmptyState
           icon={ClipboardList}
           title="Belum ada kelas mengajar."
@@ -130,15 +130,14 @@ export default async function TeacherAssessmentsPage() {
 
   return (
     <div className="px-5 pt-6 pb-4">
-      <h1 className="text-lg font-bold mb-1">Penilaian</h1>
-      <p className="text-xs text-muted-foreground mb-4">Periode: {period}</p>
+      <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
 
       <div className="space-y-4">
         {classSections.map((cs) => {
           const studentsTotal = studentsByClass.get(cs.id)?.size ?? 0;
           const tmpls = templatesByProgram.get(cs.program.id) ?? [];
           return (
-            <Card key={cs.id} className="p-4">
+            <Card key={cs.id} className="p-card">
               <div className="mb-3">
                 <p className="text-sm font-semibold">{cs.name}</p>
                 <p className="text-xs text-muted-foreground">

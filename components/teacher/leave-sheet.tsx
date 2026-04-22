@@ -99,14 +99,14 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
         fetch("/api/leave/my"),
       ]);
       if (!balRes.ok || !reqRes.ok) {
-        toast.error("Gagal memuat data cuti");
+        toast.error("Data cuti tidak bisa dimuat. Coba lagi sebentar ya.");
         setLoading(false);
         return;
       }
       setBalance(await balRes.json());
       setRequests(await reqRes.json());
     } catch {
-      toast.error("Gagal memuat data cuti");
+      toast.error("Data cuti tidak bisa dimuat. Coba lagi sebentar ya.");
     }
     setLoading(false);
   }
@@ -119,7 +119,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
 
   async function handleSubmit() {
     if (!form.startDate || !form.endDate || !form.reason.trim()) {
-      toast.error("Mohon lengkapi tanggal dan alasan");
+      toast.error("Lengkapi tanggal dan alasan dulu ya.");
       return;
     }
     setSaving(true);
@@ -129,13 +129,13 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
       body: JSON.stringify(form),
     });
     if (res.ok) {
-      toast.success("Pengajuan cuti berhasil dikirim");
+      toast.success("Pengajuan cuti terkirim");
       setDialogOpen(false);
       setForm({ leaveType: "ANNUAL", startDate: "", endDate: "", reason: "" });
       fetchData();
     } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal mengajukan cuti");
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Pengajuan tidak terkirim. Coba lagi sebentar ya.");
     }
     setSaving(false);
   }
@@ -149,7 +149,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
       toast.success("Pengajuan dibatalkan");
       fetchData();
     } else {
-      toast.error("Gagal membatalkan");
+      toast.error("Pembatalan tidak tersimpan. Coba lagi ya.");
     }
     setCancelTarget(null);
   }
@@ -277,7 +277,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
               Pengajuan akan dikirim ke admin untuk persetujuan
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Jenis Cuti</FieldLabel>
               <Select

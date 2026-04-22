@@ -9,6 +9,7 @@ import { Users, Check } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/portal/page-header";
 
 type Assignment = {
   id: string;
@@ -52,7 +53,7 @@ export default function ClassAttendancePage() {
     fetch("/api/teaching-assignments/my")
       .then((r) => {
         if (!r.ok) {
-          toast.error("Gagal memuat kelas");
+          toast.error("Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya.");
           setLoading(false);
           return;
         }
@@ -65,7 +66,7 @@ export default function ClassAttendancePage() {
         setLoading(false);
       })
       .catch(() => {
-        toast.error("Gagal memuat kelas");
+        toast.error("Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya.");
         setLoading(false);
       });
   }, []);
@@ -75,7 +76,7 @@ export default function ClassAttendancePage() {
     if (!selectedClass) return;
     const res = await fetch(`/api/student-attendance?classSectionId=${selectedClass}&date=${date}`);
     if (!res.ok) {
-      toast.error("Gagal memuat data siswa");
+      toast.error("Data siswa tidak bisa dimuat. Coba lagi sebentar ya.");
       return;
     }
     const data: StudentRecord[] = await res.json();
@@ -113,11 +114,11 @@ export default function ClassAttendancePage() {
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         setStatuses((prev) => ({ ...prev, [studentId]: previous }));
-        toast.error(d?.error || "Gagal menyimpan. Coba lagi.");
+        toast.error(d?.error || "Absensi tidak tersimpan. Coba ketuk ulang ya.");
       }
     } catch {
       setStatuses((prev) => ({ ...prev, [studentId]: previous }));
-      toast.error("Koneksi terputus. Coba lagi sebentar.");
+      toast.error("Koneksi terputus. Coba lagi sebentar ya.");
     }
   }
 
@@ -148,7 +149,7 @@ export default function ClassAttendancePage() {
 
   return (
     <div className="px-5 pt-6 pb-4">
-      <h1 className="text-lg font-bold mb-4">Absensi Kelas</h1>
+      <PageHeader title="Absensi Kelas" />
 
       {/* Class + Date toolbar */}
       <div className="flex gap-2 mb-4">

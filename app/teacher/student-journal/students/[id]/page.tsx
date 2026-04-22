@@ -93,7 +93,7 @@ export default function TeacherStudentWeekPage() {
 
   async function handleSaveNote() {
     if (!noteBody.trim()) {
-      toast.error("Isi catatan tidak boleh kosong");
+      toast.error("Tulis isi catatan dulu ya.");
       return;
     }
     setSaving(true);
@@ -172,7 +172,7 @@ export default function TeacherStudentWeekPage() {
       {/* Notes section */}
       <div className="mt-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Catatan</h2>
+          <h2 className="text-h2 font-semibold">Catatan</h2>
           <Button
             size="sm"
             variant="outline"
@@ -204,7 +204,7 @@ export default function TeacherStudentWeekPage() {
             <DialogTitle>Tambah Catatan</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Tanggal</FieldLabel>
               <Input

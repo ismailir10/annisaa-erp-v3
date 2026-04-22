@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/portal/page-header";
 
 type Score = "BB" | "MB" | "BSH" | "BSB";
 const SCORES: Score[] = ["BB", "MB", "BSH", "BSB"];
@@ -300,15 +301,13 @@ export function AssessmentEntryClient({
         <ArrowLeft size={14} /> Kembali ke daftar penilaian
       </Link>
 
-      <div className="mb-4">
-        <h1 className="text-lg font-bold">{template.name}</h1>
-        <p className="text-xs text-muted-foreground">
-          {classSection.name} · {classSection.program.name} · {period}
-        </p>
-        <p className="text-xs font-medium text-primary mt-1">
-          {publishedCount}/{totalStudents} siswa sudah dipublikasikan
-        </p>
-      </div>
+      <PageHeader
+        title={template.name}
+        subtitle={`${classSection.name} · ${classSection.program.name} · ${period}`}
+      />
+      <p className="text-xs font-medium text-primary -mt-4 mb-4">
+        {publishedCount}/{totalStudents} siswa sudah dipublikasikan
+      </p>
 
       <Accordion multiple className="space-y-2">
         {students.map((s) => {
