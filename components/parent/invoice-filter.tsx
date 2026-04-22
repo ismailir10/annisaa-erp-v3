@@ -24,7 +24,7 @@ export function InvoiceFilter({
   );
 
   return (
-    <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-3 -mx-5 px-5">
+    <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-3 -mx-page-x px-page-x">
       <PortalTabs
         items={tabs}
         activeId={value}

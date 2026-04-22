@@ -182,6 +182,7 @@ Parallelism plan: dispatch A1, B1a-group1, B1a-group2, B1a-group3, C1, D1, E1 co
 ## Verification
 
 - **Task C1 (WeekGrid relocation):** `git mv` preserved history. `npm run build` ✓ exit 0. Grep `@/components/student-journal/week-grid|components/student-journal/week-grid` in `app/` + `components/` = 0 import references (only historical cycle-doc narrative mentions remain). Cross-checked design-system.html §15 Student Journal for contract preservation.
+- **Task D1 (parent `px-5` → `px-page-x`):** `npm run build` ✓ exit 0. Grep `px-5|-mx-5|mx-5` in `app/parent/ components/parent/` = 0 hits. Tailwind v4 `@theme inline` auto-generates `-mx-page-x` from `--spacing-page-x` — confirmed working on the three sticky bleed pairs (invoice-filter, loading skeleton, portal-tabs sticky variant). `components/portal/portal-header.tsx` intentionally skipped (shared with teacher — cycle-3 coordinated swap). Cross-checked design-system.html §13 Portal Shell.
 
 ## Ship Notes
 
