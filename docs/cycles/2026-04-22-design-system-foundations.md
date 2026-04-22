@@ -72,10 +72,15 @@ Files changed:
 - [x] Pre-commit Rule 4 manually fixture-tested in a scratch `mktemp` repo: frontend-change-without-token → REJECT (correct), frontend-change-with-token → ACCEPT (correct), non-frontend-change → ACCEPT (correct).
 - [x] Cross-checked design-system.html §1 (Brand), §3 (Typography), §4 (Spacing & Radius), §13 (Overlays), §14 (Portal Shell + Household Overview brainstorm), §15 (Student Journal / WeekGrid), §16 (Attendance Flows), §18 (Voice & Tone) for every standard extension landed here.
 
-**Deferred to follow-up cycles:**
-- Live `/admin/design-system` Next.js page that renders every token/component.
-- Playwright visual-regression test pinning the design-system page.
+**Landed in the same PR as a follow-up commit:**
+- `app/admin/design-system/page.tsx` — live route under SUPER_ADMIN sidebar → Settings. Renders a `PageHeader` + two action buttons ("Buka di tab baru", "Sumber di GitHub") + full-height `<iframe sandbox="allow-same-origin allow-scripts">` pointing at `/admin/design-system-reference.html`. Uses Shadcn base-nova `render` prop, not `asChild` (per `ui.md`).
+- `public/admin/design-system-reference.html` — 4081-line static copy of `.claude/standards/design-system.html`, served by Next.js static file handler.
+- `config/admin-nav.ts` — new Settings entry (`Palette` icon) → `/admin/design-system`.
+- `e2e/design-system.spec.ts` — two Playwright specs: (1) asserts `PageHeader` title + both action links + iframe element with correct `src`; (2) GETs the static HTML directly and asserts canonical section anchors (`#brand #colors #typography #spacing #buttons #forms #overlays #portal #journal #voice`) are present. Covers visual-regression anchor + reference-content contract.
+
+**Still deferred to a later cycle:**
 - Retrofit sweep of existing pages against the new `--space-*` + `--text-*` tokens (`p-4` → `p-card`, `text-lg` → `text-h2`, etc.).
+- Screenshot-comparison Playwright assertion on the iframe (currently blocked by cross-origin-sandbox frame timing; only the `src` + structural assertion lands in this cycle).
 
 ## Ship Notes
 
