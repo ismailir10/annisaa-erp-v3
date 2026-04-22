@@ -12,7 +12,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -84,7 +86,31 @@ const columns: ColumnDef<Guardian>[] = [
 // Page
 // ------------------------------------------------------------------
 
+// ------------------------------------------------------------------
+// Shared form body — reused by Dialog (desktop) + Sheet (mobile)
+// ------------------------------------------------------------------
+
+type GuardianEditForm = { name: string; email: string; phone: string; whatsapp: string };
+
+function GuardianEditFormBody({
+  form,
+  setForm,
+}: {
+  form: GuardianEditForm;
+  setForm: (v: GuardianEditForm) => void;
+}) {
+  return (
+    <div className="space-y-field">
+      <Field><FieldLabel>Nama *</FieldLabel><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+      <Field><FieldLabel>Email</FieldLabel><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+      <Field><FieldLabel>Telepon</FieldLabel><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+      <Field><FieldLabel>WhatsApp</FieldLabel><Input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} /></Field>
+    </div>
+  );
+}
+
 export default function GuardiansPage() {
+  const isMobile = useIsMobile();
   const [data, setData] = useState<Guardian[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -230,22 +256,34 @@ export default function GuardiansPage() {
         emptyDescription="Wali murid akan otomatis muncul saat mendaftarkan siswa."
       />
 
-      {/* Edit Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Wali</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
-            <Field><FieldLabel>Email</FieldLabel><Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></Field>
-            <Field><FieldLabel>Telepon</FieldLabel><Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} /></Field>
-            <Field><FieldLabel>WhatsApp</FieldLabel><Input value={editForm.whatsapp} onChange={(e) => setEditForm({ ...editForm, whatsapp: e.target.value })} /></Field>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit — side="bottom" on mobile (narrow single-column form) */}
+      {isMobile ? (
+        <Sheet open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
+          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+            <SheetHeader><SheetTitle>Edit Wali</SheetTitle></SheetHeader>
+            <div className="p-card">
+              <GuardianEditFormBody form={editForm} setForm={setEditForm} />
+            </div>
+            <SheetFooter>
+              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Wali</DialogTitle></DialogHeader>
+            <div className="p-card">
+              <GuardianEditFormBody form={editForm} setForm={setEditForm} />
+            </div>
+            <DialogFooter>
+              <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Confirm Dialog */}
       <ConfirmDialog

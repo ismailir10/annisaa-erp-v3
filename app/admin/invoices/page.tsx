@@ -23,8 +23,18 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+  SheetClose,
+} from "@/components/ui/sheet";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle } from "lucide-react";
@@ -150,8 +160,63 @@ const columns: ColumnDef<Invoice>[] = [
 // Page
 // ------------------------------------------------------------------
 
+// ------------------------------------------------------------------
+// Generate Invoice Form Body (shared between Dialog + Sheet)
+// ------------------------------------------------------------------
+
+function GenerateInvoiceFormBody({
+  genForm,
+  setGenForm,
+  years,
+}: {
+  genForm: { periodLabel: string; dueDate: string; academicYearId: string };
+  setGenForm: (v: { periodLabel: string; dueDate: string; academicYearId: string }) => void;
+  years: AcademicYear[];
+}) {
+  return (
+    <>
+      <Field>
+        <FieldLabel>Periode *</FieldLabel>
+        <Input
+          value={genForm.periodLabel}
+          onChange={(e) => setGenForm({ ...genForm, periodLabel: e.target.value })}
+          placeholder="April 2026"
+        />
+        <FieldDescription>Contoh: April 2026</FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel>Tanggal Jatuh Tempo *</FieldLabel>
+        <Input
+          type="date"
+          value={genForm.dueDate}
+          onChange={(e) => setGenForm({ ...genForm, dueDate: e.target.value })}
+        />
+      </Field>
+      <Field>
+        <FieldLabel>Tahun Ajaran *</FieldLabel>
+        <Select
+          value={genForm.academicYearId}
+          onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Pilih tahun ajaran" />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((y) => (
+              <SelectItem key={y.id} value={y.id}>
+                {y.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+    </>
+  );
+}
+
 export default function InvoicesPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<Invoice[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -435,62 +500,50 @@ export default function InvoicesPage() {
         confirmLabel="Ya, Batalkan"
       />
 
-      {/* Generate Dialog */}
-      <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Buat Tagihan Bulanan</DialogTitle>
-            <DialogDescription>
-              Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-field py-2">
-            <Field>
-              <FieldLabel>Periode *</FieldLabel>
-              <Input
-                value={genForm.periodLabel}
-                onChange={(e) => setGenForm({ ...genForm, periodLabel: e.target.value })}
-                placeholder="April 2026"
-              />
-              <FieldDescription>Contoh: April 2026</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel>Tanggal Jatuh Tempo *</FieldLabel>
-              <Input
-                type="date"
-                value={genForm.dueDate}
-                onChange={(e) => setGenForm({ ...genForm, dueDate: e.target.value })}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Tahun Ajaran *</FieldLabel>
-              <Select
-                value={genForm.academicYearId}
-                onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih tahun ajaran" />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((y) => (
-                    <SelectItem key={y.id} value={y.id}>
-                      {y.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <DialogFooter>
-            <DialogClose>
-              <Button variant="outline">Batal</Button>
-            </DialogClose>
-            <Button onClick={handleGenerate} disabled={generating}>
-              {generating ? "Membuat..." : "Buat Tagihan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Generate Dialog (desktop) / Sheet (mobile, side="bottom" — narrow single-column form) */}
+      {isMobile ? (
+        <Sheet open={generateDialog} onOpenChange={setGenerateDialog}>
+          <SheetContent side="bottom" className="overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Buat Tagihan Bulanan</SheetTitle>
+              <SheetDescription>
+                Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="p-card space-y-field">
+              <GenerateInvoiceFormBody genForm={genForm} setGenForm={setGenForm} years={years} />
+            </div>
+            <SheetFooter>
+              <SheetClose><Button variant="outline">Batal</Button></SheetClose>
+              <Button onClick={handleGenerate} disabled={generating}>
+                {generating ? "Membuat..." : "Buat Tagihan"}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Buat Tagihan Bulanan</DialogTitle>
+              <DialogDescription>
+                Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-card space-y-field">
+              <GenerateInvoiceFormBody genForm={genForm} setGenForm={setGenForm} years={years} />
+            </div>
+            <DialogFooter>
+              <DialogClose>
+                <Button variant="outline">Batal</Button>
+              </DialogClose>
+              <Button onClick={handleGenerate} disabled={generating}>
+                {generating ? "Membuat..." : "Buat Tagihan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Send Results Dialog */}
       <Dialog open={!!sendResults} onOpenChange={(o) => !o && setSendResults(null)}>
