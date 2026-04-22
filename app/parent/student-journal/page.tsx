@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PortalTabs } from "@/components/portal/portal-tabs";
+import { PageHeader } from "@/components/portal/page-header";
 import { WeekGrid } from "@/components/student-journal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { ParentNoteDialog } from "@/components/student-journal/parent-note-dialog";
@@ -178,15 +179,10 @@ export default function ParentStudentJournalPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div>
-        <h1 className="text-lg font-bold flex items-center gap-2">
-          <BookHeart size={20} className="text-primary" />
-          Buku Penghubung
-        </h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Pantau kegiatan harian di sekolah dan rumah
-        </p>
-      </div>
+      <PageHeader
+        title="Buku Penghubung"
+        subtitle="Pantau kegiatan harian di sekolah dan rumah"
+      />
 
       {/* Child selector (only shown when 2+ children) */}
       {children.length > 1 && (

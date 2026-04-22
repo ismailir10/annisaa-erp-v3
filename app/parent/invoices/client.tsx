@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { InvoiceFilter } from "@/components/parent/invoice-filter";
+import { PageHeader } from "@/components/portal/page-header";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 
 // Dynamically import InvoiceDetailSheet to reduce initial bundle size
@@ -185,7 +186,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
 
   return (
     <div>
-      <h1 className="text-lg font-bold mb-4">Tagihan Saya</h1>
+      <PageHeader title="Tagihan Saya" />
 
       {/* Filter - Touch-Friendly Chips */}
       <div className="mb-4">

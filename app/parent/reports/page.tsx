@@ -7,6 +7,7 @@ import {
   resolveSelectedChild,
 } from "@/lib/parent-helpers";
 import { AssessmentsTable } from "@/app/parent/assessments-table";
+import { PageHeader } from "@/components/portal/page-header";
 
 export default async function ParentReportsPage({
   searchParams,
@@ -38,7 +39,7 @@ export default async function ParentReportsPage({
         selectedChildId={selected.studentId}
       />
 
-      <h1 className="text-lg font-bold mb-4">Laporan Perkembangan</h1>
+      <PageHeader title="Laporan Perkembangan" />
 
       <AssessmentsTable data={assessmentsData} />
     </div>

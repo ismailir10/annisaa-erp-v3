@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { QuickLinkCard } from "@/components/parent/quick-link-card";
 import { RecentActivity } from "@/components/parent/recent-activity";
+import { PageHeader } from "@/components/portal/page-header";
 import {
   getParentWithChildren,
   resolveSelectedChild,
@@ -104,14 +105,10 @@ export default async function ParentDashboard({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">
-          Assalamu&apos;alaikum, {parent.name}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Portal Orang Tua — An Nisaa&apos; Sekolahku
-        </p>
-      </div>
+      <PageHeader
+        title={`Assalamu'alaikum, ${parent.name}`}
+        subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
+      />
 
       {/* Child selector tabs (only shown when 2+ children) */}
       <ChildSelectorTabs

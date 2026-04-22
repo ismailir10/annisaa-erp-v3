@@ -20,6 +20,7 @@ import {
   ATTENDANCE_STATUS_VALUES,
   type AttendanceStatusValue,
 } from "@/lib/validations/parent-attendance";
+import { PageHeader } from "@/components/portal/page-header";
 
 type AttendanceRecord = {
   id: string;
@@ -219,7 +220,7 @@ export function AttendanceClient({
 
   return (
     <div>
-      <h1 className="text-lg font-bold mb-4">Kehadiran Anak</h1>
+      <PageHeader title="Kehadiran Anak" />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <Select value={statusFilter} onValueChange={handleStatusChange}>

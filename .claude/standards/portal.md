@@ -70,7 +70,7 @@ Target device for parent + teacher portals: mid-range Android at 375 px viewport
 
 Use the standard Tailwind scale only. When 12 px still feels too dense, loosen the surrounding layout (padding, line-height, grid columns) rather than shrinking text.
 
-Rationale: screenshots + audits surfaced that labels at 10 px were consistently missed by the target persona (Pak Budi, PAUD/TKIT parent) and failed WCAG AA contrast-size combinations on muted-foreground. Codified 2026-04-21 in cycle `parent-ux-cycle-1`.
+Rationale: screenshots + audits surfaced that labels at 10 px were consistently missed by the target persona (Pak Budi, PAUD/TKIT parent) and failed WCAG AA contrast-size combinations on muted-foreground. Codified 2026-04-21 in cycle `parent-ux-cycle-1`. Teacher portal text-size sweep completed 2026-04-22 in cycle `parent-portal-polish-cycle-2`; both parent and teacher portals are now clean against the banned-size grep.
 
 Grep gate (should return zero):
 ```bash
@@ -120,6 +120,117 @@ Shared horizontal-scroll tab bar for parent + teacher portals. Located at `compo
 - Parent: `child-selector-tabs`, `invoice-filter`, `student-journal` child pills → migrated in cycle `parent-ux-cycle-1`.
 - Teacher: pending (cycle 2).
 
+## Component Reusability Layers
+
+Three distinct layers — pick the narrowest that fits. If a pattern lands in two portals, migrate to `components/portal/**` within the same cycle. **The 2nd instance is the extraction trigger.**
+
+| Layer | Location | Owns | Consumers |
+|---|---|---|---|
+| Primitive (cross-portal) | `components/portal/**` | Stateless/low-state UI shared by ≥2 portals | Parent + teacher + admin when applicable |
+| Portal composition | `components/{parent,teacher,admin}/**` | Portal-flavoured wiring around primitives (data fetch, link targets, copy) | That portal only |
+| Page-local | Next to the page (`app/.../route-specific.tsx`) | One-off markup with no reuse potential | That page only |
+
+## PortalHeader Primitive
+
+Shared sticky top-of-page header for parent + teacher portals. Located at `components/portal/portal-header.tsx`.
+
+**Use it** as the top-level `<header>` inside every portal layout. Logo + brand on the left, avatar + first name + logout on the right. Sticky, `h-14`, `max-w-md mx-auto`, `px-5`.
+
+**Props:**
+
+| Prop | Type | Notes |
+|---|---|---|
+| `userName` | `string` | Full name; first word becomes the visible label |
+| `userSubtitle?` | `string` | Optional second line (role, class); hidden on narrow widths |
+| `avatarUrl?` | `string` | Optional avatar image URL; falls back to initials |
+| `avatarFallback` | `string` | 1–2 char fallback when `avatarUrl` absent. Required |
+| `profileHref?` | `string` | When set, avatar + name become a link to this path |
+| `onLogout` | `() => void \| Promise<void>` | Required. Trailing icon button fires this |
+| `brandLabel?` | `string` | Defaults to `"An Nisaa'"` |
+
+**Example:**
+
+```tsx
+<PortalHeader
+  userName={session.user.name}
+  userSubtitle="Guru Kelas TKA"
+  avatarFallback={initials(session.user.name)}
+  profileHref="/teacher/profile"
+  onLogout={logoutAction}
+/>
+```
+
+## PortalBottomNav Primitive
+
+Shared fixed bottom navigation bar for parent + teacher portals. Located at `components/portal/portal-bottom-nav.tsx`. 4–5 tabs with icons + labels + animated active indicator.
+
+**Props:**
+
+| Prop | Type | Notes |
+|---|---|---|
+| `items` | `{ label, href, icon, matcher? }[]` | `matcher` lets a tab own multiple routes |
+| `layoutId?` | `string` | Framer Motion layoutId for the active pill; default `"portal-bottom-nav-active"` |
+| `ariaLabel` | `string` | Applied to the `<nav>` element |
+
+Canonical consumers: `components/parent/bottom-nav.tsx` and `components/teacher/bottom-nav.tsx`.
+
+**Example:**
+
+```tsx
+<PortalBottomNav
+  ariaLabel="Navigasi utama"
+  items={[
+    { label: "Beranda", href: "/parent", icon: Home },
+    { label: "Tagihan", href: "/parent/invoices", icon: CreditCard },
+    { label: "Kehadiran", href: "/parent/attendance", icon: CalendarDays },
+    { label: "Rapor", href: "/parent/reports", icon: GraduationCap },
+  ]}
+/>
+```
+
+## PageHeader Primitive
+
+Shared in-content page header for portal routes (title + optional subtitle + optional actions slot). Located at `components/portal/page-header.tsx`.
+
+**Use it** as the first child of every portal page. Semantic `<header>` with `<h1>`. Do NOT hand-roll `h1` + `p` headers in new pages.
+
+**Props:**
+
+| Prop | Type | Notes |
+|---|---|---|
+| `title` | `string` | Plain string — no icons. If you need adornment, wrap the primitive |
+| `subtitle?` | `string` | Renders below the h1 as muted text |
+| `actions?` | `ReactNode` | Right-aligned slot for filters, CTAs; hidden on narrow widths via shrink-0 |
+| `className?` | `string` | Merged into the outer `<header>` |
+
+**Spacing contract:**
+- Block margin: `mb-6`
+- Title: `text-2xl font-semibold tracking-tight text-foreground`
+- Subtitle: `text-sm text-muted-foreground mt-1`
+
+**Example:**
+
+```tsx
+<PageHeader
+  title="Tagihan Saya"
+  subtitle="Kelola pembayaran bulanan anak Anda"
+  actions={<Button size="sm">Unduh</Button>}
+/>
+```
+
+## Spacing Scale
+
+Canonical spacing for parent + teacher portals. Pull from this table before inventing new values.
+
+| Surface | Mobile | Desktop |
+|---|---|---|
+| Page-level (layout) | `px-5 py-6` | `md:px-8 md:py-8` |
+| Page-header block | `mb-6` | `mb-6` |
+| Section gap inside page | `space-y-4` | `space-y-6` |
+| Card padding | `p-4` | `md:p-6` |
+| Sheet padding | `p-5` | `p-6 md:p-8` |
+| QuickLinkCard fixed height | `h-[132px]` | `h-[132px]` |
+
 ## Error Handling Standard
 
 Every `fetch()` call MUST check response:
@@ -134,3 +245,16 @@ const data = await res.json();
 ```
 
 Never silently ignore errors: `.catch(() => {})` is forbidden.
+
+## Portal Primitive Inventory
+
+**Current (as of 2026-04-22):**
+- `PortalHeader` — `components/portal/portal-header.tsx`
+- `PortalTabs` (with `leading` slot) — `components/portal/portal-tabs.tsx`
+- `PortalBottomNav` — `components/portal/portal-bottom-nav.tsx`
+- `PageHeader` — `components/portal/page-header.tsx`
+
+**Cycle-3 extraction candidates (2nd-instance trigger pending):**
+- `PortalError` — unify parent + teacher `error.tsx` fallbacks
+- `PageSkeleton` / `ListSkeleton` / `DetailSkeleton` — shared skeleton primitives for portal pages
+- `RecentActivity` — promote from `components/parent/**` to `components/portal/**` if teacher home adopts the pattern
