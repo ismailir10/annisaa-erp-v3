@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AlertCircle, ClipboardList, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { PageHeader } from "@/components/portal/page-header";
 import { AssessmentEntryClient } from "./client";
 
 type Params = Promise<{ classSectionId: string; templateId: string; period: string }>;
@@ -114,10 +115,10 @@ export default async function TeacherAssessmentEntryPage({ params }: { params: P
         <Link href="/teacher/assessments" className="inline-flex items-center gap-1 text-xs text-muted-foreground mb-4">
           <ArrowLeft size={14} /> Kembali ke daftar penilaian
         </Link>
-        <div className="mb-4">
-          <h1 className="text-lg font-bold">{template.name}</h1>
-          <p className="text-xs text-muted-foreground">{classSection.name} · {classSection.program.name} · {period}</p>
-        </div>
+        <PageHeader
+          title={template.name}
+          subtitle={`${classSection.name} · ${classSection.program.name} · ${period}`}
+        />
         <EmptyState icon={ClipboardList} title="Belum ada siswa" description="Kelas ini belum memiliki siswa aktif." />
       </div>
     );

@@ -195,7 +195,7 @@ export default function StudentDetailPage() {
         body: JSON.stringify({ classSectionId: selectedSection }),
       });
       if (res.ok) {
-        toast.success("Siswa berhasil didaftarkan ke kelas");
+        toast.success("Didaftarkan ke kelas");
         setEnrollDialog(false);
         fetchStudent();
       } else {
@@ -229,7 +229,7 @@ export default function StudentDetailPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetClassSectionId: promoteTarget, notes: promoteNotes }),
       });
-      if (res.ok) { toast.success("Siswa berhasil naik kelas"); setPromoteDialog(false); fetchStudent(); }
+      if (res.ok) { toast.success("Naik kelas"); setPromoteDialog(false); fetchStudent(); }
       else { const d = await res.json(); toast.error(d.error || "Gagal naik kelas"); }
     } catch { toast.error("Terjadi kesalahan"); }
     setPromoting(false);
@@ -243,7 +243,7 @@ export default function StudentDetailPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (res.ok) { toast.success("Siswa berhasil diluluskan"); setGraduateOpen(false); fetchStudent(); }
+      if (res.ok) { toast.success("Diluluskan"); setGraduateOpen(false); fetchStudent(); }
       else { const d = await res.json(); toast.error(d.error || "Gagal meluluskan"); }
     } catch { toast.error("Terjadi kesalahan"); }
     setGraduating(false);
@@ -263,7 +263,7 @@ export default function StudentDetailPage() {
         if (data.unpaidInvoices > 0) {
           toast.success(`Siswa dikeluarkan. Perhatian: ${data.unpaidInvoices} tagihan belum lunas.`);
         } else {
-          toast.success("Siswa berhasil dikeluarkan");
+          toast.success("Dikeluarkan");
         }
         setWithdrawDialog(false);
         setWithdrawReason("");
@@ -551,7 +551,7 @@ export default function StudentDetailPage() {
       <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingGuardian ? "Edit Wali" : "Tambah Wali"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">
               <Field><FieldLabel>Nama *</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
               <Field>
@@ -656,7 +656,7 @@ export default function StudentDetailPage() {
       <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Kelas Tujuan *</FieldLabel>
               <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)}>
@@ -685,7 +685,7 @@ export default function StudentDetailPage() {
       <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <p className="text-sm text-muted-foreground">
               Mengeluarkan <strong>{student.name}</strong> dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.
             </p>

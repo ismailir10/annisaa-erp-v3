@@ -339,7 +339,7 @@ export default function UsersPage() {
         toast.error(err.error || "Gagal menyimpan");
         return;
       }
-      toast.success("Pengguna berhasil diperbarui");
+      toast.success("Pengguna diperbarui");
       setEditTarget(null);
       fetchUsers();
     } catch {
@@ -448,7 +448,7 @@ export default function UsersPage() {
             <DialogTitle>Edit Pengguna</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div>
               <p className="text-sm font-medium">{editTarget?.name ?? "—"}</p>
               <p className="text-xs text-muted-foreground">

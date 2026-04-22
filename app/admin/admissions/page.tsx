@@ -198,7 +198,7 @@ export default function AdmissionsPage() {
   async function convertToStudent(admissionId: string) {
     const res = await fetch(`/api/admissions/${admissionId}/convert`, { method: "POST" });
     if (res.ok) {
-      toast.success("Berhasil dikonversi menjadi siswa");
+      toast.success("Dikonversi menjadi siswa");
       fetchAdmissions();
     } else {
       const d = await res.json();
@@ -220,7 +220,7 @@ export default function AdmissionsPage() {
       body: JSON.stringify(form),
     });
     if (res.ok) {
-      toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran berhasil dicatat");
+      toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran tercatat");
       setDialogOpen(false);
       setEditingAdmission(null);
       fetchAdmissions();
@@ -457,7 +457,7 @@ export default function AdmissionsPage() {
           <DialogHeader>
             <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>Nama Anak *</FieldLabel>

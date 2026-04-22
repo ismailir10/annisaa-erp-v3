@@ -102,9 +102,9 @@ export default function AssessmentDetailPage() {
 
   if (!assessment) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-section">
         <DetailPageHeader backHref="/admin/assessments" title="Penilaian Siswa" description="Pilih penilaian dari halaman daftar" />
-        <Card className="p-8 text-center text-muted-foreground">
+        <Card className="p-card text-center text-muted-foreground">
           <p className="text-sm">Tidak ada penilaian yang dipilih. Kembali ke daftar penilaian.</p>
         </Card>
       </div>
@@ -115,7 +115,7 @@ export default function AssessmentDetailPage() {
   const scoredCount = Object.keys(scoreMap).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-section">
       <DetailPageHeader
         backHref="/admin/assessments"
         title={`${assessment.student.name}${assessment.student.nickname ? ` (${assessment.student.nickname})` : ""}`}
@@ -140,7 +140,7 @@ export default function AssessmentDetailPage() {
       </div>
 
       {assessment.template.categories.map((cat) => (
-        <Card key={cat.id} className="p-4">
+        <Card key={cat.id} className="p-card">
           <h3 className="text-sm font-semibold mb-3">{cat.name}</h3>
           <div className="space-y-3">
             {cat.indicators.map((ind) => (

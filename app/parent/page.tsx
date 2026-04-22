@@ -33,8 +33,8 @@ export default async function ParentDashboard({
       <div className="py-16">
         <EmptyState
           icon={AlertCircle}
-          title="Data tidak ditemukan"
-          description="Hubungi admin sekolah untuk menghubungkan akun Anda."
+          title="Akun belum terhubung ke anak"
+          description="Silakan hubungi admin sekolah untuk menghubungkan akun Anda."
         />
       </div>
     );
@@ -104,7 +104,7 @@ export default async function ParentDashboard({
     : { primary: "Belum tersedia", muted: true };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-section">
       <PageHeader
         title={`Assalamu'alaikum, ${parent.name}`}
         subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
@@ -125,7 +125,7 @@ export default async function ParentDashboard({
             </span>
           </div>
           <div>
-            <h2 className="text-lg font-bold">{student.name}</h2>
+            <h2 className="text-h2 font-bold">{student.name}</h2>
             {student.nickname && (
               <p className="text-xs text-muted-foreground">
                 {student.nickname}

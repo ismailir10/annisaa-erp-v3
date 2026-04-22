@@ -42,7 +42,7 @@ type StatusFilter = AttendanceStatusValue | "all";
 
 const STATUS_LABELS: Record<AttendanceStatusValue, string> = {
   PRESENT: "Hadir",
-  ABSENT: "Tidak Hadir",
+  ABSENT: "Alpa",
   SICK: "Sakit",
   PERMISSION: "Izin",
 };
@@ -66,7 +66,12 @@ const columns: ColumnDef<AttendanceRecord>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    cell: ({ row }) => (
+      <StatusBadge
+        status={row.original.status}
+        label={STATUS_LABELS[row.original.status as AttendanceStatusValue] ?? undefined}
+      />
+    ),
   },
 ];
 
@@ -144,7 +149,7 @@ export function AttendanceClient({
       });
     } catch {
       setErrored(true);
-      toast.error("Gagal memuat data kehadiran");
+      toast.error("Data kehadiran belum bisa dimuat. Coba lagi sebentar ya.");
     } finally {
       setLoading(false);
     }
@@ -206,16 +211,16 @@ export function AttendanceClient({
 
   // Distinguish "no records ever" vs "filter empty"
   const emptyTitle = useMemo(() => {
-    if (errored) return "Gagal memuat data kehadiran";
-    if (filtersActive) return "Tidak ada hasil sesuai filter";
-    return "Belum ada data kehadiran";
+    if (errored) return "Kehadiran belum bisa dimuat";
+    if (filtersActive) return "Belum ada hasil untuk filter ini";
+    return "Belum ada catatan kehadiran";
   }, [errored, filtersActive]);
 
   const emptyDescription = useMemo(() => {
-    if (errored) return "Coba muat ulang halaman ini.";
+    if (errored) return "Koneksi terputus. Coba lagi sebentar ya.";
     if (filtersActive)
-      return "Coba ubah rentang tanggal atau status, atau klik Reset.";
-    return "Data kehadiran akan muncul setelah guru mencatat absensi.";
+      return "Coba ubah rentang tanggal atau status, atau ketuk Reset.";
+    return "Catatan muncul setelah Ustadz/Ustadzah mencatat absensi.";
   }, [errored, filtersActive]);
 
   return (

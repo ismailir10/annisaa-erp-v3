@@ -326,7 +326,7 @@ export default function PayrollDetailPage() {
       />
 
       {/* Summary card — read-only view or Edit mode (DRAFT only) */}
-      <Card className="p-4 mb-4">
+      <Card className="p-card mb-4">
         <div className="flex items-start justify-between mb-3">
           <div>
             <p className="text-sm font-medium">Ringkasan Periode</p>
@@ -394,10 +394,10 @@ export default function PayrollDetailPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-lg font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-lg font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Status</p>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-lg font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-lg font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Status</p>
           <StatusBadge status={data.status} />
           {noBank.length > 0 && <p className="text-xs text-destructive mt-1">{noBank.length} tanpa rekening</p>}
         </Card>

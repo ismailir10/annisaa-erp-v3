@@ -193,7 +193,7 @@ export default function EmployeeDetailPage() {
               </div>
             ) : (
               /* ── VIEW MODE ─────────────────────────────────── */
-              <div className="space-y-6">
+              <div className="space-y-section">
                 {/* Identitas */}
                 <div>
                   <SectionHeading label="Identitas" />
@@ -270,8 +270,8 @@ export default function EmployeeDetailPage() {
         </AdminTabsContent>
 
         <AdminTabsContent value="salary">
-          <Card className="p-6 max-w-3xl mt-4">
-            {(salaryValues ?? []).length === 0 ? <EmptyState title="Tidak ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
+          <Card className="p-card max-w-3xl mt-4">
+            {(salaryValues ?? []).length === 0 ? <EmptyState title="Belum ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
               <div className="space-y-3">
                 {(salaryValues ?? []).map(sv => (
                   <div key={sv.componentDefId} className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
@@ -324,7 +324,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
   const STATUS_COLORS: Record<string, string> = { PRESENT: "bg-status-present", LATE: "bg-status-late", ABSENT: "bg-status-absent", LEAVE: "bg-status-leave", HOLIDAY: "bg-status-holiday", PRESENT_NO_CHECKOUT: "bg-status-no-checkout" };
 
   return (
-    <Card className="p-6 max-w-3xl mt-4">
+    <Card className="p-card max-w-3xl mt-4">
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground">←</button>
         <span className="text-sm font-semibold capitalize">{monthLabel}</span>
@@ -353,7 +353,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
                 <span className="text-xs w-16 text-right">{r.status}</span>
               </div>
             ))}
-            {data.records.length === 0 && <EmptyState title="Tidak ada data" description="Tidak ada data kehadiran untuk bulan ini." />}
+            {data.records.length === 0 && <EmptyState title="Belum ada kehadiran" description="Belum ada rekap kehadiran untuk bulan ini." />}
           </div>
         </>
       ) : null}

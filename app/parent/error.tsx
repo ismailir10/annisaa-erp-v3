@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 
 export default function ParentError({
-  error,
+  error: _error,
   reset,
 }: {
   error: Error & { digest?: string };
@@ -16,9 +16,9 @@ export default function ParentError({
       <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
         <AlertTriangle className="text-destructive" size={28} />
       </div>
-      <h2 className="text-lg font-semibold mb-2">Terjadi Kesalahan</h2>
+      <h2 className="text-h2 font-semibold mb-2">Halaman belum bisa dimuat</h2>
       <p className="text-sm text-muted-foreground mb-6">
-        {error.message || "Maaf, terjadi kesalahan. Silakan coba lagi."}
+        Koneksi terputus. Coba lagi sebentar ya.
       </p>
       <div className="flex items-center gap-2">
         <Button onClick={reset} variant="outline">

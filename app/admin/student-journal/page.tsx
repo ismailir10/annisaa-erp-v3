@@ -209,7 +209,7 @@ export default function StudentJournalAdminPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="px-page-x py-page-y space-y-section">
       <PageHeader
         title="Buku Penghubung — Template"
         description="Atur kategori dan indikator untuk sekolah dan rumah."
@@ -274,7 +274,7 @@ export default function StudentJournalAdminPage() {
             </DialogTitle>
           </DialogHeader>
           {categoryForm && (
-            <div className="space-y-4">
+            <div className="space-y-field">
               <Field>
                 <FieldLabel>Nama Kategori</FieldLabel>
                 <Input
@@ -334,7 +334,7 @@ export default function StudentJournalAdminPage() {
             </DialogTitle>
           </DialogHeader>
           {indicatorForm && (
-            <div className="space-y-4">
+            <div className="space-y-field">
               <Field>
                 <FieldLabel>Label Indikator</FieldLabel>
                 <Input

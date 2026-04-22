@@ -29,7 +29,7 @@ export default async function AdminLayout({
             </div>
           </div>
         </header>
-        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="px-page-x py-page-y">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

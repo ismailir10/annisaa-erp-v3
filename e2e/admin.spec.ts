@@ -21,7 +21,7 @@ test.describe("Admin flows", () => {
   });
 
   test("dashboard loads with stats", async ({ page }) => {
-    await expect(page.locator("text=Selamat datang")).toBeVisible();
+    await expect(page.locator("text=Dasbor")).toBeVisible();
     await expect(page.locator("text=TOTAL KARYAWAN")).toBeVisible();
     await expect(page.locator("text=HADIR HARI INI")).toBeVisible();
   });

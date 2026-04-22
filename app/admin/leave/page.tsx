@@ -339,6 +339,13 @@ export default function AdminLeavePage() {
             ],
           },
         ]}
+        actions={
+          stats.pending > 0 ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
+              <Clock size={12} /> Menunggu: {stats.pending}
+            </span>
+          ) : undefined
+        }
       />
 
       <DataTable

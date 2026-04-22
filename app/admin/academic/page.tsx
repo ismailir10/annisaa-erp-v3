@@ -152,7 +152,7 @@ export default function AcademicPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "INACTIVE" }),
     });
-    if (res.ok) { toast.success("Berhasil dinonaktifkan"); setDeactivateTarget(null); fetchAll(); }
+    if (res.ok) { toast.success("Dinonaktifkan"); setDeactivateTarget(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
   }
 
@@ -168,7 +168,7 @@ export default function AcademicPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "ACTIVE" }),
     });
-    if (res.ok) { toast.success("Berhasil diaktifkan"); setReactivateTarget(null); fetchAll(); }
+    if (res.ok) { toast.success("Diaktifkan"); setReactivateTarget(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
   }
 
@@ -373,7 +373,7 @@ export default function AcademicPage() {
       {/* Programs Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Program</h2>
+          <h2 className="text-h2 font-semibold">Program</h2>
           <div className="flex items-center gap-2">
             <Select value={programStatusFilter} onValueChange={(v) => v && setProgramStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")}>
               <SelectTrigger className="h-8 w-[160px]" data-testid="program-status-filter">
@@ -396,7 +396,7 @@ export default function AcademicPage() {
       {/* Academic Years Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Tahun Ajaran</h2>
+          <h2 className="text-h2 font-semibold">Tahun Ajaran</h2>
           <Button size="sm" onClick={() => { setEditingYear(null); setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
             <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
           </Button>
@@ -407,7 +407,7 @@ export default function AcademicPage() {
       {/* Class Sections Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Kelas</h2>
+          <h2 className="text-h2 font-semibold">Kelas</h2>
           <div className="flex items-center gap-2">
             <Select value={sectionStatusFilter} onValueChange={(v) => v && setSectionStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")}>
               <SelectTrigger className="h-8 w-[160px]" data-testid="section-status-filter">
@@ -431,7 +431,7 @@ export default function AcademicPage() {
       <Dialog open={yearDialog} onOpenChange={setYearDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingYear ? "Edit Tahun Ajaran" : "Tambah Tahun Ajaran"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field><FieldLabel>Nama *</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field><FieldLabel>Mulai</FieldLabel><Input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
@@ -449,7 +449,7 @@ export default function AcademicPage() {
       <Dialog open={programDialog} onOpenChange={setProgramDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingProgram ? "Edit Program" : "Tambah Program"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">
               <Field><FieldLabel>Kode *</FieldLabel><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
               <Field><FieldLabel>Nama *</FieldLabel><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
@@ -482,7 +482,7 @@ export default function AcademicPage() {
       <Dialog open={sectionDialog} onOpenChange={setSectionDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingSection ? "Edit Kelas" : "Tambah Kelas"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field><FieldLabel>Nama Kelas *</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
             <Field>
               <FieldLabel>Program *</FieldLabel>
@@ -518,7 +518,7 @@ export default function AcademicPage() {
       <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Guru Pengajar — {assignForm.className}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             {classAssignments.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Guru Saat Ini</p>

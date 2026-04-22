@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { BookHeart, Users } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/portal/page-header";
 
 type Assignment = {
   id: string;
@@ -34,7 +35,7 @@ export default function StudentJournalPickerPage() {
     fetch("/api/teaching-assignments/my")
       .then((r) => {
         if (!r.ok) {
-          toast.error("Gagal memuat kelas");
+          toast.error("Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya.");
           setLoading(false);
           return;
         }
@@ -47,18 +48,18 @@ export default function StudentJournalPickerPage() {
         setLoading(false);
       })
       .catch(() => {
-        toast.error("Gagal memuat kelas");
+        toast.error("Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya.");
         setLoading(false);
       });
   }, []);
 
   function handleSubmit() {
     if (!selectedClass) {
-      toast.error("Pilih kelas terlebih dahulu");
+      toast.error("Pilih kelas dulu ya.");
       return;
     }
     if (!date) {
-      toast.error("Pilih tanggal terlebih dahulu");
+      toast.error("Pilih tanggal dulu ya.");
       return;
     }
     router.push(`/teacher/student-journal/entry?classId=${selectedClass}&date=${date}`);
@@ -89,10 +90,10 @@ export default function StudentJournalPickerPage() {
 
   return (
     <div className="px-5 pt-6 pb-4 max-w-md mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <BookHeart size={22} className="text-primary" />
-        <h1 className="text-lg font-bold">Buku Penghubung</h1>
-      </div>
+      <PageHeader
+        title="Buku Penghubung"
+        actions={<BookHeart size={22} className="text-primary" aria-hidden />}
+      />
 
       <div className="space-y-4">
         <Field>

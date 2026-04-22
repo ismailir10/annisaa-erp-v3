@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import Link from "next/link";
 import { weekStart } from "@/lib/student-journal/week";
+import { formatDate } from "@/lib/format";
 import { ArrowLeft, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 
 // ------------------------------------------------------------------
@@ -53,7 +54,8 @@ function formatWeekLabel(ws: string): string {
   const fri = new Date(d);
   fri.setUTCDate(d.getUTCDate() + 4);
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
-  return `${d.toLocaleDateString("id-ID", opts)} – ${fri.toLocaleDateString("id-ID", opts)}`;
+  const friYmd = fri.toISOString().slice(0, 10);
+  return `${formatDate(ws, opts)} – ${formatDate(friYmd, opts)}`;
 }
 
 // ------------------------------------------------------------------
@@ -141,6 +143,7 @@ export default function ClassWeekPage({
           setClassInfo({ className: row.className, programName: row.programName });
         }
       })
+      // Silent: optional header-label populate; primary data load has its own toast.error path.
       .catch(() => {});
   }, [classSectionId, ws]);
 

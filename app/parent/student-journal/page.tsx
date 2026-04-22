@@ -113,7 +113,7 @@ export default function ParentStudentJournalPage() {
         }
       })
       .catch(() => {
-        toast.error("Gagal memuat data anak");
+        toast.error("Data anak belum bisa dimuat. Coba lagi sebentar ya.");
         setChildren([]);
       });
   }, []);
@@ -128,13 +128,13 @@ export default function ParentStudentJournalPage() {
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast.error((err as { error?: string }).error ?? "Gagal memuat data jurnal");
+          toast.error((err as { error?: string }).error ?? "Buku penghubung belum bisa dimuat. Coba lagi sebentar ya.");
           return;
         }
         const json = await res.json() as { data: WeekData };
         setData(json.data);
       } catch {
-        toast.error("Gagal memuat data jurnal");
+        toast.error("Buku penghubung belum bisa dimuat. Coba lagi sebentar ya.");
       } finally {
         setLoading(false);
       }
@@ -177,7 +177,7 @@ export default function ParentStudentJournalPage() {
   const dates = data?.dates ?? weekDates(currentWeek);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-section">
       {/* Header */}
       <PageHeader
         title="Buku Penghubung"
@@ -279,7 +279,7 @@ export default function ParentStudentJournalPage() {
                 });
                 if (!res.ok) {
                   const err = await res.json().catch(() => ({}));
-                  toast.error((err as { error?: string }).error ?? "Gagal menyimpan");
+                  toast.error((err as { error?: string }).error ?? "Belum bisa disimpan. Coba lagi sebentar ya.");
                   return;
                 }
                 // Refresh week data so the cell reflects the server state
@@ -386,7 +386,7 @@ export default function ParentStudentJournalPage() {
                     const err = (await res
                       .json()
                       .catch(() => ({}))) as { error?: string };
-                    toast.error(err.error ?? "Gagal menghapus catatan");
+                    toast.error(err.error ?? "Catatan belum bisa dihapus. Coba lagi sebentar ya.");
                     setDeleting(false);
                     return;
                   }
@@ -394,7 +394,7 @@ export default function ParentStudentJournalPage() {
                   setDeleteTarget(null);
                   if (childId) loadWeekData(childId, currentWeek);
                 } catch {
-                  toast.error("Gagal terhubung ke server");
+                  toast.error("Koneksi terputus. Coba lagi sebentar ya.");
                 } finally {
                   setDeleting(false);
                 }

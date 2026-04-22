@@ -206,11 +206,11 @@ export default function FeesPage() {
           </div>
 
           {!selectedProgram || !selectedYear ? (
-            <Card className="p-8 text-center text-muted-foreground"><p className="text-sm">Pilih program dan tahun ajaran untuk mengatur biaya.</p></Card>
+            <Card className="p-card text-center text-muted-foreground"><p className="text-sm">Pilih program dan tahun ajaran untuk mengatur biaya.</p></Card>
           ) : structureLoading ? (
             <Skeleton className="h-40 rounded-xl" />
           ) : (
-            <Card className="p-6">
+            <Card className="p-card">
               <div className="space-y-3">
                 {components.filter(c => c.isEnabled).map(c => (
                   <div key={c.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
@@ -245,7 +245,7 @@ export default function FeesPage() {
       <Dialog open={componentDialog} onOpenChange={setComponentDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">
               <Field><FieldLabel>Kode *</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
               <Field><FieldLabel>Label *</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>

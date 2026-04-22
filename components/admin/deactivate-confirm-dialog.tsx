@@ -20,10 +20,10 @@ const TITLE_VERB: Record<Action, string> = {
 };
 
 const DESCRIPTION: Record<Action, string> = {
-  deactivate: "Data tidak akan dihapus dan dapat diaktifkan kembali.",
-  void: "Tindakan ini tidak dapat dibatalkan.",
-  cancel: "Tindakan ini tidak dapat dibatalkan.",
-  delete: "Tindakan ini tidak dapat dibatalkan.",
+  deactivate: "Tidak akan muncul di daftar aktif. Bisa diaktifkan kembali kapan saja.",
+  void: "Tagihan tidak bisa dibayar lagi. Riwayat tetap tersimpan.",
+  cancel: "Aksi ini tidak bisa dibatalkan.",
+  delete: "Aksi ini tidak bisa dibatalkan. Data akan hilang selamanya.",
 };
 
 const CONFIRM_LABEL: Record<Action, string> = {

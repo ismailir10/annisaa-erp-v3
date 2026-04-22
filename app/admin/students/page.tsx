@@ -316,7 +316,7 @@ export default function StudentsPage() {
       const err = await res.json().catch(() => ({}));
       toast.error(err.error || "Gagal memperbarui data siswa");
     } else {
-      toast.success("Data siswa berhasil diperbarui");
+      toast.success("Data siswa diperbarui");
       setEditTarget(null);
       fetchStudents();
     }
@@ -348,7 +348,7 @@ export default function StudentsPage() {
       toast.error(err.error || "Gagal menambahkan siswa");
     } else {
       const student = await res.json();
-      toast.success("Siswa berhasil ditambahkan");
+      toast.success("Siswa ditambahkan");
       setCreateOpen(false);
       setCreateForm(EMPTY_CREATE_FORM);
       router.push(`/admin/students/${student.id}`);
@@ -444,7 +444,7 @@ export default function StudentsPage() {
             <DialogTitle>Edit Siswa</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>Nama Lengkap *</FieldLabel>
@@ -538,7 +538,7 @@ export default function StudentsPage() {
             <DialogTitle>Tambah Siswa</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>Nama Lengkap *</FieldLabel>

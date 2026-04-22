@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { User, Mail, Phone, Building2, Briefcase, CreditCard, Wallet, ChevronRight } from "lucide-react";
+import { PageHeader } from "@/components/portal/page-header";
 
 export default async function TeacherProfilePage() {
   const session = await getSession();
@@ -29,7 +30,7 @@ export default async function TeacherProfilePage() {
 
   return (
     <div className="px-5 pt-6 pb-4">
-      <h1 className="text-lg font-bold mb-4">Profil Saya</h1>
+      <PageHeader title="Profil Saya" />
 
       {/* Avatar + Name */}
       <div className="flex items-center gap-4 mb-6">

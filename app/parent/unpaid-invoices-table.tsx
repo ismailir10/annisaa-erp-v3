@@ -102,8 +102,8 @@ export function UnpaidInvoicesTable({ data, childId }: { data: UnpaidInvoiceItem
       columns={columns}
       data={data}
       defaultSort={{ field: "periodLabel", order: "desc" }}
-      emptyTitle="Tidak ada tagihan tertunda"
-      emptyDescription="Semua tagihan telah lunas."
+      emptyTitle="Belum ada tagihan bulan ini"
+      emptyDescription="Alhamdulillah, semua lunas."
     />
   );
 }

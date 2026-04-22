@@ -48,7 +48,7 @@ export default function NewStudentPage() {
     });
     if (res.ok) {
       const student = await res.json();
-      toast.success("Siswa berhasil ditambahkan");
+      toast.success("Siswa ditambahkan");
       router.push(`/admin/students/${student.id}`);
     } else {
       const data = await res.json().catch(() => ({}));
@@ -66,7 +66,7 @@ export default function NewStudentPage() {
       </div>
       <PageHeader title="Tambah Siswa" description="Wali dan pendaftaran kelas dapat ditambahkan setelah siswa dibuat" />
 
-      <Card className="p-6 max-w-2xl space-y-6">
+      <Card className="p-card max-w-2xl space-y-field">
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Info Dasar</p>
           <div className="grid grid-cols-2 gap-4">

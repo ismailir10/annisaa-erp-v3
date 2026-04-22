@@ -188,7 +188,7 @@ export default function SalaryComponentsPage() {
             <DialogTitle>{editing ? "Edit Komponen" : "Tambah Komponen"}</DialogTitle>
             <DialogDescription>Komponen gaji menentukan struktur penggajian</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             {!editing && (
               <Field>
                 <FieldLabel>Kode *</FieldLabel>

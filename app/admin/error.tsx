@@ -15,7 +15,7 @@ export default function AdminError({
       <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
         <AlertTriangle className="text-destructive" size={28} />
       </div>
-      <h2 className="text-lg font-semibold mb-2">Terjadi Kesalahan</h2>
+      <h2 className="text-h2 font-semibold mb-2">Terjadi Kesalahan</h2>
       <p className="text-sm text-muted-foreground mb-6 max-w-md">
         {error.message || "Maaf, terjadi kesalahan saat memuat halaman. Silakan coba lagi."}
       </p>

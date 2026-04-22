@@ -354,7 +354,7 @@ export default function RolesPage() {
         toast.error(err.error || "Gagal menyimpan");
         return;
       }
-      toast.success(editTarget ? "Peran berhasil diperbarui" : "Peran berhasil dibuat");
+      toast.success(editTarget ? "Peran diperbarui" : "Peran dibuat");
       setDialogOpen(false);
       fetchRoles();
     } catch {
@@ -377,7 +377,7 @@ export default function RolesPage() {
         toast.error(err.error || "Gagal menghapus");
         return;
       }
-      toast.success("Peran berhasil dihapus");
+      toast.success("Peran dihapus");
       setDeleteTarget(null);
       fetchRoles();
     } catch {
@@ -447,7 +447,7 @@ export default function RolesPage() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Nama Peran</FieldLabel>
               <Input

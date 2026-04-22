@@ -306,7 +306,7 @@ export default function InvoicesPage() {
     }
     const d = await res.json();
     if (d.created > 0) {
-      toast.success(`${d.created} link pembayaran berhasil dibuat`);
+      toast.success(`${d.created} link pembayaran dibuat`);
       setSendResults(d.results);
     }
     if (d.failed > 0) toast.error(`${d.failed} tagihan gagal`);
@@ -430,7 +430,7 @@ export default function InvoicesPage() {
         open={!!voidTarget}
         onOpenChange={(o) => !o && setVoidTarget(null)}
         title="Batalkan Tagihan"
-        description={`Batalkan tagihan ${voidTarget?.invoiceNumber} untuk ${voidTarget?.student.name}? Tindakan ini tidak dapat dikembalikan.`}
+        description={`Tagihan ${voidTarget?.invoiceNumber} (${voidTarget?.student.name}) tidak bisa dibayar lagi. Riwayat tetap tersimpan.`}
         onConfirm={handleVoidInvoice}
         confirmLabel="Ya, Batalkan"
       />
@@ -444,7 +444,7 @@ export default function InvoicesPage() {
               Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Periode *</FieldLabel>
               <Input

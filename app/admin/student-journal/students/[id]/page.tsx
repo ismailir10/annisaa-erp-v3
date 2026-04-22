@@ -72,7 +72,8 @@ function formatWeekLabel(ws: string): string {
   const fri = new Date(d);
   fri.setUTCDate(d.getUTCDate() + 4);
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
-  return `${d.toLocaleDateString("id-ID", opts)} – ${fri.toLocaleDateString("id-ID", opts)}`;
+  const friYmd = fri.toISOString().slice(0, 10);
+  return `${formatDate(ws, opts)} – ${formatDate(friYmd, opts)}`;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -233,6 +234,7 @@ export default function StudentJournalDetailPage({
       .then((json) => {
         if (json.data?.name) setStudentName(json.data.name);
       })
+      // Silent: optional header-name populate; primary data load has its own toast.error path.
       .catch(() => {});
   }, [studentId]);
 
@@ -455,7 +457,7 @@ export default function StudentJournalDetailPage({
 
         {/* Sekolah tab */}
         <TabsContent value="school">
-          <div className="bg-card border border-border rounded-xl p-4">
+          <div className="bg-card border border-border rounded-xl p-card">
             <WeekGrid
               categories={weekData?.schoolCategories ?? []}
               entries={weekData?.schoolEntries ?? []}
@@ -470,7 +472,7 @@ export default function StudentJournalDetailPage({
 
         {/* Rumah tab */}
         <TabsContent value="home">
-          <div className="bg-card border border-border rounded-xl p-4">
+          <div className="bg-card border border-border rounded-xl p-card">
             <WeekGrid
               categories={weekData?.homeCategories ?? []}
               entries={weekData?.homeEntries ?? []}
@@ -515,7 +517,7 @@ export default function StudentJournalDetailPage({
               {auditRows.map((row) => (
                 <div
                   key={row.id}
-                  className="bg-card border border-border rounded-xl p-4 space-y-3"
+                  className="bg-card border border-border rounded-xl p-card space-y-3"
                 >
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">

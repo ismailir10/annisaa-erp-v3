@@ -42,6 +42,7 @@ export default async function ParentAttendancePage({
       <ChildSelectorTabs
         items={childTabsData}
         selectedChildId={selected.studentId}
+        sticky
       />
       <WeekSummaryStrip counts={weekCounts} />
       <AttendanceClient studentId={selected.studentId} />

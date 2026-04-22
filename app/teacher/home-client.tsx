@@ -7,6 +7,7 @@ import { MapPin, BookHeart } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/portal/page-header";
 import { formatDate, formatTime } from "@/lib/format";
 
 type TodayRecord = {
@@ -78,23 +79,18 @@ export function TeacherHomeClient({
         checkInTime: data.checkInTime,
         checkOutTime: data.checkOutTime,
       });
-      setSuccess(hasCheckedIn ? "Check-out berhasil!" : "Check-in berhasil!");
+      setSuccess(hasCheckedIn ? "Pulang tercatat" : "Clock-in tersimpan");
       setTimeout(() => setSuccess(null), 2000);
       router.refresh();
     } else {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setSuccess(null);
-      toast.error(data.error || "Gagal");
+      toast.error(data.error || "Absensi tidak tersimpan. Coba ketuk ulang ya.");
     }
     setLoading(false);
   }
 
-  const timeStr = time.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  const timeStr = formatTime(time.toISOString());
   const dateStr = formatDate(time.toISOString().split("T")[0], {
     weekday: "long",
     day: "numeric",
@@ -103,6 +99,7 @@ export function TeacherHomeClient({
   });
 
   const greeting = time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam";
+  const firstName = userName.split(" ")[0];
 
   return (
     <div className="px-5 pt-8 pb-4">
@@ -112,10 +109,11 @@ export function TeacherHomeClient({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <p className="text-muted-foreground text-sm">{dateStr}</p>
-        <h1 className="text-xl font-bold mt-1">
-          Selamat {greeting}, {userName.split(" ")[0]}
-        </h1>
+        <PageHeader
+          title={`Selamat ${greeting}, Ustadz/Ustadzah ${firstName}`}
+          subtitle={dateStr}
+          className="mb-0"
+        />
       </motion.div>
 
       {/* Clock + Check-in button */}
@@ -125,7 +123,7 @@ export function TeacherHomeClient({
         transition={{ delay: 0.15, duration: 0.4 }}
         className="mt-8 flex flex-col items-center"
       >
-        <p className="font-currency text-4xl font-bold tracking-tight mb-6">
+        <p className="font-currency text-display font-bold tracking-tight mb-6">
           {timeStr}
         </p>
 
@@ -221,7 +219,7 @@ export function TeacherHomeClient({
         transition={{ delay: 0.3, duration: 0.4 }}
         className="mt-6"
       >
-        <Card className="p-4">
+        <Card className="p-card">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
             Status Hari Ini
           </p>

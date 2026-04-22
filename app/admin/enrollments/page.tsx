@@ -269,7 +269,7 @@ export default function EnrollmentsPage() {
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Penempatan</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Siswa</FieldLabel>
               <Input value={editTarget?.student.name || ""} disabled />
@@ -299,7 +299,7 @@ export default function EnrollmentsPage() {
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
         title={deactivateTarget?.status === "WITHDRAWN" ? "Aktifkan Pendaftaran" : "Cabut Pendaftaran"}
-        description={`Ubah status pendaftaran "${deactivateTarget?.student.name}"?`}
+        description={deactivateTarget?.status === "WITHDRAWN" ? `Pendaftaran ${deactivateTarget?.student.name} akan aktif kembali.` : `Pendaftaran ${deactivateTarget?.student.name} akan dicabut. Bisa diaktifkan kembali kapan saja.`}
         confirmLabel={deactivateTarget?.status === "WITHDRAWN" ? "Aktifkan" : "Cabut"}
         onConfirm={handleStatusToggle}
         destructive={deactivateTarget?.status !== "WITHDRAWN"}

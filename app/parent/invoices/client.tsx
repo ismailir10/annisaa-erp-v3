@@ -53,7 +53,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
 
   useEffect(() => {
     if (data === null) {
-      toast.error("Gagal memuat data tagihan");
+      toast.error("Tagihan belum bisa dimuat. Coba lagi sebentar ya.");
     }
   }, [data]);
 
@@ -109,7 +109,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
-          <p className="text-sm text-muted-foreground">Gagal memuat data tagihan</p>
+          <p className="text-sm text-muted-foreground">Tagihan belum bisa dimuat. Coba lagi sebentar ya.</p>
         </div>
       </div>
     );
@@ -203,7 +203,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
         data={filteredData}
         defaultSort={{ field: "periodLabel", order: "desc" }}
         emptyTitle="Belum ada tagihan"
-        emptyDescription="Tagihan akan muncul saat admin membuat tagihan bulanan."
+        emptyDescription="Alhamdulillah, belum ada tagihan untuk filter ini."
       />
 
       <InvoiceDetailSheet

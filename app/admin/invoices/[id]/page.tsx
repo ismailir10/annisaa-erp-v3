@@ -75,7 +75,7 @@ export default function InvoiceDetailPage() {
     });
     if (res.ok) {
       const d = await res.json();
-      toast.success("Link pembayaran berhasil dibuat");
+      toast.success("Link pembayaran dibuat");
       if (d.paymentUrl) navigator.clipboard.writeText(d.paymentUrl);
       toast.info("Link disalin ke clipboard — kirim via WhatsApp");
       fetchInvoice();
@@ -150,7 +150,7 @@ export default function InvoiceDetailPage() {
         open={voidConfirmOpen}
         onOpenChange={(o) => !voiding && setVoidConfirmOpen(o)}
         title="Batalkan Tagihan"
-        description={`Batalkan tagihan ${invoice.invoiceNumber} untuk ${invoice.student.name}? Tindakan ini tidak dapat dikembalikan.`}
+        description={`Tagihan ${invoice.invoiceNumber} (${invoice.student.name}) tidak bisa dibayar lagi. Riwayat tetap tersimpan.`}
         onConfirm={handleVoidInvoice}
         confirmLabel={voiding ? "Membatalkan..." : "Ya, Batalkan"}
       />
@@ -233,7 +233,7 @@ export default function InvoiceDetailPage() {
       <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Jumlah *</FieldLabel>
               <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
