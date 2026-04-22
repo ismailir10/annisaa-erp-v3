@@ -46,6 +46,15 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
     lookup.set(`${e.indicatorId}|${e.date}`, e.checked);
   }
 
+  // Today's YYYY-MM-DD in local time — used to highlight today's column.
+  const todayYmd = (() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  })();
+
   if (categories.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">
@@ -63,15 +72,22 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
             <th className="sticky left-0 bg-card z-10 text-left py-2 pr-2 text-[10px] font-medium text-muted-foreground w-[120px] min-w-[120px]">
               Indikator
             </th>
-            {dates.map((d, i) => (
-              <th
-                key={d}
-                className="text-center py-2 px-1 text-[10px] font-medium text-muted-foreground min-w-[44px] w-[44px]"
-              >
-                <div>{DAY_LABELS[i] ?? formatColDate(d)}</div>
-                <div className="text-[9px] text-muted-foreground/70">{formatColDate(d)}</div>
-              </th>
-            ))}
+            {dates.map((d, i) => {
+              const isToday = d === todayYmd;
+              return (
+                <th
+                  key={d}
+                  className={`text-center py-2 px-1 text-[10px] font-medium min-w-[44px] w-[44px] ${
+                    isToday ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                  }`}
+                >
+                  <div>{DAY_LABELS[i] ?? formatColDate(d)}</div>
+                  <div className={`text-[9px] ${isToday ? "text-primary/80" : "text-muted-foreground/70"}`}>
+                    {formatColDate(d)}
+                  </div>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -97,8 +113,12 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                   </td>
                   {dates.map((d) => {
                     const checked = lookup.get(`${ind.id}|${d}`) ?? false;
+                    const isToday = d === todayYmd;
                     return (
-                      <td key={d} className="text-center p-0 align-middle">
+                      <td
+                        key={d}
+                        className={`text-center p-0 align-middle ${isToday ? "bg-primary/5" : ""}`}
+                      >
                         {editable && onToggle ? (
                           <button
                             type="button"
