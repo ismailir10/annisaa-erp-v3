@@ -177,7 +177,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Copy `app/teacher/error.tsx`; translate any teacher-specific copy → parent-facing phrasing. Keep "use client", `reset` handler, AlertTriangle icon.
   - Acceptance: throwing in `/parent/page.tsx` briefly to verify boundary catches, then reverted — screenshot evidence in Verification.
 
-- [ ] **T8 — Drop parent student-journal self-wrapping. Independent.**
+- [x] **T8 — Drop parent student-journal self-wrapping. Independent.**
   - File: `app/parent/student-journal/page.tsx`.
   - Remove the outer `max-w-md mx-auto p-4` wrapper. Top-level element becomes a fragment or `<div className="space-y-4">` (or equivalent). Layout's `px-5 py-6` takes over.
   - Acceptance: horizontal padding matches `/parent/invoices` exactly (measure via DevTools ruler or computed style).
@@ -240,6 +240,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 ## Implementation
 
 - Dispatch plan: T1 solo (inline), T2 solo (inline), then Group B tasks dispatched as parallel implementer subagents where file-disjoint; remaining sequential. T14 after T13. T10 last.
+- T8: `app/parent/student-journal/page.tsx` — removed `max-w-md mx-auto p-4 pb-24` from 3 top-level return wrappers (loading / empty / content). Layout's `px-5 py-6 max-w-md mx-auto` now owns horizontal rhythm; `pb-20` at layout owns bottom-nav clearance. Horizontal padding now matches `/parent/invoices`.
 - T7: `app/parent/error.tsx` (new) — branded error boundary. Near-copy of `app/teacher/error.tsx` with an added "Kembali ke Beranda" secondary link to `/parent`. Button component doesn't expose `asChild`, so the secondary action is a styled `<Link>` rather than `<Button asChild>`.
 - T6: `components/parent/child-selector-tabs.tsx` — each tab now carries a `leading` node: `h-6 w-6` circle with `bg-primary/10` + `text-xs` initial. Spec said `h-5 w-5` + `text-[10px]`, but the banned-size grep gate (`portal.md`) has no Avatar exception, so the circle was bumped to 24 px + `text-xs` to comply. Parity: teacher uses 28 px avatar in header; child-selector uses 24 px — intentionally one step smaller for tab density.
 - T5: `components/teacher/header.tsx` — shrunk to thin wrapper around `<PortalHeader>` with `profileHref="/teacher/profile"`. Avatar initial preserved; pixel-equivalent to prior design since `PortalHeader` itself inherits the teacher layout shape.
@@ -257,6 +258,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T5: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped (271 total).
 - T6: banned-size grep gate returns zero across all portal dirs. `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped.
 - T7: `npm run build` green (first pass failed on `Button asChild` — `components/ui/button.tsx` has no Slot; fixed by using plain styled Link). `npx vitest run` → 229 passed / 42 todo / 2 skipped.
+- T8: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped.
 
 ## Ship Notes
 <!-- filled by /ship -->

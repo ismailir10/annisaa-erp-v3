@@ -115,7 +115,7 @@ export default function ParentStudentJournalPage() {
   // ── Loading state ────────────────────────────────────────────────
   if (children === null) {
     return (
-      <div className="max-w-md mx-auto p-4 pb-24 space-y-4">
+      <div className="space-y-4">
         <Skeleton className="h-8 w-2/3" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -125,7 +125,7 @@ export default function ParentStudentJournalPage() {
 
   if (children.length === 0) {
     return (
-      <div className="max-w-md mx-auto p-4 pb-24 flex flex-col items-center justify-center py-16 gap-3">
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
         <BookHeart size={40} className="text-muted-foreground" />
         <p className="text-sm text-muted-foreground text-center">
           Belum ada data anak. Hubungi admin sekolah untuk menghubungkan akun Anda.
@@ -138,7 +138,7 @@ export default function ParentStudentJournalPage() {
   const dates = data?.dates ?? weekDates(currentWeek);
 
   return (
-    <div className="max-w-md mx-auto p-4 pb-24 space-y-4">
+    <div className="space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-lg font-bold flex items-center gap-2">
