@@ -458,7 +458,7 @@ export default function AssessmentTemplatesPage() {
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
         title={deactivateTarget?.isActive ? "Nonaktifkan Template" : "Aktifkan Template"}
-        description={`Ubah status "${deactivateTarget?.name}"?`}
+        description={deactivateTarget?.isActive ? `Template "${deactivateTarget?.name}" tidak akan tersedia untuk penilaian baru. Bisa diaktifkan kembali kapan saja.` : `Template "${deactivateTarget?.name}" akan tersedia kembali untuk penilaian baru.`}
         confirmLabel={deactivateTarget?.isActive ? "Nonaktifkan" : "Aktifkan"}
         onConfirm={handleToggleActive}
         destructive={deactivateTarget?.isActive ?? false}

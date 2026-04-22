@@ -84,7 +84,7 @@ export default async function AdminDashboard() {
   return (
     <>
       <PageHeader
-        title={`Selamat datang, ${session.name?.split(" ")[0] ?? "Admin"}`}
+        title="Dasbor"
         description={formatDate(today.toISOString().split("T")[0], {
           weekday: "long", year: "numeric", month: "long", day: "numeric",
         })}

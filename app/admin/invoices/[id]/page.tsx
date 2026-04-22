@@ -150,7 +150,7 @@ export default function InvoiceDetailPage() {
         open={voidConfirmOpen}
         onOpenChange={(o) => !voiding && setVoidConfirmOpen(o)}
         title="Batalkan Tagihan"
-        description={`Batalkan tagihan ${invoice.invoiceNumber} untuk ${invoice.student.name}? Tindakan ini tidak dapat dikembalikan.`}
+        description={`Tagihan ${invoice.invoiceNumber} (${invoice.student.name}) tidak bisa dibayar lagi. Riwayat tetap tersimpan.`}
         onConfirm={handleVoidInvoice}
         confirmLabel={voiding ? "Membatalkan..." : "Ya, Batalkan"}
       />

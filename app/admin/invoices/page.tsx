@@ -430,7 +430,7 @@ export default function InvoicesPage() {
         open={!!voidTarget}
         onOpenChange={(o) => !o && setVoidTarget(null)}
         title="Batalkan Tagihan"
-        description={`Batalkan tagihan ${voidTarget?.invoiceNumber} untuk ${voidTarget?.student.name}? Tindakan ini tidak dapat dikembalikan.`}
+        description={`Tagihan ${voidTarget?.invoiceNumber} (${voidTarget?.student.name}) tidak bisa dibayar lagi. Riwayat tetap tersimpan.`}
         onConfirm={handleVoidInvoice}
         confirmLabel="Ya, Batalkan"
       />

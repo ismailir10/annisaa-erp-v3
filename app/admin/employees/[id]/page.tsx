@@ -271,7 +271,7 @@ export default function EmployeeDetailPage() {
 
         <AdminTabsContent value="salary">
           <Card className="p-card max-w-3xl mt-4">
-            {(salaryValues ?? []).length === 0 ? <EmptyState title="Tidak ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
+            {(salaryValues ?? []).length === 0 ? <EmptyState title="Belum ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
               <div className="space-y-3">
                 {(salaryValues ?? []).map(sv => (
                   <div key={sv.componentDefId} className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
@@ -353,7 +353,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
                 <span className="text-xs w-16 text-right">{r.status}</span>
               </div>
             ))}
-            {data.records.length === 0 && <EmptyState title="Tidak ada data" description="Tidak ada data kehadiran untuk bulan ini." />}
+            {data.records.length === 0 && <EmptyState title="Belum ada kehadiran" description="Belum ada rekap kehadiran untuk bulan ini." />}
           </div>
         </>
       ) : null}

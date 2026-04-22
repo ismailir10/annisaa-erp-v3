@@ -252,7 +252,7 @@ export default function GuardiansPage() {
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
         title={deactivateTarget?.status === "INACTIVE" ? "Aktifkan Wali" : "Nonaktifkan Wali"}
-        description={`Ubah status "${deactivateTarget?.name}"? Data tidak akan dihapus.`}
+        description={deactivateTarget?.status === "INACTIVE" ? `"${deactivateTarget?.name}" akan muncul kembali di daftar wali aktif.` : `"${deactivateTarget?.name}" tidak akan muncul di daftar aktif. Bisa diaktifkan kembali kapan saja.`}
         confirmLabel={deactivateTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
         onConfirm={handleStatusToggle}
         destructive={deactivateTarget?.status !== "INACTIVE"}

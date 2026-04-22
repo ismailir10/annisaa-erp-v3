@@ -299,7 +299,7 @@ export default function EnrollmentsPage() {
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
         title={deactivateTarget?.status === "WITHDRAWN" ? "Aktifkan Pendaftaran" : "Cabut Pendaftaran"}
-        description={`Ubah status pendaftaran "${deactivateTarget?.student.name}"?`}
+        description={deactivateTarget?.status === "WITHDRAWN" ? `Pendaftaran ${deactivateTarget?.student.name} akan aktif kembali.` : `Pendaftaran ${deactivateTarget?.student.name} akan dicabut. Bisa diaktifkan kembali kapan saja.`}
         confirmLabel={deactivateTarget?.status === "WITHDRAWN" ? "Aktifkan" : "Cabut"}
         onConfirm={handleStatusToggle}
         destructive={deactivateTarget?.status !== "WITHDRAWN"}
