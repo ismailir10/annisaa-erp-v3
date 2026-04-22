@@ -440,7 +440,7 @@ export default function RolesPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="p-card max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editTarget ? "Edit Peran" : "Tambah Peran"}

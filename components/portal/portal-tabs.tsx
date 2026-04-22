@@ -125,7 +125,7 @@ export function PortalTabs({
         // Option C — pinned top-level switcher. Sticks below PortalHeader
         // (top-14 ≈ h-14 header) and covers scrolling content.
         sticky &&
-          "sticky top-14 z-10 -mx-5 px-5 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border",
+          "sticky top-14 z-10 -mx-page-x px-page-x pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border",
         className
       )}
     >

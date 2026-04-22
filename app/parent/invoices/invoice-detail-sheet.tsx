@@ -119,7 +119,9 @@ export function InvoiceDetailSheet({
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-          <InvoiceDetailSkeleton />
+          <div className="p-card">
+            <InvoiceDetailSkeleton />
+          </div>
         </SheetContent>
       </Sheet>
     );
@@ -192,14 +194,16 @@ export function InvoiceDetailSheet({
           )}
         </SheetHeader>
 
+        <div className="px-card pb-card space-y-field">
+
         {/* Status Message */}
-        <div className={`mt-4 p-3 rounded-lg flex items-start gap-3 ${VARIANT_STYLES[statusMsg.variant]}`}>
+        <div className={`p-3 rounded-lg flex items-start gap-3 ${VARIANT_STYLES[statusMsg.variant]}`}>
           {statusMsg.icon}
           <p className="text-xs flex-1">{statusMsg.message}</p>
         </div>
 
         {/* Invoice Details */}
-        <div className="mt-6 space-y-4">
+        <div className="space-y-4">
           {/* Dates */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -277,7 +281,7 @@ export function InvoiceDetailSheet({
 
         {/* Payment Action — only render when link is available; no-link fallback is in the status banner above */}
         {isPayable && hasPaymentLink && (
-          <div className="mt-6 pt-4 border-t border-border">
+          <div className="pt-4 border-t border-border">
             <a
               href={invoice.xenditPaymentUrl!}
               target="_blank"
@@ -293,8 +297,9 @@ export function InvoiceDetailSheet({
         )}
 
         <SheetClose
-          render={<Button variant="outline" className="w-full mt-4">Tutup</Button>}
+          render={<Button variant="outline" className="w-full">Tutup</Button>}
         />
+        </div>
       </SheetContent>
     </Sheet>
   );

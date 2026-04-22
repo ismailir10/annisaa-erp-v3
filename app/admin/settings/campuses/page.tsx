@@ -185,7 +185,7 @@ export default function CampusesPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Kampus" : "Tambah Kampus"}</DialogTitle>
             <DialogDescription>

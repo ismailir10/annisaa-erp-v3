@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-04-21 (schema-drift-pfs — PFS tenantId/status declared, seed workaround removed, adapter parity re-checked).
+// Last verified: 2026-04-23 (design-system-cycle-2 — seed 3-kids extension, data-only, adapter parity unchanged).
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

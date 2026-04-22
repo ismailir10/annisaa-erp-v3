@@ -69,7 +69,7 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
         <thead>
           <tr>
             {/* Sticky indicator column header */}
-            <th className="sticky left-0 bg-card z-10 text-left py-2 pr-2 text-[10px] font-medium text-muted-foreground w-[120px] min-w-[120px]">
+            <th className="sticky left-0 bg-card z-10 text-left py-2 pr-2 text-xs font-medium text-muted-foreground w-[120px] min-w-[120px]">
               Indikator
             </th>
             {dates.map((d, i) => {
@@ -77,7 +77,7 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
               return (
                 <th
                   key={d}
-                  className={`text-center py-2 px-1 text-[10px] font-medium min-w-[44px] w-[44px] ${
+                  className={`text-center py-2 px-1 text-xs font-medium min-w-[44px] w-[44px] ${
                     isToday ? "bg-primary/10 text-primary" : "text-muted-foreground"
                   }`}
                 >
@@ -97,7 +97,7 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
               <tr key={`cat-${cat.id}`}>
                 <td
                   colSpan={dates.length + 1}
-                  className="bg-muted/40 px-2 py-1.5 text-[11px] font-semibold text-foreground sticky left-0"
+                  className="bg-muted/40 px-2 py-1.5 text-xs font-semibold text-foreground sticky left-0"
                 >
                   {cat.name}
                 </td>
@@ -108,7 +108,7 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                   className="border-b border-border/40 last:border-0"
                 >
                   {/* Sticky label column */}
-                  <td className="sticky left-0 bg-card z-10 py-2 pr-2 text-[11px] text-foreground leading-tight w-[120px] min-w-[120px] align-middle">
+                  <td className="sticky left-0 bg-card z-10 py-2 pr-2 text-xs text-foreground leading-tight w-[120px] min-w-[120px] align-middle">
                     {ind.label}
                   </td>
                   {dates.map((d) => {

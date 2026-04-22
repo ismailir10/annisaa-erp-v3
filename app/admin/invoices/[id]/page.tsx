@@ -11,7 +11,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -32,8 +34,54 @@ type InvoiceDetail = {
 
 const METHOD_LABELS: Record<string, string> = { CASH: "Tunai", BANK_TRANSFER: "Transfer Bank", XENDIT: "Xendit", OTHER: "Lainnya" };
 
+// ------------------------------------------------------------------
+// Payment Form Body (shared between Dialog + Sheet)
+// ------------------------------------------------------------------
+
+function PaymentFormBody({
+  payForm,
+  setPayForm,
+  remaining,
+}: {
+  payForm: { amount: string; method: string; reference: string; notes: string };
+  setPayForm: (v: { amount: string; method: string; reference: string; notes: string }) => void;
+  remaining: number;
+}) {
+  return (
+    <>
+      <Field>
+        <FieldLabel>Jumlah *</FieldLabel>
+        <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
+        <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel>Metode Pembayaran</FieldLabel>
+        <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="CASH">Tunai</SelectItem>
+            <SelectItem value="BANK_TRANSFER">Transfer Bank</SelectItem>
+            <SelectItem value="XENDIT">Xendit</SelectItem>
+            <SelectItem value="OTHER">Lainnya</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field>
+        <FieldLabel>Referensi</FieldLabel>
+        <Input value={payForm.reference} onChange={e => setPayForm({ ...payForm, reference: e.target.value })} placeholder="Opsional" />
+        <FieldDescription>Nomor transfer, ID transaksi, dll.</FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel>Catatan</FieldLabel>
+        <Input value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Opsional" />
+      </Field>
+    </>
+  );
+}
+
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const isMobile = useIsMobile();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [paymentDialog, setPaymentDialog] = useState(false);
@@ -229,44 +277,34 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Payment Dialog */}
-      <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <Field>
-              <FieldLabel>Jumlah *</FieldLabel>
-              <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
-              <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel>Metode Pembayaran</FieldLabel>
-              <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CASH">Tunai</SelectItem>
-                  <SelectItem value="BANK_TRANSFER">Transfer Bank</SelectItem>
-                  <SelectItem value="XENDIT">Xendit</SelectItem>
-                  <SelectItem value="OTHER">Lainnya</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Referensi</FieldLabel>
-              <Input value={payForm.reference} onChange={e => setPayForm({ ...payForm, reference: e.target.value })} placeholder="Opsional" />
-              <FieldDescription>Nomor transfer, ID transaksi, dll.</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel>Catatan</FieldLabel>
-              <Input value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Opsional" />
-            </Field>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Payment Dialog (desktop) / Sheet (mobile, side="bottom" — narrow single-column form) */}
+      {isMobile ? (
+        <Sheet open={paymentDialog} onOpenChange={setPaymentDialog}>
+          <SheetContent side="bottom" className="overflow-y-auto">
+            <SheetHeader><SheetTitle>Catat Pembayaran</SheetTitle></SheetHeader>
+            <div className="p-card space-y-field">
+              <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
+            </div>
+            <SheetFooter>
+              <SheetClose><Button variant="outline">Batal</Button></SheetClose>
+              <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
+          <DialogContent className="p-card">
+            <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
+            <div className="p-card space-y-field">
+              <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
+            </div>
+            <DialogFooter>
+              <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+              <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { WeekGrid } from "@/components/student-journal/week-grid";
+import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { AuditDiff } from "@/components/student-journal/audit-diff";
 import { weekStart } from "@/lib/student-journal/week";

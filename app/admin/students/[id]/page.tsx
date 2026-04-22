@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -40,6 +42,7 @@ const REL_LABELS: Record<string, string> = { AYAH: "Ayah", IBU: "Ibu", WALI: "Wa
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const isMobile = useIsMobile();
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -547,12 +550,11 @@ export default function StudentDetailPage() {
         </AdminTabsContent>
       </AdminTabs>
 
-      {/* Guardian Dialog */}
-      <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editingGuardian ? "Edit Wali" : "Tambah Wali"}</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <div className="grid grid-cols-2 gap-3">
+      {/* ---------- Guardian form body (shared) ---------- */}
+      {(() => {
+        const guardianBody = (
+          <div className="space-y-field">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field><FieldLabel>Nama *</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
               <Field>
                 <FieldLabel>Hubungan</FieldLabel>
@@ -565,14 +567,14 @@ export default function StudentDetailPage() {
                 </Select>
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field><FieldLabel>No. HP</FieldLabel><Input value={guardianForm.phone} onChange={e => setGuardianForm({ ...guardianForm, phone: e.target.value })} placeholder="081234567890" /></Field>
               <Field><FieldLabel>WhatsApp</FieldLabel><Input value={guardianForm.whatsapp} onChange={e => setGuardianForm({ ...guardianForm, whatsapp: e.target.value })} placeholder="081234567890" /></Field>
             </div>
             <Field><FieldLabel>Email</FieldLabel><Input type="email" value={guardianForm.email} onChange={e => setGuardianForm({ ...guardianForm, email: e.target.value })} placeholder="email@example.com" /></Field>
 
             <div className="pt-2 border-t"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Pekerjaan</p></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>Pendidikan</FieldLabel>
                 <Select value={guardianForm.education || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, education: v })}>
@@ -604,7 +606,7 @@ export default function StudentDetailPage() {
                 </Select>
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>Penghasilan</FieldLabel>
                 <Select value={guardianForm.incomeRange || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, incomeRange: v })}>
@@ -623,40 +625,77 @@ export default function StudentDetailPage() {
             </div>
             <Field><FieldLabel>Tempat Kerja</FieldLabel><Input value={guardianForm.employer} onChange={e => setGuardianForm({ ...guardianForm, employer: e.target.value })} placeholder="Nama perusahaan / instansi" /></Field>
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        );
+        const guardianTitle = editingGuardian ? "Edit Wali" : "Tambah Wali";
+        // side="right" on mobile: multi-section form (name/contact + pekerjaan subsection, 9 fields)
+        // benefits from full-height surface; bottom sheet would only show ~30% before scroll.
+        return isMobile ? (
+          <Sheet open={guardianDialog} onOpenChange={setGuardianDialog}>
+            <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+              <SheetHeader><SheetTitle>{guardianTitle}</SheetTitle></SheetHeader>
+              <div className="p-card">{guardianBody}</div>
+              <SheetFooter>
+                <Button variant="outline" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
+                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
+            <DialogContent className="p-card">
+              <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
+              <div className="p-card">{guardianBody}</div>
+              <DialogFooter>
+                <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
-      {/* Enroll Dialog */}
-      <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
-          <div className="py-2">
-            <Field>
-              <FieldLabel>Pilih Kelas *</FieldLabel>
-              <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)}>
-                <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
-                <SelectContent>
-                  {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ---------- Enroll (1 field) — side="bottom" on mobile ---------- */}
+      {(() => {
+        const enrollBody = (
+          <Field>
+            <FieldLabel>Pilih Kelas *</FieldLabel>
+            <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)}>
+              <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
+              <SelectContent>
+                {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+        );
+        return isMobile ? (
+          <Sheet open={enrollDialog} onOpenChange={setEnrollDialog}>
+            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+              <SheetHeader><SheetTitle>Daftarkan ke Kelas</SheetTitle></SheetHeader>
+              <div className="p-card">{enrollBody}</div>
+              <SheetFooter>
+                <Button variant="outline" onClick={() => setEnrollDialog(false)} disabled={enrolling}>Batal</Button>
+                <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
+            <DialogContent className="p-card">
+              <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
+              <div className="p-card">{enrollBody}</div>
+              <DialogFooter>
+                <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+                <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
-      {/* Promote Dialog */}
-      <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
+      {/* ---------- Promote (2 fields) — side="bottom" on mobile ---------- */}
+      {(() => {
+        const promoteBody = (
+          <div className="space-y-field">
             <Field>
               <FieldLabel>Kelas Tujuan *</FieldLabel>
               <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)}>
@@ -671,21 +710,39 @@ export default function StudentDetailPage() {
               <Textarea value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
             </Field>
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        );
+        return isMobile ? (
+          <Sheet open={promoteDialog} onOpenChange={setPromoteDialog}>
+            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+              <SheetHeader><SheetTitle>Naik Kelas</SheetTitle></SheetHeader>
+              <div className="p-card">{promoteBody}</div>
+              <SheetFooter>
+                <Button variant="outline" onClick={() => setPromoteDialog(false)} disabled={promoting}>Batal</Button>
+                <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
+            <DialogContent className="p-card">
+              <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
+              <div className="p-card">{promoteBody}</div>
+              <DialogFooter>
+                <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+                <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Graduate Confirm */}
       <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi GRADUATED dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
 
-      {/* Withdraw Dialog */}
-      <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
+      {/* ---------- Withdraw (description + 1 field) — side="bottom" on mobile ---------- */}
+      {(() => {
+        const withdrawBody = (
+          <div className="space-y-field">
             <p className="text-sm text-muted-foreground">
               Mengeluarkan <strong>{student.name}</strong> dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.
             </p>
@@ -694,12 +751,31 @@ export default function StudentDetailPage() {
               <Textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} placeholder="Masukkan alasan pengeluaran siswa..." rows={3} />
             </Field>
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        );
+        return isMobile ? (
+          <Sheet open={withdrawDialog} onOpenChange={setWithdrawDialog}>
+            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+              <SheetHeader><SheetTitle>Keluarkan Siswa</SheetTitle></SheetHeader>
+              <div className="p-card">{withdrawBody}</div>
+              <SheetFooter>
+                <Button variant="outline" onClick={() => setWithdrawDialog(false)} disabled={withdrawing}>Batal</Button>
+                <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
+            <DialogContent className="p-card">
+              <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
+              <div className="p-card">{withdrawBody}</div>
+              <DialogFooter>
+                <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+                <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       <ConfirmDialog
         open={!!deleteGuardianTarget}

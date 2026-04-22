@@ -10,7 +10,7 @@ export default async function ParentLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen bg-background pb-20">
       <ParentHeader userName={session.name ?? "Orang Tua"} />
-      <main className="max-w-md mx-auto px-5 py-6">{children}</main>
+      <main className="max-w-md mx-auto px-page-x py-6">{children}</main>
       <ParentBottomNav />
     </div>
   );

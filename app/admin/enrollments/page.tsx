@@ -11,7 +11,9 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -95,7 +97,45 @@ const columns: ColumnDef<Enrollment>[] = [
 // Page
 // ------------------------------------------------------------------
 
+// ------------------------------------------------------------------
+// Enrollment Edit Form Body (shared between Dialog + Sheet)
+// ------------------------------------------------------------------
+
+function EnrollmentEditFormBody({
+  editTarget,
+  editForm,
+  setEditForm,
+  classSections,
+}: {
+  editTarget: Enrollment | null;
+  editForm: { classSectionId: string; notes: string };
+  setEditForm: (v: { classSectionId: string; notes: string }) => void;
+  classSections: ClassSection[];
+}) {
+  return (
+    <>
+      <Field>
+        <FieldLabel>Siswa</FieldLabel>
+        <Input value={editTarget?.student.name || ""} disabled />
+      </Field>
+      <Field>
+        <FieldLabel>Kelas</FieldLabel>
+        <Select value={editForm.classSectionId} onValueChange={(v) => v && setEditForm({ ...editForm, classSectionId: v })}>
+          <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+          <SelectContent>
+            {classSections.map(cs => (
+              <SelectItem key={cs.id} value={cs.id}>{cs.program.name} · {cs.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field><FieldLabel>Catatan</FieldLabel><Input value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></Field>
+    </>
+  );
+}
+
 export default function EnrollmentsPage() {
+  const isMobile = useIsMobile();
   const [data, setData] = useState<Enrollment[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -265,34 +305,34 @@ export default function EnrollmentsPage() {
         emptyDescription="Siswa yang didaftarkan ke kelas akan otomatis muncul di sini."
       />
 
-      {/* Edit Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Penempatan</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <Field>
-              <FieldLabel>Siswa</FieldLabel>
-              <Input value={editTarget?.student.name || ""} disabled />
-            </Field>
-            <Field>
-              <FieldLabel>Kelas</FieldLabel>
-              <Select value={editForm.classSectionId} onValueChange={(v) => v && setEditForm({ ...editForm, classSectionId: v })}>
-                <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
-                <SelectContent>
-                  {classSections.map(cs => (
-                    <SelectItem key={cs.id} value={cs.id}>{cs.program.name} · {cs.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field><FieldLabel>Catatan</FieldLabel><Input value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></Field>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Dialog (desktop) / Sheet (mobile, side="bottom" — narrow single-column form with disabled student + single select + notes) */}
+      {isMobile ? (
+        <Sheet open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
+          <SheetContent side="bottom" className="overflow-y-auto">
+            <SheetHeader><SheetTitle>Edit Penempatan</SheetTitle></SheetHeader>
+            <div className="p-card space-y-field">
+              <EnrollmentEditFormBody editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} classSections={classSections} />
+            </div>
+            <SheetFooter>
+              <SheetClose><Button variant="outline">Batal</Button></SheetClose>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
+          <DialogContent className="p-card">
+            <DialogHeader><DialogTitle>Edit Penempatan</DialogTitle></DialogHeader>
+            <div className="p-card space-y-field">
+              <EnrollmentEditFormBody editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} classSections={classSections} />
+            </div>
+            <DialogFooter>
+              <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Confirm Dialog */}
       <ConfirmDialog

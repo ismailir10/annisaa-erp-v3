@@ -214,7 +214,7 @@ export default function TeachingAssignmentsPage() {
       />
 
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>Edit Penugasan</DialogTitle>
             <DialogDescription>

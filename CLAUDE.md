@@ -189,6 +189,12 @@ Installed via `scripts/install-hooks.sh` which sets `core.hooksPath=.githooks` a
 
 **`.env` / `node_modules` in worktrees:** Both are gitignored and absent from fresh worktrees. The setup script symlinks them so `npm run dev`, `npm run build`, and Prisma work immediately. If a branch changes `package.json` dependencies, run `npm install` inside the worktree to replace the `node_modules` symlink.
 
+**Claude-harness worktrees at `.claude/worktrees/<slug>`:** The Claude Code harness may create worktrees at this path directly, bypassing `scripts/setup-worktree.sh` — so `.env` / `.env.local` are not symlinked and `npm run dev` / `npm run build` / Prisma fail with missing-env errors. Recovery (works from any worktree path, idempotent):
+```bash
+bash scripts/bootstrap-env-symlinks.sh
+```
+The script locates the main checkout via `git rev-parse --git-common-dir` and restores the missing symlinks.
+
 **Cleanup when the cycle is merged:**
 ```bash
 git worktree remove .worktrees/<slug>

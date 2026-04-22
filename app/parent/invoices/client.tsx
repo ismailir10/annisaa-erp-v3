@@ -64,7 +64,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
         <Skeleton className="h-6 w-36 mb-4" />
 
         {/* Filter tabs — 5 pills mirroring InvoiceFilter (sticky, bg-background) */}
-        <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-3 -mx-5 px-5 mb-4">
+        <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-3 -mx-page-x px-page-x mb-4">
           <div className="flex gap-2 overflow-x-auto">
             {[1, 2, 3, 4, 5].map((i) => (
               <Skeleton key={i} className="h-8 w-20 rounded-full shrink-0" />

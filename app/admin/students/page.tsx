@@ -32,9 +32,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ------------------------------------------------------------------
 // Types
@@ -73,6 +81,99 @@ const EMPTY_CREATE_FORM = {
   nisn: "",
   notes: "",
 };
+
+type StudentFormValues = typeof EMPTY_CREATE_FORM;
+
+// ------------------------------------------------------------------
+// Shared form body — reused by Dialog (desktop) + Sheet (mobile)
+// for both Create and Edit
+// ------------------------------------------------------------------
+
+function StudentFormBody({
+  form,
+  setForm,
+}: {
+  form: StudentFormValues;
+  setForm: (v: StudentFormValues) => void;
+}) {
+  return (
+    <div className="space-y-field">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field>
+          <FieldLabel>Nama Lengkap *</FieldLabel>
+          <Input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Aisyah Putri"
+            autoFocus
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Nama Panggilan</FieldLabel>
+          <Input
+            value={form.nickname}
+            onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+            placeholder="Aisyah"
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field>
+          <FieldLabel>Jenis Kelamin</FieldLabel>
+          <Select
+            value={form.gender}
+            onValueChange={(v) => v && setForm({ ...form, gender: v })}
+          >
+            <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="L">Laki-laki</SelectItem>
+              <SelectItem value="P">Perempuan</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Tanggal Lahir</FieldLabel>
+          <Input
+            type="date"
+            value={form.dateOfBirth}
+            onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+            max={new Date().toISOString().split("T")[0]}
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field>
+          <FieldLabel>NIS</FieldLabel>
+          <Input
+            value={form.nis}
+            onChange={(e) => setForm({ ...form, nis: e.target.value })}
+            placeholder="Nomor Induk Siswa"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>NISN</FieldLabel>
+          <Input
+            value={form.nisn}
+            onChange={(e) => setForm({ ...form, nisn: e.target.value })}
+            placeholder="Nomor Induk Siswa Nasional"
+          />
+        </Field>
+      </div>
+
+      <Field>
+        <FieldLabel>Catatan</FieldLabel>
+        <Textarea
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="Alergi, kebutuhan khusus, dll."
+          rows={2}
+        />
+      </Field>
+    </div>
+  );
+}
 
 // ------------------------------------------------------------------
 // Columns definition
@@ -174,6 +275,7 @@ const columns: ColumnDef<Student>[] = [
 
 export default function StudentsPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<Student[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -437,193 +539,101 @@ export default function StudentsPage() {
         destructive={deactivateTarget?.status !== "INACTIVE"}
       />
 
-      {/* Edit Student Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit Siswa</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-field py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Nama Lengkap *</FieldLabel>
-                <Input
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="Aisyah Putri"
-                  autoFocus
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Nama Panggilan</FieldLabel>
-                <Input
-                  value={editForm.nickname}
-                  onChange={(e) => setEditForm({ ...editForm, nickname: e.target.value })}
-                  placeholder="Aisyah"
-                />
-              </Field>
+      {/* Edit Student — side="bottom" on mobile (narrow 2-col form, quick in-and-out) */}
+      {isMobile ? (
+        <Sheet open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
+          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Edit Siswa</SheetTitle>
+            </SheetHeader>
+            <div className="p-card">
+              <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Jenis Kelamin</FieldLabel>
-                <Select
-                  value={editForm.gender}
-                  onValueChange={(v) => v && setEditForm({ ...editForm, gender: v })}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="L">Laki-laki</SelectItem>
-                    <SelectItem value="P">Perempuan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Tanggal Lahir</FieldLabel>
-                <Input
-                  type="date"
-                  value={editForm.dateOfBirth}
-                  onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
-                  max={new Date().toISOString().split("T")[0]}
-                />
-              </Field>
+            <SheetFooter>
+              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+                Batal
+              </Button>
+              <Button onClick={handleEdit} disabled={editing}>
+                {editing ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Siswa</DialogTitle>
+            </DialogHeader>
+            <div className="p-card">
+              <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+                Batal
+              </Button>
+              <Button onClick={handleEdit} disabled={editing}>
+                {editing ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>NIS</FieldLabel>
-                <Input
-                  value={editForm.nis}
-                  onChange={(e) => setEditForm({ ...editForm, nis: e.target.value })}
-                  placeholder="Nomor Induk Siswa"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>NISN</FieldLabel>
-                <Input
-                  value={editForm.nisn}
-                  onChange={(e) => setEditForm({ ...editForm, nisn: e.target.value })}
-                  placeholder="Nomor Induk Siswa Nasional"
-                />
-              </Field>
+      {/* Create Student — side="bottom" on mobile (same form as edit) */}
+      {isMobile ? (
+        <Sheet
+          open={createOpen}
+          onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
+        >
+          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Tambah Siswa</SheetTitle>
+            </SheetHeader>
+            <div className="p-card">
+              <StudentFormBody form={createForm} setForm={setCreateForm} />
             </div>
-
-            <Field>
-              <FieldLabel>Catatan</FieldLabel>
-              <Textarea
-                value={editForm.notes}
-                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                placeholder="Alergi, kebutuhan khusus, dll."
-                rows={2}
-              />
-            </Field>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
-              Batal
-            </Button>
-            <Button onClick={handleEdit} disabled={editing}>
-              {editing ? "Menyimpan..." : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Student Dialog */}
-      <Dialog open={createOpen} onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Tambah Siswa</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-field py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Nama Lengkap *</FieldLabel>
-                <Input
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                  placeholder="Aisyah Putri"
-                  autoFocus
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Nama Panggilan</FieldLabel>
-                <Input
-                  value={createForm.nickname}
-                  onChange={(e) => setCreateForm({ ...createForm, nickname: e.target.value })}
-                  placeholder="Aisyah"
-                />
-              </Field>
+            <SheetFooter>
+              <Button
+                variant="outline"
+                onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
+                disabled={creating}
+              >
+                Batal
+              </Button>
+              <Button onClick={handleCreate} disabled={creating}>
+                {creating ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog
+          open={createOpen}
+          onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Tambah Siswa</DialogTitle>
+            </DialogHeader>
+            <div className="p-card">
+              <StudentFormBody form={createForm} setForm={setCreateForm} />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Jenis Kelamin</FieldLabel>
-                <Select
-                  value={createForm.gender}
-                  onValueChange={(v) => v && setCreateForm({ ...createForm, gender: v })}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="L">Laki-laki</SelectItem>
-                    <SelectItem value="P">Perempuan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Tanggal Lahir</FieldLabel>
-                <Input
-                  type="date"
-                  value={createForm.dateOfBirth}
-                  onChange={(e) => setCreateForm({ ...createForm, dateOfBirth: e.target.value })}
-                  max={new Date().toISOString().split("T")[0]}
-                />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>NIS</FieldLabel>
-                <Input
-                  value={createForm.nis}
-                  onChange={(e) => setCreateForm({ ...createForm, nis: e.target.value })}
-                  placeholder="Nomor Induk Siswa"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>NISN</FieldLabel>
-                <Input
-                  value={createForm.nisn}
-                  onChange={(e) => setCreateForm({ ...createForm, nisn: e.target.value })}
-                  placeholder="Nomor Induk Siswa Nasional"
-                />
-              </Field>
-            </div>
-
-            <Field>
-              <FieldLabel>Catatan</FieldLabel>
-              <Textarea
-                value={createForm.notes}
-                onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                placeholder="Alergi, kebutuhan khusus, dll."
-                rows={2}
-              />
-            </Field>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }} disabled={creating}>
-              Batal
-            </Button>
-            <Button onClick={handleCreate} disabled={creating}>
-              {creating ? "Menyimpan..." : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
+                disabled={creating}
+              >
+                Batal
+              </Button>
+              <Button onClick={handleCreate} disabled={creating}>
+                {creating ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

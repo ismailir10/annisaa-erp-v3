@@ -20,11 +20,20 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetClose,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Check, X, Clock, CheckCircle, XCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ------------------------------------------------------------------
 // Types
@@ -66,7 +75,75 @@ const TYPE_LABELS: Record<string, string> = {
 // Page
 // ------------------------------------------------------------------
 
+// ------------------------------------------------------------------
+// Review body (shared between Dialog on desktop and Sheet on mobile)
+// ------------------------------------------------------------------
+
+type ReviewBodyProps = {
+  target: LeaveRequest;
+  viewOnly: boolean;
+  reviewAction: "approve" | "reject";
+  reviewNote: string;
+  setReviewNote: (v: string) => void;
+};
+
+function LeaveReviewBody({
+  target,
+  viewOnly,
+  reviewAction,
+  reviewNote,
+  setReviewNote,
+}: ReviewBodyProps) {
+  return (
+    <div className="space-y-3">
+      <div className="text-sm">
+        <p>
+          <strong>Tanggal:</strong>{" "}
+          {target.startDate ? formatDateShort(target.startDate) : ""} —{" "}
+          {target.endDate ? formatDateShort(target.endDate) : ""}
+        </p>
+        <p>
+          <strong>Alasan:</strong> {target.reason}
+        </p>
+        {target.reviewNote && (
+          <p>
+            <strong>Catatan:</strong> {target.reviewNote}
+          </p>
+        )}
+      </div>
+      {!viewOnly && (
+        <>
+          <Field>
+            <FieldLabel>
+              {reviewAction === "approve"
+                ? "Catatan (opsional)"
+                : "Alasan penolakan *"}
+            </FieldLabel>
+            <Textarea
+              value={reviewNote}
+              onChange={(e) => setReviewNote(e.target.value)}
+              placeholder={
+                reviewAction === "approve"
+                  ? "Catatan untuk karyawan..."
+                  : "Jelaskan alasan penolakan..."
+              }
+              rows={2}
+            />
+          </Field>
+          {reviewAction === "approve" && (
+            <p className="text-xs text-muted-foreground">
+              Menyetujui akan otomatis membuat record kehadiran LEAVE untuk tanggal
+              tersebut.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function AdminLeavePage() {
+  const isMobile = useIsMobile();
   const [data, setData] = useState<LeaveRequest[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -361,86 +438,107 @@ export default function AdminLeavePage() {
         emptyDescription="Pengajuan cuti dari guru akan muncul di sini."
       />
 
-      {/* Review dialog */}
-      <Dialog open={!!reviewTarget} onOpenChange={(o) => { if (!o) { setReviewTarget(null); setViewOnly(false); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
-            </DialogTitle>
-            <DialogDescription>
-              {reviewTarget?.employee.nama} —{" "}
-              {TYPE_LABELS[reviewTarget?.leaveType ?? ""] ?? reviewTarget?.leaveType} (
-              {reviewTarget?.days} hari)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2 space-y-3">
-            <div className="text-sm">
-              <p>
-                <strong>Tanggal:</strong> {reviewTarget?.startDate ? formatDateShort(reviewTarget.startDate) : ""} —{" "}
-                {reviewTarget?.endDate ? formatDateShort(reviewTarget.endDate) : ""}
-              </p>
-              <p>
-                <strong>Alasan:</strong> {reviewTarget?.reason}
-              </p>
-              {reviewTarget?.reviewNote && (
-                <p>
-                  <strong>Catatan:</strong> {reviewTarget.reviewNote}
-                </p>
-              )}
-            </div>
-            {!viewOnly && (
-              <>
-                <Field>
-                  <FieldLabel>
-                    {reviewAction === "approve"
-                      ? "Catatan (opsional)"
-                      : "Alasan penolakan *"}
-                  </FieldLabel>
-                  <Textarea
-                    value={reviewNote}
-                    onChange={(e) => setReviewNote(e.target.value)}
-                    placeholder={
-                      reviewAction === "approve"
-                        ? "Catatan untuk karyawan..."
-                        : "Jelaskan alasan penolakan..."
+      {/* Review dialog/sheet — split by viewport */}
+      {reviewTarget && (
+        isMobile ? (
+          <Sheet
+            open={!!reviewTarget}
+            onOpenChange={(o) => { if (!o) { setReviewTarget(null); setViewOnly(false); } }}
+          >
+            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>
+                  {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
+                </SheetTitle>
+                <SheetDescription>
+                  {reviewTarget.employee.nama} —{" "}
+                  {TYPE_LABELS[reviewTarget.leaveType] ?? reviewTarget.leaveType} (
+                  {reviewTarget.days} hari)
+                </SheetDescription>
+              </SheetHeader>
+              <div className="p-card space-y-field">
+                <LeaveReviewBody
+                  target={reviewTarget}
+                  viewOnly={viewOnly}
+                  reviewAction={reviewAction}
+                  reviewNote={reviewNote}
+                  setReviewNote={setReviewNote}
+                />
+                <div className="flex flex-col-reverse gap-2 pt-2">
+                  {!viewOnly && (
+                    <Button
+                      onClick={handleReview}
+                      disabled={reviewing}
+                      className={
+                        reviewAction === "reject"
+                          ? "bg-destructive hover:bg-destructive/90"
+                          : ""
+                      }
+                    >
+                      {reviewing
+                        ? "Memproses..."
+                        : reviewAction === "approve"
+                          ? "Setujui"
+                          : "Tolak"}
+                    </Button>
+                  )}
+                  <SheetClose
+                    render={
+                      <Button variant="outline">{viewOnly ? "Tutup" : "Batal"}</Button>
                     }
-                    rows={2}
                   />
-                </Field>
-                {reviewAction === "approve" && (
-                  <p className="text-xs text-muted-foreground">
-                    Menyetujui akan otomatis membuat record kehadiran LEAVE untuk tanggal
-                    tersebut.
-                  </p>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={!!reviewTarget} onOpenChange={(o) => { if (!o) { setReviewTarget(null); setViewOnly(false); } }}>
+            <DialogContent className="p-card">
+              <DialogHeader>
+                <DialogTitle>
+                  {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
+                </DialogTitle>
+                <DialogDescription>
+                  {reviewTarget.employee.nama} —{" "}
+                  {TYPE_LABELS[reviewTarget.leaveType] ?? reviewTarget.leaveType} (
+                  {reviewTarget.days} hari)
+                </DialogDescription>
+              </DialogHeader>
+              <div className="p-card space-y-field">
+                <LeaveReviewBody
+                  target={reviewTarget}
+                  viewOnly={viewOnly}
+                  reviewAction={reviewAction}
+                  reviewNote={reviewNote}
+                  setReviewNote={setReviewNote}
+                />
+              </div>
+              <DialogFooter>
+                <DialogClose>
+                  <Button variant="outline">{viewOnly ? "Tutup" : "Batal"}</Button>
+                </DialogClose>
+                {!viewOnly && (
+                  <Button
+                    onClick={handleReview}
+                    disabled={reviewing}
+                    className={
+                      reviewAction === "reject"
+                        ? "bg-destructive hover:bg-destructive/90"
+                        : ""
+                    }
+                  >
+                    {reviewing
+                      ? "Memproses..."
+                      : reviewAction === "approve"
+                        ? "Setujui"
+                        : "Tolak"}
+                  </Button>
                 )}
-              </>
-            )}
-          </div>
-          <DialogFooter>
-            <DialogClose>
-              <Button variant="outline">{viewOnly ? "Tutup" : "Batal"}</Button>
-            </DialogClose>
-            {!viewOnly && (
-              <Button
-                onClick={handleReview}
-                disabled={reviewing}
-                className={
-                  reviewAction === "reject"
-                    ? "bg-destructive hover:bg-destructive/90"
-                    : ""
-                }
-              >
-                {reviewing
-                  ? "Memproses..."
-                  : reviewAction === "approve"
-                    ? "Setujui"
-                    : "Tolak"}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )
+      )}
     </>
   );
 }
