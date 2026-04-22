@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -110,10 +110,10 @@ export default function EmployeeDetailPage() {
         ) : undefined}
       />
 
-      <Tabs defaultValue="profile">
-        <TabsList><TabsTrigger value="profile">Profil</TabsTrigger>{salaryValues !== null && <TabsTrigger value="salary">Gaji</TabsTrigger>}<TabsTrigger value="attendance">Kehadiran</TabsTrigger></TabsList>
+      <AdminTabs defaultValue="profile">
+        <AdminTabsList><AdminTabsTrigger value="profile">Profil</AdminTabsTrigger>{salaryValues !== null && <AdminTabsTrigger value="salary">Gaji</AdminTabsTrigger>}<AdminTabsTrigger value="attendance">Kehadiran</AdminTabsTrigger></AdminTabsList>
 
-        <TabsContent value="profile">
+        <AdminTabsContent value="profile">
           <Card className="p-5 max-w-3xl mt-4">
             {isEditing && (
               <div className="flex justify-end gap-2 mb-4">
@@ -267,9 +267,9 @@ export default function EmployeeDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
+        </AdminTabsContent>
 
-        <TabsContent value="salary">
+        <AdminTabsContent value="salary">
           <Card className="p-6 max-w-3xl mt-4">
             {(salaryValues ?? []).length === 0 ? <EmptyState title="Tidak ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
               <div className="space-y-3">
@@ -291,10 +291,10 @@ export default function EmployeeDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
+        </AdminTabsContent>
 
-        <TabsContent value="attendance"><EmployeeAttendanceTab employeeId={id} /></TabsContent>
-      </Tabs>
+        <AdminTabsContent value="attendance"><EmployeeAttendanceTab employeeId={id} /></AdminTabsContent>
+      </AdminTabs>
 
       <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Karyawan" description={`Nonaktifkan ${employee.nama}? Karyawan tidak bisa login dan tidak masuk penggajian berikutnya.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" />
     </>

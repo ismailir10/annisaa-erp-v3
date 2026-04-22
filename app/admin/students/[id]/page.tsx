@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -417,14 +417,14 @@ export default function StudentDetailPage() {
       </Card>
 
       {/* Tabs for related data */}
-      <Tabs defaultValue="guardians" onValueChange={(v) => { if (v === "attendance") fetchAttendance(attendanceMonth); }}>
-        <TabsList>
-          <TabsTrigger value="guardians">Orang Tua / Wali</TabsTrigger>
-          <TabsTrigger value="enrollments">Riwayat Kelas</TabsTrigger>
-          <TabsTrigger value="attendance"><CalendarDays size={13} className="mr-1" />Kehadiran</TabsTrigger>
-        </TabsList>
+      <AdminTabs defaultValue="guardians" onValueChange={(v) => { if (v === "attendance") fetchAttendance(attendanceMonth); }}>
+        <AdminTabsList>
+          <AdminTabsTrigger value="guardians">Orang Tua / Wali</AdminTabsTrigger>
+          <AdminTabsTrigger value="enrollments">Riwayat Kelas</AdminTabsTrigger>
+          <AdminTabsTrigger value="attendance"><CalendarDays size={13} className="mr-1" />Kehadiran</AdminTabsTrigger>
+        </AdminTabsList>
 
-        <TabsContent value="guardians">
+        <AdminTabsContent value="guardians">
           <Card className="p-5 mt-2">
             <SectionHeading
               label="Orang Tua / Wali"
@@ -465,9 +465,9 @@ export default function StudentDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
+        </AdminTabsContent>
 
-        <TabsContent value="enrollments">
+        <AdminTabsContent value="enrollments">
           <Card className="p-5 mt-2">
             <SectionHeading label="Riwayat Kelas" />
             {student.enrollments.length === 0 ? (
@@ -486,9 +486,9 @@ export default function StudentDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
+        </AdminTabsContent>
 
-        <TabsContent value="attendance">
+        <AdminTabsContent value="attendance">
           <Card className="p-5 mt-2">
             <SectionHeading
               label="Riwayat Kehadiran"
@@ -544,8 +544,8 @@ export default function StudentDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
-      </Tabs>
+        </AdminTabsContent>
+      </AdminTabs>
 
       {/* Guardian Dialog */}
       <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>

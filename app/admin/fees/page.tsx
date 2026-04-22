@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -170,14 +170,14 @@ export default function FeesPage() {
     <>
       <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
 
-      <Tabs defaultValue="components">
-        <TabsList>
-          <TabsTrigger value="components">Komponen Biaya</TabsTrigger>
-          <TabsTrigger value="structure">Struktur per Program</TabsTrigger>
-        </TabsList>
+      <AdminTabs defaultValue="components">
+        <AdminTabsList>
+          <AdminTabsTrigger value="components">Komponen Biaya</AdminTabsTrigger>
+          <AdminTabsTrigger value="structure">Struktur per Program</AdminTabsTrigger>
+        </AdminTabsList>
 
         {/* Fee Components */}
-        <TabsContent value="components">
+        <AdminTabsContent value="components">
           <div className="flex justify-end mb-4 mt-4">
             <Button size="sm" onClick={() => { setEditingFee(null); setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) }); setComponentDialog(true); }}>
               <Plus size={14} className="mr-1.5" /> Tambah Komponen
@@ -190,10 +190,10 @@ export default function FeesPage() {
             emptyTitle="Belum ada komponen biaya"
             emptyDescription="Tambahkan komponen seperti SPP, Uang Pangkal, Seragam"
           />
-        </TabsContent>
+        </AdminTabsContent>
 
         {/* Fee Structure per Program */}
-        <TabsContent value="structure">
+        <AdminTabsContent value="structure">
           <div className="flex gap-3 mt-4 mb-4">
             <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)}>
               <SelectTrigger className="w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
@@ -238,8 +238,8 @@ export default function FeesPage() {
               </div>
             </Card>
           )}
-        </TabsContent>
-      </Tabs>
+        </AdminTabsContent>
+      </AdminTabs>
 
       {/* Add Component Dialog */}
       <Dialog open={componentDialog} onOpenChange={setComponentDialog}>
