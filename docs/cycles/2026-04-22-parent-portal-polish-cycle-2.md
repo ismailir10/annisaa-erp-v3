@@ -144,7 +144,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Test: existing tests still pass; add 1 test that renders 3 items with a 16 px avatar as `leading` and asserts both avatar + label are visible.
   - Acceptance: zero visual diff when callers don't pass `leading`; avatar-bearing tabs render correctly at 375 px.
 
-- [ ] **T2 — Build `PortalHeader` primitive.**
+- [x] **T2 — Build `PortalHeader` primitive.**
   - File: `components/portal/portal-header.tsx` (new) + `components/portal/__tests__/portal-header.test.tsx` (new).
   - Props: `logo: ReactNode`, `userName: string`, `userSubtitle?: string`, `avatarUrl?: string`, `avatarFallback: string` (required when no url — 1-2 chars), `profileHref?: string`, `onLogout: () => void`.
   - Layout: flex row; logo left; right side has avatar (24 px) + name stack; chevron-right icon if `profileHref` provided; logout icon button (ghost variant, `aria-label="Keluar"`) trailing.
@@ -240,11 +240,13 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 ## Implementation
 
 - Dispatch plan: T1 solo (inline), T2 solo (inline), then Group B tasks dispatched as parallel implementer subagents where file-disjoint; remaining sequential. T14 after T13. T10 last.
+- T2: `components/portal/portal-header.tsx` + `components/portal/__tests__/portal-header.test.tsx` — shared header primitive. Mirrors cycle-1 teacher header layout (sticky `h-14`, `max-w-md mx-auto`, `px-5`). Props: `userName`, `userSubtitle?`, `avatarUrl?`, `avatarFallback`, `profileHref?`, `onLogout`, `brandLabel?`. When `profileHref` set, avatar + name become a link; otherwise inline. Logout button carries `aria-label="Keluar"`. 7 tests green (brand, subtitle, link vs no-link, logout fires, avatar url fallback).
 - T1: `components/portal/portal-tabs.tsx` — added optional `leading?: ReactNode` field to `PortalTab`; render inside tab button wrapped in `aria-hidden="true"` span with `mr-2`. Button gains `inline-flex items-center` for the new slot (no visual regression: existing callers have `whitespace-nowrap` + no taller siblings). JSDoc explicitly notes the aria-hidden decorative contract + the `label` field is the accessible name. Added 1 test (`renders leading slot content before the label when provided`) covering both presence + DOM order. Reviewer: 2 notes (85/82 confidence) — addressed JSDoc; `inline-flex` layout note accepted (no consumer regression from current call sites).
 
 ## Verification
 
 - T1: `npx vitest run components/portal` → 8 passed / 8 total. `npm run build` green. Manual: existing `<PortalTabs>` consumers (`child-selector-tabs`, `invoice-filter`, `student-journal`) untouched + render unchanged; leading slot is purely additive.
+- T2: `npx vitest run components/portal` → 14 passed / 14 total. `npm run build` green. No consumers migrated yet — T4 + T5 wire it in.
 
 ## Ship Notes
 <!-- filled by /ship -->
