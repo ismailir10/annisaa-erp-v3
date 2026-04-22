@@ -15,6 +15,7 @@ import {
   Heart,
   BookOpen,
   ClipboardList,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 
@@ -112,6 +113,7 @@ export const adminNav: NavConfig = {
     },
     { label: "Pengguna", href: "/admin/settings/users", icon: Users },
     { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield },
+    { label: "Design System", href: "/admin/design-system", icon: Palette },
   ],
 };
 
