@@ -102,7 +102,7 @@ export function InvoiceDetailSheet({
         setLoading(false);
       })
       .catch(() => {
-        toast.error("Gagal memuat detail tagihan");
+        toast.error("Tagihan belum bisa dimuat. Coba lagi sebentar ya.");
         setLoading(false);
       });
   }

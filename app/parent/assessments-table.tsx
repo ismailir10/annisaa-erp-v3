@@ -66,7 +66,7 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
         setLoadingId(null);
       })
       .catch(() => {
-        toast.error("Gagal memuat detail rapor");
+        toast.error("Rapor belum bisa dimuat. Coba lagi sebentar ya.");
         setLoadingId(null);
         setSelectedId(null);
       });
@@ -82,7 +82,7 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
     return (
       <EmptyState
         title="Belum ada rapor"
-        description="Rapor akan tersedia setelah guru menilai dan admin menerbitkan."
+        description="InsyaAllah rapor terbit setelah Ustadz/Ustadzah selesai menilai."
       />
     );
   }

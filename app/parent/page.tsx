@@ -33,8 +33,8 @@ export default async function ParentDashboard({
       <div className="py-16">
         <EmptyState
           icon={AlertCircle}
-          title="Data tidak ditemukan"
-          description="Hubungi admin sekolah untuk menghubungkan akun Anda."
+          title="Akun belum terhubung ke anak"
+          description="Silakan hubungi admin sekolah untuk menghubungkan akun Anda."
         />
       </div>
     );
