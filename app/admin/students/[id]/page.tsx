@@ -17,6 +17,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
@@ -391,7 +392,7 @@ export default function StudentDetailPage() {
 
         {!isEditing && (student.nis || student.nisn || student.nik || student.birthPlace) && (
           <>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Identitas Resmi</h3>
+            <div className="mt-6"><SectionHeading label="Identitas Resmi" /></div>
             <div className="grid grid-cols-2 gap-4">
               {student.nis && <div><p className="text-xs text-muted-foreground">NIS</p><p className="text-sm font-medium font-currency">{student.nis}</p></div>}
               {student.nisn && <div><p className="text-xs text-muted-foreground">NISN</p><p className="text-sm font-medium font-currency">{student.nisn}</p></div>}
@@ -405,7 +406,7 @@ export default function StudentDetailPage() {
 
         {!isEditing && metadata && Object.keys(metadata).length > 0 && (
           <>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Informasi Tambahan</h3>
+            <div className="mt-6"><SectionHeading label="Informasi Tambahan" /></div>
             <div className="grid grid-cols-2 gap-3">
               {Object.entries(metadata).map(([key, value]) => (
                 <div key={key}><p className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p><p className="text-sm">{String(value)}</p></div>
@@ -425,10 +426,10 @@ export default function StudentDetailPage() {
 
         <TabsContent value="guardians">
           <Card className="p-5 mt-2">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Orang Tua / Wali</h3>
-              <Button size="sm" variant="ghost" onClick={openAddGuardian}><Plus size={12} className="mr-1" /> Tambah</Button>
-            </div>
+            <SectionHeading
+              label="Orang Tua / Wali"
+              actions={<Button size="sm" variant="ghost" onClick={openAddGuardian}><Plus size={12} className="mr-1" /> Tambah</Button>}
+            />
             {student.guardians.filter(g => g.status !== "INACTIVE").length === 0 ? (
               <EmptyState title="Belum ada data wali" description="Tambahkan orang tua atau wali siswa." />
             ) : (
@@ -468,7 +469,7 @@ export default function StudentDetailPage() {
 
         <TabsContent value="enrollments">
           <Card className="p-5 mt-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Riwayat Kelas</h3>
+            <SectionHeading label="Riwayat Kelas" />
             {student.enrollments.length === 0 ? (
               <EmptyState title="Belum terdaftar di kelas" description="Daftarkan siswa ke kelas melalui tombol di atas." />
             ) : (
@@ -489,9 +490,9 @@ export default function StudentDetailPage() {
 
         <TabsContent value="attendance">
           <Card className="p-5 mt-2">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Riwayat Kehadiran</h3>
-              <Input
+            <SectionHeading
+              label="Riwayat Kehadiran"
+              actions={<Input
                 type="month"
                 className="w-40 h-8 text-xs"
                 value={attendanceMonth}
@@ -499,8 +500,8 @@ export default function StudentDetailPage() {
                   setAttendanceMonth(e.target.value);
                   if (e.target.value) fetchAttendance(e.target.value);
                 }}
-              />
-            </div>
+              />}
+            />
 
             {attendanceSummary && (
               <div className="grid grid-cols-4 gap-3 mb-4">

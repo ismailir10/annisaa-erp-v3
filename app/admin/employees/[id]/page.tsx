@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -125,7 +126,7 @@ export default function EmployeeDetailPage() {
               /* ── EDIT MODE ─────────────────────────────────── */
               <div className="space-y-5">
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Identitas</h3>
+                  <SectionHeading label="Identitas" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field><FieldLabel>Kode</FieldLabel><Input value={e.kode} disabled /></Field>
                     <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
@@ -136,7 +137,7 @@ export default function EmployeeDetailPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kontak</h3>
+                  <SectionHeading label="Kontak" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field><FieldLabel>Email *</FieldLabel><Input value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
                     <Field><FieldLabel>No. HP</FieldLabel><Input value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
@@ -144,7 +145,7 @@ export default function EmployeeDetailPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kepegawaian</h3>
+                  <SectionHeading label="Kepegawaian" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
                       <FieldLabel>Jabatan *</FieldLabel>
@@ -172,7 +173,7 @@ export default function EmployeeDetailPage() {
                 </div>
 
                 {"bankAccountNo" in employee && <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rekening & BPJS</h3>
+                  <SectionHeading label="Rekening & BPJS" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
                       <FieldLabel>Bank</FieldLabel>
@@ -195,7 +196,7 @@ export default function EmployeeDetailPage() {
               <div className="space-y-6">
                 {/* Identitas */}
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Identitas</h3>
+                  <SectionHeading label="Identitas" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <User size={16} className="text-muted-foreground shrink-0" />
@@ -213,7 +214,7 @@ export default function EmployeeDetailPage() {
 
                 {/* Kontak */}
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kontak</h3>
+                  <SectionHeading label="Kontak" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <Mail size={16} className="text-muted-foreground shrink-0" />
@@ -228,7 +229,7 @@ export default function EmployeeDetailPage() {
 
                 {/* Kepegawaian */}
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kepegawaian</h3>
+                  <SectionHeading label="Kepegawaian" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <Briefcase size={16} className="text-muted-foreground shrink-0" />
@@ -247,7 +248,7 @@ export default function EmployeeDetailPage() {
 
                 {/* Rekening & BPJS — hidden when server stripped fields (SCHOOL_ADMIN) */}
                 {"bankAccountNo" in e && <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rekening & BPJS</h3>
+                  <SectionHeading label="Rekening & BPJS" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <CreditCard size={16} className="text-muted-foreground shrink-0" />

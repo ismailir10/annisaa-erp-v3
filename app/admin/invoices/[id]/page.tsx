@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ArrowLeft, Ban, CreditCard, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
@@ -183,7 +184,7 @@ export default function InvoiceDetailPage() {
           {/* Guardian info */}
           {guardian && (
             <Card className="p-5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kontak Wali</h3>
+              <SectionHeading label="Kontak Wali" />
               <p className="text-sm font-medium">{guardian.name}</p>
               {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={10} /> {guardian.phone}</p>}
               {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={10} /> {guardian.email}</p>}
@@ -194,7 +195,7 @@ export default function InvoiceDetailPage() {
           {/* Payment link */}
           {invoice.xenditPaymentUrl && (
             <Card className="p-5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Link Pembayaran</h3>
+              <SectionHeading label="Link Pembayaran" />
               <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline break-all">{invoice.xenditPaymentUrl}</a>
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => { navigator.clipboard.writeText(invoice.xenditPaymentUrl!); toast.success("Link disalin"); }}>
                 Salin Link
@@ -204,7 +205,7 @@ export default function InvoiceDetailPage() {
 
           {/* Payment history */}
           <Card className="p-5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Riwayat Pembayaran</h3>
+            <SectionHeading label="Riwayat Pembayaran" />
             {invoice.payments.length === 0 ? (
               <EmptyState title="Belum ada pembayaran" />
             ) : (
