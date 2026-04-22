@@ -754,8 +754,10 @@ async function main() {
     s.guardians.some((g) => g.parentId === rightjetParent?.id)
   );
 
-  // 11a. Multi-child: link rightjet parent to a second student (first non-linked student).
+  // 11a. Multi-child: link rightjet parent to a second student (first non-linked student),
+  // then create a brand-new third child wholly owned by rightjetParent for full household coverage.
   let secondChildId: string | null = null;
+  let thirdChildId: string | null = null;
   if (rightjetParent && rightjetPrimaryChild) {
     const secondChild = studentsAll.find(
       (s) => s.id !== rightjetPrimaryChild.id && !s.guardians.some((g) => g.parentId === rightjetParent.id)
@@ -773,6 +775,42 @@ async function main() {
       secondChildId = secondChild.id;
       console.log(`✅ Multi-child link: ${rightjetParent.name} → ${secondChild.name}`);
     }
+
+    // Third child — new Student + Enrollment + StudentGuardian for rightjetParent.
+    const thirdChild = await prisma.student.create({
+      data: {
+        tenantId: tenant.id,
+        name: "Fatimah Az-Zahra Hidayat",
+        nickname: "Fatimah",
+        dateOfBirth: "2020-08-17",
+        gender: "P",
+        address: "Perum Taman Aster Blok B2/8, Bekasi",
+        status: "ACTIVE",
+        enrollments: {
+          create: {
+            classSectionId: classSectionMap["TKIT_B"],
+            enrollDate: "2025-07-14",
+            status: "ACTIVE",
+          },
+        },
+      },
+    });
+    await prisma.studentGuardian.create({
+      data: {
+        studentId: thirdChild.id,
+        parentId: rightjetParent.id,
+        relationship: "AYAH",
+        isPrimary: false,
+        childOrder: 3,
+      },
+    });
+    thirdChildId = thirdChild.id;
+    console.log(`✅ Multi-child link: ${rightjetParent.name} → ${thirdChild.name}`);
+
+    const rightjetChildCount = await prisma.studentGuardian.count({
+      where: { parentId: rightjetParent.id },
+    });
+    console.log(`✅ Multi-child: rightjetParent has ${rightjetChildCount} kids`);
   }
 
   // 11b. Mark one non-rightjet student as WITHDRAWN (lifecycle coverage).
@@ -780,6 +818,7 @@ async function main() {
     (s) =>
       s.id !== rightjetPrimaryChild?.id &&
       s.id !== secondChildId &&
+      s.id !== thirdChildId &&
       !s.guardians.some((g) => g.parentId === rightjetParent?.id)
   );
   if (withdrawTarget) {
@@ -983,6 +1022,78 @@ async function main() {
       });
       paymentCount++;
     }
+
+    // Extra coverage: every rightjet sibling (second + third child) gets 1 paid + 1 unpaid invoice.
+    const siblingInvoices: Array<{ studentId: string; prefix: string }> = [];
+    if (secondChildId) siblingInvoices.push({ studentId: secondChildId, prefix: "INV-2026-1" });
+    if (thirdChildId) siblingInvoices.push({ studentId: thirdChildId, prefix: "INV-2026-2" });
+    for (const sib of siblingInvoices) {
+      // Paid invoice
+      const paidSib = await prisma.invoice.create({
+        data: {
+          tenantId: tenant.id,
+          studentId: sib.studentId,
+          invoiceNumber: `${sib.prefix}001`,
+          periodLabel: "Februari 2026",
+          dueDate: yyyyMMdd(addDays(todayISO, -45)),
+          totalDue: sppAmount,
+          totalPaid: sppAmount,
+          status: "PAID",
+          createdBy: adminUser.id,
+          sentAt: addDays(todayISO, -55),
+          paidAt: addDays(todayISO, -40),
+          parentId: rightjetParent.id,
+          lines: {
+            create: [{
+              feeComponentId: sppId,
+              labelSnapshot: "SPP Bulanan",
+              amount: sppAmount,
+              finalAmount: sppAmount,
+            }],
+          },
+        },
+      });
+      await prisma.payment.create({
+        data: {
+          invoiceId: paidSib.id,
+          amount: sppAmount,
+          method: "CASH",
+          reference: `TT-Feb-${sib.prefix}`,
+          status: "APPROVED",
+          createdBy: adminUser.id,
+          paidAt: addDays(todayISO, -40),
+        },
+      });
+      invoiceCount++;
+      paymentCount++;
+
+      // Unpaid (SENT) invoice
+      await prisma.invoice.create({
+        data: {
+          tenantId: tenant.id,
+          studentId: sib.studentId,
+          invoiceNumber: `${sib.prefix}002`,
+          periodLabel: "April 2026",
+          dueDate: yyyyMMdd(addDays(todayISO, 10)),
+          totalDue: sppAmount,
+          totalPaid: 0,
+          status: "SENT",
+          createdBy: adminUser.id,
+          sentAt: addDays(todayISO, -3),
+          paidAt: null,
+          parentId: rightjetParent.id,
+          lines: {
+            create: [{
+              feeComponentId: sppId,
+              labelSnapshot: "SPP Bulanan",
+              amount: sppAmount,
+              finalAmount: sppAmount,
+            }],
+          },
+        },
+      });
+      invoiceCount++;
+    }
   }
   console.log(`✅ Invoices: ${invoiceCount} (paid/partial/overdue/sent/xendit) + ${paymentCount} payments`);
 
@@ -1127,7 +1238,29 @@ async function main() {
         },
       },
     });
-    console.log(`✅ Assessment: template + 1 PUBLISHED student assessment (4 scores)`);
+    // Sibling coverage — second + third rightjet kids each get ≥1 score entry.
+    const siblingForScores: Array<{ id: string; samples: string[] }> = [];
+    if (secondChildId) siblingForScores.push({ id: secondChildId, samples: ["BSH", "MB", "BSH", "BB"] });
+    if (thirdChildId) siblingForScores.push({ id: thirdChildId, samples: ["BSB", "BSH", "BSH", "MB"] });
+    for (const sib of siblingForScores) {
+      await prisma.studentAssessment.create({
+        data: {
+          studentId: sib.id,
+          templateId: assessmentTemplate.id,
+          period: "Semester 1 2025/2026",
+          status: "PUBLISHED",
+          createdBy: adminUser.id,
+          publishedAt: new Date(),
+          scores: {
+            create: allIndicators.map((ind, i) => ({
+              indicatorId: ind.id,
+              score: sib.samples[i],
+            })),
+          },
+        },
+      });
+    }
+    console.log(`✅ Assessment: template + ${1 + siblingForScores.length} PUBLISHED student assessments`);
   } else {
     console.log(`✅ Assessment template created (no student assessment — missing child)`);
   }
