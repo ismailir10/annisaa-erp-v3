@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { PageHeader } from "@/components/admin/page-header";
+import { useParams } from "next/navigation";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import { toast } from "sonner";
-import { ArrowLeft, Save, Send } from "lucide-react";
+import { Save, Send } from "lucide-react";
 
 type Indicator = { id: string; description: string; sortOrder: number };
 type Category = { id: string; name: string; sortOrder: number; indicators: Indicator[] };
@@ -45,7 +45,6 @@ const SCORE_COLORS: Record<string, string> = {
 
 export default function AssessmentDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const assessmentId = params?.id;
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
@@ -99,17 +98,14 @@ export default function AssessmentDetailPage() {
     }
   }
 
-  if (loading) return <Skeleton className="h-96 rounded-xl" />;
+  if (loading) return <DetailPageSkeleton />;
 
   if (!assessment) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Penilaian Siswa" description="Pilih penilaian dari halaman daftar" />
+        <DetailPageHeader backHref="/admin/assessments" title="Penilaian Siswa" description="Pilih penilaian dari halaman daftar" />
         <Card className="p-8 text-center text-muted-foreground">
           <p className="text-sm">Tidak ada penilaian yang dipilih. Kembali ke daftar penilaian.</p>
-          <Button variant="outline" className="mt-4" onClick={() => router.push("/admin/assessments")}>
-            <ArrowLeft size={14} className="mr-1.5" /> Kembali
-          </Button>
         </Card>
       </div>
     );
@@ -120,14 +116,13 @@ export default function AssessmentDetailPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
+      <DetailPageHeader
+        backHref="/admin/assessments"
         title={`${assessment.student.name}${assessment.student.nickname ? ` (${assessment.student.nickname})` : ""}`}
         description={`${assessment.template.name} · ${assessment.template.program.name} · ${assessment.period}`}
+        badge={<StatusBadge status={assessment.status} label={assessment.status === "PUBLISHED" ? "Dipublikasi" : "Draf"} />}
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push("/admin/assessments")}>
-              <ArrowLeft size={14} className="mr-1.5" /> Kembali
-            </Button>
+          <>
             <Button variant="outline" onClick={() => handleSave(false)} disabled={saving}>
               <Save size={14} className="mr-1.5" /> {saving ? "Menyimpan..." : "Simpan Draf"}
             </Button>
@@ -136,12 +131,11 @@ export default function AssessmentDetailPage() {
                 <Send size={14} className="mr-1.5" /> Publikasi
               </Button>
             )}
-          </div>
+          </>
         }
       />
 
-      <div className="flex items-center gap-3 mb-2">
-        <StatusBadge status={assessment.status} label={assessment.status === "PUBLISHED" ? "Dipublikasi" : "Draf"} />
+      <div className="mb-2">
         <span className="text-xs text-muted-foreground">{scoredCount}/{totalIndicators} indikator dinilai</span>
       </div>
 

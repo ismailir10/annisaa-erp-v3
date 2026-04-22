@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -205,7 +206,7 @@ export default function PayrollDetailPage() {
     setSending(false);
   }
 
-  if (loading) return <Skeleton className="h-96 w-full rounded-xl" />;
+  if (loading) return <DetailPageSkeleton />;
   if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p></div>;
 
   const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
@@ -305,16 +306,13 @@ export default function PayrollDetailPage() {
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/payroll" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft size={14} /> Kembali
-        </Link>
-      </div>
-      <PageHeader
+      <DetailPageHeader
+        backHref="/admin/payroll"
         title={`${data.periodStart} — ${data.periodEnd}`}
         description={`${data.items.length} karyawan · ${data.actualWorkDays} hari kerja`}
+        badge={<StatusBadge status={data.status} />}
         actions={
-          <div className="flex gap-2">
+          <>
             {isDraft && !isEditing && (
               <Button size="sm" variant="outline" onClick={openEdit} data-testid="payroll-edit-btn">
                 <Pencil size={14} className="mr-1.5" /> Edit
@@ -323,7 +321,7 @@ export default function PayrollDetailPage() {
             {isDraft && <Button size="sm" onClick={() => setApproveModal(true)}><Check size={14} className="mr-1.5" /> Setujui</Button>}
             {isApproved && <Button size="sm" variant="outline" onClick={handleExport}><Download size={14} className="mr-1.5" /> Ekspor BSI</Button>}
             {isApproved && <Button size="sm" onClick={() => setSendModal(true)}><Send size={14} className="mr-1.5" /> Kirim Slip</Button>}
-          </div>
+          </>
         }
       />
 

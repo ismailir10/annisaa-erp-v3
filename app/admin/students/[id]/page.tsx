@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -274,14 +275,7 @@ export default function StudentDetailPage() {
     setWithdrawing(false);
   }
 
-  if (loading) return (
-    <div className="space-y-4">
-      <Skeleton className="h-4 w-48" />
-      <Skeleton className="h-8 w-72" />
-      <Skeleton className="h-64" />
-      <Skeleton className="h-48" />
-    </div>
-  );
+  if (loading) return <DetailPageSkeleton />;
   if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
 
   const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
@@ -289,18 +283,14 @@ export default function StudentDetailPage() {
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/students" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft size={14} /> Kembali ke Daftar Siswa
-        </Link>
-      </div>
-
-      <PageHeader
+      <DetailPageHeader
+        backHref="/admin/students"
+        backLabel="Kembali ke Daftar Siswa"
         title={student.name}
         description={activeEnrollment ? `${activeEnrollment.classSection.program.name} · ${activeEnrollment.classSection.name}` : "Belum terdaftar di kelas"}
+        badge={<StatusBadge status={student.status} />}
         actions={
-          <div className="flex gap-2">
-            <StatusBadge status={student.status} />
+          <>
             {!isEditing && (
               <Button size="sm" variant="outline" onClick={startEditing}>
                 <Pencil size={14} className="mr-1" /> Edit
@@ -324,7 +314,7 @@ export default function StudentDetailPage() {
                 Keluarkan
               </Button>
             )}
-          </div>
+          </>
         }
       />
 

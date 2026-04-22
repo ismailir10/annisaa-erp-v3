@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -98,7 +99,7 @@ export default function InvoiceDetailPage() {
     setVoiding(false);
   }
 
-  if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-48" /><Skeleton className="h-8 w-64" /><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><Skeleton className="h-64 lg:col-span-2" /><div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-32" /></div></div></div>;
+  if (loading) return <DetailPageSkeleton />;
   if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia." />;
 
   const guardianEntry = invoice.student.guardians[0];
@@ -108,18 +109,14 @@ export default function InvoiceDetailPage() {
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/invoices" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft size={14} /> Kembali ke Daftar Tagihan
-        </Link>
-      </div>
-
-      <PageHeader
+      <DetailPageHeader
+        backHref="/admin/invoices"
+        backLabel="Kembali ke Daftar Tagihan"
         title={`${invoice.invoiceNumber}`}
         description={`${invoice.student.name} · ${invoice.periodLabel}`}
+        badge={<StatusBadge status={invoice.status} />}
         actions={
-          <div className="flex gap-2">
-            <StatusBadge status={invoice.status} />
+          <>
             {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
               <>
                 {!invoice.xenditPaymentUrl && (
@@ -143,7 +140,7 @@ export default function InvoiceDetailPage() {
                 <Ban size={14} className="mr-1" /> Batalkan Tagihan
               </Button>
             )}
-          </div>
+          </>
         }
       />
 

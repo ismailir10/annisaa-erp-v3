@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -87,23 +88,25 @@ export default function EmployeeDetailPage() {
     toast.success("Karyawan dinonaktifkan"); router.push("/admin/employees");
   }
 
-  if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-8 w-64" /><Skeleton className="h-10 w-72" /><Skeleton className="h-80 max-w-3xl" /></div>;
+  if (loading) return <DetailPageSkeleton />;
   if (!employee) return <EmptyState title="Karyawan tidak ditemukan" description="Silakan kembali ke daftar karyawan." />;
 
   const e = employee;
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/employees" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"><ArrowLeft size={14} /> Kembali ke Daftar Karyawan</Link>
-      </div>
-      <PageHeader title={e.nama} description={`${e.kode} · ${e.jabatan} · ${e.campus.name}`}
-        actions={<div className="flex gap-2">
-          {e.status === "ACTIVE" ? (<>
+      <DetailPageHeader
+        backHref="/admin/employees"
+        backLabel="Kembali ke Daftar Karyawan"
+        title={e.nama}
+        description={`${e.kode} · ${e.jabatan} · ${e.campus.name}`}
+        badge={e.status !== "ACTIVE" ? <StatusBadge status="INACTIVE" /> : undefined}
+        actions={e.status === "ACTIVE" ? (
+          <>
             {!isEditing && <Button variant="outline" size="sm" onClick={startEditing}><Pencil size={14} className="mr-1" /> Edit</Button>}
             <Button variant="outline" size="sm" onClick={() => setDeactivateOpen(true)} className="text-destructive hover:text-destructive">Nonaktifkan</Button>
-          </>) : <StatusBadge status="INACTIVE" />}
-        </div>}
+          </>
+        ) : undefined}
       />
 
       <Tabs defaultValue="profile">
