@@ -33,11 +33,19 @@ test.describe("Parent flows", () => {
     await expect(page.locator("text=Tagihan").first()).toBeVisible();
   });
 
-  test("recent activity section visible on dashboard", async ({ page }) => {
-    // Cycle 2 replaced the embedded unpaid-invoices table with a unified
-    // Aktivitas Terkini feed. Empty-state copy or live items both pass.
+  test("home signal surface visible on dashboard", async ({ page }) => {
+    // Parent home body has two shapes:
+    //  - <3 kids: pill-tabs + Aktivitas Terkini feed (cycle-2 C1 carry-over).
+    //  - ≥3 kids (design-system-cycle-2 A2): HouseholdOverview with urgency banner
+    //    ("Alhamdulillah..." when clear / "perlu perhatian" when not).
+    // Either path must surface a signal. Seed household currently = 3 kids under
+    // rightjetParent → HouseholdOverview path.
     await expect(
-      page.locator("text=Aktivitas Terkini").or(page.locator("text=Belum ada aktivitas"))
+      page
+        .locator("text=Aktivitas Terkini")
+        .or(page.locator("text=Belum ada aktivitas"))
+        .or(page.locator("text=Alhamdulillah"))
+        .or(page.locator("text=perlu perhatian"))
     ).toBeVisible({ timeout: 5_000 });
   });
 
