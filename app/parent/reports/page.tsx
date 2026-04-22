@@ -37,6 +37,7 @@ export default async function ParentReportsPage({
       <ChildSelectorTabs
         items={childTabsData}
         selectedChildId={selected.studentId}
+        sticky
       />
 
       <PageHeader title="Laporan Perkembangan" />

@@ -25,6 +25,14 @@ export type PortalTabsProps = {
   variant?: "pills" | "underline";
   ariaLabel?: string;
   className?: string;
+  /**
+   * When true, the tab bar pins to the top of its scroll container below the
+   * `PortalHeader` (which is `sticky top-0 z-20 h-14`). Use for the Option C
+   * "pinned top-level switcher" on parent child-detail pages (invoices,
+   * attendance, reports) so the active-child context stays visible while
+   * inner content scrolls. Default `false` (non-sticky, inline).
+   */
+  sticky?: boolean;
 };
 
 /**
@@ -45,6 +53,7 @@ export function PortalTabs({
   variant = "pills",
   ariaLabel,
   className,
+  sticky = false,
 }: PortalTabsProps) {
   const tabRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const [focusId, setFocusId] = useState<string>(activeId);
@@ -113,6 +122,10 @@ export function PortalTabs({
         "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
         // edge fade so content hints at scrollability
         "[mask-image:linear-gradient(to_right,transparent_0,black_0.25rem,black_calc(100%-0.25rem),transparent_100%)]",
+        // Option C — pinned top-level switcher. Sticks below PortalHeader
+        // (top-14 ≈ h-14 header) and covers scrolling content.
+        sticky &&
+          "sticky top-14 z-10 -mx-5 px-5 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border",
         className
       )}
     >

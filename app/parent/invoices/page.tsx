@@ -34,6 +34,7 @@ export default async function ParentInvoicesPage({
       <ChildSelectorTabs
         items={childTabsData}
         selectedChildId={selected.studentId}
+        sticky
       />
       <InvoicesClient data={data} />
     </div>

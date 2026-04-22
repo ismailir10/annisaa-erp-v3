@@ -12,9 +12,16 @@ type ChildInfo = {
 export function ChildSelectorTabs({
   items,
   selectedChildId,
+  sticky = false,
 }: {
   items: ChildInfo[];
   selectedChildId: string;
+  /**
+   * When true, pins the child switcher below `PortalHeader` so it stays
+   * visible while inner-tab content scrolls. Use on child-detail routes
+   * (invoices, attendance, reports) per design-system.html §14 Option C.
+   */
+  sticky?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -43,13 +50,14 @@ export function ChildSelectorTabs({
   };
 
   return (
-    <div className="mb-4 -mx-1 px-1">
+    <div className={sticky ? "mb-4" : "mb-4 -mx-1 px-1"}>
       <PortalTabs
         items={tabs}
         activeId={selectedChildId}
         onSelect={handleSelect}
         variant="pills"
         ariaLabel="Pilih anak"
+        sticky={sticky}
       />
     </div>
   );
