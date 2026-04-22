@@ -72,7 +72,8 @@ function formatWeekLabel(ws: string): string {
   const fri = new Date(d);
   fri.setUTCDate(d.getUTCDate() + 4);
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
-  return `${d.toLocaleDateString("id-ID", opts)} – ${fri.toLocaleDateString("id-ID", opts)}`;
+  const friYmd = fri.toISOString().slice(0, 10);
+  return `${formatDate(ws, opts)} – ${formatDate(friYmd, opts)}`;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -233,6 +234,7 @@ export default function StudentJournalDetailPage({
       .then((json) => {
         if (json.data?.name) setStudentName(json.data.name);
       })
+      // Silent: optional header-name populate; primary data load has its own toast.error path.
       .catch(() => {});
   }, [studentId]);
 

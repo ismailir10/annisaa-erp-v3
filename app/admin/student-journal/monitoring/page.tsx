@@ -10,7 +10,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { formatDateShort } from "@/lib/format";
+import { formatDate, formatDateShort } from "@/lib/format";
 import { weekStart } from "@/lib/student-journal/week";
 import {
   BookOpen,
@@ -54,7 +54,8 @@ function formatWeekLabel(ws: string): string {
   const fri = new Date(d);
   fri.setUTCDate(d.getUTCDate() + 4);
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
-  return `${d.toLocaleDateString("id-ID", opts)} – ${fri.toLocaleDateString("id-ID", opts)}`;
+  const friYmd = fri.toISOString().slice(0, 10);
+  return `${formatDate(ws, opts)} – ${formatDate(friYmd, opts)}`;
 }
 
 // ------------------------------------------------------------------
