@@ -157,7 +157,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Scan for any horizontal-overflow tab markup; if found, migrate to `PortalTabs`. If none, note absence.
   - Acceptance: `grep -rn 'text-\[10px\]\|text-\[11px\]' app/teacher components/teacher` returns zero; Playwright 360 px snapshot on `/teacher` home shows 5 bottom-nav labels on one line.
 
-- [ ] **T4 — Parent header adopts `PortalHeader`. Dep: T2.**
+- [x] **T4 — Parent header adopts `PortalHeader`. Dep: T2.**
   - File: `components/parent/header.tsx`.
   - Replace bespoke markup with `<PortalHeader logo={…} userName={session.user.name} userSubtitle={`${activeChildren} anak`} avatarFallback={initials(session.user.name)} onLogout={logoutAction} />`. No `profileHref` yet (parent portal has no profile page).
   - Acceptance: visual parity with teacher header in weight and spacing; logout still functional; existing parent tests still pass.
@@ -240,6 +240,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 ## Implementation
 
 - Dispatch plan: T1 solo (inline), T2 solo (inline), then Group B tasks dispatched as parallel implementer subagents where file-disjoint; remaining sequential. T14 after T13. T10 last.
+- T4: `components/parent/header.tsx` — shrunk to thin wrapper around `<PortalHeader>`. Adds `initialsOf()` helper + optional `childCount` prop (not yet wired from layout; layout still passes only `userName` — subtitle will render when a consumer passes `childCount`). Avatar initial now renders in parent portal (previously text-only).
 - T3: perl sweep across 7 teacher files (`components/teacher/bottom-nav.tsx`, `components/teacher/leave-sheet.tsx`, `app/teacher/home-client.tsx`, `app/teacher/class-attendance/page.tsx`, `app/teacher/assessments/page.tsx`, `app/teacher/profile/page.tsx`, `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx`) — every `text-[10px]`/`text-[11px]` → `text-xs`. 23 substitutions. No horizontal-overflow tab migration needed (no such site in teacher portal).
 - T2: `components/portal/portal-header.tsx` + `components/portal/__tests__/portal-header.test.tsx` — shared header primitive. Mirrors cycle-1 teacher header layout (sticky `h-14`, `max-w-md mx-auto`, `px-5`). Props: `userName`, `userSubtitle?`, `avatarUrl?`, `avatarFallback`, `profileHref?`, `onLogout`, `brandLabel?`. When `profileHref` set, avatar + name become a link; otherwise inline. Logout button carries `aria-label="Keluar"`. 7 tests green (brand, subtitle, link vs no-link, logout fires, avatar url fallback).
 - T1: `components/portal/portal-tabs.tsx` — added optional `leading?: ReactNode` field to `PortalTab`; render inside tab button wrapped in `aria-hidden="true"` span with `mr-2`. Button gains `inline-flex items-center` for the new slot (no visual regression: existing callers have `whitespace-nowrap` + no taller siblings). JSDoc explicitly notes the aria-hidden decorative contract + the `label` field is the accessible name. Added 1 test (`renders leading slot content before the label when provided`) covering both presence + DOM order. Reviewer: 2 notes (85/82 confidence) — addressed JSDoc; `inline-flex` layout note accepted (no consumer regression from current call sites).
@@ -249,6 +250,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T1: `npx vitest run components/portal` → 8 passed / 8 total. `npm run build` green. Manual: existing `<PortalTabs>` consumers (`child-selector-tabs`, `invoice-filter`, `student-journal`) untouched + render unchanged; leading slot is purely additive.
 - T2: `npx vitest run components/portal` → 14 passed / 14 total. `npm run build` green. No consumers migrated yet — T4 + T5 wire it in.
 - T3: `grep -rn 'text-\[1[01]px\]' app/teacher components/teacher` → zero. `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped (271 total).
+- T4: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped (271 total).
 
 ## Ship Notes
 <!-- filled by /ship -->
