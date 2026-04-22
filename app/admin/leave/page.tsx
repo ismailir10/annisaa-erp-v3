@@ -9,6 +9,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -311,12 +312,12 @@ export default function AdminLeavePage() {
         description={`${pagination.total} pengajuan`}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow>
         <StatCard label="Total Pengajuan" value={stats.total} icon={FileText} color="primary" index={0} />
         <StatCard label="Menunggu" value={stats.pending} icon={Clock} color="warning" index={1} />
         <StatCard label="Disetujui" value={stats.approved} icon={CheckCircle} color="success" index={2} />
         <StatCard label="Ditolak" value={stats.rejected} icon={XCircle} color="error" index={3} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama karyawan..."

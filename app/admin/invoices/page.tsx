@@ -26,6 +26,7 @@ import {
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
@@ -370,12 +371,12 @@ export default function InvoicesPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow>
         <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />
         <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
         <StatCard label="Lunas" value={stats.paid} icon={CheckCircle} color="success" index={2} />
         <StatCard label="Jatuh Tempo" value={stats.overdue} icon={AlertTriangle} color="error" index={3} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari siswa atau nomor tagihan..."

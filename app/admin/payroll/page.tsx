@@ -12,6 +12,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
 
@@ -192,12 +193,12 @@ export default function PayrollListPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow>
         <StatCard label="Total Penggajian" value={stats.total} icon={Banknote} color="primary" index={0} />
         <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
         <StatCard label="Disetujui" value={stats.approved} icon={FileCheck} color="success" index={2} />
         <StatCard label="Slip Terkirim" value={stats.slipsSent} icon={Send} color="primary" index={3} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         filters={[

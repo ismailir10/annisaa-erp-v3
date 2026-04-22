@@ -61,7 +61,7 @@ Each task is committable independently and ends with the fast gate (`npm run bui
 - [x] **Task 2 — Extract `<StatsCardsRow>` and `<DetailPageSkeleton>`.** Create `components/admin/stats-cards-row.tsx` that takes `children` and wraps them in `grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6`. Create `components/admin/detail-page-skeleton.tsx` with a canonical layout: back-link skeleton, title+subtitle skeletons, 2-column detail card skeletons. Both components are import-only; no consumers yet.
   - **Acceptance:** Both components exist, typecheck passes, `npx vitest run` green. *No dependency.*
 
-- [ ] **Task 3 — Migrate list pages to `<StatsCardsRow>`.** Update `app/admin/students/page.tsx`, `app/admin/employees/page.tsx`, `app/admin/invoices/page.tsx`, `app/admin/leave/page.tsx`, and `app/admin/payroll/page.tsx` to use `<StatsCardsRow>{statCards}</StatsCardsRow>` instead of inline grid wrappers. Keep existing `<StatCard>` instances and their data bindings unchanged.
+- [x] **Task 3 — Migrate list pages to `<StatsCardsRow>`.** Update `app/admin/students/page.tsx`, `app/admin/employees/page.tsx`, `app/admin/invoices/page.tsx`, `app/admin/leave/page.tsx`, and `app/admin/payroll/page.tsx` to use `<StatsCardsRow>{statCards}</StatsCardsRow>` instead of inline grid wrappers. Keep existing `<StatCard>` instances and their data bindings unchanged.
   - **Acceptance:** Diff shows the grid div replaced with `<StatsCardsRow>` on 5 pages; `npm run build && npx vitest run` green; visual spot-check of one list page confirms identical layout. *Depends on Task 2.*
 
 - [ ] **Task 4 — Migrate detail pages to `<DetailPageHeader>` + `<DetailPageSkeleton>`.** Update `app/admin/students/[id]/page.tsx`, `app/admin/employees/[id]/page.tsx`, `app/admin/invoices/[id]/page.tsx`, `app/admin/payroll/[id]/page.tsx`, and `app/admin/assessments/[id]/page.tsx` to use `<DetailPageHeader>` (replacing hand-rolled back-link + `<PageHeader>` combos) and `<DetailPageSkeleton>` (replacing hand-rolled loading skeletons). StatusBadge that used to sit in the actions slot moves to the new `badge` slot. Actions slot stays for CTAs only.
@@ -124,11 +124,13 @@ These are tracked in the Non-goals section above. Reproduced here as a flat chec
   - `app/admin/dashboard-client.tsx` — last-payroll card status Badge → `<StatusBadge status={lastPayroll.status}>`.
   - `app/admin/leave/page.tsx` — leave-type column Badge → `<StatusBadge status={r.leaveType} label={TYPE_LABELS[r.leaveType]}>`. Dropped unused `Badge` import.
   - Residual `<Badge variant="outline">` usages in admin are all non-status metadata chips (subject codes, income range, relationship tag, method labels, holiday ½-day marker, role code mono) — spec permits these.
+- Task 3: Migrate list pages to `<StatsCardsRow>`. Extended `stats-cards-row.tsx` with `cols?: 3 | 4` prop (default 4) so the employees page (3 stat cards) fits. Wrapped `students/page.tsx`, `employees/page.tsx` (cols=3), `invoices/page.tsx`, `leave/page.tsx`, `payroll/page.tsx` inline grids with `<StatsCardsRow>`. StatCard data bindings untouched.
 
 ## Verification
 
 - Task 1: `npm run build` ✓, `npx vitest run` ✓ (222 passed, 42 todo). Code-reviewer flagged one a11y gap (missing `aria-hidden` on back-arrow icon) — fixed before commit.
 - Task 2: `npm run build` ✓, `npx vitest run` ✓ (222 passed). No consumers yet — visual gate deferred to Task 3/4 migrations. Preview server unavailable (EPERM uv_cwd on npm in worktree); relying on end-of-cycle Playwright smoke.
 - Task 5: `npm run build` ✓, `npx tsc --noEmit` ✓, `npx vitest run` ✓ (222 passed | 42 todo). Grep check: `rg '<Badge variant="outline"' app/admin` returns 14 matches — all confirmed non-status chrome (subject codes, relationship tags, income/education/occupation metadata, ½-day holiday marker, mono role code, payment method, Adj payroll line marker, program labels). Zero row-status Badges remain.
+- Task 3: `npm run build` ✓ (5.4s), `npx vitest run` ✓ (222 passed | 42 todo). Visual parity: `StatsCardsRow` emits identical `grid grid-cols-2 lg:grid-cols-{3|4} gap-3 mb-6` classes as the pre-existing inline grids, so the DOM output is byte-equivalent for all 5 pages.
 
 ## Ship Notes

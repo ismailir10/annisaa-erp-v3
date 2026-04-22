@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
@@ -277,11 +278,11 @@ export default function EmployeesPage() {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <StatsCardsRow cols={3}>
         <StatCard label="Total Karyawan" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
         <StatCard label="Tidak Aktif" value={stats.inactive} icon={UserX} color="error" index={2} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama, kode, atau email..."
