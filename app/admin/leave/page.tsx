@@ -212,7 +212,7 @@ export default function AdminLeavePage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{r.employee.nama}</span>
-              <span className="font-currency text-[10px] text-muted-foreground">
+              <span className="font-currency text-xs text-muted-foreground">
                 {r.employee.kode}
               </span>
             </div>
@@ -248,7 +248,7 @@ export default function AdminLeavePage() {
         <div className="max-w-[200px]">
           <p className="text-xs truncate">{row.original.reason}</p>
           {row.original.reviewNote && (
-            <p className="text-[10px] text-muted-foreground italic mt-0.5 truncate">
+            <p className="text-xs text-muted-foreground italic mt-0.5 truncate">
               Catatan: {row.original.reviewNote}
             </p>
           )}

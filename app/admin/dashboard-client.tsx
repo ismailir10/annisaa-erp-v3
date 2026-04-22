@@ -96,7 +96,7 @@ export function DashboardClient({
                 );
               })}
             </div>
-            <div className="flex items-center gap-4 mt-3 text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-present" /> Hadir</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-late/60" /> Terlambat</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-absent/40" /> Tidak Hadir</span>
@@ -121,13 +121,13 @@ export function DashboardClient({
                   </div>
                   <div>
                     <p className="text-xs font-medium">Pengajuan Cuti</p>
-                    <p className="text-[10px] text-muted-foreground">Menunggu persetujuan</p>
+                    <p className="text-xs text-muted-foreground">Menunggu persetujuan</p>
                   </div>
                 </div>
                 {pendingLeave > 0 ? (
-                  <Badge className="bg-warning text-white text-[10px]">{pendingLeave}</Badge>
+                  <Badge className="bg-warning text-white text-xs">{pendingLeave}</Badge>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground">0</span>
+                  <span className="text-xs text-muted-foreground">0</span>
                 )}
               </Link>
 
@@ -140,7 +140,7 @@ export function DashboardClient({
                   </div>
                   <div>
                     <p className="text-xs font-medium">Penggajian Terakhir</p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {lastPayroll ? lastPayroll.period : "Belum ada"}
                     </p>
                   </div>

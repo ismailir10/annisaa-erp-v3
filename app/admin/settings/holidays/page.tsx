@@ -113,7 +113,7 @@ export default function HolidaysPage() {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{row.original.name}</span>
-          {row.original.isHalfDay && <Badge variant="outline" className="text-[10px]">½ Hari</Badge>}
+          {row.original.isHalfDay && <Badge variant="outline" className="text-xs">½ Hari</Badge>}
         </div>
       ),
     },

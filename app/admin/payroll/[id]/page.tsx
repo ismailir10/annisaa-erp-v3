@@ -231,7 +231,7 @@ export default function PayrollDetailPage() {
             </div>
             <div>
               <p className="text-sm font-medium">{item.employee.nama}</p>
-              <p className="text-[10px] text-muted-foreground">{item.employee.kode} · {item.employee.jabatan}</p>
+              <p className="text-xs text-muted-foreground">{item.employee.kode} · {item.employee.jabatan}</p>
             </div>
           </div>
         );
@@ -270,7 +270,7 @@ export default function PayrollDetailPage() {
           <div>
             <span className="font-currency text-sm font-bold">{formatRupiah(item.netAmount)}</span>
             {delta !== undefined && (
-              <p className={`font-currency text-[10px] ${delta >= 0 ? "text-success" : "text-destructive"}`}>
+              <p className={`font-currency text-xs ${delta >= 0 ? "text-success" : "text-destructive"}`}>
                 {delta >= 0 ? "+" : ""}{formatRupiah(delta)}
               </p>
             )}
@@ -351,15 +351,15 @@ export default function PayrollDetailPage() {
         {!isEditing ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <p className="text-[10px] text-muted-foreground">Periode Mulai</p>
+              <p className="text-xs text-muted-foreground">Periode Mulai</p>
               <p className="text-sm font-medium" data-testid="payroll-period-start">{data.periodStart}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground">Periode Akhir</p>
+              <p className="text-xs text-muted-foreground">Periode Akhir</p>
               <p className="text-sm font-medium">{data.periodEnd}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground">Hari Kerja Aktual</p>
+              <p className="text-xs text-muted-foreground">Hari Kerja Aktual</p>
               <p className="text-sm font-medium">{data.actualWorkDays}</p>
             </div>
           </div>
@@ -401,7 +401,7 @@ export default function PayrollDetailPage() {
         <Card className="p-4"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
         <Card className="p-4"><p className="text-xs text-muted-foreground">Status</p>
           <StatusBadge status={data.status} />
-          {noBank.length > 0 && <p className="text-[10px] text-destructive mt-1">{noBank.length} tanpa rekening</p>}
+          {noBank.length > 0 && <p className="text-xs text-destructive mt-1">{noBank.length} tanpa rekening</p>}
         </Card>
       </div>
 

@@ -70,7 +70,7 @@ const columns: ColumnDef<Employee>[] = [
               <span className="text-sm font-medium group-hover:text-primary transition-colors">
                 {e.nama}
               </span>
-              <span className="font-currency text-[10px] text-muted-foreground">
+              <span className="font-currency text-xs text-muted-foreground">
                 {e.kode}
               </span>
             </div>

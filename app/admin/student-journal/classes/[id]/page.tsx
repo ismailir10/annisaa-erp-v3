@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import Link from "next/link";
 import { weekStart } from "@/lib/student-journal/week";
@@ -230,11 +231,7 @@ export default function ClassWeekPage({
             ))}
           </div>
         ) : !rollUp || rollUp.students.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              Belum ada siswa aktif di kelas ini.
-            </p>
-          </div>
+          <EmptyState title="Belum ada siswa aktif di kelas ini" />
         ) : (
           <div className="divide-y divide-border/50">
             {rollUp.students.map((student) => (

@@ -384,18 +384,18 @@ export default function StudentDetailPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-3">
               <User size={16} className="text-muted-foreground shrink-0" />
-              <div><p className="text-[10px] text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{student.name}</p></div>
+              <div><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{student.name}</p></div>
             </div>
-            {student.nickname && <div><p className="text-[10px] text-muted-foreground">Nama Panggilan</p><p className="text-sm font-medium">{student.nickname}</p></div>}
-            {student.dateOfBirth && <div><p className="text-[10px] text-muted-foreground">Tanggal Lahir</p><p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}</p></div>}
-            {student.gender && <div><p className="text-[10px] text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : "Perempuan"}</p></div>}
+            {student.nickname && <div><p className="text-xs text-muted-foreground">Nama Panggilan</p><p className="text-sm font-medium">{student.nickname}</p></div>}
+            {student.dateOfBirth && <div><p className="text-xs text-muted-foreground">Tanggal Lahir</p><p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}</p></div>}
+            {student.gender && <div><p className="text-xs text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : "Perempuan"}</p></div>}
             {student.address && (
               <div className="col-span-2 flex items-start gap-3">
                 <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-                <div><p className="text-[10px] text-muted-foreground">Alamat</p><p className="text-sm">{student.address}</p></div>
+                <div><p className="text-xs text-muted-foreground">Alamat</p><p className="text-sm">{student.address}</p></div>
               </div>
             )}
-            {student.notes && <div className="col-span-2"><p className="text-[10px] text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
+            {student.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
           </div>
         )}
 
@@ -403,12 +403,12 @@ export default function StudentDetailPage() {
           <>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Identitas Resmi</h3>
             <div className="grid grid-cols-2 gap-4">
-              {student.nis && <div><p className="text-[10px] text-muted-foreground">NIS</p><p className="text-sm font-medium font-currency">{student.nis}</p></div>}
-              {student.nisn && <div><p className="text-[10px] text-muted-foreground">NISN</p><p className="text-sm font-medium font-currency">{student.nisn}</p></div>}
-              {student.birthPlace && <div><p className="text-[10px] text-muted-foreground">Tempat Lahir</p><p className="text-sm">{student.birthPlace}</p></div>}
-              {student.nik && <div><p className="text-[10px] text-muted-foreground">NIK</p><p className="text-sm font-currency">{student.nik}</p></div>}
-              {student.kkNumber && <div><p className="text-[10px] text-muted-foreground">No. KK</p><p className="text-sm font-currency">{student.kkNumber}</p></div>}
-              {student.livingWith && <div><p className="text-[10px] text-muted-foreground">Tinggal Dengan</p><p className="text-sm">{student.livingWith === "ORANG_TUA" ? "Orang Tua" : student.livingWith === "WALI" ? "Wali" : "Lainnya"}</p></div>}
+              {student.nis && <div><p className="text-xs text-muted-foreground">NIS</p><p className="text-sm font-medium font-currency">{student.nis}</p></div>}
+              {student.nisn && <div><p className="text-xs text-muted-foreground">NISN</p><p className="text-sm font-medium font-currency">{student.nisn}</p></div>}
+              {student.birthPlace && <div><p className="text-xs text-muted-foreground">Tempat Lahir</p><p className="text-sm">{student.birthPlace}</p></div>}
+              {student.nik && <div><p className="text-xs text-muted-foreground">NIK</p><p className="text-sm font-currency">{student.nik}</p></div>}
+              {student.kkNumber && <div><p className="text-xs text-muted-foreground">No. KK</p><p className="text-sm font-currency">{student.kkNumber}</p></div>}
+              {student.livingWith && <div><p className="text-xs text-muted-foreground">Tinggal Dengan</p><p className="text-sm">{student.livingWith === "ORANG_TUA" ? "Orang Tua" : student.livingWith === "WALI" ? "Wali" : "Lainnya"}</p></div>}
             </div>
           </>
         )}
@@ -418,7 +418,7 @@ export default function StudentDetailPage() {
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Informasi Tambahan</h3>
             <div className="grid grid-cols-2 gap-3">
               {Object.entries(metadata).map(([key, value]) => (
-                <div key={key}><p className="text-[10px] text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p><p className="text-sm">{String(value)}</p></div>
+                <div key={key}><p className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p><p className="text-sm">{String(value)}</p></div>
               ))}
             </div>
           </>
@@ -448,9 +448,9 @@ export default function StudentDetailPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">{g.parent.name}</p>
-                        <Badge variant="outline" className="text-[10px]">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
-                        {g.isPrimary && <Badge className="bg-primary/10 text-primary text-[10px]">Utama</Badge>}
-                        {g.childOrder && <Badge variant="outline" className="text-[10px]">Anak ke-{g.childOrder}</Badge>}
+                        <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
+                        {g.isPrimary && <Badge className="bg-primary/10 text-primary text-xs">Utama</Badge>}
+                        {g.childOrder && <Badge variant="outline" className="text-xs">Anak ke-{g.childOrder}</Badge>}
                       </div>
                       <div className="flex gap-1">
                         <button onClick={() => openEditGuardian(g)} className="p-1 rounded hover:bg-accent text-muted-foreground"><Pencil size={12} /></button>
@@ -464,9 +464,9 @@ export default function StudentDetailPage() {
                     </div>
                     {(g.parent.education || g.parent.occupation || g.parent.incomeRange) && (
                       <div className="mt-1.5 flex flex-wrap gap-2">
-                        {g.parent.education && <Badge variant="outline" className="text-[10px]">{g.parent.education}</Badge>}
-                        {g.parent.occupation && <Badge variant="outline" className="text-[10px]">{g.parent.occupation}</Badge>}
-                        {g.parent.incomeRange && <Badge variant="outline" className="text-[10px]">{g.parent.incomeRange}</Badge>}
+                        {g.parent.education && <Badge variant="outline" className="text-xs">{g.parent.education}</Badge>}
+                        {g.parent.occupation && <Badge variant="outline" className="text-xs">{g.parent.occupation}</Badge>}
+                        {g.parent.incomeRange && <Badge variant="outline" className="text-xs">{g.parent.incomeRange}</Badge>}
                       </div>
                     )}
                   </div>
@@ -487,7 +487,7 @@ export default function StudentDetailPage() {
                   <div key={e.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                     <div>
                       <div className="flex items-center gap-2"><GraduationCap size={14} className="text-primary" /><span className="text-sm font-medium">{e.classSection.name}</span></div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{e.classSection.program.name} · {e.classSection.academicYear.name} · {e.classSection.campus.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{e.classSection.program.name} · {e.classSection.academicYear.name} · {e.classSection.campus.name}</p>
                     </div>
                     <StatusBadge status={e.status} />
                   </div>
@@ -516,19 +516,19 @@ export default function StudentDetailPage() {
               <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="rounded-lg border p-2.5 text-center">
                   <p className="text-lg font-bold text-status-present">{attendanceSummary.present}</p>
-                  <p className="text-[10px] text-muted-foreground">Hadir</p>
+                  <p className="text-xs text-muted-foreground">Hadir</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
                   <p className="text-lg font-bold text-destructive">{attendanceSummary.absent}</p>
-                  <p className="text-[10px] text-muted-foreground">Tidak Hadir</p>
+                  <p className="text-xs text-muted-foreground">Tidak Hadir</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
                   <p className="text-lg font-bold text-status-leave">{attendanceSummary.sick}</p>
-                  <p className="text-[10px] text-muted-foreground">Sakit</p>
+                  <p className="text-xs text-muted-foreground">Sakit</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
                   <p className="text-lg font-bold text-warning">{attendanceSummary.permission}</p>
-                  <p className="text-[10px] text-muted-foreground">Izin</p>
+                  <p className="text-xs text-muted-foreground">Izin</p>
                 </div>
               </div>
             )}

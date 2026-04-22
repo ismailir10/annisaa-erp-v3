@@ -81,7 +81,7 @@ const columns: ColumnDef<Invoice>[] = [
             <span className="text-sm font-medium group-hover:text-primary transition-colors">
               {inv.student.name}
             </span>
-            <p className="font-currency text-[10px] text-muted-foreground">
+            <p className="font-currency text-xs text-muted-foreground">
               {inv.invoiceNumber}
             </p>
           </div>
@@ -95,7 +95,7 @@ const columns: ColumnDef<Invoice>[] = [
     cell: ({ row }) => (
       <div>
         <span className="text-sm">{row.original.periodLabel}</span>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Jatuh tempo: {formatDateShort(row.original.dueDate)}
         </p>
       </div>
@@ -113,12 +113,12 @@ const columns: ColumnDef<Invoice>[] = [
             {formatRupiah(Number(inv.totalDue))}
           </p>
           {Number(inv.totalPaid) > 0 && Number(inv.totalPaid) < Number(inv.totalDue) && (
-            <p className="font-currency text-[10px] text-success">
+            <p className="font-currency text-xs text-success">
               Dibayar: {formatRupiah(Number(inv.totalPaid))}
             </p>
           )}
           {remaining > 0 && inv.status !== "DRAFT" && (
-            <p className="font-currency text-[10px] text-destructive">
+            <p className="font-currency text-xs text-destructive">
               Sisa: {formatRupiah(remaining)}
             </p>
           )}
@@ -507,7 +507,7 @@ export default function InvoicesPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">{r.studentName}</p>
-                    <p className="text-[10px] text-muted-foreground font-currency">{r.invoiceNumber}</p>
+                    <p className="text-xs text-muted-foreground font-currency">{r.invoiceNumber}</p>
                   </div>
                   <Button
                     size="sm"
@@ -520,7 +520,7 @@ export default function InvoicesPage() {
                     Salin Link
                   </Button>
                 </div>
-                <p className="text-[10px] text-primary mt-1 break-all">{r.paymentUrl}</p>
+                <p className="text-xs text-primary mt-1 break-all">{r.paymentUrl}</p>
               </Card>
             ))}
           </div>

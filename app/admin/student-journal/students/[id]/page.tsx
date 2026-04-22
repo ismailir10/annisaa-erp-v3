@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WeekGrid } from "@/components/student-journal/week-grid";
@@ -125,10 +126,10 @@ function NoteRow({
       <div className="rounded-lg border border-border bg-card p-3 space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] border border-border rounded px-1.5 py-0.5">
+            <span className="text-xs border border-border rounded px-1.5 py-0.5">
               {note.authorRole === "TEACHER" ? "Guru" : note.authorRole === "GUARDIAN" ? "Orang Tua" : "Admin"}
             </span>
-            <span className="text-[10px] text-muted-foreground">{formatDate(note.date)}</span>
+            <span className="text-xs text-muted-foreground">{formatDate(note.date)}</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="h-7 w-7 p-0" />}>
@@ -486,9 +487,7 @@ export default function StudentJournalDetailPage({
         <TabsContent value="notes">
           <div className="space-y-3">
             {!weekData || weekData.notes.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Belum ada catatan minggu ini.
-              </p>
+              <EmptyState title="Belum ada catatan minggu ini" />
             ) : (
               weekData.notes.map((note) => (
                 <NoteRow
@@ -510,9 +509,7 @@ export default function StudentJournalDetailPage({
               ))}
             </div>
           ) : auditRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Belum ada riwayat perubahan.
-            </p>
+            <EmptyState title="Belum ada riwayat perubahan" />
           ) : (
             <div className="space-y-4">
               {auditRows.map((row) => (
@@ -536,7 +533,7 @@ export default function StudentJournalDetailPage({
                       {ACTION_LABELS[row.action] ?? row.action}
                     </span>
                     <span>{formatDate(row.changedAt)}</span>
-                    <span className="font-mono text-[10px] truncate max-w-[120px]">
+                    <span className="font-mono text-xs truncate max-w-[120px]">
                       {row.entityId}
                     </span>
                   </div>

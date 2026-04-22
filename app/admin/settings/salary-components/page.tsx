@@ -122,11 +122,11 @@ export default function SalaryComponentsPage() {
           <div className={!c.isEnabled ? "opacity-50" : ""}>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{c.label}</span>
-              <Badge variant="outline" className="text-[10px] font-currency">{c.code}</Badge>
+              <Badge variant="outline" className="text-xs font-currency">{c.code}</Badge>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[10px] text-muted-foreground">{CALC_LABELS[c.calcType]}</span>
-              {c.isProRated && <span className="text-[10px] text-muted-foreground">· Pro-rata</span>}
+              <span className="text-xs text-muted-foreground">{CALC_LABELS[c.calcType]}</span>
+              {c.isProRated && <span className="text-xs text-muted-foreground">· Pro-rata</span>}
             </div>
           </div>
         );

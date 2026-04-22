@@ -167,7 +167,7 @@ export default function InvoiceDetailPage() {
                 <div>
                   <p className="text-sm font-medium">{line.labelSnapshot}</p>
                   {line.adjustmentAmount !== 0 && (
-                    <p className="text-[10px] text-muted-foreground">Penyesuaian: {formatRupiah(line.adjustmentAmount)} {line.adjustmentNote && `(${line.adjustmentNote})`}</p>
+                    <p className="text-xs text-muted-foreground">Penyesuaian: {formatRupiah(line.adjustmentAmount)} {line.adjustmentNote && `(${line.adjustmentNote})`}</p>
                   )}
                 </div>
                 <span className="font-currency text-sm font-bold">{formatRupiah(line.finalAmount)}</span>
@@ -209,20 +209,20 @@ export default function InvoiceDetailPage() {
           <Card className="p-5">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Riwayat Pembayaran</h3>
             {invoice.payments.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Belum ada pembayaran.</p>
+              <EmptyState title="Belum ada pembayaran" />
             ) : (
               <div className="space-y-2">
                 {invoice.payments.map(p => (
                   <div key={p.id} className="border-b border-border/50 last:border-0 pb-2">
                     <div className="flex justify-between">
-                      <Badge variant="outline" className="text-[10px]">{METHOD_LABELS[p.method] ?? p.method}</Badge>
+                      <Badge variant="outline" className="text-xs">{METHOD_LABELS[p.method] ?? p.method}</Badge>
                       <span className="font-currency text-sm font-bold text-status-present">{formatRupiah(p.amount)}</span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {formatDateShort(p.paidAt)}
                       {p.reference && ` · Ref: ${p.reference}`}
                     </p>
-                    {p.notes && <p className="text-[10px] text-muted-foreground">{p.notes}</p>}
+                    {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
                   </div>
                 ))}
               </div>

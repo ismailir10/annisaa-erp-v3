@@ -80,7 +80,7 @@ const columns: ColumnDef<TeachingAssignment>[] = [
     accessorKey: "role",
     header: "Peran",
     cell: ({ row }) => (
-      <Badge variant="secondary" className="text-[10px]">
+      <Badge variant="secondary" className="text-xs">
         {ROLE_LABELS[row.original.role] ?? row.original.role}
       </Badge>
     ),

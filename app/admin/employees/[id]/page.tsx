@@ -196,15 +196,15 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <User size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Kode</p><p className="text-sm font-medium font-currency">{e.kode}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Kode</p><p className="text-sm font-medium font-currency">{e.kode}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <User size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Nama</p><p className="text-sm font-medium">{e.nama}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Nama</p><p className="text-sm font-medium">{e.nama}</p></div>
                     </div>
                   </div>
                   {e.formalName && (
-                    <div className="mt-2 ml-7"><p className="text-[10px] text-muted-foreground">Nama Formal</p><p className="text-sm">{e.formalName}</p></div>
+                    <div className="mt-2 ml-7"><p className="text-xs text-muted-foreground">Nama Formal</p><p className="text-sm">{e.formalName}</p></div>
                   )}
                 </div>
 
@@ -214,11 +214,11 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <Mail size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Email</p><p className="text-sm">{e.email}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Email</p><p className="text-sm">{e.email}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <Phone size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">No. HP</p><p className="text-sm">{e.noHp || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">No. HP</p><p className="text-sm">{e.noHp || "—"}</p></div>
                     </div>
                   </div>
                 </div>
@@ -229,16 +229,16 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <Briefcase size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Jabatan</p><p className="text-sm font-medium">{e.jabatan}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Jabatan</p><p className="text-sm font-medium">{e.jabatan}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <MapPin size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Kampus</p><p className="text-sm">{e.campus.name}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Kampus</p><p className="text-sm">{e.campus.name}</p></div>
                     </div>
                   </div>
                   <div className="mt-2 flex items-center gap-3">
                     <Calendar size={16} className="text-muted-foreground shrink-0" />
-                    <div><p className="text-[10px] text-muted-foreground">Tanggal Masuk</p><p className="text-sm">{formatDateShort(e.hireDate)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Tanggal Masuk</p><p className="text-sm">{formatDateShort(e.hireDate)}</p></div>
                   </div>
                 </div>
 
@@ -248,16 +248,16 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <CreditCard size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Bank</p><p className="text-sm">{e.bankName || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Bank</p><p className="text-sm">{e.bankName || "—"}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <CreditCard size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">No. Rekening</p><p className="text-sm font-currency">{e.bankAccountNo || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">No. Rekening</p><p className="text-sm font-currency">{e.bankAccountNo || "—"}</p></div>
                     </div>
                   </div>
                   <div className="mt-2 flex items-center gap-3">
                     <Shield size={16} className="text-muted-foreground shrink-0" />
-                    <div><p className="text-[10px] text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar"}</p></div>
+                    <div><p className="text-xs text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar"}</p></div>
                   </div>
                 </div>}
               </div>
@@ -274,10 +274,10 @@ export default function EmployeeDetailPage() {
                     <div className="flex-1">
                       <p className="text-sm font-medium">{sv.componentDef.label}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <Badge variant="secondary" className={`text-[10px] ${sv.componentDef.category === "INCOME" ? "bg-status-present-subtle text-status-present-text" : "bg-status-absent-subtle text-status-absent-text"}`}>
+                        <Badge variant="secondary" className={`text-xs ${sv.componentDef.category === "INCOME" ? "bg-status-present-subtle text-status-present-text" : "bg-status-absent-subtle text-status-absent-text"}`}>
                           {sv.componentDef.category === "INCOME" ? "Pendapatan" : "Potongan"}
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
+                        <span className="text-xs text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
                       </div>
                     </div>
                     <div className="w-40"><Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" /></div>
@@ -335,7 +335,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
               { label: "Tidak Hadir", value: data.summary.absent, color: "text-status-absent" },
               { label: "Cuti", value: data.summary.leave, color: "text-status-leave" },
             ].map(s => (
-              <div key={s.label} className="text-center"><p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p><p className="text-[10px] text-muted-foreground">{s.label}</p></div>
+              <div key={s.label} className="text-center"><p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></div>
             ))}
           </div>
           <div className="space-y-1">
@@ -346,7 +346,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
                   <span className="font-currency text-muted-foreground w-20">{formatDateShort(r.date)}</span>
                 </div>
                 <span className="font-currency">{r.checkInTime ? formatTime(r.checkInTime) : "--:--"} — {r.checkOutTime ? formatTime(r.checkOutTime) : "--:--"}</span>
-                <span className="text-[10px] w-16 text-right">{r.status}</span>
+                <span className="text-xs w-16 text-right">{r.status}</span>
               </div>
             ))}
             {data.records.length === 0 && <EmptyState title="Tidak ada data" description="Tidak ada data kehadiran untuk bulan ini." />}
