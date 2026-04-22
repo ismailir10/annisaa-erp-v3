@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { StatCard } from "@/components/admin/stat-card";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
@@ -633,13 +633,12 @@ export default function AdmissionsPage() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!cancelTarget}
         onOpenChange={(o) => !o && setCancelTarget(null)}
-        title="Batalkan Pendaftaran"
-        description={`Batalkan pendaftaran "${cancelTarget?.childName}"? Status akan diubah menjadi CANCELLED.`}
+        entityName={cancelTarget ? `pendaftaran ${cancelTarget.childName}` : ""}
+        action="cancel"
         onConfirm={handleCancel}
-        confirmLabel="Batalkan"
       />
     </>
   );

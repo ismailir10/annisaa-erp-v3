@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -10,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -87,29 +89,31 @@ export default function EmployeeDetailPage() {
     toast.success("Karyawan dinonaktifkan"); router.push("/admin/employees");
   }
 
-  if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-8 w-64" /><Skeleton className="h-10 w-72" /><Skeleton className="h-80 max-w-3xl" /></div>;
+  if (loading) return <DetailPageSkeleton />;
   if (!employee) return <EmptyState title="Karyawan tidak ditemukan" description="Silakan kembali ke daftar karyawan." />;
 
   const e = employee;
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/employees" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"><ArrowLeft size={14} /> Kembali ke Daftar Karyawan</Link>
-      </div>
-      <PageHeader title={e.nama} description={`${e.kode} · ${e.jabatan} · ${e.campus.name}`}
-        actions={<div className="flex gap-2">
-          {e.status === "ACTIVE" ? (<>
+      <DetailPageHeader
+        backHref="/admin/employees"
+        backLabel="Kembali ke Daftar Karyawan"
+        title={e.nama}
+        description={`${e.kode} · ${e.jabatan} · ${e.campus.name}`}
+        badge={e.status !== "ACTIVE" ? <StatusBadge status="INACTIVE" /> : undefined}
+        actions={e.status === "ACTIVE" ? (
+          <>
             {!isEditing && <Button variant="outline" size="sm" onClick={startEditing}><Pencil size={14} className="mr-1" /> Edit</Button>}
             <Button variant="outline" size="sm" onClick={() => setDeactivateOpen(true)} className="text-destructive hover:text-destructive">Nonaktifkan</Button>
-          </>) : <StatusBadge status="INACTIVE" />}
-        </div>}
+          </>
+        ) : undefined}
       />
 
-      <Tabs defaultValue="profile">
-        <TabsList><TabsTrigger value="profile">Profil</TabsTrigger>{salaryValues !== null && <TabsTrigger value="salary">Gaji</TabsTrigger>}<TabsTrigger value="attendance">Kehadiran</TabsTrigger></TabsList>
+      <AdminTabs defaultValue="profile">
+        <AdminTabsList><AdminTabsTrigger value="profile">Profil</AdminTabsTrigger>{salaryValues !== null && <AdminTabsTrigger value="salary">Gaji</AdminTabsTrigger>}<AdminTabsTrigger value="attendance">Kehadiran</AdminTabsTrigger></AdminTabsList>
 
-        <TabsContent value="profile">
+        <AdminTabsContent value="profile">
           <Card className="p-5 max-w-3xl mt-4">
             {isEditing && (
               <div className="flex justify-end gap-2 mb-4">
@@ -122,7 +126,7 @@ export default function EmployeeDetailPage() {
               /* ── EDIT MODE ─────────────────────────────────── */
               <div className="space-y-5">
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Identitas</h3>
+                  <SectionHeading label="Identitas" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field><FieldLabel>Kode</FieldLabel><Input value={e.kode} disabled /></Field>
                     <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
@@ -133,7 +137,7 @@ export default function EmployeeDetailPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kontak</h3>
+                  <SectionHeading label="Kontak" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field><FieldLabel>Email *</FieldLabel><Input value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
                     <Field><FieldLabel>No. HP</FieldLabel><Input value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
@@ -141,7 +145,7 @@ export default function EmployeeDetailPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kepegawaian</h3>
+                  <SectionHeading label="Kepegawaian" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
                       <FieldLabel>Jabatan *</FieldLabel>
@@ -169,7 +173,7 @@ export default function EmployeeDetailPage() {
                 </div>
 
                 {"bankAccountNo" in employee && <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rekening & BPJS</h3>
+                  <SectionHeading label="Rekening & BPJS" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
                       <FieldLabel>Bank</FieldLabel>
@@ -192,80 +196,80 @@ export default function EmployeeDetailPage() {
               <div className="space-y-6">
                 {/* Identitas */}
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Identitas</h3>
+                  <SectionHeading label="Identitas" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <User size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Kode</p><p className="text-sm font-medium font-currency">{e.kode}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Kode</p><p className="text-sm font-medium font-currency">{e.kode}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <User size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Nama</p><p className="text-sm font-medium">{e.nama}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Nama</p><p className="text-sm font-medium">{e.nama}</p></div>
                     </div>
                   </div>
                   {e.formalName && (
-                    <div className="mt-2 ml-7"><p className="text-[10px] text-muted-foreground">Nama Formal</p><p className="text-sm">{e.formalName}</p></div>
+                    <div className="mt-2 ml-7"><p className="text-xs text-muted-foreground">Nama Formal</p><p className="text-sm">{e.formalName}</p></div>
                   )}
                 </div>
 
                 {/* Kontak */}
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kontak</h3>
+                  <SectionHeading label="Kontak" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <Mail size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Email</p><p className="text-sm">{e.email}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Email</p><p className="text-sm">{e.email}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <Phone size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">No. HP</p><p className="text-sm">{e.noHp || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">No. HP</p><p className="text-sm">{e.noHp || "—"}</p></div>
                     </div>
                   </div>
                 </div>
 
                 {/* Kepegawaian */}
                 <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kepegawaian</h3>
+                  <SectionHeading label="Kepegawaian" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <Briefcase size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Jabatan</p><p className="text-sm font-medium">{e.jabatan}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Jabatan</p><p className="text-sm font-medium">{e.jabatan}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <MapPin size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Kampus</p><p className="text-sm">{e.campus.name}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Kampus</p><p className="text-sm">{e.campus.name}</p></div>
                     </div>
                   </div>
                   <div className="mt-2 flex items-center gap-3">
                     <Calendar size={16} className="text-muted-foreground shrink-0" />
-                    <div><p className="text-[10px] text-muted-foreground">Tanggal Masuk</p><p className="text-sm">{formatDateShort(e.hireDate)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Tanggal Masuk</p><p className="text-sm">{formatDateShort(e.hireDate)}</p></div>
                   </div>
                 </div>
 
                 {/* Rekening & BPJS — hidden when server stripped fields (SCHOOL_ADMIN) */}
                 {"bankAccountNo" in e && <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rekening & BPJS</h3>
+                  <SectionHeading label="Rekening & BPJS" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <CreditCard size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">Bank</p><p className="text-sm">{e.bankName || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Bank</p><p className="text-sm">{e.bankName || "—"}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <CreditCard size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-[10px] text-muted-foreground">No. Rekening</p><p className="text-sm font-currency">{e.bankAccountNo || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">No. Rekening</p><p className="text-sm font-currency">{e.bankAccountNo || "—"}</p></div>
                     </div>
                   </div>
                   <div className="mt-2 flex items-center gap-3">
                     <Shield size={16} className="text-muted-foreground shrink-0" />
-                    <div><p className="text-[10px] text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar"}</p></div>
+                    <div><p className="text-xs text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar"}</p></div>
                   </div>
                 </div>}
               </div>
             )}
           </Card>
-        </TabsContent>
+        </AdminTabsContent>
 
-        <TabsContent value="salary">
+        <AdminTabsContent value="salary">
           <Card className="p-6 max-w-3xl mt-4">
             {(salaryValues ?? []).length === 0 ? <EmptyState title="Tidak ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
               <div className="space-y-3">
@@ -274,10 +278,10 @@ export default function EmployeeDetailPage() {
                     <div className="flex-1">
                       <p className="text-sm font-medium">{sv.componentDef.label}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <Badge variant="secondary" className={`text-[10px] ${sv.componentDef.category === "INCOME" ? "bg-status-present-subtle text-status-present-text" : "bg-status-absent-subtle text-status-absent-text"}`}>
+                        <Badge variant="secondary" className={`text-xs ${sv.componentDef.category === "INCOME" ? "bg-status-present-subtle text-status-present-text" : "bg-status-absent-subtle text-status-absent-text"}`}>
                           {sv.componentDef.category === "INCOME" ? "Pendapatan" : "Potongan"}
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
+                        <span className="text-xs text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
                       </div>
                     </div>
                     <div className="w-40"><Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" /></div>
@@ -287,10 +291,10 @@ export default function EmployeeDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
+        </AdminTabsContent>
 
-        <TabsContent value="attendance"><EmployeeAttendanceTab employeeId={id} /></TabsContent>
-      </Tabs>
+        <AdminTabsContent value="attendance"><EmployeeAttendanceTab employeeId={id} /></AdminTabsContent>
+      </AdminTabs>
 
       <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Karyawan" description={`Nonaktifkan ${employee.nama}? Karyawan tidak bisa login dan tidak masuk penggajian berikutnya.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" />
     </>
@@ -335,7 +339,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
               { label: "Tidak Hadir", value: data.summary.absent, color: "text-status-absent" },
               { label: "Cuti", value: data.summary.leave, color: "text-status-leave" },
             ].map(s => (
-              <div key={s.label} className="text-center"><p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p><p className="text-[10px] text-muted-foreground">{s.label}</p></div>
+              <div key={s.label} className="text-center"><p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></div>
             ))}
           </div>
           <div className="space-y-1">
@@ -346,7 +350,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
                   <span className="font-currency text-muted-foreground w-20">{formatDateShort(r.date)}</span>
                 </div>
                 <span className="font-currency">{r.checkInTime ? formatTime(r.checkInTime) : "--:--"} — {r.checkOutTime ? formatTime(r.checkOutTime) : "--:--"}</span>
-                <span className="text-[10px] w-16 text-right">{r.status}</span>
+                <span className="text-xs w-16 text-right">{r.status}</span>
               </div>
             ))}
             {data.records.length === 0 && <EmptyState title="Tidak ada data" description="Tidak ada data kehadiran untuk bulan ini." />}

@@ -9,11 +9,12 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
@@ -70,7 +71,7 @@ const columns: ColumnDef<Employee>[] = [
               <span className="text-sm font-medium group-hover:text-primary transition-colors">
                 {e.nama}
               </span>
-              <span className="font-currency text-[10px] text-muted-foreground">
+              <span className="font-currency text-xs text-muted-foreground">
                 {e.kode}
               </span>
             </div>
@@ -101,11 +102,7 @@ const columns: ColumnDef<Employee>[] = [
     header: "Rekening",
     cell: ({ row }) => {
       if (!row.original.bankAccountNo) {
-        return (
-          <Badge variant="outline" className="text-[10px] text-destructive">
-            Belum diisi
-          </Badge>
-        );
+        return <StatusBadge status="UNFILLED" />;
       }
       return (
         <span className="text-xs text-muted-foreground font-currency">
@@ -282,11 +279,11 @@ export default function EmployeesPage() {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <StatsCardsRow cols={3}>
         <StatCard label="Total Karyawan" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
         <StatCard label="Tidak Aktif" value={stats.inactive} icon={UserX} color="error" index={2} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama, kode, atau email..."
@@ -310,11 +307,7 @@ export default function EmployeesPage() {
               setStatusFilter(v);
               setPagination((p) => ({ ...p, page: 1 }));
             },
-            options: [
-              { value: "all", label: "Semua Status" },
-              { value: "ACTIVE", label: "Aktif" },
-              { value: "INACTIVE", label: "Tidak Aktif" },
-            ],
+            options: ACTIVE_STATUS_OPTIONS,
           },
         ]}
       />
@@ -332,13 +325,11 @@ export default function EmployeesPage() {
         emptyDescription="Tambahkan karyawan baru untuk memulai."
       />
 
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
-        title="Nonaktifkan Karyawan"
-        description={`Nonaktifkan "${deactivateTarget?.nama}"? Data tidak akan dihapus dan dapat diaktifkan kembali.`}
+        entityName={deactivateTarget?.nama ?? ""}
         onConfirm={handleDeactivate}
-        confirmLabel="Nonaktifkan"
       />
     </>
   );

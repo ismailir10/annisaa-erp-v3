@@ -76,7 +76,7 @@ const columns: ColumnDef<AssessmentTemplate>[] = [
     accessorKey: "type",
     header: "Tipe",
     cell: ({ row }) => (
-      <Badge variant="secondary" className="text-[10px]">{TYPE_LABELS[row.original.type] ?? row.original.type}</Badge>
+      <Badge variant="secondary" className="text-xs">{TYPE_LABELS[row.original.type] ?? row.original.type}</Badge>
     ),
   },
   {

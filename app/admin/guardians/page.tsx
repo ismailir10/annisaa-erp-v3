@@ -10,6 +10,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
+import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -211,11 +212,7 @@ export default function GuardiansPage() {
             label: "Status",
             value: status,
             onChange: handleStatusChange,
-            options: [
-              { value: "all", label: "Semua Status" },
-              { value: "ACTIVE", label: "Aktif" },
-              { value: "INACTIVE", label: "Tidak Aktif" },
-            ],
+            options: ACTIVE_STATUS_OPTIONS,
           },
         ]}
       />

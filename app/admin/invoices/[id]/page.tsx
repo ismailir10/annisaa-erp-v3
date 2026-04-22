@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ArrowLeft, Ban, CreditCard, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
@@ -98,7 +100,7 @@ export default function InvoiceDetailPage() {
     setVoiding(false);
   }
 
-  if (loading) return <div className="space-y-4"><Skeleton className="h-4 w-48" /><Skeleton className="h-8 w-64" /><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><Skeleton className="h-64 lg:col-span-2" /><div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-32" /></div></div></div>;
+  if (loading) return <DetailPageSkeleton />;
   if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia." />;
 
   const guardianEntry = invoice.student.guardians[0];
@@ -108,18 +110,14 @@ export default function InvoiceDetailPage() {
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/invoices" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft size={14} /> Kembali ke Daftar Tagihan
-        </Link>
-      </div>
-
-      <PageHeader
+      <DetailPageHeader
+        backHref="/admin/invoices"
+        backLabel="Kembali ke Daftar Tagihan"
         title={`${invoice.invoiceNumber}`}
         description={`${invoice.student.name} · ${invoice.periodLabel}`}
+        badge={<StatusBadge status={invoice.status} />}
         actions={
-          <div className="flex gap-2">
-            <StatusBadge status={invoice.status} />
+          <>
             {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
               <>
                 {!invoice.xenditPaymentUrl && (
@@ -143,7 +141,7 @@ export default function InvoiceDetailPage() {
                 <Ban size={14} className="mr-1" /> Batalkan Tagihan
               </Button>
             )}
-          </div>
+          </>
         }
       />
 
@@ -167,7 +165,7 @@ export default function InvoiceDetailPage() {
                 <div>
                   <p className="text-sm font-medium">{line.labelSnapshot}</p>
                   {line.adjustmentAmount !== 0 && (
-                    <p className="text-[10px] text-muted-foreground">Penyesuaian: {formatRupiah(line.adjustmentAmount)} {line.adjustmentNote && `(${line.adjustmentNote})`}</p>
+                    <p className="text-xs text-muted-foreground">Penyesuaian: {formatRupiah(line.adjustmentAmount)} {line.adjustmentNote && `(${line.adjustmentNote})`}</p>
                   )}
                 </div>
                 <span className="font-currency text-sm font-bold">{formatRupiah(line.finalAmount)}</span>
@@ -186,7 +184,7 @@ export default function InvoiceDetailPage() {
           {/* Guardian info */}
           {guardian && (
             <Card className="p-5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Kontak Wali</h3>
+              <SectionHeading label="Kontak Wali" />
               <p className="text-sm font-medium">{guardian.name}</p>
               {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={10} /> {guardian.phone}</p>}
               {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={10} /> {guardian.email}</p>}
@@ -197,7 +195,7 @@ export default function InvoiceDetailPage() {
           {/* Payment link */}
           {invoice.xenditPaymentUrl && (
             <Card className="p-5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Link Pembayaran</h3>
+              <SectionHeading label="Link Pembayaran" />
               <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline break-all">{invoice.xenditPaymentUrl}</a>
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => { navigator.clipboard.writeText(invoice.xenditPaymentUrl!); toast.success("Link disalin"); }}>
                 Salin Link
@@ -207,22 +205,22 @@ export default function InvoiceDetailPage() {
 
           {/* Payment history */}
           <Card className="p-5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Riwayat Pembayaran</h3>
+            <SectionHeading label="Riwayat Pembayaran" />
             {invoice.payments.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Belum ada pembayaran.</p>
+              <EmptyState title="Belum ada pembayaran" />
             ) : (
               <div className="space-y-2">
                 {invoice.payments.map(p => (
                   <div key={p.id} className="border-b border-border/50 last:border-0 pb-2">
                     <div className="flex justify-between">
-                      <Badge variant="outline" className="text-[10px]">{METHOD_LABELS[p.method] ?? p.method}</Badge>
+                      <Badge variant="outline" className="text-xs">{METHOD_LABELS[p.method] ?? p.method}</Badge>
                       <span className="font-currency text-sm font-bold text-status-present">{formatRupiah(p.amount)}</span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {formatDateShort(p.paidAt)}
                       {p.reference && ` · Ref: ${p.reference}`}
                     </p>
-                    {p.notes && <p className="text-[10px] text-muted-foreground">{p.notes}</p>}
+                    {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
                   </div>
                 ))}
               </div>

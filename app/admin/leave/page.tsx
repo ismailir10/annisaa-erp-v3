@@ -9,7 +9,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatCard } from "@/components/admin/stat-card";
-import { Badge } from "@/components/ui/badge";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -212,7 +212,7 @@ export default function AdminLeavePage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{r.employee.nama}</span>
-              <span className="font-currency text-[10px] text-muted-foreground">
+              <span className="font-currency text-xs text-muted-foreground">
                 {r.employee.kode}
               </span>
             </div>
@@ -231,9 +231,7 @@ export default function AdminLeavePage() {
         return (
           <div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px]">
-                {TYPE_LABELS[r.leaveType] ?? r.leaveType}
-              </Badge>
+              <StatusBadge status={r.leaveType} label={TYPE_LABELS[r.leaveType]} />
               <span className="text-xs font-medium">{r.days} hari</span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -250,7 +248,7 @@ export default function AdminLeavePage() {
         <div className="max-w-[200px]">
           <p className="text-xs truncate">{row.original.reason}</p>
           {row.original.reviewNote && (
-            <p className="text-[10px] text-muted-foreground italic mt-0.5 truncate">
+            <p className="text-xs text-muted-foreground italic mt-0.5 truncate">
               Catatan: {row.original.reviewNote}
             </p>
           )}
@@ -314,12 +312,12 @@ export default function AdminLeavePage() {
         description={`${pagination.total} pengajuan`}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow>
         <StatCard label="Total Pengajuan" value={stats.total} icon={FileText} color="primary" index={0} />
         <StatCard label="Menunggu" value={stats.pending} icon={Clock} color="warning" index={1} />
         <StatCard label="Disetujui" value={stats.approved} icon={CheckCircle} color="success" index={2} />
         <StatCard label="Ditolak" value={stats.rejected} icon={XCircle} color="error" index={3} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama karyawan..."

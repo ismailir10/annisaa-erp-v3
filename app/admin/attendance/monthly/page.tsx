@@ -169,7 +169,7 @@ export default function MonthlyAttendancePage() {
       )}
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 mt-3 text-[10px]">
+      <div className="flex flex-wrap gap-3 mt-3 text-xs">
         {Object.entries(STATUS_COLORS).slice(0, 5).map(([key, bg]) => (
           <div key={key} className="flex items-center gap-1">
             <div className={`w-3 h-3 rounded-sm ${bg}`} />

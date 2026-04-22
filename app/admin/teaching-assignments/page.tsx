@@ -7,7 +7,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -80,7 +80,7 @@ const columns: ColumnDef<TeachingAssignment>[] = [
     accessorKey: "role",
     header: "Peran",
     cell: ({ row }) => (
-      <Badge variant="secondary" className="text-[10px]">
+      <Badge variant="secondary" className="text-xs">
         {ROLE_LABELS[row.original.role] ?? row.original.role}
       </Badge>
     ),
@@ -205,14 +205,12 @@ export default function TeachingAssignmentsPage() {
         emptyDescription="Tambahkan guru ke kelas melalui halaman Tahun Ajaran."
       />
 
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Hapus Penugasan"
-        description={`Hapus penugasan "${deleteTarget?.employee.nama}" dari ${deleteTarget?.classSection.program.name} · ${deleteTarget?.classSection.name}?`}
-        confirmLabel="Hapus"
+        entityName={deleteTarget ? `${deleteTarget.employee.nama} dari ${deleteTarget.classSection.program.name} · ${deleteTarget.classSection.name}` : ""}
+        action="delete"
         onConfirm={handleDelete}
-        destructive
       />
 
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>

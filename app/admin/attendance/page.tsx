@@ -98,7 +98,7 @@ export default function AttendancePage() {
             </div>
             <div>
               <p className="text-sm font-medium">{ea.employee.nama}</p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {ea.employee.kode} · {ea.employee.campusName}
               </p>
             </div>

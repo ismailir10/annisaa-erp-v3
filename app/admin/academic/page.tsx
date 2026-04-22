@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, GraduationCap, BookOpen, Users, Calendar } from "lucide-react";
 import { toast } from "sonner";
@@ -183,7 +184,7 @@ export default function AcademicPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{p.name}</span>
-              <Badge variant="outline" className="text-[10px] font-currency">{p.code}</Badge>
+              <Badge variant="outline" className="text-xs font-currency">{p.code}</Badge>
             </div>
             {p.description && <p className="text-xs text-muted-foreground mt-0.5">{p.description}</p>}
           </div>
@@ -309,7 +310,7 @@ export default function AcademicPage() {
       id: "program",
       accessorFn: (row) => row.program.name,
       header: ({ column }) => <DataTableColumnHeader column={column} title="Program" />,
-      cell: ({ row }) => <Badge variant="outline" className="text-[10px]">{row.original.program.name}</Badge>,
+      cell: ({ row }) => <Badge variant="outline" className="text-xs">{row.original.program.name}</Badge>,
     },
     {
       id: "academicYear",
@@ -525,7 +526,7 @@ export default function AcademicPage() {
                   <div key={a.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
                     <div>
                       <p className="text-sm font-medium">{a.employee.nama}</p>
-                      <p className="text-[10px] text-muted-foreground">{a.employee.jabatan} · {a.role === "HOMEROOM" ? "Wali Kelas" : "Pendamping"}</p>
+                      <p className="text-xs text-muted-foreground">{a.employee.jabatan} · {a.role === "HOMEROOM" ? "Wali Kelas" : "Pendamping"}</p>
                     </div>
                     <Button size="sm" variant="ghost" className="text-destructive h-7" onClick={() => handleRemoveAssignment(a.id)}>Hapus</Button>
                   </div>
@@ -557,13 +558,11 @@ export default function AcademicPage() {
       </Dialog>
 
       {/* Deactivate Confirm */}
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
-        title="Nonaktifkan"
-        description={`Nonaktifkan "${deactivateTarget?.name}"? Data tidak akan dihapus.`}
+        entityName={deactivateTarget?.name ?? ""}
         onConfirm={handleDeactivate}
-        confirmLabel="Nonaktifkan"
       />
 
       {/* Reactivate Confirm */}

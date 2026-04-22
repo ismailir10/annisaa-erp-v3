@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -205,7 +206,7 @@ export default function PayrollDetailPage() {
     setSending(false);
   }
 
-  if (loading) return <Skeleton className="h-96 w-full rounded-xl" />;
+  if (loading) return <DetailPageSkeleton />;
   if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p></div>;
 
   const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
@@ -231,7 +232,7 @@ export default function PayrollDetailPage() {
             </div>
             <div>
               <p className="text-sm font-medium">{item.employee.nama}</p>
-              <p className="text-[10px] text-muted-foreground">{item.employee.kode} · {item.employee.jabatan}</p>
+              <p className="text-xs text-muted-foreground">{item.employee.kode} · {item.employee.jabatan}</p>
             </div>
           </div>
         );
@@ -270,7 +271,7 @@ export default function PayrollDetailPage() {
           <div>
             <span className="font-currency text-sm font-bold">{formatRupiah(item.netAmount)}</span>
             {delta !== undefined && (
-              <p className={`font-currency text-[10px] ${delta >= 0 ? "text-success" : "text-destructive"}`}>
+              <p className={`font-currency text-xs ${delta >= 0 ? "text-success" : "text-destructive"}`}>
                 {delta >= 0 ? "+" : ""}{formatRupiah(delta)}
               </p>
             )}
@@ -283,7 +284,7 @@ export default function PayrollDetailPage() {
       header: "Rekening",
       cell: ({ row }) => {
         if (!row.original.employee.bankAccountNo) {
-          return <Badge variant="outline" className="text-[10px] text-destructive">Belum diisi</Badge>;
+          return <StatusBadge status="UNFILLED" />;
         }
         return (
           <span className="text-xs text-muted-foreground font-currency">
@@ -305,16 +306,13 @@ export default function PayrollDetailPage() {
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/payroll" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft size={14} /> Kembali
-        </Link>
-      </div>
-      <PageHeader
+      <DetailPageHeader
+        backHref="/admin/payroll"
         title={`${data.periodStart} — ${data.periodEnd}`}
         description={`${data.items.length} karyawan · ${data.actualWorkDays} hari kerja`}
+        badge={<StatusBadge status={data.status} />}
         actions={
-          <div className="flex gap-2">
+          <>
             {isDraft && !isEditing && (
               <Button size="sm" variant="outline" onClick={openEdit} data-testid="payroll-edit-btn">
                 <Pencil size={14} className="mr-1.5" /> Edit
@@ -323,7 +321,7 @@ export default function PayrollDetailPage() {
             {isDraft && <Button size="sm" onClick={() => setApproveModal(true)}><Check size={14} className="mr-1.5" /> Setujui</Button>}
             {isApproved && <Button size="sm" variant="outline" onClick={handleExport}><Download size={14} className="mr-1.5" /> Ekspor BSI</Button>}
             {isApproved && <Button size="sm" onClick={() => setSendModal(true)}><Send size={14} className="mr-1.5" /> Kirim Slip</Button>}
-          </div>
+          </>
         }
       />
 
@@ -351,15 +349,15 @@ export default function PayrollDetailPage() {
         {!isEditing ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <p className="text-[10px] text-muted-foreground">Periode Mulai</p>
+              <p className="text-xs text-muted-foreground">Periode Mulai</p>
               <p className="text-sm font-medium" data-testid="payroll-period-start">{data.periodStart}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground">Periode Akhir</p>
+              <p className="text-xs text-muted-foreground">Periode Akhir</p>
               <p className="text-sm font-medium">{data.periodEnd}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground">Hari Kerja Aktual</p>
+              <p className="text-xs text-muted-foreground">Hari Kerja Aktual</p>
               <p className="text-sm font-medium">{data.actualWorkDays}</p>
             </div>
           </div>
@@ -401,7 +399,7 @@ export default function PayrollDetailPage() {
         <Card className="p-4"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
         <Card className="p-4"><p className="text-xs text-muted-foreground">Status</p>
           <StatusBadge status={data.status} />
-          {noBank.length > 0 && <p className="text-[10px] text-destructive mt-1">{noBank.length} tanpa rekening</p>}
+          {noBank.length > 0 && <p className="text-xs text-destructive mt-1">{noBank.length} tanpa rekening</p>}
         </Card>
       </div>
 
