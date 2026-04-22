@@ -58,7 +58,7 @@ Each task is committable independently and ends with the fast gate (`npm run bui
 - [x] **Task 1 — Extract `<DetailPageHeader>`.** Create `components/admin/detail-page-header.tsx` exporting a component with props `{ backHref, backLabel?, title, description?, badge?: ReactNode, actions?: ReactNode }`. Back link uses `lucide-react` `ArrowLeft` icon + `text-sm text-muted-foreground hover:text-foreground` styling. Title is `text-xl font-bold tracking-tight`. Description is `text-sm text-muted-foreground`. Badge slot sits next to the title inline, actions slot right-aligned. No consumers yet.
   - **Acceptance:** Component exists, typecheck passes, `npx vitest run` green. Visual verified by temporarily rendering it in `app/admin/page.tsx` as a manual smoke (reverted before commit). *No dependency.*
 
-- [ ] **Task 2 — Extract `<StatsCardsRow>` and `<DetailPageSkeleton>`.** Create `components/admin/stats-cards-row.tsx` that takes `children` and wraps them in `grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6`. Create `components/admin/detail-page-skeleton.tsx` with a canonical layout: back-link skeleton, title+subtitle skeletons, 2-column detail card skeletons. Both components are import-only; no consumers yet.
+- [x] **Task 2 — Extract `<StatsCardsRow>` and `<DetailPageSkeleton>`.** Create `components/admin/stats-cards-row.tsx` that takes `children` and wraps them in `grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6`. Create `components/admin/detail-page-skeleton.tsx` with a canonical layout: back-link skeleton, title+subtitle skeletons, 2-column detail card skeletons. Both components are import-only; no consumers yet.
   - **Acceptance:** Both components exist, typecheck passes, `npx vitest run` green. *No dependency.*
 
 - [ ] **Task 3 — Migrate list pages to `<StatsCardsRow>`.** Update `app/admin/students/page.tsx`, `app/admin/employees/page.tsx`, `app/admin/invoices/page.tsx`, `app/admin/leave/page.tsx`, and `app/admin/payroll/page.tsx` to use `<StatsCardsRow>{statCards}</StatsCardsRow>` instead of inline grid wrappers. Keep existing `<StatCard>` instances and their data bindings unchanged.
@@ -116,9 +116,11 @@ These are tracked in the Non-goals section above. Reproduced here as a flat chec
 
 - Subagent plan: tasks executed inline, not dispatched. Cycle has 13 small tasks; inline loop with per-task gate is simpler than parallel worktree coordination.
 - Task 1: Extract `<DetailPageHeader>` — `components/admin/detail-page-header.tsx` (new, 44 lines). Props: `backHref`, `backLabel?`, `title`, `description?`, `badge?`, `actions?`. `aria-hidden` on `ArrowLeft` icon per a11y review. No consumers yet.
+- Task 2: Extract `<StatsCardsRow>` (8 lines, grid-cols-2 lg:grid-cols-4 gap-3 mb-6 wrapper) + `<DetailPageSkeleton>` (30 lines, back-link + title/subtitle + 2 card skeletons matching rounded-xl border-border p-5 card shape). Frontend-design lens: skeleton card shape mirrors StatCard for visual continuity during load.
 
 ## Verification
 
 - Task 1: `npm run build` ✓, `npx vitest run` ✓ (222 passed, 42 todo). Code-reviewer flagged one a11y gap (missing `aria-hidden` on back-arrow icon) — fixed before commit.
+- Task 2: `npm run build` ✓, `npx vitest run` ✓ (222 passed). No consumers yet — visual gate deferred to Task 3/4 migrations. Preview server unavailable (EPERM uv_cwd on npm in worktree); relying on end-of-cycle Playwright smoke.
 
 ## Ship Notes
