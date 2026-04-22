@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
       await prisma.programFeeStructure.upsert({
         where: { programId_academicYearId_feeComponentId: { programId: pId, academicYearId: academicYear.id, feeComponentId: fcId } },
         update: {},
-        create: { programId: pId, academicYearId: academicYear.id, feeComponentId: fcId, amount },
+        create: { tenantId, programId: pId, academicYearId: academicYear.id, feeComponentId: fcId, amount },
       });
       feeStructureCount++;
     }
