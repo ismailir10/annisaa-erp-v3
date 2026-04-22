@@ -129,7 +129,7 @@ export function ParentNoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm mx-4">
+      <DialogContent className="p-card max-w-sm mx-4">
         <DialogHeader>
           <DialogTitle>
             {mode === "create" ? "Tulis Catatan" : "Edit Catatan"}

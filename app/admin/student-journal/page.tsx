@@ -267,7 +267,7 @@ export default function StudentJournalAdminPage() {
         open={categoryForm !== null}
         onOpenChange={(o) => { if (!o) setCategoryForm(null); }}
       >
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>
               {categoryForm?.mode === "create" ? "Tambah Kategori" : "Edit Kategori"}
@@ -325,7 +325,7 @@ export default function StudentJournalAdminPage() {
         open={indicatorForm !== null}
         onOpenChange={(o) => { if (!o) setIndicatorForm(null); }}
       >
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>
               {indicatorForm?.mode === "create"

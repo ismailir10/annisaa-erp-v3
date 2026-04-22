@@ -272,7 +272,7 @@ export default function GuardiansPage() {
         </Sheet>
       ) : (
         <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-          <DialogContent>
+          <DialogContent className="p-card">
             <DialogHeader><DialogTitle>Edit Wali</DialogTitle></DialogHeader>
             <div className="p-card">
               <GuardianEditFormBody form={editForm} setForm={setEditForm} />

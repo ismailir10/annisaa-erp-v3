@@ -355,7 +355,7 @@ export default function StudentAttendancePage() {
 
       {/* ── Override dialog (Category C — event-log override) ─── */}
       <Dialog open={!!overrideTarget} onOpenChange={(o) => { if (!overriding && !o) setOverrideTarget(null); }}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>Override Kehadiran</DialogTitle>
             <DialogDescription>

@@ -677,7 +677,7 @@ export default function AdmissionsPage() {
         </Sheet>
       ) : (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent>
+          <DialogContent className="p-card">
             <DialogHeader>
               <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
             </DialogHeader>

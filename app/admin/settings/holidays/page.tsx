@@ -180,7 +180,7 @@ export default function HolidaysPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Hari Libur" : "Tambah Hari Libur"}</DialogTitle>
             <DialogDescription>Hari libur mempengaruhi perhitungan hari kerja</DialogDescription>

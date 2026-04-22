@@ -159,7 +159,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="h-[85vh] max-w-md mx-auto rounded-t-2xl px-5 pb-6 pt-2 overflow-y-auto">
+        <SheetContent side="bottom" className="h-[85vh] max-w-md mx-auto rounded-t-2xl px-page-x pb-card pt-2 overflow-y-auto">
           <SheetHeader className="px-0 pt-2">
             <SheetTitle>Cuti &amp; Izin</SheetTitle>
             <SheetDescription>Kelola pengajuan cuti dan izin Anda</SheetDescription>
@@ -270,7 +270,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
 
       {/* Submit dialog — renders on top of Sheet */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>Ajukan Cuti</DialogTitle>
             <DialogDescription>

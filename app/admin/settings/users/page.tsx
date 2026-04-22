@@ -443,7 +443,7 @@ export default function UsersPage() {
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
       >
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>Edit Pengguna</DialogTitle>
           </DialogHeader>

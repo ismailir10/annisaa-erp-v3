@@ -493,7 +493,7 @@ export default function AdminLeavePage() {
           </Sheet>
         ) : (
           <Dialog open={!!reviewTarget} onOpenChange={(o) => { if (!o) { setReviewTarget(null); setViewOnly(false); } }}>
-            <DialogContent>
+            <DialogContent className="p-card">
               <DialogHeader>
                 <DialogTitle>
                   {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}

@@ -126,8 +126,8 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
           side={isMobile ? "bottom" : "right"}
           className={
             isMobile
-              ? "h-[95dvh] rounded-t-2xl overflow-y-auto p-5"
-              : "w-full sm:!max-w-2xl overflow-y-auto p-6 md:p-8"
+              ? "h-[95dvh] rounded-t-2xl overflow-y-auto p-card"
+              : "w-full sm:!max-w-2xl overflow-y-auto p-card md:p-8"
           }
         >
           {loadingId ? (

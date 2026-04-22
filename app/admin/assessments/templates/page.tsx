@@ -362,7 +362,7 @@ export default function AssessmentTemplatesPage() {
 
       {/* Create Dialog */}
       <Dialog open={createDialog} onOpenChange={setCreateDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="p-card max-w-lg">
           <DialogHeader><DialogTitle>Buat Template Penilaian</DialogTitle></DialogHeader>
           <ScrollArea className="max-h-[60vh] pr-2">
             <div className="space-y-field py-2">
@@ -424,7 +424,7 @@ export default function AssessmentTemplatesPage() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>Edit Template</DialogTitle></DialogHeader>
           <div className="space-y-field py-2">
             <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>

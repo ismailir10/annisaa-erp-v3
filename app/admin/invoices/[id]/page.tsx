@@ -293,7 +293,7 @@ export default function InvoiceDetailPage() {
         </Sheet>
       ) : (
         <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-          <DialogContent>
+          <DialogContent className="p-card">
             <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
             <div className="p-card space-y-field">
               <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />

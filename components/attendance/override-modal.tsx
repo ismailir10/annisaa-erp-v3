@@ -81,7 +81,7 @@ export function OverrideModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="p-card">
         <DialogHeader>
           <DialogTitle>Override Kehadiran</DialogTitle>
           <DialogDescription>

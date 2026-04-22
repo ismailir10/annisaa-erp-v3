@@ -199,7 +199,7 @@ export default function TeacherStudentWeekPage() {
 
       {/* Add-note dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-sm mx-4">
+        <DialogContent className="p-card max-w-sm mx-4">
           <DialogHeader>
             <DialogTitle>Tambah Catatan</DialogTitle>
           </DialogHeader>

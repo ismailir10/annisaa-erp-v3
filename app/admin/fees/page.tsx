@@ -243,7 +243,7 @@ export default function FeesPage() {
 
       {/* Add Component Dialog */}
       <Dialog open={componentDialog} onOpenChange={setComponentDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>{editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}</DialogTitle></DialogHeader>
           <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">

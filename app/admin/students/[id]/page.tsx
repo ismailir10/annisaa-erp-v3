@@ -642,7 +642,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
-            <DialogContent>
+            <DialogContent className="p-card">
               <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
               <div className="p-card">{guardianBody}</div>
               <DialogFooter>
@@ -680,7 +680,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
-            <DialogContent>
+            <DialogContent className="p-card">
               <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
               <div className="p-card">{enrollBody}</div>
               <DialogFooter>
@@ -724,7 +724,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
-            <DialogContent>
+            <DialogContent className="p-card">
               <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
               <div className="p-card">{promoteBody}</div>
               <DialogFooter>
@@ -765,7 +765,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
-            <DialogContent>
+            <DialogContent className="p-card">
               <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
               <div className="p-card">{withdrawBody}</div>
               <DialogFooter>

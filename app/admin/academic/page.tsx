@@ -429,7 +429,7 @@ export default function AcademicPage() {
 
       {/* Add Year Dialog */}
       <Dialog open={yearDialog} onOpenChange={setYearDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>{editingYear ? "Edit Tahun Ajaran" : "Tambah Tahun Ajaran"}</DialogTitle></DialogHeader>
           <div className="space-y-field py-2">
             <Field><FieldLabel>Nama *</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
@@ -447,7 +447,7 @@ export default function AcademicPage() {
 
       {/* Add Program Dialog */}
       <Dialog open={programDialog} onOpenChange={setProgramDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>{editingProgram ? "Edit Program" : "Tambah Program"}</DialogTitle></DialogHeader>
           <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">
@@ -480,7 +480,7 @@ export default function AcademicPage() {
 
       {/* Add Section Dialog */}
       <Dialog open={sectionDialog} onOpenChange={setSectionDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>{editingSection ? "Edit Kelas" : "Tambah Kelas"}</DialogTitle></DialogHeader>
           <div className="space-y-field py-2">
             <Field><FieldLabel>Nama Kelas *</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
@@ -516,7 +516,7 @@ export default function AcademicPage() {
 
       {/* Assign Teacher Dialog */}
       <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>Guru Pengajar — {assignForm.className}</DialogTitle></DialogHeader>
           <div className="space-y-field py-2">
             {classAssignments.length > 0 && (

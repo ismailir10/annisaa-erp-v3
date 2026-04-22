@@ -523,7 +523,7 @@ export default function InvoicesPage() {
         </Sheet>
       ) : (
         <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
-          <DialogContent>
+          <DialogContent className="p-card">
             <DialogHeader>
               <DialogTitle>Buat Tagihan Bulanan</DialogTitle>
               <DialogDescription>
@@ -547,7 +547,7 @@ export default function InvoicesPage() {
 
       {/* Send Results Dialog */}
       <Dialog open={!!sendResults} onOpenChange={(o) => !o && setSendResults(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="p-card max-w-lg">
           <DialogHeader>
             <DialogTitle>Link Pembayaran Berhasil Dibuat</DialogTitle>
             <DialogDescription>
