@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light only">
+  <title>Masuk ke akun Anda — An Nisaa' Sekolahku</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F7FAFA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#1C1917;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;overflow:hidden;opacity:0;color:transparent;">
+    Tautan masuk aman untuk akun Anda. Secure sign-in link for your account.
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F7FAFA;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;margin:0 auto;">
+          <tr>
+            <td style="background:#FFFFFF;border-radius:12px 12px 0 0;padding:28px 28px 24px;text-align:center;border:1px solid #E5E2DE;border-bottom:3px solid #5DB4B8;">
+              <img src="https://annisaa-erp-v3.vercel.app/logo.png" alt="An Nisaa' Sekolahku" width="48" height="48" style="border-radius:12px;display:block;margin:0 auto 10px;" />
+              <h1 style="margin:0;color:#1A2E2F;font-size:18px;font-weight:700;letter-spacing:0.3px;line-height:1.3;">An Nisaa' Sekolahku</h1>
+              <p style="margin:4px 0 0;color:#57534E;font-size:12px;line-height:1.5;">Pendidikan Anak Usia Dini Islam Terpadu</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#FFFFFF;padding:32px 28px;border:1px solid #E5E2DE;border-top:none;border-radius:0 0 12px 12px;">
+              <h2 style="margin:0 0 8px;color:#1A2E2F;font-size:20px;font-weight:700;line-height:1.35;">Masuk ke akun Anda</h2>
+              <p style="margin:0 0 20px;color:#78716C;font-size:13px;line-height:1.5;">Sign in to your account</p>
+
+              <p style="margin:0 0 16px;color:#1C1917;font-size:15px;line-height:1.6;">Assalamu'alaikum warahmatullahi wabarakatuh,</p>
+              <p style="margin:0 0 20px;color:#1C1917;font-size:15px;line-height:1.6;">
+                Tekan tombol di bawah untuk masuk ke akun <strong>An Nisaa' Sekolahku</strong> Anda. Tautan ini hanya berlaku satu kali dan akan kadaluarsa dalam 1 jam.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+                <tr>
+                  <td align="center">
+                    <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#5DB4B8;color:#FFFFFF;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:15px;font-weight:600;line-height:1.2;">
+                      Masuk Sekarang
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px;color:#57534E;font-size:13px;line-height:1.6;">Atau salin tautan berikut ke peramban Anda:</p>
+              <p style="margin:0 0 16px;word-break:break-all;">
+                <a href="{{ .ConfirmationURL }}" style="color:#5DB4B8;font-size:12px;line-height:1.5;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+              </p>
+
+              <div style="background:#F7FAFA;border:1px solid #E5E2DE;border-radius:8px;padding:16px 18px;margin:0 0 20px;">
+                <p style="margin:0 0 6px;color:#78716C;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Kode OTP / OTP Code</p>
+                <p style="margin:0;color:#1A2E2F;font-size:22px;font-weight:700;letter-spacing:3px;font-family:'SF Mono','Monaco','Consolas','Liberation Mono','Courier New',monospace;">{{ .Token }}</p>
+              </div>
+
+              <hr style="border:none;border-top:1px solid #E5E2DE;margin:24px 0;">
+
+              <p style="margin:0 0 8px;color:#57534E;font-size:13px;line-height:1.6;">
+                <strong style="color:#1A2E2F;">English:</strong> Click the button above to sign in. This link is valid for one use only and expires in 1 hour. If you didn't request this, you can safely ignore this email.
+              </p>
+              <p style="margin:0;color:#78716C;font-size:12px;line-height:1.6;">
+                Jika Anda tidak meminta tautan ini, Anda dapat mengabaikan email ini dengan aman.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 8px 8px;text-align:center;">
+              <p style="margin:0 0 4px;color:#9B9BB0;font-size:11px;line-height:1.6;">
+                An Nisaa' Sekolahku · Taman Aster, Bekasi · Metland Cibitung
+              </p>
+              <p style="margin:0;color:#9B9BB0;font-size:11px;line-height:1.6;">
+                Email otomatis. Mohon tidak membalas email ini.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
