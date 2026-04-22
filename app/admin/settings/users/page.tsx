@@ -339,7 +339,7 @@ export default function UsersPage() {
         toast.error(err.error || "Gagal menyimpan");
         return;
       }
-      toast.success("Pengguna berhasil diperbarui");
+      toast.success("Pengguna diperbarui");
       setEditTarget(null);
       fetchUsers();
     } catch {

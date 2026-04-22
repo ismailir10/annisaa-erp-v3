@@ -75,7 +75,7 @@ export default function InvoiceDetailPage() {
     });
     if (res.ok) {
       const d = await res.json();
-      toast.success("Link pembayaran berhasil dibuat");
+      toast.success("Link pembayaran dibuat");
       if (d.paymentUrl) navigator.clipboard.writeText(d.paymentUrl);
       toast.info("Link disalin ke clipboard — kirim via WhatsApp");
       fetchInvoice();

@@ -152,7 +152,7 @@ export default function AcademicPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "INACTIVE" }),
     });
-    if (res.ok) { toast.success("Berhasil dinonaktifkan"); setDeactivateTarget(null); fetchAll(); }
+    if (res.ok) { toast.success("Dinonaktifkan"); setDeactivateTarget(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
   }
 
@@ -168,7 +168,7 @@ export default function AcademicPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "ACTIVE" }),
     });
-    if (res.ok) { toast.success("Berhasil diaktifkan"); setReactivateTarget(null); fetchAll(); }
+    if (res.ok) { toast.success("Diaktifkan"); setReactivateTarget(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
   }
 

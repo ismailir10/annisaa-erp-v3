@@ -195,7 +195,7 @@ export default function StudentDetailPage() {
         body: JSON.stringify({ classSectionId: selectedSection }),
       });
       if (res.ok) {
-        toast.success("Siswa berhasil didaftarkan ke kelas");
+        toast.success("Didaftarkan ke kelas");
         setEnrollDialog(false);
         fetchStudent();
       } else {
@@ -229,7 +229,7 @@ export default function StudentDetailPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetClassSectionId: promoteTarget, notes: promoteNotes }),
       });
-      if (res.ok) { toast.success("Siswa berhasil naik kelas"); setPromoteDialog(false); fetchStudent(); }
+      if (res.ok) { toast.success("Naik kelas"); setPromoteDialog(false); fetchStudent(); }
       else { const d = await res.json(); toast.error(d.error || "Gagal naik kelas"); }
     } catch { toast.error("Terjadi kesalahan"); }
     setPromoting(false);
@@ -243,7 +243,7 @@ export default function StudentDetailPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (res.ok) { toast.success("Siswa berhasil diluluskan"); setGraduateOpen(false); fetchStudent(); }
+      if (res.ok) { toast.success("Diluluskan"); setGraduateOpen(false); fetchStudent(); }
       else { const d = await res.json(); toast.error(d.error || "Gagal meluluskan"); }
     } catch { toast.error("Terjadi kesalahan"); }
     setGraduating(false);
@@ -263,7 +263,7 @@ export default function StudentDetailPage() {
         if (data.unpaidInvoices > 0) {
           toast.success(`Siswa dikeluarkan. Perhatian: ${data.unpaidInvoices} tagihan belum lunas.`);
         } else {
-          toast.success("Siswa berhasil dikeluarkan");
+          toast.success("Dikeluarkan");
         }
         setWithdrawDialog(false);
         setWithdrawReason("");

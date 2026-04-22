@@ -354,7 +354,7 @@ export default function RolesPage() {
         toast.error(err.error || "Gagal menyimpan");
         return;
       }
-      toast.success(editTarget ? "Peran berhasil diperbarui" : "Peran berhasil dibuat");
+      toast.success(editTarget ? "Peran diperbarui" : "Peran dibuat");
       setDialogOpen(false);
       fetchRoles();
     } catch {
@@ -377,7 +377,7 @@ export default function RolesPage() {
         toast.error(err.error || "Gagal menghapus");
         return;
       }
-      toast.success("Peran berhasil dihapus");
+      toast.success("Peran dihapus");
       setDeleteTarget(null);
       fetchRoles();
     } catch {

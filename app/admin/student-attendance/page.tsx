@@ -161,7 +161,7 @@ export default function StudentAttendancePage() {
       body: JSON.stringify({ status: overrideForm.status, notes: overrideForm.notes || null }),
     });
     if (res.ok) {
-      toast.success("Kehadiran berhasil di-override");
+      toast.success("Kehadiran di-override");
       setOverrideTarget(null);
       fetchData();
     } else {

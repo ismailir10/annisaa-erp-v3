@@ -39,7 +39,7 @@ export default function NewPayrollPage() {
 
     if (res.ok) {
       const data = await res.json();
-      toast.success("Draft penggajian berhasil dibuat");
+      toast.success("Draft penggajian dibuat");
       router.push(`/admin/payroll/${data.id}`);
     } else {
       const data = await res.json();

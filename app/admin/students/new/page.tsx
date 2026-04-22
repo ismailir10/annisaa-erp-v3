@@ -48,7 +48,7 @@ export default function NewStudentPage() {
     });
     if (res.ok) {
       const student = await res.json();
-      toast.success("Siswa berhasil ditambahkan");
+      toast.success("Siswa ditambahkan");
       router.push(`/admin/students/${student.id}`);
     } else {
       const data = await res.json().catch(() => ({}));

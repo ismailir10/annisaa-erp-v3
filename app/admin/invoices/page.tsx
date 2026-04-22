@@ -306,7 +306,7 @@ export default function InvoicesPage() {
     }
     const d = await res.json();
     if (d.created > 0) {
-      toast.success(`${d.created} link pembayaran berhasil dibuat`);
+      toast.success(`${d.created} link pembayaran dibuat`);
       setSendResults(d.results);
     }
     if (d.failed > 0) toast.error(`${d.failed} tagihan gagal`);
