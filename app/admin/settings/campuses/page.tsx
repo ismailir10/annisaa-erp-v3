@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -132,6 +133,14 @@ export default function CampusesPage() {
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
+      ) : campuses.length === 0 ? (
+        <EmptyState
+          icon={Building2}
+          title="Belum ada kampus"
+          description="Tambahkan lokasi kampus/cabang untuk mulai mengelola karyawan per kampus."
+          actionLabel="Tambah Kampus"
+          onAction={openNew}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {campuses.map((c, i) => (
