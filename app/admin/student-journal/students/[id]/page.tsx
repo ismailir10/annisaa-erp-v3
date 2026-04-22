@@ -455,7 +455,7 @@ export default function StudentJournalDetailPage({
 
         {/* Sekolah tab */}
         <TabsContent value="school">
-          <div className="bg-card border border-border rounded-xl p-4">
+          <div className="bg-card border border-border rounded-xl p-card">
             <WeekGrid
               categories={weekData?.schoolCategories ?? []}
               entries={weekData?.schoolEntries ?? []}
@@ -470,7 +470,7 @@ export default function StudentJournalDetailPage({
 
         {/* Rumah tab */}
         <TabsContent value="home">
-          <div className="bg-card border border-border rounded-xl p-4">
+          <div className="bg-card border border-border rounded-xl p-card">
             <WeekGrid
               categories={weekData?.homeCategories ?? []}
               entries={weekData?.homeEntries ?? []}
@@ -515,7 +515,7 @@ export default function StudentJournalDetailPage({
               {auditRows.map((row) => (
                 <div
                   key={row.id}
-                  className="bg-card border border-border rounded-xl p-4 space-y-3"
+                  className="bg-card border border-border rounded-xl p-card space-y-3"
                 >
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">

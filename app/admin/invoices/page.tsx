@@ -444,7 +444,7 @@ export default function InvoicesPage() {
               Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Periode *</FieldLabel>
               <Input

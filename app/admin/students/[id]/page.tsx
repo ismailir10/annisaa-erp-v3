@@ -551,7 +551,7 @@ export default function StudentDetailPage() {
       <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingGuardian ? "Edit Wali" : "Tambah Wali"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">
               <Field><FieldLabel>Nama *</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
               <Field>
@@ -656,7 +656,7 @@ export default function StudentDetailPage() {
       <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Kelas Tujuan *</FieldLabel>
               <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)}>
@@ -685,7 +685,7 @@ export default function StudentDetailPage() {
       <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <p className="text-sm text-muted-foreground">
               Mengeluarkan <strong>{student.name}</strong> dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.
             </p>

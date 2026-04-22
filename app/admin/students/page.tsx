@@ -444,7 +444,7 @@ export default function StudentsPage() {
             <DialogTitle>Edit Siswa</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>Nama Lengkap *</FieldLabel>
@@ -538,7 +538,7 @@ export default function StudentsPage() {
             <DialogTitle>Tambah Siswa</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>Nama Lengkap *</FieldLabel>

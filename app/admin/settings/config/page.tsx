@@ -82,7 +82,7 @@ export default function OrgConfigPage() {
     <>
       <PageHeader title="Konfigurasi" description="Atur jam kerja, zona waktu, dan periode penggajian" />
 
-      <Card className="p-6 max-w-2xl space-y-6">
+      <Card className="p-card max-w-2xl space-y-field">
         {/* Working days */}
         <Field>
           <FieldLabel>Hari Kerja</FieldLabel>

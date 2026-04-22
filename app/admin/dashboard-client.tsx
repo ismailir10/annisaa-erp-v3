@@ -33,7 +33,7 @@ export function DashboardClient({
   const maxTrendValue = Math.max(...weeklyTrend.map((d) => d.present + d.late + d.absent), 1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-section">
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Total Karyawan" value={totalEmployees} sublabel="aktif" icon={Users} color="primary" index={0} />

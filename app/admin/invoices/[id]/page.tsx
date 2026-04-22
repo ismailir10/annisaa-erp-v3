@@ -233,7 +233,7 @@ export default function InvoiceDetailPage() {
       <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Jumlah *</FieldLabel>
               <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />

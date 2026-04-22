@@ -362,7 +362,7 @@ export default function StudentAttendancePage() {
               {overrideTarget?.student.name} — {overrideTarget?.date}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Status Kehadiran</FieldLabel>
               <Select

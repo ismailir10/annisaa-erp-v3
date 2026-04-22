@@ -185,7 +185,7 @@ export default function HolidaysPage() {
             <DialogTitle>{editing ? "Edit Hari Libur" : "Tambah Hari Libur"}</DialogTitle>
             <DialogDescription>Hari libur mempengaruhi perhitungan hari kerja</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Tanggal *</FieldLabel>
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />

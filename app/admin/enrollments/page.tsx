@@ -269,7 +269,7 @@ export default function EnrollmentsPage() {
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Penempatan</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Siswa</FieldLabel>
               <Input value={editTarget?.student.name || ""} disabled />

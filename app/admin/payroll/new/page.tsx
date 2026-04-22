@@ -57,7 +57,7 @@ export default function NewPayrollPage() {
       </div>
       <PageHeader title="Buat Penggajian Baru" />
 
-      <Card className="p-6 max-w-lg space-y-4">
+      <Card className="p-card max-w-lg space-y-field">
         <div className="grid grid-cols-2 gap-4">
           <Field>
             <FieldLabel>Tanggal Mulai</FieldLabel>

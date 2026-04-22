@@ -365,7 +365,7 @@ export default function AssessmentTemplatesPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Buat Template Penilaian</DialogTitle></DialogHeader>
           <ScrollArea className="max-h-[60vh] pr-2">
-            <div className="space-y-4 py-2">
+            <div className="space-y-field py-2">
               <Field><FieldLabel>Nama Template *</FieldLabel><Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field>
@@ -426,7 +426,7 @@ export default function AssessmentTemplatesPage() {
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Template</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
             <Field>
               <FieldLabel>Tipe</FieldLabel>

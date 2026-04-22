@@ -183,7 +183,7 @@ export default function CampusesPage() {
               {editing ? "Perbarui informasi kampus" : "Tambahkan lokasi kampus baru"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Nama *</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" />
