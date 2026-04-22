@@ -184,7 +184,7 @@ export function TeacherHomeClient({
         </p>
 
         {/* GPS info */}
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-2">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
           <MapPin size={10} />
           <span>{gpsStatus}</span>
         </div>
@@ -209,7 +209,7 @@ export function TeacherHomeClient({
           </div>
           <div>
             <p className="text-sm font-medium">Buku Penghubung</p>
-            <p className="text-[10px] text-muted-foreground">Isi catatan harian siswa</p>
+            <p className="text-xs text-muted-foreground">Isi catatan harian siswa</p>
           </div>
         </Link>
       </motion.div>

@@ -126,22 +126,22 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
           side={isMobile ? "bottom" : "right"}
           className={
             isMobile
-              ? "h-[95dvh] rounded-t-2xl overflow-y-auto"
-              : "w-full sm:max-w-md overflow-y-auto"
+              ? "h-[95dvh] rounded-t-2xl overflow-y-auto p-5"
+              : "w-full sm:!max-w-2xl overflow-y-auto p-6 md:p-8"
           }
         >
           {loadingId ? (
             <AssessmentDetailSkeleton />
           ) : detail ? (
             <>
-              <SheetHeader>
-                <SheetTitle>{detail.templateName}</SheetTitle>
+              <SheetHeader className="p-0 pb-4 border-b">
+                <SheetTitle className="pr-10">{detail.templateName}</SheetTitle>
                 <p className="text-sm text-muted-foreground">
                   {detail.period} · {detail.programName}
                 </p>
               </SheetHeader>
 
-              <div className="mt-6 space-y-6">
+              <div className="mt-6 space-y-8">
                 {detail.categories.map((cat) => (
                   <div key={cat.id}>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">

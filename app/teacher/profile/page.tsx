@@ -39,7 +39,7 @@ export default async function TeacherProfilePage() {
         <div>
           <h2 className="text-base font-semibold">{employee.nama}</h2>
           <div className="flex items-center gap-2 mt-1">
-            <Badge variant="secondary" className="text-[10px] font-currency">{employee.kode}</Badge>
+            <Badge variant="secondary" className="text-xs font-currency">{employee.kode}</Badge>
             <StatusBadge status="ACTIVE" />
           </div>
         </div>
@@ -54,7 +54,7 @@ export default async function TeacherProfilePage() {
           <Wallet size={16} className="text-muted-foreground shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">Slip Gaji</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Lihat slip gaji bulanan</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Lihat slip gaji bulanan</p>
           </div>
           <ChevronRight size={16} className="text-muted-foreground shrink-0" />
         </Link>
@@ -71,7 +71,7 @@ export default async function TeacherProfilePage() {
             >
               <Icon size={16} className="text-muted-foreground shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{f.label}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">{f.label}</p>
                 <p className="text-sm font-medium mt-0.5 truncate">{f.value}</p>
               </div>
             </div>

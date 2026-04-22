@@ -1,10 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { LogOut } from "lucide-react";
+import { PortalHeader } from "@/components/portal/portal-header";
 
-export function ParentHeader({ userName }: { userName: string }) {
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0][0]!.toUpperCase();
+  return (parts[0][0]! + parts[parts.length - 1][0]!).toUpperCase();
+}
+
+export function ParentHeader({
+  userName,
+  childCount,
+}: {
+  userName: string;
+  childCount?: number;
+}) {
   const router = useRouter();
 
   async function handleLogout() {
@@ -13,24 +25,13 @@ export function ParentHeader({ userName }: { userName: string }) {
   }
 
   return (
-    <header className="sticky top-0 z-20 bg-card border-b border-border">
-      <div className="max-w-md mx-auto flex items-center justify-between px-5 h-14">
-        <div className="flex items-center gap-2.5">
-          <Image src="/logo.png" alt="An Nisaa'" width={28} height={28} className="rounded-md" />
-          <span className="text-sm font-semibold text-foreground">An Nisaa&apos;</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground hidden sm:block">{userName}</span>
-          <button
-            onClick={handleLogout}
-            className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-            title="Keluar"
-            aria-label="Keluar"
-          >
-            <LogOut size={16} />
-          </button>
-        </div>
-      </div>
-    </header>
+    <PortalHeader
+      userName={userName}
+      userSubtitle={
+        childCount && childCount > 0 ? `${childCount} anak` : undefined
+      }
+      avatarFallback={initialsOf(userName)}
+      onLogout={handleLogout}
+    />
   );
 }

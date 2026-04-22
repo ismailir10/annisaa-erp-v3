@@ -141,7 +141,7 @@ export default async function TeacherAssessmentsPage() {
             <Card key={cs.id} className="p-4">
               <div className="mb-3">
                 <p className="text-sm font-semibold">{cs.name}</p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {cs.program.name} · {studentsTotal} siswa
                 </p>
               </div>
@@ -174,11 +174,11 @@ export default async function TeacherAssessmentsPage() {
                         <div className="flex-1 min-w-0 mr-3">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="text-sm font-medium truncate">{t.name}</p>
-                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">
+                            <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
                               {t.type}
                             </Badge>
                           </div>
-                          <p className={`text-[11px] font-medium ${progressColor}`}>
+                          <p className={`text-xs font-medium ${progressColor}`}>
                             {published}/{studentsTotal} dinilai
                             {draft > 0 && (
                               <span className="text-muted-foreground"> · {draft} draft</span>

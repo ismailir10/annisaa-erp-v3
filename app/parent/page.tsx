@@ -4,9 +4,17 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
-import { getParentWithChildren, resolveSelectedChild, getStudentInvoices, getTodayStudentAttendance } from "@/lib/parent-helpers";
-import { UnpaidInvoicesTable } from "./unpaid-invoices-table";
-import Link from "next/link";
+import { QuickLinkCard } from "@/components/parent/quick-link-card";
+import { RecentActivity } from "@/components/parent/recent-activity";
+import { PageHeader } from "@/components/portal/page-header";
+import {
+  getParentWithChildren,
+  resolveSelectedChild,
+  getStudentInvoices,
+  getStudentAttendanceRecent,
+  getPublishedAssessmentsForStudent,
+} from "@/lib/parent-helpers";
+import { getStudentRecentActivity } from "@/lib/parent-activity";
 import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 
@@ -38,14 +46,26 @@ export default async function ParentDashboard({
 
   const student = selected.student;
   const enrollment = student.enrollments[0];
-  const [unpaidInvoices, todayAttendanceStatus] = await Promise.all([
-    getStudentInvoices(student.id),
-    getTodayStudentAttendance(student.id, session.tenantId!),
-  ]);
+  const [unpaidInvoices, recentAttendance, publishedAssessments, activityItems] =
+    await Promise.all([
+      getStudentInvoices(student.id),
+      getStudentAttendanceRecent(student.id, 7),
+      getPublishedAssessmentsForStudent(student.id),
+      session.tenantId
+        ? getStudentRecentActivity(student.id, session.tenantId, { limit: 7, days: 30 })
+        : Promise.resolve([]),
+    ]);
   const totalUnpaid = unpaidInvoices.reduce(
     (s, i) => s + (i.totalDue - i.totalPaid),
     0
   );
+
+  // Last-7-days attendance summary
+  const presentCount = recentAttendance.filter((r) => r.status === "PRESENT").length;
+  const totalCount = recentAttendance.length;
+
+  // Latest published assessment
+  const latestAssessment = publishedAssessments[0] ?? null;
 
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
@@ -53,16 +73,42 @@ export default async function ParentDashboard({
     className: c.className,
   }));
 
+  // Preserve `?child=` only when there are 2+ children
+  const childQuery =
+    children.length > 1 ? `?child=${selected.studentId}` : "";
+
+  // Tagihan card props
+  const tagihanProps = totalUnpaid > 0
+    ? {
+        secondary: "Sisa",
+        primary: formatRupiah(totalUnpaid),
+        primaryTone: "destructive" as const,
+        primaryIsCurrency: true,
+      }
+    : {
+        primary: "Lunas",
+        primaryTone: "success" as const,
+      };
+
+  // Kehadiran card props
+  const kehadiranProps = totalCount > 0
+    ? { primary: `Hadir ${presentCount}/${totalCount} hari` }
+    : { primary: "Belum dicatat", muted: true };
+
+  // Rapor card props
+  const raporProps = latestAssessment
+    ? {
+        secondary: latestAssessment.period,
+        primary: latestAssessment.templateName.slice(0, 30),
+      }
+    : { primary: "Belum tersedia", muted: true };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">
-          Assalamu&apos;alaikum, {parent.name}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Portal Orang Tua — An Nisaa&apos; Sekolahku
-        </p>
-      </div>
+      <PageHeader
+        title={`Assalamu'alaikum, ${parent.name}`}
+        subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
+      />
 
       {/* Child selector tabs (only shown when 2+ children) */}
       <ChildSelectorTabs
@@ -100,83 +146,29 @@ export default async function ParentDashboard({
         </div>
       </Card>
 
-      {/* Quick links — preserve child param */}
+      {/* Quick links — uniform via QuickLinkCard */}
       <div className="grid grid-cols-3 gap-3">
-        <Link
-          href={
-            children.length > 1
-              ? `/parent/invoices?child=${selected.studentId}`
-              : "/parent/invoices"
-          }
-        >
-          <Card className="p-4 text-center hover:border-primary/30 transition-colors">
-            <CreditCard size={20} className="mx-auto text-primary mb-2" />
-            <p className="text-xs font-medium">Tagihan</p>
-            {totalUnpaid > 0 && (
-              <>
-                <p className="text-xs text-muted-foreground mt-1">Sisa</p>
-                <p className="font-currency text-xs text-destructive">
-                  {formatRupiah(totalUnpaid)}
-                </p>
-              </>
-            )}
-          </Card>
-        </Link>
-        <Link
-          href={
-            children.length > 1
-              ? `/parent/attendance?child=${selected.studentId}`
-              : "/parent/attendance"
-          }
-        >
-          <Card className="p-4 text-center hover:border-primary/30 transition-colors">
-            <CalendarDays size={20} className="mx-auto text-primary mb-2" />
-            <p className="text-xs font-medium">Kehadiran</p>
-            {todayAttendanceStatus ? (
-              <div className="mt-1 flex justify-center">
-                <StatusBadge status={todayAttendanceStatus} />
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-1">Belum dicatat</p>
-            )}
-          </Card>
-        </Link>
-        <Link
-          href={
-            children.length > 1
-              ? `/parent/reports?child=${selected.studentId}`
-              : "/parent/reports"
-          }
-        >
-          <Card className="p-4 text-center hover:border-primary/30 transition-colors">
-            <GraduationCap size={20} className="mx-auto text-primary mb-2" />
-            <p className="text-xs font-medium">Rapor</p>
-          </Card>
-        </Link>
+        <QuickLinkCard
+          href={`/parent/invoices${childQuery}`}
+          icon={CreditCard}
+          label="Tagihan"
+          {...tagihanProps}
+        />
+        <QuickLinkCard
+          href={`/parent/attendance${childQuery}`}
+          icon={CalendarDays}
+          label="Kehadiran"
+          {...kehadiranProps}
+        />
+        <QuickLinkCard
+          href={`/parent/reports${childQuery}`}
+          icon={GraduationCap}
+          label="Rapor"
+          {...raporProps}
+        />
       </div>
 
-      {/* Unpaid invoices */}
-      {unpaidInvoices.length > 0 ? (
-        <div>
-          <h3 className="text-sm font-semibold mb-3">Tagihan Belum Lunas</h3>
-          <UnpaidInvoicesTable
-            childId={children.length > 1 ? selected.studentId : undefined}
-            data={unpaidInvoices.map((inv) => ({
-              id: inv.id,
-              invoiceNumber: inv.invoiceNumber,
-              periodLabel: inv.periodLabel,
-              totalDue: Number(inv.totalDue),
-              totalPaid: Number(inv.totalPaid),
-              status: inv.status,
-              xenditPaymentUrl: inv.xenditPaymentUrl,
-            }))}
-          />
-        </div>
-      ) : (
-        <div className="text-center py-4">
-          <p className="text-sm text-muted-foreground">Semua tagihan lunas</p>
-        </div>
-      )}
+      <RecentActivity items={activityItems} />
     </div>
   );
 }

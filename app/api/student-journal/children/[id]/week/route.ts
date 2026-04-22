@@ -116,6 +116,7 @@ export async function GET(
           id: true,
           date: true,
           authorRole: true,
+          authorUserId: true,
           body: true,
           createdAt: true,
         },

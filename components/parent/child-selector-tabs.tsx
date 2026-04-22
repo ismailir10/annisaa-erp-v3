@@ -22,11 +22,19 @@ export function ChildSelectorTabs({
 
   if (items.length <= 1) return null;
 
-  const tabs: PortalTab[] = items.map((child) => ({
-    id: child.studentId,
-    label: child.studentName,
-    secondary: child.className ? `(${child.className})` : undefined,
-  }));
+  const tabs: PortalTab[] = items.map((child) => {
+    const initial = child.studentName.trim()[0]?.toUpperCase() ?? "?";
+    return {
+      id: child.studentId,
+      label: child.studentName,
+      secondary: child.className ? `(${child.className})` : undefined,
+      leading: (
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary leading-none">
+          {initial}
+        </span>
+      ),
+    };
+  });
 
   const handleSelect = (id: string) => {
     const params = new URLSearchParams(searchParams.toString());

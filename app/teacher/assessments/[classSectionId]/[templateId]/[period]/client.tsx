@@ -48,20 +48,20 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 function SaveIndicator({ state }: { state: SaveStatus }) {
   if (state === "saving") {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
         <Loader2 size={11} className="animate-spin" /> Menyimpan...
       </span>
     );
   }
   if (state === "saved") {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-status-present">
+      <span className="inline-flex items-center gap-1 text-xs text-status-present">
         <Check size={11} /> Tersimpan
       </span>
     );
   }
   if (state === "error") {
-    return <span className="text-[10px] text-destructive">Gagal simpan</span>;
+    return <span className="text-xs text-destructive">Gagal simpan</span>;
   }
   return null;
 }
@@ -305,7 +305,7 @@ export function AssessmentEntryClient({
         <p className="text-xs text-muted-foreground">
           {classSection.name} · {classSection.program.name} · {period}
         </p>
-        <p className="text-[11px] font-medium text-primary mt-1">
+        <p className="text-xs font-medium text-primary mt-1">
           {publishedCount}/{totalStudents} siswa sudah dipublikasikan
         </p>
       </div>
@@ -322,12 +322,12 @@ export function AssessmentEntryClient({
                   <div className="text-left">
                     <p className="text-sm font-medium">{s.name}</p>
                     {s.nickname && (
-                      <p className="text-[10px] text-muted-foreground">{s.nickname}</p>
+                      <p className="text-xs text-muted-foreground">{s.nickname}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`text-[10px] font-medium ${
+                      className={`text-xs font-medium ${
                         filled === totalInds
                           ? "text-status-present"
                           : filled > 0
@@ -368,7 +368,7 @@ export function AssessmentEntryClient({
                                       type="button"
                                       onClick={() => setScore(s.id, ind.id, sc)}
                                       aria-label={`${sc} — ${SCORE_LABEL[sc]}`}
-                                      className={`py-1.5 rounded text-[11px] font-semibold border transition-colors ${
+                                      className={`py-1.5 rounded text-xs font-semibold border transition-colors ${
                                         selected
                                           ? "bg-primary text-primary-foreground border-primary"
                                           : "bg-background text-muted-foreground border-border hover:border-primary/40"

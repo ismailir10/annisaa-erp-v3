@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   countAttendanceThisWeek,
   getParentWithChildren,
+  // Used only for the 7-day summary strip — paginated list comes from /api/parent/children/[id]/attendance
   getStudentAttendanceRecent,
   resolveSelectedChild,
 } from "@/lib/parent-helpers";
@@ -25,8 +26,10 @@ export default async function ParentAttendancePage({
   const selected = resolveSelectedChild(children, params.child);
   if (!selected) redirect("/parent");
 
-  const data = await getStudentAttendanceRecent(selected.studentId, 30);
-  const weekCounts = countAttendanceThisWeek(data);
+  // 7-day summary strip is rendered server-side for fast initial paint.
+  // The full attendance list is now paginated via the API in <AttendanceClient />.
+  const recent = await getStudentAttendanceRecent(selected.studentId, 7);
+  const weekCounts = countAttendanceThisWeek(recent);
 
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
@@ -41,7 +44,7 @@ export default async function ParentAttendancePage({
         selectedChildId={selected.studentId}
       />
       <WeekSummaryStrip counts={weekCounts} />
-      <AttendanceClient data={data} />
+      <AttendanceClient studentId={selected.studentId} />
     </div>
   );
 }
