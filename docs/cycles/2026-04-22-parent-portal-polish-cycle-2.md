@@ -203,7 +203,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Empty states differentiated: no data at all vs filters empty the result.
   - Acceptance: seed a student with 120 attendance records; `/parent/attendance?child=<id>` shows page 1 of 20, paginates to page 6, filter "SICK" narrows set, date-range narrows further, all totals update. Same visual pattern as admin CRUD tables.
 
-- [ ] **T15 — Extract `PortalBottomNav` + migrate both portals. Independent of B tasks; can run parallel.**
+- [x] **T15 — Extract `PortalBottomNav` + migrate both portals. Independent of B tasks; can run parallel.**
   - New file: `components/portal/portal-bottom-nav.tsx` + `components/portal/__tests__/portal-bottom-nav.test.tsx`.
   - Props per spec; handles Framer `layoutId` active indicator, active-route matcher (default exact-or-prefix on pathname), safe-area inset bottom padding, `aria-current="page"` on active item, `text-xs` baked in.
   - Migrate `components/parent/bottom-nav.tsx` + `components/teacher/bottom-nav.tsx` to thin wrappers (≤30 LOC each) that only pass their item arrays + `activeIndicatorId`.
@@ -240,6 +240,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 ## Implementation
 
 - Dispatch plan: T1 solo (inline), T2 solo (inline), then Group B tasks dispatched as parallel implementer subagents where file-disjoint; remaining sequential. T14 after T13. T10 last.
+- T15: subagent dispatch (general-purpose). New `components/portal/portal-bottom-nav.tsx` + `components/portal/__tests__/portal-bottom-nav.test.tsx` (2 tests passing). Both `components/parent/bottom-nav.tsx` (`ParentBottomNav` export preserved, `?child=` query forwarding preserved via per-item `href` build + `matcher` on pathname) and `components/teacher/bottom-nav.tsx` (`BottomNav` export preserved) shrunk to thin wrappers. Framer `motion.div` + `usePathname` logic moved to primitive. Deviation: dropped parent's prior `flex-1 min-w-0 truncate max-w-full` on the Link/span — primitive uses canonical `px-2 flex-1`; spec endorsed teacher pattern as the common shape. 231 passed total.
 - T11: `app/parent/assessments-table.tsx` — desktop sheet width `sm:!max-w-2xl` (important-flag needed to override shadcn's baked-in `sm:max-w-sm`), padding `p-6 md:p-8` desktop / `p-5` mobile. Header now has `pb-4 border-b` separator + `pr-10` title to clear built-in close button. Domain section gap bumped `space-y-6` → `space-y-8`. Overlay/backdrop-blur deferred: changing shadcn overlay affects 5 Sheet consumers cycle-wide — scoped to cycle 3 if padding fix alone is insufficient. Close button: reused shadcn's built-in (top-3 right-3) rather than add a second.
 - T8: `app/parent/student-journal/page.tsx` — removed `max-w-md mx-auto p-4 pb-24` from 3 top-level return wrappers (loading / empty / content). Layout's `px-5 py-6 max-w-md mx-auto` now owns horizontal rhythm; `pb-20` at layout owns bottom-nav clearance. Horizontal padding now matches `/parent/invoices`.
 - T7: `app/parent/error.tsx` (new) — branded error boundary. Near-copy of `app/teacher/error.tsx` with an added "Kembali ke Beranda" secondary link to `/parent`. Button component doesn't expose `asChild`, so the secondary action is a styled `<Link>` rather than `<Button asChild>`.
@@ -261,6 +262,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T7: `npm run build` green (first pass failed on `Button asChild` — `components/ui/button.tsx` has no Slot; fixed by using plain styled Link). `npx vitest run` → 229 passed / 42 todo / 2 skipped.
 - T8: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped.
 - T11: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped.
+- T15: `npm run build` green. `npx vitest run` → 231 passed / 42 todo / 2 skipped (273 total). +2 portal-bottom-nav tests.
 
 ## Ship Notes
 <!-- filled by /ship -->
