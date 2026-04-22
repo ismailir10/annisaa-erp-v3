@@ -14,6 +14,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { STUDENT_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -407,14 +408,7 @@ export default function StudentsPage() {
             label: "Status",
             value: status,
             onChange: handleStatusChange,
-            options: [
-              { value: "all", label: "Semua Status" },
-              { value: "ACTIVE", label: "Aktif" },
-              { value: "ENROLLED", label: "Terdaftar di Kelas" },
-              { value: "GRADUATED", label: "Lulus" },
-              { value: "WITHDRAWN", label: "Keluar" },
-              { value: "INACTIVE", label: "Tidak Aktif" },
-            ],
+            options: STUDENT_STATUS_OPTIONS,
           },
         ]}
       />

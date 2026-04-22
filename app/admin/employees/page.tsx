@@ -14,6 +14,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
@@ -306,11 +307,7 @@ export default function EmployeesPage() {
               setStatusFilter(v);
               setPagination((p) => ({ ...p, page: 1 }));
             },
-            options: [
-              { value: "all", label: "Semua Status" },
-              { value: "ACTIVE", label: "Aktif" },
-              { value: "INACTIVE", label: "Tidak Aktif" },
-            ],
+            options: ACTIVE_STATUS_OPTIONS,
           },
         ]}
       />
