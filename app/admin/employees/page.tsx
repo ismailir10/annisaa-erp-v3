@@ -9,7 +9,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
@@ -325,13 +325,11 @@ export default function EmployeesPage() {
         emptyDescription="Tambahkan karyawan baru untuk memulai."
       />
 
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
-        title="Nonaktifkan Karyawan"
-        description={`Nonaktifkan "${deactivateTarget?.nama}"? Data tidak akan dihapus dan dapat diaktifkan kembali.`}
+        entityName={deactivateTarget?.nama ?? ""}
         onConfirm={handleDeactivate}
-        confirmLabel="Nonaktifkan"
       />
     </>
   );

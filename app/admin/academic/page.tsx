@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, GraduationCap, BookOpen, Users, Calendar } from "lucide-react";
 import { toast } from "sonner";
@@ -557,13 +558,11 @@ export default function AcademicPage() {
       </Dialog>
 
       {/* Deactivate Confirm */}
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
-        title="Nonaktifkan"
-        description={`Nonaktifkan "${deactivateTarget?.name}"? Data tidak akan dihapus.`}
+        entityName={deactivateTarget?.name ?? ""}
         onConfirm={handleDeactivate}
-        confirmLabel="Nonaktifkan"
       />
 
       {/* Reactivate Confirm */}

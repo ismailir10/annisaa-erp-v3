@@ -15,7 +15,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -170,13 +170,12 @@ export default function HolidaysPage() {
       />
 
       {/* Delete confirm */}
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Hapus Hari Libur"
-        description={`Hapus "${deleteTarget?.name}"? Ini akan mempengaruhi perhitungan hari kerja.`}
+        entityName={deleteTarget?.name ?? ""}
+        action="delete"
         onConfirm={handleDelete}
-        confirmLabel="Hapus"
       />
 
       {/* Add/Edit Dialog */}
