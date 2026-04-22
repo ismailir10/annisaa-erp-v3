@@ -177,7 +177,7 @@ export default function ParentStudentJournalPage() {
   const dates = data?.dates ?? weekDates(currentWeek);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-section">
       {/* Header */}
       <PageHeader
         title="Buku Penghubung"
