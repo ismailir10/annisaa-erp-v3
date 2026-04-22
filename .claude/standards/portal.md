@@ -4,6 +4,8 @@
 
 > Admin, Teacher, and Parent portals MUST use the same Shadcn components and patterns.
 
+**Canonical reference:** `.claude/standards/design-system.html` — §14 Portal Shell, §15 Student Journal, §16 Attendance Flows. Read the relevant section before touching portal code.
+
 ## All Portals Must Use:
 
 | Need | Use | NEVER |
@@ -245,6 +247,52 @@ const data = await res.json();
 ```
 
 Never silently ignore errors: `.catch(() => {})` is forbidden.
+
+## Household Overview (Parent Home)
+
+**Rule:** parent home body MUST use the Household Overview pattern when the family has **≥3 kids**. Pill-tabs (horizontal child switcher) are only allowed for exactly 2 kids.
+
+**Why:** pill-tabs scale badly past 2 kids (wrap / overflow on 375 px), hide the non-selected child's state ("did I pay Yusuf's too?"), and force the parent to tab through each kid to find the one that needs attention. Household Overview makes "which child needs me right now?" the default question.
+
+**Pattern:**
+- Top urgency banner — e.g. "2 dari 2 anak perlu perhatian · 1 tagihan jatuh tempo · 1 sakit hari ini". Red when urgent, amber when advisory, hidden when clean.
+- One row per child — avatar + name + class + today's attendance status inline.
+- 3-up signal cells per row — Tagihan, Kehadiran, and a context-third (Rapor, Catatan). Cells tint red/amber automatically when attention is needed.
+- Chevron on each row → child detail.
+- Inner tabs (Tagihan / Kehadiran / Rapor) inside a child detail use a pinned top-level switcher (Option C from the brainstorm in `design-system.html` §14).
+
+**Forbidden for ≥3 kids:**
+- `<PortalTabs>` as the child switcher on parent home.
+- "Select a child" dropdown in the header — hides state, defeats the purpose.
+
+See `design-system.html` §14 for full mockup and the 4-option brainstorm behind this choice.
+
+## WeekGrid Contract (Buku Penghubung)
+
+The shared Student Journal grid used by both teacher (editable) and parent (read-only) views. Component lives at `components/portal/week-grid.tsx` (or its cycle-current equivalent — extraction trigger is the 2nd consumer).
+
+**Rules:**
+- **Same component, three modes:** `<WeekGrid editable onToggle>` (teacher entry) · `<WeekGrid readonly>` (parent view) · `<WeekGrid home-note>` (parent write — catatan tab).
+- **Sticky first column** — indicator / category label, pinned so horizontal scroll doesn't lose context.
+- **Category groupings** — Ibadah / Akademik / Karakter (school-defined). Grouped headers, not flat.
+- **Today's column highlighted** — primary-tinted cell background on today's weekday.
+- **Tap-to-toggle cells** — teacher mode cycles through states; parent mode is read-only. Minimum tap target: 32 px cell height, 40 px column width, 3 px vertical row margin, 0.5 rem column gap.
+
+See `design-system.html` §15 for the mockup and the teacher-entry / parent-view state diagram.
+
+## Cycle-Tap Attendance
+
+Class attendance entry (`/teacher/class-attendance`) uses **cycle-tap**, not radio buttons.
+
+**Rules:**
+- **Default = PRESENT.** Opening a class + date pre-fills every roster row as PRESENT. Zero-interaction is the common case.
+- **One tap rotates state:** `PRESENT → ABSENT → SICK → PERMISSION → PRESENT`. No radio row, no dropdown per row.
+- **Long-press or ⋯ menu** for less-common states (early dismissal, excused trip). Not on the default tap.
+- **Live summary trio** above the grid: "Hadir N · Sakit M · Alpa K". Updates on every tap.
+- **Save on every tap.** Optimistic UI + `toast.error` rollback on failure. No submit button at the bottom.
+- **Sticky-first-column** with student name + photo initials. Row tints match the current state via `--status-*-subtle`.
+
+See `design-system.html` §16 — Flow B for the mockup. Flow A (teacher self clock-in) is a separate, 4-step flow documented alongside.
 
 ## Portal Primitive Inventory
 

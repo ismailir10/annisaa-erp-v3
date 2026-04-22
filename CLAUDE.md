@@ -289,14 +289,23 @@ Domain standards are no longer inlined here — they live under `.claude/standar
 
 | File | Covers | Loaded when staged paths match |
 |---|---|---|
-| `.claude/standards/ui.md` | Shadcn-FIRST rule, DataTable + action-column standard | `components/**`, `app/*/page.tsx`, `lib/format.ts` |
+| `.claude/standards/design-system.html` | **Canonical visual reference** — brand, colors, typography, spacing, icons, buttons, forms, status badges, DataTable, empty/loading/error states, stat cards, portal shells, overlays (Dialog/Sheet/AlertDialog/Toast), student journal, attendance flows, completeness audit, voice & tone. 4000-line HTML mockup exported from Claude Design. | Any frontend change — consulted by `/build` alongside the MD standards below. Also enforced by pre-commit Rule 4 (frontend gate). |
+| `.claude/standards/ui.md` | Shadcn-FIRST rule, DataTable + action-column standard, spacing + typography tokens, overlays rule | `components/**`, `app/*/page.tsx`, `lib/format.ts` |
+| `.claude/standards/patterns.md` | Page recipes — Admin List, Admin Detail, Admin Form, Portal Dashboard, Workflow Queue, Daily Data Entry | `app/*/page.tsx`, `app/**/client.tsx`, `components/{admin,teacher,parent,portal}/**` |
+| `.claude/standards/voice.md` | Voice & tone — 3 personas (admin / teacher / parent), Islamic courtesy layer, copy rules for errors/empty/success/destructive, SMS/email/in-app variants, canonical glossary | Any diff introducing user-facing copy (toasts, labels, descriptions, empty-state text, email subjects, SMS strings) under `app/**/*.tsx`, `components/**/*.tsx`, `lib/email/**`, `lib/**/messages.ts` |
 | `.claude/standards/crud.md` | ERPNext-inspired CRUD (Categories A/B/C), soft-delete, list/detail layouts, form field, edit dialog, edit toggle | `app/admin/**` **with** `<Dialog` / `FormField` / `<Field` / create-or-edit form content |
-| `.claude/standards/portal.md` | Portal consistency, portal navigation, Empty State Contract, fetch error-handling contract | `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` |
+| `.claude/standards/portal.md` | Portal consistency, portal navigation, Empty State Contract, fetch error-handling contract, Household Overview (parent home), WeekGrid contract, cycle-tap attendance | `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` |
 | `.claude/standards/api.md` | GET list pagination contract, mutation shape | `app/api/**`, `lib/validations/**`, `middleware.ts` |
 | `.claude/standards/security.md` | API route checklist, data-access roles table, new-route security checklist | `app/api/**`, `lib/auth*`, `middleware.ts` |
 | `.claude/standards/colors.md` | Color Standard + Brand tokens | `app/globals.css`, `tailwind.config.*`, `bg-status-*` / `text-status-*` className edits, or files containing arbitrary-color classNames `text-[#…]` / `bg-[#…]` / `border-[#…]` |
 
 The table above is the breadcrumb — former top-level sections (UI Standards, CRUD Standard, Portal Consistency Standard, API Standards, Security, Color Standard + Brand) now live in the listed files.
+
+### Frontend gate (pre-commit Rule 4)
+
+When staged files include frontend (`app/**/*.{tsx,css}`, `components/**/*.tsx`, `tailwind.config.*`), the staged cycle doc MUST contain the literal token `design-system` somewhere in its body. This is a soft cross-check — a one-line bullet in the Verification section ("Cross-checked design-system.html §N for Z") satisfies the gate. Bypass with `--no-verify` if the phrase genuinely doesn't fit, but expect PR review pushback.
+
+Rationale: the Claude Design reference at `.claude/standards/design-system.html` is the single source of truth for tokens, recipes, and copy. Forcing every frontend cycle to cite it keeps the reference alive and prevents silent drift. Landed 2026-04-22 in cycle `design-system-foundations`.
 
 ---
 

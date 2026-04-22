@@ -87,6 +87,21 @@
   /* Login page specific */
   --color-login-card-bg: var(--login-card-bg);
   --color-login-primary-hover: var(--login-primary-hover);
+
+  /* Typography scale — see .claude/standards/design-system.html §3 */
+  --text-display: var(--type-display);
+  --text-h1: var(--type-h1);
+  --text-h2: var(--type-h2);
+  --text-body: var(--type-body);
+  --text-small: var(--type-small);
+  --text-caption: var(--type-caption);
+
+  /* Spacing scale — see .claude/standards/design-system.html §4 */
+  --spacing-page-x: var(--space-page-x);
+  --spacing-page-y: var(--space-page-y);
+  --spacing-section: var(--space-section);
+  --spacing-card: var(--space-card);
+  --spacing-field: var(--space-field);
 }
 
 /*
@@ -181,6 +196,31 @@
   /* Login page specific */
   --login-card-bg: #223838;
   --login-primary-hover: #4A9DA1;
+
+  /*
+   * Typography scale — canonical page/heading ramp.
+   * Use `text-display`, `text-h1`, `text-h2`, `text-body`, `text-small`,
+   * `text-caption` Tailwind utilities instead of ad-hoc `text-lg` / `text-sm`
+   * for page chrome. See .claude/standards/design-system.html §3.
+   */
+  --type-display: 2rem;      /* dashboard hero numbers, stat-card primary */
+  --type-h1: 1.5rem;         /* page title */
+  --type-h2: 1.125rem;       /* section / card title */
+  --type-body: 0.875rem;     /* default body text */
+  --type-small: 0.75rem;     /* secondary labels */
+  --type-caption: 0.6875rem; /* table meta, badges, captions */
+
+  /*
+   * Spacing scale — canonical page rhythm.
+   * Use `p-page-x`, `p-page-y`, `gap-section`, `p-card`, `gap-field`
+   * Tailwind utilities instead of ad-hoc `p-4` / `space-y-8`.
+   * See .claude/standards/design-system.html §4.
+   */
+  --space-page-x: 1.5rem;    /* page horizontal padding */
+  --space-page-y: 2rem;      /* page vertical padding */
+  --space-section: 2rem;     /* gap between sections on a page */
+  --space-card: 1.5rem;      /* card internal padding */
+  --space-field: 1rem;       /* form row gap */
 }
 
 @layer base {

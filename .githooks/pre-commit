@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# pre-commit — enforce one-file-per-cycle + doc sync + seed drift check
+# pre-commit — enforce one-file-per-cycle + doc sync + seed drift + frontend gate
 #
-# Three rules:
+# Four rules:
 #  1. Markdown allowlist: any staged .md file must be in the allowlist below.
 #     The allowlist is: README.md, CLAUDE.md, LICENSE.md at repo root;
 #     anything under docs/, .github/, .claude/, .agent-skills/.
@@ -10,6 +10,11 @@
 #     docs/cycles/*.md file.
 #  3. Seed drift: if prisma/seed.ts is staged, lib/db.ts must also be staged.
 #     This forces authors to keep the seed's Prisma adapter in sync with lib/db.ts.
+#  4. Frontend gate: if a staged file is frontend (app/**/*.{tsx,css},
+#     components/**/*.tsx, tailwind.config.*), the staged cycle doc MUST
+#     contain the literal token "design-system" somewhere. Forces authors
+#     to cross-check .claude/standards/design-system.html — the canonical
+#     visual reference — and cite it in the cycle doc Verification section.
 #
 # Bypass: git commit --no-verify (discouraged; GitHub branch protection on
 # staging/main is the real enforcement layer).
@@ -109,6 +114,60 @@ if [ "$SEED_TOUCHED" = "1" ] && [ "$DB_TOUCHED" = "0" ]; then
   echo "" >&2
   echo "  Fix: git add lib/db.ts" >&2
   exit 1
+fi
+
+# ---------- Rule 4: Frontend gate ----------
+# If a staged file is frontend, the staged cycle doc(s) MUST mention
+# "design-system" somewhere. This forces authors to cross-check
+# .claude/standards/design-system.html before shipping frontend changes.
+TOUCHES_FRONTEND=0
+STAGED_CYCLE_DOCS=""
+while IFS= read -r f; do
+  case "$f" in
+    app/*.tsx|app/**/*.tsx) TOUCHES_FRONTEND=1 ;;
+    app/*.css|app/**/*.css) TOUCHES_FRONTEND=1 ;;
+    components/*.tsx|components/**/*.tsx) TOUCHES_FRONTEND=1 ;;
+    tailwind.config.ts|tailwind.config.js|tailwind.config.mjs|tailwind.config.cjs) TOUCHES_FRONTEND=1 ;;
+  esac
+  case "$f" in
+    docs/cycles/*.md) STAGED_CYCLE_DOCS="$STAGED_CYCLE_DOCS $f" ;;
+  esac
+done <<EOF
+$STAGED
+EOF
+
+if [ "$TOUCHES_FRONTEND" = "1" ]; then
+  # Scan the contents of every staged cycle doc for the token. We read the
+  # working-tree version (not the staged blob) — authors typically write the
+  # cycle doc and stage it whole, so disk ≈ staged. If someone partial-stages
+  # a doc without the token, --no-verify is the escape hatch.
+  FOUND=0
+  if [ -n "$STAGED_CYCLE_DOCS" ]; then
+    for doc in $STAGED_CYCLE_DOCS; do
+      if [ -f "$doc" ] && grep -q -i 'design-system' "$doc"; then
+        FOUND=1
+        break
+      fi
+    done
+  fi
+
+  if [ "$FOUND" = "0" ]; then
+    echo "pre-commit: frontend change missing design-system cross-check." >&2
+    echo "" >&2
+    echo "  Staged frontend files (app/**/*.tsx, components/**/*.tsx, app/**/*.css," >&2
+    echo "  tailwind.config.*) must be cross-checked against the canonical visual" >&2
+    echo "  reference at .claude/standards/design-system.html." >&2
+    echo "" >&2
+    echo "  Fix: add a one-line bullet to the cycle doc's Verification section:" >&2
+    echo "" >&2
+    echo "    - [x] Cross-checked design-system.html §<section> for <concern>." >&2
+    echo "" >&2
+    echo "  Any mention of the literal token 'design-system' in a staged cycle doc" >&2
+    echo "  satisfies the gate. See CLAUDE.md § Frontend gate for rationale." >&2
+    echo "" >&2
+    echo "  Bypass: git commit --no-verify (expect PR review pushback)." >&2
+    exit 1
+  fi
 fi
 
 exit 0
