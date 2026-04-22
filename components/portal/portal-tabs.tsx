@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export type PortalTab = {
@@ -10,6 +10,12 @@ export type PortalTab = {
   secondary?: string;
   /** Optional badge count (e.g. unread / filter match count) */
   count?: number;
+  /**
+   * Optional node rendered before the label (e.g. `<Avatar />`, `<Icon />`). Size ≤20px.
+   * Wrapped in `aria-hidden="true"` — content is treated as decorative; do not rely on it
+   * for accessible identification of the tab. The `label` field is the accessible name.
+   */
+  leading?: ReactNode;
 };
 
 export type PortalTabsProps = {
@@ -142,8 +148,13 @@ export function PortalTabs({
             tabIndex={isTabStop ? 0 : -1}
             onClick={() => onSelect(item.id)}
             onKeyDown={(e) => handleKeyDown(e, item.id)}
-            className={cn(baseClasses, variantClasses)}
+            className={cn(baseClasses, variantClasses, "inline-flex items-center")}
           >
+            {item.leading ? (
+              <span className="mr-2 inline-flex items-center" aria-hidden="true">
+                {item.leading}
+              </span>
+            ) : null}
             <span>{item.label}</span>
             {item.secondary ? (
               <span className="ml-1 text-xs text-muted-foreground">

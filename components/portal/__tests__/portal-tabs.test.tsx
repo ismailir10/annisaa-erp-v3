@@ -82,6 +82,22 @@ describe("PortalTabs", () => {
     expect(onSelect).toHaveBeenCalledWith("e");
   });
 
+  it("renders leading slot content before the label when provided", () => {
+    const leadingItems: PortalTab[] = [
+      { id: "p", label: "Pak", leading: <span data-testid="lead-p">P</span> },
+      { id: "q", label: "Qadr" },
+    ];
+    render(<PortalTabs items={leadingItems} activeId="p" onSelect={() => {}} />);
+    expect(screen.getByTestId("lead-p")).toBeInTheDocument();
+    // Leading should be a sibling rendered before the label span inside the same tab button.
+    const tab = screen.getByRole("tab", { name: /Pak/ });
+    const children = Array.from(tab.children);
+    const leadIdx = children.findIndex((c) => c.querySelector('[data-testid="lead-p"]') !== null || c.getAttribute("data-testid") === "lead-p");
+    const labelIdx = children.findIndex((c) => c.textContent === "Pak");
+    expect(leadIdx).toBeLessThan(labelIdx);
+    expect(leadIdx).toBeGreaterThanOrEqual(0);
+  });
+
   it("renders badge count when provided (including 0) and omits when undefined", () => {
     const badgeItems: PortalTab[] = [
       { id: "x", label: "HasCount", count: 3 },
