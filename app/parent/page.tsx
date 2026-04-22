@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { QuickLinkCard } from "@/components/parent/quick-link-card";
+import { RecentActivity } from "@/components/parent/recent-activity";
 import {
   getParentWithChildren,
   resolveSelectedChild,
@@ -12,6 +13,7 @@ import {
   getStudentAttendanceRecent,
   getPublishedAssessmentsForStudent,
 } from "@/lib/parent-helpers";
+import { getStudentRecentActivity } from "@/lib/parent-activity";
 import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 
@@ -43,11 +45,15 @@ export default async function ParentDashboard({
 
   const student = selected.student;
   const enrollment = student.enrollments[0];
-  const [unpaidInvoices, recentAttendance, publishedAssessments] = await Promise.all([
-    getStudentInvoices(student.id),
-    getStudentAttendanceRecent(student.id, 7),
-    getPublishedAssessmentsForStudent(student.id),
-  ]);
+  const [unpaidInvoices, recentAttendance, publishedAssessments, activityItems] =
+    await Promise.all([
+      getStudentInvoices(student.id),
+      getStudentAttendanceRecent(student.id, 7),
+      getPublishedAssessmentsForStudent(student.id),
+      session.tenantId
+        ? getStudentRecentActivity(student.id, session.tenantId, { limit: 7, days: 30 })
+        : Promise.resolve([]),
+    ]);
   const totalUnpaid = unpaidInvoices.reduce(
     (s, i) => s + (i.totalDue - i.totalPaid),
     0
@@ -164,6 +170,8 @@ export default async function ParentDashboard({
           {...raporProps}
         />
       </div>
+
+      <RecentActivity items={activityItems} />
     </div>
   );
 }
