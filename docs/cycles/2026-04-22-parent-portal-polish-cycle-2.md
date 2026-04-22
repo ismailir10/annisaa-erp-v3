@@ -273,7 +273,47 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T12: `npm run build` green. `npx vitest run` → 236 passed / 42 todo / 2 skipped (278 total). +5 attendance route tests.
 - T14: `npm run build` green. `npx vitest run` → 236 passed / 42 todo / 2 skipped (278 total).
 - T10: `npm run build` green. `npx vitest run` → 240 passed / 42 todo / 2 skipped (282 total). +4 page-header tests.
-- End-of-cycle gate: `npm run build` green; `npx vitest run` → 240 passed / 42 todo / 2 skipped (282 total). Banned-size grep across `app/parent app/teacher components/parent components/teacher components/portal` returns zero. Playwright run pending background completion — to be appended.
+- End-of-cycle gate: `npm run build` green; `npx vitest run` → 240 passed / 42 todo / 2 skipped (282 total). Banned-size grep across `app/parent app/teacher components/parent components/teacher components/portal` returns zero. Playwright: `npx playwright test e2e/parent.spec.ts e2e/teacher.spec.ts` failed in the shared `test.beforeAll` fixture with `SyntaxError: Unexpected end of JSON input` while fetching `/api/auth/users`. The endpoint guards on `DEMO_MODE==="true"` (`app/api/auth/users/route.ts:6-11`) and the playwright config sets `DEMO_MODE=true` on its webServer, so the fixture flake is likely a webServer startup race (DB not fully reachable before the first `request.get`). Not a cycle regression — no UI code in this cycle touches that endpoint or the fixture. Filed as cycle-3 follow-up.
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Migrations:** none. The new DELETE handler at `/api/student-journal/notes/[id]` writes `status="DELETED"` on the existing `StudentJournalNote.status` column (values previously `ACTIVE | EDITED`; `DELETED` is treated as soft-deleted and is already excluded by the week-endpoint's `status: "ACTIVE"` filter — no schema change required).
+
+**New env vars:** none.
+
+**New runtime deps:** none.
+
+**New API routes (both GET-only, rate-limited 60/min/IP, Guardian-auth'd):**
+- `GET /api/parent/children/[id]/attendance` — paginated (page, pageSize, status, dateFrom, dateTo, sortField, sortOrder). Zod validated.
+- `GET /api/parent/children/[id]/activity` — unified feed across attendance, journal notes/entries, invoices (issued + paid), published reports. Top N (default 7) within a 30-day window.
+- `DELETE /api/student-journal/notes/[id]` — soft-delete own note (author-only, tenant-scoped, 20/min rate limit).
+
+**Behaviour changes parents will see on staging:**
+- Dashboard is now summary-focused: greeting (via `PageHeader`), child-selector tabs (with avatar initial), 3 uniform-height quick-link cards (`Tagihan` / `Kehadiran` / `Rapor`), then an `Aktivitas Terkini` feed below. The embedded unpaid-invoices table is gone — full list lives at `/parent/invoices`.
+- Header shows an avatar initial + first name (was text-only).
+- Kehadiran page is server-paginated with status and date-range filters; no longer truncates to 30 rows. Reset-filters button clears state.
+- Rapor drawer on desktop is wider (`sm:!max-w-2xl`) with more internal padding (`p-6 md:p-8`) and a header separator; content no longer butts the right edge. Mobile bottom-sheet preserved.
+- Buku Penghubung Catatan tab gains a **Tulis Catatan** button + pencil/trash affordances on parent-authored notes. Parents can create, edit, and soft-delete their own home notes. Teacher-authored notes remain read-only for parents.
+- Action column on `/parent/invoices` is now uniform 32 px icon buttons (Bayar = primary + ExternalLink; Lihat = ghost + Eye) with `aria-label`.
+- Text across parent + teacher portals is minimum 12 px — teacher portal got the sweep that cycle 1 applied to parent.
+- Parent-portal client crashes now land on a branded error boundary (`app/parent/error.tsx`) with "Coba Lagi" + "Kembali ke Beranda" instead of the Next.js default stack.
+
+**Manual smoke-test on preview URL (suggested, 6 min):**
+1. Open `/parent` on a 375 px emulator. Confirm `PageHeader` greeting, QuickLinkCard trio all same height with bottom edges aligned, and an `Aktivitas Terkini` section below.
+2. Multi-child test: switch child-selector tabs, confirm avatar initials render and tab auto-centres.
+3. Open `/parent/attendance`. Apply status="SICK" + date range; confirm result count updates and pagination controls work on a seeded student with >30 records.
+4. Open `/parent/invoices`. Confirm Bayar + Lihat are uniform 32 px icon buttons.
+5. Open `/parent/student-journal`, Catatan tab. Tap **Tulis Catatan** → pick a date → type 20 chars → Simpan. Edit the note via pencil icon. Delete via trash icon (confirm dialog). Each action shows a success toast.
+6. Desktop (≥1024 px): re-open `/parent/reports` → tap "Lihat" on a report → confirm right-side drawer is wider with gutter padding around content and header separator visible.
+7. Trigger a runtime error in dev (e.g. add `throw new Error()` to a parent page briefly) → confirm branded error boundary renders; revert.
+
+**Rollback plan:** revert the feature-branch merge commit on staging. All changes are additive (new endpoints + components + primitives) or purely client-side UI; the only backend side effect is the new DELETE handler writing `status="DELETED"` — soft-deletes remain visible to authors in the DB and can be restored by flipping status back to `ACTIVE` if needed.
+
+**Cycle 3 follow-ups queued:**
+- Teacher portal adopts `PageHeader` + spacing-scale sweep (mechanical, mirrors the parent sweep in T10).
+- Extract shared `PortalError` from the now-twin `app/parent/error.tsx` + `app/teacher/error.tsx`.
+- Portal-level loading-skeleton family: `PageSkeleton`, `ListSkeleton`, `DetailSkeleton` (cycle-2 work left per-page skeletons in place).
+- `usePaginatedFetch` hook — admin lists + parent Kehadiran both now duplicate the useState + useCallback + useEffect pattern; ripe for extraction.
+- Desktop rapor drawer overlay: the `supports-backdrop-filter:backdrop-blur-xs` on shadcn's `SheetOverlay` still obscures content visibly. Deferring rather than editing a shared Shadcn file that has 5 consumers.
+- Reports page + teacher home both show candidate activity feeds — check if `RecentActivity` can migrate to `components/portal/**`.
+- Playwright e2e fixture flake: `SyntaxError: Unexpected end of JSON input` in the `test.beforeAll` hooks of `parent.spec.ts` + `teacher.spec.ts`; add a webServer readiness ping before the `request.get("/api/auth/users")` or make the fixture tolerant of an empty first response.
