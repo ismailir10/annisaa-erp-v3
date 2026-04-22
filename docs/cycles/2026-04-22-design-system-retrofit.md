@@ -195,4 +195,11 @@ Organized portal × concern. Tasks listed in the execution order `/build` will f
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **No migrations.** Prisma schema untouched.
+- **No new env vars.** No new npm deps.
+- **No API changes.** All three portals retrofit at the application layer only.
+- **Primitive extension:** `PortalTabs` gained a `sticky` prop (default `false`, additive — no caller breakage). `ChildSelectorTabs` gained `sticky` passthrough.
+- **Design-token surface:** no new tokens added. Existing `--space-*`, `--text-*`, `--status-*-subtle` / `--status-*-text` utilities applied across admin/teacher/parent scope.
+- **Rollback plan:** single revert of the cycle's PR merge commit restores the previous application layer cleanly (no DB state, no background jobs, no external service coupling).
+- **README.md:** no module / route / CRUD status / entity changes this cycle — design-system retrofit is pure application-layer refactor.
+- **Cycle-2 follow-ups** logged in the Implementation section (WeekGrid relocation to `components/portal/`; `formatDayShort` helper; parent layout `px-5` → `px-page-x` bleed-contract cycle; admin Dialog→Sheet mobile-variant; Household Overview full swap once demo seed grows to ≥3 kids; StatusBadge parent-tone prop; `PARENT_INVOICE_LABELS` consolidation).
