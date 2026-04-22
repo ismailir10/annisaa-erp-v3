@@ -8,6 +8,12 @@ import { QuickLinkCard } from "@/components/parent/quick-link-card";
 import { RecentActivity } from "@/components/parent/recent-activity";
 import { PageHeader } from "@/components/portal/page-header";
 import {
+  HouseholdOverview,
+  type HouseholdChild,
+  type HouseholdAttendance,
+  type HouseholdRaporStatus,
+} from "@/components/parent/household-overview";
+import {
   getParentWithChildren,
   resolveSelectedChild,
   getStudentInvoices,
@@ -15,8 +21,20 @@ import {
   getPublishedAssessmentsForStudent,
 } from "@/lib/parent-helpers";
 import { getStudentRecentActivity } from "@/lib/parent-activity";
+import { prisma } from "@/lib/db";
 import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
+
+/**
+ * Format a Date as YYYY-MM-DD using LOCAL calendar components (Asia/Jakarta-safe).
+ */
+function todayYmd(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export default async function ParentDashboard({
   searchParams,
@@ -40,6 +58,123 @@ export default async function ParentDashboard({
     );
   }
 
+  // ≥3 kids → Household Overview path (portal.md §Household Overview).
+  // <3 kids → existing pill-tab / single-child path (unchanged).
+  if (children.length >= 3) {
+    const kidIds = children.map((c) => c.studentId);
+    const today = todayYmd();
+
+    // Three grouped round-trips — no N+1.
+    const [unpaidGroups, todayAttendanceRows, publishedAssessments, latestNotes] =
+      await Promise.all([
+        prisma.invoice.groupBy({
+          by: ["studentId"],
+          where: {
+            studentId: { in: kidIds },
+            status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+          },
+          _count: { _all: true },
+          _sum: { totalDue: true, totalPaid: true },
+        }),
+        prisma.studentAttendance.findMany({
+          where: {
+            studentId: { in: kidIds },
+            date: today,
+            isVoided: false,
+          },
+          select: { studentId: true, status: true },
+        }),
+        prisma.studentAssessment.findMany({
+          where: { studentId: { in: kidIds } },
+          select: {
+            studentId: true,
+            status: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+        session.tenantId
+          ? prisma.studentJournalNote.findMany({
+              where: {
+                tenantId: session.tenantId,
+                studentId: { in: kidIds },
+                status: "ACTIVE",
+              },
+              select: {
+                studentId: true,
+                body: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: "desc" },
+            })
+          : Promise.resolve([] as { studentId: string; body: string; createdAt: Date }[]),
+      ]);
+
+    // Index helpers
+    const unpaidByKid = new Map<
+      string,
+      { count: number; total: number }
+    >();
+    for (const g of unpaidGroups) {
+      const due = Number(g._sum.totalDue ?? 0);
+      const paid = Number(g._sum.totalPaid ?? 0);
+      unpaidByKid.set(g.studentId, {
+        count: g._count._all,
+        total: Math.max(0, due - paid),
+      });
+    }
+
+    const attendanceByKid = new Map<string, HouseholdAttendance>();
+    for (const row of todayAttendanceRows) {
+      const s = row.status;
+      if (s === "PRESENT" || s === "ABSENT" || s === "SICK" || s === "PERMISSION") {
+        attendanceByKid.set(row.studentId, s);
+      }
+    }
+
+    // Latest rapor status per kid (first match wins, ordered desc).
+    const raporByKid = new Map<string, HouseholdRaporStatus>();
+    for (const a of publishedAssessments) {
+      if (raporByKid.has(a.studentId)) continue;
+      if (a.status === "PUBLISHED" || a.status === "DRAFT") {
+        raporByKid.set(a.studentId, a.status);
+      }
+    }
+
+    // Latest home note per kid (first match wins, ordered desc).
+    const noteByKid = new Map<string, string>();
+    for (const n of latestNotes) {
+      if (noteByKid.has(n.studentId)) continue;
+      noteByKid.set(n.studentId, n.body);
+    }
+
+    const householdChildren: HouseholdChild[] = children.map((c) => {
+      const unpaid = unpaidByKid.get(c.studentId);
+      return {
+        id: c.studentId,
+        name: c.studentName,
+        className: c.className ?? "—",
+        avatarUrl: null,
+        todayAttendance: attendanceByKid.get(c.studentId) ?? "NONE",
+        unpaidCount: unpaid?.count ?? 0,
+        unpaidTotal: unpaid?.total ?? 0,
+        latestRaporStatus: raporByKid.get(c.studentId) ?? "NONE",
+        latestHomeNote: noteByKid.get(c.studentId) ?? null,
+      };
+    });
+
+    return (
+      <div className="space-y-section">
+        <PageHeader
+          title={`Assalamu'alaikum, ${parent.name}`}
+          subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
+        />
+        <HouseholdOverview children={householdChildren} />
+      </div>
+    );
+  }
+
+  // ── 1–2 kids: existing path (unchanged) ──
   const params = await searchParams;
   const selected = resolveSelectedChild(children, params.child);
   if (!selected) redirect("/parent");
