@@ -67,7 +67,7 @@ Each task is committable independently and ends with the fast gate (`npm run bui
 - [ ] **Task 4 — Migrate detail pages to `<DetailPageHeader>` + `<DetailPageSkeleton>`.** Update `app/admin/students/[id]/page.tsx`, `app/admin/employees/[id]/page.tsx`, `app/admin/invoices/[id]/page.tsx`, `app/admin/payroll/[id]/page.tsx`, and `app/admin/assessments/[id]/page.tsx` to use `<DetailPageHeader>` (replacing hand-rolled back-link + `<PageHeader>` combos) and `<DetailPageSkeleton>` (replacing hand-rolled loading skeletons). StatusBadge that used to sit in the actions slot moves to the new `badge` slot. Actions slot stays for CTAs only.
   - **Acceptance:** 5 detail pages migrated; StatusBadge appears next to title, not in the actions bar; `npm run build && npx vitest run` green; playwright admin spec still green locally. *Depends on Tasks 1 and 2.*
 
-- [ ] **Task 5 — StatusBadge consolidation.** Replace non-standard Badge usage for row status with `<StatusBadge>` in: `app/admin/employees/page.tsx` (bank status "Belum diisi"), `app/admin/payroll/page.tsx` row status (if Badge-based), `app/admin/invoices/page.tsx` row status (if Badge-based), and any settings/roles page using inline color mappings. Do NOT touch Badge used for non-status chrome (e.g. role tags as metadata, count pills).
+- [x] **Task 5 — StatusBadge consolidation.** Replace non-standard Badge usage for row status with `<StatusBadge>` in: `app/admin/employees/page.tsx` (bank status "Belum diisi"), `app/admin/payroll/page.tsx` row status (if Badge-based), `app/admin/invoices/page.tsx` row status (if Badge-based), and any settings/roles page using inline color mappings. Do NOT touch Badge used for non-status chrome (e.g. role tags as metadata, count pills).
   - **Acceptance:** `rg '<Badge variant="outline"' app/admin` shows only non-status uses (metadata chips, count pills). Row domain state renders through `<StatusBadge>`. Build + vitest green. *No dependency.*
 
 - [ ] **Task 6 — Typography + padding normalization pass.** Global grep-replace across `app/admin/**` and `components/admin/**`:
@@ -117,10 +117,18 @@ These are tracked in the Non-goals section above. Reproduced here as a flat chec
 - Subagent plan: tasks executed inline, not dispatched. Cycle has 13 small tasks; inline loop with per-task gate is simpler than parallel worktree coordination.
 - Task 1: Extract `<DetailPageHeader>` — `components/admin/detail-page-header.tsx` (new, 44 lines). Props: `backHref`, `backLabel?`, `title`, `description?`, `badge?`, `actions?`. `aria-hidden` on `ArrowLeft` icon per a11y review. No consumers yet.
 - Task 2: Extract `<StatsCardsRow>` (8 lines, grid-cols-2 lg:grid-cols-4 gap-3 mb-6 wrapper) + `<DetailPageSkeleton>` (30 lines, back-link + title/subtitle + 2 card skeletons matching rounded-xl border-border p-5 card shape). Frontend-design lens: skeleton card shape mirrors StatCard for visual continuity during load.
+- Task 5: StatusBadge consolidation. Added two entries to `STATUS_MAP` in `components/ui/status-badge.tsx`: `PUBLISHED` (Assessment published state) and `UNFILLED` (data-completeness state for missing bank account). Migrated 5 sites:
+  - `app/admin/assessments/[id]/page.tsx` — header badge: `<Badge variant={…}>` → `<StatusBadge status={assessment.status} label={…}>` with Indonesian label override (`Dipublikasi`/`Draf`).
+  - `app/admin/employees/page.tsx` — Rekening column bank-account "Belum diisi" Badge → `<StatusBadge status="UNFILLED">`. Dropped unused `Badge` import.
+  - `app/admin/payroll/[id]/page.tsx` — same Rekening column treatment in payroll-run detail. `Adj` marker Badge kept (non-status chrome).
+  - `app/admin/dashboard-client.tsx` — last-payroll card status Badge → `<StatusBadge status={lastPayroll.status}>`.
+  - `app/admin/leave/page.tsx` — leave-type column Badge → `<StatusBadge status={r.leaveType} label={TYPE_LABELS[r.leaveType]}>`. Dropped unused `Badge` import.
+  - Residual `<Badge variant="outline">` usages in admin are all non-status metadata chips (subject codes, income range, relationship tag, method labels, holiday ½-day marker, role code mono) — spec permits these.
 
 ## Verification
 
 - Task 1: `npm run build` ✓, `npx vitest run` ✓ (222 passed, 42 todo). Code-reviewer flagged one a11y gap (missing `aria-hidden` on back-arrow icon) — fixed before commit.
 - Task 2: `npm run build` ✓, `npx vitest run` ✓ (222 passed). No consumers yet — visual gate deferred to Task 3/4 migrations. Preview server unavailable (EPERM uv_cwd on npm in worktree); relying on end-of-cycle Playwright smoke.
+- Task 5: `npm run build` ✓, `npx tsc --noEmit` ✓, `npx vitest run` ✓ (222 passed | 42 todo). Grep check: `rg '<Badge variant="outline"' app/admin` returns 14 matches — all confirmed non-status chrome (subject codes, relationship tags, income/education/occupation metadata, ½-day holiday marker, mono role code, payment method, Adj payroll line marker, program labels). Zero row-status Badges remain.
 
 ## Ship Notes

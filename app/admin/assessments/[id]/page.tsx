@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -141,9 +141,7 @@ export default function AssessmentDetailPage() {
       />
 
       <div className="flex items-center gap-3 mb-2">
-        <Badge variant={assessment.status === "PUBLISHED" ? "default" : "secondary"}>
-          {assessment.status === "PUBLISHED" ? "Dipublikasi" : "Draf"}
-        </Badge>
+        <StatusBadge status={assessment.status} label={assessment.status === "PUBLISHED" ? "Dipublikasi" : "Draf"} />
         <span className="text-xs text-muted-foreground">{scoredCount}/{totalIndicators} indikator dinilai</span>
       </div>
 

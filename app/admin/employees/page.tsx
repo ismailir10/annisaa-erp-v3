@@ -12,7 +12,6 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { Button } from "@/components/ui/button";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
@@ -101,11 +100,7 @@ const columns: ColumnDef<Employee>[] = [
     header: "Rekening",
     cell: ({ row }) => {
       if (!row.original.bankAccountNo) {
-        return (
-          <Badge variant="outline" className="text-[10px] text-destructive">
-            Belum diisi
-          </Badge>
-        );
+        return <StatusBadge status="UNFILLED" />;
       }
       return (
         <span className="text-xs text-muted-foreground font-currency">

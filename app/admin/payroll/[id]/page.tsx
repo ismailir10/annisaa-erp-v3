@@ -283,7 +283,7 @@ export default function PayrollDetailPage() {
       header: "Rekening",
       cell: ({ row }) => {
         if (!row.original.employee.bankAccountNo) {
-          return <Badge variant="outline" className="text-[10px] text-destructive">Belum diisi</Badge>;
+          return <StatusBadge status="UNFILLED" />;
         }
         return (
           <span className="text-xs text-muted-foreground font-currency">

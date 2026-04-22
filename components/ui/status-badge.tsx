@@ -58,6 +58,12 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   // Leave types
   ANNUAL: { label: "Cuti Tahunan", className: "bg-status-leave-subtle text-status-leave-text" },
   OTHER: { label: "Lainnya", className: "bg-muted text-muted-foreground" },
+
+  // Assessment
+  PUBLISHED: { label: "Dipublikasi", className: "bg-status-present-subtle text-status-present-text" },
+
+  // Data completeness (e.g. missing bank account)
+  UNFILLED: { label: "Belum diisi", className: "bg-status-absent-subtle text-status-absent-text" },
 };
 
 export function StatusBadge({

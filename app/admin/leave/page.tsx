@@ -9,7 +9,6 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatCard } from "@/components/admin/stat-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -231,9 +230,7 @@ export default function AdminLeavePage() {
         return (
           <div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px]">
-                {TYPE_LABELS[r.leaveType] ?? r.leaveType}
-              </Badge>
+              <StatusBadge status={r.leaveType} label={TYPE_LABELS[r.leaveType]} />
               <span className="text-xs font-medium">{r.days} hari</span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">

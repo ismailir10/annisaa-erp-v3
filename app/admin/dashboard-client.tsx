@@ -3,6 +3,7 @@
 import { StatCard } from "@/components/admin/stat-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Users, UserCheck, Clock, UserX, CalendarOff, Banknote, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -144,9 +145,7 @@ export function DashboardClient({
                     </p>
                   </div>
                 </div>
-                {lastPayroll && (
-                  <Badge variant="secondary" className="text-[10px]">{lastPayroll.status}</Badge>
-                )}
+                {lastPayroll && <StatusBadge status={lastPayroll.status} />}
               </Link>
               )}
             </div>
