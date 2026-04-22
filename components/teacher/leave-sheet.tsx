@@ -169,11 +169,11 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
           {balance && (
             <div className="grid grid-cols-2 gap-3 mb-4">
               <Card className="p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cuti Tahunan</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Cuti Tahunan</p>
                 <p className="font-currency text-2xl font-bold mt-1 text-primary">
                   {balance.annual.remaining}
                 </p>
-                <p className="text-[10px] text-muted-foreground">dari {balance.annual.total} hari</p>
+                <p className="text-xs text-muted-foreground">dari {balance.annual.total} hari</p>
                 <div className="w-full h-1.5 bg-muted rounded-full mt-2">
                   <div
                     className="h-full bg-primary rounded-full"
@@ -182,11 +182,11 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
                 </div>
               </Card>
               <Card className="p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cuti Sakit</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Cuti Sakit</p>
                 <p className="font-currency text-2xl font-bold mt-1 text-status-leave">
                   {balance.sick.remaining}
                 </p>
-                <p className="text-[10px] text-muted-foreground">dari {balance.sick.total} hari</p>
+                <p className="text-xs text-muted-foreground">dari {balance.sick.total} hari</p>
                 <div className="w-full h-1.5 bg-muted rounded-full mt-2">
                   <div
                     className="h-full bg-status-leave rounded-full"

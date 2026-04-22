@@ -48,7 +48,7 @@ export function BottomNav() {
                 aria-hidden="true"
               />
               <span
-                className={`text-[10px] font-medium ${
+                className={`text-xs font-medium ${
                   isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >

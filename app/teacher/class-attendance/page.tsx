@@ -158,15 +158,15 @@ export default function ClassAttendancePage() {
       <div className="flex gap-3 mb-4">
         <Card className="p-3 flex-1 text-center">
           <p className="font-currency text-xl font-bold text-status-present">{presentCount}</p>
-          <p className="text-[10px] text-muted-foreground">Hadir</p>
+          <p className="text-xs text-muted-foreground">Hadir</p>
         </Card>
         <Card className="p-3 flex-1 text-center">
           <p className="font-currency text-xl font-bold text-destructive">{absentCount}</p>
-          <p className="text-[10px] text-muted-foreground">Tidak Hadir</p>
+          <p className="text-xs text-muted-foreground">Tidak Hadir</p>
         </Card>
         <Card className="p-3 flex-1 text-center">
           <p className="font-currency text-xl font-bold">{students.length}</p>
-          <p className="text-[10px] text-muted-foreground">Total</p>
+          <p className="text-xs text-muted-foreground">Total</p>
         </Card>
       </div>
 
@@ -191,7 +191,7 @@ export default function ClassAttendancePage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium">{s.student.name}</p>
-                      {s.student.nickname && <p className="text-[10px] text-muted-foreground">{s.student.nickname}</p>}
+                      {s.student.nickname && <p className="text-xs text-muted-foreground">{s.student.nickname}</p>}
                     </div>
                   </div>
                   <StatusBadge status={status} />
@@ -211,7 +211,7 @@ export default function ClassAttendancePage() {
         </div>
       )}
 
-      <p className="text-[10px] text-muted-foreground text-center mt-3">
+      <p className="text-xs text-muted-foreground text-center mt-3">
         Ketuk nama siswa untuk mengubah status (Hadir → Tidak Hadir → Sakit → Izin)
       </p>
     </div>
