@@ -77,7 +77,7 @@ test.describe("Teacher flows", () => {
   });
 
   test("logout works", async ({ page }) => {
-    await page.click("[title='Keluar']");
+    await page.click("[aria-label='Keluar']");
     await page.waitForURL("/", { timeout: 10_000 });
     await expect(page.locator("text=An Nisaa")).toBeVisible();
   });

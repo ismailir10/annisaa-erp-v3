@@ -33,10 +33,11 @@ test.describe("Parent flows", () => {
     await expect(page.locator("text=Tagihan").first()).toBeVisible();
   });
 
-  test("unpaid invoices section visible on dashboard", async ({ page }) => {
-    // Either shows unpaid invoices table or all-paid state in the dashboard
+  test("recent activity section visible on dashboard", async ({ page }) => {
+    // Cycle 2 replaced the embedded unpaid-invoices table with a unified
+    // Aktivitas Terkini feed. Empty-state copy or live items both pass.
     await expect(
-      page.locator("text=Tagihan Belum Lunas").or(page.locator("text=Semua tagihan lunas"))
+      page.locator("text=Aktivitas Terkini").or(page.locator("text=Belum ada aktivitas"))
     ).toBeVisible({ timeout: 5_000 });
   });
 
@@ -72,7 +73,7 @@ test.describe("Parent flows", () => {
   });
 
   test("logout works", async ({ page }) => {
-    await page.click("[title='Keluar']");
+    await page.click("[aria-label='Keluar']");
     await page.waitForURL("/", { timeout: 10_000 });
     // Use first() — "An Nisaa" appears multiple times on login page
     await expect(page.locator("text=An Nisaa").first()).toBeVisible();
