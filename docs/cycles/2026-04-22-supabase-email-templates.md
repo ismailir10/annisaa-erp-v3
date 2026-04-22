@@ -79,3 +79,5 @@ Acceptance criteria:
 **Follow-ups:**
 - Add `supabase/templates/password_changed_notification.html` if we enable the notification template (currently commented out in config).
 - Consider adding a `reset-cta-failed` fallback copy if the hosted auth page URL changes.
+
+**Post-PR fix (CI):** First push to PR #101 exposed a stale `supabase/migrations/` directory (9 SQL files) that Supabase's GitHub Preview integration tries to auto-apply on a fresh branch DB. The very first migration (`20260414104109_parent_restructure_and_business_logic.sql`) hard-creates the `Parent` table with an FK to `Tenant`, but no prior Supabase migration creates `Tenant` — that table is Prisma-managed via `prisma/migrations/`, never mirrored here. `supabase migration list` confirms all 9 files are orphaned (empty Remote column on staging). Fix: delete the 9 stale SQL files. Prisma remains the single source of truth for schema; Supabase Preview will find no migrations and the check passes.
