@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { WeekGrid } from "@/components/student-journal/week-grid";
+import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";

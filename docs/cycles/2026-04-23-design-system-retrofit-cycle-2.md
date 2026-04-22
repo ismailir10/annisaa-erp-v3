@@ -181,7 +181,7 @@ Parallelism plan: dispatch A1, B1a-group1, B1a-group2, B1a-group3, C1, D1, E1 co
 
 ## Verification
 
-(Populated by `/build` per-task — must cite "Cross-checked design-system.html §X for Y".)
+- **Task C1 (WeekGrid relocation):** `git mv` preserved history. `npm run build` ✓ exit 0. Grep `@/components/student-journal/week-grid|components/student-journal/week-grid` in `app/` + `components/` = 0 import references (only historical cycle-doc narrative mentions remain). Cross-checked design-system.html §15 Student Journal for contract preservation.
 
 ## Ship Notes
 

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PortalTabs } from "@/components/portal/portal-tabs";
 import { PageHeader } from "@/components/portal/page-header";
-import { WeekGrid } from "@/components/student-journal/week-grid";
+import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { ParentNoteDialog } from "@/components/student-journal/parent-note-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
