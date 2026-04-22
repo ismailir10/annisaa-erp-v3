@@ -167,7 +167,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Same migration. Keep teacher's `profileHref="/teacher/profile"` and existing avatar wiring.
   - Acceptance: pixel-equivalent to current teacher header.
 
-- [ ] **T6 — Parent `child-selector-tabs` uses `leading` avatar. Dep: T1.**
+- [x] **T6 — Parent `child-selector-tabs` uses `leading` avatar. Dep: T1.**
   - File: `components/parent/child-selector-tabs.tsx`.
   - Pass `leading: <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{initial}</AvatarFallback></Avatar>` per item. (Inner 10 px is inside an Avatar component, not raw text — the text-size rule bans `text-[10px]` on content text, not on Avatar initial rendering. Document this exception in Implementation.)
   - Acceptance: all 3 child pills show an initial-circle + name; active tab pill still highlights; no layout shift vs cycle-1 layout.
@@ -240,6 +240,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 ## Implementation
 
 - Dispatch plan: T1 solo (inline), T2 solo (inline), then Group B tasks dispatched as parallel implementer subagents where file-disjoint; remaining sequential. T14 after T13. T10 last.
+- T6: `components/parent/child-selector-tabs.tsx` — each tab now carries a `leading` node: `h-6 w-6` circle with `bg-primary/10` + `text-xs` initial. Spec said `h-5 w-5` + `text-[10px]`, but the banned-size grep gate (`portal.md`) has no Avatar exception, so the circle was bumped to 24 px + `text-xs` to comply. Parity: teacher uses 28 px avatar in header; child-selector uses 24 px — intentionally one step smaller for tab density.
 - T5: `components/teacher/header.tsx` — shrunk to thin wrapper around `<PortalHeader>` with `profileHref="/teacher/profile"`. Avatar initial preserved; pixel-equivalent to prior design since `PortalHeader` itself inherits the teacher layout shape.
 - T4: `components/parent/header.tsx` — shrunk to thin wrapper around `<PortalHeader>`. Adds `initialsOf()` helper + optional `childCount` prop (not yet wired from layout; layout still passes only `userName` — subtitle will render when a consumer passes `childCount`). Avatar initial now renders in parent portal (previously text-only).
 - T3: perl sweep across 7 teacher files (`components/teacher/bottom-nav.tsx`, `components/teacher/leave-sheet.tsx`, `app/teacher/home-client.tsx`, `app/teacher/class-attendance/page.tsx`, `app/teacher/assessments/page.tsx`, `app/teacher/profile/page.tsx`, `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx`) — every `text-[10px]`/`text-[11px]` → `text-xs`. 23 substitutions. No horizontal-overflow tab migration needed (no such site in teacher portal).
@@ -253,6 +254,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T3: `grep -rn 'text-\[1[01]px\]' app/teacher components/teacher` → zero. `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped (271 total).
 - T4: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped (271 total).
 - T5: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped (271 total).
+- T6: banned-size grep gate returns zero across all portal dirs. `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped.
 
 ## Ship Notes
 <!-- filled by /ship -->
