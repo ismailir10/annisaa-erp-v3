@@ -217,7 +217,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
   - Action-column cleanup in `app/parent/unpaid-invoices-table.tsx` (still referenced from `/parent/invoices`): normalise "Bayar" + "Lihat" to matching 32 px icon buttons (primary vs ghost tone), each with `aria-label`. No text + icon mismatch; either both have labels or both are pure icon.
   - Acceptance: dashboard no longer shows a tagihan table; activity feed shows 7 mixed events from last 30 days for the selected child; click routes to relevant deep-link; empty state when child has no events. `/parent/invoices` row actions read as a uniform column, not "one big teal button among plain links".
 
-- [ ] **T13 — Dashboard quick-link cards uniform via `QuickLinkCard`. Independent.**
+- [x] **T13 — Dashboard quick-link cards uniform via `QuickLinkCard`. Independent.**
   - New file: `components/parent/quick-link-card.tsx` — props + styling per Spec.
   - `app/parent/page.tsx` — replace the 3 inline Card blocks (Tagihan / Kehadiran / Rapor) with `<QuickLinkCard>` instances. Data parity: compute attendance-7-day summary + latest-semester label in the server component and pass in.
   - Skeleton matches final card height (no CLS).
@@ -240,6 +240,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 ## Implementation
 
 - Dispatch plan: T1 solo (inline), T2 solo (inline), then Group B tasks dispatched as parallel implementer subagents where file-disjoint; remaining sequential. T14 after T13. T10 last.
+- T13: subagent dispatch (general-purpose). New `components/parent/quick-link-card.tsx` (`h-[132px]`, `rounded-2xl border bg-card hover:bg-accent`, 24 px icon, tone variants default/destructive/success, muted state). `app/parent/page.tsx` swapped 3 inline Card blocks for `<QuickLinkCard>` instances inside `grid grid-cols-3 gap-3`. Data: Tagihan reuses `totalUnpaid`, Kehadiran computes 7-day summary via existing `getStudentAttendanceRecent(id, 7)`, Rapor uses existing `getPublishedAssessmentsForStudent(id)[0]`. Deviation (per spec instruction): subagent also removed `UnpaidInvoicesTable` block from dashboard early — T14 still owns RecentActivity feed addition; table removal is now done. Component file at `app/parent/unpaid-invoices-table.tsx` retained for `/parent/invoices`.
 - T15: subagent dispatch (general-purpose). New `components/portal/portal-bottom-nav.tsx` + `components/portal/__tests__/portal-bottom-nav.test.tsx` (2 tests passing). Both `components/parent/bottom-nav.tsx` (`ParentBottomNav` export preserved, `?child=` query forwarding preserved via per-item `href` build + `matcher` on pathname) and `components/teacher/bottom-nav.tsx` (`BottomNav` export preserved) shrunk to thin wrappers. Framer `motion.div` + `usePathname` logic moved to primitive. Deviation: dropped parent's prior `flex-1 min-w-0 truncate max-w-full` on the Link/span — primitive uses canonical `px-2 flex-1`; spec endorsed teacher pattern as the common shape. 231 passed total.
 - T11: `app/parent/assessments-table.tsx` — desktop sheet width `sm:!max-w-2xl` (important-flag needed to override shadcn's baked-in `sm:max-w-sm`), padding `p-6 md:p-8` desktop / `p-5` mobile. Header now has `pb-4 border-b` separator + `pr-10` title to clear built-in close button. Domain section gap bumped `space-y-6` → `space-y-8`. Overlay/backdrop-blur deferred: changing shadcn overlay affects 5 Sheet consumers cycle-wide — scoped to cycle 3 if padding fix alone is insufficient. Close button: reused shadcn's built-in (top-3 right-3) rather than add a second.
 - T8: `app/parent/student-journal/page.tsx` — removed `max-w-md mx-auto p-4 pb-24` from 3 top-level return wrappers (loading / empty / content). Layout's `px-5 py-6 max-w-md mx-auto` now owns horizontal rhythm; `pb-20` at layout owns bottom-nav clearance. Horizontal padding now matches `/parent/invoices`.
@@ -263,6 +264,7 @@ Ordered, atomic, each committable on its own. Dependencies marked so `/build` ca
 - T8: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped.
 - T11: `npm run build` green. `npx vitest run` → 229 passed / 42 todo / 2 skipped.
 - T15: `npm run build` green. `npx vitest run` → 231 passed / 42 todo / 2 skipped (273 total). +2 portal-bottom-nav tests.
+- T13: `npm run build` green. `npx vitest run` → 231 passed / 42 todo / 2 skipped (273 total).
 
 ## Ship Notes
 <!-- filled by /ship -->
