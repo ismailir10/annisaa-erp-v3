@@ -2,13 +2,24 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, BookHeart } from "lucide-react";
+import { ChevronLeft, ChevronRight, BookHeart, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PortalTabs } from "@/components/portal/portal-tabs";
 import { WeekGrid } from "@/components/student-journal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
+import { ParentNoteDialog } from "@/components/student-journal/parent-note-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { formatDateShort } from "@/lib/format";
 
@@ -24,7 +35,14 @@ type Child = {
 type Indicator = { id: string; label: string; order: number };
 type Category = { id: string; name: string; scope: string; indicators: Indicator[] };
 type Entry = { id?: string; indicatorId: string; date: string; checked: boolean };
-type Note = { id: string; date: string; authorRole: string; body: string; createdAt: string };
+type Note = {
+  id: string;
+  date: string;
+  authorRole: string;
+  authorUserId?: string;
+  body: string;
+  createdAt: string;
+};
 
 type WeekData = {
   weekStart: string;
@@ -60,6 +78,26 @@ export default function ParentStudentJournalPage() {
   });
   const [data, setData] = useState<WeekData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [noteDialog, setNoteDialog] = useState<
+    | { mode: "create" }
+    | { mode: "edit"; noteId: string; date: string; body: string }
+    | null
+  >(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Load current session id (for own-note edit/delete affordance)
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { id?: string } | null) => {
+        if (json?.id) setCurrentUserId(json.id);
+      })
+      .catch(() => {
+        // Non-fatal; edit/delete affordance simply won't render.
+      });
+  }, []);
 
   // Load children on mount
   useEffect(() => {
@@ -265,12 +303,112 @@ export default function ParentStudentJournalPage() {
             </p>
           </TabsContent>
 
-          {/* Catatan tab — read-only thread */}
-          <TabsContent value="notes" className="mt-3">
-            <NoteThread notes={data.notes} />
+          {/* Catatan tab — parent can write, edit, delete own notes */}
+          <TabsContent value="notes" className="mt-3 space-y-3">
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setNoteDialog({ mode: "create" })}
+              >
+                <Plus size={14} className="mr-1" />
+                Tulis Catatan
+              </Button>
+            </div>
+            <NoteThread
+              notes={data.notes}
+              canEdit={(note) =>
+                note.authorRole === "GUARDIAN" &&
+                !!currentUserId &&
+                note.authorUserId === currentUserId
+              }
+              onEdit={(noteId, n) =>
+                setNoteDialog({
+                  mode: "edit",
+                  noteId,
+                  date: n.date,
+                  body: n.body,
+                })
+              }
+              onDelete={(noteId) => setDeleteTarget(noteId)}
+            />
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Write / Edit dialog */}
+      {childId && (
+        <ParentNoteDialog
+          open={noteDialog !== null}
+          onOpenChange={(open) => {
+            if (!open) setNoteDialog(null);
+          }}
+          mode={noteDialog?.mode ?? "create"}
+          studentId={childId}
+          weekDates={dates}
+          initialDate={
+            noteDialog?.mode === "edit" ? noteDialog.date : undefined
+          }
+          initialBody={
+            noteDialog?.mode === "edit" ? noteDialog.body : undefined
+          }
+          noteId={noteDialog?.mode === "edit" ? noteDialog.noteId : undefined}
+          onSaved={() => {
+            if (childId) loadWeekData(childId, currentWeek);
+          }}
+        />
+      )}
+
+      {/* Delete confirm */}
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus catatan ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Catatan yang dihapus tidak dapat dikembalikan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleting}
+              onClick={async () => {
+                if (!deleteTarget) return;
+                setDeleting(true);
+                try {
+                  const res = await fetch(
+                    `/api/student-journal/notes/${deleteTarget}`,
+                    { method: "DELETE" },
+                  );
+                  if (!res.ok) {
+                    const err = (await res
+                      .json()
+                      .catch(() => ({}))) as { error?: string };
+                    toast.error(err.error ?? "Gagal menghapus catatan");
+                    setDeleting(false);
+                    return;
+                  }
+                  toast.success("Catatan dihapus");
+                  setDeleteTarget(null);
+                  if (childId) loadWeekData(childId, currentWeek);
+                } catch {
+                  toast.error("Gagal terhubung ke server");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? "Menghapus..." : "Hapus"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

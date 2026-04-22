@@ -68,3 +68,41 @@ export async function PUT(
 
   return NextResponse.json({ data: updated });
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rl = rateLimit(`sj-note-delete:${getClientIp(req)}`, 20, 60_000);
+  if (!rl.success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+  }
+
+  const existing = await prisma.studentJournalNote.findUnique({
+    where: { id },
+    select: { id: true, tenantId: true, authorUserId: true, status: true },
+  });
+
+  if (!existing || existing.tenantId !== session.tenantId) {
+    return NextResponse.json({ error: "Catatan tidak ditemukan" }, { status: 404 });
+  }
+
+  if (existing.authorUserId !== session.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Soft-delete via status flag
+  await prisma.studentJournalNote.update({
+    where: { id },
+    data: { status: "DELETED" },
+  });
+
+  return NextResponse.json({ data: { id } });
+}

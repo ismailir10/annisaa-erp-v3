@@ -120,7 +120,7 @@ Three portals, three roles.
 
 ### Features
 
-**Parent Portal** — Dashboard (child overview + unpaid invoices), Invoices (pay via Xendit, PDF download), Attendance (30 days), Reports (published assessments), Buku Penghubung (school week view read-only + home indicators editable)
+**Parent Portal** — Dashboard (child overview + recent activity feed), Invoices (pay via Xendit, PDF download), Attendance (server-paginated + filters), Reports (published assessments), Buku Penghubung (school week view read-only + home indicators editable + parent-authored home notes with edit/delete)
 
 **Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Salary Slips (PDF), Profile (accessible via header avatar)
 
