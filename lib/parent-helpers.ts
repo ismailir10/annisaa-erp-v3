@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export type StudentInvoices = {
   id: string;
@@ -176,7 +177,10 @@ export async function getTodayStudentAttendance(
   studentId: string,
   tenantId: string,
 ): Promise<string | null> {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  // Asia/Jakarta date — `toISOString()` would return UTC, so between 00:00
+  // and 06:59 WIB the fallback resolved to *yesterday* in Jakarta. See the
+  // `toLocalYmd` comment below for the analogous local-calendar caveat.
+  const today = getTodayInTimezone("Asia/Jakarta");
   const record = await prisma.studentAttendance.findFirst({
     where: {
       studentId,

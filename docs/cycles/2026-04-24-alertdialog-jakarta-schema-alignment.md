@@ -135,6 +135,10 @@ Added a re-enable assertion on the rejection path test: after `onConfirm` reject
 
 Caller behavior is gated at end-of-cycle via the existing `npx playwright test` run (admin.spec.ts + teacher.spec.ts + parent.spec.ts) which exercises destructive-confirm flows (invoice void path, settings pages, employee detail). Unit-test coverage in `components/ui/__tests__/confirm-dialog.test.tsx` proves the public API contract. The 15 callers use only documented props (verified via grep on A2 prep); primitive swap + rejection-stay-open change are both behaviorally inert for current callers because none re-throw on failure (confirmed in A3 code-review). Skipping a dev-server preview click-through as it would duplicate end-of-cycle coverage.
 
+### B1 — `getTodayStudentAttendance` uses Jakarta TZ
+
+`lib/parent-helpers.ts` imports `getTodayInTimezone` from `lib/attendance/timezone.ts`. `getTodayStudentAttendance` replaced `new Date().toISOString().slice(0, 10)` with `getTodayInTimezone("Asia/Jakarta")`. Prior impl resolved to *yesterday* between 00:00–06:59 WIB — a parent checking the portal before school start saw the wrong day.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
