@@ -113,7 +113,7 @@ export default function AttendancePage() {
         <DataTableColumnHeader column={column} title="Masuk" />
       ),
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground tabular-nums">
+        <span className="font-currency text-xs text-muted-foreground">
           {formatTime(row.original.attendance?.checkInTime ?? null)}
         </span>
       ),
@@ -123,7 +123,7 @@ export default function AttendancePage() {
       accessorFn: (row) => row.attendance?.checkOutTime,
       header: "Pulang",
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground tabular-nums">
+        <span className="font-currency text-xs text-muted-foreground">
           {formatTime(row.original.attendance?.checkOutTime ?? null)}
         </span>
       ),
