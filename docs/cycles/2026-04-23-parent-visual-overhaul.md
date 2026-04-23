@@ -355,7 +355,7 @@ P0, P1 (serial preflight)
 
 ## Implementation
 
-<!-- /build fills per task -->
+- **Task S4 (tokens):** `app/globals.css` +29 lines. New tokens — `--celebration-gold` + `-subtle` + `-text` triad (raw values `#D4A017` / `#FFF8E1` / `#8A6B00`, WCAG AA verified on subtle bg); `--shadow-card-resting` (Tailwind `shadow-sm` equivalent) + `--shadow-card-elevated` (6px blur, 2-layer); `--motif-opacity: 0.03` for Islamic geometric accents on greeting surfaces. Each block documented inline with design-system.html §13 / §14 / §18 citations. `@theme inline` block exposes them as `--color-celebration-gold-*` + `--shadow-card-*` Tailwind utilities. `npm run build` ✓, `vitest run` 240/240 pass, `npm run lint` 0 errors. Cross-checked design-system.html §14 Page Recipes (celebration patterns) + §13 Overlays (elevation).
 
 ## Verification
 
