@@ -372,6 +372,24 @@ P0, P1 (serial preflight)
 
 <!-- /build fills per task — before/after 375 + 1280 per commit -->
 
+### T1 (parent-home) — deferred to controller for final visual bundle
+
+T1a/b/c/d/e ship a cohesive /parent rewrite: greeting block with text-display
+ramp + 3% Islamic motif; SummaryHero-driven urgency banner in two tones
+(danger + gold celebration); ChildCard rows with brand-teal gradient avatars,
+full-width non-truncating names, `StatusBadge variant="intent"` today chips,
+and icon-led tone-tinted signal cells (Paid green, Published gold, Draft
+amber). 2-kid fallback polished to same craft level (gradient avatar +
+intent chip + shadow-card-elevated).
+
+Per T1f spec escape hatch — parallel sibling targets have in-flight WIP on
+`components/portal/week-grid.tsx` (parse error) and `app/parent/invoices/**`
+(11 test failures) which break the shared `npm run build` / `npx vitest run`
+gates from outside T1 scope. T1-touched files are lint-clean and
+TypeScript-clean in isolation. Controller sequences the final merge and
+captures the end-of-cycle screenshot bundle on a green tree.
+
+
 ## Ship Notes
 
 <!-- /ship fills -->
