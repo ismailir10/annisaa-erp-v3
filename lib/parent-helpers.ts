@@ -125,11 +125,16 @@ export function resolveSelectedChild(
  * Only fetches unpaid/partially paid/overdue invoices, ordered by creation date.
  * Cached for 2 minutes, tagged for revalidation on payment mutations.
  */
-export const getStudentInvoices = unstable_cache(
-  async (studentId: string): Promise<StudentInvoices[]> => {
+// Module-level cache wrapper: Next.js `unstable_cache` serialises the runtime
+// args (studentId, tenantId) into the cache key automatically, so each
+// (studentId, tenantId) pair is a distinct cache entry. `tenantId` is also
+// included in the Prisma `where` as defense-in-depth.
+const _cachedGetStudentInvoices = unstable_cache(
+  async (studentId: string, tenantId: string): Promise<StudentInvoices[]> => {
     const invoices = await prisma.invoice.findMany({
       where: {
         studentId,
+        tenantId,
         status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
       },
       orderBy: { createdAt: "desc" as const },
@@ -155,6 +160,13 @@ export const getStudentInvoices = unstable_cache(
   ["student-invoices"],
   { revalidate: 120, tags: ["student-invoices"] }
 );
+
+export async function getStudentInvoices(
+  studentId: string,
+  tenantId: string
+): Promise<StudentInvoices[]> {
+  return _cachedGetStudentInvoices(studentId, tenantId);
+}
 
 /**
  * Fetch today's attendance status for a student.

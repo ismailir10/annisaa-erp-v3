@@ -57,11 +57,12 @@ describe("getStudentInvoices", () => {
 
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
-    const result = await getStudentInvoices("student-123");
+    const result = await getStudentInvoices("student-123", "tenant-a");
 
     expect(prisma.invoice.findMany).toHaveBeenCalledWith({
       where: {
         studentId: "student-123",
+        tenantId: "tenant-a",
         status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
       },
       orderBy: { createdAt: "desc" },
@@ -97,7 +98,7 @@ describe("getStudentInvoices", () => {
 
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
-    const result = await getStudentInvoices("student-123");
+    const result = await getStudentInvoices("student-123", "tenant-a");
 
     expect(result).toHaveLength(1);
     expect(result[0].status).toBe("OVERDUE");
@@ -119,11 +120,12 @@ describe("getStudentInvoices", () => {
 
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
-    await getStudentInvoices("student-123");
+    await getStudentInvoices("student-123", "tenant-a");
 
     expect(prisma.invoice.findMany).toHaveBeenCalledWith({
       where: {
         studentId: "student-123",
+        tenantId: "tenant-a",
         status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
       },
       orderBy: { createdAt: "desc" },
@@ -135,7 +137,7 @@ describe("getStudentInvoices", () => {
   it("should return empty array if student has no unpaid invoices", async () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
 
-    const result = await getStudentInvoices("student-123");
+    const result = await getStudentInvoices("student-123", "tenant-a");
 
     expect(result).toEqual([]);
     expect(prisma.invoice.findMany).toHaveBeenCalledTimes(1);
@@ -155,7 +157,7 @@ describe("getStudentInvoices", () => {
 
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices.slice(0, 5) as never);
 
-    const result = await getStudentInvoices("student-123");
+    const result = await getStudentInvoices("student-123", "tenant-a");
 
     expect(result).toHaveLength(5);
     expect(prisma.invoice.findMany).toHaveBeenCalledWith(
@@ -191,7 +193,7 @@ describe("getStudentInvoices", () => {
 
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
-    await getStudentInvoices("student-123");
+    await getStudentInvoices("student-123", "tenant-a");
 
     expect(prisma.invoice.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -216,7 +218,7 @@ describe("getStudentInvoices", () => {
 
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
-    await getStudentInvoices("student-123");
+    await getStudentInvoices("student-123", "tenant-a");
 
     expect(prisma.invoice.findMany).toHaveBeenCalledWith({
       where: expect.any(Object),
@@ -240,7 +242,7 @@ describe("getStudentInvoices", () => {
       new Error("Database connection failed")
     );
 
-    await expect(getStudentInvoices("student-123")).rejects.toThrow(
+    await expect(getStudentInvoices("student-123", "tenant-a")).rejects.toThrow(
       "Database connection failed"
     );
   });
@@ -261,21 +263,23 @@ describe("getStudentInvoices", () => {
 
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
-    await getStudentInvoices("student-456");
+    await getStudentInvoices("student-456", "tenant-a");
     expect(prisma.invoice.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           studentId: "student-456",
+          tenantId: "tenant-a",
           status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
         },
       })
     );
 
-    await getStudentInvoices("student-789");
+    await getStudentInvoices("student-789", "tenant-a");
     expect(prisma.invoice.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           studentId: "student-789",
+          tenantId: "tenant-a",
           status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
         },
       })
@@ -298,10 +302,64 @@ describe("getStudentInvoices", () => {
 
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(mockInvoices as never);
 
-    const result = await getStudentInvoices("student-123");
+    const result = await getStudentInvoices("student-123", "tenant-a");
 
     expect(result[0].totalDue).toBe(1250000);
     expect(result[0].totalPaid).toBe(500000);
+  });
+
+  it("isolates two sibling parents across tenants — no cross-tenant leak", async () => {
+    // Parent A in tenant-a, student-A-123 has invoice inv-A-1.
+    // Parent B in tenant-b, student-B-456 has invoice inv-B-1.
+    // Each call must trigger its own Prisma query with its own tenantId and
+    // receive only its own invoice — no stale cache delivery.
+    vi.mocked(prisma.invoice.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: "inv-A-1",
+          invoiceNumber: "A-001",
+          periodLabel: "April 2024",
+          totalDue: 100000,
+          totalPaid: 0,
+          status: "SENT",
+          xenditPaymentUrl: null,
+          createdAt: new Date("2024-04-01"),
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          id: "inv-B-1",
+          invoiceNumber: "B-001",
+          periodLabel: "April 2024",
+          totalDue: 200000,
+          totalPaid: 0,
+          status: "SENT",
+          xenditPaymentUrl: null,
+          createdAt: new Date("2024-04-01"),
+        },
+      ] as never);
+
+    const parentA = await getStudentInvoices("student-A-123", "tenant-a");
+    const parentB = await getStudentInvoices("student-B-456", "tenant-b");
+
+    expect(parentA).toHaveLength(1);
+    expect(parentA[0].id).toBe("inv-A-1");
+    expect(parentB).toHaveLength(1);
+    expect(parentB[0].id).toBe("inv-B-1");
+
+    // Defense-in-depth: Prisma was called with tenantId on each side.
+    expect(prisma.invoice.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({ studentId: "student-A-123", tenantId: "tenant-a" }),
+      })
+    );
+    expect(prisma.invoice.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({ studentId: "student-B-456", tenantId: "tenant-b" }),
+      })
+    );
   });
 });
 

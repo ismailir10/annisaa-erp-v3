@@ -43,7 +43,7 @@ Each task gets its own commit. Between-task gate (`npm run build && npx vitest r
 
 1. [x] **Fix Xendit webhook advisory-lock cast** — `app/api/xendit/webhook/route.ts:69`. Replace the UUID→bigint bit-cast with `hashtext(${invoice.id})`. Add a vitest regression under `app/api/__tests__/xendit-webhook.test.ts` that invokes the POST handler with a seeded unpaid invoice + signed payload and asserts the invoice reaches `PAID`. *Acceptance:* new test passes; manual run of `$queryRaw\`SELECT pg_advisory_xact_lock(hashtext('test-uuid-value'))\`` succeeds.
 
-2. [ ] **Harden `getStudentInvoices` cache + Prisma filter** — `lib/parent-helpers.ts:128-157`. Change the signature to `(studentId: string, tenantId: string)`. Add `tenantId` to the Prisma `where`. Pass `[studentId, tenantId]` (or equivalent composite) into the `unstable_cache` key parts. Update all callers in `lib/parent-helpers.ts` / `app/parent/**` that use this helper so the tenantId flows through. Add a vitest covering two sibling parents in different tenants, confirming each only sees their own invoice. *Acceptance:* new test passes; all existing callers typecheck.
+2. [x] **Harden `getStudentInvoices` cache + Prisma filter** — `lib/parent-helpers.ts:128-157`. Change the signature to `(studentId: string, tenantId: string)`. Add `tenantId` to the Prisma `where`. Pass `[studentId, tenantId]` (or equivalent composite) into the `unstable_cache` key parts. Update all callers in `lib/parent-helpers.ts` / `app/parent/**` that use this helper so the tenantId flows through. Add a vitest covering two sibling parents in different tenants, confirming each only sees their own invoice. *Acceptance:* new test passes; all existing callers typecheck.
 
 3. [ ] **Add admin role gate to collection GETs + new teacher-students route** — `app/api/students/route.ts:11-12` and `app/api/employees/route.ts:12-13`: add `if (!isAdminRole(session.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })` to each GET. Create `app/api/teacher/students/route.ts` exposing `GET ?classId=<id>` that uses `requireTeacherForClass(classId)` then returns active enrollments for that class. Add a vitest that asserts 403 for TEACHER + GUARDIAN on `/api/students`, 403 on `/api/employees`, and 200 with the right roster on `/api/teacher/students?classId=<id>` for an assigned teacher. *Acceptance:* vitest green; no admin UI page regresses (admin callers still admin-gated).
 
@@ -56,10 +56,12 @@ Each task gets its own commit. Between-task gate (`npm run build && npx vitest r
 ## Implementation
 
 - Task 1: Fix Xendit webhook advisory-lock cast — `app/api/xendit/webhook/route.ts`, `app/api/__tests__/xendit-webhook.test.ts` — replaced broken `('x' || id::text)::bit(64)::bigint` with `hashtext(id)`; added end-to-end regression test asserting rendered SQL contains `hashtext`, not `bit(64)`, and invoice reaches PAID. Reviewer noted pre-existing `revalidateTag("student-invoices", {})` arity drift — out of scope for this cycle (not introduced by diff; build still green). Cross-checked design-system.html not applicable (API-only). Compliant with api.md + security.md.
+- Task 2: Harden `getStudentInvoices` cache + Prisma filter — `lib/parent-helpers.ts`, `lib/__tests__/parent-helpers.test.ts` — signature now `(studentId, tenantId)`; cache wrapper hoisted to module-level `_cachedGetStudentInvoices` (runtime args serialise into cache key; matches `_cachedGetParentWithChildren` pattern already in the same file); Prisma `where` includes `tenantId` defense-in-depth. Added sibling-parents test covering cross-tenant isolation. Reviewer flagged initial per-call wrapper as breaking caching — corrected before commit.
 
 ## Verification
 
 - Task 1: `npm run build` green; `npx vitest run` 235 passed / 42 todo / 2 skipped (35 files).
+- Task 2: `npm run build` green; `npx vitest run` 236 passed / 42 todo / 2 skipped (35 files) — new sibling-parents test included.
 
 ## Ship Notes
 
