@@ -100,7 +100,7 @@ export default function HolidaysPage() {
         <DataTableColumnHeader column={column} title="Tanggal" />
       ),
       cell: ({ row }) => (
-        <span className="text-sm font-currency">
+        <span className="text-sm">
           {formatDateShort(row.original.date)}
         </span>
       ),

@@ -108,7 +108,7 @@ export default function SalaryComponentsPage() {
         <DataTableColumnHeader column={column} title="#" />
       ),
       cell: ({ row }) => (
-        <span className="font-currency text-xs text-muted-foreground">{row.original.sortOrder}</span>
+        <span className="text-xs text-muted-foreground">{row.original.sortOrder}</span>
       ),
     },
     {
