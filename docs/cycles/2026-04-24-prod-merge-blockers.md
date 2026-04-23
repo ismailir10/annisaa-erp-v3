@@ -37,7 +37,7 @@ Intended outcome: the two findings from the review are resolved on `staging`, CI
 
 - [x] **T1 — Add `fix_emaillog_rls` migration.** Create `prisma/migrations/20260424000000_fix_emaillog_rls/migration.sql` that drops and re-creates `emaillog_select_own_tenant` with the correct `tenantId` scope. Verify with `npx prisma migrate status` that the migration registers. Acceptance: migration file exists, SQL is idempotent, matches the sibling-policy pattern.
 - [x] **T2 — Remove destructive `scripts/fix-rls-security.sh`.** Confirm no references in CI workflows, README, or CLAUDE.md first (`grep -r fix-rls-security`). Delete the file. Acceptance: `git status` shows the script deleted, `grep` finds no remaining references.
-- [ ] **T3 — Run end-of-cycle gate + commit.** `npm run build && npx vitest run && npx playwright test`. Fill Verification + Ship Notes in this cycle doc. Commit T1 + T2 as separate commits per `/build` rules. Acceptance: both commits land, all three gates green, cycle doc complete.
+- [x] **T3 — Run end-of-cycle gate + commit.** `npm run build && npx vitest run && npx playwright test`. Fill Verification + Ship Notes in this cycle doc. Commit T1 + T2 as separate commits per `/build` rules. Acceptance: both commits land, all three gates green, cycle doc complete.
 
 Dependencies: T1 and T2 are independent — could run in parallel. T3 depends on both.
 
@@ -51,7 +51,30 @@ Dependencies: T1 and T2 are independent — could run in parallel. T3 depends on
 
 - Task 1: gates passed (`npm run build` green, `npx vitest run` 253 passed / 42 todo / 2 skipped). Reviewer (feature-dev:code-reviewer) VERDICT: SHIP — syntax valid, pattern matches sibling byte-for-byte, idempotent, no INSERT/UPDATE/DELETE gap (service_role writes bypass this policy), no legitimate cross-tenant read requirement in single-tenant MVP.
 - Task 2: gates passed (build green, vitest 253/42/2). Reviewer pass skipped for pure deletion of an obsolete destructive .sh (no application code touched, no runtime behavior change).
+- Task 3: end-of-cycle gate green — `npm run build` + `npx vitest run` (253 passed, 42 todo, 2 skipped) + `npx playwright test` (38 passed, 2 skipped).
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+**Migrations to run on prod:** one new migration — `20260424000000_fix_emaillog_rls` — drops the broken SELECT policy and re-creates it with `tenantId` scope. Applies cleanly on top of the currently-deployed `20260421000000_rls_perf_cleanup` baseline. Runtime ≈ milliseconds, no table locks beyond policy metadata. Vercel's auto-migrate on staging→main merge will pick it up via `scripts/vercel-build.sh`.
+
+**New env vars:** none.
+
+**Prod env verifications (carried over from the blocker review, not in this cycle's code):**
+- `RESEND_FROM_EMAIL` — must be set in Vercel prod. `lib/email/send-slip.ts:43` hard-throws when `RESEND_API_KEY` is set but `RESEND_FROM_EMAIL` is not.
+- `NEXT_PUBLIC_SITE_URL` — required for OAuth PKCE callback stability on preview deployments.
+- `XENDIT_SECRET_KEY` — confirm the prod env var name matches what `lib/xendit/client.ts` reads (there is a naming mismatch vs `.env.example` which lists `XENDIT_SECRET_API_KEY`).
+
+**Pre-merge data sanity (from the blocker review):**
+- Prod: `SELECT role, COUNT(*) FROM "User" GROUP BY role` — confirm `SCHOOL_ADMIN` rows exist as expected before the staging→main merge applies `20260416000002_rename_school_admin_to_super_admin` (DML rename).
+- Prod: `SELECT COUNT(*) FROM "StudentAssessment"` — confirm zero before `20260420000000_assessment_template_unique` (dedupe DELETEs should be no-ops).
+- Schedule the bulk staging→main apply off-peak: 40+ `ENABLE ROW LEVEL SECURITY` calls acquire brief ACCESS EXCLUSIVE locks sequentially. Negligible at 500-student scale but non-zero.
+
+**Rollback plan:** if the RLS fix causes an unexpected SELECT regression in production, revert with:
+```sql
+DROP POLICY IF EXISTS emaillog_select_own_tenant ON "EmailLog";
+CREATE POLICY emaillog_select_own_tenant ON "EmailLog" AS PERMISSIVE FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM "User" u WHERE u.id = ((SELECT auth.uid()))::text LIMIT 1));
+```
+This restores the pre-fix (permissive) policy. The app itself does not read `EmailLog` via the `authenticated` role — all reads go through `service_role` in API routes — so the policy change is functionally a no-op for the app. Rollback is theoretical.
+
+**Re-review gate:** after this cycle merges to staging, re-run the staging→main diff review (target VERDICT: SHIP) before opening the prod PR via `/ship --to-main`.
