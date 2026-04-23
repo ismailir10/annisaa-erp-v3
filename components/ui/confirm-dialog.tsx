@@ -50,9 +50,15 @@ export function ConfirmDialog({
     setIsLoading(true);
     try {
       await onConfirm();
+      // Close only on successful resolution. If onConfirm rejects, the dialog
+      // stays open so the caller can surface an error toast and the user can
+      // retry without re-opening the sheet.
+      onOpenChange(false);
+    } catch {
+      // Swallow — caller is expected to surface the error via toast. We do
+      // not re-throw so handlers higher up don't see a duplicate error.
     } finally {
       setIsLoading(false);
-      onOpenChange(false);
     }
   }
 

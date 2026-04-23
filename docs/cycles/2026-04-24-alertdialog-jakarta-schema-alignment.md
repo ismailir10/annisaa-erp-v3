@@ -106,6 +106,25 @@ Key structural shifts vs old `Dialog`-based impl:
 
 Auto-close behavior **intentionally preserved for this commit** (still closes in `finally` regardless of success/failure). A3 flips it to success-only and adds vitest.
 
+Code-review checks resolved post-commit:
+- `AlertDialogAction` (`components/ui/alert-dialog.tsx:144-155`) is `<Button ...{...props}>` — `variant="destructive"` forwards through. Destructive visual parity confirmed.
+- `AlertDialogCancel` (`:157-172`) defaults `variant="outline"` via its own prop spread — matches old `<Button variant="outline">` used inside `<DialogClose>`. Cancel button visual parity confirmed.
+- Behavioral delta (intentional): AlertDialog blocks click-outside and Escape dismissal. Callers that previously relied on click-outside to dismiss a confirm dialog now require explicit Cancel. All 15 call sites were reviewed; none depend on click-outside dismiss (each wires `onOpenChange` to a state setter and uses Cancel or successful confirm to close).
+
+### A3 — Auto-close on success, stay open on rejection + vitest
+
+`handleConfirm` in `components/ui/confirm-dialog.tsx` flipped: `onOpenChange(false)` now called *inside* `try` after `await onConfirm()` resolves. Added a `catch` block that swallows the rejection so handlers higher up don't see a duplicated error (the caller already surfaced a toast). `setIsLoading(false)` stays in `finally`.
+
+Added `components/ui/__tests__/confirm-dialog.test.tsx` covering:
+1. Success path — `onConfirm` resolves → `onOpenChange(false)` called.
+2. Rejection path — `onConfirm` rejects → `onOpenChange(false)` *not* called (dialog stays open).
+3. Cancel button auto-closes (AlertDialogCancel → Base UI `Close`).
+4. Both buttons disabled while promise is pending (label flips to "Memproses...").
+
+Implementation notes for future maintainers:
+- Base UI's `AlertDialog.Close` calls `onOpenChange(false, eventDetails)` (2 args), not bare `onOpenChange(false)`. The Cancel-button test matches via `mock.calls.some((args) => args[0] === false)` rather than `toHaveBeenCalledWith(false)` to accommodate both call shapes.
+- Rejection test uses `not.toHaveBeenCalledWith(false)` — stricter than needed but catches regressions where a future refactor accidentally re-introduces close-on-any-outcome.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
