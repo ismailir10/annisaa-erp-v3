@@ -102,4 +102,5 @@ Each task gets its own commit. Between-task gate (`npm run build && npx vitest r
 - ✅ `npm run build`
 - ✅ `npx vitest run` — 253 passed / 42 todo / 2 skipped (38 files, +22 new tests across the cycle)
 - ✅ `npx playwright test` — 38 passed / 2 skipped
+- ✅ `npx tsc --noEmit` — followup fix for CI-only TS error in `xendit-webhook.test.ts` (null-narrowing cast through `unknown`); local `next build` skips test files so this surfaced only in CI `tsc --noEmit`.
 

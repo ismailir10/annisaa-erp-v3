@@ -76,10 +76,11 @@ describe("POST /api/xendit/webhook — end-to-end regression", () => {
     expect(body.ok).toBe(true);
     expect(body.status).toBe("PAID");
     expect(queryRawArgs).not.toBeNull();
-    const joined = (queryRawArgs as unknown[])[0] as string;
+    const args = queryRawArgs as unknown as unknown[];
+    const joined = args[0] as string;
     expect(joined).toContain("hashtext");
     expect(joined).not.toContain("bit(64)");
-    expect((queryRawArgs as unknown[])[1]).toBe(invoiceId);
+    expect(args[1]).toBe(invoiceId);
   });
 
   it("rejects request with invalid callback token (401)", async () => {
