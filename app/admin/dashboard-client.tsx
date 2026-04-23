@@ -91,7 +91,7 @@ export function DashboardClient({
                         title={`Hadir: ${day.present}`}
                       />
                     </div>
-                    <span className="text-[9px] text-muted-foreground">{dayLabel}</span>
+                    <span className="text-caption text-muted-foreground">{dayLabel}</span>
                   </div>
                 );
               })}

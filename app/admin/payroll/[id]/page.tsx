@@ -446,7 +446,7 @@ export default function PayrollDetailPage() {
                           {line.labelSnapshot}
                         </span>
                         {Number(line.adjustmentAmount) !== 0 && (
-                          <Badge variant="outline" className="text-[9px]">Adj</Badge>
+                          <Badge variant="outline" className="text-caption">Adj</Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
