@@ -79,6 +79,7 @@ export default async function ParentAttendancePage({
         studentId: selected.studentId,
         date: { in: days },
         isVoided: false,
+        student: session.tenantId ? { tenantId: session.tenantId } : undefined,
       },
       select: { date: true, status: true, notes: true },
     }),

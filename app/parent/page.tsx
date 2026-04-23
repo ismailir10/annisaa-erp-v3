@@ -113,6 +113,7 @@ export default async function ParentDashboard() {
         studentId: { in: kidIds },
         date: { in: week },
         isVoided: false,
+        student: session.tenantId ? { tenantId: session.tenantId } : undefined,
       },
       select: { studentId: true, date: true, status: true },
     }),
@@ -168,7 +169,11 @@ export default async function ParentDashboard() {
   }
 
   const greetingFirst = parent.name.split(" ")[0] ?? parent.name;
-  const greetingTitle = `Assalamu'alaikum, Bu ${greetingFirst}`;
+  // Derive Bu/Pak from the guardian relationship label on the first child link.
+  // (Parent model has no gender field; relationship is MOTHER / FATHER / GUARDIAN.)
+  const firstRel = children[0]?.relationship?.toUpperCase() ?? "";
+  const honorific = firstRel === "FATHER" ? "Pak" : "Bu";
+  const greetingTitle = `Assalamu'alaikum, ${honorific} ${greetingFirst}`;
   const tod = timeOfDayGreeting(now);
   const dateLine = formatDate(today, {
     weekday: "long",

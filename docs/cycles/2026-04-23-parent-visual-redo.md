@@ -315,6 +315,18 @@ Pre-flight grep confirmed zero remaining consumers across `app/` + `components/`
 
 **Pixel parity vs HTML prototype** still pending Vercel preview (local dev login crash blocker noted in T1 verification).
 
+### Post-bundle code-review fixes (5 issues)
+
+`feature-dev:code-reviewer` agent ran on the bundle commit `50dbc2c`. All 5 confirmed issues addressed in follow-up commit:
+
+1. **Tenant filter on `studentAttendance` queries** (defence-in-depth, CLAUDE.md security checklist) — both `app/parent/page.tsx` and `app/parent/attendance/page.tsx` raw prisma calls now scope via `student: { tenantId }`.
+2. **`/parent/invoices` empty data array** now renders neutral `Belum ada tagihan` EmptyState, not the gold `Lunas semua` celebration. Spec B4 targets all-paid, not no-invoice. Test updated.
+3. **`Bayar sekarang` CTA always renders** for payable invoices; disabled when `xenditPaymentUrl` is being provisioned, with the existing Info chip as helper text (previously CTA was hidden entirely — Spec C3).
+4. **`/parent/profile` avatar `bg-primary/12` → `bg-primary/10`** (Tailwind /12 is not a scale step, was silently transparent).
+5. **`/parent` home greeting honorific** derives from `children[0].relationship` (`MOTHER → "Bu"`, `FATHER → "Pak"`, default `Bu`). Previously hardcoded `Bu` for all guardians — copy failure per voice.md.
+
+Gates re-run: build OK · lint OK · vitest 233 passed.
+
 ## Ship Notes
 
 > Filled at Phase 4 close. No migrations, no env vars, no Prisma changes. Rollback = revert PRs in reverse order (T5 → T4 → T3 → T2 → T1 → T0).

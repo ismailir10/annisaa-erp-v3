@@ -34,7 +34,7 @@ export default async function ParentProfilePage() {
 
       {/* Identity surface */}
       <section className="flex flex-col items-center pt-2 pb-4">
-        <div className="grid size-20 place-items-center rounded-full border border-primary/20 bg-primary/12 text-primary">
+        <div className="grid size-20 place-items-center rounded-full border border-primary/20 bg-primary/10 text-primary">
           <span className="text-xl font-bold">{initialsOf(parent.name)}</span>
         </div>
         <p className="mt-3 text-base font-semibold text-foreground">

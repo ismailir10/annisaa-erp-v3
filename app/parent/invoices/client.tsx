@@ -89,6 +89,22 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
     );
   }
 
+  // No invoices ever sent — neutral empty state, NOT the "Lunas semua"
+  // celebration (spec B4 targets the all-paid state, not the no-invoice state).
+  if (data.length === 0) {
+    return (
+      <div className="space-y-6 pb-4">
+        <PageHeader title="Tagihan" subtitle="Pantau pembayaran SPP & biaya tambahan" />
+        <EmptyState
+          accent="warm"
+          icon={Receipt}
+          title="Belum ada tagihan"
+          description="Tagihan akan muncul di sini setelah sekolah menerbitkannya."
+        />
+      </div>
+    );
+  }
+
   const todayYmd = new Date().toISOString().slice(0, 10);
   const due = data
     .filter(isOutstanding)

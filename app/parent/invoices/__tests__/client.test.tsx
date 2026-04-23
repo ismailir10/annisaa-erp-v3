@@ -136,9 +136,11 @@ describe("InvoicesClient (cycle-4)", () => {
   });
 
   describe("Empty state", () => {
-    it("shows Lunas semua celebration when data is empty", () => {
+    it("shows neutral 'Belum ada tagihan' when no invoices ever issued", () => {
+      // Spec: data === [] is the no-invoice case, not the all-paid case.
       render(<InvoicesClient data={[]} />);
-      expect(screen.getByText("Lunas semua")).toBeInTheDocument();
+      expect(screen.getByText("Belum ada tagihan")).toBeInTheDocument();
+      expect(screen.queryByText("Lunas semua")).not.toBeInTheDocument();
     });
   });
 

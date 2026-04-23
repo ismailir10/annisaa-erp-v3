@@ -294,28 +294,37 @@ export function InvoiceDetailSheet({
             </section>
           ) : null}
 
-          {/* Bayar sekarang CTA — unpaid + has payment link */}
-          {isPayable && hasPaymentLink ? (
-            <a
-              href={invoice.xenditPaymentUrl!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block"
-            >
-              <Button className="w-full" size="lg">
-                <ExternalLink size={16} className="mr-2" />
-                Bayar sekarang
-              </Button>
-            </a>
-          ) : null}
-
-          {/* Fallback when payment link is being provisioned */}
-          {isPayable && !hasPaymentLink ? (
-            <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-              <Info size={14} className="mt-0.5 shrink-0" />
-              <span>
-                Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
-              </span>
+          {/* Bayar sekarang CTA — always rendered when invoice is payable.
+              Disabled when xenditPaymentUrl is still being provisioned, with
+              a helper line below explaining the wait state. Spec C3. */}
+          {isPayable ? (
+            <div className="space-y-2">
+              {hasPaymentLink ? (
+                <a
+                  href={invoice.xenditPaymentUrl!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  <Button className="w-full" size="lg">
+                    <ExternalLink size={16} className="mr-2" />
+                    Bayar sekarang
+                  </Button>
+                </a>
+              ) : (
+                <Button className="w-full" size="lg" disabled>
+                  <ExternalLink size={16} className="mr-2" />
+                  Bayar sekarang
+                </Button>
+              )}
+              {!hasPaymentLink ? (
+                <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                  <Info size={14} className="mt-0.5 shrink-0" />
+                  <span>
+                    Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
+                  </span>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
