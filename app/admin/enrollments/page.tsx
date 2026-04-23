@@ -10,6 +10,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -257,11 +258,11 @@ export default function EnrollmentsPage() {
     <>
       <PageHeader title="Penempatan Siswa" description={`${pagination.total} pendaftaran`} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <StatsCardsRow cols={3}>
         <StatCard label="Total" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
         <StatCard label="Keluar" value={stats.withdrawn} icon={UserX} color="warning" index={2} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama siswa..."

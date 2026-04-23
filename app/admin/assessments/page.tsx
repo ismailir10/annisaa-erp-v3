@@ -10,6 +10,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -180,11 +181,11 @@ export default function StudentAssessmentsPage() {
     <>
       <PageHeader title="Penilaian Siswa" description={`${pagination.total} penilaian`} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <StatsCardsRow cols={3}>
         <StatCard label="Total" value={stats.total} icon={ClipboardList} color="primary" index={0} />
         <StatCard label="Draf" value={stats.draft} icon={FileEdit} color="warning" index={1} />
         <StatCard label="Dipublikasi" value={stats.published} icon={Eye} color="success" index={2} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama siswa..."

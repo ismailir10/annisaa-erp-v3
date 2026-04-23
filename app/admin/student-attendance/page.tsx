@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -266,12 +267,12 @@ export default function StudentAttendancePage() {
         description={`${pagination.total} record`}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow cols={4}>
         <StatCard label="Hadir Hari Ini" value={stats.present} icon={CalendarCheck} color="success" index={0} />
         <StatCard label="Tidak Hadir" value={stats.absent} icon={CalendarX} color="error" index={1} />
         <StatCard label="Sakit" value={stats.sick} icon={Heart} color="warning" index={2} />
         <StatCard label="Izin" value={stats.permission} icon={Info} color="primary" index={3} />
-      </div>
+      </StatsCardsRow>
 
       {/* Date range filters (outside DataTableToolbar since they're date inputs) */}
       <div className="flex flex-wrap gap-3 mb-3">

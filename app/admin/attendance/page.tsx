@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
@@ -192,12 +193,12 @@ export default function AttendancePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow cols={4}>
         <StatCard label="Hadir" value={present} icon={UserCheck} color="success" index={0} />
         <StatCard label="Terlambat" value={late} icon={Clock} color="warning" index={1} />
         <StatCard label="Tidak Hadir" value={absent} icon={UserX} color="error" index={2} />
         <StatCard label="Izin" value={leave} icon={CalendarDays} color="primary" index={3} />
-      </div>
+      </StatsCardsRow>
 
       {/* Table */}
       <DataTable

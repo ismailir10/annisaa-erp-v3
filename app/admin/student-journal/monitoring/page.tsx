@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
@@ -229,7 +230,7 @@ export default function MonitoringPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow cols={4}>
         <StatCard
           label="Total entri minggu ini"
           value={loading ? "—" : stats.totalEntries}
@@ -262,7 +263,7 @@ export default function MonitoringPage() {
           color={data.length - stats.kelasSudahIsi > 0 ? "warning" : "success"}
           index={3}
         />
-      </div>
+      </StatsCardsRow>
 
       <DataTable
         columns={columns}

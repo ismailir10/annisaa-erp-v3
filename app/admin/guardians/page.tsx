@@ -10,6 +10,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
@@ -223,11 +224,11 @@ export default function GuardiansPage() {
     <>
       <PageHeader title="Wali Murid" description={`${pagination.total} wali terdaftar`} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <StatsCardsRow cols={3}>
         <StatCard label="Total Wali" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
         <StatCard label="Tidak Aktif" value={stats.inactive} icon={UserX} color="warning" index={2} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama, email, atau telepon..."
