@@ -31,17 +31,7 @@ export async function PUT(
 
   const body = await req.json();
 
-  // Now safe to update
-  const item = await prisma.payrollItem.update({
-    where: { id: itemId },
-    data: {
-      overtimeHours: body.overtimeHours ?? 0,
-      outdoorDays: body.outdoorDays ?? 0,
-      holidayWorkedDays: body.holidayWorkedDays ?? 0,
-      dcDays: body.dcDays ?? 0,
-    },
-  });
-
+  // Reads that can safely live outside the tx (no mutation, no ordering risk).
   const componentDefs = await prisma.salaryComponentDef.findMany({
     where: { tenantId: session.tenantId, isEnabled: true },
     orderBy: { sortOrder: "asc" },
@@ -54,54 +44,66 @@ export async function PUT(
     isProRated: c.isProRated, sortOrder: c.sortOrder,
   }));
 
-  const salaryValues = await prisma.employeeSalaryValue.findMany({
-    where: { employeeId: item.employeeId },
-  });
-
-  const attendance = await prisma.attendanceRecord.findMany({
-    where: {
-      employeeId: item.employeeId,
-      date: { gte: payrollRun.periodStart, lte: payrollRun.periodEnd },
-    },
-  });
-
-  const { daysPresent, daysLeave } = countAttendanceDays(attendance);
-
-  const result = calculateEmployeePayroll(
-    components,
-    salaryValues.map((sv) => ({ componentDefId: sv.componentDefId, value: Number(sv.value) })),
-    daysPresent, daysLeave, payrollRun.actualWorkDays,
-    {
-      overtimeHours: Number(item.overtimeHours),
-      outdoorDays: item.outdoorDays,
-      holidayWorkedDays: item.holidayWorkedDays,
-      dcDays: item.dcDays,
-    }
-  );
-
-  // Delete old lines and create new ones
-  await prisma.payrollItemLine.deleteMany({ where: { payrollItemId: itemId } });
-
-  for (const line of result.lines) {
-    await prisma.payrollItemLine.create({
+  // Atomic: variables update + line rebuild + totals update must commit
+  // together, else PayrollItem totals desync from its lines on any mid-
+  // sequence failure.
+  await prisma.$transaction(async (tx) => {
+    const item = await tx.payrollItem.update({
+      where: { id: itemId },
       data: {
+        overtimeHours: body.overtimeHours ?? 0,
+        outdoorDays: body.outdoorDays ?? 0,
+        holidayWorkedDays: body.holidayWorkedDays ?? 0,
+        dcDays: body.dcDays ?? 0,
+      },
+    });
+
+    const salaryValues = await tx.employeeSalaryValue.findMany({
+      where: { employeeId: item.employeeId },
+    });
+
+    const attendance = await tx.attendanceRecord.findMany({
+      where: {
+        employeeId: item.employeeId,
+        date: { gte: payrollRun.periodStart, lte: payrollRun.periodEnd },
+      },
+    });
+
+    const { daysPresent, daysLeave } = countAttendanceDays(attendance);
+
+    const result = calculateEmployeePayroll(
+      components,
+      salaryValues.map((sv) => ({ componentDefId: sv.componentDefId, value: Number(sv.value) })),
+      daysPresent, daysLeave, payrollRun.actualWorkDays,
+      {
+        overtimeHours: Number(item.overtimeHours),
+        outdoorDays: item.outdoorDays,
+        holidayWorkedDays: item.holidayWorkedDays,
+        dcDays: item.dcDays,
+      }
+    );
+
+    await tx.payrollItemLine.deleteMany({ where: { payrollItemId: itemId } });
+
+    await tx.payrollItemLine.createMany({
+      data: result.lines.map((line) => ({
         payrollItemId: itemId,
         componentDefId: line.componentDefId,
         labelSnapshot: line.labelSnapshot,
         categorySnapshot: line.categorySnapshot,
         calculatedAmount: line.calculatedAmount,
         finalAmount: line.finalAmount,
+      })),
+    });
+
+    await tx.payrollItem.update({
+      where: { id: itemId },
+      data: {
+        grossAmount: result.grossAmount,
+        deductions: result.deductions,
+        netAmount: result.netAmount,
       },
     });
-  }
-
-  await prisma.payrollItem.update({
-    where: { id: itemId },
-    data: {
-      grossAmount: result.grossAmount,
-      deductions: result.deductions,
-      netAmount: result.netAmount,
-    },
   });
 
   return NextResponse.json({ ok: true });
