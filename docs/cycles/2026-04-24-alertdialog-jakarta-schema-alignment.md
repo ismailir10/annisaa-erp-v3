@@ -149,6 +149,17 @@ Also fixed `app/api/__tests__/today-attendance.test.ts` which had hard-coded `ne
 
 Flagged for follow-up cycle (out of this cycle's scope): `countAttendanceThisWeek` at `lib/parent-helpers.ts` still uses `toLocalYmd(now)` / `mondayOfWeek(now)` — same UTC-host drift risk at the WIB midnight boundary on Vercel.
 
+### B3 — Vitest covering Jakarta TZ boundaries
+
+New file `lib/__tests__/parent-helpers-tz.test.ts` with 5 tests using `vi.setSystemTime`:
+- `getTodayStudentAttendance` at 02:00 WIB (UTC still yesterday) → Prisma receives Jakarta YMD.
+- `getTodayStudentAttendance` at 22:00 WIB (UTC same day) → same YMD.
+- `getStudentAttendanceRecent` 30-day cutoff at 02:00 WIB → 30-day-earlier Jakarta YMD.
+- `getStudentAttendanceRecent` 30-day cutoff at 22:00 WIB → same.
+- `getStudentAttendanceRecent` with custom `days=7` at 12:00 WIB → 7-day-earlier Jakarta YMD.
+
+All pass on UTC host.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
