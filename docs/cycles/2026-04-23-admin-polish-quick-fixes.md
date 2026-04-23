@@ -62,7 +62,8 @@ Each task is committable independently; between-task gate = `npm run build && np
 
 ## Implementation
 
-*(filled by /build)*
+- **Task 1** — `bg-primary/10` halo sweep. Audit scoped 3 files; actual sweep covered 9 halos across `app/admin/layout.tsx`, `settings/campuses`, `settings/users`, `attendance`, `employees`, `dashboard-client`, `payroll/[id]`, `students`, `invoices`. All `w-* h-* rounded-* bg-primary/10` icon halos → `bg-muted`. Inner `text-primary` icon/avatar initials kept. Residual `bg-primary/10` on `students/[id]:446` is a `<Badge>Utama</Badge>` accent chip (not a halo) — left in place as design-system §Badge accent usage.
+- **Task 2** — Assessments grade chips. `SCORE_COLORS` map in `app/admin/assessments/[id]/page.tsx:39-44` swapped from `bg-red-100`/`bg-orange-100`/`bg-blue-100`/`bg-green-100` arbitrary palette to `bg-status-absent-subtle` (BB) / `bg-status-late-subtle` (MB) / `bg-status-leave-subtle` (BSH) / `bg-status-present-subtle` (BSB) + matching `text-status-*-text`. Not migrated to `<StatusBadge>` component because the chips are interactive `<button>` toggles, not display-only badges. `border-transparent` on selected state keeps border-hierarchy consistent with unselected `border-border`.
 
 ## Verification
 
