@@ -334,6 +334,7 @@ Visual verify on Vercel preview surfaced 3 more issues; all fixed in follow-up:
 1. **Kid-pill label "Ahmad Zafran Hidayat (TKIT A)" overflows + class name styled in destructive tone on active teal pill** — `components/parent/child-selector-tabs.tsx` now renders only the first name (Frame 4/8/11 prototype shows `Zafran` not full name + class). Class no longer competes with active pill background.
 2. **`/parent/reports` history "Diterbitkan {date}" never showed real publish date** — `getPublishedAssessmentsForStudent` now selects `publishedAt` and the API type carries it through. Order-by switched to `publishedAt desc, createdAt desc` so latest-published genuinely sorts first.
 3. **"Isi kalau sempat. Opsional." footnote on Buku Penghubung Rumah tab read dismissive** — copy retoned to `Opsional — bantu Ustadzah memantau ibadah dan rutinitas di rumah` per voice.md (parent-warm, not casual-dismiss).
+4. **Reports celebration secondary "...dari Ustadzah Aisyah"** read as if the teacher were named Aisyah (Aisyah is the kid). Title now folds in the kid name: `Rapor {period} {childName} sudah terbit`; secondary simplified to `Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah.`
 
 Gates re-run: build OK · lint OK (0 errors).
 

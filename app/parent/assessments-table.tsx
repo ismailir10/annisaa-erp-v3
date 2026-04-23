@@ -125,11 +125,11 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
                 className="text-sm font-semibold"
                 style={{ color: "var(--celebration-gold-text)" }}
               >
-                Rapor {latest.period} sudah terbit
+                Rapor {latest.period}
+                {childName ? ` ${childName}` : ""} sudah terbit
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah
-                {childName ? ` ${childName}` : ""}.
+                Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah.
               </p>
             </div>
           </div>
