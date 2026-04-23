@@ -395,9 +395,9 @@ export default function PayrollDetailPage() {
 
       {/* Summary */}
       <StatsCardsRow cols={4}>
-        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-lg font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
-        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-lg font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
-        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-lg font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-2xl font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-2xl font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-2xl font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
         <Card className="p-card"><p className="text-xs text-muted-foreground">Status</p>
           <StatusBadge status={data.status} />
           {noBank.length > 0 && <p className="text-xs text-destructive mt-1">{noBank.length} tanpa rekening</p>}
