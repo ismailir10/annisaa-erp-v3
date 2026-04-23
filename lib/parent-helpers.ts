@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
-import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
 
 export type StudentInvoices = {
   id: string;
@@ -320,11 +320,10 @@ export const getStudentAttendanceRecent = unstable_cache(
   async (studentId: string, days = 30): Promise<StudentAttendanceRecent[]> => {
     const since = new Date();
     since.setDate(since.getDate() - days);
-    // Use local-calendar YMD rather than `toISOString()` — for positive-UTC
-    // machines (Asia/Jakarta = UTC+7) `toISOString()` rewinds to the previous
-    // day, causing the "last 30 days" window to shift by one and miss/include
-    // records at the boundary.
-    const startDate = toLocalYmd(since);
+    // Format the cutoff in Asia/Jakarta. `toISOString()` would return UTC;
+    // `toLocalYmd` would return host-local (UTC on Vercel) — both drift the
+    // "last 30 days" window by up to a day at the WIB midnight boundary.
+    const startDate = getYmdInTimezone(since, "Asia/Jakarta");
 
     const records = await prisma.studentAttendance.findMany({
       where: { studentId, isVoided: false, date: { gte: startDate } },

@@ -139,9 +139,15 @@ Caller behavior is gated at end-of-cycle via the existing `npx playwright test` 
 
 `lib/parent-helpers.ts` imports `getTodayInTimezone` from `lib/attendance/timezone.ts`. `getTodayStudentAttendance` replaced `new Date().toISOString().slice(0, 10)` with `getTodayInTimezone("Asia/Jakarta")`. Prior impl resolved to *yesterday* between 00:00–06:59 WIB — a parent checking the portal before school start saw the wrong day.
 
-### B2 — `getStudentAttendanceRecent` uses local YMD
+### B2 — `getStudentAttendanceRecent` uses Jakarta TZ cutoff
 
-`since.toISOString().split("T")[0]` replaced with `toLocalYmd(since)` — the helper already defined at `lib/parent-helpers.ts:258` precisely to avoid this bug. For Asia/Jakarta (UTC+7), `toISOString()` rewinds the 30-days-ago cutoff by one day, so the "last 30 days" window effectively covered 31 days and could include stale boundary records.
+First attempt used `toLocalYmd(since)` — code-reviewer caught that on Vercel (UTC host) `getFullYear/getMonth/getDate` return UTC components, so the "fix" was a no-op in production.
+
+Corrected: added `getYmdInTimezone(d, timezone)` to `lib/attendance/timezone.ts` — a TZ-aware formatter that works for any Date, host-independent. Refactored `getTodayInTimezone` as a thin wrapper. `getStudentAttendanceRecent` now calls `getYmdInTimezone(since, "Asia/Jakarta")`.
+
+Also fixed `app/api/__tests__/today-attendance.test.ts` which had hard-coded `new Date().toISOString().slice(0, 10)` as its expected date — only passed when UTC and WIB happened to share a calendar day. Replaced with the same `Intl.DateTimeFormat` expression used by the implementation.
+
+Flagged for follow-up cycle (out of this cycle's scope): `countAttendanceThisWeek` at `lib/parent-helpers.ts` still uses `toLocalYmd(now)` / `mondayOfWeek(now)` — same UTC-host drift risk at the WIB midnight boundary on Vercel.
 
 ## Verification
 
