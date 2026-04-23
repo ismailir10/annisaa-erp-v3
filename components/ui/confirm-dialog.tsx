@@ -1,19 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 /**
  * Branded confirmation dialog — replaces window.confirm().
+ * Built on AlertDialog so destructive confirms cannot be dismissed
+ * by click-outside or Escape without an explicit Cancel.
+ *
  * Usage:
  *   const [confirmOpen, setConfirmOpen] = useState(false);
  *   <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
@@ -56,25 +59,25 @@ export function ConfirmDialog({
   const busy = loading || isLoading;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
-        </DialogHeader>
-        <DialogFooter>
-          <DialogClose>
-            <Button variant="outline" disabled={busy}>{cancelLabel}</Button>
-          </DialogClose>
-          <Button
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          {description && (
+            <AlertDialogDescription>{description}</AlertDialogDescription>
+          )}
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogAction
+            variant={destructive ? "destructive" : "default"}
             onClick={handleConfirm}
             disabled={busy}
-            className={destructive ? "bg-destructive hover:bg-destructive/90" : ""}
           >
             {busy ? "Memproses..." : confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

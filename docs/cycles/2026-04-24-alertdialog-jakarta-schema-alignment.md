@@ -94,6 +94,18 @@ Note: spec said "Radix" but repo uses Base UI — primitive-level behavior equiv
 
 **No code change — verification commit (cycle doc only).**
 
+### A2 — ConfirmDialog rewrite on AlertDialog
+
+`components/ui/confirm-dialog.tsx` rewritten on `AlertDialog` primitives. Public API preserved verbatim: `{ open, onOpenChange, title, description, confirmLabel, cancelLabel, onConfirm, destructive, loading }` — every existing caller auto-picks up the fix.
+
+Key structural shifts vs old `Dialog`-based impl:
+- `Dialog` → `AlertDialog` (modal locks Esc/backdrop-click; destructive confirms can only be dismissed via explicit Cancel).
+- `<Button className={destructive ? "bg-destructive …" : ""}>` → `<AlertDialogAction variant={destructive ? "destructive" : "default"}>` — token-based, no inline color class. Satisfies `ui.md` overlays rule.
+- Cancel button: `<DialogClose><Button variant="outline">` → `<AlertDialogCancel>` (which wraps `AlertDialogPrimitive.Close` rendering stock `Button variant="outline"` by default). Auto-closes on click — no manual state.
+- Footer: `<DialogFooter>` → `<AlertDialogFooter>`. On desktop this is `flex-row justify-end` so cancel-left + confirm-right ordering follows JSX order (cancel first).
+
+Auto-close behavior **intentionally preserved for this commit** (still closes in `finally` regardless of success/failure). A3 flips it to success-only and adds vitest.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
