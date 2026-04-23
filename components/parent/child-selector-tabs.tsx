@@ -30,16 +30,13 @@ export function ChildSelectorTabs({
   if (items.length <= 1) return null;
 
   const tabs: PortalTab[] = items.map((child) => {
-    const initial = child.studentName.trim()[0]?.toUpperCase() ?? "?";
+    // Pill label = first name only. Frame 4/8/11 of cycle-4 prototype.
+    // Full name + class would overflow at 375px and the class chip rendered
+    // in a contrasting tone breaks the active-pill (teal-on-teal) palette.
+    const firstName = child.studentName.trim().split(/\s+/)[0] ?? child.studentName;
     return {
       id: child.studentId,
-      label: child.studentName,
-      secondary: child.className ? `(${child.className})` : undefined,
-      leading: (
-        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary leading-none">
-          {initial}
-        </span>
-      ),
+      label: firstName,
     };
   });
 

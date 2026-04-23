@@ -46,7 +46,7 @@ function attendanceToDayStatus(
 
 function buildKidFoot(
   todayStatus: string | undefined,
-  hadirCount: number,
+  weekCounts: { hadir: number; sakit: number; alpa: number; izin: number; logged: number },
   latestNote: { body: string; createdAt: Date } | null,
   now: Date,
 ): KidCardFoot {
@@ -68,8 +68,18 @@ function buildKidFoot(
       return { tone: "info", icon: "message-circle", text: `"${excerpt}"` };
     }
   }
-  if (hadirCount > 0) {
-    return { tone: "ok", icon: "check", text: `Hadir ${hadirCount} hari pekan ini` };
+  if (weekCounts.hadir > 0 && weekCounts.sakit === 0 && weekCounts.alpa === 0 && weekCounts.izin === 0) {
+    return { tone: "ok", icon: "check", text: `Hadir ${weekCounts.hadir} hari pekan ini` };
+  }
+  if (weekCounts.logged > 0) {
+    const parts: string[] = [];
+    if (weekCounts.hadir) parts.push(`Hadir ${weekCounts.hadir}`);
+    if (weekCounts.sakit) parts.push(`Sakit ${weekCounts.sakit}`);
+    if (weekCounts.alpa) parts.push(`Alpa ${weekCounts.alpa}`);
+    if (weekCounts.izin) parts.push(`Izin ${weekCounts.izin}`);
+    const tone: KidCardFoot["tone"] =
+      weekCounts.sakit + weekCounts.alpa > 0 ? "warn" : "info";
+    return { tone, icon: "check", text: `${parts.join(" · ")} pekan ini` };
   }
   return { tone: "info", icon: "check", text: "Pekan ini belum tercatat" };
 }
@@ -103,6 +113,7 @@ export default async function ParentDashboard() {
         studentId: { in: kidIds },
         date: { in: week },
         isVoided: false,
+        student: session.tenantId ? { tenantId: session.tenantId } : undefined,
       },
       select: { studentId: true, date: true, status: true },
     }),
@@ -158,7 +169,11 @@ export default async function ParentDashboard() {
   }
 
   const greetingFirst = parent.name.split(" ")[0] ?? parent.name;
-  const greetingTitle = `Assalamu'alaikum, Bu ${greetingFirst}`;
+  // Derive Bu/Pak from the guardian relationship label on the first child link.
+  // (Parent model has no gender field; relationship is MOTHER / FATHER / GUARDIAN.)
+  const firstRel = children[0]?.relationship?.toUpperCase() ?? "";
+  const honorific = firstRel === "FATHER" ? "Pak" : "Bu";
+  const greetingTitle = `Assalamu'alaikum, ${honorific} ${greetingFirst}`;
   const tod = timeOfDayGreeting(now);
   const dateLine = formatDate(today, {
     weekday: "long",
@@ -172,10 +187,14 @@ export default async function ParentDashboard() {
   const kids = children.map((c) => {
     const attMap = attendanceByKid.get(c.studentId) ?? new Map<string, string>();
     const todayStatus = attMap.get(today);
-    let hadirCount = 0;
+    const counts = { hadir: 0, sakit: 0, alpa: 0, izin: 0, logged: 0 };
     const days: KidCardDay[] = week.map((d, i) => {
       const status = attMap.get(d);
-      if (status === "PRESENT") hadirCount += 1;
+      if (status === "PRESENT") counts.hadir += 1;
+      else if (status === "SICK") counts.sakit += 1;
+      else if (status === "ABSENT") counts.alpa += 1;
+      else if (status === "PERMISSION") counts.izin += 1;
+      if (status) counts.logged += 1;
       const isFuture = d > today;
       return {
         label: DAY_LABELS[i] ?? "",
@@ -185,7 +204,7 @@ export default async function ParentDashboard() {
           : attendanceToDayStatus(status),
       };
     });
-    const foot = buildKidFoot(todayStatus, hadirCount, latestNoteByKid.get(c.studentId) ?? null, now);
+    const foot = buildKidFoot(todayStatus, counts, latestNoteByKid.get(c.studentId) ?? null, now);
     const displayName = c.studentNickname ?? c.studentName.split(" ").slice(0, 2).join(" ");
     return {
       id: c.studentId,
@@ -243,7 +262,7 @@ export default async function ParentDashboard() {
                   <Receipt size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-currency text-[1.375rem] font-bold tracking-tight text-status-absent-text">
+                  <p className="font-currency text-[2rem] font-bold leading-none tracking-tight text-status-absent-text">
                     {formatRupiah(unpaidTotal)}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
@@ -284,7 +303,7 @@ export default async function ParentDashboard() {
                     Lunas semua
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Jazakumullahu khairan.
+                    Jazakumullahu khairan. Insyaallah tagihan berikutnya muncul saat sekolah menerbitkannya.
                   </p>
                 </div>
               </div>

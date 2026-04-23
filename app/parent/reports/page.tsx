@@ -40,7 +40,7 @@ export default async function ParentReportsPage({
         sticky
       />
 
-      <PageHeader title="Laporan Perkembangan" />
+      <PageHeader title="Rapor" subtitle="Laporan perkembangan tiap semester" />
 
       <AssessmentsTable
         data={assessmentsData}

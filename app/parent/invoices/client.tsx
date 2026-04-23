@@ -1,25 +1,15 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SummaryHero } from "@/components/portal/summary-hero";
-import { CardListItem } from "@/components/portal/card-list-item";
-import {
-  AlertCircle,
-  Receipt,
-  Sparkles,
-  Wallet,
-} from "lucide-react";
-import { formatRupiah, formatDateShort } from "@/lib/format";
+import { AlertCircle, Receipt, Sparkles } from "lucide-react";
+import { formatRupiah, formatDate } from "@/lib/format";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
-import { InvoiceFilter } from "@/components/parent/invoice-filter";
 import { PageHeader } from "@/components/portal/page-header";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 
-// Dynamically import InvoiceDetailSheet to reduce initial bundle size
 const InvoiceDetailSheet = dynamic(
   () => import("./invoice-detail-sheet").then((mod) => ({ default: mod.InvoiceDetailSheet })),
   {
@@ -27,14 +17,6 @@ const InvoiceDetailSheet = dynamic(
     ssr: false,
   }
 );
-
-const PARENT_INVOICE_LABELS: Record<string, string> = {
-  SENT: "Belum Dibayar",
-  PARTIALLY_PAID: "Dibayar Sebagian",
-  PAID: "Lunas",
-  OVERDUE: "Jatuh Tempo",
-  CANCELLED: "Dibatalkan",
-};
 
 type InvoiceItem = {
   id: string;
@@ -50,22 +32,17 @@ type InvoiceItem = {
   createdAt: string;
 };
 
-/**
- * Decide which S1-intent status + label to hand the StatusBadge for a given
- * invoice. Cycle-3 color-correctness fix: an UNPAID / SENT parent invoice is
- * danger-severity (jatuh tempo akan datang → money out of pocket), not
- * info-severity. Default STATUS_MAP renders SENT as blue (status-leave-subtle)
- * which semantically clashes with IZIN/permission. Remap SENT → OVERDUE on the
- * chip only — the underlying invoice status is untouched for API / filter use.
- */
-function chipStatusFor(status: string): string {
-  if (status === "SENT") return "OVERDUE";
-  return status;
+function isOutstanding(inv: InvoiceItem): boolean {
+  const remaining = inv.totalDue - inv.totalPaid;
+  return remaining > 0 && inv.status !== "CANCELLED" && inv.status !== "PAID";
+}
+
+function isPaid(inv: InvoiceItem): boolean {
+  return inv.status === "PAID";
 }
 
 export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("unpaid");
   const loading = data === null;
 
   useEffect(() => {
@@ -74,65 +51,25 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
     }
   }, [data]);
 
-  // Derive totals from full data set (hero is scoped to the whole child, not the active filter).
-  const { totalOutstanding, outstandingCount, nearestDueDate, childName } = useMemo(() => {
-    if (!data || data.length === 0) {
-      return { totalOutstanding: 0, outstandingCount: 0, nearestDueDate: null as string | null, childName: "" };
-    }
-    const outstanding = data.filter((i) => {
-      const remaining = i.totalDue - i.totalPaid;
-      return remaining > 0 && i.status !== "CANCELLED" && i.status !== "PAID";
-    });
-    const total = outstanding.reduce((sum, i) => sum + (i.totalDue - i.totalPaid), 0);
-    // Nearest future-or-past due date among outstanding invoices.
-    const nearest = outstanding
-      .map((i) => i.dueDate)
-      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null;
-    // Child name isn't directly on the list item — leave empty; secondary copy
-    // falls back to a generic phrasing when unknown.
-    return {
-      totalOutstanding: total,
-      outstandingCount: outstanding.length,
-      nearestDueDate: nearest,
-      childName: "",
-    };
+  const summary = useMemo(() => {
+    if (!data) return { total: 0, count: 0, nearestDue: null as string | null };
+    const outstanding = data.filter(isOutstanding);
+    const total = outstanding.reduce((s, i) => s + (i.totalDue - i.totalPaid), 0);
+    const nearestDue =
+      outstanding
+        .map((i) => i.dueDate)
+        .sort((a, b) => a.localeCompare(b))[0] ?? null;
+    return { total, count: outstanding.length, nearestDue };
   }, [data]);
 
   if (loading) {
     return (
-      <div className="pb-24">
-        {/* Hero skeleton — mirrors SummaryHero shape (border-l-4, rounded-xl, p-card). */}
-        <Skeleton className="h-24 w-full rounded-xl mb-4" />
-
-        {/* Header skeleton — mirrors "Tagihan Saya" h1 */}
-        <Skeleton className="h-6 w-36 mb-4" />
-
-        {/* Filter tabs — 5 pills mirroring InvoiceFilter (sticky, bg-background) */}
-        <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-3 -mx-page-x px-page-x mb-4">
-          <div className="flex gap-2 overflow-x-auto">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-8 w-20 rounded-full shrink-0" />
-            ))}
-          </div>
-        </div>
-
-        {/* Card list skeletons — mirror CardListItem geometry. */}
+      <div className="space-y-4 pb-4">
+        <Skeleton className="h-7 w-32" />
+        <Skeleton className="h-24 w-full rounded-xl" />
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 p-card rounded-xl border border-border bg-card"
-            >
-              <Skeleton className="size-10 rounded-full shrink-0" />
-              <div className="flex-1 min-w-0 space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-3 w-40" />
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <Skeleton className="h-5 w-20 rounded-md" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            </div>
+            <Skeleton key={i} className="h-[68px] w-full rounded-xl" />
           ))}
         </div>
       </div>
@@ -144,142 +81,144 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
-          <p className="text-sm text-muted-foreground">Tagihan belum bisa dimuat. Coba lagi sebentar ya.</p>
+          <p className="text-sm text-muted-foreground">
+            Tagihan belum bisa dimuat. Coba lagi sebentar ya.
+          </p>
         </div>
       </div>
     );
   }
 
-  // Filter data based on status
-  const filteredData = data.filter((item) => {
-    if (statusFilter === "all") return true;
-    if (statusFilter === "unpaid") return item.status === "SENT";
-    if (statusFilter === "partial") return item.status === "PARTIALLY_PAID";
-    if (statusFilter === "paid") return item.status === "PAID";
-    if (statusFilter === "overdue") return item.status === "OVERDUE";
-    return true;
-  });
-
-  // Preserve newest-first ordering (cycle-2 DataTable default was periodLabel desc).
-  const sortedData = [...filteredData].sort((a, b) =>
-    b.periodLabel.localeCompare(a.periodLabel)
-  );
-
-  const unpaidCount = data.filter((i) => i.status === "SENT").length;
-  const partialCount = data.filter((i) => i.status === "PARTIALLY_PAID").length;
-  const overdueCount = data.filter((i) => i.status === "OVERDUE").length;
-
-  const counts = {
-    total: data.length,
-    unpaid: unpaidCount,
-    partial: partialCount,
-    paid: data.filter((i) => i.status === "PAID").length,
-    overdue: overdueCount,
-  };
-
-  const hasOutstanding = totalOutstanding > 0;
-
-  return (
-    <div className="pb-24">
-      {/* T2a — SummaryHero. Danger-tinted when outstanding, celebration-tinted when all lunas. */}
-      <div className="mb-4">
-        {hasOutstanding ? (
-          <SummaryHero
-            tone="danger"
-            icon={Wallet}
-            primary={formatRupiah(totalOutstanding)}
-            secondary={
-              nearestDueDate
-                ? `${outstandingCount} tagihan · jatuh tempo ${formatDateShort(nearestDueDate)}`
-                : `${outstandingCount} tagihan belum dibayar`
-            }
-            elevated
-          />
-        ) : (
-          <SummaryHero
-            tone="celebration"
-            icon={Sparkles}
-            primary="Alhamdulillah, semua lunas."
-            secondary={
-              childName
-                ? `Tidak ada tagihan yang belum dibayar untuk ${childName}.`
-                : "Tidak ada tagihan yang belum dibayar saat ini."
-            }
-            elevated
-          />
-        )}
-      </div>
-
-      <PageHeader title="Tagihan Saya" />
-
-      {/* Filter - Touch-Friendly Chips */}
-      <div className="mb-4">
-        <InvoiceFilter
-          value={statusFilter}
-          onChange={setStatusFilter}
-          counts={counts}
+  // No invoices ever sent — neutral empty state, NOT the "Lunas semua"
+  // celebration (spec B4 targets the all-paid state, not the no-invoice state).
+  if (data.length === 0) {
+    return (
+      <div className="space-y-6 pb-4">
+        <PageHeader title="Tagihan" subtitle="Pantau pembayaran SPP & biaya tambahan" />
+        <EmptyState
+          accent="warm"
+          icon={Receipt}
+          title="Belum ada tagihan"
+          description="Tagihan akan muncul di sini setelah sekolah menerbitkannya."
         />
       </div>
+    );
+  }
 
-      {/* T2b — CardListItem list (replaces DataTable for ≤10-row parent norm). */}
-      {sortedData.length === 0 ? (
-        // T2c — filter-driven empty states.
-        statusFilter === "unpaid" || statusFilter === "overdue" ? (
-          <EmptyState
-            accent="celebration"
-            icon={Sparkles}
-            title="Alhamdulillah, semua lunas"
-            description={
-              childName
-                ? `Tidak ada tagihan yang belum dibayar untuk ${childName}.`
-                : "Tidak ada tagihan yang belum dibayar saat ini."
-            }
-          />
-        ) : statusFilter === "paid" ? (
-          <EmptyState
-            accent="warm"
-            icon={Receipt}
-            title="Belum ada pembayaran"
-            description="Riwayat pembayaran akan muncul di sini setelah tagihan dilunasi."
-          />
-        ) : (
-          <EmptyState
-            accent="warm"
-            icon={Receipt}
-            title="Belum ada tagihan"
-            description="Tagihan akan muncul di sini setelah sekolah menerbitkannya."
-          />
-        )
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  const due = data
+    .filter(isOutstanding)
+    .map((inv) => ({ inv, isOverdue: inv.dueDate < todayYmd }))
+    .sort((a, b) => a.inv.dueDate.localeCompare(b.inv.dueDate));
+  const paid = data
+    .filter(isPaid)
+    .sort((a, b) => b.periodLabel.localeCompare(a.periodLabel));
+  const hasAnyOutstanding = due.length > 0;
+
+  return (
+    <div className="space-y-6 pb-4">
+      <PageHeader title="Tagihan" subtitle="Pantau pembayaran SPP & biaya tambahan" />
+
+      {hasAnyOutstanding ? (
+        <section
+          className="rounded-xl border bg-card p-5"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Belum dibayar
+          </p>
+          <p className="mt-1 font-currency text-[2rem] font-bold leading-none tracking-tight text-status-absent-text">
+            {formatRupiah(summary.total)}
+          </p>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {summary.count} tagihan
+            {summary.nearestDue ? (
+              <>
+                {" · jatuh tempo terdekat "}
+                <b className="text-foreground">
+                  {formatDate(summary.nearestDue, { day: "numeric", month: "long", year: "numeric" })}
+                </b>
+              </>
+            ) : null}
+          </p>
+        </section>
       ) : (
-        <ul className="space-y-2" aria-label="Daftar tagihan">
-          {sortedData.map((inv) => (
-            <li key={inv.id}>
-              <CardListItem
-                onClick={() => setSelectedInvoiceId(inv.id)}
-                leading={
-                  <span className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Receipt className="size-5 text-primary" aria-hidden="true" />
-                  </span>
-                }
-                primary={inv.periodLabel}
-                secondary={`${inv.invoiceNumber} · Jatuh tempo ${formatDateShort(inv.dueDate)}`}
-                trailing={
-                  <div className="flex flex-col items-end gap-1.5">
-                    <StatusBadge
-                      variant="intent"
-                      status={chipStatusFor(inv.status)}
-                      label={PARENT_INVOICE_LABELS[inv.status] ?? inv.status}
-                    />
-                    <span className="font-currency text-sm font-bold tabular-nums">
-                      {formatRupiah(inv.totalDue)}
-                    </span>
-                  </div>
-                }
-              />
-            </li>
-          ))}
-        </ul>
+        <section
+          className="rounded-xl border p-5"
+          style={{
+            background: "var(--celebration-gold-subtle)",
+            borderColor: "var(--celebration-gold)",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="grid size-10 place-items-center rounded-lg"
+              style={{
+                background: "var(--celebration-gold-subtle)",
+                color: "var(--celebration-gold-text)",
+              }}
+            >
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <p
+                className="text-sm font-semibold"
+                style={{ color: "var(--celebration-gold-text)" }}
+              >
+                Lunas semua
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Jazakumullahu khairan. Tidak ada tagihan yang menunggu pembayaran.
+              </p>
+            </div>
+          </div>
+        </section>
       )}
+
+      {hasAnyOutstanding && (
+        <section>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Belum dibayar
+          </p>
+          <ul className="space-y-2" aria-label="Tagihan belum dibayar">
+            {due.map(({ inv, isOverdue }) => (
+              <InvoiceRow
+                key={inv.id}
+                invoice={inv}
+                onClick={() => setSelectedInvoiceId(inv.id)}
+                tone="due"
+                isOverdue={isOverdue}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {paid.length > 0 ? (
+        <section>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Riwayat pembayaran
+          </p>
+          <ul className="space-y-2" aria-label="Riwayat pembayaran">
+            {paid.map((inv) => (
+              <InvoiceRow
+                key={inv.id}
+                invoice={inv}
+                onClick={() => setSelectedInvoiceId(inv.id)}
+                tone="paid"
+                isOverdue={false}
+              />
+            ))}
+          </ul>
+        </section>
+      ) : !hasAnyOutstanding ? (
+        <EmptyState
+          accent="warm"
+          icon={Receipt}
+          title="Belum ada riwayat tagihan"
+          description="Tagihan akan muncul di sini setelah sekolah menerbitkannya."
+        />
+      ) : null}
 
       <InvoiceDetailSheet
         open={!!selectedInvoiceId}
@@ -287,5 +226,45 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
         invoiceId={selectedInvoiceId}
       />
     </div>
+  );
+}
+
+function InvoiceRow({
+  invoice,
+  onClick,
+  tone,
+  isOverdue,
+}: {
+  invoice: InvoiceItem;
+  onClick: () => void;
+  tone: "due" | "paid";
+  isOverdue: boolean;
+}) {
+  const remaining = invoice.totalDue - invoice.totalPaid;
+  const amount = tone === "due" ? remaining : invoice.totalDue;
+
+  const secondary =
+    tone === "due"
+      ? `Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "long" })}${isOverdue ? " · lewat tempo" : ""}`
+      : `Dibayar${invoice.paidAt ? ` ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long" })}` : ""}`;
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-baseline gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground">{invoice.periodLabel}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{secondary}</p>
+        </div>
+        <span
+          className={`font-currency tabular-nums text-sm font-bold ${tone === "due" ? "text-status-absent-text" : "text-status-present-text"}`}
+        >
+          {formatRupiah(amount)}
+        </span>
+      </button>
+    </li>
   );
 }

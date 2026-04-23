@@ -256,6 +256,102 @@ Per task brief: 4 PRs minimum (T1-T4). T5 + T6 add cycle-specific PRs. Total = 6
 - [x] Cross-checked `.claude/standards/design-system.html` §3 (typography ramp), §4 (spacing), §14 (page recipes) — KidCard light card + eyebrow label + focal display number all consume canonical tokens. New `lib/hijri.ts` adds no new visual primitive; greeting line uses existing PageHeader-equivalent typography (`text-2xl font-semibold tracking-tight` + `text-xs text-muted-foreground`).
 - [x] Cross-checked `.claude/standards/parent-portal-cycle4.html` Frames 1/2/3 — production output structurally matches prototype (greeting + Anak Anda eyebrow + KidCard list + bottom focal/celebration card). Pixel-level parity confirmation pending Vercel preview (auth blocker on local dev server, see above).
 
+### T1.1 patch — foot fallback for kids without hadir days
+
+After T1 shipped, /parent home Aisyah card showed `Pekan ini belum tercatat` even though she had Sen=Sakit + Sel=Izin tracked. Foot fallback fired because `hadirCount === 0`. Fixed by passing aggregate `weekCounts` (hadir/sakit/alpa/izin/logged) to `buildKidFoot` and surfacing the breakdown when `logged > 0` (e.g. `Sakit 1 · Izin 1 pekan ini`, with `tone === "warn"` when sakit + alpa > 0). True fallback (`Pekan ini belum tercatat`) only fires when no day has any record at all.
+
+### T2 — `/parent/invoices` list + detail (Frames 4/5/6/7)
+
+**Files touched:**
+- REWRITE: [`app/parent/invoices/client.tsx`](../../app/parent/invoices/client.tsx) — drops `SummaryHero`, `CardListItem`, `InvoiceFilter` pill tabs. New shape: PageHeader + focal card (display-size due-color amount OR gold celebration "Lunas semua") + eyebrow groups (`Belum dibayar` due rows + `Riwayat pembayaran` paid rows). Each row = light card-button with mono amount in due/paid color. Today comparison precomputed at parent level (avoids react-hooks/purity violation from `Date.now()` in render).
+- REWRITE: [`app/parent/invoices/invoice-detail-sheet.tsx`](../../app/parent/invoices/invoice-detail-sheet.tsx) — drops `SummaryHero`. New shape: focal amount card (display-size mono in due/paid color) + status caption + `Rincian` row primitive list + `Cara bayar` single Xendit card (no Transfer Bank — online-only per Frame 6 spec) + `Bayar sekarang` full-width primary CTA OR `Bukti pembayaran` Kuitansi.pdf card (paid).
+- REWRITE: [`app/parent/invoices/__tests__/client.test.tsx`](../../app/parent/invoices/__tests__/client.test.tsx) — full rewrite for new structure. Asserts focal amount, eyebrow groups, all-paid celebration copy, row click opens sheet.
+
+**Cross-checks:**
+- [x] Cross-checked `.claude/standards/parent-portal-cycle4.html` Frames 4/5/6/7. Drops Transfer Bank per S-C.C3. Drops InvoiceFilter pill tabs (replaced by eyebrow group split per S-B.B3). Cross-referenced `.claude/standards/design-system.html` §14 page recipes for focal-amount + light-card patterns.
+
+### T3 — `/parent/attendance` (Frames 8/9/10)
+
+**Files touched:**
+- REWRITE: [`app/parent/attendance/page.tsx`](../../app/parent/attendance/page.tsx) — server-rendered weekly view. URL state via `?week=YYYY-MM-DD` (defaults to current week). Compact summary card (gold celebration when 5/5 hadir, warn-orange when sakit/alpa, omitted when no data). Bespoke chevron week navigator (`<Link>` based, no native form chrome). Inline week-grid table — `<th>` row with day labels + today col tinted, `<tr>` body row "Hadir" with status glyphs (Check / S / A / I / dash). Catatan-dari-sekolah list below grid for week's notes.
+- DELETE: `app/parent/attendance/client.tsx` — paginated card-list with native date inputs + `<select>` filter, all replaced by server-week view.
+- DELETE: `app/parent/attendance/week-summary-strip.tsx` — sole consumer was the deleted page.tsx; summary now lives inline in compact card.
+
+**Cross-checks:**
+- [x] Cross-checked `.claude/standards/parent-portal-cycle4.html` Frames 8/9/10. Drops native HTML date+select per S-D.D8. Reuses today-col tint pattern from `components/portal/week-grid.tsx` (the journal reference).
+
+### T4 — `/parent/reports` + assessments-table (Frames 11/12)
+
+**Files touched:**
+- REWRITE: [`app/parent/assessments-table.tsx`](../../app/parent/assessments-table.tsx) — drops `SummaryHero` + `CardListItem`. New shape: compact gold celebration card (Sparkles icon-square + "Rapor {period} sudah terbit" + courteous copy) + standalone full-width `Buka rapor` primary CTA below the card + `Riwayat rapor` light card-link list. Detail sheet preserved unchanged (existing assessment detail is correct). Empty state (no rapor) = warm Hourglass + InsyaAllah copy per Frame 12.
+- UPDATE: [`app/parent/reports/page.tsx`](../../app/parent/reports/page.tsx) — `PageHeader` title corrected to `Rapor` + new subtitle `Laporan perkembangan tiap semester`.
+
+**Cross-checks:**
+- [x] Cross-checked `.claude/standards/parent-portal-cycle4.html` Frames 11/12. Celebration card now matches Frame 5/8/9 compact pattern (single visual language across surfaces). CTA standalone below card per S-E.E3. Empty state matches Frame 12 with Hourglass icon + InsyaAllah-style copy.
+
+### T5 — NEW `/parent/profile` route (Frame 13)
+
+**Files touched:**
+- NEW: [`app/parent/profile/page.tsx`](../../app/parent/profile/page.tsx) — server-rendered nested page (back chevron tap-44 top-left, no PageHeader title). Identity surface (80×80 primary-tinted avatar + name + role line "Wali murid · {N} anak terdaftar"). Eyebrow `Kontak` → 2 light cards (Phone + Mail from `parent.phone` / `parent.email`). Eyebrow `Anak Anda` → light card-link per child (Link to `/parent/attendance?child={id}`). Eyebrow `Akun` → 3 static cards (Notifikasi / Bantuan / Tentang aplikasi). Danger-ghost Keluar button + app version footer.
+- NEW: [`app/parent/profile/logout-button.tsx`](../../app/parent/profile/logout-button.tsx) — small client component for logout (reuses existing POST `/api/auth/logout` + `router.push("/")`).
+
+**Cross-checks:**
+- [x] Cross-checked `.claude/standards/parent-portal-cycle4.html` Frame 13. Reached via the avatar wrapped in PortalHeader's existing `profileHref` prop (already plumbed in T1). Akun cards are static stubs — no destination wiring this cycle (S-F.F6 explicitly defers).
+
+### T6 — final cleanup (delete dead primitives)
+
+**Files removed:**
+- `components/portal/summary-hero.tsx` + test
+- `components/portal/card-list-item.tsx` + test
+
+Pre-flight grep confirmed zero remaining consumers across `app/` + `components/` after T1-T5 cleared their imports.
+
+### Bundle gate (T1.1 + T2 + T3 + T4 + T5 + T6)
+
+**Gates passed locally:**
+- `npm run build` ✓ — all parent routes compiled (`/parent`, `/parent/invoices`, `/parent/attendance`, `/parent/reports`, `/parent/profile`).
+- `npm run lint` ✓ — 0 errors (18 warnings, all pre-existing in unrelated files).
+- `npx vitest run` ✓ — 233 passed, 42 todo, 0 failed across 32 files. Test count drops from 273 (cycle 3) due to removed SummaryHero + CardListItem test files; one new InvoicesClient test file replaces the cycle-3 version.
+
+**Pixel parity vs HTML prototype** still pending Vercel preview (local dev login crash blocker noted in T1 verification).
+
+### Post-bundle code-review fixes (5 issues)
+
+`feature-dev:code-reviewer` agent ran on the bundle commit `50dbc2c`. All 5 confirmed issues addressed in follow-up commit:
+
+1. **Tenant filter on `studentAttendance` queries** (defence-in-depth, CLAUDE.md security checklist) — both `app/parent/page.tsx` and `app/parent/attendance/page.tsx` raw prisma calls now scope via `student: { tenantId }`.
+2. **`/parent/invoices` empty data array** now renders neutral `Belum ada tagihan` EmptyState, not the gold `Lunas semua` celebration. Spec B4 targets all-paid, not no-invoice. Test updated.
+3. **`Bayar sekarang` CTA always renders** for payable invoices; disabled when `xenditPaymentUrl` is being provisioned, with the existing Info chip as helper text (previously CTA was hidden entirely — Spec C3).
+4. **`/parent/profile` avatar `bg-primary/12` → `bg-primary/10`** (Tailwind /12 is not a scale step, was silently transparent).
+5. **`/parent` home greeting honorific** derives from `children[0].relationship` (`MOTHER → "Bu"`, `FATHER → "Pak"`, default `Bu`). Previously hardcoded `Bu` for all guardians — copy failure per voice.md.
+
+Gates re-run: build OK · lint OK · vitest 233 passed.
+
+### Post-bundle Vercel-preview visual fixes (3 issues)
+
+Visual verify on Vercel preview surfaced 3 more issues; all fixed in follow-up:
+
+1. **Kid-pill label "Ahmad Zafran Hidayat (TKIT A)" overflows + class name styled in destructive tone on active teal pill** — `components/parent/child-selector-tabs.tsx` now renders only the first name (Frame 4/8/11 prototype shows `Zafran` not full name + class). Class no longer competes with active pill background.
+2. **`/parent/reports` history "Diterbitkan {date}" never showed real publish date** — `getPublishedAssessmentsForStudent` now selects `publishedAt` and the API type carries it through. Order-by switched to `publishedAt desc, createdAt desc` so latest-published genuinely sorts first.
+3. **"Isi kalau sempat. Opsional." footnote on Buku Penghubung Rumah tab read dismissive** — copy retoned to `Opsional — bantu Ustadzah memantau ibadah dan rutinitas di rumah` per voice.md (parent-warm, not casual-dismiss).
+4. **Reports celebration secondary "...dari Ustadzah Aisyah"** read as if the teacher were named Aisyah (Aisyah is the kid). Title now folds in the kid name: `Rapor {period} {childName} sudah terbit`; secondary simplified to `Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah.`
+5. **Profile email shows "—"** when parent record has no email (the seed Bu Siti has phone only). Now falls back to `session.email` (the OAuth-verified address — guaranteed valid for the logged-in account) before "—".
+6. **Profile AKUN section dropped** — Notifikasi/Bantuan/Tentang aplikasi cards were inert stubs (no destination pages exist yet). Better to ship Profile without false promises. App version footer remains. Section returns next cycle when destinations land.
+
+### Second code-review pass (3 spec misses + 1 visual fix)
+
+`feature-dev:code-reviewer` agent re-ran against Spec S-A through S-G + CLAUDE.md UI Standards. Three confirmed misses + 1 visual touch:
+
+7. **A5 — Home outstanding focal amount used `text-[1.375rem]`** instead of display-size `text-[2rem]` (mismatched invoices focal sizing). Now `text-[2rem] font-bold leading-none tracking-tight` — consistent with `/parent/invoices` and `/parent/invoices` detail sheet focal amounts.
+8. **A6 — Lunas-semua celebration card** copy short. Expanded to `Jazakumullahu khairan. Insyaallah tagihan berikutnya muncul saat sekolah menerbitkannya.` (Spec asked for `Tagihan berikutnya {date}` but home doesn't fetch future-issued invoices — neutral phrasing without date is honest, not aspirational.)
+9. **C1 — Sheet drag-handle bar absent.** Added 36×4 muted handle bar centered at the top of `invoice-detail-sheet.tsx` per Frame 6/7 spec.
+
+Deferred (out of cycle 4 scope, captured for cycle 5):
+- **A8 — Framer-motion stagger fade-in** on home (greeting 0s, kid list 0.08s, focal card 0.16s). ~1h work, no functional impact, defer.
+- **B3 — Paid invoice row missing `· {channel}` secondary**. Requires `getParentInvoiceList` to return payment-method per row. Plumbing change across helper + API contract; defer to cycle 5.
+
+Gates re-run: build OK · lint OK (0 errors).
+
 ## Ship Notes
 
 > Filled at Phase 4 close. No migrations, no env vars, no Prisma changes. Rollback = revert PRs in reverse order (T5 → T4 → T3 → T2 → T1 → T0).
