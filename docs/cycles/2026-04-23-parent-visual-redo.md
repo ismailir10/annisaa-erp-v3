@@ -327,6 +327,16 @@ Pre-flight grep confirmed zero remaining consumers across `app/` + `components/`
 
 Gates re-run: build OK · lint OK · vitest 233 passed.
 
+### Post-bundle Vercel-preview visual fixes (3 issues)
+
+Visual verify on Vercel preview surfaced 3 more issues; all fixed in follow-up:
+
+1. **Kid-pill label "Ahmad Zafran Hidayat (TKIT A)" overflows + class name styled in destructive tone on active teal pill** — `components/parent/child-selector-tabs.tsx` now renders only the first name (Frame 4/8/11 prototype shows `Zafran` not full name + class). Class no longer competes with active pill background.
+2. **`/parent/reports` history "Diterbitkan {date}" never showed real publish date** — `getPublishedAssessmentsForStudent` now selects `publishedAt` and the API type carries it through. Order-by switched to `publishedAt desc, createdAt desc` so latest-published genuinely sorts first.
+3. **"Isi kalau sempat. Opsional." footnote on Buku Penghubung Rumah tab read dismissive** — copy retoned to `Opsional — bantu Ustadzah memantau ibadah dan rutinitas di rumah` per voice.md (parent-warm, not casual-dismiss).
+
+Gates re-run: build OK · lint OK (0 errors).
+
 ## Ship Notes
 
 > Filled at Phase 4 close. No migrations, no env vars, no Prisma changes. Rollback = revert PRs in reverse order (T5 → T4 → T3 → T2 → T1 → T0).

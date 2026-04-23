@@ -183,6 +183,7 @@ export type PublishedAssessmentListItem = {
   period: string;
   programName: string;
   status: string;
+  publishedAt: string | null;
 };
 
 /**
@@ -203,6 +204,7 @@ export const getPublishedAssessmentsForStudent = unstable_cache(
         id: true,
         period: true,
         status: true,
+        publishedAt: true,
         template: {
           select: {
             name: true,
@@ -210,7 +212,7 @@ export const getPublishedAssessmentsForStudent = unstable_cache(
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     });
     return rows.map((r) => ({
       id: r.id,
@@ -218,6 +220,7 @@ export const getPublishedAssessmentsForStudent = unstable_cache(
       period: r.period,
       programName: r.template.program.name,
       status: r.status,
+      publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,
     }));
   },
   ["parent-published-assessments"],

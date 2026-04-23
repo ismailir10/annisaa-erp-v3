@@ -295,7 +295,7 @@ export default function ParentStudentJournalPage() {
               }}
             />
             <p className="text-xs text-muted-foreground mt-2">
-              Isi kalau sempat. Opsional.
+              Opsional &mdash; bantu Ustadzah memantau ibadah dan rutinitas di rumah.
             </p>
           </TabsContent>
 
