@@ -92,7 +92,7 @@ function buildColumns(
         const u = row.original;
         return (
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">
                 {(u.name ?? u.email)[0].toUpperCase()}
               </span>

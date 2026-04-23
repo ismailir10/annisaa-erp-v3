@@ -37,10 +37,10 @@ const SCORE_OPTIONS = [
 ];
 
 const SCORE_COLORS: Record<string, string> = {
-  BB: "bg-red-100 text-red-700 border-red-200",
-  MB: "bg-orange-100 text-orange-700 border-orange-200",
-  BSH: "bg-blue-100 text-blue-700 border-blue-200",
-  BSB: "bg-green-100 text-green-700 border-green-200",
+  BB: "bg-status-absent-subtle text-status-absent-text border-transparent",
+  MB: "bg-status-late-subtle text-status-late-text border-transparent",
+  BSH: "bg-status-leave-subtle text-status-leave-text border-transparent",
+  BSB: "bg-status-present-subtle text-status-present-text border-transparent",
 };
 
 export default function AssessmentDetailPage() {

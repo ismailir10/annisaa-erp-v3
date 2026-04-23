@@ -91,7 +91,7 @@ export function DashboardClient({
                         title={`Hadir: ${day.present}`}
                       />
                     </div>
-                    <span className="text-[9px] text-muted-foreground">{dayLabel}</span>
+                    <span className="text-caption text-muted-foreground">{dayLabel}</span>
                   </div>
                 );
               })}
@@ -135,7 +135,7 @@ export function DashboardClient({
               {canSeeSalary && (
               <Link href="/admin/payroll" className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
                     <Banknote size={16} className="text-primary" />
                   </div>
                   <div>

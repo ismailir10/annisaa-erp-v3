@@ -73,7 +73,7 @@ const columns: ColumnDef<PayrollRun>[] = [
     accessorKey: "actualWorkDays",
     header: "Hari Kerja",
     cell: ({ row }) => (
-      <span className="text-sm font-currency">{row.original.actualWorkDays} hari</span>
+      <span className="text-sm tabular-nums">{row.original.actualWorkDays} hari</span>
     ),
   },
   {

@@ -22,7 +22,7 @@ export default async function AdminLayout({
           <Separator orientation="vertical" className="mr-2 !h-4" />
           <AdminBreadcrumb />
           <div className="ml-auto flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-full bg-primary/10">
+            <div className="flex size-7 items-center justify-center rounded-full bg-muted">
               <span className="text-xs font-bold text-primary">
                 {session.name?.[0] ?? "A"}
               </span>

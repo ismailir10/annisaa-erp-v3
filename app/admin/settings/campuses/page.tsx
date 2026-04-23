@@ -153,7 +153,7 @@ export default function CampusesPage() {
               <Card className="p-5 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
                       <Building2 size={18} className="text-primary" />
                     </div>
                     <div>

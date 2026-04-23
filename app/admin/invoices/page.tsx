@@ -84,7 +84,7 @@ const columns: ColumnDef<Invoice>[] = [
           href={`/admin/invoices/${inv.id}`}
           className="flex items-center gap-3 group"
         >
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
             <FileText size={14} className="text-primary" />
           </div>
           <div>
