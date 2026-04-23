@@ -53,6 +53,11 @@ describe("ConfirmDialog", () => {
     // onOpenChange(false) must NOT have been called — the dialog stays open so
     // the caller can toast and the user can retry.
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    // Button must re-enable after rejection settles — otherwise the dialog is
+    // open but frozen and the user can't retry.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Luluskan" })).not.toBeDisabled();
+    });
   });
 
   it("closes when Cancel is clicked (AlertDialogCancel auto-close)", async () => {

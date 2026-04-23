@@ -125,6 +125,12 @@ Implementation notes for future maintainers:
 - Base UI's `AlertDialog.Close` calls `onOpenChange(false, eventDetails)` (2 args), not bare `onOpenChange(false)`. The Cancel-button test matches via `mock.calls.some((args) => args[0] === false)` rather than `toHaveBeenCalledWith(false)` to accommodate both call shapes.
 - Rejection test uses `not.toHaveBeenCalledWith(false)` — stricter than needed but catches regressions where a future refactor accidentally re-introduces close-on-any-outcome.
 
+Follow-up from code-review (not blocking this cycle): consider a dev-time `console.error(err)` inside the catch as a breadcrumb for callers that forget to toast; consider wrapping pending-promise resolve in `act(...)` to silence React 19 act warnings. Both are hygiene, not correctness.
+
+### A3.1 — Test hardening from code-review
+
+Added a re-enable assertion on the rejection path test: after `onConfirm` rejects and the dialog stays open, the confirm button must re-enable so the user can retry. Prevents regressions where `setIsLoading(false)` accidentally moves out of `finally`.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
