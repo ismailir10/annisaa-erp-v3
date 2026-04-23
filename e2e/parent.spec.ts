@@ -44,6 +44,7 @@ test.describe("Parent flows", () => {
       page
         .locator("text=Lunas semua")
         .or(page.getByText(/tagihan belum dibayar/))
+        .first()
     ).toBeVisible({ timeout: 5_000 });
   });
 
@@ -56,6 +57,7 @@ test.describe("Parent flows", () => {
     await expect(
       page.locator("text=Lunas semua")
         .or(page.getByText(/tagihan/i))
+        .first()
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -69,6 +71,7 @@ test.describe("Parent flows", () => {
       page.locator("text=Pekan ini belum dimulai")
         .or(page.locator("text=Belum ada catatan kehadiran"))
         .or(page.getByRole("cell", { name: /^Hadir$/ }))
+        .first()
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -81,6 +84,7 @@ test.describe("Parent flows", () => {
     await expect(
       page.locator("text=Rapor belum terbit")
         .or(page.getByRole("button", { name: /Buka rapor/ }))
+        .first()
     ).toBeVisible({ timeout: 10_000 });
   });
 
