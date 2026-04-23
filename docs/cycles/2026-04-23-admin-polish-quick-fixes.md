@@ -66,11 +66,38 @@ Each task is committable independently; between-task gate = `npm run build && np
 - **Task 2** — Assessments grade chips. `SCORE_COLORS` map in `app/admin/assessments/[id]/page.tsx:39-44` swapped from `bg-red-100`/`bg-orange-100`/`bg-blue-100`/`bg-green-100` arbitrary palette to `bg-status-absent-subtle` (BB) / `bg-status-late-subtle` (MB) / `bg-status-leave-subtle` (BSH) / `bg-status-present-subtle` (BSB) + matching `text-status-*-text`. Not migrated to `<StatusBadge>` component because the chips are interactive `<button>` toggles, not display-only badges. `border-transparent` on selected state keeps border-hierarchy consistent with unselected `border-border`.
 - **Task 3** — `text-[9px]` → `text-caption` (0.6875rem token). Sites: `app/admin/payroll/[id]/page.tsx:449` (Adj marker Badge) and `app/admin/dashboard-client.tsx:94` (attendance bar day label). `text-caption` is the canonical token for micro-text per design-system.html §Typography; 9px was sub-minimum and violated the type scale.
 - **Task 4** — `font-currency` misuse removal. `font-currency` = mono + tabular-nums utility intended for currency amounts + numeric IDs (NIS/NIK/account numbers). Stripped from 5 non-numeric / non-ID sites: `settings/holidays:103` (date cell — dropped fully), `settings/salary-components:111` (single-digit sort order — dropped), `attendance:116` + `:126` (check-in/check-out time columns — replaced with `tabular-nums` alone so column still aligns colons without the mono family), `payroll/page.tsx:76` ("N hari" count — replaced with `tabular-nums` for column alignment). All other `font-currency` sites (currency amounts, NIS/NIK/account IDs) left untouched per spec scope.
+- **Task 5** — skipped. Spec assumed `<Card>` default padding covered `p-card`. On inspection `components/ui/card.tsx:15` only sets `py-4` — horizontal padding lives on `CardHeader`/`CardContent` via `px-4`. `settings/config/page.tsx:85` uses `<Card>` directly without sub-components, so `p-card` is load-bearing (not redundant). Removing it would strip all horizontal padding. Task canceled; no change shipped.
 
 ## Verification
 
-*(filled by /build — cite design-system.html sections here)*
+Between-task gate (`npm run build && npx vitest run`) ran after each of Tasks 1–4:
+- Task 1: build ✓, vitest ✓ (240 passed | 42 todo).
+- Task 2: build ✓, vitest ✓ (240 passed | 42 todo).
+- Task 3: build ✓, vitest ✓ (240 passed | 42 todo).
+- Task 4: build ✓, vitest ✓ (240 passed | 42 todo).
+- Task 5: canceled — no code change.
+
+Grep gates at end of cycle:
+- `rg "bg-primary/10 flex" app/admin` → 0 (icon halos). One residual `<Badge className="bg-primary/10 …">Utama</Badge>` on `students/[id]:446` is an accent badge chip, documented exception.
+- `rg "bg-(red|orange|blue|green)-(100|200|700)" app/admin` → 0.
+- `rg "text-\[9px\]" app/admin` → 0.
+- `rg "font-currency" app/admin` → only currency amounts + numeric IDs (NIS/NIK/account-no/kode) remain; dates/sort-order/time/count cleared.
+
+Design-system.html cross-check (per frontend gate Rule 4):
+- §Portal Shell → icon halo convention (neutral muted background).
+- §Status Badges + §Color System → grade-tier mapping to `status-*-subtle` tokens.
+- §Typography → `text-caption` as canonical micro-text token.
+- §DataTable → numeric-column alignment via `tabular-nums` when mono family is wrong.
+
+End-of-cycle Playwright: `npx playwright test` → **27 passed, 2 skipped, 11 failed** (4.3m). All 11 failures reproduce on pre-cycle HEAD (03e0c1f) in this worktree — verified by `git checkout 03e0c1f -- . && npx playwright test e2e/admin.spec.ts:35 e2e/admin.spec.ts:65 e2e/design-system.spec.ts:52` → same 3 fail. Failures are a pre-existing environment issue in this harness-provided worktree (auth cookie / demo-mode seed), not cycle-induced. Tracked separately; not a regression from this cycle's class-swap changes.
 
 ## Ship Notes
 
-*(filled by /ship)*
+- **Migrations:** none.
+- **Env vars:** none.
+- **New dependencies:** none.
+- **New files:** none. Pure in-place class edits.
+- **Deleted files:** none.
+- **Rollback plan:** pure-UI revert. `git revert` the four task commits (9fde9f2, fa4f3f6, 1f3548f, 20cb12f) on staging. No DB state touches.
+- **Follow-up cycles from the 6-cycle admin polish plan:** Cycle 2 (assessments StatusBadge retrofit if grade-chips revisited as read-only elsewhere), Cycle 3 (students/[id] hardcoded status colors → StatusBadge), Cycle 4 (invoices/[id] + employees/[id] `p-5` → `p-card`), Cycle 5 (list-grid `gap-3`/`gap-4` → `gap-section` + academic `font-currency` misuse), Cycle 6 (route-level `/new` form pages → Dialog/Sheet — needs brainstorm).
+- **Known Playwright failures pre-existing in this worktree** (11 failures unrelated to cycle): admin employee detail tab, admin school-admin role restriction, admin settings pages, admin payroll detail, design-system static HTML, parent invoices, parent logout, parent Penghubung, teacher slips, teacher logout, teacher Buku Penghubung picker. Verified reproducible on 03e0c1f (commit prior to cycle). Fix belongs in a separate cycle — likely a seed-data / demo-cookie drift in the worktree setup.
