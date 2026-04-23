@@ -240,7 +240,7 @@ export default async function ParentAttendancePage({
                       className={`w-[44px] min-w-[44px] py-2 px-1 text-center text-xs ${isToday ? "border-t-2 border-primary bg-status-present-subtle font-semibold text-primary" : "font-medium text-muted-foreground"}`}
                     >
                       <div>{DAY_LABELS[i] ?? ""}</div>
-                      <div className={`text-[9px] font-normal ${isToday ? "text-primary/80" : "text-muted-foreground/70"}`}>
+                      <div className={`text-xs font-normal ${isToday ? "text-primary/80" : "text-muted-foreground/70"}`}>
                         {shortMonthDay(d)}
                       </div>
                     </th>

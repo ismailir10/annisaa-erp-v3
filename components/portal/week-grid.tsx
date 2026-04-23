@@ -84,7 +84,7 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                   }`}
                 >
                   <div>{DAY_LABELS[i] ?? formatColDate(d)}</div>
-                  <div className={`text-[9px] ${isToday ? "text-primary/80" : "text-muted-foreground/70 font-normal"}`}>
+                  <div className={`text-xs ${isToday ? "text-primary/80" : "text-muted-foreground/70 font-normal"}`}>
                     {formatColDate(d)}
                   </div>
                 </th>

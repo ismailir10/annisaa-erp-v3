@@ -59,7 +59,7 @@ const FOOT_TONE_CLASS: Record<KidCardFootTone, string> = {
 };
 
 const DAY_BASE =
-  "flex flex-col items-center justify-center h-11 rounded-md text-[10px] font-semibold leading-none";
+  "flex flex-col items-center justify-center h-11 rounded-md text-xs font-semibold leading-none";
 
 const DAY_TONE: Record<KidCardDayStatus, string> = {
   present: "bg-status-present-subtle text-status-present-text",
@@ -110,7 +110,7 @@ export function KidCard({ id, name, className, week, foot }: KidCardProps) {
           >
             <span
               className={cn(
-                "mb-0.5 text-[9px] font-medium",
+                "mb-0.5 text-xs font-medium",
                 day.isToday ? "text-primary-foreground/85" : "opacity-70",
               )}
             >

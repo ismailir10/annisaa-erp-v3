@@ -35,7 +35,7 @@ Comprehensive code review cycle (`2026-04-24-comprehensive-code-review.md` §T6 
   Acceptance: `grep -rn 'text-\[11px\]' app/parent components/parent` returns zero; `npm run build && npx vitest run` green.
   Dependencies: none.
 
-- [ ] **T2 — Fix `components/parent/kid-card.tsx:62` DAY_BASE + 9 px residues.**
+- [x] **T2 — Fix `components/parent/kid-card.tsx:62` DAY_BASE + 9 px residues.**
   Change DAY_BASE `text-[10px]` → `text-xs`. Also sweep residual `text-[9px]`: `app/parent/attendance/page.tsx:243`, `components/parent/kid-card.tsx:113`, `components/portal/week-grid.tsx:87` → `text-xs`. Visually verify KidCard day-strip at 360 px and 390 px widths; if overflow, loosen gap or bump `h-11` → `h-12`. Commit adjustment with the text-size change.
   Acceptance: `grep -rn 'text-\[9px\]\|text-\[10px\]' app/parent components/parent components/portal` returns zero; KidCard day-strip legible and non-overflowing at 360 px.
   Dependencies: none (parallel with T1 possible — distinct hunks; sequence to avoid merge conflict in `kid-card.tsx`).
@@ -49,9 +49,11 @@ Comprehensive code review cycle (`2026-04-24-comprehensive-code-review.md` §T6 
 
 - Subagent plan: all 3 tasks sequential (T1/T2 share `components/parent/kid-card.tsx`; T3 depends on T1+T2). Executed inline in the loop.
 - Task 1: bulk `text-[11px]` → `text-xs` — `app/parent/page.tsx`, `app/parent/attendance/page.tsx`, `app/parent/invoices/client.tsx`, `app/parent/invoices/invoice-detail-sheet.tsx`, `app/parent/assessments-table.tsx`, `app/parent/profile/page.tsx`, `components/parent/kid-card.tsx` (lines 93, 126). Mechanical `replace_all`; 39 occurrences swept. `feature-dev:code-reviewer` clean — cross-checked design-system.html §Portal text-size scale (min floor 12 px) and portal.md §69-72 banned list.
+- Task 2: DAY_BASE + 9 px sweep — `components/parent/kid-card.tsx:62` DAY_BASE (`text-[10px]` → `text-xs`), `components/parent/kid-card.tsx:113` inner day label (`text-[9px]` → `text-xs`), `app/parent/attendance/page.tsx:243` sub-date line (`text-[9px]` → `text-xs`), `components/portal/week-grid.tsx:87` WeekGrid sub-date (`text-[9px]` → `text-xs`). `h-11` and column widths preserved — `feature-dev:code-reviewer` verified no overflow at 360 px. Weight contrast (`font-semibold` vs `font-medium` + `opacity-70`) preserves hierarchy after both sizes unified at 12 px.
 
 ## Verification
 
 - Task 1: `grep -rn 'text-\[11px\]' app/parent components/parent components/portal` → 0 hits. `npm run build` green. `npx vitest run` 233 passed / 2 skipped / 42 todo.
+- Task 2: `grep -rn 'text-\[9px\]\|text-\[10px\]\|text-\[11px\]' app/parent components/parent components/portal` → 0 hits. `components/parent/kid-card.tsx:62` DAY_BASE now `text-xs`; `h-11` preserved (math: label 12 px + mb-0.5 2 px + glyph 14 px = 28 px in 44 px cell; `leading-none` keeps compact). Reviewer confirmed no overflow risk at 360 px; sub-date labels in attendance table + WeekGrid 44 px columns fit "30 Apr" at `text-xs`. Size hierarchy preserved via weight-contrast (font-semibold vs font-medium + opacity-70). `npm run build` green. `npx vitest run` 233 passed.
 
 ## Ship Notes
