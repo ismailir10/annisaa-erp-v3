@@ -457,10 +457,11 @@ Findings below are verbatim outputs from the 8 parallel reviewer subagents, reor
 
 ## Verification
 
-This is a review-only cycle. No code changes were made in this worktree — the deliverable is this Findings document. Gates run:
+This is a review-only cycle. No code changes were made in this worktree — the deliverable is this Findings document. End-of-cycle gate (2026-04-24):
 
-- [ ] `npm run build && npx vitest run` — run as end-of-cycle gate before the single doc commit.
-- [ ] Playwright skipped — no UI changes.
+- [x] `npm run build` — green (all 22 admin + 6 teacher + 4 parent routes compiled, middleware emitted).
+- [x] `npx vitest run` — 233 pass / 42 todo / 2 skipped, 34 files (41.2 s).
+- [x] `npx playwright test` — 39 pass / 1 skipped, chromium only, production server (1.1 min).
 - [x] All 8 module reviews completed and findings integrated.
 
 Cross-checked `design-system.html` §Tokens + §Overlays for overlay-related findings (T5 #1 ConfirmDialog, T6 text-size violations, T8 #11 calendar overlay).
