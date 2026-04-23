@@ -10,6 +10,42 @@ You are running a synthetic UAT pass on the school ERP. You role-play a fixed pe
 
 **This is heuristic, not real UAT.** An LLM persona cannot replicate thumb reach, sunlight glare, emotional distrust, or network conditions on a 4-year-old phone in Bekasi traffic. The report is a cheap first pass, not a substitute for putting the app in front of a real teacher or parent. Every report MUST include the heuristic disclaimer.
 
+## Default target + accounts (staging mode)
+
+**Default target (no flag needed):** `https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app`
+
+Override only when the user explicitly asks (e.g. "run uat locally"). Running against staging exposes real Vercel cold-start, edge latency, and the real Supabase magic-link / Google OAuth flow — that is the honest proxy for production-user experience. A local `DEMO_MODE` build is the fallback, used only when staging is unreachable.
+
+**Login accounts per role:**
+
+| Role | Email | Default persona |
+|---|---|---|
+| Admin (`SUPER_ADMIN`) | `ismailir10@gmail.com` | Ibu Nur |
+| Teacher (`TEACHER`) | `ismail10rabbanii@gmail.com` | Bu Sari |
+| Parent (`GUARDIAN`) | `rightjet.hq@gmail.com` | Pak Budi |
+
+All three must exist in the target DB with the correct role bindings. The UAT seed script (`prisma/seed-uat.ts`) guarantees this — run it once per fresh environment (see "Seed requirement" below).
+
+## Browser choice — Chrome MCP primary in staging mode
+
+For staging runs use **Chrome MCP** (`mcp__Claude_in_Chrome__*`). It attaches to the operator's real Chrome profile and reuses the logged-in session for each account. The skill does not attempt programmatic login — Supabase magic link requires an email round-trip and Google OAuth requires interactive consent; expect the operator to be pre-signed-in in separate Chrome profiles (one per role).
+
+Preflight the session: navigate to the portal root (`/admin`, `/teacher`, `/parent`) and use `read_page` / `get_page_text` to confirm the signed-in email matches the expected account for the area. Stop and ask the operator to switch profiles if it does not.
+
+For local fallback runs (`DEMO_MODE=true npm run start`) Playwright MCP remains the runner — the demo-cookie pattern below still applies there.
+
+## Seed requirement
+
+Before any staging-mode UAT run against a freshly reset DB, ensure UAT seed data exists:
+
+```bash
+DATABASE_URL="<target postgres url>" npm run seed:uat
+```
+
+Idempotent. Extends the baseline `prisma/seed.ts` with every row the library needs: the three UAT accounts above (with correct role + employee/parent links), admissions in INQUIRY + REGISTERED, fee components + fee structure, invoices in PENDING/OVERDUE/PAID, a PENDING leave request, and a published assessment for the parent's child.
+
+If the seed has never been run on the target environment, stop and tell the operator to run it before retrying `/uat`.
+
 ## Invocation
 
 ```
