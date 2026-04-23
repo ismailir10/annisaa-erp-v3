@@ -52,7 +52,7 @@ Assumptions:
    - Change: `text-lg` → `text-2xl` on the three `font-currency font-bold` numeric totals. Keep `font-currency`, `font-bold`, `mt-1`, existing color classes.
    - Depends on: none.
 
-2. [ ] **Students detail — mini-tile color symmetry.**
+2. [x] **Students detail — mini-tile color symmetry.**
    - File: `app/admin/students/[id]/page.tsx`.
    - Line 516: `text-destructive` → `text-status-absent`.
    - Line 524: `text-warning` → `text-status-leave`.
@@ -96,10 +96,12 @@ Assumptions:
 - Subagent plan: all 7 tasks independent but small; inline serial execution with one commit per task per CLAUDE.md between-task gate rule. No parallel subagent dispatch.
 - Cross-checked design-system.html §11 Stat Cards (`.stat-value` = 1.75rem) for typography scale; `text-2xl` (1.5rem) is the closest Tailwind token without introducing `--text-stat`.
 - Task 1: payroll hero stat typography — `app/admin/payroll/[id]/page.tsx:398-400` — `text-lg` → `text-2xl` on the three StatsCardsRow numeric totals.
+- Task 2: students detail mini-tile color symmetry — `app/admin/students/[id]/page.tsx:516,524` — `text-destructive` → `text-status-absent`; `text-warning` → `text-status-leave`. All four attendance summary tiles now share the `text-status-*` vocabulary.
 
 ## Verification
 
 - Task 1: gates passed (build + vitest run). Staging baseline screenshot taken pre-change; end-of-cycle smoke will capture post-change.
+- Task 2: gates passed (build + vitest run). Cross-checked design-system.html voice on status semantics — absent/leave tokens avoid conflating "attendance absent" with generic "destructive error" per colors.md semantic-token rule.
 
 ## Ship Notes
 

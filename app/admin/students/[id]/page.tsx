@@ -513,7 +513,7 @@ export default function StudentDetailPage() {
                   <p className="text-xs text-muted-foreground">Hadir</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
-                  <p className="text-lg font-bold text-destructive">{attendanceSummary.absent}</p>
+                  <p className="text-lg font-bold text-status-absent">{attendanceSummary.absent}</p>
                   <p className="text-xs text-muted-foreground">Tidak Hadir</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
@@ -521,7 +521,7 @@ export default function StudentDetailPage() {
                   <p className="text-xs text-muted-foreground">Sakit</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
-                  <p className="text-lg font-bold text-warning">{attendanceSummary.permission}</p>
+                  <p className="text-lg font-bold text-status-leave">{attendanceSummary.permission}</p>
                   <p className="text-xs text-muted-foreground">Izin</p>
                 </div>
               </div>
