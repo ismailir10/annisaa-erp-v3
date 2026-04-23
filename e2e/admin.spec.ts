@@ -80,7 +80,7 @@ test.describe("Admin flows", () => {
     await page.goto("/admin/employees");
     await page.waitForURL("**/admin/employees");
     await page.getByRole("button", { name: /Tambah/ }).click();
-    await expect(page.getByRole("dialog").getByText("Tambah Karyawan")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("dialog").getByRole("heading", { name: "Tambah Karyawan" })).toBeVisible({ timeout: 15_000 });
   });
 
   test("deleted flat assessment-templates URL redirects to nested", async ({ page }) => {
