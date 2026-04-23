@@ -1,46 +1,80 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/status-badge";
+import Link from "next/link";
+import { Sparkles, Receipt, AlertCircle, ChevronRight } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
-import { QuickLinkCard } from "@/components/parent/quick-link-card";
-import { RecentActivity } from "@/components/parent/recent-activity";
-import { ParentGreeting } from "@/components/parent/parent-greeting";
-import {
-  HouseholdOverview,
-  type HouseholdChild,
-  type HouseholdAttendance,
-  type HouseholdRaporStatus,
-} from "@/components/parent/household-overview";
-import {
-  getParentWithChildren,
-  resolveSelectedChild,
-  getStudentInvoices,
-  getStudentAttendanceRecent,
-  getPublishedAssessmentsForStudent,
-} from "@/lib/parent-helpers";
-import { getStudentRecentActivity } from "@/lib/parent-activity";
+import { KidCard, type KidCardDay, type KidCardFoot } from "@/components/parent/kid-card";
+import { getParentWithChildren } from "@/lib/parent-helpers";
 import { prisma } from "@/lib/db";
-import { CreditCard, CalendarDays, GraduationCap, AlertCircle } from "lucide-react";
-import { formatRupiah } from "@/lib/format";
+import { formatRupiah, formatDate } from "@/lib/format";
+import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
 
-/**
- * Format a Date as YYYY-MM-DD using LOCAL calendar components (Asia/Jakarta-safe).
- */
-function todayYmd(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
 }
 
-export default async function ParentDashboard({
-  searchParams,
-}: {
-  searchParams: Promise<{ child?: string }>;
-}) {
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Mon-Fri YYYY-MM-DD strings for the local week containing `now`. */
+function thisWeekDates(now: Date = new Date()): string[] {
+  const day = now.getDay(); // 0=Sun..6=Sat
+  const offsetToMon = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + offsetToMon);
+  const out: string[] = [];
+  for (let i = 0; i < 5; i += 1) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    out.push(ymd(d));
+  }
+  return out;
+}
+
+function attendanceToDayStatus(
+  status: string | undefined,
+): "present" | "absent" | "sick" | "leave" | "missing" {
+  if (status === "PRESENT") return "present";
+  if (status === "ABSENT") return "absent";
+  if (status === "SICK") return "sick";
+  if (status === "PERMISSION") return "leave";
+  return "missing";
+}
+
+function buildKidFoot(
+  todayStatus: string | undefined,
+  hadirCount: number,
+  latestNote: { body: string; createdAt: Date } | null,
+  now: Date,
+): KidCardFoot {
+  if (todayStatus === "SICK") {
+    return { tone: "warn", icon: "thermometer", text: "Sakit hari ini · semoga lekas sehat" };
+  }
+  if (todayStatus === "ABSENT") {
+    return { tone: "warn", icon: "thermometer", text: "Tidak hadir hari ini" };
+  }
+  if (todayStatus === "PERMISSION") {
+    return { tone: "info", icon: "message-circle", text: "Izin hari ini" };
+  }
+  if (latestNote) {
+    const ageMs = now.getTime() - latestNote.createdAt.getTime();
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    if (ageDays <= 14) {
+      const trimmed = latestNote.body.trim();
+      const excerpt = trimmed.length > 56 ? `${trimmed.slice(0, 53)}…` : trimmed;
+      return { tone: "info", icon: "message-circle", text: `"${excerpt}"` };
+    }
+  }
+  if (hadirCount > 0) {
+    return { tone: "ok", icon: "check", text: `Hadir ${hadirCount} hari pekan ini` };
+  }
+  return { tone: "info", icon: "check", text: "Pekan ini belum tercatat" };
+}
+
+export default async function ParentDashboard() {
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN") redirect("/");
 
@@ -58,254 +92,206 @@ export default async function ParentDashboard({
     );
   }
 
-  // ≥3 kids → Household Overview path (portal.md §Household Overview).
-  // <3 kids → existing pill-tab / single-child path (unchanged).
-  if (children.length >= 3) {
-    const kidIds = children.map((c) => c.studentId);
-    const today = todayYmd();
+  const now = new Date();
+  const today = ymd(now);
+  const week = thisWeekDates(now);
+  const kidIds = children.map((c) => c.studentId);
 
-    // Three grouped round-trips — no N+1.
-    const [unpaidGroups, todayAttendanceRows, publishedAssessments, latestNotes] =
-      await Promise.all([
-        prisma.invoice.groupBy({
-          by: ["studentId"],
+  const [weekAttendance, latestNotes, unpaidInvoices] = await Promise.all([
+    prisma.studentAttendance.findMany({
+      where: {
+        studentId: { in: kidIds },
+        date: { in: week },
+        isVoided: false,
+      },
+      select: { studentId: true, date: true, status: true },
+    }),
+    session.tenantId
+      ? prisma.studentJournalNote.findMany({
           where: {
+            tenantId: session.tenantId,
             studentId: { in: kidIds },
-            status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
-          },
-          _count: { _all: true },
-          _sum: { totalDue: true, totalPaid: true },
-        }),
-        prisma.studentAttendance.findMany({
-          where: {
-            studentId: { in: kidIds },
-            date: today,
-            isVoided: false,
-          },
-          select: { studentId: true, status: true },
-        }),
-        prisma.studentAssessment.findMany({
-          where: { studentId: { in: kidIds } },
-          select: {
-            studentId: true,
-            status: true,
-            createdAt: true,
+            status: "ACTIVE",
           },
           orderBy: { createdAt: "desc" },
-        }),
-        session.tenantId
-          ? prisma.studentJournalNote.findMany({
-              where: {
-                tenantId: session.tenantId,
-                studentId: { in: kidIds },
-                status: "ACTIVE",
-              },
-              select: {
-                studentId: true,
-                body: true,
-                createdAt: true,
-              },
-              orderBy: { createdAt: "desc" },
-            })
-          : Promise.resolve([] as { studentId: string; body: string; createdAt: Date }[]),
-      ]);
+          select: { studentId: true, body: true, createdAt: true },
+        })
+      : Promise.resolve([] as { studentId: string; body: string; createdAt: Date }[]),
+    prisma.invoice.findMany({
+      where: {
+        studentId: { in: kidIds },
+        status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+      },
+      select: { studentId: true, dueDate: true, totalDue: true, totalPaid: true },
+    }),
+  ]);
 
-    // Index helpers
-    const unpaidByKid = new Map<
-      string,
-      { count: number; total: number }
-    >();
-    for (const g of unpaidGroups) {
-      const due = Number(g._sum.totalDue ?? 0);
-      const paid = Number(g._sum.totalPaid ?? 0);
-      unpaidByKid.set(g.studentId, {
-        count: g._count._all,
-        total: Math.max(0, due - paid),
-      });
-    }
-
-    const attendanceByKid = new Map<string, HouseholdAttendance>();
-    for (const row of todayAttendanceRows) {
-      const s = row.status;
-      if (s === "PRESENT" || s === "ABSENT" || s === "SICK" || s === "PERMISSION") {
-        attendanceByKid.set(row.studentId, s);
-      }
-    }
-
-    // Latest rapor status per kid (first match wins, ordered desc).
-    const raporByKid = new Map<string, HouseholdRaporStatus>();
-    for (const a of publishedAssessments) {
-      if (raporByKid.has(a.studentId)) continue;
-      if (a.status === "PUBLISHED" || a.status === "DRAFT") {
-        raporByKid.set(a.studentId, a.status);
-      }
-    }
-
-    // Latest home note per kid (first match wins, ordered desc).
-    const noteByKid = new Map<string, string>();
-    for (const n of latestNotes) {
-      if (noteByKid.has(n.studentId)) continue;
-      noteByKid.set(n.studentId, n.body);
-    }
-
-    const householdChildren: HouseholdChild[] = children.map((c) => {
-      const unpaid = unpaidByKid.get(c.studentId);
-      return {
-        id: c.studentId,
-        name: c.studentName,
-        className: c.className ?? "—",
-        avatarUrl: null,
-        todayAttendance: attendanceByKid.get(c.studentId) ?? "NONE",
-        unpaidCount: unpaid?.count ?? 0,
-        unpaidTotal: unpaid?.total ?? 0,
-        latestRaporStatus: raporByKid.get(c.studentId) ?? "NONE",
-        latestHomeNote: noteByKid.get(c.studentId) ?? null,
-      };
-    });
-
-    return (
-      <div className="space-y-section">
-        <ParentGreeting
-          title={`Assalamu'alaikum, ${parent.name}`}
-          subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
-        />
-        <HouseholdOverview items={householdChildren} />
-      </div>
-    );
+  // Index attendance: studentId → (date → status)
+  const attendanceByKid = new Map<string, Map<string, string>>();
+  for (const r of weekAttendance) {
+    const inner = attendanceByKid.get(r.studentId) ?? new Map<string, string>();
+    inner.set(r.date, r.status);
+    attendanceByKid.set(r.studentId, inner);
   }
 
-  // ── 1–2 kids: existing path (unchanged) ──
-  const params = await searchParams;
-  const selected = resolveSelectedChild(children, params.child);
-  if (!selected) redirect("/parent");
+  // Latest note per kid (notes already ordered desc by createdAt)
+  const latestNoteByKid = new Map<string, { body: string; createdAt: Date }>();
+  for (const n of latestNotes) {
+    if (!latestNoteByKid.has(n.studentId)) {
+      latestNoteByKid.set(n.studentId, { body: n.body, createdAt: n.createdAt });
+    }
+  }
 
-  const student = selected.student;
-  const enrollment = student.enrollments[0];
-  const [unpaidInvoices, recentAttendance, publishedAssessments, activityItems] =
-    await Promise.all([
-      getStudentInvoices(student.id),
-      getStudentAttendanceRecent(student.id, 7),
-      getPublishedAssessmentsForStudent(student.id),
-      session.tenantId
-        ? getStudentRecentActivity(student.id, session.tenantId, { limit: 7, days: 30 })
-        : Promise.resolve([]),
-    ]);
-  const totalUnpaid = unpaidInvoices.reduce(
-    (s, i) => s + (i.totalDue - i.totalPaid),
-    0
-  );
+  // Outstanding totals across the household
+  let unpaidTotal = 0;
+  let unpaidCount = 0;
+  let nearestDue: string | null = null;
+  for (const inv of unpaidInvoices) {
+    const due = Number(inv.totalDue);
+    const paid = Number(inv.totalPaid);
+    const remaining = Math.max(0, due - paid);
+    if (remaining > 0) {
+      unpaidTotal += remaining;
+      unpaidCount += 1;
+      if (!nearestDue || inv.dueDate < nearestDue) nearestDue = inv.dueDate;
+    }
+  }
 
-  // Last-7-days attendance summary
-  const presentCount = recentAttendance.filter((r) => r.status === "PRESENT").length;
-  const totalCount = recentAttendance.length;
+  const greetingFirst = parent.name.split(" ")[0] ?? parent.name;
+  const greetingTitle = `Assalamu'alaikum, Bu ${greetingFirst}`;
+  const tod = timeOfDayGreeting(now);
+  const dateLine = formatDate(today, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const hijri = formatHijri(now);
 
-  // Latest published assessment
-  const latestAssessment = publishedAssessments[0] ?? null;
-
-  const childTabsData = children.map((c) => ({
-    studentId: c.studentId,
-    studentName: c.studentName,
-    className: c.className,
-  }));
-
-  // Preserve `?child=` only when there are 2+ children
-  const childQuery =
-    children.length > 1 ? `?child=${selected.studentId}` : "";
-
-  // Tagihan card props
-  const tagihanProps = totalUnpaid > 0
-    ? {
-        secondary: "Sisa",
-        primary: formatRupiah(totalUnpaid),
-        primaryTone: "destructive" as const,
-        primaryIsCurrency: true,
-      }
-    : {
-        primary: "Lunas",
-        primaryTone: "success" as const,
+  // Build KidCard data per child
+  const kids = children.map((c) => {
+    const attMap = attendanceByKid.get(c.studentId) ?? new Map<string, string>();
+    const todayStatus = attMap.get(today);
+    let hadirCount = 0;
+    const days: KidCardDay[] = week.map((d, i) => {
+      const status = attMap.get(d);
+      if (status === "PRESENT") hadirCount += 1;
+      const isFuture = d > today;
+      return {
+        label: DAY_LABELS[i] ?? "",
+        isToday: d === today,
+        status: isFuture
+          ? "future"
+          : attendanceToDayStatus(status),
       };
-
-  // Kehadiran card props
-  const kehadiranProps = totalCount > 0
-    ? { primary: `Hadir ${presentCount}/${totalCount} hari` }
-    : { primary: "Belum dicatat", muted: true };
-
-  // Rapor card props
-  const raporProps = latestAssessment
-    ? {
-        secondary: latestAssessment.period,
-        primary: latestAssessment.templateName.slice(0, 30),
-      }
-    : { primary: "Belum tersedia", muted: true };
+    });
+    const foot = buildKidFoot(todayStatus, hadirCount, latestNoteByKid.get(c.studentId) ?? null, now);
+    const displayName = c.studentNickname ?? c.studentName.split(" ").slice(0, 2).join(" ");
+    return {
+      id: c.studentId,
+      name: displayName,
+      className: c.className ?? "—",
+      week: days,
+      foot,
+    };
+  });
 
   return (
-    <div className="space-y-section">
-      <ParentGreeting
-        title={`Assalamu'alaikum, ${parent.name}`}
-        subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
-      />
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          {greetingTitle}
+        </h1>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Selamat {tod} · {dateLine}
+          {hijri ? (
+            <span className="text-celebration-gold-text/85"> · {hijri}</span>
+          ) : null}
+        </p>
+      </header>
 
-      {/* Child selector tabs (only shown when 2+ children) */}
-      <ChildSelectorTabs
-        items={childTabsData}
-        selectedChildId={selected.studentId}
-      />
-
-      {/* Student card — T1e polish: shadow-card-elevated, brand-teal gradient
-          avatar, StatusBadge variant="intent" for class chip. */}
-      <Card className="p-card shadow-card-elevated">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 flex items-center justify-center">
-            <span className="text-primary text-xl font-bold">
-              {student.name[0]}
-            </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-h2 font-bold truncate">{student.name}</h2>
-            {student.nickname && (
-              <p className="text-xs text-muted-foreground truncate">
-                {student.nickname}
-              </p>
-            )}
-            {enrollment && (
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <StatusBadge
-                  status="ACTIVE"
-                  label={enrollment.classSection.name}
-                  variant="intent"
-                />
-                <span className="text-xs text-muted-foreground truncate">
-                  {enrollment.classSection.program.name}
-                </span>
-              </div>
-            )}
-          </div>
+      <section>
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          Anak Anda
+        </p>
+        <div className="space-y-3">
+          {kids.map((k) => (
+            <KidCard
+              key={k.id}
+              id={k.id}
+              name={k.name}
+              className={k.className}
+              week={k.week}
+              foot={k.foot}
+            />
+          ))}
         </div>
-      </Card>
+      </section>
 
-      {/* Quick links — uniform via QuickLinkCard */}
-      <div className="grid grid-cols-3 gap-3">
-        <QuickLinkCard
-          href={`/parent/invoices${childQuery}`}
-          icon={CreditCard}
-          label="Tagihan"
-          {...tagihanProps}
-        />
-        <QuickLinkCard
-          href={`/parent/attendance${childQuery}`}
-          icon={CalendarDays}
-          label="Kehadiran"
-          {...kehadiranProps}
-        />
-        <QuickLinkCard
-          href={`/parent/reports${childQuery}`}
-          icon={GraduationCap}
-          label="Rapor"
-          {...raporProps}
-        />
-      </div>
-
-      <RecentActivity items={activityItems} />
+      <section>
+        {unpaidTotal > 0 ? (
+          <>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Tagihan
+            </p>
+            <Link
+              href="/parent/invoices"
+              className="block rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/30 active:border-primary/40"
+            >
+              <div className="flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-lg bg-status-late-subtle text-status-late-text">
+                  <Receipt size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-currency text-[1.375rem] font-bold tracking-tight text-status-absent-text">
+                    {formatRupiah(unpaidTotal)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {unpaidCount} tagihan belum dibayar
+                    {nearestDue ? (
+                      <>
+                        {" · jatuh tempo terdekat "}
+                        <b className="text-foreground">{formatDate(nearestDue, { day: "numeric", month: "long" })}</b>
+                      </>
+                    ) : null}
+                  </p>
+                </div>
+                <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
+              </div>
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Pekan ini
+            </p>
+            <div
+              className="rounded-xl border p-5"
+              style={{
+                background: "var(--celebration-gold-subtle)",
+                borderColor: "var(--celebration-gold)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-lg bg-celebration-gold-subtle text-celebration-gold-text">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <p
+                    className="text-sm font-semibold"
+                    style={{ color: "var(--celebration-gold-text)" }}
+                  >
+                    Lunas semua
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Jazakumullahu khairan.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }

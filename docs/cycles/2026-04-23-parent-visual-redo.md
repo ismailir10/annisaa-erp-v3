@@ -219,11 +219,42 @@ Per task brief: 4 PRs minimum (T1-T4). T5 + T6 add cycle-specific PRs. Total = 6
 
 ## Implementation
 
-> Filled per task during Phase 4.
+### T1 — `/parent` home rebuild + avatar plumbing
+
+**Files touched:**
+- NEW: [`lib/hijri.ts`](../../lib/hijri.ts) — `formatHijri(date)` via `Intl.DateTimeFormat({calendar:'islamic-umalqura'})`, `timeOfDayGreeting(date)` returning `pagi/siang/sore/malam`. No new npm dep.
+- NEW: [`components/parent/kid-card.tsx`](../../components/parent/kid-card.tsx) — server-rendered Link card per Frame 1/2/3 spec S-A.A4. Head row (name + class + chevron), 5-day mini-strip (today wins as filled primary), foot row (one-line status with leading icon, tone variants ok/warn/info). Tap → `/parent/attendance?child={id}`.
+- REWRITE: [`app/parent/page.tsx`](../../app/parent/page.tsx) — single-path layout (no more ≥3-kid branch). Server-rendered. Greeting h1 + Selamat-pagi/siang/sore + date + Hijri (gold-text, 0.85 opacity). Eyebrow "Anak Anda" + KidCard list. Conditional bottom focal card: outstanding-tagihan focal (warn icon + display rupiah + caption "{N} tagihan · jatuh tempo terdekat {date}") OR celebration "Lunas semua / Jazakumullahu khairan" (gold). Three-query batch (this-week attendance + latest journal notes + unpaid invoices), no N+1.
+- UPDATE: [`components/parent/header.tsx`](../../components/parent/header.tsx) — pass `profileHref="/parent/profile"` to `PortalHeader` so the avatar wraps in a Link → profile (T5 will create the destination; until then 404 — acceptable since avatar tap was previously a no-op).
+- DELETE: `components/parent/parent-greeting.tsx` — replaced by inline header in page.tsx (teacher-home precedent).
+- DELETE: `components/parent/household-overview.tsx` — only consumer was the deleted ≥3-kid branch in page.tsx.
+
+**Per-kid foot logic** (rotating content, A4):
+1. If `todayStatus === "SICK"` → warn `Sakit hari ini · semoga lekas sehat` (thermometer)
+2. If `todayStatus === "ABSENT"` → warn `Tidak hadir hari ini` (thermometer)
+3. If `todayStatus === "PERMISSION"` → info `Izin hari ini` (message-circle)
+4. Else if a journal note within 14 days → info quoted-excerpt (message-circle, ≤56 chars + ellipsis)
+5. Else if `hadirCount > 0` → ok `Hadir N hari pekan ini` (check)
+6. Else → info `Pekan ini belum tercatat` (check)
+
+**Hafalan-progress branch** mentioned in spec A4 deferred — no clean schema field exists yet for "hafal Surah X". Foot uses note-teaser as the warm-content variant. If later a `studentHafalan` table is added, slot in as priority 4.
 
 ## Verification
 
-> Filled per task during Phase 4. 375 + 1280 before/after screenshots required per commit, parity check against the approved HTML frame.
+### T1 — `/parent` home rebuild
+
+**Gates:** `npm run build` ✓ (compiled `/parent` route) · `npm run lint` ✓ (0 errors, 18 warnings — all pre-existing in unrelated files) · `npx vitest run` ✓ (273 passed, 42 todo, 0 failed across 34 files).
+
+**Local visual check:** local dev server starts at `:3010` but root `/` LoginPage crashes with `demoUsers.filter is not a function` — pre-existing bug in `app/page.tsx`, unrelated to T1. Visual parity verification deferred to Vercel preview deployment on PR open.
+
+**Per-frame parity (to be confirmed on Vercel preview):**
+- Frame 1 (all-clear, 3 kids): greeting line + 3 KidCards present, today col filled primary teal, foot lines present.
+- Frame 2 (attention, Aisyah sick today): same skeleton, Aisyah card today col tinted late-orange + warn foot line.
+- Frame 3 (2-kid fallback): same template at lower row count.
+
+**Cross-checks:**
+- [x] Cross-checked `.claude/standards/design-system.html` §3 (typography ramp), §4 (spacing), §14 (page recipes) — KidCard light card + eyebrow label + focal display number all consume canonical tokens. New `lib/hijri.ts` adds no new visual primitive; greeting line uses existing PageHeader-equivalent typography (`text-2xl font-semibold tracking-tight` + `text-xs text-muted-foreground`).
+- [x] Cross-checked `.claude/standards/parent-portal-cycle4.html` Frames 1/2/3 — production output structurally matches prototype (greeting + Anak Anda eyebrow + KidCard list + bottom focal/celebration card). Pixel-level parity confirmation pending Vercel preview (auth blocker on local dev server, see above).
 
 ## Ship Notes
 
