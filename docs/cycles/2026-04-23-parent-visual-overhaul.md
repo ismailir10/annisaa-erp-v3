@@ -374,7 +374,20 @@ P0, P1 (serial preflight)
 
 ## Verification
 
-<!-- /build fills per task — before/after 375 + 1280 per commit -->
+### End-of-cycle gate (2026-04-23, post-merge of all 5 T-chains)
+
+- `npm run build` ✓ exit 0.
+- `npm run lint` 0 errors (18 pre-existing warnings elsewhere).
+- `npx vitest run` 273 pass / 42 todo / 2 skipped in 6.0s.
+- `DEMO_MODE=true npx playwright test` 38 pass / 2 skipped / 0 fail — after updating `e2e/parent.spec.ts:57-63` invoice-list anchor (regex union matching the new SummaryHero + CardListItem copy); old `text=Belum ada tagihan OR table` assertion superseded by hero copy variants.
+
+### Regression greps (parent scope, all 0 drift)
+
+- D1 `.catch(() => {})` silent catch in `app/parent components/parent` = 0.
+- D3 banned `text-[10px]` / `text-[11px]` across `app/parent components/parent components/portal` = 0 (S1 fixed the one remaining StatusBadge offender).
+- D4 `toLocale*` in `app/parent components/parent` = 0.
+- Voice glossary `\b(Invoice|Present|Absent|Report Card|Tidak Hadir)\b` in parent scope = 0 user-facing matches (remaining hits are JSX comments + test describe strings).
+
 
 ### T1 (parent-home) — deferred to controller for final visual bundle
 

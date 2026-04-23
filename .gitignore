@@ -54,3 +54,4 @@ test-results/
 # (the consuming cycle uses `git add -f` to stage the specific report into its commit)
 docs/uat/reports/
 
+.playwright-mcp/
