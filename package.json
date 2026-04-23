@@ -10,7 +10,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "seed:uat": "tsx prisma/seed-uat.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
