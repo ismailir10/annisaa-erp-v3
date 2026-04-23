@@ -36,10 +36,13 @@ const SCORE_OPTIONS = [
   { value: "BSB", label: "BSB", desc: "Berkembang Sangat Baik" },
 ];
 
+// BB = Belum Berkembang is developmentally NORMAL for young children in PAUD.
+// Using "absent" red would conflate a benign tier with a negative event.
+// Amber (late) communicates "needs support" without stigma; the rest scale up.
 const SCORE_COLORS: Record<string, string> = {
-  BB: "bg-status-absent-subtle text-status-absent-text border-transparent",
-  MB: "bg-status-late-subtle text-status-late-text border-transparent",
-  BSH: "bg-status-leave-subtle text-status-leave-text border-transparent",
+  BB: "bg-status-late-subtle text-status-late-text border-transparent",
+  MB: "bg-status-leave-subtle text-status-leave-text border-transparent",
+  BSH: "bg-status-holiday-subtle text-status-holiday-text border-transparent",
   BSB: "bg-status-present-subtle text-status-present-text border-transparent",
 };
 

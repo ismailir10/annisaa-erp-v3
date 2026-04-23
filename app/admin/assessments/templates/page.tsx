@@ -10,6 +10,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -321,11 +322,11 @@ export default function AssessmentTemplatesPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <StatsCardsRow cols={3}>
         <StatCard label="Total Template" value={stats.total} icon={ClipboardList} color="primary" index={0} />
         <StatCard label="Aktif" value={stats.active} icon={Power} color="success" index={1} />
         <StatCard label="Tidak Aktif" value={stats.inactive} icon={PowerOff} color="error" index={2} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari template atau program..."

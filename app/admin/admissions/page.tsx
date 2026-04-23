@@ -28,6 +28,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight } from "lucide-react";
@@ -612,12 +613,12 @@ export default function AdmissionsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow cols={4}>
         <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Inquiry" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
         <StatCard label="Diterima" value={stats.admitted} icon={CheckCircle} color="success" index={2} />
         <StatCard label="Terdaftar" value={stats.registered} icon={UserPlus} color="primary" index={3} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama anak atau orang tua..."

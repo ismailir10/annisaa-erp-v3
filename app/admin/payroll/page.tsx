@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -14,6 +14,11 @@ import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
 
 // ------------------------------------------------------------------
@@ -89,9 +94,62 @@ const columns: ColumnDef<PayrollRun>[] = [
 // Page
 // ------------------------------------------------------------------
 
+function defaultPayrollPeriod() {
+  const now = new Date();
+  const endMonth = now.getMonth();
+  const endYear = now.getFullYear();
+  const startMonth = endMonth === 0 ? 11 : endMonth - 1;
+  const startYear = endMonth === 0 ? endYear - 1 : endYear;
+  return {
+    start: `${startYear}-${String(startMonth + 1).padStart(2, "0")}-21`,
+    end: `${endYear}-${String(endMonth + 1).padStart(2, "0")}-20`,
+  };
+}
+
 export default function PayrollListPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<PayrollRun[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [periodStart, setPeriodStart] = useState(() => defaultPayrollPeriod().start);
+  const [periodEnd, setPeriodEnd] = useState(() => defaultPayrollPeriod().end);
+  const [generating, setGenerating] = useState(false);
+
+  const openCreate = useCallback(() => {
+    const p = defaultPayrollPeriod();
+    setPeriodStart(p.start);
+    setPeriodEnd(p.end);
+    setCreateOpen(true);
+  }, []);
+
+  // Auto-open dialog when arriving via ?create=1 (from dashboard quick-action).
+  useEffect(() => {
+    if (searchParams?.get("create") === "1") {
+      openCreate();
+      router.replace("/admin/payroll");
+    }
+  }, [searchParams, openCreate, router]);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    const res = await fetch("/api/payroll/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodStart, periodEnd }),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      toast.success("Draft penggajian dibuat");
+      setCreateOpen(false);
+      router.push(`/admin/payroll/${d.id}`);
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal membuat draft");
+    }
+    setGenerating(false);
+  }
+
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     pageSize: 20,
@@ -185,11 +243,9 @@ export default function PayrollListPage() {
         title="Penggajian"
         description={`${pagination.total} riwayat penggajian`}
         actions={
-          <Link href="/admin/payroll/new">
-            <Button size="sm">
-              <Plus size={14} className="mr-1.5" /> Buat Penggajian
-            </Button>
-          </Link>
+          <Button size="sm" onClick={openCreate}>
+            <Plus size={14} className="mr-1.5" /> Buat Penggajian
+          </Button>
         }
       />
 
@@ -233,6 +289,73 @@ export default function PayrollListPage() {
         emptyTitle="Belum ada penggajian"
         emptyDescription="Mulai dengan membuat penggajian baru."
       />
+
+      {/* Create Payroll — Dialog on desktop, Sheet on mobile */}
+      {isMobile ? (
+        <Sheet open={createOpen} onOpenChange={setCreateOpen}>
+          <SheetContent side="bottom" className="h-auto">
+            <SheetHeader>
+              <SheetTitle>Buat Penggajian Baru</SheetTitle>
+            </SheetHeader>
+            <div className="space-y-field py-4">
+              <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
+            </div>
+            <SheetFooter>
+              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
+              <Button onClick={handleGenerate} disabled={generating}>
+                {generating ? "Memproses..." : "Buat Draft Penggajian"}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Buat Penggajian Baru</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-field py-2">
+              <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
+            </div>
+            <DialogFooter>
+              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+              <Button onClick={handleGenerate} disabled={generating}>
+                {generating ? "Memproses..." : "Buat Draft Penggajian"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+function PayrollPeriodBody({
+  periodStart,
+  setPeriodStart,
+  periodEnd,
+  setPeriodEnd,
+}: {
+  periodStart: string;
+  setPeriodStart: (v: string) => void;
+  periodEnd: string;
+  setPeriodEnd: (v: string) => void;
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <Field>
+          <FieldLabel>Tanggal Mulai</FieldLabel>
+          <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+        </Field>
+        <Field>
+          <FieldLabel>Tanggal Selesai</FieldLabel>
+          <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+        </Field>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Sistem akan menghitung hari kerja aktual, kehadiran per karyawan, dan semua komponen gaji.
+      </p>
     </>
   );
 }

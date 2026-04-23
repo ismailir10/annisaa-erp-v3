@@ -160,10 +160,10 @@ export function DashboardClient({
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {[
-            ...(canSeeSalary ? [{ label: "Jalankan Penggajian", href: "/admin/payroll/new", emoji: "💰" }] : []),
+            ...(canSeeSalary ? [{ label: "Jalankan Penggajian", href: "/admin/payroll?create=1", emoji: "💰" }] : []),
             { label: "Lihat Kehadiran", href: "/admin/attendance", emoji: "📋" },
             { label: "Pengajuan Cuti", href: "/admin/leave", emoji: "📝" },
-            { label: "Tambah Karyawan", href: "/admin/employees/new", emoji: "👤" },
+            { label: "Tambah Karyawan", href: "/admin/employees?create=1", emoji: "👤" },
           ].map((action, i) => (
             <motion.div
               key={action.href}
