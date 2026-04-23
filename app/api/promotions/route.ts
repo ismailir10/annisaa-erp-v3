@@ -83,14 +83,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Kelas asal tidak ditemukan" }, { status: 404 });
   }
 
-  // Verify target class belongs to tenant and check capacity
-  const targetSection = await prisma.classSection.findFirst({
+  // Verify target class belongs to tenant. Capacity itself is re-checked and
+  // row-locked inside the transaction below.
+  const targetExists = await prisma.classSection.findFirst({
     where: { id: targetClassSectionId, tenantId: session.tenantId },
-    include: {
-      _count: { select: { enrollments: { where: { status: "ACTIVE" } } } },
-    },
+    select: { id: true },
   });
-  if (!targetSection) {
+  if (!targetExists) {
     return NextResponse.json({ error: "Kelas tujuan tidak ditemukan" }, { status: 404 });
   }
 
@@ -110,17 +109,32 @@ export async function POST(req: NextRequest) {
 
   const today = new Date().toISOString().split("T")[0];
 
-  // Transaction: check capacity + graduate old enrollments + upsert new ones
+  // Transaction: lock target section, re-check capacity, graduate old
+  // enrollments, upsert new ones. `SELECT … FOR UPDATE OF cs` on ClassSection
+  // prevents two concurrent bulk promotes from both seeing the same
+  // active count and overflowing.
   try {
   await prisma.$transaction(async (tx) => {
-    // Re-check capacity inside transaction for consistency
-    const currentActive = await tx.studentEnrollment.count({
-      where: { classSectionId: targetClassSectionId, status: "ACTIVE" },
-    });
+    const rows = await tx.$queryRaw<
+      Array<{ id: string; capacity: number; active_count: bigint }>
+    >`
+      SELECT cs.id, cs.capacity, COUNT(se.id)::int AS active_count
+      FROM "ClassSection" cs
+      LEFT JOIN "StudentEnrollment" se
+        ON se."classSectionId" = cs.id AND se.status = 'ACTIVE'
+      WHERE cs.id = ${targetClassSectionId}
+      GROUP BY cs.id, cs.capacity
+      FOR UPDATE OF cs
+    `;
+    if (rows.length === 0) {
+      throw new Error("Kelas tujuan tidak ditemukan");
+    }
+    const capacity = rows[0].capacity;
+    const currentActive = Number(rows[0].active_count);
     const needed = currentActive + toPromote.length;
-    if (needed > targetSection.capacity) {
+    if (needed > capacity) {
       throw new Error(
-        `Kapasitas kelas tujuan tidak cukup. Tersedia: ${targetSection.capacity - currentActive}, dibutuhkan: ${toPromote.length}`
+        `Kapasitas kelas tujuan tidak cukup. Tersedia: ${capacity - currentActive}, dibutuhkan: ${toPromote.length}`,
       );
     }
 

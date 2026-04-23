@@ -171,6 +171,14 @@ New test file `app/api/__tests__/promote-capacity-race.test.ts` with 4 tests: (1
 
 True concurrent-promote integration (two simultaneous POSTs) requires a real Postgres — covered at end-of-cycle by the seed-driven Playwright run plus manual soak. The structural + error-path tests prevent the class of regression that introduced the original bug.
 
+### B5 — Bulk promote uses FOR UPDATE inside transaction
+
+`app/api/promotions/route.ts` previously had a "re-check inside transaction" via `tx.studentEnrollment.count` but compared the result against `targetSection.capacity` — a value captured *outside* the transaction from `findFirst`. Two concurrent bulk promotes could both count the same pre-existing active rows without locking the target class row, then overflow on commit.
+
+Now: outer `findFirst` only confirms tenant+existence; capacity value and active count come from `tx.$queryRaw` with `FOR UPDATE OF cs` (same SQL shape as B4).
+
+New test `app/api/__tests__/bulk-promote-race.test.ts`: (1) rejects when not enough capacity (inside-tx check), (2) structural assert on `FOR UPDATE OF cs` SQL, (3) happy-path promoted+skipped counts.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
