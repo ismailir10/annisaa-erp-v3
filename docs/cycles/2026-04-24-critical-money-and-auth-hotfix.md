@@ -71,4 +71,35 @@ Each task gets its own commit. Between-task gate (`npm run build && npx vitest r
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+**Migrations:** None. No schema changes in any of the 5 tasks.
+
+**New env vars:** None.
+
+**New routes:**
+- `GET /api/teacher/students?classId=<id>` — teacher-scoped roster read, backed by `requireTeacherForClass`.
+
+**Breaking API changes (internal only):**
+- `GET /api/students` now returns 403 for TEACHER / GUARDIAN sessions. Only admin roles are allowed. Grep confirms only `app/admin/**` pages call this endpoint today, so no UI regression expected.
+- `GET /api/employees` now returns 403 for non-admin sessions. Same rationale.
+- `POST /api/student-attendance/mark` now:
+  - Requires `session.role === "TEACHER"` or `isAdminRole(session.role)` (previously only checked `employeeId`).
+  - Rejects any `status` value outside `["PRESENT","ABSENT","SICK","PERMISSION"]` with HTTP 400.
+  - Enforces `classSection.tenantId = session.tenantId` in the teacher-assignment lookup.
+
+**Internal helper signature change:**
+- `lib/parent-helpers.ts#getStudentInvoices(studentId)` is now `getStudentInvoices(studentId, tenantId)`. No app-code callers today (only tests) — tests updated in the same commit.
+
+**Manual smoke-test steps on preview URL** (preview deploy from the opened `/ship` PR):
+1. **Xendit webhook — happy path.** In Vercel logs, locate a prior real Xendit `payment_session.completed` callback. Confirm no more "invalid input syntax for type bit" errors. On a freshly seeded unpaid invoice, send a test callback with the configured `XENDIT_WEBHOOK_TOKEN`; confirm the invoice status advances to `PAID` end-to-end.
+2. **Parent portal invoice page** — log in as a guardian and load `/parent/invoices`. Confirm the page still renders the right child's invoices (this exercises the hardened cache signature once a caller is wired).
+3. **Admin list views** — log in as SUPER_ADMIN and load `/admin/students` + `/admin/employees`. Confirm the lists render as before.
+4. **Teacher attendance** — log in as a TEACHER, go to `/teacher/class-attendance`, mark a class for today, confirm saves go through. Then try to spoof a `classSectionId` from a class the teacher isn't assigned to (via browser devtools) — expect 403.
+5. **Payroll variables edit** — as SUPER_ADMIN on a DRAFT payroll, edit an employee's overtime hours and save. Confirm totals and lines update consistently.
+
+**Rollback plan:** Each task is an independent commit on `feat/critical-money-and-auth-hotfix`. Any individual task can be reverted with `git revert <sha>` without touching the others. If the whole cycle needs to roll back, `git revert` the 5 commits in reverse order (Task 5 → 4 → 3 → 2 → 1).
+
+**CI gates (before merge):**
+- ✅ `npm run build`
+- ✅ `npx vitest run` — 253 passed / 42 todo / 2 skipped (38 files, +22 new tests across the cycle)
+- ✅ `npx playwright test` — 38 passed / 2 skipped
+
