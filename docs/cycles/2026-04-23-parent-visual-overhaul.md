@@ -409,4 +409,27 @@ captures the end-of-cycle screenshot bundle on a green tree.
 
 ## Ship Notes
 
-<!-- /ship fills -->
+- **No migrations. No API changes. No Prisma changes. No new npm deps.** Pure visual + component + token cycle.
+- **New tokens in `app/globals.css`:** `--celebration-gold` + `-subtle` + `-text` triad, `--shadow-card-resting`, `--shadow-card-elevated`, `--motif-opacity`. Exposed as Tailwind utilities via `@theme inline`. Each block cites design-system.html §13/§14/§18.
+- **New shared primitives:**
+  - `components/portal/summary-hero.tsx` (2nd-instance trigger: 4 consumers — T1/T2/T3/T4 across parent home, invoices, attendance, reports).
+  - `components/portal/card-list-item.tsx` (2nd-instance trigger: 4 consumers — T1/T2/T3/T4 row patterns).
+  Both documented inline with extraction rationale + portal.md cross-check.
+- **Existing primitives extended (additive — zero breaking change):**
+  - `components/ui/status-badge.tsx` — new `variant='intent'` + optional `icon?` props. Three correctness fixes inside default variant: banned `text-[10px]` → `text-xs` (portal.md floor), SICK tone red→amber, ABSENT default label "Tidak Hadir" → "Alpa" (voice.md glossary).
+  - `components/ui/empty-state.tsx` — new `accent='warm' | 'celebration' | 'neutral'` prop.
+- **Voice:** S3 folded into S1 (ABSENT default label). Grep gate `\b(Tidak Hadir|Invoice|Present|Absent|Report Card)\b` in parent scope = 0 user-facing matches.
+- **Regression gates:** D1 silent-catch, D3 banned text, D4 toLocale = 0 drift in parent scope.
+- **Tests:** +37 new unit tests across StatusBadge (5), EmptyState (7), SummaryHero (19), CardListItem (6) + 26 T2 invoices list tests rewritten. Total suite 273 pass / 42 todo / 2 skipped.
+- **E2E:** `DEMO_MODE=true npx playwright test` 38 pass / 2 skipped / 0 fail after updating `e2e/parent.spec.ts:57-63` invoice-list anchor for the DataTable→SummaryHero+CardListItem swap.
+- **Visual verification:** Playwright MCP captures at 375×812 + 1280×800 of /parent, /parent/invoices, /parent/attendance, /parent/reports, /parent/student-journal confirm the design-system.html §14 vision rendered — elevated celebration-gold and danger-red urgency heroes, ChildCard rows with brand-teal gradient avatars and full-width non-truncating names, StatusBadge intent chips with Lucide icons and tone-tinted left accents, CardListItem rows replacing DataTable on invoices/attendance, celebration-gold rapor hero with Sparkles + Islamic courtesy copy, today-column teal bracket on week-grid, 5-day week fits 375 with no Jumat clip.
+- **Rollback plan:** single revert of the squash-merge restores cycle-2 surface (HouseholdOverview primitive + tokens stay; intent-chip + SummaryHero + CardListItem + greeting motif revert). No DB state or background job impact.
+- **README.md:** add cycle entry after merge (post-squash `/ship --to-main` cadence).
+
+### Cycle-4 follow-ups (NOT shipped in this PR)
+
+- `publishedAt` / `teacherName` / `academicYear` in `getPublishedAssessmentsForStudent` helper — T4 had to omit these from rapor list meta lines because the helper doesn't select them; widening the Prisma select is a minor cycle-4 task.
+- DRAFT-muted rapor hero variant — currently collapses into the warm empty state because the helper only returns `PUBLISHED` rows. If admin writing DRAFT rapors becomes a real flow, widen the query + re-enable the `tone="warn"` branch already sketched in T4a.
+- Attendance note-dialog onClick on `CardListItem` rows — no existing pattern to wire to; can surface per-day teacher-note modal in cycle 4 if parents request.
+- Shadcn `<Select>` for attendance status filter — T3b used styled native select via `<Input>`-style wrapper; full Shadcn Select upgrade deferred to avoid risk of URL-state churn.
+- `portal-header.tsx` `px-5` → `px-page-x` (cycle-2 E flag, still open — shared parent+teacher swap).
