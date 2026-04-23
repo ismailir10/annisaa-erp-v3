@@ -1,0 +1,1432 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Parent Portal — Cycle 4 Prototype (v2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+  :root {
+    --background: #F7FAFA;
+    --foreground: #1C1917;
+    --card: #FFFFFF;
+    --card-foreground: #1C1917;
+    --primary: #5DB4B8;
+    --primary-foreground: #FFFFFF;
+    --primary-hover: #4A9DA1;
+    --secondary: #E8F5F6;
+    --muted: #F0F0F3;
+    --muted-foreground: #57534E;
+    --accent: #E8F5F6;
+    --destructive: #E63946;
+    --border: #E5E2DE;
+    --input: #E5E2DE;
+    --ring: #5DB4B8;
+    --radius: 0.625rem;
+    --radius-md: calc(0.625rem * 0.8);
+    --radius-lg: 0.625rem;
+    --radius-xl: calc(0.625rem * 1.4);
+    --status-present: #00B37E;
+    --status-present-subtle: #E6F9F1;
+    --status-present-text: #00875A;
+    --status-late: #FF8C00;
+    --status-late-subtle: #FFF4E6;
+    --status-late-text: #B35C00;
+    --status-absent: #FF3B3B;
+    --status-absent-subtle: #FFE6E6;
+    --status-absent-text: #CC0000;
+    --status-leave: #0EA5E9;
+    --status-leave-subtle: #E0F2FE;
+    --status-leave-text: #0369A1;
+    --warning: #FF8C00;
+    --success: #00B37E;
+    --info: #0EA5E9;
+    --celebration-gold: #D4A017;
+    --celebration-gold-subtle: #FFF8E1;
+    --celebration-gold-text: #8A6B00;
+    --shadow-resting: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    --shadow-elevated: 0 6px 16px -4px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+    --space-page-x: 1.25rem;
+    --space-page-y: 1.5rem;
+    --space-section: 1.5rem;
+    --space-card: 1rem;
+    --type-display: 2rem;
+    --type-h1: 1.5rem;
+    --type-h2: 1.125rem;
+    --type-body: 0.875rem;
+    --type-small: 0.75rem;
+    --type-caption: 0.6875rem;
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  body { font-family: var(--font-sans); background: #EFEFEF; color: var(--foreground); -webkit-font-smoothing: antialiased; }
+
+  /* Harness chrome (NOT part of the design) */
+  .review-page { padding: 32px 24px 80px; max-width: 1400px; margin: 0 auto; }
+  .review-header h1 { font-size: 24px; font-weight: 700; margin: 0 0 8px; color: #111; }
+  .review-header p { color: #555; font-size: 14px; margin: 0 0 24px; }
+  .section-heading { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #666; margin: 32px 0 16px; padding-top: 16px; border-top: 1px solid #DDD; }
+  .frame-row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .frame-block { display: flex; flex-direction: column; gap: 8px; }
+  .frame-label { font-size: 12px; font-weight: 600; color: #444; }
+  .frame-note { font-size: 11px; color: #777; max-width: 375px; line-height: 1.5; }
+
+  /* The 375×812 device frame — the contract surface */
+  .device {
+    width: 375px; height: 812px;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: var(--type-body);
+    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.18);
+    border-radius: 32px;
+    overflow: hidden;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+
+  /* ─────────── Page surface ─────────── */
+  .page { flex: 1; overflow-y: auto; }
+  .page-inner { padding: 1.5rem 1.25rem 1.5rem; }
+
+  /* Mini app-header — avatar tap target (top-right). Used on /parent home + /parent/profile.
+     Other surfaces deeper in the nav stack don't need it (back gesture handles return). */
+  .app-mini-header {
+    display: flex; justify-content: flex-end; align-items: center;
+    margin: -0.25rem -0.25rem 0.75rem 0;
+  }
+  .app-avatar {
+    width: 36px; height: 36px; border-radius: 9999px;
+    background: rgba(93, 180, 184, 0.12); color: var(--primary);
+    display: grid; place-items: center;
+    font-size: var(--type-small); font-weight: 700;
+    border: 1px solid rgba(93, 180, 184, 0.18);
+    cursor: pointer; transition: background-color 150ms ease-out, transform 150ms ease-out;
+  }
+  .app-avatar:hover { background: rgba(93, 180, 184, 0.18); }
+  .app-avatar:active { transform: scale(0.95); }
+
+  /* PageHeader (journal + teacher pattern, calm) */
+  .page-header { margin-bottom: 1.5rem; }
+  .page-header h1 { font-size: var(--type-h1); font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; margin: 0; color: var(--foreground); }
+  .page-header p { font-size: var(--type-small); color: var(--muted-foreground); margin: 0.25rem 0 0; }
+  .page-header p .hijri { color: var(--celebration-gold-text); opacity: 0.85; }
+
+  /* Eyebrow label (teacher pattern: "Akses Cepat", "Status Hari Ini") */
+  .eyebrow {
+    font-size: var(--type-caption);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted-foreground);
+    margin: 0 0 0.5rem;
+  }
+
+  /* Light Card primitive (teacher pattern: rounded-xl border bg-card) */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-card);
+    transition: border-color 150ms ease-out, transform 150ms ease-out;
+  }
+  .card-link { cursor: pointer; }
+  .card-link:hover { border-color: rgba(93, 180, 184, 0.3); }
+  .card-link:active { transform: scale(0.99); }
+  .card + .card { margin-top: 0.75rem; }
+
+  /* Card row (icon-square + 2-line text + optional right slot) — teacher quick-link pattern */
+  .card-row { display: flex; align-items: center; gap: 0.75rem; }
+  .card-icon {
+    flex-shrink: 0; width: 40px; height: 40px;
+    border-radius: var(--radius); /* rounded-lg */
+    background: rgba(93, 180, 184, 0.1);
+    display: grid; place-items: center;
+    color: var(--primary);
+  }
+  .card-icon-celebration { background: var(--celebration-gold-subtle); color: var(--celebration-gold-text); }
+  .card-icon-warn { background: var(--status-late-subtle); color: var(--status-late-text); }
+  .card-icon-info { background: var(--status-leave-subtle); color: var(--status-leave-text); }
+  .card-text-primary { font-size: var(--type-body); font-weight: 600; color: var(--foreground); margin: 0; }
+  .card-text-secondary { font-size: var(--type-small); color: var(--muted-foreground); margin: 2px 0 0; }
+  .card-right { margin-left: auto; color: var(--muted-foreground); }
+
+  /* Per-kid card (richer: name + class + week-strip mini + status footer) */
+  .kid-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 1rem 1rem 0.75rem;
+    transition: border-color 150ms ease-out, transform 150ms ease-out;
+    cursor: pointer;
+  }
+  .kid-card:hover { border-color: rgba(93, 180, 184, 0.3); }
+  .kid-card:active { transform: scale(0.99); }
+  .kid-card + .kid-card { margin-top: 0.75rem; }
+  .kid-card-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .kid-card-name { font-size: var(--type-body); font-weight: 600; margin: 0; color: var(--foreground); }
+  .kid-card-class { font-size: var(--type-caption); color: var(--muted-foreground); }
+  .kid-card-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 12px 0 8px; }
+  .kid-card-day {
+    text-align: center; padding: 8px 0;
+    border-radius: 6px;
+    font-size: var(--type-caption); font-weight: 600;
+    color: var(--muted-foreground);
+    background: var(--muted);
+    line-height: 1;
+  }
+  .kid-card-day-label { font-size: 9px; font-weight: 500; opacity: 0.7; display: block; margin-bottom: 2px; }
+  .kid-card-day.present { background: var(--status-present-subtle); color: var(--status-present-text); }
+  .kid-card-day.absent { background: var(--status-absent-subtle); color: var(--status-absent-text); }
+  .kid-card-day.sick { background: var(--status-late-subtle); color: var(--status-late-text); }
+  .kid-card-day.leave { background: var(--status-leave-subtle); color: var(--status-leave-text); }
+  /* Today = filled primary tile (overrides whatever status it carries — today wins). */
+  .kid-card-day.today { background: var(--primary); color: var(--primary-foreground); }
+  .kid-card-day.today .kid-card-day-label { opacity: 0.85; }
+  .kid-card-day.future { background: transparent; border: 1px dashed var(--border); color: var(--muted-foreground); opacity: 0.5; }
+  .kid-card-day svg { width: 14px; height: 14px; display: inline-block; }
+  .kid-card-day .glyph-letter { font-size: var(--type-caption); font-weight: 700; line-height: 1; }
+  .kid-card-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--border); }
+  .kid-card-foot-line { font-size: var(--type-caption); color: var(--muted-foreground); display: flex; align-items: center; gap: 6px; }
+  .kid-card-foot-line svg { width: 12px; height: 12px; }
+  .kid-card-foot-line.warn { color: var(--status-late-text); font-weight: 600; }
+  .kid-card-foot-line.due { color: var(--status-absent-text); font-weight: 600; }
+  .kid-card-foot-line.ok { color: var(--status-present-text); font-weight: 500; }
+
+  /* Display number (focal data — teacher clock pattern, journal display token) */
+  .focal-amount {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--type-display);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin: 0;
+    color: var(--foreground);
+  }
+  .focal-amount.due { color: var(--status-absent-text); }
+  .focal-amount.paid { color: var(--status-present-text); }
+  .focal-cap { font-size: var(--type-caption); color: var(--muted-foreground); margin: 6px 0 0; text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .focal-cap b { color: var(--foreground); font-weight: 600; }
+
+  /* CTA */
+  .btn-primary {
+    background: var(--primary); color: var(--primary-foreground);
+    padding: 12px 16px; border-radius: var(--radius-md);
+    font-size: var(--type-body); font-weight: 600; border: 0; cursor: pointer;
+    transition: background-color 150ms ease-out, transform 150ms ease-out;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary.full { width: 100%; }
+  .btn-ghost {
+    background: transparent; color: var(--primary);
+    padding: 8px 12px; border-radius: var(--radius-md);
+    font-size: var(--type-small); font-weight: 600; border: 0; cursor: pointer;
+  }
+  .btn-ghost:hover { background: rgba(93, 180, 184, 0.08); }
+
+  /* Tap targets */
+  .tap-44 {
+    width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-md); border: 0; background: transparent; cursor: pointer; color: var(--foreground);
+    transition: background-color 150ms ease-out;
+  }
+  .tap-44:hover { background: rgba(93, 180, 184, 0.1); }
+  .tap-44:active { background: rgba(93, 180, 184, 0.2); }
+
+  /* Bottom nav */
+  .bottom-nav {
+    height: 64px; flex-shrink: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(5, 1fr);
+  }
+  .bottom-nav-item {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; color: var(--muted-foreground); font-size: 10px; font-weight: 500;
+    border: 0; background: transparent; cursor: pointer; position: relative;
+  }
+  .bottom-nav-item.active { color: var(--primary); font-weight: 600; }
+  .bottom-nav-item.active::before {
+    content: ''; position: absolute; top: 0; left: 30%; right: 30%; height: 2px;
+    background: var(--primary); border-radius: 0 0 2px 2px;
+  }
+  .bottom-nav-item svg { width: 20px; height: 20px; }
+
+  /* Kid pills (used on /tagihan, /kehadiran, /rapor when child context required) */
+  .kid-pills { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 1.25rem; scrollbar-width: none; }
+  .kid-pills::-webkit-scrollbar { display: none; }
+  .kid-pill {
+    flex-shrink: 0; padding: 8px 16px; border-radius: 9999px;
+    background: var(--card); border: 1px solid var(--border);
+    font-size: var(--type-body); font-weight: 500; color: var(--muted-foreground);
+    cursor: pointer; transition: all 150ms ease-out;
+  }
+  .kid-pill:hover { background: var(--secondary); }
+  .kid-pill.active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .kid-pill:active { transform: scale(0.98); }
+
+  /* Honest list row (kept rare, only inside detail surfaces — invoice rincian) */
+  .row {
+    display: grid; grid-template-columns: 1fr auto; align-items: baseline;
+    padding: 12px 0; gap: 12px;
+    border-bottom: 1px solid rgba(229, 226, 222, 0.5);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row-label { font-size: var(--type-body); color: var(--foreground); }
+  .row-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--type-body); font-weight: 500; color: var(--foreground); letter-spacing: -0.02em; }
+
+  /* Status word inline */
+  .status-word { font-size: var(--type-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .status-word.due { color: var(--status-absent-text); }
+  .status-word.paid { color: var(--status-present-text); }
+  .status-word.partial { color: var(--status-late-text); }
+
+  /* Sheet (invoice detail) */
+  .sheet {
+    position: absolute; inset: auto 0 0 0; height: 88%; background: var(--card);
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -4px 24px -4px rgba(0,0,0,0.12);
+    display: flex; flex-direction: column;
+  }
+  .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 12px auto 0; }
+  .sheet-header { padding: 12px 20px 16px; border-bottom: 1px solid var(--border); }
+  .sheet-content { flex: 1; overflow-y: auto; padding: 16px 20px 20px; }
+
+  /* Week grid (journal pattern, exact) — used on /parent/attendance only */
+  .week-nav { display: flex; align-items: center; justify-content: space-between; padding: 0 0 12px; }
+  .week-nav-label { font-size: var(--type-body); font-weight: 500; color: var(--foreground); }
+  .week-table { width: 100%; min-width: 324px; font-size: var(--type-small); border-collapse: collapse; }
+  .week-table th { padding: 8px 4px; font-size: var(--type-caption); font-weight: 500; color: var(--muted-foreground); text-align: center; min-width: 44px; width: 44px; }
+  .week-table th.indicator-col { text-align: left; padding-right: 8px; width: 104px; min-width: 104px; position: sticky; left: 0; background: var(--card); z-index: 10; }
+  .week-table th.today {
+    background: var(--status-present-subtle);
+    color: var(--primary);
+    font-weight: 600;
+    border-top: 2px solid var(--primary);
+  }
+  .week-table th .day-date { font-size: 9px; color: rgba(87, 83, 78, 0.7); font-weight: 400; display: block; margin-top: 2px; }
+  .week-table th.today .day-date { color: rgba(93, 180, 184, 0.8); }
+  .week-table .cat-row td {
+    border-left: 4px solid var(--primary);
+    background: rgba(93, 180, 184, 0.05);
+    padding: 8px 12px;
+    font-size: var(--type-h2); font-weight: 600; color: var(--foreground);
+    position: sticky; left: 0;
+  }
+  .week-table tbody tr.ind-row { border-bottom: 1px solid rgba(229, 226, 222, 0.4); }
+  .week-table tbody tr.ind-row:last-child { border-bottom: 0; }
+  .week-table td.ind-label { padding: 8px 8px 8px 0; font-size: var(--type-caption); color: var(--foreground); line-height: 1.2; vertical-align: middle; position: sticky; left: 0; background: var(--card); z-index: 10; }
+  .week-table td.cell { text-align: center; padding: 0; vertical-align: middle; }
+  .week-table td.cell.today { background: var(--status-present-subtle); }
+  .week-table td.cell.today.last-row { border-bottom: 2px solid var(--primary); }
+  .week-table .ind-cell-inner { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; }
+  .week-table .check-glyph { width: 16px; height: 16px; color: var(--primary); display: inline-block; }
+  .week-table .empty-glyph { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(87, 83, 78, 0.3); display: inline-block; }
+
+  /* EmptyState (3 accents — neutral / warm / celebration) */
+  .empty-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 16px; text-align: center; }
+  .empty-icon { width: 56px; height: 56px; border-radius: 9999px; display: grid; place-items: center; margin-bottom: 16px; }
+  .empty-icon.neutral { background: var(--muted); color: var(--muted-foreground); }
+  .empty-icon.warm { background: rgba(93, 180, 184, 0.1); color: var(--primary); width: 64px; height: 64px; }
+  .empty-icon.celebration { background: var(--celebration-gold-subtle); color: var(--celebration-gold-text); width: 64px; height: 64px; position: relative; }
+  .empty-icon.celebration::after { content: ''; position: absolute; top: -2px; right: -4px; width: 18px; height: 18px; background: var(--celebration-gold); border-radius: 9999px; mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg>') no-repeat center / 14px; -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg>') no-repeat center / 14px; }
+  .empty-title { font-size: var(--type-body); font-weight: 600; color: var(--foreground); margin: 0; }
+  .empty-body { font-size: var(--type-small); color: var(--muted-foreground); margin: 6px 0 16px; max-width: 280px; line-height: 1.5; }
+
+  /* Cycle 4 reuse: greeting line for parent home (replaces /parent "Beranda" page identity).
+     Pattern adopted from teacher-home: PageHeader title = full greeting. */
+  .greet-h1 { font-size: var(--type-h1); font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; margin: 0; color: var(--foreground); }
+  .greet-sub { font-size: var(--type-small); color: var(--muted-foreground); margin: 4px 0 0; }
+
+  /* Mono utility */
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+  /* Profile identity surface */
+  .profile-identity { display: flex; flex-direction: column; align-items: center; padding: 8px 0 24px; }
+  .profile-avatar-lg {
+    width: 80px; height: 80px; border-radius: 9999px;
+    background: rgba(93, 180, 184, 0.12); color: var(--primary);
+    display: grid; place-items: center;
+    font-size: 1.5rem; font-weight: 700;
+    border: 1px solid rgba(93, 180, 184, 0.18);
+    margin-bottom: 12px;
+  }
+  .profile-name { font-size: var(--type-h2); font-weight: 600; margin: 0; color: var(--foreground); }
+  .profile-role { font-size: var(--type-small); color: var(--muted-foreground); margin: 2px 0 0; }
+
+  /* Danger button (logout) */
+  .btn-danger-ghost {
+    background: transparent; color: var(--status-absent-text);
+    padding: 12px 16px; border-radius: var(--radius-md);
+    font-size: var(--type-body); font-weight: 600;
+    border: 1px solid var(--status-absent-subtle); cursor: pointer; width: 100%;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background-color 150ms ease-out;
+  }
+  .btn-danger-ghost:hover { background: var(--status-absent-subtle); }
+
+  /* Back chevron header (nested page pattern) */
+  .nested-header { display: flex; justify-content: flex-start; align-items: center; margin: -0.25rem 0 0.75rem -0.25rem; }
+
+  /* App version footer (small, muted, centered) */
+  .app-version { text-align: center; font-size: var(--type-caption); color: var(--muted-foreground); padding: 24px 0 8px; opacity: 0.7; }
+
+  /* Stagger fade-in (mimics framer-motion in app) */
+  @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-1 { animation: fade-up 0.4s ease-out both; }
+  .fade-2 { animation: fade-up 0.4s ease-out 0.08s both; }
+  .fade-3 { animation: fade-up 0.4s ease-out 0.16s both; }
+  .fade-4 { animation: fade-up 0.4s ease-out 0.24s both; }
+
+  /* Tokens-needed flag */
+  .tokens-needed { background: var(--celebration-gold-subtle); border-left: 4px solid var(--celebration-gold); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0 24px; }
+  .tokens-needed h3 { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--celebration-gold-text); }
+  .tokens-needed ul { margin: 0; padding-left: 20px; font-size: 12px; color: #555; }
+  .tokens-needed li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="review-page">
+
+<header class="review-header">
+  <h1>Parent Portal — Cycle 4 Prototype <span style="font-weight: 400; color: #888;">(v2 — teacher-DNA hybrid)</span></h1>
+  <p>v1 was overfitted to journal section-bar mechanism. v2 hybridizes: <strong>teacher portal</strong> light-card pattern + eyebrow labels + focal moments per page (action surfaces — home, invoices, reports), <strong>journal</strong> week-grid + sticky col + today lane (data-grid surface — attendance). STAGING banner removed (not part of design). Page identity restored (h1 every page).</p>
+</header>
+
+<div class="tokens-needed">
+  <h3>Tokens — none new required</h3>
+  <ul>
+    <li>All frames use existing globals.css tokens (status triad, celebration gold, primary teal, type/space scale).</li>
+    <li><strong>Patterns reused from existing components:</strong> EmptyState (warm + celebration accents), Card (light), PageHeader (calm), portal week-grid (journal exact).</li>
+  </ul>
+</div>
+
+<div class="section-heading">Mobile — 375 × 812</div>
+
+<div class="frame-row">
+
+  <!-- ════ Frame 1 — /parent home, all-clear ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 1 — /parent home, all-clear</div>
+    <div class="frame-note">Greeting IS the page header (teacher-home precedent). Per-kid card is rich: name + class on top, this-week mini-strip in middle (5 day-pills tinted by status, today highlighted with primary ring), footer line shows the one thing parent should know about this child today.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <div class="app-mini-header fade-1">
+            <button class="app-avatar" title="Profil">SH</button>
+          </div>
+          <header class="page-header fade-1">
+            <h1 class="greet-h1">Assalamu'alaikum, Bu Siti</h1>
+            <p class="greet-sub">Selamat pagi · Kamis, 23 April 2026 <span class="hijri">· 5 Dzulqa'dah 1447 H</span></p>
+          </header>
+
+          <p class="eyebrow fade-2">Anak Anda</p>
+          <div class="fade-2">
+            <div class="kid-card">
+              <div class="kid-card-head">
+                <p class="kid-card-name">Ahmad Zafran <span class="kid-card-class">· TKIT A</span></p>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+              <div class="kid-card-strip">
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sen</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sel</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Rab</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day today"><span class="kid-card-day-label">Kam</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day future"><span class="kid-card-day-label">Jum</span>·</div>
+              </div>
+              <div class="kid-card-foot">
+                <span class="kid-card-foot-line ok"><i data-lucide="book-heart"></i>Hafal Surah Al-Falaq pekan ini</span>
+              </div>
+            </div>
+
+            <div class="kid-card">
+              <div class="kid-card-head">
+                <p class="kid-card-name">Aisyah Putri <span class="kid-card-class">· TKIT B</span></p>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+              <div class="kid-card-strip">
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sen</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sel</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Rab</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day today"><span class="kid-card-day-label">Kam</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day future"><span class="kid-card-day-label">Jum</span>·</div>
+              </div>
+              <div class="kid-card-foot">
+                <span class="kid-card-foot-line ok"><i data-lucide="check"></i>Hadir 4 hari · sempurna</span>
+              </div>
+            </div>
+
+            <div class="kid-card">
+              <div class="kid-card-head">
+                <p class="kid-card-name">Fatimah Az-Zahra <span class="kid-card-class">· PAUD</span></p>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+              <div class="kid-card-strip">
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sen</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sel</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Rab</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day today"><span class="kid-card-day-label">Kam</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day future"><span class="kid-card-day-label">Jum</span>·</div>
+              </div>
+              <div class="kid-card-foot">
+                <span class="kid-card-foot-line ok"><i data-lucide="message-circle"></i>"Fatimah membantu teman beberes" — Ustadzah Ana</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Pekan ini</p>
+          <div class="card fade-3">
+            <div class="card-row">
+              <div class="card-icon card-icon-celebration">
+                <i data-lucide="sparkles" style="width:18px;height:18px"></i>
+              </div>
+              <div style="flex: 1;">
+                <p class="card-text-primary">Lunas semua</p>
+                <p class="card-text-secondary">Jazakumullahu khairan. Tagihan berikutnya 8 Mei.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item active"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 2 — /parent home, attention ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 2 — /parent home, attention</div>
+    <div class="frame-note">Same template, attention emerges in two places: Aisyah card foot line (warn-tinted "Sakit hari ini") and a single attention card replacing the celebration. Total outstanding lives as a focal display number INSIDE the card, not in a hero banner.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <div class="app-mini-header fade-1">
+            <button class="app-avatar" title="Profil">SH</button>
+          </div>
+          <header class="page-header fade-1">
+            <h1 class="greet-h1">Assalamu'alaikum, Bu Siti</h1>
+            <p class="greet-sub">Selamat pagi · Kamis, 23 April 2026 <span class="hijri">· 5 Dzulqa'dah 1447 H</span></p>
+          </header>
+
+          <p class="eyebrow fade-2">Anak Anda</p>
+          <div class="fade-2">
+            <div class="kid-card">
+              <div class="kid-card-head">
+                <p class="kid-card-name">Ahmad Zafran <span class="kid-card-class">· TKIT A</span></p>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+              <div class="kid-card-strip">
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sen</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sel</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Rab</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day today"><span class="kid-card-day-label">Kam</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day future"><span class="kid-card-day-label">Jum</span>·</div>
+              </div>
+              <div class="kid-card-foot">
+                <span class="kid-card-foot-line ok"><i data-lucide="book-heart"></i>Hafal Surah Al-Falaq pekan ini</span>
+              </div>
+            </div>
+
+            <div class="kid-card">
+              <div class="kid-card-head">
+                <p class="kid-card-name">Aisyah Putri <span class="kid-card-class">· TKIT B</span></p>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+              <div class="kid-card-strip">
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sen</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sel</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day absent"><span class="kid-card-day-label">Rab</span><span class="glyph-letter">A</span></div>
+                <div class="kid-card-day today" style="background: var(--status-late); color: var(--primary-foreground);"><span class="kid-card-day-label">Kam</span><i data-lucide="thermometer"></i></div>
+                <div class="kid-card-day future"><span class="kid-card-day-label">Jum</span>·</div>
+              </div>
+              <div class="kid-card-foot">
+                <span class="kid-card-foot-line warn"><i data-lucide="thermometer"></i>Sakit hari ini · semoga lekas sehat</span>
+              </div>
+            </div>
+
+            <div class="kid-card">
+              <div class="kid-card-head">
+                <p class="kid-card-name">Fatimah Az-Zahra <span class="kid-card-class">· PAUD</span></p>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+              <div class="kid-card-strip">
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sen</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sel</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Rab</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day today"><span class="kid-card-day-label">Kam</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day future"><span class="kid-card-day-label">Jum</span>·</div>
+              </div>
+              <div class="kid-card-foot">
+                <span class="kid-card-foot-line ok"><i data-lucide="check"></i>Hadir 4 hari pekan ini</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Tagihan</p>
+          <div class="card card-link fade-3">
+            <div class="card-row">
+              <div class="card-icon card-icon-warn">
+                <i data-lucide="receipt" style="width:18px;height:18px"></i>
+              </div>
+              <div style="flex: 1;">
+                <p class="focal-amount due" style="font-size: 1.375rem;">Rp 1.700.000</p>
+                <p class="focal-cap">2 tagihan belum dibayar · jatuh tempo terdekat <b>8 Mei</b></p>
+              </div>
+              <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item active"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 3 — /parent home, 2-kid fallback ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 3 — /parent home, 2-kid</div>
+    <div class="frame-note">Fewer kids = same card pattern at same density. Extra room left fills with a journal teaser card (latest note) — proves the layout breathes when kid count is low.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <div class="app-mini-header fade-1">
+            <button class="app-avatar" title="Profil">N</button>
+          </div>
+          <header class="page-header fade-1">
+            <h1 class="greet-h1">Assalamu'alaikum, Bu Nur</h1>
+            <p class="greet-sub">Selamat pagi · Kamis, 23 April 2026 <span class="hijri">· 5 Dzulqa'dah 1447 H</span></p>
+          </header>
+
+          <p class="eyebrow fade-2">Anak Anda</p>
+          <div class="fade-2">
+            <div class="kid-card">
+              <div class="kid-card-head">
+                <p class="kid-card-name">Hafidz Akbar <span class="kid-card-class">· TKIT A</span></p>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+              <div class="kid-card-strip">
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sen</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sel</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Rab</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day today"><span class="kid-card-day-label">Kam</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day future"><span class="kid-card-day-label">Jum</span>·</div>
+              </div>
+              <div class="kid-card-foot">
+                <span class="kid-card-foot-line ok"><i data-lucide="message-circle"></i>"Hafidz aktif di kelas hari ini" — Ustadzah Sari</span>
+              </div>
+            </div>
+
+            <div class="kid-card">
+              <div class="kid-card-head">
+                <p class="kid-card-name">Khadijah Salma <span class="kid-card-class">· PAUD</span></p>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+              <div class="kid-card-strip">
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sen</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Sel</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day present"><span class="kid-card-day-label">Rab</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day today"><span class="kid-card-day-label">Kam</span><i data-lucide="check"></i></div>
+                <div class="kid-card-day future"><span class="kid-card-day-label">Jum</span>·</div>
+              </div>
+              <div class="kid-card-foot">
+                <span class="kid-card-foot-line ok"><i data-lucide="check"></i>Hadir 4 hari pekan ini</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Tagihan</p>
+          <div class="card fade-3">
+            <div class="card-row">
+              <div class="card-icon card-icon-celebration">
+                <i data-lucide="sparkles" style="width:18px;height:18px"></i>
+              </div>
+              <div style="flex: 1;">
+                <p class="card-text-primary">Lunas semua</p>
+                <p class="card-text-secondary">Tagihan berikutnya 8 Mei.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item active"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 4 — /parent/invoices outstanding ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 4 — /parent/invoices, outstanding</div>
+    <div class="frame-note">PageHeader "Tagihan" gives identity. Display-size focal total at top INSIDE a light card — like teacher clock surface but for money. Eyebrow groups (Belum Dibayar / Riwayat) replace section-bars. Per-invoice = light card with month + due/paid line + amount.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <header class="page-header fade-1">
+            <h1>Tagihan</h1>
+            <p>Pantau pembayaran SPP &amp; biaya tambahan</p>
+          </header>
+
+          <div class="kid-pills fade-1">
+            <button class="kid-pill active">Zafran</button>
+            <button class="kid-pill">Aisyah</button>
+            <button class="kid-pill">Fatimah</button>
+          </div>
+
+          <div class="card fade-2" style="padding: 1.25rem;">
+            <p class="eyebrow" style="margin-bottom: 8px;">Belum dibayar</p>
+            <p class="focal-amount due">Rp 1.700.000</p>
+            <p class="focal-cap">2 tagihan · jatuh tempo terdekat <b>8 Mei 2026</b></p>
+          </div>
+
+          <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Belum dibayar</p>
+          <div class="fade-3">
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Mei 2026</p>
+                  <p class="card-text-secondary">Jatuh tempo 8 Mei 2026</p>
+                </div>
+                <span class="mono" style="font-weight: 600; color: var(--status-absent-text);">Rp 850.000</span>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">April 2026</p>
+                  <p class="card-text-secondary">Jatuh tempo 8 Apr 2026 · lewat tempo</p>
+                </div>
+                <span class="mono" style="font-weight: 600; color: var(--status-absent-text);">Rp 850.000</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="eyebrow fade-4" style="margin-top: 1.5rem;">Riwayat pembayaran</p>
+          <div class="fade-4">
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Maret 2026</p>
+                  <p class="card-text-secondary">Dibayar 6 Mar · QRIS</p>
+                </div>
+                <span class="mono" style="font-weight: 600; color: var(--status-present-text);">Rp 850.000</span>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Februari 2026</p>
+                  <p class="card-text-secondary">Dibayar 5 Feb · QRIS</p>
+                </div>
+                <span class="mono" style="font-weight: 600; color: var(--status-present-text);">Rp 850.000</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item active"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 5 — /parent/invoices all-paid ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 5 — /parent/invoices, all-paid</div>
+    <div class="frame-note">Celebration card replaces the "belum dibayar" focal card — same physical slot, different tone (gold accent + courteous Islamic copy). Below: history list at same density as outstanding state.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <header class="page-header fade-1">
+            <h1>Tagihan</h1>
+            <p>Pantau pembayaran SPP &amp; biaya tambahan</p>
+          </header>
+
+          <div class="kid-pills fade-1">
+            <button class="kid-pill active">Zafran</button>
+            <button class="kid-pill">Aisyah</button>
+            <button class="kid-pill">Fatimah</button>
+          </div>
+
+          <div class="card fade-2" style="padding: 1.25rem; background: var(--celebration-gold-subtle); border-color: var(--celebration-gold);">
+            <div class="card-row">
+              <div class="card-icon card-icon-celebration">
+                <i data-lucide="sparkles" style="width:18px;height:18px"></i>
+              </div>
+              <div>
+                <p class="card-text-primary" style="color: var(--celebration-gold-text);">Lunas semua</p>
+                <p class="card-text-secondary">Jazakumullahu khairan, Bu Siti.<br/>Tagihan berikutnya 8 Mei 2026.</p>
+              </div>
+            </div>
+          </div>
+
+          <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Riwayat pembayaran</p>
+          <div class="fade-3">
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">April 2026</p>
+                  <p class="card-text-secondary"><span class="status-word paid">Lunas</span> · dibayar 7 Apr · QRIS</p>
+                </div>
+                <span class="mono" style="font-weight: 600; color: var(--status-present-text);">Rp 850.000</span>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Maret 2026</p>
+                  <p class="card-text-secondary"><span class="status-word paid">Lunas</span> · dibayar 6 Mar · QRIS</p>
+                </div>
+                <span class="mono" style="font-weight: 600; color: var(--status-present-text);">Rp 850.000</span>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Februari 2026</p>
+                  <p class="card-text-secondary"><span class="status-word paid">Lunas</span> · dibayar 5 Feb · Transfer</p>
+                </div>
+                <span class="mono" style="font-weight: 600; color: var(--status-present-text);">Rp 850.000</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item active"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 6 — invoice detail unpaid ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 6 — invoice detail, unpaid</div>
+    <div class="frame-note">Sheet over faded list. Display amount IS the focal moment (display-size, mono, due-color). Rincian = honest row primitive. CTA filled primary at bottom.</div>
+    <div class="device">
+      <div class="page" style="background: rgba(0,0,0,0.4); position: relative;">
+        <div class="page-inner" style="opacity: 0.3;">
+          <header class="page-header"><h1>Tagihan</h1></header>
+        </div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <p style="font-size: var(--type-small); color: var(--muted-foreground); margin: 0;">Tagihan Mei 2026 · Zafran</p>
+              <p style="font-size: var(--type-caption); color: var(--muted-foreground); margin: 4px 0 0;">INV-2026-0005</p>
+            </div>
+            <button class="tap-44"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+          </div>
+          <div class="sheet-content">
+            <div class="card fade-1" style="padding: 1.25rem;">
+              <p class="focal-amount due">Rp 850.000</p>
+              <p class="focal-cap"><span class="status-word due">Belum Dibayar</span> · jatuh tempo <b>8 Mei 2026</b></p>
+            </div>
+
+            <p class="eyebrow fade-2" style="margin-top: 1.5rem;">Rincian</p>
+            <div class="fade-2">
+              <div class="row">
+                <span class="row-label">SPP Mei 2026</span>
+                <span class="row-value">Rp 750.000</span>
+              </div>
+              <div class="row">
+                <span class="row-label">Biaya kegiatan</span>
+                <span class="row-value">Rp 100.000</span>
+              </div>
+            </div>
+
+            <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Cara bayar</p>
+            <div class="fade-3">
+              <div class="card">
+                <div class="card-row">
+                  <div class="card-icon"><i data-lucide="qr-code" style="width:18px;height:18px"></i></div>
+                  <div style="flex: 1;">
+                    <p class="card-text-primary">Pembayaran online</p>
+                    <p class="card-text-secondary">QRIS · Virtual Account · E-wallet · kartu</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn-primary full fade-4" style="margin-top: 1.25rem;">Bayar sekarang</button>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item active"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 7 — invoice detail paid ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 7 — invoice detail, paid</div>
+    <div class="frame-note">Same skeleton as Frame 6. Amount in paid-color (present-text green). CTA replaced with single "Unduh kuitansi" ghost link. Status word above amount carries the lunas semantic.</div>
+    <div class="device">
+      <div class="page" style="background: rgba(0,0,0,0.4); position: relative;">
+        <div class="page-inner" style="opacity: 0.3;">
+          <header class="page-header"><h1>Tagihan</h1></header>
+        </div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <p style="font-size: var(--type-small); color: var(--muted-foreground); margin: 0;">Tagihan Maret 2026 · Zafran</p>
+              <p style="font-size: var(--type-caption); color: var(--muted-foreground); margin: 4px 0 0;">INV-2026-0003</p>
+            </div>
+            <button class="tap-44"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+          </div>
+          <div class="sheet-content">
+            <div class="card fade-1" style="padding: 1.25rem;">
+              <p class="focal-amount paid">Rp 850.000</p>
+              <p class="focal-cap"><span class="status-word paid">Lunas</span> · dibayar 6 Mar 2026 · QRIS</p>
+            </div>
+
+            <p class="eyebrow fade-2" style="margin-top: 1.5rem;">Rincian</p>
+            <div class="fade-2">
+              <div class="row">
+                <span class="row-label">SPP Maret 2026</span>
+                <span class="row-value">Rp 750.000</span>
+              </div>
+              <div class="row">
+                <span class="row-label">Biaya kegiatan</span>
+                <span class="row-value">Rp 100.000</span>
+              </div>
+            </div>
+
+            <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Bukti pembayaran</p>
+            <div class="card card-link fade-3">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="file-text" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Kuitansi.pdf</p>
+                  <p class="card-text-secondary">Diterbitkan 6 Mar 2026</p>
+                </div>
+                <i data-lucide="download" style="width:16px;height:16px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item active"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 8 — attendance week with attention ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 8 — attendance, week w/ attention</div>
+    <div class="frame-note">JOURNAL DNA — bespoke chevron week-nav, full week-grid, sticky col, today lane. Top focal summary card (this-week mini stats) gives at-a-glance count. Notes flow under the grid.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <header class="page-header fade-1">
+            <h1>Kehadiran</h1>
+            <p>Pantau kehadiran harian anak</p>
+          </header>
+
+          <div class="kid-pills fade-1">
+            <button class="kid-pill active">Aisyah</button>
+            <button class="kid-pill">Zafran</button>
+            <button class="kid-pill">Fatimah</button>
+          </div>
+
+          <div class="card fade-2" style="background: var(--status-late-subtle); border-color: var(--status-late);">
+            <div class="card-row">
+              <div class="card-icon card-icon-warn">
+                <i data-lucide="thermometer" style="width:18px;height:18px"></i>
+              </div>
+              <div>
+                <p class="card-text-primary" style="color: var(--status-late-text);">Hadir 2 · Sakit 1 · Alpa 1</p>
+                <p class="card-text-secondary">Aisyah istirahat dulu, semoga lekas sehat.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="week-nav fade-3" style="margin-top: 1.25rem;">
+            <button class="tap-44"><i data-lucide="chevron-left" style="width:20px;height:20px"></i></button>
+            <span class="week-nav-label">20 Apr – 24 Apr 2026</span>
+            <button class="tap-44"><i data-lucide="chevron-right" style="width:20px;height:20px"></i></button>
+          </div>
+
+          <table class="week-table fade-3">
+            <thead>
+              <tr>
+                <th class="indicator-col">Status</th>
+                <th>Sen<span class="day-date">04/20</span></th>
+                <th>Sel<span class="day-date">04/21</span></th>
+                <th>Rab<span class="day-date">04/22</span></th>
+                <th class="today">Kam<span class="day-date">04/23</span></th>
+                <th>Jum<span class="day-date">04/24</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="ind-row">
+                <td class="ind-label">Hadir</td>
+                <td class="cell"><span class="ind-cell-inner"><i data-lucide="check" class="check-glyph" style="stroke-width: 2.5"></i></span></td>
+                <td class="cell"><span class="ind-cell-inner"><i data-lucide="check" class="check-glyph" style="stroke-width: 2.5"></i></span></td>
+                <td class="cell" style="background: var(--status-absent-subtle);"><span style="font-size: var(--type-caption); color: var(--status-absent-text); font-weight: 700;">Alpa</span></td>
+                <td class="cell today last-row" style="background: var(--status-late-subtle);"><span style="font-size: var(--type-caption); color: var(--status-late-text); font-weight: 700;">Sakit</span></td>
+                <td class="cell"><span class="ind-cell-inner"><span class="empty-glyph"></span></span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p class="eyebrow fade-4" style="margin-top: 1.5rem;">Catatan dari sekolah</p>
+          <div class="card card-link fade-4">
+            <div class="card-row">
+              <div class="card-icon card-icon-warn"><i data-lucide="message-circle" style="width:18px;height:18px"></i></div>
+              <div style="flex: 1;">
+                <p class="card-text-primary">Aisyah pulang lebih awal · demam ringan</p>
+                <p class="card-text-secondary">Ustadzah Sari · 22 April</p>
+              </div>
+              <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item active"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 9 — attendance all-PRESENT ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 9 — attendance, all-PRESENT</div>
+    <div class="frame-note">Same shape, summary card celebrates ("Hadir 5 · sempurna pekan ini, Alhamdulillah"), grid is wall of teal checks. No separate banner needed — the data IS the celebration.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <header class="page-header fade-1">
+            <h1>Kehadiran</h1>
+            <p>Pantau kehadiran harian anak</p>
+          </header>
+
+          <div class="kid-pills fade-1">
+            <button class="kid-pill active">Zafran</button>
+            <button class="kid-pill">Aisyah</button>
+            <button class="kid-pill">Fatimah</button>
+          </div>
+
+          <div class="card fade-2" style="background: var(--celebration-gold-subtle); border-color: var(--celebration-gold);">
+            <div class="card-row">
+              <div class="card-icon card-icon-celebration">
+                <i data-lucide="sparkles" style="width:18px;height:18px"></i>
+              </div>
+              <div>
+                <p class="card-text-primary" style="color: var(--celebration-gold-text);">Hadir 5 dari 5 hari</p>
+                <p class="card-text-secondary">Alhamdulillah, Zafran hadir penuh pekan ini.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="week-nav fade-3" style="margin-top: 1.25rem;">
+            <button class="tap-44"><i data-lucide="chevron-left" style="width:20px;height:20px"></i></button>
+            <span class="week-nav-label">20 Apr – 24 Apr 2026</span>
+            <button class="tap-44"><i data-lucide="chevron-right" style="width:20px;height:20px"></i></button>
+          </div>
+
+          <table class="week-table fade-3">
+            <thead>
+              <tr>
+                <th class="indicator-col">Status</th>
+                <th>Sen<span class="day-date">04/20</span></th>
+                <th>Sel<span class="day-date">04/21</span></th>
+                <th>Rab<span class="day-date">04/22</span></th>
+                <th class="today">Kam<span class="day-date">04/23</span></th>
+                <th>Jum<span class="day-date">04/24</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="ind-row">
+                <td class="ind-label">Hadir</td>
+                <td class="cell"><span class="ind-cell-inner"><i data-lucide="check" class="check-glyph" style="stroke-width: 2.5"></i></span></td>
+                <td class="cell"><span class="ind-cell-inner"><i data-lucide="check" class="check-glyph" style="stroke-width: 2.5"></i></span></td>
+                <td class="cell"><span class="ind-cell-inner"><i data-lucide="check" class="check-glyph" style="stroke-width: 2.5"></i></span></td>
+                <td class="cell today last-row"><span class="ind-cell-inner"><i data-lucide="check" class="check-glyph" style="stroke-width: 2.5"></i></span></td>
+                <td class="cell"><span class="ind-cell-inner"><i data-lucide="check" class="check-glyph" style="stroke-width: 2.5"></i></span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p class="eyebrow fade-4" style="margin-top: 1.5rem;">Riwayat pekan lalu</p>
+          <div class="fade-4">
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">13 – 17 Apr 2026</p>
+                  <p class="card-text-secondary">Hadir 5 hari</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div style="flex: 1;">
+                  <p class="card-text-primary">6 – 10 Apr 2026</p>
+                  <p class="card-text-secondary">Hadir 4 · Sakit 1</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item active"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 10 — attendance empty ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 10 — attendance, empty</div>
+    <div class="frame-note">Pre-week. EmptyState warm accent (primary-tinted circle + Calendar icon) carries the message. Week navigator + week structure stays visible — anchors expectations without stranding parent on a dead page.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <header class="page-header fade-1">
+            <h1>Kehadiran</h1>
+            <p>Pantau kehadiran harian anak</p>
+          </header>
+
+          <div class="kid-pills fade-1">
+            <button class="kid-pill active">Fatimah</button>
+            <button class="kid-pill">Zafran</button>
+            <button class="kid-pill">Aisyah</button>
+          </div>
+
+          <div class="week-nav fade-2">
+            <button class="tap-44"><i data-lucide="chevron-left" style="width:20px;height:20px"></i></button>
+            <span class="week-nav-label">27 Apr – 1 Mei 2026</span>
+            <button class="tap-44"><i data-lucide="chevron-right" style="width:20px;height:20px"></i></button>
+          </div>
+
+          <div class="empty-wrap fade-3">
+            <div class="empty-icon warm">
+              <i data-lucide="calendar-clock" style="width:32px;height:32px"></i>
+            </div>
+            <p class="empty-title">Pekan ini belum dimulai</p>
+            <p class="empty-body">Catatan kehadiran muncul setiap pagi setelah Ustadzah merekap absensi kelas.</p>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item active"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 11 — reports PUBLISHED ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 11 — reports, PUBLISHED</div>
+    <div class="frame-note">ONE focal celebration card with gold accent + sparkle icon-square + integrated CTA inline (not a separate full-width button below). Shorter title fits on one line. History below as light card list.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <header class="page-header fade-1">
+            <h1>Rapor</h1>
+            <p>Laporan perkembangan tiap semester</p>
+          </header>
+
+          <div class="kid-pills fade-1">
+            <button class="kid-pill active">Zafran</button>
+            <button class="kid-pill">Aisyah</button>
+            <button class="kid-pill">Fatimah</button>
+          </div>
+
+          <div class="card fade-2" style="background: var(--celebration-gold-subtle); border-color: var(--celebration-gold);">
+            <div class="card-row">
+              <div class="card-icon card-icon-celebration">
+                <i data-lucide="sparkles" style="width:18px;height:18px"></i>
+              </div>
+              <div>
+                <p class="card-text-primary" style="color: var(--celebration-gold-text);">Rapor Semester 1 sudah terbit</p>
+                <p class="card-text-secondary">Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah.</p>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-primary full fade-2" style="margin-top: 0.75rem;"><i data-lucide="book-open" style="width:16px;height:16px"></i>Buka rapor</button>
+
+          <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Riwayat rapor</p>
+          <div class="fade-3">
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="book-open" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Semester 2 2024/2025</p>
+                  <p class="card-text-secondary">Diterbitkan 14 Jun 2025</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="book-open" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Semester 1 2024/2025</p>
+                  <p class="card-text-secondary">Diterbitkan 12 Des 2024</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item active"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 12 — reports DRAFT / pre-publish ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 12 — reports, DRAFT / pre-publish</div>
+    <div class="frame-note">EmptyState warm accent (no celebration) — InsyaAllah copy on schedule promise. History list still accessible so parent can re-open old terms.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <header class="page-header fade-1">
+            <h1>Rapor</h1>
+            <p>Laporan perkembangan tiap semester</p>
+          </header>
+
+          <div class="kid-pills fade-1">
+            <button class="kid-pill active">Aisyah</button>
+            <button class="kid-pill">Zafran</button>
+            <button class="kid-pill">Fatimah</button>
+          </div>
+
+          <div class="empty-wrap fade-2" style="padding: 32px 16px;">
+            <div class="empty-icon warm">
+              <i data-lucide="hourglass" style="width:32px;height:32px"></i>
+            </div>
+            <p class="empty-title">Rapor Semester 2 belum terbit</p>
+            <p class="empty-body">Ustadzah masih menyusun penilaian. InsyaAllah siap dibuka akhir Mei — Anda akan mendapat notifikasi.</p>
+          </div>
+
+          <p class="eyebrow fade-3" style="margin-top: 0.5rem;">Riwayat rapor</p>
+          <div class="fade-3">
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="book-open" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Semester 1 2025/2026</p>
+                  <p class="card-text-secondary">Diterbitkan 18 Des 2025</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="book-open" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Semester 2 2024/2025</p>
+                  <p class="card-text-secondary">Diterbitkan 14 Jun 2025</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item active"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ════ Frame 13 — /parent/profile (static, reached via avatar tap on /parent home) ════ -->
+  <div class="frame-block">
+    <div class="frame-label">Frame 13 — /parent/profile (static)</div>
+    <div class="frame-note">Nested page (back chevron, no bottom nav active state — profile lives outside the 5 product tabs). Identity card center-stage. Sections grouped by purpose: Kontak, Anak Anda, Akun. Logout = danger ghost button at bottom. App version below. Static — no editing surfaces in cycle 4.</div>
+    <div class="device">
+      <div class="page">
+        <div class="page-inner">
+          <div class="nested-header fade-1">
+            <button class="tap-44" title="Kembali"><i data-lucide="chevron-left" style="width:22px;height:22px"></i></button>
+          </div>
+
+          <div class="profile-identity fade-1">
+            <div class="profile-avatar-lg">SH</div>
+            <p class="profile-name">Bu Siti Nurhaliza Hidayat</p>
+            <p class="profile-role">Wali murid · 3 anak terdaftar</p>
+          </div>
+
+          <p class="eyebrow fade-2">Kontak</p>
+          <div class="fade-2">
+            <div class="card">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="phone" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">0812 3456 7890</p>
+                  <p class="card-text-secondary">Nomor terdaftar</p>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="mail" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">siti.hidayat@gmail.com</p>
+                  <p class="card-text-secondary">Email terdaftar</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="eyebrow fade-3" style="margin-top: 1.5rem;">Anak Anda</p>
+          <div class="fade-3">
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><span style="font-size: var(--type-small); font-weight: 700;">AZ</span></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Ahmad Zafran Hidayat</p>
+                  <p class="card-text-secondary">TKIT A · Kampus Bekasi</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><span style="font-size: var(--type-small); font-weight: 700;">AP</span></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Aisyah Putri Ramadhani</p>
+                  <p class="card-text-secondary">TKIT B · Kampus Bekasi</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><span style="font-size: var(--type-small); font-weight: 700;">FA</span></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Fatimah Az-Zahra</p>
+                  <p class="card-text-secondary">PAUD · Kampus Bekasi</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+          </div>
+
+          <p class="eyebrow fade-4" style="margin-top: 1.5rem;">Akun</p>
+          <div class="fade-4">
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="bell" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Notifikasi</p>
+                  <p class="card-text-secondary">Email · push aktif</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="help-circle" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Bantuan</p>
+                  <p class="card-text-secondary">FAQ &amp; hubungi sekolah</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+            <div class="card card-link">
+              <div class="card-row">
+                <div class="card-icon"><i data-lucide="info" style="width:18px;height:18px"></i></div>
+                <div style="flex: 1;">
+                  <p class="card-text-primary">Tentang aplikasi</p>
+                  <p class="card-text-secondary">Kebijakan privasi · syarat</p>
+                </div>
+                <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--muted-foreground)"></i>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-danger-ghost fade-4" style="margin-top: 1.5rem;"><i data-lucide="log-out" style="width:16px;height:16px"></i>Keluar</button>
+
+          <p class="app-version">An Nisaa' Sekolahku · v3.4.2</p>
+        </div>
+      </div>
+      <nav class="bottom-nav">
+        <button class="bottom-nav-item"><i data-lucide="home"></i>Beranda</button>
+        <button class="bottom-nav-item"><i data-lucide="receipt"></i>Tagihan</button>
+        <button class="bottom-nav-item"><i data-lucide="calendar-check"></i>Kehadiran</button>
+        <button class="bottom-nav-item"><i data-lucide="book-heart"></i>Penghubung</button>
+        <button class="bottom-nav-item"><i data-lucide="book-open"></i>Rapor</button>
+      </nav>
+    </div>
+  </div>
+
+</div>
+
+<div class="section-heading">Desktop — 1280 (≥)</div>
+<p style="font-size: 13px; color: #555; margin-bottom: 16px;">Deferred to v3 once mobile contract approved. Desktop = same surfaces, content centered <code>max-w-md</code> with parent-portal layout's existing wrapper (no sidebar — parent app is mobile-first).</p>
+
+<script>
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+</script>
+
+</body>
+</html>

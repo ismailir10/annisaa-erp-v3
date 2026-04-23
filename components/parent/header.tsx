@@ -31,6 +31,7 @@ export function ParentHeader({
         childCount && childCount > 0 ? `${childCount} anak` : undefined
       }
       avatarFallback={initialsOf(userName)}
+      profileHref="/parent/profile"
       onLogout={handleLogout}
     />
   );
