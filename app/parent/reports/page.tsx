@@ -42,7 +42,10 @@ export default async function ParentReportsPage({
 
       <PageHeader title="Laporan Perkembangan" />
 
-      <AssessmentsTable data={assessmentsData} />
+      <AssessmentsTable
+        data={assessmentsData}
+        childName={selected.studentNickname ?? selected.studentName.split(" ")[0]}
+      />
     </div>
   );
 }

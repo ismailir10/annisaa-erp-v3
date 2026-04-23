@@ -3,7 +3,21 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ExternalLink, Info, CheckCircle, AlertCircle, Calendar } from "lucide-react";
+import { SummaryHero } from "@/components/portal/summary-hero";
+import {
+  AlertTriangle,
+  Banknote,
+  Calendar,
+  CheckCircle2,
+  CircleDot,
+  CreditCard,
+  ExternalLink,
+  Info,
+  Landmark,
+  MinusCircle,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -66,12 +80,22 @@ const METHOD_LABELS: Record<string, string> = {
   OTHER: "Lainnya",
 };
 
-const VARIANT_STYLES: Record<string, string> = {
-  success: "bg-status-present/10 border-status-present/20",
-  muted: "bg-muted/50 border-border",
-  destructive: "bg-destructive/10 border-destructive/20",
-  warning: "bg-warning/10 border-warning/20",
+const METHOD_ICONS: Record<string, LucideIcon> = {
+  CASH: Banknote,
+  BANK_TRANSFER: Landmark,
+  XENDIT: CreditCard,
+  OTHER: CreditCard,
 };
+
+/**
+ * Remap the sheet-status to the S1 intent palette. UNPAID / SENT is
+ * danger-severity (red status-absent family) — not info (blue). Matches the
+ * list-page chipStatusFor() helper in `client.tsx`.
+ */
+function sheetChipStatusFor(status: string): string {
+  if (status === "SENT") return "OVERDUE";
+  return status;
+}
 
 export function InvoiceDetailSheet({
   open,
@@ -131,58 +155,69 @@ export function InvoiceDetailSheet({
   const isPayable = remaining > 0 && invoice.status !== "CANCELLED" && invoice.status !== "PAID";
   const hasPaymentLink = !!invoice.xenditPaymentUrl;
 
-  const getStatusMessage = () => {
+  // Map status → SummaryHero tone + icon + secondary copy for the sheet hero.
+  const heroConfig = ((): {
+    tone: "danger" | "warn" | "success" | "celebration" | "neutral";
+    icon: LucideIcon;
+    primary: string;
+    secondary: string;
+  } => {
     if (invoice.status === "PAID") {
       return {
-        icon: <CheckCircle size={16} className="text-success" />,
-        message: `Lunas pada ${formatDateShort(invoice.paidAt!)}`,
-        variant: "success" as const,
+        tone: "success",
+        icon: CheckCircle2,
+        primary: formatRupiah(invoice.totalDue),
+        secondary: invoice.paidAt
+          ? `Lunas pada ${formatDateShort(invoice.paidAt)}`
+          : "Lunas — Alhamdulillah.",
       };
     }
     if (invoice.status === "CANCELLED") {
       return {
-        icon: <AlertCircle size={16} className="text-muted-foreground" />,
-        message: "Tagihan ini dibatalkan",
-        variant: "muted" as const,
-      };
-    }
-    if (invoice.status === "OVERDUE") {
-      return {
-        icon: <AlertCircle size={16} className="text-destructive" />,
-        message: "Tagihan ini telah jatuh tempo",
-        variant: "destructive" as const,
+        tone: "neutral",
+        icon: MinusCircle,
+        primary: formatRupiah(invoice.totalDue),
+        secondary: "Tagihan ini dibatalkan.",
       };
     }
     if (invoice.status === "PARTIALLY_PAID") {
       return {
-        icon: <Info size={16} className="text-warning" />,
-        message: `Dibayar sebagian, sisa ${formatRupiah(remaining)}`,
-        variant: "warning" as const,
+        tone: "warn",
+        icon: CircleDot,
+        primary: formatRupiah(remaining),
+        secondary: `Sisa yang perlu dibayar · jatuh tempo ${formatDateShort(invoice.dueDate)}`,
       };
     }
-    if (hasPaymentLink) {
+    if (invoice.status === "OVERDUE") {
       return {
-        icon: <CheckCircle size={16} className="text-success" />,
-        message: "Siap dibayar",
-        variant: "success" as const,
+        tone: "danger",
+        icon: AlertTriangle,
+        primary: formatRupiah(remaining),
+        secondary: `Tagihan ini telah jatuh tempo (${formatDateShort(invoice.dueDate)})`,
       };
     }
+    // SENT / default
     return {
-      icon: <Info size={16} className="text-muted-foreground" />,
-      message: "Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.",
-      variant: "muted" as const,
+      tone: "danger",
+      icon: Wallet,
+      primary: formatRupiah(remaining),
+      secondary: hasPaymentLink
+        ? `Jatuh tempo ${formatDateShort(invoice.dueDate)}`
+        : "Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.",
     };
-  };
-
-  const statusMsg = getStatusMessage();
+  })();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
-          <div className="flex items-center justify-between">
-            <SheetTitle>{invoice.invoiceNumber}</SheetTitle>
-            <StatusBadge status={invoice.status} label={PARENT_INVOICE_LABELS[invoice.status]} />
+          <div className="flex items-center justify-between gap-3">
+            <SheetTitle className="text-base">{invoice.invoiceNumber}</SheetTitle>
+            <StatusBadge
+              variant="intent"
+              status={sheetChipStatusFor(invoice.status)}
+              label={PARENT_INVOICE_LABELS[invoice.status] ?? invoice.status}
+            />
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {invoice.student.name} · {invoice.periodLabel}
@@ -195,24 +230,24 @@ export function InvoiceDetailSheet({
         </SheetHeader>
 
         <div className="px-card pb-card space-y-field">
+          {/* T2d — SummaryHero as the primary visual moment of the sheet. */}
+          <SummaryHero
+            tone={heroConfig.tone}
+            icon={heroConfig.icon}
+            primary={heroConfig.primary}
+            secondary={heroConfig.secondary}
+            elevated={false}
+          />
 
-        {/* Status Message */}
-        <div className={`p-3 rounded-lg flex items-start gap-3 ${VARIANT_STYLES[statusMsg.variant]}`}>
-          {statusMsg.icon}
-          <p className="text-xs flex-1">{statusMsg.message}</p>
-        </div>
-
-        {/* Invoice Details */}
-        <div className="space-y-4">
           {/* Dates */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar size={12} />
+              <Calendar size={12} aria-hidden="true" />
               <span>Jatuh Tempo: {formatDateShort(invoice.dueDate)}</span>
             </div>
             {invoice.sentAt && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar size={12} />
+                <Calendar size={12} aria-hidden="true" />
                 <span>Dikirim: {formatDateShort(invoice.sentAt)}</span>
               </div>
             )}
@@ -220,11 +255,16 @@ export function InvoiceDetailSheet({
 
           {/* Line Items */}
           <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rincian Tagihan</h3>
-            <div className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Rincian Tagihan
+            </h3>
+            <ul className="space-y-2">
               {invoice.lines.map((line) => (
-                <div key={line.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                  <div className="flex-1">
+                <li
+                  key={line.id}
+                  className="flex items-center justify-between gap-3 py-2 border-b border-border/50 last:border-0"
+                >
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{line.labelSnapshot}</p>
                     {line.adjustmentAmount !== 0 && (
                       <p className="text-xs text-muted-foreground">
@@ -233,26 +273,34 @@ export function InvoiceDetailSheet({
                       </p>
                     )}
                   </div>
-                  <span className="font-currency text-sm font-bold">{formatRupiah(line.finalAmount)}</span>
-                </div>
+                  <span className="font-currency text-sm font-semibold tabular-nums">
+                    {formatRupiah(line.finalAmount)}
+                  </span>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
           {/* Summary */}
           <div className="border-t border-border pt-3 space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Total Tagihan</span>
-              <span className="font-currency font-bold">{formatRupiah(invoice.totalDue)}</span>
+              <span className="font-currency font-semibold tabular-nums">
+                {formatRupiah(invoice.totalDue)}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Dibayar</span>
-              <span className="font-currency font-bold text-success">{formatRupiah(invoice.totalPaid)}</span>
+              <span className="font-currency font-semibold tabular-nums text-status-present-text">
+                {formatRupiah(invoice.totalPaid)}
+              </span>
             </div>
             {remaining > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Sisa</span>
-                <span className="font-currency font-bold text-destructive">{formatRupiah(remaining)}</span>
+                <span className="font-currency font-bold tabular-nums text-destructive">
+                  {formatRupiah(remaining)}
+                </span>
               </div>
             )}
           </div>
@@ -260,45 +308,72 @@ export function InvoiceDetailSheet({
           {/* Payment History */}
           {invoice.payments.length > 0 && (
             <div>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Riwayat Pembayaran</h3>
-              <div className="space-y-2">
-                {invoice.payments.map((p) => (
-                  <div key={p.id} className="border-b border-border/50 last:border-0 pb-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-muted-foreground">{METHOD_LABELS[p.method] || p.method}</span>
-                      <span className="font-currency text-sm font-bold text-success">{formatRupiah(p.amount)}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatDateShort(p.paidAt)}
-                      {p.reference && ` · Ref: ${p.reference}`}
-                    </p>
-                  </div>
-                ))}
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                Riwayat Pembayaran
+              </h3>
+              <ul className="space-y-2">
+                {invoice.payments.map((p) => {
+                  const MethodIcon = METHOD_ICONS[p.method] ?? CreditCard;
+                  return (
+                    <li
+                      key={p.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card"
+                    >
+                      <span className="size-9 shrink-0 rounded-full bg-status-present-subtle flex items-center justify-center">
+                        <MethodIcon
+                          className="size-4 text-status-present-text"
+                          aria-hidden="true"
+                        />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">
+                          {METHOD_LABELS[p.method] ?? p.method}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateShort(p.paidAt)}
+                          {p.reference && ` · Ref: ${p.reference}`}
+                        </p>
+                      </div>
+                      <span className="font-currency text-sm font-bold tabular-nums text-status-present-text">
+                        {formatRupiah(p.amount)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Payment Action — only render when link is available. */}
+          {isPayable && hasPaymentLink && (
+            <div className="pt-4 border-t border-border">
+              <a
+                href={invoice.xenditPaymentUrl!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full"
+              >
+                <Button className="w-full" size="lg">
+                  <ExternalLink size={16} className="mr-2" aria-hidden="true" />
+                  Bayar Sekarang
+                </Button>
+              </a>
+            </div>
+          )}
+
+          {/* Fallback status hint when payment link is being provisioned. */}
+          {isPayable && !hasPaymentLink && (
+            <div className="pt-4 border-t border-border">
+              <div className="flex items-start gap-2 text-xs text-muted-foreground p-3 rounded-lg bg-muted/50">
+                <Info size={14} className="shrink-0 mt-0.5" aria-hidden="true" />
+                <span>
+                  Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
+                </span>
               </div>
             </div>
           )}
-        </div>
 
-        {/* Payment Action — only render when link is available; no-link fallback is in the status banner above */}
-        {isPayable && hasPaymentLink && (
-          <div className="pt-4 border-t border-border">
-            <a
-              href={invoice.xenditPaymentUrl!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full"
-            >
-              <Button className="w-full" size="lg">
-                <ExternalLink size={16} className="mr-2" />
-                Bayar Sekarang
-              </Button>
-            </a>
-          </div>
-        )}
-
-        <SheetClose
-          render={<Button variant="outline" className="w-full">Tutup</Button>}
-        />
+          <SheetClose render={<Button variant="outline" className="w-full">Tutup</Button>} />
         </div>
       </SheetContent>
     </Sheet>

@@ -3,12 +3,13 @@ import { redirect } from "next/navigation";
 import {
   countAttendanceThisWeek,
   getParentWithChildren,
-  // Used only for the 7-day summary strip — paginated list comes from /api/parent/children/[id]/attendance
+  // Used only for the 7-day summary hero — paginated list comes from /api/parent/children/[id]/attendance
   getStudentAttendanceRecent,
   resolveSelectedChild,
 } from "@/lib/parent-helpers";
 import { WeekSummaryStrip } from "./week-summary-strip";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
+import { PageHeader } from "@/components/portal/page-header";
 import { AttendanceClient } from "./client";
 
 export default async function ParentAttendancePage({
@@ -26,8 +27,8 @@ export default async function ParentAttendancePage({
   const selected = resolveSelectedChild(children, params.child);
   if (!selected) redirect("/parent");
 
-  // 7-day summary strip is rendered server-side for fast initial paint.
-  // The full attendance list is now paginated via the API in <AttendanceClient />.
+  // 7-day summary hero is rendered server-side for fast initial paint.
+  // The full attendance list is paginated via the API in <AttendanceClient />.
   const recent = await getStudentAttendanceRecent(selected.studentId, 7);
   const weekCounts = countAttendanceThisWeek(recent);
 
@@ -39,10 +40,20 @@ export default async function ParentAttendancePage({
 
   return (
     <div>
+      {/*
+       * Top-of-page order per design-system.html §14 Page Recipes:
+       *   ChildSelectorTabs → PageHeader (H1 + subtitle) → SummaryHero (week)
+       *   → filters + day list (AttendanceClient).
+       * Cycle-2 inverted this hierarchy (hero above H1); fixed here.
+       */}
       <ChildSelectorTabs
         items={childTabsData}
         selectedChildId={selected.studentId}
         sticky
+      />
+      <PageHeader
+        title="Kehadiran Anak"
+        subtitle="Pantau kehadiran harian"
       />
       <WeekSummaryStrip counts={weekCounts} />
       <AttendanceClient studentId={selected.studentId} />

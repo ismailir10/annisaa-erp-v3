@@ -53,9 +53,12 @@ test.describe("Parent flows", () => {
     await page.goto("/parent/invoices");
     await page.waitForURL("**/parent/invoices");
     await expect(page.locator("text=Tagihan Saya")).toBeVisible();
-    // Wait for client component to hydrate and reveal content or empty state
+    // Wait for client hydration — DataTable replaced by SummaryHero +
+    // CardListItem list in cycle 3. Either the outstanding-secondary line
+    // (rendered when unpaid exists) or the all-clear celebration copy
+    // confirms the client rendered.
     await expect(
-      page.locator("text=Belum ada tagihan").or(page.locator("table"))
+      page.getByText(/tagihan belum dibayar|tagihan · jatuh tempo|Alhamdulillah, semua lunas|Belum ada tagihan/)
     ).toBeVisible({ timeout: 10_000 });
   });
 

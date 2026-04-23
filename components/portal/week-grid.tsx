@@ -65,11 +65,11 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
 
   return (
     <div className="overflow-x-auto -mx-4 px-4">
-      <table className="w-full min-w-[340px] text-sm border-collapse">
+      <table className="w-full min-w-[324px] text-sm border-collapse">
         <thead>
           <tr>
             {/* Sticky indicator column header */}
-            <th className="sticky left-0 bg-card z-10 text-left py-2 pr-2 text-xs font-medium text-muted-foreground w-[120px] min-w-[120px]">
+            <th className="sticky left-0 bg-card z-10 text-left py-2 pr-2 text-xs font-medium text-muted-foreground w-[104px] min-w-[104px]">
               Indikator
             </th>
             {dates.map((d, i) => {
@@ -77,12 +77,14 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
               return (
                 <th
                   key={d}
-                  className={`text-center py-2 px-1 text-xs font-medium min-w-[44px] w-[44px] ${
-                    isToday ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                  className={`text-center py-2 px-1 text-xs min-w-[44px] w-[44px] ${
+                    isToday
+                      ? "bg-status-present-subtle text-primary font-semibold border-t-2 border-primary"
+                      : "font-medium text-muted-foreground"
                   }`}
                 >
                   <div>{DAY_LABELS[i] ?? formatColDate(d)}</div>
-                  <div className={`text-[9px] ${isToday ? "text-primary/80" : "text-muted-foreground/70"}`}>
+                  <div className={`text-[9px] ${isToday ? "text-primary/80" : "text-muted-foreground/70 font-normal"}`}>
                     {formatColDate(d)}
                   </div>
                 </th>
@@ -91,33 +93,44 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
           </tr>
         </thead>
         <tbody>
-          {categories.map((cat) => (
+          {(() => {
+            // Pre-compute index of the final indicator row (across all categories)
+            // so we can anchor the today-column bottom accent there.
+            const lastCatIdx = categories.length - 1;
+            const lastIndIdx =
+              categories[lastCatIdx]?.indicators.length
+                ? categories[lastCatIdx].indicators.length - 1
+                : -1;
+            return categories.map((cat, ci) => (
             <>
               {/* Category header row */}
               <tr key={`cat-${cat.id}`}>
                 <td
                   colSpan={dates.length + 1}
-                  className="bg-muted/40 px-2 py-1.5 text-xs font-semibold text-foreground sticky left-0"
+                  className="border-l-4 border-l-primary bg-primary/5 pl-3 py-2 text-h2 font-semibold text-foreground sticky left-0"
                 >
                   {cat.name}
                 </td>
               </tr>
-              {cat.indicators.map((ind) => (
+              {cat.indicators.map((ind, ii) => {
+                const isLastRowOverall = ci === lastCatIdx && ii === lastIndIdx;
+                return (
                 <tr
                   key={ind.id}
                   className="border-b border-border/40 last:border-0"
                 >
                   {/* Sticky label column */}
-                  <td className="sticky left-0 bg-card z-10 py-2 pr-2 text-xs text-foreground leading-tight w-[120px] min-w-[120px] align-middle">
+                  <td className="sticky left-0 bg-card z-10 py-2 pr-2 text-xs text-foreground leading-tight w-[104px] min-w-[104px] align-middle">
                     {ind.label}
                   </td>
                   {dates.map((d) => {
                     const checked = lookup.get(`${ind.id}|${d}`) ?? false;
                     const isToday = d === todayYmd;
+                    const todayBottomAccent = isToday && isLastRowOverall ? " border-b-2 border-primary" : "";
                     return (
                       <td
                         key={d}
-                        className={`text-center p-0 align-middle ${isToday ? "bg-primary/5" : ""}`}
+                        className={`text-center p-0 align-middle${isToday ? " bg-status-present-subtle" : ""}${todayBottomAccent}`}
                       >
                         {editable && onToggle ? (
                           <button
@@ -145,9 +158,11 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
             </>
-          ))}
+            ));
+          })()}
         </tbody>
       </table>
     </div>

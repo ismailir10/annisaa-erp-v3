@@ -84,6 +84,17 @@
   --color-success: var(--success);
   --color-info: var(--info);
 
+  /* Celebration tone — for rapor-published, all-lunas moments, Islamic-courtesy
+   * warm acknowledgements. See design-system.html §14 empty/celebration patterns. */
+  --color-celebration-gold: var(--celebration-gold);
+  --color-celebration-gold-subtle: var(--celebration-gold-subtle);
+  --color-celebration-gold-text: var(--celebration-gold-text);
+
+  /* Elevation — paired shadow tokens for resting vs primary surfaces.
+   * See design-system.html §13 Overlays / §14 Page Recipes elevation rules. */
+  --shadow-card-resting: var(--shadow-resting);
+  --shadow-card-elevated: var(--shadow-elevated);
+
   /* Login page specific */
   --color-login-card-bg: var(--login-card-bg);
   --color-login-primary-hover: var(--login-primary-hover);
@@ -192,6 +203,34 @@
   --warning-highlight: #F4D03F;
   --success: #00B37E;
   --info: #0EA5E9;
+
+  /*
+   * Celebration tone — soft gold for rapor-publish, lunas, Islamic courtesy
+   * moments. Derived from the brand accent-yellow #F4D03F, softened so the
+   * card surface reads as warm-invitation rather than alert. Text shade is
+   * a deeper gold for WCAG AA contrast on subtle backgrounds.
+   * See .claude/standards/design-system.html §14 celebration patterns.
+   */
+  --celebration-gold: #D4A017;
+  --celebration-gold-subtle: #FFF8E1;
+  --celebration-gold-text: #8A6B00;
+
+  /*
+   * Elevation pair — two shadow tokens so primary surfaces elevate above
+   * resting cards without all surfaces hard-coding the same shadow. Resting
+   * matches Tailwind default `shadow-sm`; elevated slightly larger so eye
+   * lands there first.
+   * See .claude/standards/design-system.html §13 Overlays elevation rules.
+   */
+  --shadow-resting: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-elevated: 0 6px 16px -4px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+
+  /*
+   * Motif opacity — default opacity for subtle Islamic geometric accents on
+   * parent portal greeting surfaces. 3% reads as "there is something here"
+   * without competing with content. See design-system.html §18 tone.
+   */
+  --motif-opacity: 0.03;
 
   /* Login page specific */
   --login-card-bg: #223838;

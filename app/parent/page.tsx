@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { QuickLinkCard } from "@/components/parent/quick-link-card";
 import { RecentActivity } from "@/components/parent/recent-activity";
-import { PageHeader } from "@/components/portal/page-header";
+import { ParentGreeting } from "@/components/parent/parent-greeting";
 import {
   HouseholdOverview,
   type HouseholdChild,
@@ -165,7 +165,7 @@ export default async function ParentDashboard({
 
     return (
       <div className="space-y-section">
-        <PageHeader
+        <ParentGreeting
           title={`Assalamu'alaikum, ${parent.name}`}
           subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
         />
@@ -240,7 +240,7 @@ export default async function ParentDashboard({
 
   return (
     <div className="space-y-section">
-      <PageHeader
+      <ParentGreeting
         title={`Assalamu'alaikum, ${parent.name}`}
         subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
       />
@@ -251,28 +251,30 @@ export default async function ParentDashboard({
         selectedChildId={selected.studentId}
       />
 
-      {/* Student card */}
-      <Card className="p-5">
+      {/* Student card — T1e polish: shadow-card-elevated, brand-teal gradient
+          avatar, StatusBadge variant="intent" for class chip. */}
+      <Card className="p-card shadow-card-elevated">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 flex items-center justify-center">
             <span className="text-primary text-xl font-bold">
               {student.name[0]}
             </span>
           </div>
-          <div>
-            <h2 className="text-h2 font-bold">{student.name}</h2>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-h2 font-bold truncate">{student.name}</h2>
             {student.nickname && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground truncate">
                 {student.nickname}
               </p>
             )}
             {enrollment && (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <StatusBadge
                   status="ACTIVE"
                   label={enrollment.classSection.name}
+                  variant="intent"
                 />
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground truncate">
                   {enrollment.classSection.program.name}
                 </span>
               </div>
