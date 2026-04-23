@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Bell, ChevronLeft, ChevronRight, HelpCircle, Info, Mail, Phone } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail, Phone } from "lucide-react";
 import { getParentWithChildren } from "@/lib/parent-helpers";
 import { LogoutButton } from "./logout-button";
 
@@ -18,6 +18,10 @@ export default async function ParentProfilePage() {
 
   const { parent, children } = await getParentWithChildren(session);
   if (!parent) redirect("/parent");
+
+  // Email shown comes from session (the OAuth-verified address Anda use to
+  // sign in). Falls back to the parent record's email if seed-imported.
+  const displayEmail = session.email ?? parent.email ?? null;
 
   return (
     <div className="space-y-6 pb-4">
@@ -52,7 +56,7 @@ export default async function ParentProfilePage() {
         </p>
         <div className="space-y-2">
           <ContactCard icon={Phone} primary={parent.phone ?? "—"} secondary="Nomor terdaftar" />
-          <ContactCard icon={Mail} primary={parent.email ?? "—"} secondary="Email terdaftar" />
+          <ContactCard icon={Mail} primary={displayEmail ?? "—"} secondary="Email terdaftar" />
         </div>
       </section>
 
@@ -93,29 +97,9 @@ export default async function ParentProfilePage() {
         </section>
       ) : null}
 
-      {/* Akun */}
-      <section>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-          Akun
-        </p>
-        <div className="space-y-2">
-          <StaticCard
-            icon={Bell}
-            primary="Notifikasi"
-            secondary="Pengaturan email & push"
-          />
-          <StaticCard
-            icon={HelpCircle}
-            primary="Bantuan"
-            secondary="FAQ & hubungi sekolah"
-          />
-          <StaticCard
-            icon={Info}
-            primary="Tentang aplikasi"
-            secondary="Kebijakan privasi & syarat"
-          />
-        </div>
-      </section>
+      {/* Akun section deferred to next cycle — destination pages
+          (Notifikasi prefs, Bantuan, Tentang aplikasi/privacy/syarat)
+          do not exist yet. Better to ship without false promises. */}
 
       <LogoutButton />
 
@@ -146,16 +130,3 @@ function ContactCard({ icon: Icon, primary, secondary }: CardIconProps) {
   );
 }
 
-function StaticCard({ icon: Icon, primary, secondary }: CardIconProps) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 opacity-90">
-      <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
-        <Icon size={18} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-foreground">{primary}</p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">{secondary}</p>
-      </div>
-    </div>
-  );
-}

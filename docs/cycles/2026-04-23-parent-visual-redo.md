@@ -335,6 +335,8 @@ Visual verify on Vercel preview surfaced 3 more issues; all fixed in follow-up:
 2. **`/parent/reports` history "Diterbitkan {date}" never showed real publish date** — `getPublishedAssessmentsForStudent` now selects `publishedAt` and the API type carries it through. Order-by switched to `publishedAt desc, createdAt desc` so latest-published genuinely sorts first.
 3. **"Isi kalau sempat. Opsional." footnote on Buku Penghubung Rumah tab read dismissive** — copy retoned to `Opsional — bantu Ustadzah memantau ibadah dan rutinitas di rumah` per voice.md (parent-warm, not casual-dismiss).
 4. **Reports celebration secondary "...dari Ustadzah Aisyah"** read as if the teacher were named Aisyah (Aisyah is the kid). Title now folds in the kid name: `Rapor {period} {childName} sudah terbit`; secondary simplified to `Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah.`
+5. **Profile email shows "—"** when parent record has no email (the seed Bu Siti has phone only). Now falls back to `session.email` (the OAuth-verified address — guaranteed valid for the logged-in account) before "—".
+6. **Profile AKUN section dropped** — Notifikasi/Bantuan/Tentang aplikasi cards were inert stubs (no destination pages exist yet). Better to ship Profile without false promises. App version footer remains. Section returns next cycle when destinations land.
 
 Gates re-run: build OK · lint OK (0 errors).
 
