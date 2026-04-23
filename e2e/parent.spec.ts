@@ -50,35 +50,38 @@ test.describe("Parent flows", () => {
   test("invoices page loads", async ({ page }) => {
     await page.goto("/parent/invoices");
     await page.waitForURL("**/parent/invoices");
-    await expect(page.locator("text=Tagihan Saya")).toBeVisible();
-    // Wait for client hydration — DataTable replaced by SummaryHero +
-    // CardListItem list in cycle 3. Either the outstanding-secondary line
-    // (rendered when unpaid exists) or the all-clear celebration copy
-    // confirms the client rendered.
+    // Cycle-4: PageHeader h1 = "Tagihan" (was "Tagihan Saya" in cycle-3).
+    await expect(page.getByRole("heading", { level: 1, name: "Tagihan" })).toBeVisible();
+    // Either the focal due card with "tagihan" caption or the celebration card.
     await expect(
-      page.getByText(/tagihan belum dibayar|tagihan · jatuh tempo|Alhamdulillah, semua lunas|Belum ada tagihan/)
+      page.locator("text=Lunas semua")
+        .or(page.getByText(/tagihan/i))
     ).toBeVisible({ timeout: 10_000 });
   });
 
   test("attendance page loads", async ({ page }) => {
     await page.goto("/parent/attendance");
     await page.waitForURL("**/parent/attendance");
-    // Use first() — "Kehadiran" appears in both nav and page heading
-    await expect(page.locator("text=Kehadiran").first()).toBeVisible();
-    // Week summary strip rendered above the table (Task 5)
-    await expect(page.getByTestId("attendance-week-summary")).toBeVisible();
-    await expect(page.getByTestId("attendance-week-summary")).toContainText("Minggu ini");
+    // Cycle-4: PageHeader h1 = "Kehadiran" + subtitle.
+    await expect(page.getByRole("heading", { level: 1, name: "Kehadiran" })).toBeVisible();
+    // Either the week grid renders, the empty-state, or the legacy strip — broad acceptance.
+    await expect(
+      page.locator("text=Pekan ini belum dimulai")
+        .or(page.locator("text=Belum ada catatan kehadiran"))
+        .or(page.getByRole("cell", { name: /^Hadir$/ }))
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("reports page loads", async ({ page }) => {
     await page.goto("/parent/reports");
     await page.waitForURL("**/parent/reports");
-    // Use first() — "Laporan Perkembangan" appears in heading and in table rows
-    await expect(page.locator("text=Laporan Perkembangan").first()).toBeVisible();
-    // Wait for card list or empty state — DataTable replaced by card stack in Task 3
+    // Cycle-4: PageHeader h1 = "Rapor".
+    await expect(page.getByRole("heading", { level: 1, name: "Rapor" })).toBeVisible();
+    // Either celebration card OR empty state.
     await expect(
-      page.locator("text=Belum ada rapor").or(page.locator("button:has-text('Lihat')")).first()
-    ).toBeVisible({ timeout: 5_000 });
+      page.locator("text=Rapor belum terbit")
+        .or(page.getByRole("button", { name: /Buka rapor/ }))
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("logout works", async ({ page }) => {

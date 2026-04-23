@@ -1,17 +1,15 @@
 "use client";
 
 import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { SummaryHero } from "@/components/portal/summary-hero";
-import { CardListItem } from "@/components/portal/card-list-item";
-import { BookOpen, GraduationCap, Sparkles } from "lucide-react";
+import { BookOpen, ChevronRight, Hourglass, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { formatDate } from "@/lib/format";
 
 const SCORE_LABELS: Record<string, { label: string; color: string }> = {
   BB: { label: "Belum Berkembang", color: "text-destructive" },
@@ -26,6 +24,7 @@ type AssessmentItem = {
   period: string;
   programName: string;
   status: string;
+  publishedAt?: string | null;
 };
 
 type AssessmentDetail = {
@@ -43,7 +42,6 @@ type AssessmentDetail = {
 
 type AssessmentsTableProps = {
   data: AssessmentItem[];
-  /** Child's first/nickname — used for warm celebration voice. */
   childName?: string;
 };
 
@@ -54,7 +52,6 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
   const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
-  // Fetch detail when sheet opens with a new id — same pattern as invoice-detail-sheet
   if (selectedId && selectedId !== prevSelectedId) {
     setPrevSelectedId(selectedId);
     setLoadingId(selectedId);
@@ -82,14 +79,14 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
     setLoadingId(null);
   }
 
-  // T4d — no rapor at all: warm empty state, skip hero (per T4a rule).
+  // Pre-publish / no rapor — Frame 12
   if (data.length === 0) {
     return (
       <EmptyState
         accent="warm"
-        icon={BookOpen}
+        icon={Hourglass}
         title="Rapor belum terbit"
-        description="InsyaAllah akan tersedia setelah Ustadzah finalisasi nilai. Periksa kembali di akhir semester."
+        description="Ustadzah masih menyusun penilaian. InsyaAllah siap dibuka akhir semester — Anda akan mendapat notifikasi."
       />
     );
   }
@@ -98,44 +95,85 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
     ? new Map(detail.scores.map((s) => [s.indicatorId, s]))
     : null;
 
-  // T4a — latest-rapor celebration hero. All rows served by
-  // getPublishedAssessmentsForStudent are PUBLISHED (query already filters),
-  // so the hero tone is celebration-gold whenever any rapor exists.
-  const latest = data[0];
-  const whoseRapor = childName ? ` ${childName}` : "";
+  // Latest = first row (data already ordered desc by publishedAt server-side)
+  const latest = data[0]!;
+  const history = data.slice(1);
 
   return (
     <>
-      <div className="space-y-4">
-        <SummaryHero
-          tone="celebration"
-          icon={Sparkles}
-          primary={`Rapor ${latest.period}${whoseRapor} sudah terbit`}
-          secondary={`Alhamdulillah — ${latest.programName}. Ketuk untuk baca penilaian lengkap Ustadzah.`}
-          action={
-            <Button size="sm" onClick={() => setSelectedId(latest.id)}>
-              Lihat Rapor
-            </Button>
-          }
-          elevated={true}
-        />
+      <div className="space-y-6">
+        {/* Frame 11 — published celebration card */}
+        <section
+          className="rounded-xl border p-4"
+          style={{
+            background: "var(--celebration-gold-subtle)",
+            borderColor: "var(--celebration-gold)",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="grid size-10 place-items-center rounded-lg"
+              style={{
+                background: "var(--celebration-gold-subtle)",
+                color: "var(--celebration-gold-text)",
+              }}
+            >
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <p
+                className="text-sm font-semibold"
+                style={{ color: "var(--celebration-gold-text)" }}
+              >
+                Rapor {latest.period} sudah terbit
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah
+                {childName ? ` ${childName}` : ""}.
+              </p>
+            </div>
+          </div>
+        </section>
 
-        <div className="space-y-2">
-          {data.map((item) => (
-            <CardListItem
-              key={item.id}
-              onClick={() => setSelectedId(item.id)}
-              leading={
-                <span className="size-11 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                  <GraduationCap className="size-5" aria-hidden />
-                </span>
-              }
-              primary={item.templateName}
-              secondary={`${item.period} · ${item.programName}`}
-              trailing={<StatusBadge status={item.status} variant="intent" />}
-            />
-          ))}
-        </div>
+        <Button className="w-full" size="lg" onClick={() => setSelectedId(latest.id)}>
+          <BookOpen size={16} className="mr-2" />
+          Buka rapor
+        </Button>
+
+        {/* History — Frame 11 below celebration */}
+        {history.length > 0 ? (
+          <section>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Riwayat rapor
+            </p>
+            <ul className="space-y-2">
+              {history.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(item.id)}
+                    className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40"
+                  >
+                    <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                      <BookOpen size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        {item.period}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {item.publishedAt
+                          ? `Diterbitkan ${formatDate(item.publishedAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}`
+                          : item.programName}
+                      </p>
+                    </div>
+                    <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </div>
 
       <Sheet open={!!selectedId} onOpenChange={() => setSelectedId(null)}>
@@ -157,17 +195,6 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
                   {detail.period} · {detail.programName}
                 </p>
               </SheetHeader>
-
-              {/* T4c — celebration hero inside detail sheet */}
-              <div className="mt-4">
-                <SummaryHero
-                  tone="celebration"
-                  icon={Sparkles}
-                  primary={`Rapor ${detail.period} · Alhamdulillah`}
-                  secondary={`${detail.programName} — ringkasan penilaian Ustadzah tertera di bawah.`}
-                  elevated={false}
-                />
-              </div>
 
               <div className="mt-6 space-y-8">
                 {detail.categories.map((cat) => (
@@ -206,7 +233,6 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
                   </div>
                 ))}
 
-                {/* Teacher notes block — warm-tinted left-accent per T4c */}
                 {detail.scores.some((s) => s.notes && s.notes.trim().length > 0) ? (
                   <div>
                     <h3 className="text-h2 font-semibold text-foreground mb-3">
@@ -238,18 +264,12 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
 }
 
 function AssessmentDetailSkeleton() {
-  // Mirrors the real layout: header (title + period/program) + 6 domain sections,
-  // each with a category label and 2 indicator rows. Keeps layout shift minimal
-  // when real data arrives (<10 px in practice against typical rapor content).
   return (
     <div className="mt-4">
-      {/* Header block — mirrors SheetHeader (title + subtitle) */}
       <div className="space-y-2">
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-4 w-64" />
       </div>
-
-      {/* 6 domain sections (PERKEMBANGAN *) */}
       <div className="mt-6 space-y-6">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i}>

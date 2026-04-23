@@ -46,7 +46,7 @@ function attendanceToDayStatus(
 
 function buildKidFoot(
   todayStatus: string | undefined,
-  hadirCount: number,
+  weekCounts: { hadir: number; sakit: number; alpa: number; izin: number; logged: number },
   latestNote: { body: string; createdAt: Date } | null,
   now: Date,
 ): KidCardFoot {
@@ -68,8 +68,18 @@ function buildKidFoot(
       return { tone: "info", icon: "message-circle", text: `"${excerpt}"` };
     }
   }
-  if (hadirCount > 0) {
-    return { tone: "ok", icon: "check", text: `Hadir ${hadirCount} hari pekan ini` };
+  if (weekCounts.hadir > 0 && weekCounts.sakit === 0 && weekCounts.alpa === 0 && weekCounts.izin === 0) {
+    return { tone: "ok", icon: "check", text: `Hadir ${weekCounts.hadir} hari pekan ini` };
+  }
+  if (weekCounts.logged > 0) {
+    const parts: string[] = [];
+    if (weekCounts.hadir) parts.push(`Hadir ${weekCounts.hadir}`);
+    if (weekCounts.sakit) parts.push(`Sakit ${weekCounts.sakit}`);
+    if (weekCounts.alpa) parts.push(`Alpa ${weekCounts.alpa}`);
+    if (weekCounts.izin) parts.push(`Izin ${weekCounts.izin}`);
+    const tone: KidCardFoot["tone"] =
+      weekCounts.sakit + weekCounts.alpa > 0 ? "warn" : "info";
+    return { tone, icon: "check", text: `${parts.join(" · ")} pekan ini` };
   }
   return { tone: "info", icon: "check", text: "Pekan ini belum tercatat" };
 }
@@ -172,10 +182,14 @@ export default async function ParentDashboard() {
   const kids = children.map((c) => {
     const attMap = attendanceByKid.get(c.studentId) ?? new Map<string, string>();
     const todayStatus = attMap.get(today);
-    let hadirCount = 0;
+    const counts = { hadir: 0, sakit: 0, alpa: 0, izin: 0, logged: 0 };
     const days: KidCardDay[] = week.map((d, i) => {
       const status = attMap.get(d);
-      if (status === "PRESENT") hadirCount += 1;
+      if (status === "PRESENT") counts.hadir += 1;
+      else if (status === "SICK") counts.sakit += 1;
+      else if (status === "ABSENT") counts.alpa += 1;
+      else if (status === "PERMISSION") counts.izin += 1;
+      if (status) counts.logged += 1;
       const isFuture = d > today;
       return {
         label: DAY_LABELS[i] ?? "",
@@ -185,7 +199,7 @@ export default async function ParentDashboard() {
           : attendanceToDayStatus(status),
       };
     });
-    const foot = buildKidFoot(todayStatus, hadirCount, latestNoteByKid.get(c.studentId) ?? null, now);
+    const foot = buildKidFoot(todayStatus, counts, latestNoteByKid.get(c.studentId) ?? null, now);
     const displayName = c.studentNickname ?? c.studentName.split(" ").slice(0, 2).join(" ");
     return {
       id: c.studentId,
