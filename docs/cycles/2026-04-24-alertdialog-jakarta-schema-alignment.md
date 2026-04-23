@@ -139,6 +139,10 @@ Caller behavior is gated at end-of-cycle via the existing `npx playwright test` 
 
 `lib/parent-helpers.ts` imports `getTodayInTimezone` from `lib/attendance/timezone.ts`. `getTodayStudentAttendance` replaced `new Date().toISOString().slice(0, 10)` with `getTodayInTimezone("Asia/Jakarta")`. Prior impl resolved to *yesterday* between 00:00–06:59 WIB — a parent checking the portal before school start saw the wrong day.
 
+### B2 — `getStudentAttendanceRecent` uses local YMD
+
+`since.toISOString().split("T")[0]` replaced with `toLocalYmd(since)` — the helper already defined at `lib/parent-helpers.ts:258` precisely to avoid this bug. For Asia/Jakarta (UTC+7), `toISOString()` rewinds the 30-days-ago cutoff by one day, so the "last 30 days" window effectively covered 31 days and could include stale boundary records.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._

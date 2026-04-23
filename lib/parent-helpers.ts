@@ -320,7 +320,11 @@ export const getStudentAttendanceRecent = unstable_cache(
   async (studentId: string, days = 30): Promise<StudentAttendanceRecent[]> => {
     const since = new Date();
     since.setDate(since.getDate() - days);
-    const startDate = since.toISOString().split("T")[0];
+    // Use local-calendar YMD rather than `toISOString()` — for positive-UTC
+    // machines (Asia/Jakarta = UTC+7) `toISOString()` rewinds to the previous
+    // day, causing the "last 30 days" window to shift by one and miss/include
+    // records at the boundary.
+    const startDate = toLocalYmd(since);
 
     const records = await prisma.studentAttendance.findMany({
       where: { studentId, isVoided: false, date: { gte: startDate } },
