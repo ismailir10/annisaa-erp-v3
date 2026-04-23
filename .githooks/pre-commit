@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# pre-commit — enforce one-file-per-cycle + doc sync + seed drift + frontend gate
+# pre-commit — enforce one-file-per-cycle + doc sync + seed drift + frontend gate + portal text-size floor
 #
-# Four rules:
+# Five rules:
 #  1. Markdown allowlist: any staged .md file must be in the allowlist below.
 #     The allowlist is: README.md, CLAUDE.md, LICENSE.md at repo root;
 #     anything under docs/, .github/, .claude/, .agent-skills/.
@@ -15,6 +15,11 @@
 #     contain the literal token "design-system" somewhere. Forces authors
 #     to cross-check .claude/standards/design-system.html — the canonical
 #     visual reference — and cite it in the cycle doc Verification section.
+#  5. Portal text-size floor: added lines in app/parent/**, components/parent/**,
+#     or components/portal/** must not introduce text-[9px|10px|11px]. The
+#     portal.md §68-72 floor is text-xs (12 px). Codified 2026-04-24 in
+#     cycle parent-portal-text-size-sweep after comprehensive review flagged
+#     35+ regressions that breached the standard.
 #
 # Bypass: git commit --no-verify (discouraged; GitHub branch protection on
 # staging/main is the real enforcement layer).
@@ -168,6 +173,43 @@ if [ "$TOUCHES_FRONTEND" = "1" ]; then
     echo "  Bypass: git commit --no-verify (expect PR review pushback)." >&2
     exit 1
   fi
+fi
+
+# ---------- Rule 5: Portal text-size floor ----------
+# Added lines in app/parent/**, components/parent/**, components/portal/**
+# must not introduce text-[9px], text-[10px], or text-[11px]. Minimum
+# portal text size per .claude/standards/portal.md §68-72 is text-xs (12 px).
+BAD_TEXT_SIZES=""
+while IFS= read -r f; do
+  case "$f" in
+    app/parent/*|components/parent/*|components/portal/*) ;;
+    *) continue ;;
+  esac
+  # Inspect added lines only (leading '+' but not '+++' diff headers).
+  hits=$(git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | grep -E 'text-\[(9|10|11)px\]' || true)
+  if [ -n "$hits" ]; then
+    BAD_TEXT_SIZES="${BAD_TEXT_SIZES}
+  $f:
+$(printf '%s' "$hits" | sed 's/^/    /')"
+  fi
+done <<EOF
+$STAGED
+EOF
+
+if [ -n "$BAD_TEXT_SIZES" ]; then
+  echo "pre-commit: banned below-floor text sizes in parent/portal scope." >&2
+  printf '%s\n' "$BAD_TEXT_SIZES" >&2
+  echo "" >&2
+  echo "  text-[9px], text-[10px], and text-[11px] are banned under:" >&2
+  echo "    app/parent/**, components/parent/**, components/portal/**" >&2
+  echo "" >&2
+  echo "  Floor is text-xs (12 px). Rationale: .claude/standards/portal.md" >&2
+  echo "  §68-75 (target PAUD/TKIT parent personas on mid-range Android +" >&2
+  echo "  WCAG AA on muted-foreground at small sizes)." >&2
+  echo "" >&2
+  echo "  Fix: replace with text-xs. Loosen surrounding layout if 12 px feels" >&2
+  echo "  too dense — don't shrink text below the floor." >&2
+  exit 1
 fi
 
 exit 0

@@ -51,7 +51,7 @@ export default async function ParentProfilePage() {
 
       {/* Kontak */}
       <section>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Kontak
         </p>
         <div className="space-y-2">
@@ -63,7 +63,7 @@ export default async function ParentProfilePage() {
       {/* Anak Anda */}
       {children.length > 0 ? (
         <section>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Anak Anda
           </p>
           <ul className="space-y-2">
@@ -83,7 +83,7 @@ export default async function ParentProfilePage() {
                       <p className="text-sm font-semibold text-foreground">
                         {childLabel}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {c.className ?? "—"}
                         {c.programName ? ` · ${c.programName}` : ""}
                       </p>
@@ -103,7 +103,7 @@ export default async function ParentProfilePage() {
 
       <LogoutButton />
 
-      <p className="pt-4 text-center text-[11px] text-muted-foreground/70">
+      <p className="pt-4 text-center text-xs text-muted-foreground/70">
         An Nisaa&apos; Sekolahku · v3.4.2
       </p>
     </div>
@@ -124,7 +124,7 @@ function ContactCard({ icon: Icon, primary, secondary }: CardIconProps) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-foreground truncate">{primary}</p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">{secondary}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{secondary}</p>
       </div>
     </div>
   );

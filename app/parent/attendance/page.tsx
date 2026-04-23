@@ -229,7 +229,7 @@ export default async function ParentAttendancePage({
           <table className="w-full min-w-[324px] border-collapse text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 w-[80px] min-w-[80px] bg-card py-2 pr-2 text-left text-[11px] font-medium text-muted-foreground">
+                <th className="sticky left-0 z-10 w-[80px] min-w-[80px] bg-card py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
                   Status
                 </th>
                 {days.map((d, i) => {
@@ -237,10 +237,10 @@ export default async function ParentAttendancePage({
                   return (
                     <th
                       key={d}
-                      className={`w-[44px] min-w-[44px] py-2 px-1 text-center text-[11px] ${isToday ? "border-t-2 border-primary bg-status-present-subtle font-semibold text-primary" : "font-medium text-muted-foreground"}`}
+                      className={`w-[44px] min-w-[44px] py-2 px-1 text-center text-xs ${isToday ? "border-t-2 border-primary bg-status-present-subtle font-semibold text-primary" : "font-medium text-muted-foreground"}`}
                     >
                       <div>{DAY_LABELS[i] ?? ""}</div>
-                      <div className={`text-[9px] font-normal ${isToday ? "text-primary/80" : "text-muted-foreground/70"}`}>
+                      <div className={`text-xs font-normal ${isToday ? "text-primary/80" : "text-muted-foreground/70"}`}>
                         {shortMonthDay(d)}
                       </div>
                     </th>
@@ -250,7 +250,7 @@ export default async function ParentAttendancePage({
             </thead>
             <tbody>
               <tr className="border-b border-border/40">
-                <td className="sticky left-0 z-10 bg-card py-2 pr-2 text-[11px] text-foreground">
+                <td className="sticky left-0 z-10 bg-card py-2 pr-2 text-xs text-foreground">
                   Hadir
                 </td>
                 {days.map((d) => {
@@ -266,11 +266,11 @@ export default async function ParentAttendancePage({
                         {status === "PRESENT" ? (
                           <Check size={16} strokeWidth={2.5} className="text-primary" />
                         ) : status === "SICK" ? (
-                          <span className="text-[11px] font-bold text-status-late-text">S</span>
+                          <span className="text-xs font-bold text-status-late-text">S</span>
                         ) : status === "ABSENT" ? (
-                          <span className="text-[11px] font-bold text-status-absent-text">A</span>
+                          <span className="text-xs font-bold text-status-absent-text">A</span>
                         ) : status === "PERMISSION" ? (
-                          <span className="text-[11px] font-bold text-status-leave-text">I</span>
+                          <span className="text-xs font-bold text-status-leave-text">I</span>
                         ) : isFuture ? (
                           <span className="text-muted-foreground/40">·</span>
                         ) : (
@@ -283,7 +283,7 @@ export default async function ParentAttendancePage({
               </tr>
             </tbody>
           </table>
-          <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span><Check className="inline size-3 text-primary align-middle" /> Hadir</span>
             <span><b className="text-status-late-text">S</b> Sakit</span>
             <span><b className="text-status-absent-text">A</b> Alpa</span>
@@ -295,7 +295,7 @@ export default async function ParentAttendancePage({
       {/* Notes from school this week */}
       {notesRows.length > 0 ? (
         <section>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Catatan dari sekolah
           </p>
           <ul className="space-y-2">
@@ -309,7 +309,7 @@ export default async function ParentAttendancePage({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-foreground line-clamp-3">{n.body}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {n.authorRole === "TEACHER" ? "Ustadzah" : "Anda"} ·{" "}
                     {formatDate(n.date, { day: "numeric", month: "long" })}
                   </p>

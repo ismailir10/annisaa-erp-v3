@@ -1,0 +1,70 @@
+# Parent Portal Text-Size Sweep
+
+## Context
+
+Comprehensive code review cycle (`2026-04-24-comprehensive-code-review.md` §T6 #1 + #2) flagged 35+ `text-[11px]` hits plus a `text-[10px]` DAY_BASE label in `components/parent/kid-card.tsx:62`, breaching the `portal.md` banned-size grep gate. Standard says minimum text size is `text-xs` (12 px) across `app/parent/**`, `components/parent/**`, `components/portal/**`. The teacher portal was cleaned in cycle `parent-portal-polish-cycle-2` (2026-04-22) but the parent portal still leaks below-floor sizes after the recent visual overhaul. The gate exists because Pak Budi (PAUD/TKIT parent, mid-range Android + 4G) consistently missed 10–11 px muted labels in UAT and WCAG AA fails at that size on muted-foreground. This cycle restores the gate, fixes Day-strip overflow risk at 12 px, and lands a pre-commit hook rule so regressions cannot re-enter. We also sweep three residual `text-[9px]` hits (attendance day-row micro label, KidCard day-footnote, WeekGrid day micro) because Rule 5 will gate them and they are below-floor anyway.
+
+## Spec
+
+**Acceptance criteria**
+- [ ] `grep -rn 'text-\[9px\]\|text-\[10px\]\|text-\[11px\]' app/parent components/parent components/portal` returns zero hits.
+- [ ] All below-floor sizes replaced with `text-xs` (never `text-[12px]` arbitrary).
+- [ ] KidCard day-strip renders the 5 weekday pills at 12 px without vertical overflow or letter clipping at 360 px width (iPhone SE baseline).
+- [ ] `.githooks/pre-commit` Rule 5 rejects any staged diff introducing `text-[9px|10px|11px]` under `app/parent`, `components/parent`, `components/portal` with a clear error message pointing at `portal.md`.
+- [ ] Playwright MCP visual verification on parent home (`/parent`), parent attendance (`/parent/attendance`), and parent invoices detail sheet shows legible copy with no layout regressions at 390×844.
+- [ ] Cross-checked `design-system.html` §Portal text-size scale; no conflicts.
+- [ ] `npm run build && npx vitest run` green between tasks; `npx playwright test` green before final commit.
+
+**Non-goals**
+- Household Overview ≥3-kid branch (separate cycle — review §T6 #6).
+- Student-journal optimistic toggle (separate cycle — review §T6 #7).
+- Teacher `error.tsx` fix (separate cycle — review §T6 #3).
+- Any layout/typography redesign beyond the minimum needed to absorb 10 → 12 px in KidCard day-strip.
+
+**Assumptions**
+1. `text-xs` (12 px / 0.75rem with `line-height: 1rem`) is the one-size target for every below-floor hit; no label needs `text-sm` (14 px) for hierarchy reasons after sweep.
+2. The 5 day pills in KidCard DAY_BASE fit 2 characters ("Sen", "Sel", etc. — actually 3 chars, abbreviated) inside `h-11 w-8` at 12 px; if not, loosen gap from `gap-1` and/or swap to `h-12`. Taken from portal.md rationale: "loosen layout rather than shrink text."
+3. Rule 5 wording should match existing `pre-commit` Rule 4 (frontend-gate) style — fail-with-hint, print banned matches, suggest `text-xs`.
+4. Playwright MCP == `mcp__plugin_playwright_playwright__*` in this session; dev server will be started by `preview_start` (or equivalent) for verification.
+5. Dev server running against demo mode is sufficient for visual check — no seed changes needed.
+
+## Tasks
+
+- [x] **T1 — Bulk replace `text-[11px]` → `text-xs` across 7 parent files.**
+  Files: `app/parent/page.tsx` (4 hits), `app/parent/attendance/page.tsx` (8 hits), `app/parent/invoices/client.tsx` (5 hits), `app/parent/invoices/invoice-detail-sheet.tsx` (13 hits), `app/parent/assessments-table.tsx` (2 hits), `app/parent/profile/page.tsx` (5 hits), `components/parent/kid-card.tsx` (2 hits at :93 and :126).
+  Acceptance: `grep -rn 'text-\[11px\]' app/parent components/parent` returns zero; `npm run build && npx vitest run` green.
+  Dependencies: none.
+
+- [x] **T2 — Fix `components/parent/kid-card.tsx:62` DAY_BASE + 9 px residues.**
+  Change DAY_BASE `text-[10px]` → `text-xs`. Also sweep residual `text-[9px]`: `app/parent/attendance/page.tsx:243`, `components/parent/kid-card.tsx:113`, `components/portal/week-grid.tsx:87` → `text-xs`. Visually verify KidCard day-strip at 360 px and 390 px widths; if overflow, loosen gap or bump `h-11` → `h-12`. Commit adjustment with the text-size change.
+  Acceptance: `grep -rn 'text-\[9px\]\|text-\[10px\]' app/parent components/parent components/portal` returns zero; KidCard day-strip legible and non-overflowing at 360 px.
+  Dependencies: none (parallel with T1 possible — distinct hunks; sequence to avoid merge conflict in `kid-card.tsx`).
+
+- [x] **T3 — Add pre-commit Rule 5: block `text-[9px|10px|11px]` in parent-scope paths.**
+  Edit `.githooks/pre-commit`. Rule 5 runs before existing rules exit OK; scans staged additions (`git diff --cached --`) for `text-\[(9|10|11)px\]` under `app/parent/`, `components/parent/`, `components/portal/`. If any, print banned matches with file:line, point at `portal.md`, suggest `text-xs`, exit 1. Add a test row in `scripts/test-hooks.sh` if that file is the living test table. Verify by staging a contrived `text-[11px]` elsewhere and confirming the hook blocks it.
+  Acceptance: contrived `text-[11px]` in any of the three scope paths blocks commit with clear error; `text-[11px]` in `app/admin/` (out of scope) does NOT block; staging untouched code commits fine.
+  Dependencies: T1 + T2 must land first (otherwise the hook self-blocks when committing T1/T2 themselves).
+
+## Implementation
+
+- Subagent plan: all 3 tasks sequential (T1/T2 share `components/parent/kid-card.tsx`; T3 depends on T1+T2). Executed inline in the loop.
+- Task 1: bulk `text-[11px]` → `text-xs` — `app/parent/page.tsx`, `app/parent/attendance/page.tsx`, `app/parent/invoices/client.tsx`, `app/parent/invoices/invoice-detail-sheet.tsx`, `app/parent/assessments-table.tsx`, `app/parent/profile/page.tsx`, `components/parent/kid-card.tsx` (lines 93, 126). Mechanical `replace_all`; 39 occurrences swept. `feature-dev:code-reviewer` clean — cross-checked design-system.html §Portal text-size scale (min floor 12 px) and portal.md §69-72 banned list.
+- Task 2: DAY_BASE + 9 px sweep — `components/parent/kid-card.tsx:62` DAY_BASE (`text-[10px]` → `text-xs`), `components/parent/kid-card.tsx:113` inner day label (`text-[9px]` → `text-xs`), `app/parent/attendance/page.tsx:243` sub-date line (`text-[9px]` → `text-xs`), `components/portal/week-grid.tsx:87` WeekGrid sub-date (`text-[9px]` → `text-xs`). `h-11` and column widths preserved — `feature-dev:code-reviewer` verified no overflow at 360 px. Weight contrast (`font-semibold` vs `font-medium` + `opacity-70`) preserves hierarchy after both sizes unified at 12 px.
+- Task 3: `.githooks/pre-commit` — added Rule 5 that scans `git diff --cached -U0` added lines in `app/parent/**`, `components/parent/**`, `components/portal/**` for `text-[9|10|11]px` and blocks the commit with a portal.md §68-75 pointer. Manually validated: contrived `text-[11px]` in `app/parent/page.tsx` triggers Rule 5; same offender in `app/admin/page.tsx` passes (out of scope). `feature-dev:code-reviewer` confirmed `^\+[^+]` correctly filters `+++` diff headers and `-U0` excludes pre-existing unchanged offenders.
+
+## Verification
+
+- Task 1: `grep -rn 'text-\[11px\]' app/parent components/parent components/portal` → 0 hits. `npm run build` green. `npx vitest run` 233 passed / 2 skipped / 42 todo.
+- Task 2: `grep -rn 'text-\[9px\]\|text-\[10px\]\|text-\[11px\]' app/parent components/parent components/portal` → 0 hits. `components/parent/kid-card.tsx:62` DAY_BASE now `text-xs`; `h-11` preserved (math: label 12 px + mb-0.5 2 px + glyph 14 px = 28 px in 44 px cell; `leading-none` keeps compact). Reviewer confirmed no overflow risk at 360 px; sub-date labels in attendance table + WeekGrid 44 px columns fit "30 Apr" at `text-xs`. Size hierarchy preserved via weight-contrast (font-semibold vs font-medium + opacity-70). `npm run build` green. `npx vitest run` 233 passed.
+- Task 3: manual hook fixture tests — Case A: contrived `text-[11px]` added to `app/parent/page.tsx` + cycle-doc touch → pre-commit exits 1 with Rule 5 message naming file + offending line + portal.md §68-75 pointer. Case B: same offender in `app/admin/page.tsx` → pre-commit exits 0 (out of scope). Case C: staged `.githooks/pre-commit` change alone → pre-commit exits 0 (no code scope touched). Cross-checked design-system.html §Portal text-size scale — 12 px floor matches; the hook codifies the standard.
+- End-of-cycle Playwright MCP visual verify at 390 px + 360 px viewport: parent home, parent attendance, parent invoices detail sheet all render cleanly. Computed font-size spot-checked on KidCard day cell (DAY_BASE), inner day label, class suffix, eyebrow, foot line, attendance sub-date — all 12 px. KidCard day cells measured 44×52 px at 360 px width with **zero overflow** across 15 cells sampled. `h-11` preserved — no layout bump needed. Screenshots saved to `.playwright-mcp/` (gitignored).
+- End-of-cycle gates: `npm run build` green, `npx vitest run` 233 passed / 2 skipped / 42 todo, `DEMO_MODE=true npx playwright test` 38 passed / 2 skipped including all 7 parent-portal specs.
+
+## Ship Notes
+
+- **Migrations:** none.
+- **New env vars:** none.
+- **Manual smoke on preview URL:** load `/parent`, `/parent/attendance`, `/parent/invoices` — open an invoice detail sheet. Confirm all labels/eyebrows/sub-dates legible at 12 px; no clipped glyphs in attendance table day columns. Target viewport 390 px (iPhone 14) + 360 px (mid-range Android). KidCard day strip should show `Sen/Sel/Rab/Kam/Jum` labels plus status glyphs with ~8 px top/bottom padding inside 44 px cells.
+- **Rollback plan:** `git revert` the three cycle commits in reverse (T3 → T2 → T1) if any regression surfaces. Rule 5 hook-rollback is safe alone (revert T3); no code depends on it.
+- **Hook side-effect to watch:** contributors will now see Rule 5 block commits that introduce `text-[9|10|11]px` under `app/parent/**`, `components/parent/**`, `components/portal/**`. Error message cites portal.md §68-75; `--no-verify` remains the documented escape hatch if ever genuinely needed.
+- **Scope caveat:** this cycle cleaned parent-scope + shared portal. `components/student-journal/**` still has one `text-[11px]` hit (outside Rule 5 scope). Surfaced by T1 reviewer; out of cycle scope — next cycle should extend the gate to `components/student-journal/**` or sweep it, per portal.md §68.
