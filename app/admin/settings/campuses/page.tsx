@@ -150,7 +150,7 @@ export default function CampusesPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
             >
-              <Card className="p-5 hover:shadow-md transition-shadow">
+              <Card className="p-card hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">

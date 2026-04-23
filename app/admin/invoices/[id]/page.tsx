@@ -205,7 +205,7 @@ export default function InvoiceDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Invoice Lines */}
-        <Card className="p-5 lg:col-span-2">
+        <Card className="p-card lg:col-span-2">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Rincian Tagihan</h3>
           <div className="space-y-2">
             {invoice.lines.map(line => (
@@ -231,7 +231,7 @@ export default function InvoiceDetailPage() {
         <div className="space-y-4">
           {/* Guardian info */}
           {guardian && (
-            <Card className="p-5">
+            <Card className="p-card">
               <SectionHeading label="Kontak Wali" />
               <p className="text-sm font-medium">{guardian.name}</p>
               {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={10} /> {guardian.phone}</p>}
@@ -242,7 +242,7 @@ export default function InvoiceDetailPage() {
 
           {/* Payment link */}
           {invoice.xenditPaymentUrl && (
-            <Card className="p-5">
+            <Card className="p-card">
               <SectionHeading label="Link Pembayaran" />
               <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline break-all">{invoice.xenditPaymentUrl}</a>
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => { navigator.clipboard.writeText(invoice.xenditPaymentUrl!); toast.success("Link disalin"); }}>
@@ -252,7 +252,7 @@ export default function InvoiceDetailPage() {
           )}
 
           {/* Payment history */}
-          <Card className="p-5">
+          <Card className="p-card">
             <SectionHeading label="Riwayat Pembayaran" />
             {invoice.payments.length === 0 ? (
               <EmptyState title="Belum ada pembayaran" />

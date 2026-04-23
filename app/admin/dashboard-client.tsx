@@ -51,7 +51,7 @@ export function DashboardClient({
           transition={{ delay: 0.3 }}
           className="lg:col-span-2"
         >
-          <Card className="p-5">
+          <Card className="p-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold">Tren Kehadiran (7 Hari Terakhir)</h3>
               <Link href="/admin/attendance" className="text-xs text-primary hover:underline flex items-center gap-1">
@@ -110,7 +110,7 @@ export function DashboardClient({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
-          <Card className="p-5 h-full flex flex-col">
+          <Card className="p-card h-full flex flex-col">
             <h3 className="text-sm font-semibold mb-4">Perlu Tindakan</h3>
             <div className="flex-1 space-y-3">
               {/* Pending leave */}
