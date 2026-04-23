@@ -114,7 +114,7 @@ export default function EmployeeDetailPage() {
         <AdminTabsList><AdminTabsTrigger value="profile">Profil</AdminTabsTrigger>{salaryValues !== null && <AdminTabsTrigger value="salary">Gaji</AdminTabsTrigger>}<AdminTabsTrigger value="attendance">Kehadiran</AdminTabsTrigger></AdminTabsList>
 
         <AdminTabsContent value="profile">
-          <Card className="p-5 max-w-3xl mt-4">
+          <Card className="p-card max-w-3xl mt-4">
             {isEditing && (
               <div className="flex justify-end gap-2 mb-4">
                 <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}><X size={14} className="mr-1" /> Batal</Button>

@@ -323,7 +323,7 @@ export default function StudentDetailPage() {
       />
 
       {/* Summary Card — View/Edit toggle */}
-      <Card className="p-5 mb-4">
+      <Card className="p-card mb-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data Anak</h3>
           {isEditing && (
@@ -428,7 +428,7 @@ export default function StudentDetailPage() {
         </AdminTabsList>
 
         <AdminTabsContent value="guardians">
-          <Card className="p-5 mt-2">
+          <Card className="p-card mt-2">
             <SectionHeading
               label="Orang Tua / Wali"
               actions={<Button size="sm" variant="ghost" onClick={openAddGuardian}><Plus size={12} className="mr-1" /> Tambah</Button>}
@@ -471,7 +471,7 @@ export default function StudentDetailPage() {
         </AdminTabsContent>
 
         <AdminTabsContent value="enrollments">
-          <Card className="p-5 mt-2">
+          <Card className="p-card mt-2">
             <SectionHeading label="Riwayat Kelas" />
             {student.enrollments.length === 0 ? (
               <EmptyState title="Belum terdaftar di kelas" description="Daftarkan siswa ke kelas melalui tombol di atas." />
@@ -492,7 +492,7 @@ export default function StudentDetailPage() {
         </AdminTabsContent>
 
         <AdminTabsContent value="attendance">
-          <Card className="p-5 mt-2">
+          <Card className="p-card mt-2">
             <SectionHeading
               label="Riwayat Kehadiran"
               actions={<Input
