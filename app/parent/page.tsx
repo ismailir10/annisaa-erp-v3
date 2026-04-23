@@ -169,7 +169,7 @@ export default async function ParentDashboard({
           title={`Assalamu'alaikum, ${parent.name}`}
           subtitle="Portal Orang Tua — An Nisaa' Sekolahku"
         />
-        <HouseholdOverview children={householdChildren} />
+        <HouseholdOverview items={householdChildren} />
       </div>
     );
   }
