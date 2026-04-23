@@ -143,7 +143,7 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
         {/* History — Frame 11 below celebration */}
         {history.length > 0 ? (
           <section>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Riwayat rapor
             </p>
             <ul className="space-y-2">
@@ -161,7 +161,7 @@ export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
                       <p className="text-sm font-semibold text-foreground">
                         {item.period}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {item.publishedAt
                           ? `Diterbitkan ${formatDate(item.publishedAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}`
                           : item.programName}

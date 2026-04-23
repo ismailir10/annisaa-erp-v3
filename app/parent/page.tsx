@@ -230,7 +230,7 @@ export default async function ParentDashboard() {
       </header>
 
       <section>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Anak Anda
         </p>
         <div className="space-y-3">
@@ -250,7 +250,7 @@ export default async function ParentDashboard() {
       <section>
         {unpaidTotal > 0 ? (
           <>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Tagihan
             </p>
             <Link
@@ -265,7 +265,7 @@ export default async function ParentDashboard() {
                   <p className="font-currency text-[2rem] font-bold leading-none tracking-tight text-status-absent-text">
                     {formatRupiah(unpaidTotal)}
                   </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {unpaidCount} tagihan belum dibayar
                     {nearestDue ? (
                       <>
@@ -281,7 +281,7 @@ export default async function ParentDashboard() {
           </>
         ) : (
           <>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Pekan ini
             </p>
             <div

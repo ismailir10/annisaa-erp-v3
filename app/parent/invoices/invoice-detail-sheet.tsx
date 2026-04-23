@@ -145,7 +145,7 @@ export function InvoiceDetailSheet({
             Tagihan {invoice.periodLabel}
             <span className="ml-1 text-muted-foreground">· {childName}</span>
           </SheetTitle>
-          <p className="text-[11px] text-muted-foreground">{invoice.invoiceNumber}</p>
+          <p className="text-xs text-muted-foreground">{invoice.invoiceNumber}</p>
         </SheetHeader>
 
         <div className="px-card pb-card pt-4 space-y-6">
@@ -156,10 +156,10 @@ export function InvoiceDetailSheet({
             >
               {formatRupiah(focalAmount)}
             </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               {isPaid ? (
                 <>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-status-present-text">
+                  <span className="text-xs font-bold uppercase tracking-wider text-status-present-text">
                     Lunas
                   </span>
                   {invoice.paidAt ? (
@@ -167,12 +167,12 @@ export function InvoiceDetailSheet({
                   ) : null}
                 </>
               ) : isCancelled ? (
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Dibatalkan
                 </span>
               ) : (
                 <>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-status-absent-text">
+                  <span className="text-xs font-bold uppercase tracking-wider text-status-absent-text">
                     Belum Dibayar
                   </span>
                   {" · jatuh tempo "}
@@ -186,7 +186,7 @@ export function InvoiceDetailSheet({
 
           {/* Rincian */}
           <section>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Rincian
             </p>
             <ul>
@@ -198,7 +198,7 @@ export function InvoiceDetailSheet({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-foreground">{line.labelSnapshot}</p>
                     {line.adjustmentAmount !== 0 ? (
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         Penyesuaian: {formatRupiah(line.adjustmentAmount)}
                         {line.adjustmentNote ? ` (${line.adjustmentNote})` : ""}
                       </p>
@@ -215,7 +215,7 @@ export function InvoiceDetailSheet({
           {/* Cara bayar — unpaid only, single Xendit card */}
           {isPayable ? (
             <section>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Cara bayar
               </p>
               <div className="rounded-xl border border-border bg-card p-4">
@@ -225,7 +225,7 @@ export function InvoiceDetailSheet({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-foreground">Pembayaran online</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       QRIS · Virtual Account · E-wallet · kartu
                     </p>
                   </div>
@@ -237,7 +237,7 @@ export function InvoiceDetailSheet({
           {/* Bukti pembayaran — paid only */}
           {isPaid ? (
             <section>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Bukti pembayaran
               </p>
               <a
@@ -251,7 +251,7 @@ export function InvoiceDetailSheet({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-foreground">Kuitansi.pdf</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {invoice.paidAt
                       ? `Diterbitkan ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}`
                       : "Diterbitkan"}
@@ -265,7 +265,7 @@ export function InvoiceDetailSheet({
           {/* Payment history (paid invoices with multiple payment events) */}
           {invoice.payments.length > 0 ? (
             <section>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Riwayat pembayaran
               </p>
               <ul className="space-y-2">
@@ -283,7 +283,7 @@ export function InvoiceDetailSheet({
                         <p className="text-sm font-semibold text-foreground">
                           {METHOD_LABELS[p.method] ?? p.method}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        <p className="mt-0.5 text-xs text-muted-foreground">
                           {formatDate(p.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}
                           {p.reference ? ` · ${p.reference}` : ""}
                         </p>

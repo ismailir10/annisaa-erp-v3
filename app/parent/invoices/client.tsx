@@ -124,13 +124,13 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
           className="rounded-xl border bg-card p-5"
           style={{ borderColor: "var(--border)" }}
         >
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Belum dibayar
           </p>
           <p className="mt-1 font-currency text-[2rem] font-bold leading-none tracking-tight text-status-absent-text">
             {formatRupiah(summary.total)}
           </p>
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground">
             {summary.count} tagihan
             {summary.nearestDue ? (
               <>
@@ -177,7 +177,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
 
       {hasAnyOutstanding && (
         <section>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Belum dibayar
           </p>
           <ul className="space-y-2" aria-label="Tagihan belum dibayar">
@@ -196,7 +196,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
 
       {paid.length > 0 ? (
         <section>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Riwayat pembayaran
           </p>
           <ul className="space-y-2" aria-label="Riwayat pembayaran">
@@ -257,7 +257,7 @@ function InvoiceRow({
       >
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">{invoice.periodLabel}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">{secondary}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{secondary}</p>
         </div>
         <span
           className={`font-currency tabular-nums text-sm font-bold ${tone === "due" ? "text-status-absent-text" : "text-status-present-text"}`}
