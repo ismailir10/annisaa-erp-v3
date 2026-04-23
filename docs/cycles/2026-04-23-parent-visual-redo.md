@@ -338,6 +338,18 @@ Visual verify on Vercel preview surfaced 3 more issues; all fixed in follow-up:
 5. **Profile email shows "—"** when parent record has no email (the seed Bu Siti has phone only). Now falls back to `session.email` (the OAuth-verified address — guaranteed valid for the logged-in account) before "—".
 6. **Profile AKUN section dropped** — Notifikasi/Bantuan/Tentang aplikasi cards were inert stubs (no destination pages exist yet). Better to ship Profile without false promises. App version footer remains. Section returns next cycle when destinations land.
 
+### Second code-review pass (3 spec misses + 1 visual fix)
+
+`feature-dev:code-reviewer` agent re-ran against Spec S-A through S-G + CLAUDE.md UI Standards. Three confirmed misses + 1 visual touch:
+
+7. **A5 — Home outstanding focal amount used `text-[1.375rem]`** instead of display-size `text-[2rem]` (mismatched invoices focal sizing). Now `text-[2rem] font-bold leading-none tracking-tight` — consistent with `/parent/invoices` and `/parent/invoices` detail sheet focal amounts.
+8. **A6 — Lunas-semua celebration card** copy short. Expanded to `Jazakumullahu khairan. Insyaallah tagihan berikutnya muncul saat sekolah menerbitkannya.` (Spec asked for `Tagihan berikutnya {date}` but home doesn't fetch future-issued invoices — neutral phrasing without date is honest, not aspirational.)
+9. **C1 — Sheet drag-handle bar absent.** Added 36×4 muted handle bar centered at the top of `invoice-detail-sheet.tsx` per Frame 6/7 spec.
+
+Deferred (out of cycle 4 scope, captured for cycle 5):
+- **A8 — Framer-motion stagger fade-in** on home (greeting 0s, kid list 0.08s, focal card 0.16s). ~1h work, no functional impact, defer.
+- **B3 — Paid invoice row missing `· {channel}` secondary**. Requires `getParentInvoiceList` to return payment-method per row. Plumbing change across helper + API contract; defer to cycle 5.
+
 Gates re-run: build OK · lint OK (0 errors).
 
 ## Ship Notes

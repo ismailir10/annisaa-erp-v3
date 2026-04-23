@@ -136,6 +136,10 @@ export function InvoiceDetailSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        {/* Frame 6/7 spec C1 — drag-handle bar centered at top */}
+        <div className="flex justify-center pt-2">
+          <div className="h-1 w-9 rounded-full bg-muted-foreground/30" aria-hidden="true" />
+        </div>
         <SheetHeader className="border-b border-border pb-3">
           <SheetTitle className="text-sm font-medium text-foreground">
             Tagihan {invoice.periodLabel}
