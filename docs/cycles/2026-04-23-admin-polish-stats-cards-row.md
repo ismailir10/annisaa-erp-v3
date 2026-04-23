@@ -1,4 +1,4 @@
-# Admin Polish — StatsCardsRow Migration
+# Admin Polish — StatsCardsRow + Final Residual Sweep
 
 ## Context
 
@@ -76,6 +76,20 @@ Assumptions:
 - **Rollback plan:** pure-UI revert — squash-merge reverts cleanly. DOM output is identical pre-and-post; no visual delta expected.
 - **Preview check on Vercel:** scan the 9 pages — layout should be visually identical. If any stat row shifts pixel positions, that's a regression (unlikely given identical class output).
 - **Follow-up still open from the admin polish plan:**
-  - Cycle 6 — `/new` route form pages → Dialog/Sheet (biggest; needs brainstorm before execution). The 3 sites remain `students/new`, `employees/new`, `payroll/new`.
-  - Review residuals from cycle 1: BB → red semantic reconsideration for PAUD pedagogy; `/build` HEREDOC dedupe for `Co-Authored-By` trailer.
-  - `font-currency` semantic naming — class is named for currency but widely used for any numeric+tabular context (codes, IDs, counts). Name-vs-use mismatch; rename or accept.
+  - `font-currency` semantic naming — class is named for currency but widely used for any numeric+tabular context (codes, IDs, counts). Name-vs-use mismatch; rename or accept. Deferred — wide blast radius, low signal.
+
+## Addendum — Final residual sweep (bundled in this PR)
+
+User frustration with per-cycle ceremony → bundled all outstanding admin-polish residuals into this branch instead of spinning up further 1-task cycles:
+
+- **Deleted** `app/admin/students/new/` (orphaned; zero callers; students list already has Dialog/Sheet create form).
+- **Deleted** `app/admin/employees/new/` (143 LOC route file). Form migrated into `app/admin/employees/page.tsx` as `<Dialog>` (desktop) / `<Sheet>` (mobile) via `useIsMobile()`. New helper `CreateEmployeeFormBody`, full field parity (10 fields + custom-position "Tambah jabatan baru" flow preserved). Form state resets on close via `onOpenChange` transition.
+- **Deleted** `app/admin/payroll/new/` (80 LOC route file). Date-picker form migrated into `app/admin/payroll/page.tsx` via same Dialog/Sheet pattern. New helper `PayrollPeriodBody`, `defaultPayrollPeriod()` recomputed per open.
+- **Dashboard quick-action hrefs** updated from `/admin/*/new` to `/admin/*?create=1`. Each list page reads `useSearchParams()` and auto-opens the Dialog on `create=1`, then `router.replace()`s the query param to keep the URL clean. Preserves the "one-click to form" UX the old route-level pages had.
+- **Playwright e2e test** `admin.spec.ts:79` updated from "navigate to /admin/employees/new" → "open create dialog from list button".
+- **SCORE_COLORS remapped** in `app/admin/assessments/[id]/page.tsx`: `BB` (Belum Berkembang, developmentally normal in PAUD) moved off `status-absent-subtle` (red) to `status-late-subtle` (amber) so the worst-tier chip doesn't stigmatize toddlers with the same red used for "absent" on the attendance grid. Scale shifts up: MB→leave-blue, BSH→holiday-purple, BSB→present-green. Comment added to the const explaining the PAUD pedagogy rationale.
+- **`/build` skill HEREDOC** updated (`.claude/skills/build/SKILL.md`) — manual `Co-Authored-By` line dropped from the template; text now calls out that `prepare-commit-msg` hook is the single source. Prevents the doubled trailer seen on cycle-1 commits.
+
+**Why one PR instead of 5:** user called the per-cycle ceremony "stupid cycle" after #109/#110/#111 and asked for "one PR for the rest of tasks". Honored — all residual admin-polish items ship together.
+
+**Caveat on this bundle:** PR combines the original StatsCardsRow migration (low-risk, byte-identical DOM) with a genuine UX shift (route-level `/new` forms → in-list Dialog/Sheet). Reviewers should smoke-test the create flows on preview. Rollback-to-route is a revert of this single PR.

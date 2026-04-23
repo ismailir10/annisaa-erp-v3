@@ -76,10 +76,11 @@ test.describe("Admin flows", () => {
     await expect(page.locator("text=Gaji Pokok")).toBeVisible({ timeout: 15_000 });
   });
 
-  test("can navigate to new employee form", async ({ page }) => {
-    await page.goto("/admin/employees/new");
-    await page.waitForURL("**/admin/employees/new");
-    await expect(page.getByRole("heading", { name: "Tambah Karyawan" })).toBeVisible({ timeout: 15_000 });
+  test("can open create employee dialog from list", async ({ page }) => {
+    await page.goto("/admin/employees");
+    await page.waitForURL("**/admin/employees");
+    await page.getByRole("button", { name: /Tambah/ }).click();
+    await expect(page.getByRole("dialog").getByText("Tambah Karyawan")).toBeVisible({ timeout: 15_000 });
   });
 
   test("deleted flat assessment-templates URL redirects to nested", async ({ page }) => {
