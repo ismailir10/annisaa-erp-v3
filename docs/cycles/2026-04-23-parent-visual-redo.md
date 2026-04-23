@@ -204,16 +204,18 @@ Five iteration rounds with CTO during Phase 1:
 
 > Serial. One task = one PR to `staging`. Between-task gate: `npm run build && npm run lint && npx vitest run`. End-of-cycle gate (after T5): same + `npx playwright test`. Per task: 375 + 1280 before/after screenshots embedded in Verification section, parity check vs cited HTML frame.
 
+**Why no preflight T0 delete:** initial plan was to delete `SummaryHero` + `CardListItem` first as a clean preflight. Grep showed 6 active consumers (`household-overview`, `invoices/{client,sheet,test}`, `attendance/{client,strip,page}`, `assessments-table`). Deleting primitives now = build break. Each consumer is removed during its own task. Final delete lands in T6 once no imports remain.
+
 | # | Task | Cited frames | Files touched | New files |
 |---|---|---|---|---|
-| **T0** | Preflight teardown — delete `SummaryHero` + `CardListItem` primitives + tests. Grep confirms no remaining consumers across `app/` and `components/` before delete. | — | DELETE: `components/portal/summary-hero.tsx`, `components/portal/__tests__/summary-hero.test.tsx`, `components/portal/card-list-item.tsx`, `components/portal/__tests__/card-list-item.test.tsx`. UPDATE: any consumer to inline equivalent (none expected; verify with grep). | — |
 | **T1** | `/parent` home rebuild + header avatar plumbing | 1, 2, 3 | REWRITE: `app/parent/page.tsx`, `components/parent/household-overview.tsx` (or fold into page.tsx and DELETE). DELETE: `components/parent/parent-greeting.tsx` (replaced inline). | NEW: `components/parent/kid-card.tsx`, `lib/hijri.ts`. |
 | **T2** | `/parent/invoices` list + detail | 4, 5, 6, 7 | REWRITE: `app/parent/invoices/client.tsx`, `app/parent/invoices/invoice-detail-sheet.tsx`, `app/parent/invoices/__tests__/client.test.tsx`. | — |
 | **T3** | `/parent/attendance` rebuild | 8, 9, 10 | REWRITE: `app/parent/attendance/client.tsx`, `app/parent/attendance/page.tsx`. DELETE or REWRITE: `app/parent/attendance/week-summary-strip.tsx`. | — |
-| **T4** | `/parent/reports` rebuild | 11, 12 | REWRITE: `app/parent/reports/page.tsx`. REVIEW: `app/parent/assessments-table.tsx` (light typography/spacing pass only). | — |
+| **T4** | `/parent/reports` rebuild + assessments-table light pass | 11, 12 | REWRITE: `app/parent/reports/page.tsx`. REVIEW + light-pass: `app/parent/assessments-table.tsx` (typography/spacing only — also drops any remaining `CardListItem` import here). | — |
 | **T5** | `/parent/profile` NEW route | 13 | UPDATE: `app/parent/page.tsx` if avatar href needs adjusting. | NEW: `app/parent/profile/page.tsx`. |
+| **T6** | Final cleanup — delete dead primitives | — | DELETE: `components/portal/summary-hero.tsx`, `components/portal/__tests__/summary-hero.test.tsx`, `components/portal/card-list-item.tsx`, `components/portal/__tests__/card-list-item.test.tsx`. Pre-flight grep must show zero consumers across `app/` and `components/` before delete (consumers cleared in T1–T5). UPDATE: stale comment in `e2e/parent.spec.ts` referencing the removed primitives. | — |
 
-Per task brief: 4 PRs minimum (T1-T4). T0 lands first as a clean preflight, T5 lands last (depends on T1 avatar plumbing). Total = 6 PRs.
+Per task brief: 4 PRs minimum (T1-T4). T5 + T6 add cycle-specific PRs. Total = 6 PRs. T1–T5 serial. T6 lands after T5 merges (only when grep confirms zero consumers).
 
 ## Implementation
 
