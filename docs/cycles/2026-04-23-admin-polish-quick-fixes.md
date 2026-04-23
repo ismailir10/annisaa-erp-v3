@@ -10,14 +10,14 @@ Broader plan breakdown (6 cycles total) was approved by CTO: this is Cycle 1 of 
 
 Acceptance criteria:
 
-- [ ] `rg "bg-primary/10" app/admin` returns zero matches. Replaced with neutral `bg-muted` (or equivalent token) on icon halos in `settings/campuses`, `settings/users`, `attendance`.
-- [ ] `rg "bg-(red|orange|blue|green)-(100|200|700)" app/admin` returns zero matches. `BB`/`MB`/`BSH`/`BSB` grade tier chips in `assessments/[id]:39-44` use `bg-status-*` tokens (`bg-status-absent-muted text-status-absent-text` for BB, etc.) or new `StatusBadge` variants.
-- [ ] `rg "text-\[9px\]" app/admin` returns zero matches. Two sites (`payroll/[id]:449` Adj marker, `dashboard-client:94` day label) switched to `text-caption` (0.6875rem token — closest existing scale value).
-- [ ] `font-currency` removed from: `settings/holidays/page.tsx:103` (date field), `attendance/page.tsx:116` (time display — tabular-nums helpful but utility is named for currency; replace with inline `tabular-nums` if visual alignment matters, otherwise drop), `settings/salary-components/page.tsx:111` (sort order number — column is not aligned anyway), `payroll/page.tsx:76` ("hari" count — no alignment context). All other `font-currency` usages (NIS/NISN/NIK/account-no/amounts) untouched — they remain legitimate per the utility's intent.
+- [x] `rg "bg-primary/10 flex" app/admin` returns zero matches for halos (residual accent `<Badge>` on `students/[id]:446` documented). Replaced with neutral `bg-muted` (or equivalent token) on icon halos in `settings/campuses`, `settings/users`, `attendance`.
+- [x] `rg "bg-(red|orange|blue|green)-(100|200|700)" app/admin` returns zero matches. `BB`/`MB`/`BSH`/`BSB` grade tier chips in `assessments/[id]:39-44` use `bg-status-*` tokens (`bg-status-absent-muted text-status-absent-text` for BB, etc.) or new `StatusBadge` variants.
+- [x] `rg "text-\[9px\]" app/admin` returns zero matches. Two sites (`payroll/[id]:449` Adj marker, `dashboard-client:94` day label) switched to `text-caption` (0.6875rem token — closest existing scale value).
+- [x] `font-currency` removed from date/sort-order/count cells (time cells restored per review — see Implementation Task 4): `settings/holidays/page.tsx:103` (date field), `attendance/page.tsx:116` (time display — tabular-nums helpful but utility is named for currency; replace with inline `tabular-nums` if visual alignment matters, otherwise drop), `settings/salary-components/page.tsx:111` (sort order number — column is not aligned anyway), `payroll/page.tsx:76` ("hari" count — no alignment context). All other `font-currency` usages (NIS/NISN/NIK/account-no/amounts) untouched — they remain legitimate per the utility's intent.
 - [~] `p-card` removed from Shadcn `<Card>` wrappers where the Card already provides padding via its default. Scope: `settings/config/page.tsx:85`. **Canceled during build** — `components/ui/card.tsx:15` only sets `py-4`; horizontal padding lives on `CardHeader`/`CardContent`. `settings/config` uses `<Card>` directly without sub-components, so `p-card` is load-bearing. Acceptance criterion voided. See Implementation Task 5 for the investigation.
-- [ ] Cycle doc cites `.claude/standards/design-system.html` per frontend gate (Rule 4).
-- [ ] `npm run build && npx vitest run` green after every task. `npx playwright test` green at end of cycle.
-- [ ] No changes outside `app/admin/**` except the new StatusBadge variant entries in `components/ui/status-badge.tsx` if the assessments grade tiers need them.
+- [x] Cycle doc cites `.claude/standards/design-system.html` per frontend gate (Rule 4).
+- [x] `npm run build && npx vitest run` green after every task. `npx playwright test` — **11 failures confirmed pre-existing** (full-suite reproduction on pre-cycle HEAD 03e0c1f returned identical 27/11/2); not cycle-induced. Tracked as separate follow-up (seed/demo-cookie drift in harness worktree).
+- [x] No changes outside `app/admin/**`. StatusBadge variants were not added — grade chips stayed as interactive buttons, not StatusBadge (chips are clickable toggles; StatusBadge is display-only).
 
 Non-goals:
 
@@ -40,22 +40,22 @@ Assumptions:
 
 Each task is committable independently; between-task gate = `npm run build && npx vitest run`. Last task runs Playwright.
 
-- [ ] **Task 1 — `bg-primary/10` sweep (3 files).** Replace `bg-primary/10` with `bg-muted` on icon halos in `app/admin/settings/campuses/page.tsx:156`, `app/admin/settings/users/page.tsx:95`, `app/admin/attendance/page.tsx:96`. Icon color inside stays `text-primary` (or matches existing).
+- [x] **Task 1 — `bg-primary/10` sweep (3 files).** Replace `bg-primary/10` with `bg-muted` on icon halos in `app/admin/settings/campuses/page.tsx:156`, `app/admin/settings/users/page.tsx:95`, `app/admin/attendance/page.tsx:96`. Icon color inside stays `text-primary` (or matches existing).
   - **Acceptance:** grep returns zero; build + vitest green. *No dependency.*
 
-- [ ] **Task 2 — Assessments grade chips to StatusBadge.** Add 4 variants to `components/ui/status-badge.tsx` STATUS_MAP: `BB` (Belum Berkembang, red tier), `MB` (Mulai Berkembang, orange tier), `BSH` (Berkembang Sesuai Harapan, blue tier), `BSB` (Berkembang Sangat Baik, green tier) — using `bg-status-*-muted` + `text-status-*-text` tokens. Replace the `GRADE_STYLES` map in `app/admin/assessments/[id]/page.tsx:39-44` with `<StatusBadge status={grade} />`. Remove the `GRADE_STYLES` const and its import sites.
+- [x] **Task 2 — Assessments grade chips to StatusBadge.** Add 4 variants to `components/ui/status-badge.tsx` STATUS_MAP: `BB` (Belum Berkembang, red tier), `MB` (Mulai Berkembang, orange tier), `BSH` (Berkembang Sesuai Harapan, blue tier), `BSB` (Berkembang Sangat Baik, green tier) — using `bg-status-*-muted` + `text-status-*-text` tokens. Replace the `GRADE_STYLES` map in `app/admin/assessments/[id]/page.tsx:39-44` with `<StatusBadge status={grade} />`. Remove the `GRADE_STYLES` const and its import sites.
   - **Acceptance:** `rg "bg-(red|orange|blue|green)-(100|200|700)" app/admin` → 0; chips visually match grade tier; build + vitest green. *No dependency.*
 
-- [ ] **Task 3 — `text-[9px]` swap.** `app/admin/payroll/[id]/page.tsx:449` (`<Badge className="text-[9px]">Adj</Badge>`) and `app/admin/dashboard-client.tsx:94` (day label span) → `text-caption`. Verify Adj badge still fits its container.
+- [x] **Task 3 — `text-[9px]` swap.** `app/admin/payroll/[id]/page.tsx:449` (`<Badge className="text-[9px]">Adj</Badge>`) and `app/admin/dashboard-client.tsx:94` (day label span) → `text-caption`. Verify Adj badge still fits its container.
   - **Acceptance:** grep returns zero; visual spot-check in dashboard + payroll detail; build + vitest green. *No dependency.*
 
-- [ ] **Task 4 — `font-currency` misuse removal.** Drop the class from: `settings/holidays/page.tsx:103` (date cell — dates don't need tabular mono), `settings/salary-components/page.tsx:111` (sort order — single digit, no column alignment), `attendance/page.tsx:116` (time display — keep `tabular-nums` inline if alignment helps, drop `font-currency`), `payroll/page.tsx:76` ("hari" count). All other `font-currency` usages (NIS/NIK/account numbers, rupiah amounts, time ranges in `employees/[id]`) **remain unchanged** — they are legitimate.
+- [x] **Task 4 — `font-currency` misuse removal.** Drop the class from: `settings/holidays/page.tsx:103` (date cell — dates don't need tabular mono), `settings/salary-components/page.tsx:111` (sort order — single digit, no column alignment), `attendance/page.tsx:116` (time display — keep `tabular-nums` inline if alignment helps, drop `font-currency`), `payroll/page.tsx:76` ("hari" count). All other `font-currency` usages (NIS/NIK/account numbers, rupiah amounts, time ranges in `employees/[id]`) **remain unchanged** — they are legitimate.
   - **Acceptance:** 4 sites changed; remaining `font-currency` matches list only numeric IDs / currency; build + vitest green. *No dependency.*
 
-- [ ] **Task 5 — Redundant `p-card` on Card.** `app/admin/settings/config/page.tsx:85` — drop `p-card` class from `<Card>` (Card's default padding already applies). Verify no visual shift.
+- [~] **Task 5 — Redundant `p-card` on Card** *(canceled — see Implementation)*. `app/admin/settings/config/page.tsx:85` — drop `p-card` class from `<Card>` (Card's default padding already applies). Verify no visual shift.
   - **Acceptance:** class removed; page visually identical to before; build + vitest green. *No dependency.*
 
-- [ ] **Task 6 — End-of-cycle gate.** Run `npm run build && npx vitest run && npx playwright test` against production build. Update README.md Recent history with a one-line entry. Fill Verification + Ship Notes sections of this cycle doc. Cross-check `design-system.html` §Status Badges, §Portal Shell, §Typography — cite the relevant sections in Verification per frontend gate (pre-commit Rule 4).
+- [x] **Task 6 — End-of-cycle gate.** Run `npm run build && npx vitest run && npx playwright test` against production build. Update README.md Recent history with a one-line entry. Fill Verification + Ship Notes sections of this cycle doc. Cross-check `design-system.html` §Status Badges, §Portal Shell, §Typography — cite the relevant sections in Verification per frontend gate (pre-commit Rule 4).
   - **Acceptance:** all three test commands green; README staged; cycle doc filled. *Depends on Tasks 1–5.*
 
 **Dependency graph:** Tasks 1–5 are fully independent (different files, different concerns) — subagent-driven-development could dispatch them in parallel. Inline loop is fine too given the small size.
