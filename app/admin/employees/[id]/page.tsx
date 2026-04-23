@@ -350,7 +350,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
                   <span className="font-currency text-muted-foreground w-20">{formatDateShort(r.date)}</span>
                 </div>
                 <span className="font-currency">{r.checkInTime ? formatTime(r.checkInTime) : "--:--"} — {r.checkOutTime ? formatTime(r.checkOutTime) : "--:--"}</span>
-                <span className="text-xs w-16 text-right">{r.status}</span>
+                <div className="w-20 flex justify-end"><StatusBadge status={r.status} /></div>
               </div>
             ))}
             {data.records.length === 0 && <EmptyState title="Belum ada kehadiran" description="Belum ada rekap kehadiran untuk bulan ini." />}

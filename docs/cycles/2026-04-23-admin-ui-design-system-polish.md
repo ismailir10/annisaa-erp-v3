@@ -63,7 +63,7 @@ Assumptions:
    - Only Field-wrapper `gap-4` grids in create/edit Sheet/Dialog bodies; skip any `gap-4` that is NOT a Field grid.
    - Depends on: none.
 
-4. [ ] **Attendance enum strings → `<StatusBadge>`.**
+4. [x] **Attendance enum strings → `<StatusBadge>`.**
    - Primary file: the Kehadiran tab in `app/admin/employees/[id]/page.tsx` (raw enum rendering confirmed at staging URL `/admin/employees/<id>` → Kehadiran tab). Locate the JSX cell rendering `{r.status}` or equivalent and swap for `<StatusBadge status={r.status} />`.
    - Sweep: grep `app/admin/**` for raw ENUM render patterns (`PRESENT|LATE|ABSENT|LEAVE` as displayed text, or `{status}` inside a `<td>` / status-column cell) — fix any other admin pages using the same anti-pattern.
    - If `StatusBadge` does not cover all four states, extend it minimally to do so (and mirror the palette already in use on other admin pages).
@@ -98,12 +98,14 @@ Assumptions:
 - Task 1: payroll hero stat typography — `app/admin/payroll/[id]/page.tsx:398-400` — `text-lg` → `text-2xl` on the three StatsCardsRow numeric totals.
 - Task 2: students detail mini-tile color symmetry — `app/admin/students/[id]/page.tsx:516,524` — `text-destructive` → `text-status-absent`; `text-warning` → `text-status-leave`. All four attendance summary tiles now share the `text-status-*` vocabulary.
 - Task 3: form field grids `gap-4` → `gap-field` — 3 Field-grid wrappers in `app/admin/students/page.tsx` (lines 101, 121, 146), 4 Field-grid wrappers in `app/admin/employees/page.tsx` (lines 472, 476, 480, 511). Token-first hygiene per `ui.md §Spacing`. Both tokens resolve to 1rem → zero visual delta, pure token-audit win.
+- Task 4: attendance enum render → StatusBadge — `app/admin/employees/[id]/page.tsx:353` — raw `<span>{r.status}</span>` replaced with `<StatusBadge status={r.status} />`. Sweep confirmed every other admin status render was already on StatusBadge. Container widened `w-16 → w-20` to fit the pill. Existing StatusBadge STATUS_MAP covers all four attendance enums (PRESENT/LATE/ABSENT/LEAVE) with Indonesian labels (Hadir/Terlambat/Alpa/Cuti).
 
 ## Verification
 
 - Task 1: gates passed (build + vitest run). Staging baseline screenshot taken pre-change; end-of-cycle smoke will capture post-change.
 - Task 2: gates passed (build + vitest run). Cross-checked design-system.html voice on status semantics — absent/leave tokens avoid conflating "attendance absent" with generic "destructive error" per colors.md semantic-token rule.
 - Task 3: gates passed (build + vitest run). Both tokens resolve to 1rem per `globals.css:262` → no visual shift expected; token-hygiene only.
+- Task 4: gates passed (build + vitest run). Staging baseline confirmed raw `PRESENT / LATE / ABSENT` uppercase strings in admin/employees/[id] Kehadiran tab; post-change renders localized pills.
 
 ## Ship Notes
 
