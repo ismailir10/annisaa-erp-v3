@@ -160,6 +160,17 @@ New file `lib/__tests__/parent-helpers-tz.test.ts` with 5 tests using `vi.setSys
 
 All pass on UTC host.
 
+### B4 — Promote capacity check inside `$transaction` + FOR UPDATE
+
+Rewrote `app/api/students/[id]/promote/route.ts` to mirror the enroll route pattern (`app/api/students/[id]/enroll/route.ts:56-69`):
+- Outer tenant existence check via `findFirst` keeps the fast 404 for non-tenant targets.
+- Capacity check moves *inside* `prisma.$transaction(async (tx) => …)` using `tx.$queryRaw` with `FOR UPDATE OF cs` on the ClassSection row.
+- Introduced a `PromoteError` class + `try/catch` around the transaction (same shape as enroll's `EnrollError`). Prevents two concurrent promotes from both reading "one seat free" against a stale snapshot.
+
+New test file `app/api/__tests__/promote-capacity-race.test.ts` with 4 tests: (1) 400 "penuh" when already-at-capacity (the exact lost-race scenario), (2) `$transaction` called exactly once, (3) 201 on success, (4) structural assert that the SQL template contains `FOR UPDATE OF cs` and references `StudentEnrollment` — catches regressions where the lock clause is accidentally dropped.
+
+True concurrent-promote integration (two simultaneous POSTs) requires a real Postgres — covered at end-of-cycle by the seed-driven Playwright run plus manual soak. The structural + error-path tests prevent the class of regression that introduced the original bug.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
