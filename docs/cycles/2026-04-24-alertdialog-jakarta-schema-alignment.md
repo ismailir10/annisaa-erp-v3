@@ -131,6 +131,10 @@ Follow-up from code-review (not blocking this cycle): consider a dev-time `conso
 
 Added a re-enable assertion on the rejection path test: after `onConfirm` rejects and the dialog stays open, the confirm button must re-enable so the user can retry. Prevents regressions where `setIsLoading(false)` accidentally moves out of `finally`.
 
+### A4 — Caller smoke verification (deferred to end-of-cycle gate)
+
+Caller behavior is gated at end-of-cycle via the existing `npx playwright test` run (admin.spec.ts + teacher.spec.ts + parent.spec.ts) which exercises destructive-confirm flows (invoice void path, settings pages, employee detail). Unit-test coverage in `components/ui/__tests__/confirm-dialog.test.tsx` proves the public API contract. The 15 callers use only documented props (verified via grep on A2 prep); primitive swap + rejection-stay-open change are both behaviorally inert for current callers because none re-throw on failure (confirmed in A3 code-review). Skipping a dev-server preview click-through as it would duplicate end-of-cycle coverage.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
