@@ -1,32 +1,46 @@
-import { StatusBadge } from "@/components/ui/status-badge";
+import { CalendarDays } from "lucide-react";
+import { SummaryHero, type SummaryHeroTone } from "@/components/portal/summary-hero";
 import type { WeekAttendanceCounts } from "@/lib/parent-helpers";
 
 /**
- * Compact server-rendered strip that surfaces this-week attendance totals
- * so parents can answer "how did this week go?" without scrolling the list.
- * Monday → today window computed in `countAttendanceThisWeek()`.
+ * Week summary for the parent-attendance page — surfaces "how did this week
+ * go?" without scrolling the day list. Tone is derived from the worst-severity
+ * status present in the Monday → today window:
+ *   - any ABSENT → `danger`
+ *   - any SICK or PERMISSION (no ABSENT) → `warn`
+ *   - only PRESENT → `success`
+ *
+ * Rendered as a secondary hero (`elevated={false}`) because the page's primary
+ * focus is the H1 + day list below it — tone-tint + left-accent still carry
+ * the severity glance without competing with the title.
+ *
+ * Keeps `data-testid="attendance-week-summary"` + the "Minggu ini" literal for
+ * existing Playwright assertions (e2e/parent.spec.ts).
  */
+
+function deriveTone(counts: WeekAttendanceCounts): SummaryHeroTone {
+  if (counts.ABSENT > 0) return "danger";
+  if (counts.SICK + counts.PERMISSION > 0) return "warn";
+  if (counts.PRESENT > 0) return "success";
+  return "neutral";
+}
+
 export function WeekSummaryStrip({ counts }: { counts: WeekAttendanceCounts }) {
+  const tone = deriveTone(counts);
+
   return (
-    <div
-      data-testid="attendance-week-summary"
-      className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2.5"
-    >
-      <span className="text-xs font-medium text-muted-foreground mr-1">
-        Minggu ini:
-      </span>
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <StatusBadge status="PRESENT" /> {counts.PRESENT}
-      </span>
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <StatusBadge status="SICK" /> {counts.SICK}
-      </span>
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <StatusBadge status="PERMISSION" /> {counts.PERMISSION}
-      </span>
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <StatusBadge status="ABSENT" /> {counts.ABSENT}
-      </span>
+    <div data-testid="attendance-week-summary" className="mb-4">
+      <SummaryHero
+        tone={tone}
+        icon={CalendarDays}
+        elevated={false}
+        primary={
+          <span className="text-base sm:text-lg font-semibold">
+            {`Minggu ini: Hadir ${counts.PRESENT} · Sakit ${counts.SICK} · Alpa ${counts.ABSENT} · Izin ${counts.PERMISSION}`}
+          </span>
+        }
+        secondary="Ringkasan kehadiran harian anak Anda selama pekan ini."
+      />
     </div>
   );
 }
