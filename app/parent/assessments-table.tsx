@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Eye } from "lucide-react";
+import { SummaryHero } from "@/components/portal/summary-hero";
+import { CardListItem } from "@/components/portal/card-list-item";
+import { BookOpen, GraduationCap, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -41,9 +43,11 @@ type AssessmentDetail = {
 
 type AssessmentsTableProps = {
   data: AssessmentItem[];
+  /** Child's first/nickname — used for warm celebration voice. */
+  childName?: string;
 };
 
-export function AssessmentsTable({ data }: AssessmentsTableProps) {
+export function AssessmentsTable({ data, childName }: AssessmentsTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<AssessmentDetail | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -78,11 +82,14 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
     setLoadingId(null);
   }
 
+  // T4d — no rapor at all: warm empty state, skip hero (per T4a rule).
   if (data.length === 0) {
     return (
       <EmptyState
-        title="Belum ada rapor"
-        description="InsyaAllah rapor terbit setelah Ustadz/Ustadzah selesai menilai."
+        accent="warm"
+        icon={BookOpen}
+        title="Rapor belum terbit"
+        description="InsyaAllah akan tersedia setelah Ustadzah finalisasi nilai. Periksa kembali di akhir semester."
       />
     );
   }
@@ -91,34 +98,44 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
     ? new Map(detail.scores.map((s) => [s.indicatorId, s]))
     : null;
 
+  // T4a — latest-rapor celebration hero. All rows served by
+  // getPublishedAssessmentsForStudent are PUBLISHED (query already filters),
+  // so the hero tone is celebration-gold whenever any rapor exists.
+  const latest = data[0];
+  const whoseRapor = childName ? ` ${childName}` : "";
+
   return (
     <>
-      <div className="space-y-3">
-        {data.map((item) => (
-          <div
-            key={item.id}
-            className="rounded-lg border border-border bg-card p-card"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-semibold leading-snug truncate flex-1">
-                {item.templateName}
-              </p>
-              <StatusBadge status={item.status} />
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {item.period} · {item.programName}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-3"
-              onClick={() => setSelectedId(item.id)}
-            >
-              <Eye size={14} className="mr-2" />
-              Lihat
+      <div className="space-y-4">
+        <SummaryHero
+          tone="celebration"
+          icon={Sparkles}
+          primary={`Rapor ${latest.period}${whoseRapor} sudah terbit`}
+          secondary={`Alhamdulillah — ${latest.programName}. Ketuk untuk baca penilaian lengkap Ustadzah.`}
+          action={
+            <Button size="sm" onClick={() => setSelectedId(latest.id)}>
+              Lihat Rapor
             </Button>
-          </div>
-        ))}
+          }
+          elevated={true}
+        />
+
+        <div className="space-y-2">
+          {data.map((item) => (
+            <CardListItem
+              key={item.id}
+              onClick={() => setSelectedId(item.id)}
+              leading={
+                <span className="size-11 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                  <GraduationCap className="size-5" aria-hidden />
+                </span>
+              }
+              primary={item.templateName}
+              secondary={`${item.period} · ${item.programName}`}
+              trailing={<StatusBadge status={item.status} variant="intent" />}
+            />
+          ))}
+        </div>
       </div>
 
       <Sheet open={!!selectedId} onOpenChange={() => setSelectedId(null)}>
@@ -141,10 +158,21 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
                 </p>
               </SheetHeader>
 
+              {/* T4c — celebration hero inside detail sheet */}
+              <div className="mt-4">
+                <SummaryHero
+                  tone="celebration"
+                  icon={Sparkles}
+                  primary={`Rapor ${detail.period} · Alhamdulillah`}
+                  secondary={`${detail.programName} — ringkasan penilaian Ustadzah tertera di bawah.`}
+                  elevated={false}
+                />
+              </div>
+
               <div className="mt-6 space-y-8">
                 {detail.categories.map((cat) => (
                   <div key={cat.id}>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                    <h3 className="text-h2 font-semibold text-foreground mb-3">
                       {cat.name}
                     </h3>
                     <div className="space-y-3">
@@ -163,7 +191,7 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
                               {scoreInfo ? (
                                 <Badge
                                   variant="outline"
-                                  className={`text-xs ${scoreInfo.color}`}
+                                  className={`text-xs tabular-nums ${scoreInfo.color}`}
                                 >
                                   {score!.score}
                                 </Badge>
@@ -177,6 +205,29 @@ export function AssessmentsTable({ data }: AssessmentsTableProps) {
                     </div>
                   </div>
                 ))}
+
+                {/* Teacher notes block — warm-tinted left-accent per T4c */}
+                {detail.scores.some((s) => s.notes && s.notes.trim().length > 0) ? (
+                  <div>
+                    <h3 className="text-h2 font-semibold text-foreground mb-3">
+                      Catatan Ustadzah
+                    </h3>
+                    <div className="space-y-3">
+                      {detail.scores
+                        .filter((s) => s.notes && s.notes.trim().length > 0)
+                        .map((s) => (
+                          <div
+                            key={s.indicatorId}
+                            className="border-l-4 border-l-primary bg-primary/5 p-card rounded-md"
+                          >
+                            <p className="text-sm text-foreground whitespace-pre-wrap">
+                              {s.notes}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </>
           ) : null}
