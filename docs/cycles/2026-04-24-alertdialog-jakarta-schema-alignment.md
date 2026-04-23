@@ -179,6 +179,10 @@ Now: outer `findFirst` only confirms tenant+existence; capacity value and active
 
 New test `app/api/__tests__/bulk-promote-race.test.ts`: (1) rejects when not enough capacity (inside-tx check), (2) structural assert on `FOR UPDATE OF cs` SQL, (3) happy-path promoted+skipped counts.
 
+### B6 — Today-attendance default uses Jakarta TZ
+
+`app/api/attendance/today/route.ts:12` fallback switched from `new Date().toISOString().split("T")[0]` (UTC) to `getTodayInTimezone("Asia/Jakarta")`. Between 00:00 and 06:59 WIB the admin dashboard "Today" view pulled yesterday's attendance; now it aligns with the school day.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
