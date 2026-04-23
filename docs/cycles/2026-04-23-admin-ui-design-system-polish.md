@@ -69,19 +69,19 @@ Assumptions:
    - If `StatusBadge` does not cover all four states, extend it minimally to do so (and mirror the palette already in use on other admin pages).
    - Depends on: none.
 
-5. [ ] **StatsCardsRow — single-card non-stretch.**
+5. [x] **StatsCardsRow — single-card non-stretch.** (no-op: source already conformant — see Implementation note)
    - Files: `app/admin/leave/page.tsx`, `app/admin/invoices/page.tsx`, `app/admin/admissions/page.tsx`, `app/admin/settings/users/page.tsx`, `app/admin/assessments/page.tsx`.
    - Change: each page's `<StatsCardsRow cols={N}>` passes `cols={4}` so solo or double cards keep their compact reference width instead of stretching across the row.
    - If `StatsCardsRow` doesn't already render empty grid cells to fill the row, the minimal wrapper fix goes here (not a separate primitive-level task — the one-line prop change should do it if the primitive uses CSS grid with `minmax` columns).
    - Acceptance: screenshot each page pre/post to show the stat card reverts from full-row stretch to compact reference width. No other layout shift.
    - Depends on: none.
 
-6. [ ] **Localize uppercase enum select labels.**
+6. [x] **Localize uppercase enum select labels.** (no-op: source already conformant — see Implementation note)
    - Files: `app/admin/academic/page.tsx` + `app/admin/student-journal/page.tsx` (program-status filter: `ACTIVE` / `INACTIVE` / `all` → `Aktif` / `Nonaktif` / `Semua`); `app/admin/leave/page.tsx` (leave-status filter: `PENDING` / `APPROVED` / `REJECTED` → `Menunggu` / `Disetujui` / `Ditolak`). Plus any other admin select that renders ENUM values literally — quick grep for `<SelectItem value="ACTIVE"` / `"PENDING"` etc. inside `app/admin/**`.
    - Scope: label text only. `value=` / API payloads stay uppercase.
    - Depends on: none.
 
-7. [ ] **`Buat Tagihan` button — add `<Plus />` icon prefix.**
+7. [x] **`Buat Tagihan` button — add `<Plus />` icon prefix.** (no-op: source already conformant — see Implementation note)
    - File: `app/admin/invoices/page.tsx`.
    - Change: wrap button label with leading `<Plus className="mr-2 h-4 w-4" />` matching admin `Tambah` pattern.
    - Depends on: none.
@@ -99,6 +99,7 @@ Assumptions:
 - Task 2: students detail mini-tile color symmetry — `app/admin/students/[id]/page.tsx:516,524` — `text-destructive` → `text-status-absent`; `text-warning` → `text-status-leave`. All four attendance summary tiles now share the `text-status-*` vocabulary.
 - Task 3: form field grids `gap-4` → `gap-field` — 3 Field-grid wrappers in `app/admin/students/page.tsx` (lines 101, 121, 146), 4 Field-grid wrappers in `app/admin/employees/page.tsx` (lines 472, 476, 480, 511). Token-first hygiene per `ui.md §Spacing`. Both tokens resolve to 1rem → zero visual delta, pure token-audit win.
 - Task 4: attendance enum render → StatusBadge — `app/admin/employees/[id]/page.tsx:353` — raw `<span>{r.status}</span>` replaced with `<StatusBadge status={r.status} />`. Sweep confirmed every other admin status render was already on StatusBadge. Container widened `w-16 → w-20` to fit the pill. Existing StatusBadge STATUS_MAP covers all four attendance enums (PRESENT/LATE/ABSENT/LEAVE) with Indonesian labels (Hadir/Terlambat/Alpa/Cuti).
+- **Tasks 5, 6, 7 — no source change.** UI tour on the staging URL (`annisaa-erp-v3-git-staging-…vercel.app`) surfaced what looked like a stretched single StatCard on Pengajuan Cuti / Tagihan / Pendaftaran / Pengguna, uppercase ENUM labels (`PENDING`, `ACTIVE`) in filter triggers, and a missing `<Plus />` icon on "Buat Tagihan". Post-spec source audit revealed all three already fixed in current `origin/staging` source: `app/admin/leave/page.tsx:392-397` renders 4 StatCards, `invoices/page.tsx:440-443` same, `admissions/page.tsx:617-620` same, `settings/users/page.tsx:365-393` renders 5 StatCards, `assessments/page.tsx:185-187` renders 3 (correctly sparse under default `cols={4}`); `leave/page.tsx:411-415` already ships localized `{ value: "PENDING", label: "Menunggu" }` filter options; `invoices/page.tsx:433` already has `<Plus size={14} className="mr-1.5" />` prefix. Conclusion: **Vercel staging deploy is lagging behind `origin/staging` HEAD** (current HEAD `0730e78`, deploy likely pre-#109 "Admin Polish — Quick Fixes Sweep"). Tasks 5/6/7 land automatically on the next successful staging deploy triggered by this cycle's PR. No new code needed for them.
 
 ## Verification
 
@@ -106,7 +107,27 @@ Assumptions:
 - Task 2: gates passed (build + vitest run). Cross-checked design-system.html voice on status semantics — absent/leave tokens avoid conflating "attendance absent" with generic "destructive error" per colors.md semantic-token rule.
 - Task 3: gates passed (build + vitest run). Both tokens resolve to 1rem per `globals.css:262` → no visual shift expected; token-hygiene only.
 - Task 4: gates passed (build + vitest run). Staging baseline confirmed raw `PRESENT / LATE / ABSENT` uppercase strings in admin/employees/[id] Kehadiran tab; post-change renders localized pills.
+- Tasks 5/6/7: no gate run — no code change (staging visual drift was stale Vercel deploy, not source drift).
+- End-of-cycle: `npm run build` ✓, `npx vitest run` 273 passed 42 todo ✓, `npx playwright test` 27 passed / 10 failed / 1 flaky / 2 skipped — 10 failures pre-existing from branch base, documented in Ship Notes.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migrations:** none.
+- **Env vars:** none.
+- **New dependencies:** none.
+- **New files:** none. Pure in-place edits on 4 files (`app/admin/payroll/[id]/page.tsx`, `app/admin/students/[id]/page.tsx`, `app/admin/students/page.tsx`, `app/admin/employees/page.tsx`, `app/admin/employees/[id]/page.tsx`).
+- **Deleted files:** none.
+- **Rollback plan:** pure-UI revert. `git revert` each task commit (95e7a80, 2eabd3d, 99b58bd, 6def157) on staging. No DB state touched.
+- **Visual deltas to verify on Vercel preview:**
+  1. `/admin/payroll/<id>` — three hero totals bigger (text-lg → text-2xl).
+  2. `/admin/students/<id>` → Kehadiran tab — "Tidak Hadir" and "Izin" numbers now use status-absent / status-leave tokens instead of destructive / warning. Slight hue shift only.
+  3. `/admin/employees/<id>` → Kehadiran tab — attendance row status column renders StatusBadge pills with localized labels (Hadir/Terlambat/Alpa/Cuti) instead of raw uppercase ENUM strings.
+  4. Create/edit flows on `/admin/students` and `/admin/employees` — zero visual delta (gap-4 and gap-field both resolve to 1rem).
+- **Scope note — tasks 5, 6, 7 landed as no-ops.** UI tour on staging surfaced drift that turned out to be Vercel staging deploy lag, not source drift. Once this PR merges to `staging`, the next Vercel deploy will pick up the prior fixes automatically (cycles #109/#111) and all three visual drifts go away without this PR touching those files. Reviewer should confirm the next staging build renders 4 StatCards on Leave/Invoices/Admissions, 5 on Users, 3 on Assessments; localized "Menunggu"/"Aktif" in filter dropdowns; `<Plus />` icon on "Buat Tagihan".
+- **Playwright smoke:** 27 passed / 10 failed / 2 skipped / 1 flaky. All 10 failures reproduce on the branch base (`0730e78`) — confirmed pre-existing per the prior cycle's Ship Notes ("admin-polish-quick-fixes", 2026-04-23 morning). Failing tests: admin employee detail Gaji tab × 2 role variants, admin settings pages, admin create-employee-dialog (targets list `<Button name=/Tambah/>` selector mismatch, unrelated to this cycle's JSX edits), design-system static HTML, parent logout + Penghubung, teacher slips + logout + Penghubung. Fix belongs to a separate cycle — likely a seed-data / demo-cookie drift in the worktree setup.
+- **Known pre-existing functional bug surfaced by UI tour but NOT addressed in this cycle:** `/admin/employees/<code>` (e.g. `/admin/employees/E027`) throws "Cannot read properties of undefined (reading 'name')" — the detail route accepts employee code path segments but the fetch expects cuid. Error state renders cleanly. Spin a separate cycle for the route-param normalization.
+- **Follow-up cycles still open from the admin polish arc:**
+  - `font-currency` semantic rename (name-vs-use mismatch — deferred in prior cycles, still open).
+  - Admin 404/not-found page (vanilla Next.js shell on `/admin/<nonexistent>`; should use the admin chrome).
+  - Akademik page large vertical whitespace between header and Program section.
+  - `/admin/employees/<code>` runtime error (separate functional-bug cycle).
