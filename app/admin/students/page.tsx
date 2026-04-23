@@ -98,7 +98,7 @@ function StudentFormBody({
 }) {
   return (
     <div className="space-y-field">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
           <FieldLabel>Nama Lengkap *</FieldLabel>
           <Input
@@ -118,7 +118,7 @@ function StudentFormBody({
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
           <FieldLabel>Jenis Kelamin</FieldLabel>
           <Select
@@ -143,7 +143,7 @@ function StudentFormBody({
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
           <FieldLabel>NIS</FieldLabel>
           <Input

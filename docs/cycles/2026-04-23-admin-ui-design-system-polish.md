@@ -58,7 +58,7 @@ Assumptions:
    - Line 524: `text-warning` → `text-status-leave`.
    - Depends on: none.
 
-3. [ ] **Form field grids — `gap-4` → `gap-field` (scoped).**
+3. [x] **Form field grids — `gap-4` → `gap-field` (scoped).**
    - Files: `app/admin/students/page.tsx`, `app/admin/employees/page.tsx`.
    - Only Field-wrapper `gap-4` grids in create/edit Sheet/Dialog bodies; skip any `gap-4` that is NOT a Field grid.
    - Depends on: none.
@@ -97,11 +97,13 @@ Assumptions:
 - Cross-checked design-system.html §11 Stat Cards (`.stat-value` = 1.75rem) for typography scale; `text-2xl` (1.5rem) is the closest Tailwind token without introducing `--text-stat`.
 - Task 1: payroll hero stat typography — `app/admin/payroll/[id]/page.tsx:398-400` — `text-lg` → `text-2xl` on the three StatsCardsRow numeric totals.
 - Task 2: students detail mini-tile color symmetry — `app/admin/students/[id]/page.tsx:516,524` — `text-destructive` → `text-status-absent`; `text-warning` → `text-status-leave`. All four attendance summary tiles now share the `text-status-*` vocabulary.
+- Task 3: form field grids `gap-4` → `gap-field` — 3 Field-grid wrappers in `app/admin/students/page.tsx` (lines 101, 121, 146), 4 Field-grid wrappers in `app/admin/employees/page.tsx` (lines 472, 476, 480, 511). Token-first hygiene per `ui.md §Spacing`. Both tokens resolve to 1rem → zero visual delta, pure token-audit win.
 
 ## Verification
 
 - Task 1: gates passed (build + vitest run). Staging baseline screenshot taken pre-change; end-of-cycle smoke will capture post-change.
 - Task 2: gates passed (build + vitest run). Cross-checked design-system.html voice on status semantics — absent/leave tokens avoid conflating "attendance absent" with generic "destructive error" per colors.md semantic-token rule.
+- Task 3: gates passed (build + vitest run). Both tokens resolve to 1rem per `globals.css:262` → no visual shift expected; token-hygiene only.
 
 ## Ship Notes
 
