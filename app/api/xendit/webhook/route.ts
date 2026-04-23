@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     const newStatus = await prisma.$transaction(async (tx) => {
       // Advisory lock on invoice to serialize concurrent webhooks
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(('x' || ${invoice.id}::text)::bit(64)::bigint)`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${invoice.id}))`;
 
       // Re-fetch invoice inside tx for fresh status
       const fresh = await tx.invoice.findUnique({ where: { id: invoice.id } });

@@ -104,6 +104,7 @@ Short log. Each entry is a decision that constrains future work.
 | 2026-04-18 | Unified PR-based `/ship`: all roles open a PR to `staging` and merge manually when CI is green — no direct pushes to `staging` or `main` | GitHub free plan doesn't support branch protection / auto-merge; manual merge + pre-push hook + CTO discipline is the enforcement layer (supersedes 2026-04-15 role-gated push) |
 | 2026-04-15 | `prd.md` retired; README.md becomes single source of truth for status/roadmap/ADRs | Eliminate three-way doc drift |
 | 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) instead of two separate templates | Keeps admin config flat (one accordion page, two tabs); parent portal and teacher grid share the same `<WeekGrid>` component; audit trail stays on a single `StudentJournalAudit` table |
+| 2026-04-24 | Teachers access class rosters via `GET /api/teacher/students?classId=…` (guarded by `requireTeacherForClass`), not the admin-only `/api/students` | Closes a PII enumeration leak found in the 2026-04-24 comprehensive code review. `/api/students` and `/api/employees` are now strict-admin; teacher data access runs through dedicated, class-scoped routes. See [`docs/cycles/2026-04-24-critical-money-and-auth-hotfix.md`](docs/cycles/2026-04-24-critical-money-and-auth-hotfix.md) |
 
 ---
 
