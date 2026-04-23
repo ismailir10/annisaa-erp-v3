@@ -41,7 +41,7 @@ export type HouseholdChild = {
 };
 
 export type HouseholdOverviewProps = {
-  children: HouseholdChild[];
+  items: HouseholdChild[];
 };
 
 // Parent-voice attendance labels (voice.md glossary). Override defaults so
@@ -66,13 +66,13 @@ function needsAttention(c: HouseholdChild): boolean {
   return c.unpaidCount > 0 || (c.todayAttendance !== "PRESENT" && c.todayAttendance !== "NONE");
 }
 
-export function HouseholdOverview({ children }: HouseholdOverviewProps) {
-  const total = children.length;
-  const unpaidKids = children.filter((c) => c.unpaidCount > 0).length;
-  const sickAbsentKids = children.filter(
+export function HouseholdOverview({ items }: HouseholdOverviewProps) {
+  const total = items.length;
+  const unpaidKids = items.filter((c) => c.unpaidCount > 0).length;
+  const sickAbsentKids = items.filter(
     (c) => c.todayAttendance === "SICK" || c.todayAttendance === "ABSENT" || c.todayAttendance === "PERMISSION",
   ).length;
-  const attentionKids = children.filter(needsAttention).length;
+  const attentionKids = items.filter(needsAttention).length;
 
   const allClear = attentionKids === 0;
 
@@ -114,7 +114,7 @@ export function HouseholdOverview({ children }: HouseholdOverviewProps) {
 
       {/* Per-child rows */}
       <div className="space-y-field">
-        {children.map((child) => (
+        {items.map((child) => (
           <ChildRow key={child.id} child={child} />
         ))}
       </div>

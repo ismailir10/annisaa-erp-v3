@@ -225,3 +225,7 @@ Parallelism plan: dispatch A1, B1a-group1, B1a-group2, B1a-group3, C1, D1, E1 co
 - **StatusBadge parent-tone prop** (cycle-1 C3 flag carried).
 - **`PARENT_INVOICE_LABELS` consolidation** to `lib/parent/invoice-labels.ts` (cycle-1 C3 flag carried).
 - **Portal-level extractions** (`PortalError`, `PageSkeleton`, `ListSkeleton`, `DetailSkeleton`, `RecentActivity`) per portal.md § cycle-3 candidates.
+
+### Post-merge hotfix (2026-04-23)
+
+CI on PR #106 merge-commit reported `react/no-children-prop` error at `app/parent/page.tsx:172` — `<HouseholdOverview children={householdChildren} />`. `children` is a reserved React prop name; ESLint forbids passing data via that name. Renamed prop `children` → `items` in `components/parent/household-overview.tsx` + call-site. Pure lint fix, no behavior change. Build + vitest unaffected (Next build doesn't run ESLint). Cross-checked design-system.html §14 (Household Overview spec unchanged — prop-naming convention only).
