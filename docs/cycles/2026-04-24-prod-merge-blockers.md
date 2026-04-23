@@ -36,7 +36,7 @@ Intended outcome: the two findings from the review are resolved on `staging`, CI
 ## Tasks
 
 - [x] **T1 — Add `fix_emaillog_rls` migration.** Create `prisma/migrations/20260424000000_fix_emaillog_rls/migration.sql` that drops and re-creates `emaillog_select_own_tenant` with the correct `tenantId` scope. Verify with `npx prisma migrate status` that the migration registers. Acceptance: migration file exists, SQL is idempotent, matches the sibling-policy pattern.
-- [ ] **T2 — Remove destructive `scripts/fix-rls-security.sh`.** Confirm no references in CI workflows, README, or CLAUDE.md first (`grep -r fix-rls-security`). Delete the file. Acceptance: `git status` shows the script deleted, `grep` finds no remaining references.
+- [x] **T2 — Remove destructive `scripts/fix-rls-security.sh`.** Confirm no references in CI workflows, README, or CLAUDE.md first (`grep -r fix-rls-security`). Delete the file. Acceptance: `git status` shows the script deleted, `grep` finds no remaining references.
 - [ ] **T3 — Run end-of-cycle gate + commit.** `npm run build && npx vitest run && npx playwright test`. Fill Verification + Ship Notes in this cycle doc. Commit T1 + T2 as separate commits per `/build` rules. Acceptance: both commits land, all three gates green, cycle doc complete.
 
 Dependencies: T1 and T2 are independent — could run in parallel. T3 depends on both.
@@ -45,10 +45,12 @@ Dependencies: T1 and T2 are independent — could run in parallel. T3 depends on
 
 - Subagent plan: T1 and T2 independent but trivial (<5 LOC each) — executed sequentially inline, not dispatched.
 - Task 1: Fix `emaillog_select_own_tenant` RLS policy — `prisma/migrations/20260424000000_fix_emaillog_rls/migration.sql` — DROP+CREATE policy with `tenantId IN (SELECT User.tenantId ...)` scope matching sibling `classsection_select_own_tenant` pattern.
+- Task 2: Remove destructive helper — deleted `scripts/fix-rls-security.sh` (contained `supabase db reset --linked` which wipes the currently-linked DB; header listed the prod project ref as a target). Grep confirmed no CI / doc / code references outside this cycle doc. RLS work the script performed has long since been captured as committed migrations, so deletion is the correct disposition per the Spec.
 
 ## Verification
 
 - Task 1: gates passed (`npm run build` green, `npx vitest run` 253 passed / 42 todo / 2 skipped). Reviewer (feature-dev:code-reviewer) VERDICT: SHIP — syntax valid, pattern matches sibling byte-for-byte, idempotent, no INSERT/UPDATE/DELETE gap (service_role writes bypass this policy), no legitimate cross-tenant read requirement in single-tenant MVP.
+- Task 2: gates passed (build green, vitest 253/42/2). Reviewer pass skipped for pure deletion of an obsolete destructive .sh (no application code touched, no runtime behavior change).
 
 ## Ship Notes
 
