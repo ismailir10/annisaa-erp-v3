@@ -193,6 +193,10 @@ Sub-bundle B post-commit code-review of B4-B6 hit the daily reviewer-agent quota
 
 Repo-wide grep for `"YEARLY"` returns zero hits after the change — no stale call site. Admin UI to create Day Care or Pop Up Class (which use `YEAR_ROUND` / `SESSION`) was previously rejected at validation; now passes.
 
+### C2 — Drop `TRANSFERRED` from enrollment Zod (schema is source of truth)
+
+`lib/validations/enrollment.ts:5` enum reduced to `["ACTIVE", "GRADUATED", "WITHDRAWN"]` to match `prisma/schema.prisma:484` comment. Repo-wide grep for `TRANSFERRED` returns zero hits after the change — no caller passed the literal, no UI rendered the status, no filter relied on it. Schema-as-source-of-truth pattern.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
