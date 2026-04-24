@@ -197,6 +197,10 @@ Repo-wide grep for `"YEARLY"` returns zero hits after the change — no stale ca
 
 `lib/validations/enrollment.ts:5` enum reduced to `["ACTIVE", "GRADUATED", "WITHDRAWN"]` to match `prisma/schema.prisma:484` comment. Repo-wide grep for `TRANSFERRED` returns zero hits after the change — no caller passed the literal, no UI rendered the status, no filter relied on it. Schema-as-source-of-truth pattern.
 
+### C3 — Leave Zod uses `z.enum` instead of `z.string().min(1)`
+
+`lib/validations/leave.ts:4` switched `leaveType: z.string().min(1)` → `z.enum(["ANNUAL", "SICK", "PERMISSION", "OTHER"])`. Schema enum was lost at the validation boundary; arbitrary strings were passing through and would have made any future enum-based filter silently miss them. Indonesian error message preserved via Zod v4 `{ message }` form.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
