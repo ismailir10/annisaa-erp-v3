@@ -24,6 +24,8 @@ function makeSession(role: SessionUser["role"], employeeId: string | null = null
     tenantId: "t1",
     employeeId,
     parentId: null,
+    permissions: [],
+    customRoleCode: null,
   };
 }
 

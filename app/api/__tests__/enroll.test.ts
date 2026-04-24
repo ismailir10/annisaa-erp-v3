@@ -26,7 +26,7 @@ function makeReq(body: unknown) {
 }
 
 function makeSession(role: SessionUser["role"] = "SUPER_ADMIN"): SessionUser {
-  return { id: "u1", email: "t@t", name: "T", role, tenantId: "t1", employeeId: null, parentId: null };
+  return { id: "u1", email: "t@t", name: "T", role, tenantId: "t1", employeeId: null, parentId: null, permissions: [], customRoleCode: null };
 }
 
 const params = Promise.resolve({ id: "s1" });

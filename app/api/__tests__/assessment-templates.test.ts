@@ -25,7 +25,7 @@ function makeReq(body: unknown) {
 }
 
 function makeSession(role: SessionUser["role"] = "SUPER_ADMIN"): SessionUser {
-  return { id: "u1", email: "a@a", name: "A", role, tenantId: "t1", employeeId: null, parentId: null };
+  return { id: "u1", email: "a@a", name: "A", role, tenantId: "t1", employeeId: null, parentId: null, permissions: [], customRoleCode: null };
 }
 
 describe("POST /api/assessments/templates — 409 on duplicate", () => {

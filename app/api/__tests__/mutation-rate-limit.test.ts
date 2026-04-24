@@ -71,6 +71,8 @@ const adminSession = {
   tenantId: "t-rate-test",
   employeeId: null,
   parentId: null,
+  permissions: [],
+  customRoleCode: null,
 };
 
 describe("Rate limit: POST /api/salary-components", () => {

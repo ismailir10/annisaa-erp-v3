@@ -34,7 +34,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 function makeSession(role: SessionUser["role"]): SessionUser {
-  return { id: "u1", email: "test@test.com", name: "Test", role, tenantId: "t1", employeeId: null, parentId: null };
+  return { id: "u1", email: "test@test.com", name: "Test", role, tenantId: "t1", employeeId: null, parentId: null, permissions: [], customRoleCode: null };
 }
 
 describe("GET /api/employees/[id]/salary — role checks", () => {
