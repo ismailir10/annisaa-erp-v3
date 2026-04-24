@@ -67,7 +67,7 @@ export default function StudentJournalPickerPage() {
 
   if (loading) {
     return (
-      <div className="px-5 pt-6 space-y-4">
+      <div className="space-y-4">
         <Skeleton className="h-7 w-48 rounded-md" />
         <Skeleton className="h-12 w-full rounded-xl" />
         <Skeleton className="h-12 w-full rounded-xl" />
@@ -78,7 +78,7 @@ export default function StudentJournalPickerPage() {
 
   if (assignments.length === 0) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <EmptyState
           icon={Users}
           title="Belum ditugaskan ke kelas"
@@ -89,7 +89,7 @@ export default function StudentJournalPickerPage() {
   }
 
   return (
-    <div className="px-5 pt-6 pb-4 max-w-md mx-auto">
+    <div>
       <PageHeader
         title="Buku Penghubung"
         actions={<BookHeart size={22} className="text-primary" aria-hidden />}

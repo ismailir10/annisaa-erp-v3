@@ -15,7 +15,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "createdAt", "desc");
+  const sort = parseSort(searchParams, {
+    allow: ["createdAt", "childName", "parentName", "status", "followUpDate"],
+    default: "createdAt",
+    defaultOrder: "desc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const status = searchParams.get("status");
   const search = searchParams.get("search") ?? "";
 

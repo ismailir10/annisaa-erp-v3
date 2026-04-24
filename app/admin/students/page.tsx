@@ -288,7 +288,7 @@ export default function StudentsPage() {
   const [status, setStatus] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [stats, setStats] = useState({ total: 0, active: 0, enrolled: 0, graduated: 0 });
+  const [stats, setStats] = useState({ total: 0, active: 0, graduated: 0 });
 
   // Create dialog state
   const [createOpen, setCreateOpen] = useState(false);
@@ -303,18 +303,22 @@ export default function StudentsPage() {
   const [editForm, setEditForm] = useState(EMPTY_CREATE_FORM);
   const [editing, setEditing] = useState(false);
 
-  // Stats fetch once
+  // Stats fetch once — single groupBy endpoint, not three pageSize=1 list calls
   useEffect(() => {
-    Promise.all([
-      fetch("/api/students?pageSize=1&status=ACTIVE").then(r => r.json()),
-      fetch("/api/students?pageSize=1&status=ENROLLED").then(r => r.json()),
-      fetch("/api/students?pageSize=1&status=GRADUATED").then(r => r.json()),
-    ]).then(([active, enrolled, graduated]) => {
-      const a = active.pagination?.total ?? 0;
-      const e = enrolled.pagination?.total ?? 0;
-      const g = graduated.pagination?.total ?? 0;
-      setStats({ total: a + e + g, active: a, enrolled: e, graduated: g });
-    }).catch((err) => console.error("[students] stats fetch failed", err));
+    (async () => {
+      try {
+        const res = await fetch("/api/students/stats");
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          total: number;
+          active: number;
+          graduated: number;
+        };
+        setStats(data);
+      } catch (err) {
+        console.error("[students] stats fetch failed", err);
+      }
+    })();
   }, []);
 
   const fetchStudents = useCallback(async () => {
@@ -497,8 +501,7 @@ export default function StudentsPage() {
       <StatsCardsRow>
         <StatCard label="Total Siswa" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
-        <StatCard label="Terdaftar Kelas" value={stats.enrolled} icon={GraduationCap} color="primary" index={2} />
-        <StatCard label="Lulus" value={stats.graduated} icon={GraduationCap} color="warning" index={3} />
+        <StatCard label="Lulus" value={stats.graduated} icon={GraduationCap} color="warning" index={2} />
       </StatsCardsRow>
 
       <DataTableToolbar

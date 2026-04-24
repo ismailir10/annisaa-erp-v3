@@ -293,7 +293,7 @@ export function AssessmentEntryClient({
   const publishedCount = Object.values(state).filter((s) => s.status === "PUBLISHED").length;
 
   return (
-    <div className="px-5 pt-6 pb-24">
+    <div className="pb-24">
       <Link
         href="/teacher/assessments"
         className="inline-flex items-center gap-1 text-xs text-muted-foreground mb-3"
@@ -398,7 +398,7 @@ export function AssessmentEntryClient({
         })}
       </Accordion>
 
-      <div className="fixed bottom-16 left-0 right-0 mx-auto max-w-md px-5">
+      <div className="fixed bottom-16 left-0 right-0 mx-auto max-w-md px-page-x">
         <Button
           onClick={publishAll}
           disabled={publishing}

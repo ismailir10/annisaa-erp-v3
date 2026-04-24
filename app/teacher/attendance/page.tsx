@@ -46,7 +46,7 @@ export default function TeacherAttendancePage() {
   }
 
   return (
-    <div className="px-5 pt-6 pb-4">
+    <div>
       <PageHeader title="Kehadiran Saya" />
 
       {/* Cuti action card — opens Sheet instead of navigating */}

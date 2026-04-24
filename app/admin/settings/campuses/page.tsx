@@ -91,12 +91,12 @@ export default function CampusesPage() {
     if (!deleteTarget) return;
     const res = await fetch(`/api/config/campuses/${deleteTarget.id}`, { method: "DELETE" });
     if (res.ok) {
-      toast.success("Kampus dihapus");
+      toast.success("Kampus dinonaktifkan");
       setDeleteTarget(null);
       fetchCampuses();
     } else {
       const data = await res.json();
-      toast.error(data.error || "Gagal menghapus");
+      toast.error(data.error || "Gagal menonaktifkan");
     }
   }
 
@@ -169,10 +169,10 @@ export default function CampusesPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                    <button onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => setDeleteTarget(c)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                    <button onClick={() => setDeleteTarget(c)} aria-label={`Nonaktifkan ${c.name}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -229,10 +229,11 @@ export default function CampusesPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Hapus Kampus"
-        description={`Hapus "${deleteTarget?.name}"? Kampus yang memiliki karyawan tidak bisa dihapus.`}
+        title="Nonaktifkan Kampus"
+        description={`Nonaktifkan "${deleteTarget?.name}"? Kampus akan disembunyikan dari daftar tetapi data historis tetap utuh. Kampus dengan karyawan aktif tidak bisa dinonaktifkan.`}
         onConfirm={handleDelete}
-        confirmLabel="Hapus"
+        confirmLabel="Nonaktifkan"
+        destructive
       />
     </>
   );

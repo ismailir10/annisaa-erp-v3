@@ -130,7 +130,7 @@ export default function ClassAttendancePage() {
   };
 
   if (loading) return (
-    <div className="px-5 pt-6">
+    <div>
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-20 w-full rounded-xl" />
@@ -141,14 +141,14 @@ export default function ClassAttendancePage() {
 
   if (assignments.length === 0) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <EmptyState icon={Users} title="Belum ditugaskan ke kelas" description="Hubungi admin untuk ditugaskan mengajar di kelas tertentu." />
       </div>
     );
   }
 
   return (
-    <div className="px-5 pt-6 pb-4">
+    <div>
       <PageHeader title="Absensi Kelas" />
 
       {/* Class + Date toolbar */}

@@ -9,7 +9,6 @@ export type SendSlipParams = {
   to: string;
   employeeName: string;
   period: string;
-  netPay: string;
   pdfBuffer: Buffer | Uint8Array;
   pdfFilename: string;
 };
@@ -27,7 +26,6 @@ export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
   const html = salarySlipEmailHtml({
     employeeName: params.employeeName,
     period: params.period,
-    netPay: params.netPay,
     appUrl,
   });
 

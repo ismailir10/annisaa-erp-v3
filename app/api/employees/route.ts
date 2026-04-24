@@ -19,7 +19,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "nama", "asc");
+  const sort = parseSort(searchParams, {
+    allow: ["nama", "kode", "email", "jabatan", "hireDate", "createdAt", "status"],
+    default: "nama",
+    defaultOrder: "asc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const search = searchParams.get("search") ?? "";
   const campusId = searchParams.get("campusId");
   const status = searchParams.get("status");
@@ -71,6 +77,22 @@ export async function POST(req: NextRequest) {
   if (result.error) return result.error;
   const body = result.data;
   const tenantId = session.tenantId;
+
+  // Block writes targeting INACTIVE/cross-tenant campus — without this,
+  // a soft-deleted campus could still grow new employee dependents and
+  // undermine the employee-attached guard on Campus DELETE.
+  if (body.campusId) {
+    const activeCampus = await prisma.campus.findFirst({
+      where: { id: body.campusId, tenantId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!activeCampus) {
+      return NextResponse.json(
+        { error: "Kampus tidak ditemukan atau nonaktif." },
+        { status: 400 },
+      );
+    }
+  }
 
   // Auto-generate employee code: initials + sequence number (atomic)
   const employee = await prisma.$transaction(async (tx) => {

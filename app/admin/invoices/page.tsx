@@ -197,6 +197,7 @@ function GenerateInvoiceFormBody({
         <Select
           value={genForm.academicYearId}
           onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
+          items={years.map((y) => ({ label: y.name, value: y.id }))}
         >
           <SelectTrigger>
             <SelectValue placeholder="Pilih tahun ajaran" />
@@ -244,20 +245,24 @@ export default function InvoicesPage() {
     { studentName: string; invoiceNumber: string; paymentUrl: string }[] | null
   >(null);
 
-  // Fetch stats + academic years once
+  // Fetch stats once — single groupBy endpoint, not four pageSize=1 list calls
   useEffect(() => {
-    Promise.all([
-      fetch("/api/invoices?pageSize=1&status=DRAFT").then(r => r.json()),
-      fetch("/api/invoices?pageSize=1&status=SENT").then(r => r.json()),
-      fetch("/api/invoices?pageSize=1&status=PAID").then(r => r.json()),
-      fetch("/api/invoices?pageSize=1&status=OVERDUE").then(r => r.json()),
-    ]).then(([draft, sent, paid, overdue]) => {
-      const d = draft.pagination?.total ?? 0;
-      const s = sent.pagination?.total ?? 0;
-      const p = paid.pagination?.total ?? 0;
-      const o = overdue.pagination?.total ?? 0;
-      setStats({ total: d + s + p + o, draft: d, sent: s, paid: p, overdue: o });
-    }).catch((err) => console.error("[invoices] stats fetch failed", err));
+    (async () => {
+      try {
+        const res = await fetch("/api/invoices/stats");
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          total: number;
+          draft: number;
+          sent: number;
+          paid: number;
+          overdue: number;
+        };
+        setStats(data);
+      } catch (err) {
+        console.error("[invoices] stats fetch failed", err);
+      }
+    })();
   }, []);
 
   useEffect(() => {

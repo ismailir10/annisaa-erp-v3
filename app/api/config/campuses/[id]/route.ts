@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
+import { updateCampusSchema } from "@/lib/validations/campus";
 
 export async function PUT(
   req: NextRequest,
@@ -17,16 +18,23 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
-  const { name, address, lat, lng } = body;
+  const parsed = updateCampusSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Validation failed", issues: parsed.error.issues },
+      { status: 400 },
+    );
+  }
+  const body = parsed.data;
 
   const campus = await prisma.campus.update({
     where: { id },
     data: {
-      name: name?.trim(),
-      address: address?.trim() || null,
-      lat: lat != null ? parseFloat(lat) : null,
-      lng: lng != null ? parseFloat(lng) : null,
+      name: body.name?.trim(),
+      address: body.address?.trim() || null,
+      lat: body.lat ?? null,
+      lng: body.lng ?? null,
+      status: body.status,
     },
   });
 
@@ -47,15 +55,22 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Block deactivation if employees still reference this campus — guards
+  // against orphaned campusId on Employee. Pattern matches class-sections.
   const empCount = await prisma.employee.count({ where: { campusId: id } });
   if (empCount > 0) {
     return NextResponse.json(
-      { error: `Cannot delete: ${empCount} employees assigned` },
+      { error: `Tidak bisa dinonaktifkan: ${empCount} karyawan masih ditugaskan` },
       { status: 400 }
     );
   }
 
-  // Intentional hard delete — Campus has no status field (config entity)
-  await prisma.campus.delete({ where: { id } });
+  // Soft delete per CRUD Standard Category A — Campus is foundational
+  // reference data; FK history (ClassSection.campusId) must remain intact.
+  // Reactivate via PUT { status: "ACTIVE" }.
+  await prisma.campus.update({
+    where: { id },
+    data: { status: "INACTIVE" },
+  });
   return NextResponse.json({ ok: true });
 }

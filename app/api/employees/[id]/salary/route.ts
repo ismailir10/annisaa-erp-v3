@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, canViewSalary } from "@/lib/auth";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(
   _req: NextRequest,
@@ -31,6 +32,9 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { success } = rateLimit(`employee-salary-put:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session?.tenantId || !canViewSalary(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -37,7 +37,7 @@ export default function TeacherSlipsPage() {
   }, []);
 
   return (
-    <div className="px-5 pt-6 pb-4">
+    <div>
       <PageHeader title="Slip Gaji" />
 
       {loading ? (

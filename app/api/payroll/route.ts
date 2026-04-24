@@ -12,7 +12,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "periodStart", "desc");
+  const sort = parseSort(searchParams, {
+    allow: ["periodStart", "periodEnd", "createdAt", "status"],
+    default: "periodStart",
+    defaultOrder: "desc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const status = searchParams.get("status");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

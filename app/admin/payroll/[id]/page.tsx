@@ -453,7 +453,7 @@ export default function PayrollDetailPage() {
                       <div className="flex items-center gap-2">
                         <span className="font-currency">{formatRupiah(line.finalAmount)}</span>
                         {isDraft && (
-                          <button onClick={() => openLineAdj(detailItem, line)} className="p-1 rounded hover:bg-accent text-muted-foreground">
+                          <button onClick={() => openLineAdj(detailItem, line)} aria-label={`Edit penyesuaian ${line.labelSnapshot}`} className="p-1 rounded hover:bg-accent text-muted-foreground">
                             <Pencil size={10} />
                           </button>
                         )}

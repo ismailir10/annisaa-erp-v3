@@ -10,8 +10,9 @@ export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
 
+  // Filter out soft-deleted campuses (status = "INACTIVE") per CRUD Standard Category A.
   const campuses = await prisma.campus.findMany({
-    where: { tenantId: session.tenantId },
+    where: { tenantId: session.tenantId, status: "ACTIVE" },
     include: { _count: { select: { employees: true } } },
     orderBy: { name: "asc" },
   });

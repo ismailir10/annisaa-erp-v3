@@ -90,12 +90,12 @@ export function ClassDayGrid({ students, categories, state, onToggle }: ClassDay
                 <div>
                   <p className="text-sm font-medium">{student.name}</p>
                   {student.nickname && (
-                    <p className="text-[10px] text-muted-foreground">{student.nickname}</p>
+                    <p className="text-xs text-muted-foreground">{student.nickname}</p>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {checkedCount}/{totalIndicators}
                 </span>
                 {isExpanded ? (
@@ -120,7 +120,7 @@ export function ClassDayGrid({ students, categories, state, onToggle }: ClassDay
                   <div className="border-t border-border px-3.5 pb-3 pt-2 space-y-3">
                     {categories.map((category) => (
                       <div key={category.id}>
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                           {category.name}
                         </p>
                         <div className="space-y-1">

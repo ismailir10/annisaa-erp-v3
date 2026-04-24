@@ -135,7 +135,7 @@ export default function StudentJournalEntryPage() {
 
   if (loading) {
     return (
-      <div className="px-5 pt-6 space-y-3 pb-32">
+      <div className="space-y-3 pb-32">
         <Skeleton className="h-6 w-56 rounded-md" />
         <Skeleton className="h-4 w-36 rounded-md" />
         {[1, 2, 3, 4].map((i) => (
@@ -147,7 +147,7 @@ export default function StudentJournalEntryPage() {
 
   if (!classId || !date) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <EmptyState
           icon={Users}
           title="Parameter tidak valid"
@@ -159,7 +159,7 @@ export default function StudentJournalEntryPage() {
 
   if (students.length === 0) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <EmptyState
           icon={Users}
           title="Belum ada siswa di kelas ini"
@@ -170,7 +170,7 @@ export default function StudentJournalEntryPage() {
   }
 
   return (
-    <div className="px-5 pt-5 pb-32">
+    <div className="pb-32">
       <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
 
       <ClassDayGrid
@@ -181,7 +181,7 @@ export default function StudentJournalEntryPage() {
       />
 
       {/* Sticky save bar */}
-      <div className="fixed bottom-0 inset-x-0 z-20 safe-area-bottom bg-background border-t border-border px-5 py-3">
+      <div className="fixed bottom-0 inset-x-0 z-20 safe-area-bottom bg-background border-t border-border px-page-x py-3">
         <div className="max-w-md mx-auto">
           <Button
             onClick={handleSave}

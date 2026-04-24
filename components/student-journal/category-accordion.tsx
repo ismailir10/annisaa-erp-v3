@@ -169,9 +169,9 @@ export function CategoryAccordion({
                   <div className="flex items-center gap-2 flex-wrap text-left">
                     <span className="font-medium text-sm">{cat.name}</span>
                     {cat.status !== "ACTIVE" && (
-                      <Badge variant="secondary" className="text-[10px]">Tidak Aktif</Badge>
+                      <Badge variant="secondary" className="text-xs">Tidak Aktif</Badge>
                     )}
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-xs">
                       {activeIndicators} indikator
                     </Badge>
                   </div>
@@ -260,7 +260,7 @@ export function CategoryAccordion({
                       <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                         <span className="text-sm">{ind.label}</span>
                         {ind.status !== "ACTIVE" && (
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-xs">
                             Tidak Aktif
                           </Badge>
                         )}

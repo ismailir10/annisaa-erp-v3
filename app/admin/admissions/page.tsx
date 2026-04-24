@@ -143,6 +143,7 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
         <Select
           value={form.childGender}
           onValueChange={(v) => v && setForm({ ...form, childGender: v })}
+          items={{ L: "Laki-laki", P: "Perempuan" }}
         >
           <SelectTrigger>
             <SelectValue placeholder="Pilih" />
@@ -177,6 +178,7 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentEducation}
             onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
+            items={{ SMA: "SMA", "D1-D3": "D1-D3", S1: "S1", S2: "S2", S3: "S3" }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
@@ -195,6 +197,15 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentOccupation}
             onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
+            items={{
+              "Karyawan Swasta": "Karyawan Swasta",
+              ASN: "ASN",
+              Guru: "Guru",
+              Wiraswasta: "Wiraswasta",
+              BUMN: "BUMN",
+              "Ibu Rumah Tangga": "Ibu Rumah Tangga",
+              Lainnya: "Lainnya",
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
@@ -215,6 +226,13 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentIncome}
             onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
+            items={{
+              "< Rp 1 Juta": "< Rp 1 Juta",
+              "Rp 1-2 Juta": "Rp 1-2 Juta",
+              "Rp 3-5 Juta": "Rp 3-5 Juta",
+              "Rp 5-10 Juta": "Rp 5-10 Juta",
+              "> Rp 10 Juta": "> Rp 10 Juta",
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
@@ -234,6 +252,7 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
         <Select
           value={form.programId}
           onValueChange={(v) => v && setForm({ ...form, programId: v })}
+          items={programs.map((p) => ({ label: p.name, value: p.id }))}
         >
           <SelectTrigger>
             <SelectValue placeholder="Pilih program" />
@@ -253,6 +272,13 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.source}
             onValueChange={(v) => v && setForm({ ...form, source: v })}
+            items={{
+              WHATSAPP: "WhatsApp",
+              WALK_IN: "Datang Langsung",
+              WEBSITE: "Website",
+              REFERRAL: "Referensi",
+              OTHER: "Lainnya",
+            }}
           >
             <SelectTrigger>
               <SelectValue />

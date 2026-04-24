@@ -91,6 +91,7 @@ model Campus {
   address  String?
   lat      Decimal? @db.Decimal(10, 8)
   lng      Decimal? @db.Decimal(11, 8)
+  status   String   @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   employees     Employee[]
@@ -437,7 +438,7 @@ model Student {
   photoUrl    String?
   notes       String?
   metadata    String? // JSON for custom fields (hobby, blood type, allergies, etc.)
-  status      String   @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
+  status      String   @default("ACTIVE") // ACTIVE | INACTIVE | GRADUATED | WITHDRAWN
   createdAt   DateTime @default(now())
 
   // Government compliance fields
