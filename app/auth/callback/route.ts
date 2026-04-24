@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAdminRole } from "@/lib/auth";
+import { assertSingleTenant, isAdminRole } from "@/lib/auth";
 import { resolveCallbackOrigin } from "@/lib/auth-callback";
 
 type PendingCookie = {
@@ -78,16 +78,26 @@ export async function GET(request: NextRequest) {
 
     try {
       const { prisma } = await import("@/lib/db");
+      // Multi-tenant safety rail — see lib/auth.ts#assertSingleTenant.
+      // This callback also keys on email alone and must fail-loud the
+      // moment a second tenant is seeded.
+      await assertSingleTenant();
       // email is unique per-tenant (`@@unique([tenantId, email])`) so use
-      // findFirst — single-tenant MVP returns the only match.
+      // findFirst — single-tenant MVP returns the only match. Filter
+      // status: "ACTIVE" to block deactivated accounts from logging in
+      // via Supabase OAuth, matching _getSession's filter.
       const prismaUser = await prisma.user.findFirst({
-        where: { email: user.email },
+        where: { email: user.email, status: "ACTIVE" },
       });
 
       if (isAdminRole(prismaUser?.role ?? "")) return respond("/admin");
       if (prismaUser?.role === "TEACHER") return respond("/teacher");
       if (prismaUser?.role === "GUARDIAN") return respond("/parent");
 
+      // Auto-provisioning fallback. Employee-first precedence matches
+      // lib/auth.ts#_getSession auto-create path — an email matching
+      // both Employee and Parent becomes TEACHER. Override by
+      // pre-creating a GUARDIAN User row before first login.
       const employee = await prisma.employee.findFirst({
         where: { email: user.email },
       });

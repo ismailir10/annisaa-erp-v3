@@ -41,7 +41,15 @@ models=$(awk '
 ' "$SCHEMA")
 
 if [ -z "$models" ]; then
-  echo "✗ No tenant-scoped models detected in $SCHEMA — parser broken?" >&2
+  echo "✗ No tenant-scoped models detected in $SCHEMA — parser broken or running from wrong directory?" >&2
+  exit 2
+fi
+
+# Expect at least ~20 tenant-scoped models in this repo; guard against
+# silent pass if the schema is truncated or the parser regexes regress.
+model_count=$(echo "$models" | wc -w | tr -d ' ')
+if [ "$model_count" -lt 10 ]; then
+  echo "✗ Only $model_count tenant-scoped model(s) detected; expected ~20+. Parser regression?" >&2
   exit 2
 fi
 

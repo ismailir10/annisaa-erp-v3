@@ -66,11 +66,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Public routes — allow but still refresh Supabase session if present
+  // Public routes — allow but still refresh Supabase session if present.
+  // Exact segment match on `/auth` + `/api/auth` prevents hypothetical
+  // routes like `/authentic-*` from inheriting the public bypass.
   if (
     pathname === "/" ||
-    pathname.startsWith("/auth") ||
-    pathname.startsWith("/api/auth") ||
+    pathname === "/auth" ||
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/logo")
@@ -81,11 +84,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Demo mode takes priority when enabled — skip Supabase auth entirely
+  // Demo mode takes priority when enabled — skip Supabase auth entirely.
+  // Still enforce idle timeout on portal paths so demo sessions expire
+  // consistently with Supabase-authenticated sessions.
   if (process.env.DEMO_MODE === "true") {
     const demoCookie = request.cookies.get(DEMO_COOKIE)?.value;
     if (demoCookie) {
-      return NextResponse.next();
+      return enforceIdleTimeout(request, NextResponse.next());
     }
   }
 

@@ -342,11 +342,12 @@ lib/payroll/        Payroll calculation engine
 lib/xendit/         Xendit API client
 lib/email/          Resend integration
 prisma/             Schema + seed data
+proxy.ts            Next.js 16 middleware entry (renamed from middleware.ts)
 docs/cycles/        One markdown file per development cycle
 .claude/skills/     Project slash commands (spec/, build/, ship/ — each a SKILL.md)
 .claude/standards/  Domain standards loaded on demand by /build
 .githooks/          Pre-commit, prepare-commit-msg, pre-push hooks
-scripts/            check-role.sh, install-hooks.sh
+scripts/            check-role.sh, install-hooks.sh, verify-rls-coverage.sh, verify-api-auth.sh
 ```
 
 E2E specs: `e2e/admin.spec.ts` (9), `e2e/teacher.spec.ts` (5), `e2e/parent.spec.ts` (6). Demo-mode auth — no live Supabase or env vars needed locally. Lint: `npm run lint`.

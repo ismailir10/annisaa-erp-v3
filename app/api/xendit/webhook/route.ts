@@ -1,3 +1,4 @@
+// @public — external Xendit webhook, auth via XENDIT_WEBHOOK_TOKEN signature.
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { timingSafeEqual } from "crypto";

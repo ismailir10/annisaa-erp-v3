@@ -36,6 +36,9 @@ jobs:
       - name: RLS coverage guard
         run: bash scripts/verify-rls-coverage.sh
 
+      - name: API auth coverage guard
+        run: bash scripts/verify-api-auth.sh
+
   build:
     name: Build
     runs-on: ubuntu-latest

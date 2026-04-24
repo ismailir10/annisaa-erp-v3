@@ -1,12 +1,16 @@
+// @public — demo-only login, gated by DEMO_MODE + NODE_ENV at request time.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminRole } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-// Demo-only login — only when DEMO_MODE=true
+// Demo-only login — requires DEMO_MODE=true AND non-production NODE_ENV.
+// The NODE_ENV belt-and-suspenders prevents a misconfigured prod deploy
+// (DEMO_MODE accidentally set true) from exposing the cookie-injection
+// endpoint.
 export async function POST(req: NextRequest) {
-  if (process.env.DEMO_MODE !== "true") {
+  if (process.env.DEMO_MODE !== "true" || process.env.NODE_ENV === "production") {
     return NextResponse.json(
       { error: "Demo login disabled." },
       { status: 403 }
@@ -29,10 +33,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
+  // NODE_ENV is narrowed to "development" | "test" here by the guard
+  // above, so `secure` is always false for the demo cookie — correct.
   const cookieStore = await cookies();
   cookieStore.set("school-erp-session", userId, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: false,
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 7,

@@ -55,6 +55,25 @@ Ordered gating-first:
 - README pruned per list: ADR entries added; no other README drift for this task.
 - **Gating status for `/ship --to-main`: CLEAR** — prod RLS is intact, CI guard prevents future drift, prefix collision documented.
 
+### Task 6 — core (auth hardening) — 2026-04-24
+
+- `lib/auth.ts`: (a) `USER_CACHE_TTL_MS` 60_000 → 10_000 so role/tenant/status mutations propagate within one page navigation; (b) `_getSession` User lookup + demo-mode `findUnique` now filter `status: "ACTIVE"` — deactivated users lose access within 10s of the admin-UI toggle; (c) new exported `assertSingleTenant()` helper — `prisma.tenant.count() > 1` throws a loud error with a pointer to the required fix (implement tenant-from-host resolution before onboarding second tenant). Cached after first call per process to avoid per-request overhead; (d) Employee-first precedence documented inline — an email matching both Employee and Parent auto-provisions as TEACHER, matching the routing fallback in the OAuth callback.
+- `app/auth/callback/route.ts`: (a) imports + calls `assertSingleTenant()` before User lookup; (b) User lookup filter tightened to `{ email, status: "ACTIVE" }`; (c) precedence comment added.
+- `proxy.ts`: (a) demo-mode branch now calls `enforceIdleTimeout` so demo sessions expire identically to Supabase-authenticated sessions; (b) public-route match switched from `pathname.startsWith("/auth")` + `/api/auth` to exact segment match (`=== "/auth" || startsWith("/auth/")`), preventing hypothetical `/authentic-*` routes from inheriting the public bypass.
+- `lib/supabase/middleware.ts`: same exact-segment match applied.
+- `app/api/auth/login/route.ts`: added `NODE_ENV === "production"` belt-and-suspenders so a misconfigured prod deploy (DEMO_MODE accidentally true) cannot expose the cookie-injection endpoint.
+- `scripts/verify-api-auth.sh`: new CI guard. Every `app/api/**/route.ts` must either call a session helper (`getSession`, `requireAdmin`, `requireTeacher`, `requireParent`, `requireGuardian`, `requireAuth`, `requireSuperAdmin`, `requireTeacherForClass`, `requireGuardianForStudent`) OR declare itself public with a top-of-file `// @public` sentinel. Four intentional public routes annotated: `/api/auth/logout`, `/api/auth/users`, `/api/auth/login`, `/api/xendit/webhook`.
+- CI wiring: added as second guard step in the `Lint, Typecheck & Test` job.
+- README prunes: `README.md:3` rephrased to "single-tenant MVP; multi-tenant requires tenant-from-host resolution in `lib/auth.ts` before onboarding a second tenant"; strict-admin ADR now notes the ≤10s userCache staleness window; `CLAUDE.md` File Structure now lists `proxy.ts` (middleware rename) + both new verify scripts.
+
+### Task 6 — core Verification
+
+- Between-task gate: `npm run build && npx vitest run` — pending (running before commit).
+- Script smoke: `bash scripts/verify-api-auth.sh` — "✓ API auth coverage OK: 117 / 117 routes".
+- Playwright cookie-injection paths unaffected — `/api/auth/login` is only touched by legitimate demo UI; e2e specs inject `school-erp-session` cookie directly.
+- `assertSingleTenant` uses a 60s TTL cache (not a permanent flag) — guard fires within ~60s of a freshly seeded second tenant. Initial review caught a blind-after-first-success regression; fixed before commit.
+- Code review on Task 6 diff (`feature-dev:code-reviewer`) surfaced 2 real issues, both fixed pre-commit: (a) `assertSingleTenant` module-level flag → swapped to 60s TTL so a runtime-seeded second tenant is caught; (b) `verify-api-auth.sh` could silently pass if run outside repo root → now exits non-zero if `find` returns zero route files. Same defensive guard also back-ported to `verify-rls-coverage.sh`.
+
 ## Ship Notes
 
 *Populated end-of-cycle.*

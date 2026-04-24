@@ -6,10 +6,11 @@ type CachedUser = Awaited<ReturnType<typeof prisma.user.findUnique>>;
 
 // In-memory cache of Prisma User rows keyed by email. Every API route and
 // every server-rendered page calls getSession(), and previously each call hit
-// the database for the same User row. Cache TTL is 60s — long enough to
-// collapse the cluster of fetches a single page render makes, short enough
-// that role/tenant changes propagate quickly.
-const USER_CACHE_TTL_MS = 60_000;
+// the database for the same User row. TTL is 10s — long enough to collapse
+// the cluster of fetches a single page render makes, short enough that
+// role/tenant/status changes propagate within one user page-navigation.
+// See README ADR on userCache staleness window.
+const USER_CACHE_TTL_MS = 10_000;
 const userCache = new Map<string, { user: CachedUser; expiresAt: number }>();
 
 function getCachedUser(email: string): CachedUser | undefined {
@@ -24,6 +25,32 @@ function getCachedUser(email: string): CachedUser | undefined {
 
 function setCachedUser(email: string, user: CachedUser) {
   userCache.set(email, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS });
+}
+
+// Multi-tenant safety rail. Session resolution currently keys on email
+// alone (single-tenant MVP). Throwing early forces whoever onboards a
+// second tenant to implement tenant-from-host resolution before the
+// silent cross-tenant collapse bug lands in production.
+//
+// Result is cached for SINGLE_TENANT_CHECK_TTL_MS so hot paths don't
+// hit the DB on every getSession() call. The TTL is short enough that a
+// freshly seeded second tenant fires the guard within ~1 minute — we
+// explicitly refuse to cache forever, because the one moment the guard
+// must fire (tenant seeded after process start) is exactly when a
+// permanent flag would silently bypass it.
+const SINGLE_TENANT_CHECK_TTL_MS = 60_000;
+let singleTenantCheckedAt = 0;
+export async function assertSingleTenant(): Promise<void> {
+  if (Date.now() - singleTenantCheckedAt < SINGLE_TENANT_CHECK_TTL_MS) return;
+  const count = await prisma.tenant.count();
+  if (count > 1) {
+    throw new Error(
+      `[AUTH] Multi-tenant seed detected (tenant.count=${count}) but session ` +
+        `resolver keys on email alone. Implement tenant-from-host resolution ` +
+        `in lib/auth.ts before onboarding a second tenant.`,
+    );
+  }
+  singleTenantCheckedAt = Date.now();
 }
 
 export type SessionUser = {
@@ -71,20 +98,34 @@ async function _getSession(): Promise<SessionUser | null> {
 
     if (!authUser?.email) return null;
 
+    // Multi-tenant safety rail: single-tenant MVP resolves User by email
+    // alone. The moment a second tenant is seeded, `findFirst({ email })`
+    // collapses across tenants and returns whichever row Postgres picks
+    // first — silent cross-tenant leak. Fail loud instead.
+    await assertSingleTenant();
+
     // Look up Prisma User by email — serve from cache if fresh.
+    // status: "ACTIVE" filter ensures a deactivated user loses access
+    // within USER_CACHE_TTL_MS of the admin-UI toggle.
     let user = getCachedUser(authUser.email);
     if (user === undefined) {
-      // email is no longer globally unique — `@@unique([tenantId, email])`.
-      // findFirst returns the matching row in the only tenant for this MVP;
-      // when multi-tenant ships, the upstream caller must pass tenant context
-      // (subdomain / header) so we can scope to the right tenant.
+      // email is unique per-tenant — findFirst returns the only match
+      // in the single-tenant MVP; guarded by assertSingleTenant above.
       user = await prisma.user.findFirst({
-        where: { email: authUser.email },
+        where: { email: authUser.email, status: "ACTIVE" },
       });
       if (user) setCachedUser(authUser.email, user);
     }
 
-    // Auto-create User on first Supabase Auth login
+    // Auto-create User on first Supabase Auth login.
+    //
+    // Precedence: Employee-first. If an email matches both Employee and
+    // Parent (e.g. a teacher whose spouse is also a guardian using the
+    // same email), the user is auto-provisioned as TEACHER. This matches
+    // the routing fallback in app/auth/callback/route.ts (Employee check
+    // before Parent check) so both code paths agree on the final role.
+    // Admin override: an admin can manually create a GUARDIAN User row
+    // before first login to force the Parent role.
     if (!user) {
       // Check if there's an employee with this email
       const employee = await prisma.employee.findFirst({
@@ -176,7 +217,9 @@ async function getDemoSession(): Promise<SessionUser | null> {
   const userId = cookieStore.get("school-erp-session")?.value;
   if (!userId) return null;
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findFirst({
+    where: { id: userId, status: "ACTIVE" },
+  });
   if (!user) return null;
 
   let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
