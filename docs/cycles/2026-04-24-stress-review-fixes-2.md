@@ -110,6 +110,20 @@ Ordered gating-first:
 - Preview server verification: ATTEMPTED via `mcp__Claude_Preview__preview_start` but failed with sandbox `EPERM: operation not permitted, uv_cwd` against `npm run dev`. Could not run visual browser verification in this session. Compensating evidence: `npm run build` succeeds (so all token classes resolve against `app/globals.css`) + vitest 269 passed + all `text-h1` / `text-display` / `bg-celebration-gold-*` utilities are pre-existing registered tokens (grepped `app/globals.css:89-108`). End-of-cycle Playwright run at Task 10 completion will exercise the parent/teacher portals in a prod build as the definitive UI smoke.
 - Code review (`feature-dev:code-reviewer`) on Task 8 diff flagged one real issue: all three `error.tsx` passed `{error.message || "Coba lagi sebentar ya."}` through to the UI, which could leak raw server error strings on edge-case messages (e.g. `"NEXT_NOT_FOUND"` or a stray Prisma connection string) despite Next.js prod sanitization. Fixed before commit — all three boundaries now render the fixed Bahasa copy unconditionally and drop `error` from the destructure (the prop is still in the type signature per Next.js convention but unused). No `error.digest` logging added — Next.js already logs the digest server-side.
 
+### Task 9 — academic (cross-tenant FK + validation) — 2026-04-24
+
+- `app/api/teaching-assignments/route.ts` POST: added cross-tenant FK check. Before creating a `TeachingAssignment`, verifies both `employeeId` and `classSectionId` resolve to rows in `session.tenantId`. Mismatch returns 403 with `"Guru atau kelas tidak ditemukan di tenant Anda"`. Unique constraint on `(employeeId, classSectionId)` only blocks duplicates within a tenant — without this check, a crafted POST could link a Tenant A employee to a Tenant B class. Uses `Promise.all` to parallelize the two verification queries.
+- `app/api/class-sections/route.ts` POST: wired `createClassSectionSchema` (already existed in `lib/validations/class-section.ts`) + rate-limit matching PUT pattern (20/min per IP). Validation failure returns 400 with the first zod message. Previously a missing required field produced a raw Prisma 500.
+- `app/api/class-sections/route.ts`: dropped `export const revalidate = 7200` (matches academic-years simplicity). GET is already dynamic via `getSession()`, so the directive was never triggering ISR anyway — the 2h staleness window was only meaningful if someone fetched without cookies. POST's `revalidatePath` call left in place (harmless no-op now, but documents intent if the route ever moves back to an ISR model).
+- `app/api/academic-years/[id]/route.ts`: extracted shared `getActiveEnrollmentBlocker(yearId)` helper. Both PUT-to-ARCHIVED and DELETE now call it, closing the divergence where DELETE previously used a stricter "any class section at all" guard while PUT used "any active enrollment." DELETE-via-stricter-guard was the looser contract in practice (a year with historical-only enrollments could not be archived via DELETE but could via PUT); both paths now share the active-enrollments-only semantic, which matches ERPNext soft-delete behavior for historical records.
+
+### Task 9 — academic Verification
+
+- Between-task gate: `npm run build && npx vitest run` — pending.
+- `createClassSectionSchema` fields: `programId` + `campusId` + `name` (1–80 chars) + `capacity` (int 1–500) required; `academicYearId` optional/nullable. UI form at `app/admin/academic/page.tsx:137` sends `capacity: parseInt(sectionForm.capacity)` which satisfies the zod int check; no UI regression.
+- Cross-tenant FK check at teaching-assignments POST is additive guard — legitimate admin flows are unaffected (their `session.tenantId` matches the target employee/class).
+- README prune: clean.
+
 ## Ship Notes
 
 *Populated end-of-cycle.*

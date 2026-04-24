@@ -45,6 +45,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Guru dan kelas wajib dipilih" }, { status: 400 });
   }
 
+  // Cross-tenant FK check — unique constraint on (employeeId, classSectionId)
+  // only blocks duplicates within a tenant. Without this check, an admin in
+  // Tenant A could link a Tenant A employee to a Tenant B class (or vice
+  // versa) simply by POSTing cross-tenant IDs from a crafted client.
+  const [employee, classSection] = await Promise.all([
+    prisma.employee.findFirst({
+      where: { id: employeeId, tenantId: session.tenantId },
+      select: { id: true },
+    }),
+    prisma.classSection.findFirst({
+      where: { id: classSectionId, tenantId: session.tenantId },
+      select: { id: true },
+    }),
+  ]);
+  if (!employee || !classSection) {
+    return NextResponse.json(
+      { error: "Guru atau kelas tidak ditemukan di tenant Anda" },
+      { status: 403 },
+    );
+  }
+
   // Check for duplicate
   const existing = await prisma.teachingAssignment.findUnique({
     where: { employeeId_classSectionId: { employeeId, classSectionId } },
