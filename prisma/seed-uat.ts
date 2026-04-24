@@ -82,8 +82,8 @@ async function main() {
 
   // ── 2. UAT user accounts ───────────────────────────────────
   const adminUser = await prisma.user.upsert({
-    where: { email: UAT_ADMIN_EMAIL },
-    update: { tenantId: tenantId, role: "SUPER_ADMIN", name: "Ibu Nur (UAT)" },
+    where: { tenantId_email: { tenantId, email: UAT_ADMIN_EMAIL } },
+    update: { role: "SUPER_ADMIN", name: "Ibu Nur (UAT)" },
     create: {
       tenantId: tenantId,
       email: UAT_ADMIN_EMAIL,
@@ -93,9 +93,8 @@ async function main() {
   });
 
   const teacherUser = await prisma.user.upsert({
-    where: { email: UAT_TEACHER_EMAIL },
+    where: { tenantId_email: { tenantId, email: UAT_TEACHER_EMAIL } },
     update: {
-      tenantId: tenantId,
       role: "TEACHER",
       name: "Bu Sari (UAT)",
       employeeId: anyEmployee.id,
@@ -110,8 +109,8 @@ async function main() {
   });
 
   const parentUser = await prisma.user.upsert({
-    where: { email: UAT_PARENT_EMAIL },
-    update: { tenantId: tenantId, role: "GUARDIAN", name: "Pak Budi (UAT)" },
+    where: { tenantId_email: { tenantId, email: UAT_PARENT_EMAIL } },
+    update: { role: "GUARDIAN", name: "Pak Budi (UAT)" },
     create: {
       tenantId: tenantId,
       email: UAT_PARENT_EMAIL,

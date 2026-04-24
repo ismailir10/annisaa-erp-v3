@@ -44,7 +44,9 @@ model Tenant {
 model User {
   id          String    @id @default(cuid())
   tenantId    String
-  email       String    @unique
+  // email is unique PER TENANT, not globally — see @@unique below.
+  // Two tenants may legitimately have admin@school.com without collision.
+  email       String
   role        String
   employeeId  String?   @unique
   name        String?
@@ -59,6 +61,7 @@ model User {
   parent     Parent?   @relation(fields: [parentId], references: [id], onDelete: SetNull)
   customRole Role?     @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
+  @@unique([tenantId, email])
   @@index([tenantId, status])
 }
 

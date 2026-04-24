@@ -213,6 +213,39 @@ Migration: `prisma/migrations/20260424000000_explicit_ondelete_actions/migration
 
 The migration is **safe at deploy time**: dropping then re-adding an FK constraint with the same column references is an instant catalogue swap on Postgres — no table rewrite, no row scan. Holds a brief `AccessExclusiveLock` per affected table only for the duration of the ALTER (single-digit ms each).
 
+### C5 — `User.email` per-tenant unique
+
+`prisma/schema.prisma` User model: `email String @unique` → `email String` + `@@unique([tenantId, email])`. Schema now matches the same pattern every other natural key uses. Two tenants may legitimately host `admin@school.com` without a P2002 collision.
+
+`lib/auth.ts:77` and `app/auth/callback/route.ts:81` switched from `findUnique({where: {email}})` to `findFirst({where: {email}})` — single-tenant MVP returns the only match; multi-tenant rollout will need to thread tenant context (subdomain or header) into these lookups. Caching key in `lib/auth.ts` still uses bare email — single-tenant safe; multi-tenant follow-up flagged for next cycle.
+
+`prisma/seed-uat.ts` upserts updated to use the composite key form (`tenantId_email: { tenantId, email }`).
+
+Migration: `prisma/migrations/20260424000001_user_email_per_tenant_unique/migration.sql`:
+
+```sql
+DROP INDEX "User_email_key";
+CREATE UNIQUE INDEX "User_tenantId_email_key" ON "User"("tenantId", "email");
+```
+
+**Pre-deploy data-integrity check** (must return 0 rows):
+
+```sql
+SELECT "tenantId", email, COUNT(*)
+FROM "User"
+GROUP BY "tenantId", email
+HAVING COUNT(*) > 1;
+```
+
+For single-tenant production today (one Tenant row), every existing email is unique globally so the `(tenantId, email)` pair is unique by construction. Migration is **zero-downtime on Vercel Postgres** — both DDL operations are catalog-only swaps on a small reference table.
+
+**Rollback** (if anything goes wrong post-deploy):
+
+```sql
+DROP INDEX "User_tenantId_email_key";
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+```
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
