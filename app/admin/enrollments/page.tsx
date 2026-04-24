@@ -158,19 +158,18 @@ export default function EnrollmentsPage() {
     fetch("/api/class-sections").then(r => r.json()).then(setClassSections).catch(() => toast.error("Gagal memuat data"));
   }, []);
 
-  // Stats
+  // Stats — single groupBy endpoint, not three pageSize=1 list calls
   useEffect(() => {
-    Promise.all([
-      fetch("/api/enrollments?pageSize=1").then(r => r.json()),
-      fetch("/api/enrollments?pageSize=1&status=ACTIVE").then(r => r.json()),
-      fetch("/api/enrollments?pageSize=1&status=WITHDRAWN").then(r => r.json()),
-    ]).then(([all, active, withdrawn]) => {
-      setStats({
-        total: all.pagination?.total ?? 0,
-        active: active.pagination?.total ?? 0,
-        withdrawn: withdrawn.pagination?.total ?? 0,
-      });
-    }).catch(() => toast.error("Gagal memuat data"));
+    (async () => {
+      try {
+        const res = await fetch("/api/enrollments/stats");
+        if (!res.ok) return;
+        const data = (await res.json()) as { total: number; active: number; withdrawn: number };
+        setStats(data);
+      } catch {
+        toast.error("Gagal memuat data");
+      }
+    })();
   }, []);
 
   const fetchEnrollments = useCallback(async () => {
