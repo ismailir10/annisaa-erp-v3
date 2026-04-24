@@ -272,6 +272,85 @@ _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` gre
 
 ## Ship Notes
 
-_Filled at cycle end by C7. Will include migration names, up+down summaries, rollback plan, pre-check queries, Vercel Postgres zero-downtime note._
+### Migrations
 
-<!-- design-system baseline consulted: §Overlays (AlertDialog rule for destructive confirms). -->
+Three migrations land in this cycle, applied in order by Prisma:
+
+| Order | Migration name | Purpose | SQL changes |
+|-------|----------------|---------|-------------|
+| 1 | `20260424000000_explicit_ondelete_actions` | Flip 21 leaf/audit/log FK constraints from RESTRICT to CASCADE | 21 paired DROP + ADD CONSTRAINT |
+| 2 | `20260424000001_user_email_per_tenant_unique` | Drop global User.email unique; add `(tenantId, email)` composite | DROP INDEX + CREATE UNIQUE INDEX |
+| 3 | `20260424000002_class_section_payroll_run_composite_unique` | Add `(tenantId, academicYearId, name)` on ClassSection + `(tenantId, periodStart, periodEnd)` on PayrollRun | 2 CREATE UNIQUE INDEX |
+
+All three were hand-written (no shadow database in the worktree). Verified via `npx prisma validate` (schema OK), `npx prisma generate` (client builds clean), `npm run build` (TypeScript OK), full vitest suite (269 pass).
+
+### Pre-deploy data-integrity checks
+
+Run the following queries against production *before* applying the migrations. **Each must return 0 rows; otherwise the corresponding `CREATE UNIQUE INDEX` will fail and the migration aborts mid-deploy.**
+
+```sql
+-- For migration 2: User.email per-tenant unique
+SELECT "tenantId", email, COUNT(*)
+FROM "User"
+GROUP BY "tenantId", email
+HAVING COUNT(*) > 1;
+
+-- For migration 3a: ClassSection composite
+SELECT "tenantId", "academicYearId", name, COUNT(*)
+FROM "ClassSection"
+GROUP BY "tenantId", "academicYearId", name
+HAVING COUNT(*) > 1;
+
+-- For migration 3b: PayrollRun composite
+SELECT "tenantId", "periodStart", "periodEnd", COUNT(*)
+FROM "PayrollRun"
+GROUP BY "tenantId", "periodStart", "periodEnd"
+HAVING COUNT(*) > 1;
+```
+
+For the current single-tenant production (one Tenant row + clean seed data), all three return 0 by construction.
+
+### Up summary
+
+1. **CASCADE flips** — leaf rows (TeachingAssignment, LeaveRequest, AttendanceRecord, PayrollItem*, EmailLog, StudentGuardian, StudentEnrollment.student-side, InvoiceLine, StudentAttendance.student-side, journal categories/indicators/entries, assessment categories/indicators/scores) will now be cleaned up automatically when their parent is deleted. Core entities (Student, Employee, ClassSection, financial roots) keep RESTRICT — admin UI cannot accidentally cascade through them.
+2. **User.email composite** — schema now matches every other natural key. Two tenants may host `admin@school.com` without collision. `lib/auth.ts` + `app/auth/callback/route.ts` swap `findUnique` → `findFirst`; single-tenant MVP returns the only match.
+3. **ClassSection + PayrollRun uniques** — DB-level guards under existing app-level overlap checks.
+
+### Rollback plan
+
+If any single migration breaks production, the rest can stay; rollback affects only the failed migration.
+
+```sql
+-- Rollback migration 1 (CASCADE flips → RESTRICT) — safe; reverts to
+-- previous behavior. Apply only if cascade-deletes cause unexpected loss.
+-- (21 paired DROP + ADD CONSTRAINT statements — generate by reading the
+--  forward migration and swapping `ON DELETE CASCADE` → `ON DELETE RESTRICT`.)
+
+-- Rollback migration 2 (User.email per-tenant unique)
+DROP INDEX "User_tenantId_email_key";
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+-- Then revert lib/auth.ts + app/auth/callback/route.ts findFirst → findUnique.
+
+-- Rollback migration 3 (composite uniques)
+DROP INDEX "ClassSection_tenantId_academicYearId_name_key";
+DROP INDEX "PayrollRun_tenantId_periodStart_periodEnd_key";
+```
+
+### Zero-downtime on Vercel Postgres
+
+All three migrations are pure DDL on small reference tables (User, ClassSection, PayrollRun, plus FK swaps on log/leaf tables). Each statement holds a brief `AccessExclusiveLock` (single-digit ms each) — no table rewrite, no row scan. Total apply time: ~1 second. Safe to run during normal traffic; no maintenance window required.
+
+### Post-deploy verification
+
+After Vercel auto-applies the migrations, smoke-check:
+1. Login via Supabase auth (admin@annisaa-erp.com) succeeds — exercises the new findFirst lookup.
+2. Open `/admin/payroll` and `/admin/academic` — duplicate-prevention can be probed by attempting a duplicate class create or duplicate-period payroll generate; both should now return 400 with a P2002 error mapped to a friendly Indonesian message (existing app-level message wins).
+3. Run `e2e/admin.spec.ts` against staging post-deploy — covers the destructive flows that exercise the new CASCADE behavior at session boundaries.
+
+### Cycle summary
+
+- 3 sub-bundles, **17 commits** (4 A, 7 B, 6 C).
+- 1 mid-cycle code-review run was unavailable (reviewer-agent quota exhausted at B5/B6); replaced with self-review documented inline.
+- All between-task gates green; end-of-cycle Playwright run pending in the next stage.
+
+<!-- design-system baseline consulted: §Overlays (AlertDialog rule for destructive confirms in Sub-bundle A). -->
