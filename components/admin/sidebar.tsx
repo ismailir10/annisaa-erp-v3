@@ -98,7 +98,7 @@ function CollapsibleNavGroup({
   );
 }
 
-export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
+export function AppSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
@@ -106,11 +106,16 @@ export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
   );
   const [settingsOpen, setSettingsOpen] = useState(true);
 
-  const visibleGroups = adminNav.groups.map((g) => ({
-    ...g,
-    items: g.items.filter((item) => !item.superAdminOnly || canSeeSalary),
-  })).filter((g) => g.items.length > 0);
-  const visibleSettings = adminNav.settings.filter((item) => !item.superAdminOnly || canSeeSalary);
+  const visibleGroups = adminNav.groups
+    .filter((g) => !g.permission || permissions.includes(g.permission))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => !item.permission || permissions.includes(item.permission)),
+    }))
+    .filter((g) => g.items.length > 0);
+  const visibleSettings = adminNav.settings.filter(
+    (item) => !item.permission || permissions.includes(item.permission),
+  );
 
   // Auto-expand whichever group contains the active route so users who
   // collapsed a group and then navigated into it via breadcrumb/back don't

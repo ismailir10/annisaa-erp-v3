@@ -18,13 +18,14 @@ import {
   Palette,
   type LucideIcon,
 } from "lucide-react";
+import type { PermissionCode } from "@/lib/permissions";
 
 export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
   matchExact?: boolean;
-  superAdminOnly?: boolean;
+  permission?: PermissionCode;
 };
 
 export type NavGroup = {
@@ -32,6 +33,7 @@ export type NavGroup = {
   label: string;
   icon: LucideIcon;
   items: NavItem[];
+  permission?: PermissionCode;
 };
 
 export type NavConfig = {
@@ -55,11 +57,12 @@ export const adminNav: NavConfig = {
       id: "hr",
       label: "SDM",
       icon: Users,
+      permission: "hr.view",
       items: [
         { label: "Karyawan", href: "/admin/employees", icon: Users },
         { label: "Kehadiran", href: "/admin/attendance", icon: CalendarCheck },
         { label: "Pengajuan Cuti", href: "/admin/leave", icon: CalendarOff },
-        { label: "Penggajian", href: "/admin/payroll", icon: Banknote, superAdminOnly: true },
+        { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
       ],
     },
     {
@@ -109,7 +112,7 @@ export const adminNav: NavConfig = {
       label: "Komponen Gaji",
       href: "/admin/settings/salary-components",
       icon: Coins,
-      superAdminOnly: true,
+      permission: "hr.view",
     },
     { label: "Pengguna", href: "/admin/settings/users", icon: Users },
     { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield },

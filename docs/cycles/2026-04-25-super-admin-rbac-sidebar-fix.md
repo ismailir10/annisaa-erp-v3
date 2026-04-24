@@ -151,6 +151,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Task 2: `npm run build && npx vitest run` green. 354 passed / 42 todo / 2 skipped. No frontend diff so no design-system cross-check needed yet (deferred to Task 7 sidebar edit).
 - Task 3: `npm run build && npx vitest run` green. 362 passed / 42 todo / 2 skipped.
 - Task 5 (API guards): `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped. Security review clean on role-trust / tenant-isolation / mass-assignment / rate-limiting. Salary-components write perm corrected post-review (payroll.view → payroll.create).
+- Task 6 (nav permissions): `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped. Design-system cross-check deferred to Task 7 (which owns the structural sidebar change).
 
 ## Ship Notes
 
