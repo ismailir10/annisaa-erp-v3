@@ -225,7 +225,11 @@ export default function TeachingAssignmentsPage() {
           </DialogHeader>
           <Field>
             <FieldLabel>Peran</FieldLabel>
-            <Select value={editRole} onValueChange={(v) => v && setEditRole(v)}>
+            <Select
+              value={editRole}
+              onValueChange={(v) => v && setEditRole(v)}
+              items={Object.fromEntries(ROLE_OPTIONS.map((o) => [o.value, o.label]))}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

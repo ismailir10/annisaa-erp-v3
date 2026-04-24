@@ -197,6 +197,7 @@ function GenerateInvoiceFormBody({
         <Select
           value={genForm.academicYearId}
           onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
+          items={years.map((y) => ({ label: y.name, value: y.id }))}
         >
           <SelectTrigger>
             <SelectValue placeholder="Pilih tahun ajaran" />
