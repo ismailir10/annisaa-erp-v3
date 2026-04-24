@@ -1,8 +1,26 @@
 import { cache } from "react";
 import { createClient } from "./supabase/server";
 import { prisma } from "./db";
+import { getSystemRolePermissions } from "./permissions";
 
-type CachedUser = Awaited<ReturnType<typeof prisma.user.findUnique>>;
+// User row shape we cache — includes the optional customRole relation because
+// session resolution needs the role's permission JSON and code on every hit.
+type CachedUser = NonNullable<
+  Awaited<ReturnType<typeof prisma.user.findFirst>>
+> & {
+  customRole?: {
+    id: string;
+    code: string;
+    permissions: string;
+  } | null;
+};
+
+type CachedEntry = {
+  user: CachedUser;
+  permissions: string[];
+  customRoleCode: string | null;
+  expiresAt: number;
+};
 
 // In-memory cache of Prisma User rows keyed by email. Every API route and
 // every server-rendered page calls getSession(), and previously each call hit
@@ -10,21 +28,79 @@ type CachedUser = Awaited<ReturnType<typeof prisma.user.findUnique>>;
 // the cluster of fetches a single page render makes, short enough that
 // role/tenant/status changes propagate within one user page-navigation.
 // See README ADR on userCache staleness window.
+//
+// The cache stores the derived permissions/customRoleCode alongside the raw
+// User row so we don't re-parse the customRole.permissions JSON on every hit —
+// every request can trigger many getSession() calls, and re-derivation would
+// mean repeated JSON.parse + getSystemRolePermissions() for the same user.
 const USER_CACHE_TTL_MS = 10_000;
-const userCache = new Map<string, { user: CachedUser; expiresAt: number }>();
+const userCache = new Map<string, CachedEntry>();
 
-function getCachedUser(email: string): CachedUser | undefined {
+function getCachedEntry(email: string): CachedEntry | undefined {
   const entry = userCache.get(email);
   if (!entry) return undefined;
   if (entry.expiresAt < Date.now()) {
     userCache.delete(email);
     return undefined;
   }
-  return entry.user;
+  return entry;
 }
 
-function setCachedUser(email: string, user: CachedUser) {
-  userCache.set(email, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS });
+function setCachedEntry(
+  email: string,
+  user: CachedUser,
+  permissions: string[],
+  customRoleCode: string | null,
+) {
+  userCache.set(email, {
+    user,
+    permissions,
+    customRoleCode,
+    expiresAt: Date.now() + USER_CACHE_TTL_MS,
+  });
+}
+
+/**
+ * Derive the effective permission set + custom-role code for a loaded user.
+ *
+ * Precedence:
+ *   1. customRole present → parse customRole.permissions JSON.
+ *   2. No customRole → fall back to getSystemRolePermissions(user.role).
+ *
+ * Defensive on malformed JSON: we log and fall back to role defaults rather
+ * than silently granting `[]` to a user who should have access. Failing closed
+ * here would lock an admin out of the whole app if one customRole row gets
+ * corrupted.
+ */
+function derivePermissions(
+  user: CachedUser,
+): { permissions: string[]; customRoleCode: string | null } {
+  const customRole = user.customRole;
+  if (customRole) {
+    try {
+      const parsed = JSON.parse(customRole.permissions);
+      if (Array.isArray(parsed) && parsed.every((p) => typeof p === "string")) {
+        return { permissions: parsed, customRoleCode: customRole.code };
+      }
+      console.error(
+        `[AUTH] customRole.permissions for role ${JSON.stringify(customRole.code)} is not a string[] — falling back to role defaults`,
+      );
+    } catch {
+      console.error(
+        `[AUTH] Failed to parse customRole.permissions for role ${JSON.stringify(customRole.code)} — falling back to role defaults`,
+      );
+    }
+    // malformed → fall back to enum-role defaults, but keep customRoleCode
+    // so downstream code can still see which role the user is linked to.
+    return {
+      permissions: getSystemRolePermissions(user.role),
+      customRoleCode: customRole.code,
+    };
+  }
+  return {
+    permissions: getSystemRolePermissions(user.role),
+    customRoleCode: null,
+  };
 }
 
 // Multi-tenant safety rail. Session resolution currently keys on email
@@ -61,6 +137,18 @@ export type SessionUser = {
   tenantId: string | null;
   employeeId: string | null;
   parentId: string | null;
+  /**
+   * Effective permission codes for this session. Derived from either the
+   * user's customRole (JSON array) or getSystemRolePermissions(role) when no
+   * custom role is assigned. Always an array — never null — so callers can
+   * `.includes()` without a guard.
+   */
+  permissions: string[];
+  /**
+   * Code of the assigned customRole, or null when the user falls back to
+   * their enum role defaults. Useful for UI labels ("Peran: Finance Admin").
+   */
+  customRoleCode: string | null;
 };
 
 /** Full access including payroll and salary data. */
@@ -69,9 +157,6 @@ export const isSuperAdmin = (role: string): boolean => role === "SUPER_ADMIN";
 /** Either admin persona — can access /admin but not necessarily salary data. */
 export const isAdminRole = (role: string): boolean =>
   role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN";
-
-/** Guard for salary-bearing routes and UI. Only SUPER_ADMIN passes. */
-export const canViewSalary = (role: string): boolean => role === "SUPER_ADMIN";
 
 /**
  * Get the current session user.
@@ -107,14 +192,22 @@ async function _getSession(): Promise<SessionUser | null> {
     // Look up Prisma User by email — serve from cache if fresh.
     // status: "ACTIVE" filter ensures a deactivated user loses access
     // within USER_CACHE_TTL_MS of the admin-UI toggle.
-    let user = getCachedUser(authUser.email);
-    if (user === undefined) {
+    let cached = getCachedEntry(authUser.email);
+    let user: CachedUser | null = cached?.user ?? null;
+    if (!cached) {
       // email is unique per-tenant — findFirst returns the only match
       // in the single-tenant MVP; guarded by assertSingleTenant above.
-      user = await prisma.user.findFirst({
+      // include customRole so derivePermissions can read its JSON without
+      // a follow-up query.
+      user = (await prisma.user.findFirst({
         where: { email: authUser.email, status: "ACTIVE" },
-      });
-      if (user) setCachedUser(authUser.email, user);
+        include: { customRole: true },
+      })) as CachedUser | null;
+      if (user) {
+        const derived = derivePermissions(user);
+        setCachedEntry(authUser.email, user, derived.permissions, derived.customRoleCode);
+        cached = getCachedEntry(authUser.email);
+      }
     }
 
     // Auto-create User on first Supabase Auth login.
@@ -134,7 +227,7 @@ async function _getSession(): Promise<SessionUser | null> {
 
       if (employee) {
         // Create Teacher user linked to employee
-        user = await prisma.user.create({
+        user = (await prisma.user.create({
           data: {
             tenantId: employee.tenantId,
             email: authUser.email,
@@ -142,8 +235,11 @@ async function _getSession(): Promise<SessionUser | null> {
             name: employee.nama,
             employeeId: employee.id,
           },
-        });
-        setCachedUser(authUser.email, user);
+          include: { customRole: true },
+        })) as CachedUser;
+        const derived = derivePermissions(user);
+        setCachedEntry(authUser.email, user, derived.permissions, derived.customRoleCode);
+        cached = getCachedEntry(authUser.email);
       } else {
         // Check if there's a parent with this email
         const parent = await prisma.parent.findFirst({
@@ -151,7 +247,7 @@ async function _getSession(): Promise<SessionUser | null> {
         });
 
         if (parent) {
-          user = await prisma.user.create({
+          user = (await prisma.user.create({
             data: {
               tenantId: parent.tenantId,
               email: authUser.email,
@@ -159,8 +255,11 @@ async function _getSession(): Promise<SessionUser | null> {
               name: parent.name,
               parentId: parent.id,
             },
-          });
-          setCachedUser(authUser.email, user);
+            include: { customRole: true },
+          })) as CachedUser;
+          const derived = derivePermissions(user);
+          setCachedEntry(authUser.email, user, derived.permissions, derived.customRoleCode);
+          cached = getCachedEntry(authUser.email);
         } else {
           // Not an employee, not a guardian, no existing User → deny access
           return null;
@@ -175,11 +274,14 @@ async function _getSession(): Promise<SessionUser | null> {
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     if (!user.lastLoginAt || user.lastLoginAt < fiveMinutesAgo) {
-      const updated = await prisma.user.update({
+      const updated = (await prisma.user.update({
         where: { id: user.id },
         data: { lastLoginAt: now },
-      });
-      setCachedUser(updated.email, updated);
+        include: { customRole: true },
+      })) as CachedUser;
+      const derived = derivePermissions(updated);
+      setCachedEntry(updated.email, updated, derived.permissions, derived.customRoleCode);
+      cached = getCachedEntry(updated.email);
       user = updated;
     }
 
@@ -190,6 +292,13 @@ async function _getSession(): Promise<SessionUser | null> {
       parentId = parent?.id ?? null;
     }
 
+    // Fallback derivation in the rare case the cache entry wasn't populated
+    // above (e.g. setCachedEntry skipped due to race). Matches the
+    // invariant that SessionUser.permissions is always populated.
+    const { permissions, customRoleCode } = cached
+      ? { permissions: cached.permissions, customRoleCode: cached.customRoleCode }
+      : derivePermissions(user);
+
     return {
       id: user.id,
       email: user.email,
@@ -198,6 +307,8 @@ async function _getSession(): Promise<SessionUser | null> {
       tenantId: user.tenantId,
       employeeId: user.employeeId,
       parentId,
+      permissions,
+      customRoleCode,
     };
   } catch {
     // In production, don't fall back to demo mode on auth errors.
@@ -217,9 +328,10 @@ async function getDemoSession(): Promise<SessionUser | null> {
   const userId = cookieStore.get("school-erp-session")?.value;
   if (!userId) return null;
 
-  const user = await prisma.user.findFirst({
+  const user = (await prisma.user.findFirst({
     where: { id: userId, status: "ACTIVE" },
-  });
+    include: { customRole: true },
+  })) as CachedUser | null;
   if (!user) return null;
 
   let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
@@ -227,6 +339,8 @@ async function getDemoSession(): Promise<SessionUser | null> {
     const parent = await prisma.parent.findFirst({ where: { email: user.email } });
     parentId = parent?.id ?? null;
   }
+
+  const { permissions, customRoleCode } = derivePermissions(user);
 
   return {
     id: user.id,
@@ -236,5 +350,7 @@ async function getDemoSession(): Promise<SessionUser | null> {
     tenantId: user.tenantId,
     employeeId: user.employeeId,
     parentId,
+    permissions,
+    customRoleCode,
   };
 }

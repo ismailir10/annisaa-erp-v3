@@ -31,6 +31,8 @@ const adminSession = {
   tenantId: "t-1",
   employeeId: null,
   parentId: null,
+  permissions: [],
+  customRoleCode: null,
 };
 
 const teacherSession = {

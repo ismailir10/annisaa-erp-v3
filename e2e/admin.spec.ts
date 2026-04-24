@@ -20,6 +20,13 @@ test.describe("Admin flows", () => {
     await page.waitForURL("**/admin", { timeout: 15_000 });
   });
 
+  test("SUPER_ADMIN demo user sees full nav incl. SDM group + Karyawan", async ({ page }) => {
+    // SUPER_ADMIN gets every permission — SDM group and Karyawan link must render.
+    await expect(page.getByRole("button", { name: "SDM" })).toBeVisible();
+    await expect(page.locator('a[href="/admin/employees"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/admin/payroll"]').first()).toBeVisible();
+  });
+
   test("dashboard loads with stats", async ({ page }) => {
     await expect(page.locator("text=Dasbor")).toBeVisible();
     await expect(page.locator("text=TOTAL KARYAWAN")).toBeVisible();

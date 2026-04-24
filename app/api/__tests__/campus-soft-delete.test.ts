@@ -61,6 +61,8 @@ const adminSession = {
   tenantId: "t-camp",
   employeeId: null,
   parentId: null,
+  permissions: [],
+  customRoleCode: null,
 };
 
 describe("Campus Cat A soft-delete", () => {

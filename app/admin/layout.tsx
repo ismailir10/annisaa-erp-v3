@@ -1,4 +1,4 @@
-import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/admin/sidebar";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
@@ -15,7 +15,7 @@ export default async function AdminLayout({
 
   return (
     <SidebarProvider>
-      <AppSidebar canSeeSalary={canViewSalary(session.role)} />
+      <AppSidebar permissions={session.permissions} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
           <SidebarTrigger className="-ml-1" />

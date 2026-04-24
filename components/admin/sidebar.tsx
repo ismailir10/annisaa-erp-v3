@@ -98,7 +98,7 @@ function CollapsibleNavGroup({
   );
 }
 
-export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
+export function AppSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
@@ -106,11 +106,16 @@ export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
   );
   const [settingsOpen, setSettingsOpen] = useState(true);
 
-  const visibleGroups = adminNav.groups.map((g) => ({
-    ...g,
-    items: g.items.filter((item) => !item.superAdminOnly || canSeeSalary),
-  })).filter((g) => g.items.length > 0);
-  const visibleSettings = adminNav.settings.filter((item) => !item.superAdminOnly || canSeeSalary);
+  const visibleGroups = adminNav.groups
+    .filter((g) => !g.permission || permissions.includes(g.permission))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => !item.permission || permissions.includes(item.permission)),
+    }))
+    .filter((g) => g.items.length > 0);
+  const visibleSettings = adminNav.settings.filter(
+    (item) => !item.permission || permissions.includes(item.permission),
+  );
 
   // Auto-expand whichever group contains the active route so users who
   // collapsed a group and then navigated into it via breadcrumb/back don't
@@ -202,31 +207,32 @@ export function AppSidebar({ canSeeSalary }: { canSeeSalary: boolean }) {
             }
           />
         ))}
+
+        {/* Pengaturan — last group in main nav, not pinned to footer */}
+        {visibleSettings.length > 0 && (
+          <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <SidebarGroup>
+              <SidebarGroupLabel
+                render={
+                  <CollapsibleTrigger className="flex w-full items-center gap-2" />
+                }
+              >
+                <Settings className="size-4" />
+                <span>Pengaturan</span>
+                <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <NavMenuItems items={visibleSettings} pathname={pathname} />
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
       </SidebarContent>
 
-      {/* Footer — Pengaturan + Logout */}
+      {/* Footer — Logout only */}
       <SidebarFooter>
-        <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <SidebarGroup>
-            <SidebarGroupLabel
-              render={
-                <CollapsibleTrigger className="flex w-full items-center gap-2" />
-              }
-            >
-              <Settings className="size-4" />
-              <span>Pengaturan</span>
-              <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-            </SidebarGroupLabel>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <NavMenuItems items={visibleSettings} pathname={pathname} />
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
-
-        <SidebarSeparator />
-
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Keluar" onClick={handleLogout}>

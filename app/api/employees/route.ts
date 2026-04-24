@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
@@ -9,13 +10,9 @@ import { createEmployeeSchema } from "@/lib/validations/employee";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.tenantId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("hr.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
@@ -53,7 +50,10 @@ export async function GET(req: NextRequest) {
     prisma.employee.count({ where }),
   ]);
 
-  const canSeeSalary = canViewSalary(session.role);
+  // Salary fields visibility keyed to payroll.view. SUPER_ADMIN passes via
+  // the short-circuit; a custom role with payroll.view also gets bank/BPJS
+  // fields; SCHOOL_ADMIN default set excludes hr.*, so shape is stripped.
+  const canSeeSalary = hasPermission(session, "payroll.view");
   const safeEmployees = canSeeSalary
     ? employees
     : employees.map((e) => {
@@ -68,10 +68,9 @@ export async function POST(req: NextRequest) {
   const { success } = rateLimit(`create-employee:${getClientIp(req)}`, 10, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("employees.create");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const result = await validateBody(createEmployeeSchema, await req.json());
   if (result.error) return result.error;

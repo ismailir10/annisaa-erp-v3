@@ -12,6 +12,7 @@ export const PERMISSION_GROUPS = {
   hr: {
     label: "SDM",
     permissions: {
+      "hr.view": "Akses modul SDM",
       "employees.view": "Lihat karyawan",
       "employees.create": "Tambah karyawan",
       "employees.edit": "Edit karyawan",
@@ -69,18 +70,18 @@ export type PermissionCode = (typeof ALL_PERMISSIONS)[number];
 
 /**
  * Check if a session has a specific permission.
- * SCHOOL_ADMIN always has all permissions (backward-compatible).
- * TEACHER and GUARDIAN have no admin permissions by default.
+ * SUPER_ADMIN always has all permissions (owner escape hatch).
+ * SCHOOL_ADMIN, TEACHER, GUARDIAN are gated by their permission array.
  * Custom roles check their permissions JSON array.
  */
 export function hasPermission(
   session: { role: string; permissions?: string[] | null },
   permission: string
 ): boolean {
-  // SCHOOL_ADMIN has all permissions
-  if (session.role === "SCHOOL_ADMIN") return true;
+  // SUPER_ADMIN owner escape hatch — always passes regardless of array
+  if (session.role === "SUPER_ADMIN") return true;
 
-  // Check custom role permissions if available
+  // Check permissions array (role defaults OR custom role grants)
   if (session.permissions && Array.isArray(session.permissions)) {
     return session.permissions.includes(permission);
   }
@@ -90,11 +91,38 @@ export function hasPermission(
 
 /**
  * Get all permissions for a legacy role (for seeding system roles).
+ *
+ * SCHOOL_ADMIN enumerates its codes explicitly (not derived via filter) so
+ * future HR additions to PERMISSION_GROUPS do NOT silently leak into the
+ * SCHOOL_ADMIN default set — they must be consciously added here.
  */
 export function getSystemRolePermissions(role: string): string[] {
   switch (role) {
-    case "SCHOOL_ADMIN":
+    case "SUPER_ADMIN":
       return ALL_PERMISSIONS;
+    case "SCHOOL_ADMIN":
+      return [
+        // academic
+        "students.view",
+        "students.create",
+        "students.edit",
+        "admissions.view",
+        "admissions.edit",
+        "academic.view",
+        "academic.edit",
+        // finance
+        "invoices.view",
+        "invoices.create",
+        "invoices.void",
+        "fees.view",
+        "fees.edit",
+        "payments.record",
+        // settings
+        "settings.view",
+        "settings.edit",
+        "users.view",
+        "users.edit",
+      ];
     case "TEACHER":
       return ["attendance.view", "students.view"];
     case "GUARDIAN":

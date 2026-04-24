@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 
 // Admin: get attendance history for a specific employee
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json([], { status: 403 });
-  }
+  const auth = await requirePermission("attendance.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id } = await params;
   const { searchParams } = new URL(req.url);

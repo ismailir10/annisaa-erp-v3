@@ -37,6 +37,8 @@ function makeSession(): SessionUser {
     tenantId: "t1",
     employeeId: null,
     parentId: null,
+    permissions: [],
+    customRoleCode: null,
   };
 }
 

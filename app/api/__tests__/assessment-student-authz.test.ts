@@ -175,6 +175,8 @@ function makeSession(
     tenantId: opts.tenantId ?? "t1",
     employeeId: opts.employeeId ?? null,
     parentId: null,
+    permissions: [],
+    customRoleCode: null,
   };
 }
 

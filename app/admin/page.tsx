@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
-import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/admin/page-header";
@@ -90,7 +91,7 @@ export default async function AdminDashboard() {
         })}
       />
       <DashboardClient
-        canSeeSalary={canViewSalary(session.role)}
+        canSeeSalary={hasPermission(session, "payroll.view")}
         totalEmployees={totalEmployees}
         present={present}
         late={late}

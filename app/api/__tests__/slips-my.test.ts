@@ -41,6 +41,8 @@ describe("GET /api/slips/my", () => {
         tenantId: "tenant-1",
         employeeId: null,
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       const response = await GET();
@@ -60,6 +62,8 @@ describe("GET /api/slips/my", () => {
         tenantId: null,
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       const response = await GET();
@@ -81,6 +85,8 @@ describe("GET /api/slips/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       const response = await GET();
@@ -100,6 +106,8 @@ describe("GET /api/slips/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       const response = await GET();
@@ -121,6 +129,8 @@ describe("GET /api/slips/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);
@@ -144,6 +154,8 @@ describe("GET /api/slips/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);
@@ -176,6 +188,8 @@ describe("GET /api/slips/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);
@@ -207,6 +221,8 @@ describe("GET /api/slips/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);
@@ -242,6 +258,8 @@ describe("GET /api/slips/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.payrollItem.findMany).mockResolvedValue([]);

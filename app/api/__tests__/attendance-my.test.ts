@@ -42,6 +42,8 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: null,
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       const request = new Request("http://localhost:3000/api/attendance/my");
@@ -62,6 +64,8 @@ describe("GET /api/attendance/my", () => {
         tenantId: null,
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       const request = new Request("http://localhost:3000/api/attendance/my");
@@ -84,6 +88,8 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       const request = new Request("http://localhost:3000/api/attendance/my");
@@ -104,6 +110,8 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       const request = new Request("http://localhost:3000/api/attendance/my");
@@ -126,6 +134,8 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.attendanceRecord.findMany).mockResolvedValue([]);
@@ -150,6 +160,8 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.attendanceRecord.findMany).mockResolvedValue([]);
@@ -183,6 +195,8 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.attendanceRecord.findMany).mockResolvedValue([]);
@@ -217,6 +231,8 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
+        permissions: [],
+        customRoleCode: null,
       });
 
       vi.mocked(prisma.attendanceRecord.findMany).mockResolvedValue([]);

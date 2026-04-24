@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
 import { calculateEmployeePayroll, SalaryComponent } from "@/lib/payroll/engine";
 import { countAttendanceDays } from "@/lib/payroll/working-days";
@@ -9,10 +9,9 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; itemId: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId || !canViewSalary(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("payroll.create");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id: payrollRunId, itemId } = await params;
 

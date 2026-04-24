@@ -33,6 +33,8 @@ function makeSession(
     tenantId: "t1",
     employeeId,
     parentId: null,
+    permissions: [],
+    customRoleCode: null,
   };
 }
 

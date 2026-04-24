@@ -38,6 +38,8 @@ function makeSession(role: SessionUser["role"] = "SUPER_ADMIN"): SessionUser {
     tenantId: "t1",
     employeeId: null,
     parentId: null,
+    permissions: [],
+    customRoleCode: null,
   };
 }
 
