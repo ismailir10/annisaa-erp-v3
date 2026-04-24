@@ -25,7 +25,10 @@ import { hasPermission, type PermissionCode } from "./permissions";
  */
 export async function requirePermission(
   perm: PermissionCode,
-): Promise<{ session: SessionUser } | { error: Response }> {
+): Promise<
+  | { session: SessionUser & { tenantId: string } }
+  | { error: Response }
+> {
   const session = await getSession();
   if (!session) {
     return { error: Response.json({ error: "unauthorized" }, { status: 401 }) };
@@ -41,7 +44,9 @@ export async function requirePermission(
       ),
     };
   }
-  return { session };
+  // tenantId is narrowed to `string` above — the return type reflects that
+  // so handlers can pass `session.tenantId` to helpers expecting non-null.
+  return { session: session as SessionUser & { tenantId: string } };
 }
 
 /**

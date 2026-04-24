@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
 
@@ -9,8 +10,9 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId) return NextResponse.json(null, { status: 401 });
+  const auth = await requirePermission("hr.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id } = await params;
   const employee = await prisma.employee.findUnique({
@@ -22,7 +24,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (!canViewSalary(session.role)) {
+  if (!hasPermission(session, "payroll.view")) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { bankAccountNo, bankName, bpjsEnrolled, ...rest } = employee;
     return NextResponse.json(rest);
@@ -34,10 +36,9 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("employees.edit");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id } = await params;
 

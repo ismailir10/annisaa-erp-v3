@@ -33,7 +33,8 @@ describe("GET /api/payroll — role checks", () => {
     const res = await GET(makeReq() as never);
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toBe("Forbidden");
+    expect(body.error).toBe("forbidden");
+    expect(body.missing).toBe("payroll.view");
   });
 
   it("returns 403 for TEACHER", async () => {
@@ -57,10 +58,10 @@ describe("GET /api/payroll — role checks", () => {
     expect(res.status).toBe(200);
   });
 
-  it("returns 403 when session is null", async () => {
+  it("returns 401 when session is null", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(null);
     const res = await GET(makeReq() as never);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 });

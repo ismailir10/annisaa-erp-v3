@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isSuperAdmin } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import React from "react";
@@ -36,13 +37,16 @@ export async function GET(
     if (fullRun?.status === "DRAFT") {
       return NextResponse.json({ error: "Slip gaji belum tersedia" }, { status: 403 });
     }
-  } else if (isSuperAdmin(session.role)) {
-    // SUPER_ADMIN: must belong to same tenant
+  } else if (hasPermission(session, "payroll.view")) {
+    // Admin or custom role with payroll.view: must belong to same tenant.
+    // SUPER_ADMIN passes via the hasPermission short-circuit; SCHOOL_ADMIN
+    // (default perms lack payroll.view) does not.
     if (item.payrollRun.tenantId !== session.tenantId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
   } else {
-    // SCHOOL_ADMIN, GUARDIAN, or any other role: no access to salary PDFs
+    // SCHOOL_ADMIN (without payroll grant), GUARDIAN, or any other role:
+    // no access to other employees' salary PDFs.
     return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
   }
 

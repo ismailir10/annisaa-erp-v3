@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 
 /**
  * GET /api/payroll/stats
@@ -11,10 +11,9 @@ import { getSession, canViewSalary } from "@/lib/auth";
  * three lambda invocations when one groupBy is sufficient.
  */
 export async function GET(_req: NextRequest) {
-  const session = await getSession();
-  if (!session?.tenantId || !canViewSalary(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("payroll.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const rows = await prisma.payrollRun.groupBy({
     by: ["status"],

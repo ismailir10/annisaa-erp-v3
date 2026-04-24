@@ -48,7 +48,8 @@ describe("GET /api/employees/[id]/salary — role checks", () => {
     const res = await GET(req as never, { params: Promise.resolve({ id: "emp1" }) });
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toBe("Forbidden");
+    expect(body.error).toBe("forbidden");
+    expect(body.missing).toBe("payroll.view");
   });
 
   it("returns 200 for SUPER_ADMIN", async () => {
@@ -83,7 +84,12 @@ describe("GET /api/employees — field stripping", () => {
     expect(body.data[0]).toHaveProperty("bpjsEnrolled");
   });
 
-  it("strips salary fields for SCHOOL_ADMIN", async () => {
+  it("strips salary fields when session has hr.view but not payroll.view", async () => {
+    // Represents a future custom role — e.g. "HR Assistant" — granted the
+    // coarse HR module gate but not the payroll-sensitive permissions.
+    // SCHOOL_ADMIN default perms exclude hr.view entirely (and hit 403
+    // before the field-stripping branch runs), so this is the only
+    // meaningful code path for the strip logic.
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.employee.findMany).mockResolvedValue([
       { id: "e1", nama: "Ali", bankAccountNo: "1234", bankName: "BSI", bpjsEnrolled: true, campus: { name: "A" } } as never,
@@ -92,7 +98,11 @@ describe("GET /api/employees — field stripping", () => {
 
     const { GET } = await import("../employees/route");
     const { getSession } = await import("@/lib/auth");
-    vi.mocked(getSession).mockResolvedValue(makeSession("SCHOOL_ADMIN"));
+    vi.mocked(getSession).mockResolvedValue({
+      ...makeSession("SCHOOL_ADMIN"),
+      permissions: ["hr.view", "employees.view"],
+      customRoleCode: "hr-assistant",
+    });
     const req = new Request("http://localhost/api/employees");
     const res = await GET(req as never);
     expect(res.status).toBe(200);
@@ -100,5 +110,14 @@ describe("GET /api/employees — field stripping", () => {
     expect(body.data[0]).not.toHaveProperty("bankAccountNo");
     expect(body.data[0]).not.toHaveProperty("bankName");
     expect(body.data[0]).not.toHaveProperty("bpjsEnrolled");
+  });
+
+  it("403 for SCHOOL_ADMIN (default perms lack hr.view)", async () => {
+    const { GET } = await import("../employees/route");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(makeSession("SCHOOL_ADMIN"));
+    const req = new Request("http://localhost/api/employees");
+    const res = await GET(req as never);
+    expect(res.status).toBe(403);
   });
 });

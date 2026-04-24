@@ -158,9 +158,6 @@ export const isSuperAdmin = (role: string): boolean => role === "SUPER_ADMIN";
 export const isAdminRole = (role: string): boolean =>
   role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN";
 
-/** Guard for salary-bearing routes and UI. Only SUPER_ADMIN passes. */
-export const canViewSalary = (role: string): boolean => role === "SUPER_ADMIN";
-
 /**
  * Get the current session user.
  * Reads Supabase Auth session, then looks up the Prisma User by email.
