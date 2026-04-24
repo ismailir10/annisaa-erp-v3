@@ -111,7 +111,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Acceptance: SCHOOL_ADMIN sees sidebar without SDM group and without `Komponen Gaji`. Custom role with only `payroll.view` sees Penggajian + Komponen Gaji, nothing else HR.
 - Dependencies: Tasks 1, 2.
 
-### 7. Sidebar layout — unpin Pengaturan
+### 7. Sidebar layout — unpin Pengaturan ✅
 
 - Edit `components/admin/sidebar.tsx`: move the Pengaturan `<Collapsible>` out of `<SidebarFooter>` into the end of `<SidebarContent>`. Keep Logout + separator in footer.
 - Cross-check `.claude/standards/design-system.html` sidebar recipe (frontend pre-commit gate requires `design-system` token in this cycle doc — token present above).
@@ -142,6 +142,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Task 4: HR route group — `app/admin/(hr)/layout.tsx` (new, `assertPermission("hr.view")`); 4 dirs moved via `git mv` (employees, payroll, attendance, leave); `app/admin/settings/salary-components/layout.tsx` rewritten to use `assertPermission("hr.view")` (page is client — layout wraps); inner `app/admin/(hr)/payroll/layout.tsx` narrowed to `assertPermission("payroll.view")` for future HR-assistant role. URL paths unchanged (route group parens URL-invisible). Reviewer clean.
 - Task 5: API guards — every HR handler now uses `requirePermission(perm)`. Employees: GET/list hr.view, POST employees.create, PUT employees.edit. Payroll: GET payroll.view, PUT/generate payroll.create, approve payroll.approve, send-slips payroll.send_slips. Salary-components: GET payroll.view, POST/PUT payroll.create (fixed post-review — was payroll.view). Slips [payrollItemId]/pdf admin path: payroll.view. Attendance admin (today/monthly/export): attendance.view; override: attendance.override. Leave admin: leave.view + leave.approve. Self-service untouched (attendance/{my,check-in,check-out}, leave/my, slips/my). `canViewSalary` deleted. `requirePermission` return narrowed to `SessionUser & { tenantId: string }`. Tightened `app/api/employees/positions/route.ts` (previously tenant-only) to `hr.view`. New `app/api/__tests__/hr-permission-gate.test.ts` (11 cases). Security review clean on role-trust / tenant-isolation / mass-assignment / rate-limiting.
 - Task 6: Nav permissions — `config/admin-nav.ts` swaps `superAdminOnly: boolean` for `permission?: PermissionCode` on NavItem + NavGroup (SDM group `hr.view`, Komponen Gaji `hr.view`). `components/admin/sidebar.tsx` prop `canSeeSalary` → `permissions: string[]`; filter via `.includes()`. `app/admin/layout.tsx` passes `session.permissions`. `app/admin/page.tsx` derives `canSeeSalary={hasPermission(session, "payroll.view")}` (kept DashboardClient prop stable — min blast). Reviewer clean.
+- Task 7: Unpin Pengaturan — `components/admin/sidebar.tsx` moves Pengaturan Collapsible out of `<SidebarFooter>` into end of `<SidebarContent>`. Added `visibleSettings.length > 0 &&` render guard. Logout alone in footer. `settingsOpen` state + useEffect unchanged by DOM reparent. Reviewer clean.
 
 ## Verification
 
@@ -152,6 +153,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Task 3: `npm run build && npx vitest run` green. 362 passed / 42 todo / 2 skipped.
 - Task 5 (API guards): `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped. Security review clean on role-trust / tenant-isolation / mass-assignment / rate-limiting. Salary-components write perm corrected post-review (payroll.view → payroll.create).
 - Task 6 (nav permissions): `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped. Design-system cross-check deferred to Task 7 (which owns the structural sidebar change).
+- Task 7 (unpin Pengaturan): `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped. Cross-checked `.claude/standards/design-system.html` §sidebar (lines 1107-1111, "System" nav-group) — Pengaturan rendered as last inline nav-group, SidebarFooter carries action button only. Matches Task 7 structural change.
 
 ## Ship Notes
 

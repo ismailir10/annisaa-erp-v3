@@ -207,31 +207,32 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
             }
           />
         ))}
+
+        {/* Pengaturan — last group in main nav, not pinned to footer */}
+        {visibleSettings.length > 0 && (
+          <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <SidebarGroup>
+              <SidebarGroupLabel
+                render={
+                  <CollapsibleTrigger className="flex w-full items-center gap-2" />
+                }
+              >
+                <Settings className="size-4" />
+                <span>Pengaturan</span>
+                <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <NavMenuItems items={visibleSettings} pathname={pathname} />
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
       </SidebarContent>
 
-      {/* Footer — Pengaturan + Logout */}
+      {/* Footer — Logout only */}
       <SidebarFooter>
-        <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <SidebarGroup>
-            <SidebarGroupLabel
-              render={
-                <CollapsibleTrigger className="flex w-full items-center gap-2" />
-              }
-            >
-              <Settings className="size-4" />
-              <span>Pengaturan</span>
-              <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-            </SidebarGroupLabel>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <NavMenuItems items={visibleSettings} pathname={pathname} />
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
-
-        <SidebarSeparator />
-
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Keluar" onClick={handleLogout}>
