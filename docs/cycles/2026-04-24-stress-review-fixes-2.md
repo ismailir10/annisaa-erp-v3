@@ -74,6 +74,21 @@ Ordered gating-first:
 - `assertSingleTenant` uses a 60s TTL cache (not a permanent flag) — guard fires within ~60s of a freshly seeded second tenant. Initial review caught a blind-after-first-success regression; fixed before commit.
 - Code review on Task 6 diff (`feature-dev:code-reviewer`) surfaced 2 real issues, both fixed pre-commit: (a) `assertSingleTenant` module-level flag → swapped to 60s TTL so a runtime-seeded second tenant is caught; (b) `verify-api-auth.sh` could silently pass if run outside repo root → now exits non-zero if `find` returns zero route files. Same defensive guard also back-ported to `verify-rls-coverage.sh`.
 
+### Task 7 — infra (gating for `/ship --to-main`) — 2026-04-24
+
+- **User confirmation obtained:** prod has no users during this cutover window ("no one is using production now"). Option A accepted: extend `vercel-build.sh` to run `prisma migrate deploy` on `main`, accepting that the first staging→main promote will apply all 13 pending migrations (2026-04-20 through 2026-04-24) in one shot. All 13 are either additive columns with defaults (e.g., `PayrollItem.emailSent Boolean @default(false)`), idempotent RLS ALTERs with `IF EXISTS`/`IF NOT EXISTS` guards, or FK onDelete changes — safe to apply as a batch.
+- `scripts/vercel-build.sh`: case arm `staging)` → `staging|main)`. Comment rewritten to remove the "Phase-1 stale" caveat and state the new contract (both branches apply migrations; preview branches never do). Added a warning that `migrate deploy` failures MUST NOT be silently skipped — they indicate prod schema drift.
+- `.github/workflows/ci.yml`: added explanatory comment above `npx prisma db push --force-reset` clarifying that the flag is only safe against the disposable CI Postgres service container — NEVER staging or prod.
+- README prune: Environments section now documents the `vercel-build.sh` deployment contract explicitly + lists the three actual CI job names (was three-vs-four mismatch in CLAUDE.md).
+- CLAUDE.md prune: Required-check block replaced four stale names (`build` / `typecheck` / `test` / `e2e`) with the three actual job names (`Lint, Typecheck & Test` / `Build` / `Playwright E2E`). Prevents silent mismatch when GitHub Pro branch-protection is enabled.
+
+### Task 7 — infra Verification
+
+- Between-task gate: `npm run build && npx vitest run` — pending (running before commit).
+- `bash scripts/verify-rls-coverage.sh` + `bash scripts/verify-api-auth.sh` — green.
+- `bash -n scripts/vercel-build.sh` — syntax OK.
+- **Gating status for `/ship --to-main`: CLEAR** — prod will apply migrations on first main deploy; user acknowledged the batch and the no-users window. After merge, monitor Vercel build log for `migrate deploy` success line before declaring prod healthy.
+
 ## Ship Notes
 
 *Populated end-of-cycle.*

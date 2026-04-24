@@ -203,6 +203,8 @@ npm run lint
 | **Staging** | `staging` | [Vercel preview](https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app/) | Supabase SG | Test with safe data (3 test users, test teacher emails) |
 | **Production** | `main` | annisaa-erp-v3.vercel.app | Supabase SG | Real teachers, real payroll |
 
+**Deployment:** Vercel builds via [`scripts/vercel-build.sh`](./scripts/vercel-build.sh); `prisma migrate deploy` runs on both `staging` and `main` refs. Preview branches (`feat/*`) use the staging DB directly and skip migrate deploy. CI (GitHub Actions) runs three required checks on every PR: `Lint, Typecheck & Test` (includes RLS + API-auth coverage guards), `Build`, and `Playwright E2E`.
+
 ---
 
 ## License

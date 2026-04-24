@@ -74,7 +74,7 @@ It should invoke /caveman and /using-superpowers by default. The `SessionStart` 
 - After the **last task**: run the **end-of-cycle gate** before committing (see below) and then /requesting-code-review for review
 - Fill Ship Notes in the cycle doc
 
-**`/ship`** — create a PR from the feature branch to `staging` and hand off a two-command merge instruction to the user. `/ship` opens the PR and stops; the user watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all four checks are green. **Both `cto` and `product-builder` use this same flow — no direct pushes to `staging` or `main` for anyone.**
+**`/ship`** — create a PR from the feature branch to `staging` and hand off a two-command merge instruction to the user. `/ship` opens the PR and stops; the user watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all three checks are green. **Both `cto` and `product-builder` use this same flow — no direct pushes to `staging` or `main` for anyone.**
 - `/ship` → PR feat/* → staging, merged manually by the author when CI is green
 - `/ship --to-main` → PR staging → main, merged manually by the CTO when CI is green (explicit ask only; CTO-initiated)
 
@@ -219,15 +219,14 @@ Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is t
 - **`staging`**: require PR, no direct push for anyone (including owner), status checks must pass before merge
 - **`main`**: require PR from `staging` only, same status checks
 
-**Required GitHub Actions CI checks on every PR to `staging` and `main`:**
+**Required GitHub Actions CI checks on every PR to `staging` and `main`** (actual job names from `.github/workflows/ci.yml`):
 ```
-build         # npm run build
-typecheck     # tsc --noEmit
-test          # npx vitest run
-e2e           # npx playwright test (production server)
+Lint, Typecheck & Test    # tsc + lint + vitest + RLS + API-auth coverage guards
+Build                     # npm run build
+Playwright E2E            # npx playwright test against production server
 ```
 
-`/ship` opens the PR and stops — the author merges manually after confirming all four checks are green. (Note: branch protection, required status checks, and "Allow auto-merge" require GitHub Pro and are **not active** on this repo today. The settings above are the aspirational target for when the repo moves to Pro. On the free plan, the only real safety net is the `pre-push` hook blocking direct pushes to `staging`/`main` plus the CTO's discipline to wait for green CI before clicking merge.)
+`/ship` opens the PR and stops — the author merges manually after confirming all three checks are green. (Note: branch protection, required status checks, and "Allow auto-merge" require GitHub Pro and are **not active** on this repo today. The settings above are the aspirational target for when the repo moves to Pro. On the free plan, the only real safety net is the `pre-push` hook blocking direct pushes to `staging`/`main` plus the CTO's discipline to wait for green CI before clicking merge.)
 
 **staging → main cadence:** After every 2-4 merged cycles on staging (or when the user says "ship to prod"), CTO runs `/ship --to-main` to create the staging → main PR. CTO reviews and merges after CI passes.
 
