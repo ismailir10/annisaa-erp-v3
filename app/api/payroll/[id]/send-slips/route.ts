@@ -5,11 +5,8 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import { sendSalarySlipEmail } from "@/lib/email/send-slip";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { formatRupiah } from "@/lib/format";
 import React from "react";
-
-function formatRupiah(n: number): string {
-  return "Rp " + Math.round(n).toLocaleString("id-ID");
-}
 
 export async function POST(
   _req: NextRequest,
