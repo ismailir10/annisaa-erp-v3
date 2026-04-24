@@ -103,7 +103,7 @@ export function AttendanceCalendar({
       {/* Day headers */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {DAY_NAMES.map((d) => (
-          <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-1">
+          <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-1">
             {d}
           </div>
         ))}
@@ -140,7 +140,7 @@ export function AttendanceCalendar({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 mt-4 text-[10px]">
+      <div className="flex flex-wrap gap-3 mt-4 text-xs">
         {Object.entries(STATUS_COLORS).slice(0, 5).map(([key, val]) => (
           <div key={key} className="flex items-center gap-1">
             <div className={`w-2.5 h-2.5 rounded-sm ${val.bg}`} />
@@ -159,7 +159,7 @@ export function AttendanceCalendar({
         ].map((s) => (
           <div key={s.label} className="text-center">
             <p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-muted-foreground">{s.label}</p>
+            <p className="text-xs text-muted-foreground">{s.label}</p>
           </div>
         ))}
       </div>

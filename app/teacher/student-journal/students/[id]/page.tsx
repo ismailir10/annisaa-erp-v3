@@ -119,7 +119,7 @@ export default function TeacherStudentWeekPage() {
   const weekLabel = data ? formatWeekLabel(data.weekStart, data.dates) : "";
 
   return (
-    <div className="px-4 pt-4 pb-8 max-w-md mx-auto">
+    <div>
       {/* Back link */}
       <button
         type="button"

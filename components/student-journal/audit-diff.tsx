@@ -16,13 +16,13 @@ export function AuditDiff({
   return (
     <div className="grid grid-cols-2 gap-2 text-xs font-mono">
       <div>
-        <p className="text-[10px] text-muted-foreground mb-1 font-sans">Sebelum</p>
+        <p className="text-xs text-muted-foreground mb-1 font-sans">Sebelum</p>
         <pre className="bg-destructive/10 p-2 rounded overflow-x-auto whitespace-pre-wrap break-all">
           {JSON.stringify(before, null, 2)}
         </pre>
       </div>
       <div>
-        <p className="text-[10px] text-muted-foreground mb-1 font-sans">Sesudah</p>
+        <p className="text-xs text-muted-foreground mb-1 font-sans">Sesudah</p>
         <pre className="bg-primary/10 p-2 rounded overflow-x-auto whitespace-pre-wrap break-all">
           {JSON.stringify(after, null, 2)}
         </pre>

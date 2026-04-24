@@ -102,7 +102,7 @@ export function TeacherHomeClient({
   const firstName = userName.split(" ")[0];
 
   return (
-    <div className="px-5 pt-8 pb-4">
+    <div>
       {/* Greeting */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}

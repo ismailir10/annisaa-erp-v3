@@ -29,7 +29,7 @@ export default async function TeacherAssessmentEntryPage({ params }: { params: P
   });
   if (!classSection) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <Link href="/teacher/assessments" className="inline-flex items-center gap-1 text-xs text-muted-foreground mb-4">
           <ArrowLeft size={14} /> Kembali
         </Link>
@@ -55,7 +55,7 @@ export default async function TeacherAssessmentEntryPage({ params }: { params: P
   });
   if (!template) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <Link href="/teacher/assessments" className="inline-flex items-center gap-1 text-xs text-muted-foreground mb-4">
           <ArrowLeft size={14} /> Kembali
         </Link>
@@ -77,7 +77,7 @@ export default async function TeacherAssessmentEntryPage({ params }: { params: P
     });
     if (!assignment) {
       return (
-        <div className="px-5 pt-6">
+        <div>
           <Link href="/teacher/assessments" className="inline-flex items-center gap-1 text-xs text-muted-foreground mb-4">
             <ArrowLeft size={14} /> Kembali
           </Link>
@@ -111,7 +111,7 @@ export default async function TeacherAssessmentEntryPage({ params }: { params: P
 
   if (students.length === 0) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <Link href="/teacher/assessments" className="inline-flex items-center gap-1 text-xs text-muted-foreground mb-4">
           <ArrowLeft size={14} /> Kembali ke daftar penilaian
         </Link>

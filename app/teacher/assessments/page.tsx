@@ -14,7 +14,7 @@ export default async function TeacherAssessmentsPage() {
   if (!session || session.role !== "TEACHER") redirect("/");
   if (!session.tenantId || !session.employeeId) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <EmptyState
           icon={ClipboardList}
           title="Belum ada kelas mengajar."
@@ -56,7 +56,7 @@ export default async function TeacherAssessmentsPage() {
 
   if (classSections.length === 0) {
     return (
-      <div className="px-5 pt-6">
+      <div>
         <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
         <EmptyState
           icon={ClipboardList}
@@ -129,7 +129,7 @@ export default async function TeacherAssessmentsPage() {
   }
 
   return (
-    <div className="px-5 pt-6 pb-4">
+    <div>
       <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
 
       <div className="space-y-4">
