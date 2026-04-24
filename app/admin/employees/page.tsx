@@ -489,7 +489,7 @@ function CreateEmployeeFormBody({
             <Select value={form.jabatan} onValueChange={(v) => {
               if (v === "__custom__") { setCustomPosition(true); setForm({ ...form, jabatan: "" }); }
               else if (v) setForm({ ...form, jabatan: v });
-            }}>
+            }} items={{ ...Object.fromEntries(positions.map((p) => [p, p])), __custom__: "+ Tambah jabatan baru" }}>
               <SelectTrigger><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
               <SelectContent>
                 {positions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -500,7 +500,7 @@ function CreateEmployeeFormBody({
         </Field>
         <Field>
           <FieldLabel>Kampus *</FieldLabel>
-          <Select value={form.campusId} onValueChange={(v) => v && setForm({ ...form, campusId: v })}>
+          <Select value={form.campusId} onValueChange={(v) => v && setForm({ ...form, campusId: v })} items={campuses.map((c) => ({ label: c.name, value: c.id }))}>
             <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
             <SelectContent>
               {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}

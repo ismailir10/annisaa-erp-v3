@@ -378,7 +378,7 @@ export default function AcademicPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-h2 font-semibold">Program</h2>
           <div className="flex items-center gap-2">
-            <Select value={programStatusFilter} onValueChange={(v) => v && setProgramStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")}>
+            <Select value={programStatusFilter} onValueChange={(v) => v && setProgramStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")} items={{ all: "Semua Status", ACTIVE: "Aktif", INACTIVE: "Tidak Aktif" }}>
               <SelectTrigger className="h-8 w-[160px]" data-testid="program-status-filter">
                 <SelectValue />
               </SelectTrigger>
@@ -412,7 +412,7 @@ export default function AcademicPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-h2 font-semibold">Kelas</h2>
           <div className="flex items-center gap-2">
-            <Select value={sectionStatusFilter} onValueChange={(v) => v && setSectionStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")}>
+            <Select value={sectionStatusFilter} onValueChange={(v) => v && setSectionStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")} items={{ all: "Semua Status", ACTIVE: "Aktif", INACTIVE: "Tidak Aktif" }}>
               <SelectTrigger className="h-8 w-[160px]" data-testid="section-status-filter">
                 <SelectValue />
               </SelectTrigger>
@@ -460,7 +460,7 @@ export default function AcademicPage() {
             <Field><FieldLabel>Deskripsi</FieldLabel><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
             <Field>
               <FieldLabel>Tipe</FieldLabel>
-              <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })}>
+              <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })} items={{ SEMESTER: "Semester", YEAR_ROUND: "Sepanjang Tahun", SESSION: "Per Sesi" }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="SEMESTER">Semester</SelectItem>
@@ -492,7 +492,7 @@ export default function AcademicPage() {
               {editingSection ? (
                 <div className="text-sm text-muted-foreground py-2">{editingSection.program.name}</div>
               ) : (
-                <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })}>
+                <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })} items={programs.map(p => ({ label: p.name, value: p.id }))}>
                   <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
                   <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                 </Select>
@@ -503,7 +503,7 @@ export default function AcademicPage() {
               {editingSection ? (
                 <div className="text-sm text-muted-foreground py-2">{editingSection.academicYear.name}</div>
               ) : (
-                <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })}>
+                <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })} items={years.map(y => ({ label: y.name, value: y.id }))}>
                   <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
                   <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
                 </Select>
@@ -511,7 +511,7 @@ export default function AcademicPage() {
             </Field>
             <Field>
               <FieldLabel>Kampus *</FieldLabel>
-              <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })}>
+              <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
                 <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
                 <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -548,7 +548,7 @@ export default function AcademicPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tambah Guru</p>
               <Field>
                 <FieldLabel>Pilih Guru</FieldLabel>
-                <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })}>
+                <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })} items={employees.filter(e => !classAssignments.some(a => a.employee.kode === e.kode)).map(e => ({ label: `${e.nama} (${e.jabatan})`, value: e.id }))}>
                   <SelectTrigger><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
                   <SelectContent>
                     {employees

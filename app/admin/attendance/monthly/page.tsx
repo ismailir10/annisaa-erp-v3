@@ -99,7 +99,7 @@ export default function MonthlyAttendancePage() {
         <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-accent"><ChevronLeft size={16} /></button>
         <span className="text-sm font-semibold w-40 text-center capitalize">{monthLabel}</span>
         <button onClick={nextMonth} className="p-2 rounded-lg hover:bg-accent"><ChevronRight size={16} /></button>
-        <Select value={campusId} onValueChange={(v) => v && setCampusId(v)}>
+        <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kampus</SelectItem>

@@ -56,7 +56,7 @@ function PaymentFormBody({
       </Field>
       <Field>
         <FieldLabel>Metode Pembayaran</FieldLabel>
-        <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
+        <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })} items={{ CASH: "Tunai", BANK_TRANSFER: "Transfer Bank", XENDIT: "Xendit", OTHER: "Lainnya" }}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="CASH">Tunai</SelectItem>

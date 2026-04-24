@@ -121,7 +121,7 @@ function EnrollmentEditFormBody({
       </Field>
       <Field>
         <FieldLabel>Kelas</FieldLabel>
-        <Select value={editForm.classSectionId} onValueChange={(v) => v && setEditForm({ ...editForm, classSectionId: v })}>
+        <Select value={editForm.classSectionId} onValueChange={(v) => v && setEditForm({ ...editForm, classSectionId: v })} items={classSections.map(cs => ({ label: `${cs.program.name} · ${cs.name}`, value: cs.id }))}>
           <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
           <SelectContent>
             {classSections.map(cs => (

@@ -98,7 +98,7 @@ export default function StudentJournalPickerPage() {
       <div className="space-y-4">
         <Field>
           <FieldLabel>Pilih Kelas</FieldLabel>
-          <Select value={selectedClass} onValueChange={(v) => v && setSelectedClass(v)}>
+          <Select value={selectedClass} onValueChange={(v) => v && setSelectedClass(v)} items={assignments.map((a) => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Pilih kelas" />
             </SelectTrigger>
