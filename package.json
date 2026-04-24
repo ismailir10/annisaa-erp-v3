@@ -11,7 +11,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "seed:uat": "tsx prisma/seed-uat.ts"
+    "seed:uat": "tsx prisma/seed-uat.ts",
+    "reseed:staging": "tsx scripts/reseed-staging.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
