@@ -198,6 +198,15 @@ bash scripts/bootstrap-env-symlinks.sh
 The script locates the main checkout via `git rev-parse --git-common-dir` and restores the missing symlinks.
 
 **Cleanup when the cycle is merged:**
+
+Preferred — `bash scripts/cleanup-merged.sh` from the main checkout. Default mode is `--report` (dry-run); pass `--yes` to actually remove. The script auto-detects every merged feat/* worktree (remote ref deleted by squash + content matches `origin/staging`, or branch is FF ancestor of `origin/staging`) and skips anything dirty, currently checked out, or with un-pushed local commits. SessionStart already runs `--report` so you see candidates on every fresh session.
+
+```bash
+bash scripts/cleanup-merged.sh           # dry-run, prints candidates
+bash scripts/cleanup-merged.sh --yes     # actually remove
+```
+
+Manual fallback for one-off cleanup:
 ```bash
 git worktree remove .worktrees/<slug>
 git branch -D feat/<slug>

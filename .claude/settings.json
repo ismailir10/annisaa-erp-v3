@@ -17,6 +17,10 @@
           {
             "type": "command",
             "command": "bash scripts/sync-staging.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash scripts/cleanup-merged.sh --report"
           }
         ]
       }

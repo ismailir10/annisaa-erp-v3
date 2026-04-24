@@ -174,6 +174,7 @@ Print (don't execute — just remind the user):
 - [ ] Wait for all four CI checks green via `gh pr checks <number> --watch`, then run `gh pr merge <number> --squash --delete-branch` yourself
 - [ ] Once merged, check the Vercel preview deploy on staging succeeded
 - [ ] Smoke-test the feature on the preview URL (follow `## Ship Notes` instructions)
+- [ ] Reclaim disk + reduce next-session noise: `bash scripts/cleanup-merged.sh --yes` from the main checkout. Removes the worktree + local branch for any feat/* PR that was squash-merged. SessionStart already prints the same candidates in `--report` mode on every new session.
 - [ ] Staging → main promotion is a separate `/ship --to-main` call, CTO-initiated
 
 ## Rules
