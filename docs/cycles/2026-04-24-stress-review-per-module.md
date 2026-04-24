@@ -274,6 +274,13 @@ Staging is 109 commits ahead of `main` spanning ~2 months — design-system foun
 - README prunes: `README.md:178` env var renamed (deployment trap closed); `README.md:54` finance module row now documents Invoice state machine + advisory-lock contract.
 - Test update: `app/api/__tests__/xendit-webhook.test.ts` now sends `payment_session_id` in payload (was relying on `payment_id` fallback, which the idempotency fix dropped).
 
+### Post-review follow-ups — 2026-04-24
+
+Code review (`feature-dev:code-reviewer`) on the 4 cycle commits surfaced 2 real findings; both fixed before ship.
+
+- **BLOCKER** — `app/api/payroll/[id]/send-slips/route.ts`: prior promotion gate `if (sent > 0)` left a run stuck in `APPROVED` forever if a complete retry ran against a run whose items were all already `emailSent=true`. Promotion now fires when every item is accounted for with no failures (`sent + skipped === total && failed === 0 && (sent > 0 || skipped > 0)`).
+- **MAJOR** — `app/api/payroll/[id]/export/bsi/route.ts`: status check + `EXPORTED` write were not atomic. Switched to compare-and-swap `updateMany({ where: { id, status: "APPROVED" } })`; second concurrent export gets `count=0` and returns 409.
+
 ## Ship Notes
 
 *empty — this is a review-only cycle; Ship Notes for each follow-up cycle captured in that cycle's own doc.*

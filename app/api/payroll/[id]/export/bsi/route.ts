@@ -50,11 +50,19 @@ export async function GET(
   const csv = generateBsiCsv(rows);
   const filename = sanitizeFilename(`payroll_${payroll.periodStart}_${payroll.periodEnd}_bsi.csv`);
 
-  // Mark as exported
-  await prisma.payrollRun.update({
-    where: { id },
+  // Compare-and-swap: only write EXPORTED if run is still APPROVED. Two
+  // concurrent BSI export clicks cannot both pass the status guard and both
+  // write — the second arrival gets count=0 and bails with 409.
+  const swap = await prisma.payrollRun.updateMany({
+    where: { id, status: "APPROVED" },
     data: { status: "EXPORTED", exportedAt: new Date() },
   });
+  if (swap.count === 0) {
+    return NextResponse.json(
+      { error: "Penggajian sudah diekspor atau statusnya berubah" },
+      { status: 409 }
+    );
+  }
 
   return new NextResponse(csv, {
     headers: {

@@ -160,7 +160,13 @@ export async function POST(
   // Compare-and-swap: only promote status if still APPROVED. Prevents two
   // concurrent send-slips invocations from both writing SLIPS_SENT on top of
   // each other, and prevents promotion if run was cancelled mid-send.
-  if (sent > 0) {
+  //
+  // Promotion condition: run is fully accounted for with no failures — either
+  // at least one slip was sent this call (first run OR partial-retry finishes
+  // the remaining items), or every item was already marked emailSent on a
+  // prior partial run (complete retry — sent=0, skipped=all, failed=0).
+  const allAccounted = sent + skipped === payroll.items.length && failed === 0;
+  if (allAccounted && (sent > 0 || skipped > 0)) {
     const swap = await prisma.payrollRun.updateMany({
       where: { id, status: "APPROVED" },
       data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
