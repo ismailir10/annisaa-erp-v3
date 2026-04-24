@@ -1,14 +1,30 @@
 #!/usr/bin/env bash
-# cleanup-merged.sh — remove merged feat/* worktrees + delete their branches.
+# cleanup-merged.sh — remove merged feat/* worktrees + delete their branches,
+# plus dangling local feat/* branches (no worktree, no remote, content in
+# staging).
 #
 # Default: --report (dry-run; prints candidates with reasons; safe to call
 #          from SessionStart without confirming with the user).
 # --yes:   actually run `git worktree remove` + `git branch -D` on each
 #          candidate. Run this manually after merging a PR.
 #
+# Two passes:
+#
+#   PASS 1 — worktrees. Iterate `git worktree list`, find feat/* worktrees
+#   whose PR was merged, remove worktree + delete branch in one go.
+#
+#   PASS 2 — dangling branches. Iterate `git for-each-ref refs/heads/feat/*`,
+#   find branches with no worktree + no remote ref + tree matching staging
+#   (squash-merged orphan), delete the branch. These accumulate when a
+#   feature branch is built on top of another feature branch and the parent
+#   is force-deleted before its child branches were cleaned (the orphan
+#   parent is what produced the original "feat/workflow-cleanup-script"
+#   left-behind during /ship cycle.)
+#
 # Detection — a feat/* branch is considered "merged" if EITHER:
 #   * the remote branch ref is gone (PR was squash-merged with
-#     --delete-branch — the standard /ship flow), OR
+#     --delete-branch — the standard /ship flow) AND tree matches
+#     origin/staging, OR
 #   * the branch is a strict ancestor of origin/staging (FF merge).
 #
 # Safety guards (the candidate is SKIPPED if any apply):
@@ -20,6 +36,8 @@
 #   * working tree is dirty (uncommitted files, untracked files)
 #   * branch has local commits NOT on origin (unpushed work that would
 #     be lost)
+#   * (Pass 2 only) branch is checked out by ANY worktree — handled by
+#     pass 1 already; pass 2 only walks branches with no worktree
 #
 # Output is line-oriented and parseable: each candidate gets one line
 # prefixed `[would-remove]`, `[remove]`, or `[skip] ... — <reason>`.
@@ -52,6 +70,12 @@ git fetch origin --prune --quiet 2>/dev/null || true
 
 CURRENT_WT=$(git rev-parse --show-toplevel)
 
+# Build a set of branches currently checked out by any worktree, used by
+# pass 2 to skip branches that pass 1 already considered.
+WORKTREE_BRANCHES=$(git worktree list --porcelain \
+  | awk '/^branch refs\/heads\//{sub("refs/heads/","",$2); print $2}')
+
+# ─── Pass 1: worktrees ─────────────────────────────────────────────────────
 # Iterate worktrees via process substitution so the loop body runs in the
 # current shell (not a subshell), letting us exit cleanly on hard errors.
 while read -r WT; do
@@ -133,3 +157,36 @@ while read -r WT; do
     git branch -D "$BR" 2>&1 | sed 's/^/  branch:   /' || true
   fi
 done < <(git worktree list --porcelain | awk '/^worktree/{print $2}')
+
+# ─── Pass 2: dangling local feat/* branches (no worktree) ──────────────────
+# Catches the "orphan parent" pattern: a branch whose worktree was already
+# removed (or which never had one) and whose remote was deleted by a PR
+# squash-merge. Pass 1 misses them because it only iterates worktrees.
+while read -r BR; do
+  # Skip if this branch is checked out by any worktree — pass 1 handled it.
+  if echo "$WORKTREE_BRANCHES" | grep -Fxq "$BR"; then
+    continue
+  fi
+
+  # Skip if remote ref still exists — branch is not "dangling" yet, the PR
+  # may not have merged.
+  if git ls-remote --exit-code origin "refs/heads/$BR" >/dev/null 2>&1; then
+    echo "[skip] (no worktree) $BR — remote branch still exists"
+    continue
+  fi
+
+  # Resolve branch SHA + check tree vs origin/staging. Use `git diff --quiet`
+  # with two refs (compares the trees of the two commits without checking
+  # anything out — works on dangling refs).
+  if ! git diff --quiet "origin/staging" "refs/heads/$BR" 2>/dev/null; then
+    echo "[skip] (no worktree) $BR — tree differs from origin/staging (unmerged work)"
+    continue
+  fi
+
+  if [ "$MODE" = "--report" ]; then
+    echo "[would-remove] (no worktree) $BR — remote branch deleted + tree matches origin/staging"
+  else
+    echo "[remove] (no worktree) $BR — remote branch deleted + tree matches origin/staging"
+    git branch -D "$BR" 2>&1 | sed 's/^/  branch:   /' || true
+  fi
+done < <(git for-each-ref --format='%(refname:short)' 'refs/heads/feat/*')
