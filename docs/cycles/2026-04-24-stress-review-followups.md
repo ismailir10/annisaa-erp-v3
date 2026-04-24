@@ -71,6 +71,44 @@ Cross-checked design-system.html §Forms (read-only field rendering) — read-on
   - All other items (scope count, column sets, naming, CONCURRENTLY rationale, schema drift on Student, idempotency) verified clean by reviewer.
 - Estimated post-deploy disk impact: ~10-15% additional index size on the affected tables (matches the pre-confirmation forecast). No app code changes; query planner picks up new indexes automatically.
 
+### Task 3 — multi-tenant-cascade-review (schema) — 2026-04-24
+
+- **User confirmation obtained:** "yes" (with subsequent broad authorization "all yes basically just go ahead fix things").
+- `prisma/schema.prisma`: `onDelete: Cascade → Restrict` on both `OrgConfig.tenant` (line 116) and `EmailLog.tenant` (line 354). Inline comments above each model rewritten to reflect the new intent (was "Cascade — leaf telemetry" / "Cascade so removing a tenant also removes its single org-config row"; now states explicitly that tenant hard-delete is blocked and what admin must do first).
+- New migration: `prisma/migrations/20260424120100_tenant_cascade_to_restrict/migration.sql`. DROP + ADD constraint pattern for both FKs. `ON UPDATE CASCADE` retained to match `20260424000000_explicit_ondelete_actions` exactly — only the DELETE rule changed. Single transaction (Prisma default), constraint name parity verified against the original migration (`EmailLog_tenantId_fkey`, `OrgConfig_tenantId_fkey`).
+- **No Tenant hard-delete admin route exists.** Verified via `grep -rEn "prisma\.tenant\.delete" app/ lib/` — only matches were generated Prisma client docs. RESTRICT at the DB layer is the only enforcement needed today; if/when a `DELETE /api/tenants/:id` route is added (e.g. for super-admin tenant offboarding), it MUST add a preflight that counts `EmailLog` + `OrgConfig` rows and returns a descriptive 400 before letting the constraint error bubble.
+- `prisma/seed.ts` cleanup order verified safe: `emailLog.deleteMany()` (line 46) and `orgConfig.deleteMany()` (line 57) both run before `tenant.deleteMany()` (line 59) — RESTRICT does not break the seed.
+- README prune: ADR line 112 — removed "Follow-up tracked: review CASCADE on EmailLog.tenantId + OrgConfig.tenantId…" (Task 3 retires this). Replaced with a short statement of what was done + reference to the new migration. The line now describes the resolved state, not deferred work.
+
+### Task 3 — Verification
+
+- Between-task gate: `npm run build && npx vitest run` — green (build clean, vitest 269 passed / 42 skipped+todo).
+- `npx prisma validate` — schema valid. `npx prisma format` — clean.
+- code-reviewer findings + resolutions:
+  - **MINOR** — stale inline comments on `OrgConfig` and `EmailLog` models still claimed CASCADE behavior. **Resolution:** rewrote both comments in this commit.
+  - **MINOR** — README ADR follow-up not yet retired. **Resolution:** pruned in this commit.
+  - **NIT** — `ON UPDATE CASCADE` matches the prior migration; not a silent change. No action.
+  - All other items (constraint names, schema/migration parity, statement order, app-side cascade reliance, idempotency) verified clean.
+
 ## Ship Notes
 
-(filled by `/ship` in a later session)
+**Required on next staging deploy:**
+- Two new migrations apply via `vercel-build.sh`:
+  - `20260424120000_recreate_rls_tenantid_indexes` — 18 `CREATE INDEX IF NOT EXISTS` statements. Single-digit ms each at current row counts. Idempotent (re-runs safely).
+  - `20260424120100_tenant_cascade_to_restrict` — DROP + ADD on `EmailLog_tenantId_fkey` + `OrgConfig_tenantId_fkey`. Sub-ms. Future `prisma.tenant.delete()` (none exists today) will error if rows remain in either child table.
+- No new env vars introduced.
+- No data backfill required.
+- No app code changes for Tasks 2 + 3 (Task 1 is the only app diff: `app/admin/academic/page.tsx`).
+
+**Required on next main (prod) deploy:**
+- Same two migrations apply via `vercel-build.sh` `staging|main)` arm shipped in PR #126. Watch Vercel build log for `Applying migration` lines for both.
+
+**Rollback plan:**
+- Task 1 — revert single commit. No DB changes.
+- Task 2 — DROP each of the 18 indexes via a hand-rolled inverse migration. Risk-free reversal; no app code depends on these indexes existing (only query performance does).
+- Task 3 — inverse migration: `ALTER TABLE ... DROP CONSTRAINT ... ; ADD CONSTRAINT ... ON DELETE CASCADE ON UPDATE CASCADE` for both FKs.
+
+**Post-merge monitoring:**
+- After staging deploy, run `bash scripts/verify-rls-coverage.sh` against the freshly migrated DB to confirm the 18 new indexes did not introduce any drift.
+- After prod deploy, spot-check Vercel runtime logs for any `EmailLog_tenantId_fkey` / `OrgConfig_tenantId_fkey` constraint errors — should be zero (no app path triggers them today).
+
