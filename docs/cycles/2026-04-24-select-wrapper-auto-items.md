@@ -76,4 +76,9 @@ Assumptions:
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migrations:** none.
+- **New env vars:** none.
+- **Supersedes:** `feat/select-raw-id-sweep` (commit `b254153`, currently open as a PR). Close that PR with a note pointing to this cycle once this lands — its 35 `items={…}` additions become no-ops (the wrapper derives the same record) but leaving them in adds no functional value.
+- **Preview smoke (recommended):** on the staging preview URL, open `/admin/fees` → Struktur per Program tab, open `/admin/invoices` → Buat Tagihan dialog. Both triggers should render human-readable names (program / year / category label), not cuids or enum codes. Same for: `/admin/employees/[id]` edit (Jabatan, Kampus), `/teacher/class-attendance` (class picker), `/admin/attendance` (Semua Kampus filter).
+- **Rollback plan:** revert this single commit. The wrapper falls back to the previous behavior (raw value on trigger). No data migration to undo. If the sweep PR also lands, the explicit `items={…}` props there keep working — they just short-circuit the wrapper's derivation.
+- **Risk:** low. Changes one shared wrapper; all 269 vitest tests + 38 Playwright tests pass against the production build; the wrapper preserves the Base UI Root interface (items prop is still accepted, typing unchanged for callers).
