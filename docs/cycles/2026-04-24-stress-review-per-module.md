@@ -216,6 +216,13 @@ Staging is 109 commits ahead of `main` spanning ~2 months — design-system foun
 - `app/api/students/route.ts` — list response keeps `parent.phone` intentionally (admin-only route, used for quick-contact in student list); added inline comment documenting the decision.
 - `README.md` — no prune (cycle doc Verification note: "README: clean").
 
+### Task 2 — student-journal (BLOCKER) — fixed 2026-04-24
+
+- `app/api/student-journal/notes/route.ts` — teacher branch's `studentEnrollment.findFirst` now filters `classSection: { tenantId: session.tenantId }`, closing the cross-tenant IDOR (teacher could probe notes on Tenant B student IDs). Mirrors the scoped pattern at `students/[id]/week/route.ts:30`.
+- `app/api/student-journal/notes/[id]/route.ts` — DELETE soft-delete status standardized to `"INACTIVE"` (was `"DELETED"`) to match admin path + `status: "ACTIVE"` default enum.
+- `app/api/student-journal/entries/home/route.ts` — indicator validation now requires `status: "ACTIVE"`, preventing parents from submitting HOME entries against soft-deleted indicators. Matches teacher batch at `entries/batch/route.ts`.
+- `README.md:84` — Teacher Portal line now includes Buku Penghubung.
+
 ## Verification
 
 ### Task 1 — students
@@ -223,6 +230,12 @@ Staging is 109 commits ahead of `main` spanning ~2 months — design-system foun
 - Between-task gate: `npm run build && npx vitest run` — green.
 - Manual review: peer `PUT /api/students/[id]` uses same `findFirst({ where: { id, tenantId } })` + `isAdminRole` pattern — now matches.
 - README: clean — no prune needed.
+
+### Task 2 — student-journal
+
+- Between-task gate: `npm run build && npx vitest run` — green.
+- Manual review: teacher notes POST enrollment lookup now mirrors the scoped pattern at `students/[id]/week/route.ts:30`. Admin + user soft-delete both write `"INACTIVE"`. HOME indicator validation now matches the `status: "ACTIVE"` guard used by `entries/batch/route.ts`.
+- README: prune applied — Teacher Portal line at `README.md:84` now lists Buku Penghubung.
 
 ## Ship Notes
 

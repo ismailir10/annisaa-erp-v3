@@ -98,10 +98,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Soft-delete via status flag
+  // Soft-delete via status flag — standardized to "INACTIVE" to match admin path + schema default enum.
   await prisma.studentJournalNote.update({
     where: { id },
-    data: { status: "DELETED" },
+    data: { status: "INACTIVE" },
   });
 
   return NextResponse.json({ data: { id } });

@@ -81,7 +81,7 @@ Three portals, three roles.
 
 **Parent Portal** — Home (greeting + Hijri date + per-kid card with this-week mini-strip + outstanding-tagihan focal card or lunas celebration), Invoices (focal due-amount + Belum dibayar / Riwayat groups + Xendit detail sheet), Attendance (weekly grid view with bespoke chevron navigator + compact summary card + school-note list), Reports (compact celebration card + Buka rapor CTA + history), Profile (avatar-tap from home → identity + Kontak + Anak Anda + logout), Buku Penghubung (school week view read-only + home indicators editable + parent-authored home notes with edit/delete)
 
-**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Salary Slips (PDF), Profile (accessible via header avatar)
+**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Buku Penghubung (school-scope indicators + teacher notes per student + week view), Salary Slips (PDF), Profile (accessible via header avatar)
 
 **Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (draft → variables → review → approve → BSI CSV → PDF slips → email), Settings (campus, org config, holidays, salary components)
 
