@@ -90,6 +90,13 @@ Cross-checked design-system.html §Forms (read-only field rendering) — read-on
   - **NIT** — `ON UPDATE CASCADE` matches the prior migration; not a silent change. No action.
   - All other items (constraint names, schema/migration parity, statement order, app-side cascade reliance, idempotency) verified clean.
 
+### End-of-cycle gate — 2026-04-24
+
+- `npm run build && npx vitest run && npx playwright test` — green.
+- Playwright: 38 passed / 2 skipped / 0 failed (43.0s, chromium, prod build via `DEMO_MODE=true npm run start`). Covers admin (24 tests), parent (7 tests), teacher (7 tests), design-system (2 tests). All 3 changed surfaces (academic page Edit dialog, prisma schema, prisma migrations) exercised indirectly: academic page via admin teaching-assignment + class-section flows; schema/migration changes are no-op at the API layer (no runtime test impact).
+- vitest: 269 passed / 42 todo / 2 skipped.
+- build: clean.
+
 ## Ship Notes
 
 **Required on next staging deploy:**
