@@ -236,6 +236,15 @@ Staging is 109 commits ahead of `main` spanning ~2 months — design-system foun
 - `lib/payroll/engine.ts` — `gajiPokokAmount` capture now explicitly precedes `Math.round` via a distinct `finalAmount` variable. Semantics identical to prior code but structurally guarded against future reorder.
 - `README.md:86` — payroll flow narrative replaced with the full state machine (`DRAFT → APPROVED → EXPORTED → SLIPS_SENT | CANCELLED`) and a pointer to the new `emailSent` idempotency field.
 
+### Task 4 — finance (MAJOR deploy-critical) — fixed 2026-04-24
+
+- `app/api/xendit/webhook/route.ts` — (a) review claimed `revalidateTag("student-invoices", {})` is a one-arg signature and the empty object was a bug; Next.js 16 actually requires the two-arg form `revalidateTag(tag: string, profile: string | CacheLifeConfig)`, and `{}` satisfies `CacheLifeConfig` (all fields optional). Finding is stale against Next 16 — left the two-arg form in place (matches peer usage in `app/api/employees/*`). Documented in verification. (b) idempotency key is now `payment_session_id` only (was `paymentId ?? payment_session_id`, which let a late-populated `payment_id` bypass dedupe and double-credit); (c) overpayment clamped via `Prisma.Decimal.min(amount, remaining)` defence-in-depth; (d) `Number()` accumulation replaced with `Prisma.Decimal` accumulator on the totalPaid sum.
+- `app/api/invoices/[id]/payments/route.ts` — added `pg_advisory_xact_lock(hashtext(invoiceId))` (same key as webhook) + moved overpayment + status guards inside the transaction + added idempotent `Prisma.Decimal` accumulator. A manual-payment tab + concurrent webhook can no longer both pass the overpayment guard.
+- `app/api/invoices/[id]/route.ts` — PUT now rejects `status: "SENT"` when the existing invoice is `PAID`, `CANCELLED`, or `PARTIALLY_PAID` (409). Previously a stale admin tab could force a voided invoice back into a fresh Xendit session.
+- `app/api/invoices/[id]/void/route.ts` — void flow now runs inside `$transaction` with the same advisory lock as the webhook and manual payments. A payment can no longer be credited between the status check and the void write.
+- `README.md:178` — `XENDIT_CALLBACK_TOKEN` renamed to `XENDIT_WEBHOOK_TOKEN` to match actual `process.env` reads in `app/api/xendit/webhook/route.ts:14` and `.env.example`. Prevents new-deployer 401-on-every-webhook deployment trap.
+- `README.md:54` — finance module row now documents the Invoice state machine + advisory-lock void/manual-payment contract.
+
 ## Verification
 
 ### Task 1 — students
@@ -256,6 +265,14 @@ Staging is 109 commits ahead of `main` spanning ~2 months — design-system foun
 - Playwright smoke: Task 3 touches only API routes + lib/payroll/engine.ts; no admin UI page changed, so Playwright is not invoked here. End-of-cycle smoke will run at task 4 commit.
 - Schema change: `PayrollItem.emailSent` additive column + migration `20260424000003_add_emailsent_to_payrollitem`. Migration is `ADD COLUMN ... NOT NULL DEFAULT false` — zero-downtime, no backfill. Prisma client regenerated via `npx prisma generate`. `prisma migrate dev` was NOT run against the shared staging DB; staging will pick the migration up via `scripts/vercel-build.sh` on next deploy.
 - README prune: `README.md:86` replaced with the full payroll state machine and a reference to `PayrollItem.emailSent`.
+
+### Task 4 — finance
+
+- Between-task gate: `npm run build && npx vitest run` — green (40 test files, 269 passed, 42 todo, 2 skipped).
+- End-of-cycle gate: `DEMO_MODE=true npx playwright test` — 38 passed, 2 skipped (chromium only). Dev server log showed P2022 ColumnNotFound on `PayrollItem.emailSent` because local dev DB has not yet applied the Task 3 migration (no `prisma migrate dev` run against shared DB per hard rules). No Playwright spec exercises `/api/payroll/*/send-slips`, so tests pass cleanly. Staging + prod DBs get the column via `scripts/vercel-build.sh` on next deploy.
+- Manual review: advisory-lock key (`hashtext(invoice.id)`) is identical across webhook, manual payments, and void routes — all three flows serialize against each other. Prisma.Decimal accumulator produces identical totals for integer IDR amounts and does not regress rounding.
+- README prunes: `README.md:178` env var renamed (deployment trap closed); `README.md:54` finance module row now documents Invoice state machine + advisory-lock contract.
+- Test update: `app/api/__tests__/xendit-webhook.test.ts` now sends `payment_session_id` in payload (was relying on `payment_id` fallback, which the idempotency fix dropped).
 
 ## Ship Notes
 

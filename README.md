@@ -51,7 +51,7 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 | **hr** | Staff management | Employee, SalaryComponentDef, PayrollRun, PayrollItem, AttendanceRecord, LeaveRequest |
 | **academic** | School structure | AcademicYear, Program, ClassSection, TeachingAssignment |
 | **students** | Student lifecycle | Student, Guardian, StudentEnrollment, Admission |
-| **finance** | Fees & payments | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
+| **finance** | Fees & payments — Invoice state machine: `DRAFT → SENT → PAID \| PARTIALLY_PAID \| CANCELLED` (void serialized with webhook + manual payments via `pg_advisory_xact_lock`; `SENT` rejected from terminal states) | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
 | **learning** | Academic outcomes | StudentAttendance, AssessmentTemplate, AssessmentCategory, StudentAssessment |
 | **student-journal** | Buku Penghubung (school + home) | StudentJournalTemplate, StudentJournalCategory, StudentJournalIndicator, StudentJournalEntry, StudentJournalNote, StudentJournalAudit |
 
@@ -175,7 +175,7 @@ Copy `.env.example` to `.env`. Key variables:
 | `RESEND_API_KEY` | — | Resend key | Resend key |
 | `STAGING_EMAIL_OVERRIDE` | — | Admin email | — |
 | `XENDIT_SECRET_KEY` | — | Staging key | Production key |
-| `XENDIT_CALLBACK_TOKEN` | — | Staging token | Production token |
+| `XENDIT_WEBHOOK_TOKEN` | — | Staging token | Production token |
 
 Without `RESEND_API_KEY`, emails are simulated (logged, not sent).
 

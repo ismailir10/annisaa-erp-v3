@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/lib/generated/prisma/client";
 
 /**
  * Xendit Payment Session Webhook handler.
@@ -31,7 +32,6 @@ export async function POST(req: NextRequest) {
 
   if (event === "payment_session.completed" && data?.status === "COMPLETED") {
     const invoiceId = data.reference_id;
-    const paymentId = data.payment_id;
     const amount = data.amount;
 
     if (!invoiceId) {
@@ -53,50 +53,66 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, message: "Already paid" });
     }
 
-    // Record payment atomically: idempotency check + payment create + invoice update
-    const paymentAmount = amount ?? Number(invoice.totalDue);
-    const currentPaid = Number(invoice.totalPaid);
-    const remaining = Number(invoice.totalDue) - currentPaid;
-
-    if (paymentAmount > remaining) {
-      console.warn(
-        `[XENDIT WEBHOOK] Payment ${paymentAmount} exceeds remaining ${remaining} for invoice ${invoice.invoiceNumber}. Processing anyway.`
-      );
+    // Idempotency key: stable payment_session_id ONLY. Xendit can deliver the
+    // same session twice, once before payment_id is populated and once after —
+    // keying on `paymentId ?? session_id` caused the second delivery to miss
+    // the first via a different reference → double credit. session_id is set
+    // on first dispatch and never changes.
+    const sessionId: string | null = data.payment_session_id ?? null;
+    if (!sessionId) {
+      console.error("[XENDIT WEBHOOK] Missing payment_session_id — cannot dedupe");
+      return NextResponse.json({ error: "Missing payment_session_id" });
     }
 
     const newStatus = await prisma.$transaction(async (tx) => {
       // Advisory lock on invoice to serialize concurrent webhooks
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${invoice.id}))`;
 
-      // Re-fetch invoice inside tx for fresh status
+      // Re-fetch invoice inside tx for fresh status + totals
       const fresh = await tx.invoice.findUnique({ where: { id: invoice.id } });
       if (!fresh || fresh.status === "PAID") return "PAID";
 
-      // Idempotency check inside tx
+      // Idempotency check inside tx — keyed on session_id only
       const existing = await tx.payment.findFirst({
-        where: { invoiceId: invoice.id, reference: paymentId ?? data.payment_session_id },
+        where: { invoiceId: invoice.id, reference: sessionId },
       });
       if (existing) return fresh.status as string;
+
+      // Clamp overpayment to remaining so a malformed Xendit callback cannot
+      // push totalPaid past totalDue (defense-in-depth — Xendit shouldn't, but).
+      const totalDueDec = new Prisma.Decimal(fresh.totalDue.toString());
+      const currentPaidDec = new Prisma.Decimal(fresh.totalPaid.toString());
+      const remainingDec = totalDueDec.sub(currentPaidDec);
+      const callbackAmountDec = amount != null
+        ? new Prisma.Decimal(amount.toString())
+        : totalDueDec;
+      const paymentAmountDec = Prisma.Decimal.min(callbackAmountDec, remainingDec);
 
       await tx.payment.create({
         data: {
           invoiceId: invoice.id,
-          amount: paymentAmount,
+          amount: paymentAmountDec,
           method: "XENDIT",
-          reference: paymentId ?? data.payment_session_id,
+          reference: sessionId,
           notes: `Xendit payment via ${data.channel_code ?? "checkout"}`,
         },
       });
 
-      const allPayments = await tx.payment.findMany({ where: { invoiceId: invoice.id } });
-      const totalPaid = allPayments.reduce((s, p) => s + Number(p.amount), 0);
+      const allPayments = await tx.payment.findMany({
+        where: { invoiceId: invoice.id },
+        select: { amount: true },
+      });
+      const totalPaidDec = allPayments.reduce(
+        (acc, p) => acc.add(new Prisma.Decimal(p.amount.toString())),
+        new Prisma.Decimal(0)
+      );
 
-      const status = totalPaid >= Number(invoice.totalDue) ? "PAID" : "PARTIALLY_PAID";
+      const status = totalPaidDec.gte(totalDueDec) ? "PAID" : "PARTIALLY_PAID";
 
       await tx.invoice.update({
         where: { id: invoice.id },
         data: {
-          totalPaid,
+          totalPaid: totalPaidDec,
           status,
           paidAt: status === "PAID" ? new Date() : null,
         },

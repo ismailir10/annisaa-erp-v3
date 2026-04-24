@@ -46,7 +46,7 @@ describe("POST /api/xendit/webhook — end-to-end regression", () => {
           return Promise.resolve([{ pg_advisory_xact_lock: "" }]);
         }),
         invoice: {
-          findUnique: vi.fn().mockResolvedValue({ id: invoiceId, status: "SENT", totalDue: 100000 }),
+          findUnique: vi.fn().mockResolvedValue({ id: invoiceId, status: "SENT", totalDue: 100000, totalPaid: 0 }),
           update: vi.fn().mockResolvedValue({}),
         },
         payment: {
@@ -65,6 +65,7 @@ describe("POST /api/xendit/webhook — end-to-end regression", () => {
           status: "COMPLETED",
           reference_id: invoiceId,
           payment_id: "xnd-pay-1",
+          payment_session_id: "xnd-session-1",
           amount: 100000,
           channel_code: "VA_BCA",
         },
