@@ -202,7 +202,7 @@ export default function SalaryComponentsPage() {
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>Kategori</FieldLabel>
-                <Select value={form.category} onValueChange={(v) => v && setForm({ ...form, category: v })}>
+                <Select value={form.category} onValueChange={(v) => v && setForm({ ...form, category: v })} items={{ INCOME: "Pendapatan", DEDUCTION: "Potongan" }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="INCOME">Pendapatan</SelectItem>
@@ -212,7 +212,7 @@ export default function SalaryComponentsPage() {
               </Field>
               <Field>
                 <FieldLabel>Tipe Kalkulasi</FieldLabel>
-                <Select value={form.calcType} onValueChange={(v) => v && setForm({ ...form, calcType: v })}>
+                <Select value={form.calcType} onValueChange={(v) => v && setForm({ ...form, calcType: v })} items={{ FIXED: "Tetap", PCT_OF_BASE: "% Gaji Pokok", ATTENDANCE_BASED: "Berbasis Kehadiran" }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FIXED">Tetap</SelectItem>

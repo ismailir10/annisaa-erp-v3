@@ -149,7 +149,7 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
                       <FieldLabel>Jabatan *</FieldLabel>
-                      <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })}>
+                      <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })} items={{ ...Object.fromEntries(positions.map(p => [p, p])), ...(!positions.includes(editForm.jabatan) && editForm.jabatan ? { [editForm.jabatan]: editForm.jabatan } : {}) }}>
                         <SelectTrigger><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
                         <SelectContent>
                           {positions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -161,7 +161,7 @@ export default function EmployeeDetailPage() {
                     </Field>
                     <Field>
                       <FieldLabel>Kampus *</FieldLabel>
-                      <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })}>
+                      <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                       </Select>

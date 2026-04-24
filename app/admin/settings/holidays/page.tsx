@@ -196,7 +196,7 @@ export default function HolidaysPage() {
             </Field>
             <Field>
               <FieldLabel>Tipe</FieldLabel>
-              <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })}>
+              <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })} items={{ NATIONAL: "Nasional", ISLAMIC: "Islam", SCHOOL_CLOSURE: "Penutupan Sekolah" }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="NATIONAL">Nasional</SelectItem>

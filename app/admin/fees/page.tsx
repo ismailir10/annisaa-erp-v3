@@ -195,11 +195,11 @@ export default function FeesPage() {
         {/* Fee Structure per Program */}
         <AdminTabsContent value="structure">
           <div className="flex gap-3 mt-4 mb-4">
-            <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)}>
+            <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)} items={programs.map(p => ({ label: p.name, value: p.id }))}>
               <SelectTrigger className="w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
               <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)}>
+            <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)} items={years.map(y => ({ label: y.name, value: y.id }))}>
               <SelectTrigger className="w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
               <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -252,7 +252,7 @@ export default function FeesPage() {
             </div>
             <Field>
               <FieldLabel>Kategori</FieldLabel>
-              <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })}>
+              <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })} items={CATEGORY_LABELS}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="TUITION">SPP</SelectItem>
@@ -267,7 +267,7 @@ export default function FeesPage() {
               <Field><FieldLabel>Urutan</FieldLabel><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
               <Field>
                 <FieldLabel>Tipe</FieldLabel>
-                <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })}>
+                <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })} items={{ "true": "Bulanan (berulang)", "false": "Sekali bayar" }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="true">Bulanan (berulang)</SelectItem>

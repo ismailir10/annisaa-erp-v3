@@ -227,7 +227,7 @@ export default function StudentJournalAdminPage() {
             <TabsTrigger value="HOME">Rumah</TabsTrigger>
           </TabsList>
           <div className="w-full sm:w-48">
-            <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+            <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)} items={{ ALL: "Semua Status", ACTIVE: "Aktif", INACTIVE: "Tidak Aktif" }}>
               <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -293,6 +293,7 @@ export default function StudentJournalAdminPage() {
                   onValueChange={(v) =>
                     setCategoryForm({ ...categoryForm, scope: v as Scope })
                   }
+                  items={{ SCHOOL: SCOPE_LABEL.SCHOOL, HOME: SCOPE_LABEL.HOME }}
                 >
                   <SelectTrigger>
                     <SelectValue />

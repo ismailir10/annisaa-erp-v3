@@ -345,7 +345,7 @@ export default function StudentDetailPage() {
             <Field><FieldLabel>Tanggal Lahir</FieldLabel><Input type="date" value={editForm.dateOfBirth} onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })} /></Field>
             <Field>
               <FieldLabel>Jenis Kelamin</FieldLabel>
-              <Select value={editForm.gender || undefined} onValueChange={v => v && setEditForm({ ...editForm, gender: v })}>
+              <Select value={editForm.gender || undefined} onValueChange={v => v && setEditForm({ ...editForm, gender: v })} items={{ L: "Laki-laki", P: "Perempuan" }}>
                 <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="L">Laki-laki</SelectItem>
@@ -364,7 +364,7 @@ export default function StudentDetailPage() {
             <Field><FieldLabel>No. KK</FieldLabel><Input value={editForm.kkNumber} onChange={e => setEditForm({ ...editForm, kkNumber: e.target.value })} placeholder="Nomor Kartu Keluarga" /></Field>
             <Field>
               <FieldLabel>Tinggal Dengan</FieldLabel>
-              <Select value={editForm.livingWith || undefined} onValueChange={v => v && setEditForm({ ...editForm, livingWith: v })}>
+              <Select value={editForm.livingWith || undefined} onValueChange={v => v && setEditForm({ ...editForm, livingWith: v })} items={{ ORANG_TUA: "Orang Tua", WALI: "Wali", LAINNYA: "Lainnya" }}>
                 <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ORANG_TUA">Orang Tua</SelectItem>
@@ -558,7 +558,7 @@ export default function StudentDetailPage() {
               <Field><FieldLabel>Nama *</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
               <Field>
                 <FieldLabel>Hubungan</FieldLabel>
-                <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })}>
+                <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })} items={{ AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="AYAH">Ayah</SelectItem><SelectItem value="IBU">Ibu</SelectItem>
@@ -659,7 +659,7 @@ export default function StudentDetailPage() {
         const enrollBody = (
           <Field>
             <FieldLabel>Pilih Kelas *</FieldLabel>
-            <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)}>
+            <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
               <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
               <SelectContent>
                 {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
@@ -698,7 +698,7 @@ export default function StudentDetailPage() {
           <div className="space-y-field">
             <Field>
               <FieldLabel>Kelas Tujuan *</FieldLabel>
-              <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)}>
+              <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
                 <SelectTrigger><SelectValue placeholder="Pilih kelas tujuan..." /></SelectTrigger>
                 <SelectContent>
                   {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}

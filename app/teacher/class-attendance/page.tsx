@@ -153,7 +153,7 @@ export default function ClassAttendancePage() {
 
       {/* Class + Date toolbar */}
       <div className="flex gap-2 mb-4">
-        <Select value={selectedClass} onValueChange={v => v && setSelectedClass(v)}>
+        <Select value={selectedClass} onValueChange={v => v && setSelectedClass(v)} items={assignments.map(a => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
           <SelectTrigger className="flex-1">
             <SelectValue placeholder="Pilih kelas">
               {(() => {
