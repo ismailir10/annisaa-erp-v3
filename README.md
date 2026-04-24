@@ -51,7 +51,7 @@ Six domain modules. Parent Portal is a view *across* students + finance + learni
 | **hr** | Staff management | Employee, SalaryComponentDef, PayrollRun, PayrollItem, AttendanceRecord, LeaveRequest |
 | **academic** | School structure | AcademicYear, Program, ClassSection, TeachingAssignment |
 | **students** | Student lifecycle | Student, Guardian, StudentEnrollment, Admission |
-| **finance** | Fees & payments | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
+| **finance** | Fees & payments — Invoice state machine: `DRAFT → SENT → PAID \| PARTIALLY_PAID \| CANCELLED` (void serialized with webhook + manual payments via `pg_advisory_xact_lock`; `SENT` rejected from terminal states) | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment |
 | **learning** | Academic outcomes | StudentAttendance, AssessmentTemplate, AssessmentCategory, StudentAssessment |
 | **student-journal** | Buku Penghubung (school + home) | StudentJournalTemplate, StudentJournalCategory, StudentJournalIndicator, StudentJournalEntry, StudentJournalNote, StudentJournalAudit |
 
@@ -81,9 +81,9 @@ Three portals, three roles.
 
 **Parent Portal** — Home (greeting + Hijri date + per-kid card with this-week mini-strip + outstanding-tagihan focal card or lunas celebration), Invoices (focal due-amount + Belum dibayar / Riwayat groups + Xendit detail sheet), Attendance (weekly grid view with bespoke chevron navigator + compact summary card + school-note list), Reports (compact celebration card + Buka rapor CTA + history), Profile (avatar-tap from home → identity + Kontak + Anak Anda + logout), Buku Penghubung (school week view read-only + home indicators editable + parent-authored home notes with edit/delete)
 
-**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Salary Slips (PDF), Profile (accessible via header avatar)
+**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Buku Penghubung (school-scope indicators + teacher notes per student + week view), Salary Slips (PDF), Profile (accessible via header avatar)
 
-**Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (draft → variables → review → approve → BSI CSV → PDF slips → email), Settings (campus, org config, holidays, salary components)
+**Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (state machine: `DRAFT → variables → review → APPROVED → EXPORTED (BSI CSV) → SLIPS_SENT (PDF email) | CANCELLED`; edits + BSI export gated to APPROVED, send-slips is idempotent per-item via `PayrollItem.emailSent`), Settings (campus, org config, holidays, salary components)
 
 ---
 
@@ -175,7 +175,7 @@ Copy `.env.example` to `.env`. Key variables:
 | `RESEND_API_KEY` | — | Resend key | Resend key |
 | `STAGING_EMAIL_OVERRIDE` | — | Admin email | — |
 | `XENDIT_SECRET_KEY` | — | Staging key | Production key |
-| `XENDIT_CALLBACK_TOKEN` | — | Staging token | Production token |
+| `XENDIT_WEBHOOK_TOKEN` | — | Staging token | Production token |
 
 Without `RESEND_API_KEY`, emails are simulated (logged, not sent).
 

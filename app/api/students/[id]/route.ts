@@ -10,10 +10,13 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json(null, { status: 401 });
+  if (!isAdminRole(session.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id } = await params;
-  const student = await prisma.student.findUnique({
-    where: { id },
+  const student = await prisma.student.findFirst({
+    where: { id, tenantId: session.tenantId },
     include: {
       guardians: { orderBy: { isPrimary: "desc" }, include: { parent: true } },
       enrollments: {
@@ -31,7 +34,7 @@ export async function GET(
     },
   });
 
-  if (!student || student.tenantId !== session.tenantId) {
+  if (!student) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

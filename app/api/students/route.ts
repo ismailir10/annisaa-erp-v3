@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
         guardians: {
           where: { isPrimary: true },
           take: 1,
+          // phone exposed intentionally: admin-only route (isAdminRole guard above), used for quick-contact in student list.
           include: { parent: { select: { name: true, phone: true } } },
         },
         enrollments: {

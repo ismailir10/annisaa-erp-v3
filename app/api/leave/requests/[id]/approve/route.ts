@@ -48,11 +48,19 @@ export async function POST(
       const dow = current.getDay();
       if (dow !== 0 && dow !== 6) {
         const dateStr = current.toISOString().split("T")[0];
-        await tx.attendanceRecord.upsert({
+        // Skip days already locked by approved payroll — overwriting would
+        // desync the run from attendance and corrupt historical slips.
+        const existing = await tx.attendanceRecord.findUnique({
           where: { employeeId_date: { employeeId: request.employeeId, date: dateStr } },
-          update: { status: "LEAVE", isManualOverride: true, overrideReason: `Cuti: ${request.reason}`, overriddenBy: session.id, overriddenAt: new Date() },
-          create: { employeeId: request.employeeId, date: dateStr, status: "LEAVE", isManualOverride: true, overrideReason: `Cuti: ${request.reason}`, overriddenBy: session.id, overriddenAt: new Date() },
+          select: { isLocked: true },
         });
+        if (!existing?.isLocked) {
+          await tx.attendanceRecord.upsert({
+            where: { employeeId_date: { employeeId: request.employeeId, date: dateStr } },
+            update: { status: "LEAVE", isManualOverride: true, overrideReason: `Cuti: ${request.reason}`, overriddenBy: session.id, overriddenAt: new Date() },
+            create: { employeeId: request.employeeId, date: dateStr, status: "LEAVE", isManualOverride: true, overrideReason: `Cuti: ${request.reason}`, overriddenBy: session.id, overriddenAt: new Date() },
+          });
+        }
       }
       current.setDate(current.getDate() + 1);
     }

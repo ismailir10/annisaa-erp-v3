@@ -56,18 +56,6 @@ export async function PUT(
 
   const { id } = await params;
 
-  // Authorize BEFORE mutating — fetch + tenant check + status guard.
-  const existing = await prisma.payrollRun.findUnique({ where: { id } });
-  if (!existing || existing.tenantId !== session.tenantId) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  if (existing.status !== "DRAFT") {
-    return NextResponse.json(
-      { error: "PayrollRun can only be edited while DRAFT" },
-      { status: 409 }
-    );
-  }
-
   let body: unknown;
   try {
     body = await req.json();
@@ -83,41 +71,58 @@ export async function PUT(
     );
   }
 
-  // Cross-field validation against stored values when only one bound is updated.
-  const nextStart = parsed.data.periodStart ?? existing.periodStart;
-  const nextEnd = parsed.data.periodEnd ?? existing.periodEnd;
-  if (nextStart > nextEnd) {
-    return NextResponse.json(
-      { error: "periodStart harus <= periodEnd" },
-      { status: 400 }
-    );
-  }
+  // Serializable: fetch + status guard + overlap check + update commit
+  // atomically so two concurrent DRAFT edits cannot both pass the overlap
+  // guard and both write.
+  let updated: Awaited<ReturnType<typeof prisma.payrollRun.update>>;
+  try {
+    updated = await prisma.$transaction(
+      async (tx) => {
+        const existing = await tx.payrollRun.findUnique({ where: { id } });
+        if (!existing || existing.tenantId !== session.tenantId) {
+          throw new Error("NOT_FOUND");
+        }
+        if (existing.status !== "DRAFT") {
+          throw new Error("NOT_DRAFT");
+        }
 
-  // Reject period overlap with other runs in same tenant (mirrors generate/ guard).
-  if (parsed.data.periodStart !== undefined || parsed.data.periodEnd !== undefined) {
-    const overlapping = await prisma.payrollRun.findFirst({
-      where: {
-        tenantId: session.tenantId,
-        id: { not: id },
-        periodStart: { lte: nextEnd },
-        periodEnd: { gte: nextStart },
+        const nextStart = parsed.data.periodStart ?? existing.periodStart;
+        const nextEnd = parsed.data.periodEnd ?? existing.periodEnd;
+        if (nextStart > nextEnd) {
+          throw new Error("PERIOD_INVALID");
+        }
+
+        if (parsed.data.periodStart !== undefined || parsed.data.periodEnd !== undefined) {
+          const overlapping = await tx.payrollRun.findFirst({
+            where: {
+              tenantId: session.tenantId!,
+              id: { not: id },
+              periodStart: { lte: nextEnd },
+              periodEnd: { gte: nextStart },
+            },
+            select: { periodStart: true, periodEnd: true },
+          });
+          if (overlapping) {
+            throw Object.assign(new Error("OVERLAP"), {
+              msg: `Periode tumpang tindih dengan penggajian ${overlapping.periodStart} - ${overlapping.periodEnd}`,
+            });
+          }
+        }
+
+        return tx.payrollRun.update({ where: { id }, data: parsed.data });
       },
-      select: { periodStart: true, periodEnd: true },
-    });
-    if (overlapping) {
-      return NextResponse.json(
-        {
-          error: `Periode tumpang tindih dengan penggajian ${overlapping.periodStart} - ${overlapping.periodEnd}`,
-        },
-        { status: 409 }
-      );
+      { isolationLevel: "Serializable" }
+    );
+  } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (e.message === "NOT_DRAFT") return NextResponse.json({ error: "PayrollRun can only be edited while DRAFT" }, { status: 409 });
+      if (e.message === "PERIOD_INVALID") return NextResponse.json({ error: "periodStart harus <= periodEnd" }, { status: 400 });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (e.message === "OVERLAP") return NextResponse.json({ error: (e as any).msg }, { status: 409 });
     }
+    throw e;
   }
-
-  const updated = await prisma.payrollRun.update({
-    where: { id },
-    data: parsed.data,
-  });
 
   return NextResponse.json(updated);
 }

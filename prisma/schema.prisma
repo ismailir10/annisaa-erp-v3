@@ -306,6 +306,10 @@ model PayrollItem {
   holidayWorkedDays Int     @default(0)
   dcDays            Int     @default(0)
 
+  // Per-item idempotency for send-slips retry safety — true after a slip
+  // email has been delivered so a retried run skips already-sent items.
+  emailSent Boolean @default(false)
+
   payrollRun PayrollRun        @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
   employee   Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   lines      PayrollItemLine[]

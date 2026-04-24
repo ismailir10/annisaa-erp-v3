@@ -36,6 +36,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const body = parsed.data;
 
+  // State-machine guard: only DRAFT -> SENT is valid. Reject SENT from
+  // PAID/CANCELLED/PARTIALLY_PAID so a stale admin tab cannot create a fresh
+  // Xendit session on a voided or already-paid invoice.
+  if (body.status === "SENT" && existing.status !== "DRAFT" && existing.status !== "SENT") {
+    return NextResponse.json(
+      { error: `Tagihan dengan status ${existing.status} tidak bisa diubah ke SENT` },
+      { status: 409 }
+    );
+  }
+
   const invoice = await prisma.invoice.update({
     where: { id },
     data: {

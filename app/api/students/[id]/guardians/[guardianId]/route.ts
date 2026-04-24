@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { validateBody } from "@/lib/api/validate";
+import { updateGuardianSchema } from "@/lib/validations/guardian";
 
 export async function PUT(
   req: NextRequest,
@@ -26,7 +28,9 @@ export async function PUT(
   });
   if (!guardian) return NextResponse.json({ error: "Wali tidak ditemukan" }, { status: 404 });
 
-  const body = await req.json();
+  const result = await validateBody(updateGuardianSchema, await req.json());
+  if (result.error) return result.error;
+  const body = result.data;
 
   // Update parent contact fields
   await prisma.parent.update({

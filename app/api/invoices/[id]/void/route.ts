@@ -17,22 +17,31 @@ export async function POST(
 
   const { id } = await params;
 
-  const invoice = await prisma.invoice.findUnique({ where: { id } });
-  if (!invoice || invoice.tenantId !== session.tenantId) {
-    return NextResponse.json({ error: "Tagihan tidak ditemukan" }, { status: 404 });
+  // Serialize with the Xendit webhook + manual payments via the same
+  // advisory lock so a payment cannot be credited between the status
+  // check and the void write.
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+      const fresh = await tx.invoice.findUnique({ where: { id } });
+      if (!fresh || fresh.tenantId !== session.tenantId) {
+        throw new Error("NOT_FOUND");
+      }
+      if (fresh.status !== "DRAFT" && fresh.status !== "SENT") {
+        throw new Error("INVALID_STATE");
+      }
+      await tx.invoice.update({
+        where: { id },
+        data: { status: "CANCELLED" },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Tagihan tidak ditemukan" }, { status: 404 });
+      if (e.message === "INVALID_STATE") return NextResponse.json({ error: "Hanya tagihan DRAFT atau SENT yang bisa dibatalkan" }, { status: 409 });
+    }
+    throw e;
   }
-
-  if (invoice.status !== "DRAFT" && invoice.status !== "SENT") {
-    return NextResponse.json(
-      { error: "Hanya tagihan DRAFT atau SENT yang bisa dibatalkan" },
-      { status: 400 }
-    );
-  }
-
-  await prisma.invoice.update({
-    where: { id },
-    data: { status: "CANCELLED" },
-  });
 
   return NextResponse.json({ ok: true });
 }

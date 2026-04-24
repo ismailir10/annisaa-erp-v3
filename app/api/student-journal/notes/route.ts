@@ -45,7 +45,11 @@ export async function POST(req: NextRequest) {
     }
 
     const enrollment = await prisma.studentEnrollment.findFirst({
-      where: { studentId, status: "ACTIVE" },
+      where: {
+        studentId,
+        status: "ACTIVE",
+        classSection: { tenantId: session.tenantId },
+      },
       select: { classSectionId: true },
     });
     if (!enrollment) {

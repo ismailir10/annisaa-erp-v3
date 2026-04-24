@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
     const validIndicators = await prisma.studentJournalIndicator.findMany({
       where: {
         id: { in: indicatorIds },
+        status: "ACTIVE",
         category: {
           templateId: tmpl.id,
           scope: "HOME",

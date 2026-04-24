@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
+import { validateBody } from "@/lib/api/validate";
+import { createLeaveRequestSchema } from "@/lib/validations/leave";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Teacher: submit leave request
@@ -15,12 +17,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const { leaveType, startDate, endDate, reason } = body;
-
-  if (!leaveType || !startDate || !endDate || !reason?.trim()) {
-    return NextResponse.json({ error: "Mohon lengkapi: jenis cuti, tanggal, dan alasan" }, { status: 400 });
-  }
+  const result = await validateBody(createLeaveRequestSchema, await req.json());
+  if (result.error) return result.error;
+  const { leaveType, startDate, endDate, reason } = result.data;
 
   // Calculate days (inclusive)
   const start = new Date(startDate);
@@ -95,7 +94,7 @@ export async function POST(req: NextRequest) {
       startDate,
       endDate,
       days,
-      reason: reason.trim(),
+      reason,
     },
   });
 

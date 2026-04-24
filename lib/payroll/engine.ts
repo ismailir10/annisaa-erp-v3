@@ -84,19 +84,20 @@ export function calculateEmployeePayroll(
         break;
     }
 
-    // Track gaji_pokok for PCT_OF_BASE calculations
+    // Capture gaji_pokok BEFORE rounding so PCT_OF_BASE components use the
+    // exact base and rounding error does not compound across dependent lines.
     if (comp.code === "gaji_pokok") {
       gajiPokokAmount = amount;
     }
 
-    amount = Math.round(amount);
+    const finalAmount = Math.round(amount);
 
     lines.push({
       componentDefId: comp.id,
       labelSnapshot: comp.label,
       categorySnapshot: comp.category,
-      calculatedAmount: amount,
-      finalAmount: amount,
+      calculatedAmount: finalAmount,
+      finalAmount,
     });
   }
 
