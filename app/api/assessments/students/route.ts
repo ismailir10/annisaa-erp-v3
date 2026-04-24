@@ -12,7 +12,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "createdAt", "desc");
+  const sort = parseSort(searchParams, {
+    allow: ["createdAt", "updatedAt", "status"],
+    default: "createdAt",
+    defaultOrder: "desc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const search = searchParams.get("search") ?? "";
   const status = searchParams.get("status");
   const templateId = searchParams.get("templateId");

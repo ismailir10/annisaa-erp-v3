@@ -12,7 +12,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "name", "asc");
+  const sort = parseSort(searchParams, {
+    allow: ["name", "email", "phone", "createdAt"],
+    default: "name",
+    defaultOrder: "asc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const search = searchParams.get("search") ?? "";
   const status = searchParams.get("status");
 

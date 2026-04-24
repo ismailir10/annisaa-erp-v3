@@ -111,7 +111,6 @@ export async function POST(
         to: item.employee.email,
         employeeName: item.employee.nama,
         period: `${payroll.periodStart} s/d ${payroll.periodEnd}`,
-        netPay: formatRupiah(Number(item.netAmount)),
         pdfBuffer: new Uint8Array(pdfBuffer),
         pdfFilename: `slip-gaji-${item.employee.kode}-${payroll.periodStart}.pdf`,
       });

@@ -19,7 +19,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "nama", "asc");
+  const sort = parseSort(searchParams, {
+    allow: ["nama", "kode", "email", "jabatan", "hireDate", "createdAt", "status"],
+    default: "nama",
+    defaultOrder: "asc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const search = searchParams.get("search") ?? "";
   const campusId = searchParams.get("campusId");
   const status = searchParams.get("status");
