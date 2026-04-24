@@ -201,6 +201,18 @@ Repo-wide grep for `"YEARLY"` returns zero hits after the change — no stale ca
 
 `lib/validations/leave.ts:4` switched `leaveType: z.string().min(1)` → `z.enum(["ANNUAL", "SICK", "PERMISSION", "OTHER"])`. Schema enum was lost at the validation boundary; arbitrary strings were passing through and would have made any future enum-based filter silently miss them. Indonesian error message preserved via Zod v4 `{ message }` form.
 
+### C4 — Explicit `onDelete` on every relation + Cascade migration
+
+`prisma/schema.prisma` rewritten with explicit `onDelete` on every `@relation` declaration. Categorisation:
+
+- **Restrict** (default for required FKs; declared explicitly for clarity): all core-entity links — `User.tenant`, `Role.tenant`, `Campus.tenant`, `Holiday.tenant`, `Employee.{tenant,campus}`, `SalaryComponentDef.tenant`, `EmployeeSalaryValue.componentDef`, `PayrollRun.tenant`, `PayrollItem.employee`, `PayrollItemLine.componentDef`, `AcademicYear.tenant`, `Program.tenant`, `ClassSection.{tenant,program,academicYear,campus}`, `Student.tenant`, `Parent.tenant`, `StudentEnrollment.classSection`, `Admission.tenant`, `FeeComponentDef.tenant`, `ProgramFeeStructure.*`, `Invoice.{tenant,student}`, `InvoiceLine.feeComponent`, `Payment.invoice`, `StudentAttendance.classSection`, `AssessmentTemplate.program`, `StudentAssessment.{student,template}`. None of these emit SQL — they match Prisma's pre-existing default and the previous migration's `ON DELETE RESTRICT`.
+- **Cascade** (leaf/audit/log/lines): `OrgConfig.tenant`, `TeachingAssignment.{employee,classSection}`, `LeaveRequest.employee`, `EmployeeSalaryValue.employee`, `AttendanceRecord.employee`, `PayrollItem.payrollRun`, `PayrollItemLine.payrollItem`, `EmailLog.tenant`, `StudentGuardian.{student,parent}`, `StudentEnrollment.student`, `InvoiceLine.invoice`, `StudentAttendance.student`, `StudentJournalCategory.template`, `StudentJournalIndicator.category`, `StudentJournalEntry.indicator`, `AssessmentCategory.template`, `AssessmentIndicator.category`, `StudentAssessmentScore.{assessment,indicator}`. **21 FKs flipped — these emit SQL.**
+- **SetNull** (default for optional FKs; declared explicitly): `User.{employee,parent,customRole}`, `Admission.{program,student}`, `Invoice.parent`. No SQL change — matches Prisma default for optional relations.
+
+Migration: `prisma/migrations/20260424000000_explicit_ondelete_actions/migration.sql` — 21 ALTER TABLE pairs (DROP + ADD CONSTRAINT) for the Cascade flips. Hand-written because the worktree has no shadow database; verified via `npx prisma validate` + `npx prisma generate` (client builds clean) + `npm run build` (TS clean) + full vitest suite (269 pass).
+
+The migration is **safe at deploy time**: dropping then re-adding an FK constraint with the same column references is an instant catalogue swap on Postgres — no table rewrite, no row scan. Holds a brief `AccessExclusiveLock` per affected table only for the duration of the ALTER (single-digit ms each).
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
