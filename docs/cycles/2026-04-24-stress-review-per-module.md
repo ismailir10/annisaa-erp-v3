@@ -209,11 +209,20 @@ Staging is 109 commits ahead of `main` spanning ~2 months — design-system foun
 
 ## Implementation
 
-*empty — filled by follow-up `/build` cycles, one per task above.*
+### Task 1 — students (BLOCKER) — fixed 2026-04-24
+
+- `app/api/students/[id]/route.ts` — GET now calls `isAdminRole(session.role)` before any DB work (returns 403 for non-admin); query inverted to `findFirst({ where: { id, tenantId: session.tenantId }, include: {...} })` so cross-tenant IDs never hit the DB with include.
+- `app/api/students/[id]/guardians/[guardianId]/route.ts` — PUT now runs body through `updateGuardianSchema` via `validateBody`; typed `body` replaces raw `any`.
+- `app/api/students/route.ts` — list response keeps `parent.phone` intentionally (admin-only route, used for quick-contact in student list); added inline comment documenting the decision.
+- `README.md` — no prune (cycle doc Verification note: "README: clean").
 
 ## Verification
 
-*empty — filled by follow-up `/build` cycles.*
+### Task 1 — students
+
+- Between-task gate: `npm run build && npx vitest run` — green.
+- Manual review: peer `PUT /api/students/[id]` uses same `findFirst({ where: { id, tenantId } })` + `isAdminRole` pattern — now matches.
+- README: clean — no prune needed.
 
 ## Ship Notes
 
