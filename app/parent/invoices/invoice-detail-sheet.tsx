@@ -152,7 +152,7 @@ export function InvoiceDetailSheet({
           {/* Focal amount card */}
           <div className="rounded-xl border border-border bg-card p-5">
             <p
-              className={`font-currency text-[2rem] font-bold leading-none tracking-tight ${isPaid ? "text-status-present-text" : "text-status-absent-text"}`}
+              className={`font-currency text-display font-bold leading-none tracking-tight ${isPaid ? "text-status-present-text" : "text-status-absent-text"}`}
             >
               {formatRupiah(focalAmount)}
             </p>
