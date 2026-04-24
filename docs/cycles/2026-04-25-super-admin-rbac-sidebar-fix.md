@@ -76,7 +76,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Acceptance: `hasPermission({role:"SCHOOL_ADMIN", permissions:getSystemRolePermissions("SCHOOL_ADMIN")}, "hr.view") === false`. `hasPermission({role:"SUPER_ADMIN", permissions:ALL_PERMISSIONS}, "hr.view") === true`.
 - Dependencies: Task 1.
 
-### 3. Server guard helper — `requirePermission(perm)`
+### 3. Server guard helper — `requirePermission(perm)` ✅
 
 - New file or extension to `lib/auth.ts`: `requirePermission(perm: PermissionCode): Promise<{ session: SessionUser } | { error: Response }>`.
 - On fail, returns a `403` Response with shape `{ error: "forbidden", missing: perm }`. On pass, returns `{ session }`.
@@ -138,6 +138,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Subagent plan: Task 1 (foundation) sequential. Tasks 2 needs 1. Task 3 needs 1+2. After 3: Tasks 4, 5, 6 parallel (different files). Task 7 sequential after 6 (same file). Task 8 last. Each task: dispatched to general-purpose subagent, then code-reviewer on diff. Security-sensitive tasks (1, 3, 5) get superpowers:code-reviewer additional pass.
 - Task 1: Session wiring — `lib/auth.ts` (+163/-26), `lib/__tests__/auth.permissions.test.ts` (new, 6 cases), 16 test files updated to include `permissions: []` + `customRoleCode: null` on SessionUser literals. Added `derivePermissions()` with strict `Array.isArray + every string` guard; falls back to role defaults on malformed JSON with `console.error` (user-input `customRole.code` wrapped in `JSON.stringify` per security review). Cache extended to store derived fields — derivation only on miss. Reviewers clean (feature-dev + superpowers). Log-injection nit fixed pre-commit.
 - Task 2: Permissions table — `lib/permissions.ts` (added `hr.view`, dropped SCHOOL_ADMIN short-circuit, added SUPER_ADMIN short-circuit, explicit SCHOOL_ADMIN non-HR enumeration), `app/admin/settings/roles/page.tsx` (SUPER_ADMIN card first, grid 3→4 cols, `ALL_PERMISSIONS.length` instead of inline re-derive), `lib/__tests__/permissions.test.ts` (new, 14 cases incl. missing-key + null contract). Reviewer: 2 low-severity nits — both applied pre-commit.
+- Task 3: Guard helpers — `lib/auth-guards.ts` (new, `requirePermission` for API + `assertPermission` for pages), `lib/__tests__/auth-guards.test.ts` (new, 8 cases). Both reviewers flagged redirect-loop risk on `/admin` target — fixed by adding explicit WARNING block in `assertPermission` JSDoc documenting the no-self-gate contract. Added null-permissions defense test per reviewer ask.
 
 ## Verification
 
@@ -145,6 +146,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 
 - Task 1: `npm run build && npx vitest run` green. 340 passed / 42 todo / 2 skipped. No TS errors.
 - Task 2: `npm run build && npx vitest run` green. 354 passed / 42 todo / 2 skipped. No frontend diff so no design-system cross-check needed yet (deferred to Task 7 sidebar edit).
+- Task 3: `npm run build && npx vitest run` green. 362 passed / 42 todo / 2 skipped.
 
 ## Ship Notes
 
