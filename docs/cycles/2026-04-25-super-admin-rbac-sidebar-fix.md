@@ -84,7 +84,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Acceptance: unit test both helpers — pass + fail paths.
 - Dependencies: Tasks 1, 2.
 
-### 4. Route group layout — single page gate for HR
+### 4. Route group layout — single page gate for HR ✅
 
 - Create `app/admin/(hr)/layout.tsx`. Contents: `await assertPermission("hr.view")` — redirects on fail. Returns `children` on pass.
 - Move page dirs under the `(hr)` group (folder name only, no URL change since route groups are invisible): `employees`, `payroll`, `attendance`, `leave`.
@@ -92,7 +92,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Acceptance: SCHOOL_ADMIN GET `/admin/employees` → 307 redirect to `/admin`. SUPER_ADMIN → 200.
 - Dependencies: Task 3.
 
-### 5. API guards — replace ad-hoc checks with `requirePermission()`
+### 5. API guards — replace ad-hoc checks with `requirePermission()` ✅
 
 - Audit every handler under `app/api/employees/**`, `app/api/payroll/**`, `app/api/salary-components/**`, `app/api/slips/**`, `app/api/attendance/**`, `app/api/leave/**`.
 - Replace inline `canViewSalary(session.role)` or bare `isAdminRole` checks with `requirePermission("payroll.view"|"employees.view"|...)` keyed to the specific operation (read vs write).
@@ -100,7 +100,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Acceptance: one vitest per HR domain asserting 403 for SCHOOL_ADMIN, 200/expected for SUPER_ADMIN.
 - Dependencies: Task 3.
 
-### 6. Nav config — permission-driven filtering
+### 6. Nav config — permission-driven filtering ✅
 
 - Edit `config/admin-nav.ts`: replace `superAdminOnly?: boolean` on `NavItem` and `NavGroup` with `permission?: PermissionCode`.
 - Annotate: SDM group `permission: "hr.view"`. Individual HR items carry the coarse gate (sidebar hides whole group in one filter). Mutation perms (`payroll.approve`, `leave.approve`, `employees.edit`) still gate action buttons inside pages. `Komponen Gaji` → `hr.view`.
@@ -139,6 +139,9 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Task 1: Session wiring — `lib/auth.ts` (+163/-26), `lib/__tests__/auth.permissions.test.ts` (new, 6 cases), 16 test files updated to include `permissions: []` + `customRoleCode: null` on SessionUser literals. Added `derivePermissions()` with strict `Array.isArray + every string` guard; falls back to role defaults on malformed JSON with `console.error` (user-input `customRole.code` wrapped in `JSON.stringify` per security review). Cache extended to store derived fields — derivation only on miss. Reviewers clean (feature-dev + superpowers). Log-injection nit fixed pre-commit.
 - Task 2: Permissions table — `lib/permissions.ts` (added `hr.view`, dropped SCHOOL_ADMIN short-circuit, added SUPER_ADMIN short-circuit, explicit SCHOOL_ADMIN non-HR enumeration), `app/admin/settings/roles/page.tsx` (SUPER_ADMIN card first, grid 3→4 cols, `ALL_PERMISSIONS.length` instead of inline re-derive), `lib/__tests__/permissions.test.ts` (new, 14 cases incl. missing-key + null contract). Reviewer: 2 low-severity nits — both applied pre-commit.
 - Task 3: Guard helpers — `lib/auth-guards.ts` (new, `requirePermission` for API + `assertPermission` for pages), `lib/__tests__/auth-guards.test.ts` (new, 8 cases). Both reviewers flagged redirect-loop risk on `/admin` target — fixed by adding explicit WARNING block in `assertPermission` JSDoc documenting the no-self-gate contract. Added null-permissions defense test per reviewer ask.
+- Task 4: HR route group — `app/admin/(hr)/layout.tsx` (new, `assertPermission("hr.view")`); 4 dirs moved via `git mv` (employees, payroll, attendance, leave); `app/admin/settings/salary-components/layout.tsx` rewritten to use `assertPermission("hr.view")` (page is client — layout wraps); inner `app/admin/(hr)/payroll/layout.tsx` narrowed to `assertPermission("payroll.view")` for future HR-assistant role. URL paths unchanged (route group parens URL-invisible). Reviewer clean.
+- Task 5: API guards — every HR handler now uses `requirePermission(perm)`. Employees: GET/list hr.view, POST employees.create, PUT employees.edit. Payroll: GET payroll.view, PUT/generate payroll.create, approve payroll.approve, send-slips payroll.send_slips. Salary-components: GET payroll.view, POST/PUT payroll.create (fixed post-review — was payroll.view). Slips [payrollItemId]/pdf admin path: payroll.view. Attendance admin (today/monthly/export): attendance.view; override: attendance.override. Leave admin: leave.view + leave.approve. Self-service untouched (attendance/{my,check-in,check-out}, leave/my, slips/my). `canViewSalary` deleted. `requirePermission` return narrowed to `SessionUser & { tenantId: string }`. Tightened `app/api/employees/positions/route.ts` (previously tenant-only) to `hr.view`. New `app/api/__tests__/hr-permission-gate.test.ts` (11 cases). Security review clean on role-trust / tenant-isolation / mass-assignment / rate-limiting.
+- Task 6: Nav permissions — `config/admin-nav.ts` swaps `superAdminOnly: boolean` for `permission?: PermissionCode` on NavItem + NavGroup (SDM group `hr.view`, Komponen Gaji `hr.view`). `components/admin/sidebar.tsx` prop `canSeeSalary` → `permissions: string[]`; filter via `.includes()`. `app/admin/layout.tsx` passes `session.permissions`. `app/admin/page.tsx` derives `canSeeSalary={hasPermission(session, "payroll.view")}` (kept DashboardClient prop stable — min blast). Reviewer clean.
 
 ## Verification
 
@@ -147,6 +150,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Task 1: `npm run build && npx vitest run` green. 340 passed / 42 todo / 2 skipped. No TS errors.
 - Task 2: `npm run build && npx vitest run` green. 354 passed / 42 todo / 2 skipped. No frontend diff so no design-system cross-check needed yet (deferred to Task 7 sidebar edit).
 - Task 3: `npm run build && npx vitest run` green. 362 passed / 42 todo / 2 skipped.
+- Tasks 4+5+6 integrated: `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped.
 
 ## Ship Notes
 
