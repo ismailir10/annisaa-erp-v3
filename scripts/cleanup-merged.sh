@@ -85,17 +85,18 @@ while read -r WT; do
   if ! git ls-remote --exit-code origin "refs/heads/$BR" >/dev/null 2>&1; then
     # Remote ref is gone — PR was likely squash-merged with --delete-branch.
     # BUT another session could have continued committing locally after the
-    # merge. Verify the worktree's content matches origin/staging (no new
-    # paths, no path-content drift). `git diff origin/staging...HEAD` shows
-    # commits reachable from HEAD that aren't in staging — for a clean
-    # squash-merge, that diff is empty.
-    NEW_PATHS=$(git -C "$WT" diff --name-only "origin/staging...HEAD" 2>/dev/null | head -1)
-    if [ -n "$NEW_PATHS" ]; then
-      echo "[skip] $WT ($BR) — remote branch gone but worktree has commits not in origin/staging (likely another session still working)"
+    # merge. Compare CONTENT (working tree) not COMMITS — squash-merge
+    # produces a different SHA on staging, so commit-level comparisons
+    # (`git diff A...B`) always look "ahead" even when the file content is
+    # identical. Use two-arg `git diff --quiet` which compares trees:
+    #   exit 0 → trees identical → safe to remove
+    #   exit 1 → trees differ → another session has new work → skip
+    if ! git -C "$WT" diff --quiet "origin/staging" HEAD 2>/dev/null; then
+      echo "[skip] $WT ($BR) — remote branch gone but worktree content differs from origin/staging (likely another session still working)"
       continue
     fi
     MERGED=1
-    REASON="remote branch deleted + content matches origin/staging"
+    REASON="remote branch deleted + tree matches origin/staging"
   else
     # Remote still exists. Check unpushed commits FIRST so we don't lose
     # work even if the FF-ancestor heuristic accidentally matches.
