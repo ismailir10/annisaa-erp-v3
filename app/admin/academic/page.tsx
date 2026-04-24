@@ -26,7 +26,7 @@ import { formatDateShort } from "@/lib/format";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
 type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; status: string; _count: { classSections: number } };
-type ClassSection = { id: string; name: string; capacity: number; status: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
+type ClassSection = { id: string; name: string; capacity: number; status: string; programId: string; academicYearId: string; campusId: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
 type Campus = { id: string; name: string };
 type Employee = { id: string; nama: string; kode: string; jabatan: string };
 type Assignment = { id: string; role: string; employee: { nama: string; kode: string; jabatan: string } };
@@ -134,7 +134,10 @@ export default function AcademicPage() {
     setSaving(true);
     const url = editingSection ? `/api/class-sections/${editingSection.id}` : "/api/class-sections";
     const method = editingSection ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...sectionForm, capacity: parseInt(sectionForm.capacity) }) });
+    const body = editingSection
+      ? { name: sectionForm.name, capacity: parseInt(sectionForm.capacity), campusId: sectionForm.campusId }
+      : { ...sectionForm, capacity: parseInt(sectionForm.capacity) };
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (res.ok) { toast.success(editingSection ? "Kelas diperbarui" : "Kelas ditambahkan"); setSectionDialog(false); setEditingSection(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
     setSaving(false);
@@ -338,7 +341,7 @@ export default function AcademicPage() {
           onEdit={() => {
             const s = row.original;
             setEditingSection(s);
-            setSectionForm({ name: s.name, programId: "", academicYearId: "", campusId: "", capacity: String(s.capacity) });
+            setSectionForm({ name: s.name, programId: s.programId, academicYearId: s.academicYearId, campusId: s.campusId, capacity: String(s.capacity) });
             setSectionDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
@@ -486,17 +489,25 @@ export default function AcademicPage() {
             <Field><FieldLabel>Nama Kelas *</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
             <Field>
               <FieldLabel>Program *</FieldLabel>
-              <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })}>
-                <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
-                <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-              </Select>
+              {editingSection ? (
+                <div className="text-sm text-muted-foreground py-2">{editingSection.program.name}</div>
+              ) : (
+                <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
+                  <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </Field>
             <Field>
               <FieldLabel>Tahun Ajaran *</FieldLabel>
-              <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })}>
-                <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
-                <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
-              </Select>
+              {editingSection ? (
+                <div className="text-sm text-muted-foreground py-2">{editingSection.academicYear.name}</div>
+              ) : (
+                <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+                  <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </Field>
             <Field>
               <FieldLabel>Kampus *</FieldLabel>

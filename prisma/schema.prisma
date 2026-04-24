@@ -100,8 +100,9 @@ model Campus {
 }
 
 // ── ORG CONFIG ───────────────────────────────────────────────
-// Cascade so removing a tenant also removes its single org-config row.
-// This is a leaf settings record, not a structural entity.
+// Restrict — tenant hard-delete is blocked while OrgConfig exists.
+// Per-tenant working hours / payroll-period config is operationally
+// load-bearing; admin must explicitly remove it before deleting the tenant.
 model OrgConfig {
   id                    String @id @default(cuid())
   tenantId              String @unique
@@ -113,7 +114,7 @@ model OrgConfig {
   payrollPeriodStartDay Int    @default(21)
   payrollPeriodEndDay   Int    @default(20)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 }
 
 // ── HOLIDAY ──────────────────────────────────────────────────
@@ -340,7 +341,9 @@ model PayrollItemLine {
 }
 
 // ── EMAIL LOG ────────────────────────────────────────────────
-// Cascade — email logs are leaf telemetry.
+// Restrict — tenant hard-delete is blocked while audit rows exist.
+// Email-send history is compliance/audit data; admin must explicitly
+// archive or export before removing the tenant.
 model EmailLog {
   id       String   @id @default(cuid())
   tenantId String
@@ -351,7 +354,7 @@ model EmailLog {
   error    String?
   sentAt   DateTime @default(now())
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
 }
@@ -459,6 +462,8 @@ model Student {
   assessments        StudentAssessment[]
 
   @@index([tenantId, status])
+  @@index([nis], map: "Student_nis_idx")
+  @@index([nisn], map: "Student_nisn_idx")
 }
 
 // ── PARENT (the actual person — contact info lives here) ────
