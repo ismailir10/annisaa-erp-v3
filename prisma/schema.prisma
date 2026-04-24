@@ -437,7 +437,7 @@ model Student {
   photoUrl    String?
   notes       String?
   metadata    String? // JSON for custom fields (hobby, blood type, allergies, etc.)
-  status      String   @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
+  status      String   @default("ACTIVE") // ACTIVE | INACTIVE | GRADUATED | WITHDRAWN
   createdAt   DateTime @default(now())
 
   // Government compliance fields
