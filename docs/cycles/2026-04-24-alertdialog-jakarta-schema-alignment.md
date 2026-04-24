@@ -183,6 +183,16 @@ New test `app/api/__tests__/bulk-promote-race.test.ts`: (1) rejects when not eno
 
 `app/api/attendance/today/route.ts:12` fallback switched from `new Date().toISOString().split("T")[0]` (UTC) to `getTodayInTimezone("Asia/Jakarta")`. Between 00:00 and 06:59 WIB the admin dashboard "Today" view pulled yesterday's attendance; now it aligns with the school day.
 
+Sub-bundle B post-commit code-review of B4-B6 hit the daily reviewer-agent quota. Self-reviewed instead: `$queryRaw` uses Prisma tagged-template parameterization (no SQL injection); outer `findFirst` performs the tenant scope check before transaction entry; lock semantics match the proven enroll-route pattern. Mock-based tests do not prove actual Postgres row locks — they prove SQL structure + the inside-transaction error path. True race-safety verification falls to the end-of-cycle Playwright run + manual Postgres soak.
+
+### C1 — Program type Zod enum aligned with schema
+
+`lib/validations/program.ts:7,15` updated:
+- `["SEMESTER", "YEARLY"]` → `["SEMESTER", "YEAR_ROUND", "SESSION"]` (matches `prisma/schema.prisma:358` comment + seed at `prisma/seed.ts:253-257`).
+- Both create + update schemas.
+
+Repo-wide grep for `"YEARLY"` returns zero hits after the change — no stale call site. Admin UI to create Day Care or Pop Up Class (which use `YEAR_ROUND` / `SESSION`) was previously rejected at validation; now passes.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
