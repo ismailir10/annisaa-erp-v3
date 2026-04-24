@@ -179,6 +179,35 @@ async function main() {
   });
   console.log(`✅ School admin tester: commandprompt.adhan@gmail.com`);
 
+  // Demo-mode users for Playwright + manual demo coverage of the
+  // permission-based HR fence. Idempotent upsert by email so re-seeding
+  // a populated DB stays safe.
+  await prisma.user.upsert({
+    where: { tenantId_email: { tenantId: tenant.id, email: "superadmin@demo.local" } },
+    update: { role: "SUPER_ADMIN", name: "Super Admin (Demo)" },
+    create: {
+      id: "u_demo_super_admin",
+      tenantId: tenant.id,
+      email: "superadmin@demo.local",
+      role: "SUPER_ADMIN",
+      name: "Super Admin (Demo)",
+    },
+  });
+  console.log(`✅ Demo super admin: superadmin@demo.local`);
+
+  await prisma.user.upsert({
+    where: { tenantId_email: { tenantId: tenant.id, email: "admin@demo.local" } },
+    update: { role: "SCHOOL_ADMIN", name: "School Admin (Demo)" },
+    create: {
+      id: "u_demo_school_admin",
+      tenantId: tenant.id,
+      email: "admin@demo.local",
+      role: "SCHOOL_ADMIN",
+      name: "School Admin (Demo)",
+    },
+  });
+  console.log(`✅ Demo school admin: admin@demo.local`);
+
   // 7. Employees + Teacher users + Salary values
   const employeeIds: Record<string, string> = {};
   let empCount = 0;

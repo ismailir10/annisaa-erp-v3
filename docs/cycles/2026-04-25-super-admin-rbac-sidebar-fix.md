@@ -118,7 +118,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Acceptance: visual snapshot — Settings scrolls with other groups; Logout alone in footer. Playwright confirms `[data-sidebar="footer"]` contains only the Keluar button.
 - Dependencies: none (independent file section but same file as Task 6 — sequence after Task 6 to avoid merge churn).
 
-### 8. Tests — vitest + Playwright coverage
+### 8. Tests — vitest + Playwright coverage ✅
 
 - Vitest:
   - `getSystemRolePermissions` truth table for all four roles.
@@ -143,6 +143,7 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Task 5: API guards — every HR handler now uses `requirePermission(perm)`. Employees: GET/list hr.view, POST employees.create, PUT employees.edit. Payroll: GET payroll.view, PUT/generate payroll.create, approve payroll.approve, send-slips payroll.send_slips. Salary-components: GET payroll.view, POST/PUT payroll.create (fixed post-review — was payroll.view). Slips [payrollItemId]/pdf admin path: payroll.view. Attendance admin (today/monthly/export): attendance.view; override: attendance.override. Leave admin: leave.view + leave.approve. Self-service untouched (attendance/{my,check-in,check-out}, leave/my, slips/my). `canViewSalary` deleted. `requirePermission` return narrowed to `SessionUser & { tenantId: string }`. Tightened `app/api/employees/positions/route.ts` (previously tenant-only) to `hr.view`. New `app/api/__tests__/hr-permission-gate.test.ts` (11 cases). Security review clean on role-trust / tenant-isolation / mass-assignment / rate-limiting.
 - Task 6: Nav permissions — `config/admin-nav.ts` swaps `superAdminOnly: boolean` for `permission?: PermissionCode` on NavItem + NavGroup (SDM group `hr.view`, Komponen Gaji `hr.view`). `components/admin/sidebar.tsx` prop `canSeeSalary` → `permissions: string[]`; filter via `.includes()`. `app/admin/layout.tsx` passes `session.permissions`. `app/admin/page.tsx` derives `canSeeSalary={hasPermission(session, "payroll.view")}` (kept DashboardClient prop stable — min blast). Reviewer clean.
 - Task 7: Unpin Pengaturan — `components/admin/sidebar.tsx` moves Pengaturan Collapsible out of `<SidebarFooter>` into end of `<SidebarContent>`. Added `visibleSettings.length > 0 &&` render guard. Logout alone in footer. `settingsOpen` state + useEffect unchanged by DOM reparent. Reviewer clean.
+- Task 8: Seed + migration + Playwright + README — `prisma/seed.ts` (idempotent upserts for superadmin@demo.local SUPER_ADMIN + admin@demo.local SCHOOL_ADMIN); `prisma/migrations/20260425000000_promote_owner_to_super_admin/migration.sql` (guarded UPDATE, CTO ACTION REQUIRED comment, rollback comment tightened with email guard post-review); `e2e/admin.spec.ts` + `e2e/admin-school-admin.spec.ts` (new tests: SUPER_ADMIN full-nav, SCHOOL_ADMIN no-SDM, /admin/employees redirect, Settings not pinned; 3 stale tests updated for new 403 behavior — `not.toBeAttached()` used for never-mounted assertions per reviewer). README.md updated hr module annotation + 2026-04-25 ADR row. Reviewers clean; 1 comment fix + 1 selector-strictness fix applied pre-commit.
 
 ## Verification
 
@@ -154,13 +155,42 @@ Intended outcome: single permission-based gate powers sidebar filtering, page ac
 - Task 5 (API guards): `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped. Security review clean on role-trust / tenant-isolation / mass-assignment / rate-limiting. Salary-components write perm corrected post-review (payroll.view → payroll.create).
 - Task 6 (nav permissions): `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped. Design-system cross-check deferred to Task 7 (which owns the structural sidebar change).
 - Task 7 (unpin Pengaturan): `npm run build && npx vitest run` green. 370 passed / 42 todo / 2 skipped. Cross-checked `.claude/standards/design-system.html` §sidebar (lines 1107-1111, "System" nav-group) — Pengaturan rendered as last inline nav-group, SidebarFooter carries action button only. Matches Task 7 structural change.
+- Task 8 / end-of-cycle: `npm run build && npx vitest run && npx playwright test` all green. Vitest: 370 / 42 todo / 2 skipped. Playwright: 43 passed / 2 skipped (pre-existing). Manual smoke: seeded superadmin@demo.local sees full nav + accesses /admin/employees; admin@demo.local (SCHOOL_ADMIN) has no SDM group and redirected from /admin/employees to /admin.
 
 ## Ship Notes
 
-<!-- filled by /ship. Must flag:
-  - Seed adds SUPER_ADMIN demo user — document credentials.
-  - Prod rollout migration: `prisma/migrations/YYYYMMDD_promote_owner_to_super_admin/migration.sql` — idempotent UPDATE by email, guarded on current role=SCHOOL_ADMIN. Owner email committed in migration file; CTO confirms email before merge to main.
-  - Rollback: single `UPDATE User SET role='SCHOOL_ADMIN' WHERE role='SUPER_ADMIN'` reverses (valid while feature is new + solo owner).
-  - Existing SCHOOL_ADMIN accounts lose HR access on deploy — expected + required.
-  - Follow-up cycles: (a) Supabase RLS on hr.* tables; (b) audit log for HR reads.
--->
+### Migration
+
+**Required** before/at deploy to `main`:
+```
+prisma/migrations/20260425000000_promote_owner_to_super_admin/migration.sql
+```
+Idempotent UPDATE guarded on `email='ismailir10@gmail.com' AND role='SCHOOL_ADMIN'`. **CTO MUST verify the email** against the live owner row before merging to `main` — fix in this SQL file, not in app code. Run `SELECT email, role FROM "User" WHERE role='SCHOOL_ADMIN' ORDER BY "createdAt" ASC;` on prod to confirm.
+
+### Rollback
+
+Per migration comment — targeted, not blanket:
+```sql
+UPDATE "User" SET role = 'SCHOOL_ADMIN'
+WHERE email = 'ismailir10@gmail.com' AND role = 'SUPER_ADMIN';
+```
+
+### Env vars
+
+None added.
+
+### Demo credentials
+
+- `superadmin@demo.local` — SUPER_ADMIN, full nav incl. SDM.
+- `admin@demo.local` — SCHOOL_ADMIN, no HR access. Regression target.
+
+### Behavior change (expected + required)
+
+Existing prod `SCHOOL_ADMIN` users **lose HR access** on deploy (employees, payroll, leave, attendance, salary-components). Owner retained via migration above. If any ops staff genuinely needs partial HR access, seed a custom role via `/admin/settings/roles` after deploy and assign via User edit.
+
+### Known gaps (follow-up cycles)
+
+- Session cache window: permission revoke takes ≤10s to propagate. Acceptable for MVP.
+- `{missing: perm}` in 403 body fingerprints the RBAC matrix for authenticated callers. Low risk — permission codes visible in admin UI already. Consider gating to dev in future hardening.
+- No DB-layer RLS on `Employee` / `PayrollRun` / `SalaryComponentDef` tables — app-layer only. Follow-up: Supabase RLS cycle.
+- No audit log for HR reads. Follow-up: audit cycle.
