@@ -21,7 +21,7 @@ export function PageHeader({ title, subtitle, actions, className }: PageHeaderPr
   return (
     <header className={cn("mb-6 flex items-start justify-between gap-3", className)}>
       <div className="flex-1 min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+        <h1 className="text-h1 font-semibold tracking-tight text-foreground">{title}</h1>
         {subtitle ? (
           <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
         ) : null}

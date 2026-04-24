@@ -32,14 +32,16 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Public routes
+  // Public routes. Exact `/auth/...` segment match prevents hypothetical
+  // routes like `/authentic-looking` from inheriting the public bypass.
   if (
     pathname === "/" ||
-    pathname.startsWith("/auth") ||
+    pathname === "/auth" ||
+    pathname.startsWith("/auth/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/logo") ||
-    pathname.startsWith("/api/auth")
+    pathname.startsWith("/api/auth/")
   ) {
     return supabaseResponse;
   }

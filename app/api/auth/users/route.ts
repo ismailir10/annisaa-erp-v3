@@ -1,3 +1,4 @@
+// @public — demo-only user selector, gated at request time by DEMO_MODE.
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 

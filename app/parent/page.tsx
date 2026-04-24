@@ -262,7 +262,7 @@ export default async function ParentDashboard() {
                   <Receipt size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-currency text-[2rem] font-bold leading-none tracking-tight text-status-absent-text">
+                  <p className="font-currency text-display font-bold leading-none tracking-tight text-status-absent-text">
                     {formatRupiah(unpaidTotal)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -284,22 +284,13 @@ export default async function ParentDashboard() {
             <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Pekan ini
             </p>
-            <div
-              className="rounded-xl border p-5"
-              style={{
-                background: "var(--celebration-gold-subtle)",
-                borderColor: "var(--celebration-gold)",
-              }}
-            >
+            <div className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-5">
               <div className="flex items-center gap-3">
                 <div className="grid size-10 place-items-center rounded-lg bg-celebration-gold-subtle text-celebration-gold-text">
                   <Sparkles size={18} />
                 </div>
                 <div>
-                  <p
-                    className="text-sm font-semibold"
-                    style={{ color: "var(--celebration-gold-text)" }}
-                  >
+                  <p className="text-sm font-semibold text-celebration-gold-text">
                     Lunas semua
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">

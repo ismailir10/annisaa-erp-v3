@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { parsePagination } from "@/lib/api/pagination";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /**
  * GET /api/student-attendance
@@ -74,7 +75,9 @@ export async function GET(req: NextRequest) {
 
   // ── Teacher / mark-attendance mode (original behaviour) ─────────
   const classSectionId = searchParams.get("classSectionId");
-  const date = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
+  // Jakarta TZ — match the marking endpoint and avoid the 00:00–06:59 WIB
+  // UTC-drift that showed yesterday's data on admin dashboard early morning.
+  const date = searchParams.get("date") ?? getTodayInTimezone("Asia/Jakarta");
 
   if (!classSectionId) {
     return NextResponse.json({ error: "classSectionId required" }, { status: 400 });
