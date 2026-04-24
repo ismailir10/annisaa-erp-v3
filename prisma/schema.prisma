@@ -459,6 +459,8 @@ model Student {
   assessments        StudentAssessment[]
 
   @@index([tenantId, status])
+  @@index([nis], map: "Student_nis_idx")
+  @@index([nisn], map: "Student_nisn_idx")
 }
 
 // ── PARENT (the actual person — contact info lives here) ────

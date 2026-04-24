@@ -51,6 +51,26 @@ Cross-checked design-system.html §Forms (read-only field rendering) — read-on
   - Out-of-scope (acknowledged, not fixed): if a Program/Year is later deactivated, the Create dialog still lists them in the Select. Same behavior pre + post fix; tracked separately if it surfaces.
 - Frontend gate Rule 4: cycle doc contains the literal token `design-system` (Task 1 code-review notes section). ✓
 
+### Task 2 — rls-tenantid-indexes (perf) — 2026-04-24
+
+- **User confirmation obtained:** "yes" — recreate the still-missing indexes now.
+- **Audit revealed 18 still-missing, not 37.** `20260421000001_rls_security_cleanup` dropped 37; `20260421000002_rls_fk_indexes` already restored 19 of them as plain single-column FK covers. The remaining 18 are composites (e.g. `Admission_tenantId_status_idx`), direct tenantId scan paths used by RLS USING clauses (e.g. `Program_tenantId_idx`, `AcademicYear_tenantId_idx`, `AssessmentTemplate_tenantId_idx`), or 3 legacy lowercase indexes that predate Prisma (`idx_attendance_status`, `idx_invoice_duedate`, `idx_invoice_status`).
+- New migration: `prisma/migrations/20260424120000_recreate_rls_tenantid_indexes/migration.sql`. 18 statements, every one `CREATE INDEX IF NOT EXISTS` with the exact original name + column set + order from the 001 drop list (cross-verified against the schema's `@@index` declarations and against 002's restored set). Timestamp `20260424120000` chosen to land after every existing migration and to avoid the `YYYYMMDD000000` prefix collision called out at `README.md:113`.
+- **CONCURRENTLY:** Prisma 7.6.0 wraps each migration file in a single transaction (no `--no-transaction` flag exposed) and `CREATE INDEX CONCURRENTLY` errors with SQLSTATE 25001 inside a transaction. Plain `CREATE INDEX` is the only Prisma-native option. Acceptable today: every target table is <1k rows on staging + prod, so `ACCESS EXCLUSIVE` lock is single-digit ms. Migration header comment documents this + the runbook for future scale (manual concurrent recreate outside Prisma before any schema migration touches these tables once row counts approach millions).
+- `prisma/schema.prisma`: added `@@index([nis], map: "Student_nis_idx")` + `@@index([nisn], map: "Student_nisn_idx")` to the `Student` model (lines 462-463 after `prisma format`). The other 16 indexes already had matching `@@index` declarations — the 001 drops only removed the physical indexes, leaving the schema declarations untouched (DB-only drift).
+- **Did NOT** run `npx prisma migrate dev --create-only` against any shared DB. Migration file is hand-authored; staging will pick it up via `vercel-build.sh` on next deploy. `npx prisma validate` confirms schema integrity.
+- README prune: ADR line 112 — removed "(a) recreate 37 tenantId indexes…" follow-up; restated as "Follow-up tracked: review CASCADE on EmailLog.tenantId + OrgConfig.tenantId…" (Task 3 retires this remaining one). Added a sentence pointing to this cycle doc + the new migration name. Did not touch line 113 prefix-collision entry.
+
+### Task 2 — Verification
+
+- Between-task gate: `npm run build && npx vitest run` — green (build clean, vitest 269 passed / 42 skipped+todo).
+- `npx prisma validate` — "schema is valid 🚀". `npx prisma format` — clean.
+- code-reviewer findings + resolutions:
+  - **MAJOR (downgraded to MINOR by reviewer)** — bare-vs-quoted `status` in composite indexes. No runtime impact (Postgres unquoted lowercase identifiers match the stored column name). Left as-is for consistency with the legacy lowercase indexes in the same file.
+  - **MINOR** — README ADR line 112 not yet pruned. **Resolution:** pruned in this commit.
+  - All other items (scope count, column sets, naming, CONCURRENTLY rationale, schema drift on Student, idempotency) verified clean by reviewer.
+- Estimated post-deploy disk impact: ~10-15% additional index size on the affected tables (matches the pre-confirmation forecast). No app code changes; query planner picks up new indexes automatically.
+
 ## Ship Notes
 
 (filled by `/ship` in a later session)
