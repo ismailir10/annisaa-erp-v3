@@ -25,6 +25,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const body = parsed.data;
 
+  // Block re-assignment to INACTIVE/cross-tenant campus — see Campus DELETE guard.
+  if (body.campusId) {
+    const activeCampus = await prisma.campus.findFirst({
+      where: { id: body.campusId, tenantId: session.tenantId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!activeCampus) {
+      return NextResponse.json(
+        { error: "Kampus tidak ditemukan atau nonaktif." },
+        { status: 400 },
+      );
+    }
+  }
+
   if (body.capacity !== undefined) {
     const currentEnrollment = await prisma.studentEnrollment.count({
       where: { classSectionId: id, status: "ACTIVE" },

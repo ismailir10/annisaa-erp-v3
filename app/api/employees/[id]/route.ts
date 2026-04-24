@@ -63,6 +63,20 @@ export async function PUT(
   if (result.error) return result.error;
   const body = result.data;
 
+  // Block re-assignment to INACTIVE/cross-tenant campus — see POST guard.
+  if (body.campusId) {
+    const activeCampus = await prisma.campus.findFirst({
+      where: { id: body.campusId, tenantId: session.tenantId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!activeCampus) {
+      return NextResponse.json(
+        { error: "Kampus tidak ditemukan atau nonaktif." },
+        { status: 400 },
+      );
+    }
+  }
+
   const employee = await prisma.employee.update({
     where: { id },
     data: {

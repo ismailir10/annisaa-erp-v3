@@ -50,6 +50,18 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data;
 
+  // Block writes targeting INACTIVE/cross-tenant campus — see Campus DELETE guard.
+  const activeCampus = await prisma.campus.findFirst({
+    where: { id: body.campusId, tenantId: session.tenantId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!activeCampus) {
+    return NextResponse.json(
+      { error: "Kampus tidak ditemukan atau nonaktif." },
+      { status: 400 },
+    );
+  }
+
   const section = await prisma.classSection.create({
     data: {
       tenantId: session.tenantId,

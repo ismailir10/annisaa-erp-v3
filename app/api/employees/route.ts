@@ -78,6 +78,22 @@ export async function POST(req: NextRequest) {
   const body = result.data;
   const tenantId = session.tenantId;
 
+  // Block writes targeting INACTIVE/cross-tenant campus — without this,
+  // a soft-deleted campus could still grow new employee dependents and
+  // undermine the employee-attached guard on Campus DELETE.
+  if (body.campusId) {
+    const activeCampus = await prisma.campus.findFirst({
+      where: { id: body.campusId, tenantId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!activeCampus) {
+      return NextResponse.json(
+        { error: "Kampus tidak ditemukan atau nonaktif." },
+        { status: 400 },
+      );
+    }
+  }
+
   // Auto-generate employee code: initials + sequence number (atomic)
   const employee = await prisma.$transaction(async (tx) => {
     // Advisory lock per tenant to serialize employee code generation
