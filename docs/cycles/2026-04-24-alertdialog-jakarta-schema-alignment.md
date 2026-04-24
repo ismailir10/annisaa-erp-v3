@@ -268,7 +268,15 @@ Zero-downtime on Vercel Postgres — catalog-only swap on small tables.
 
 ## Verification
 
-_End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._
+End-of-cycle gate (2026-04-24):
+
+- [x] `npm run build` — green (all 22 admin + 6 teacher + 4 parent routes compiled, middleware emitted).
+- [x] `npx vitest run` — 269 pass / 42 todo / 2 skipped, 40 files (~24 s).
+- [x] `npx playwright test` — 38 pass / 2 skipped, chromium only, production server (~59 s).
+- [x] `npx prisma validate` — schema OK.
+- [x] `npx prisma generate` — client builds clean (7.6.0).
+
+Per-task verification documented inline in Implementation. Cross-checked `design-system.html` §Overlays (AlertDialog rule for destructive confirms) for Sub-bundle A — `ConfirmDialog` is now built on `AlertDialog`, destructive variant uses token (no inline `bg-destructive`), Cancel-left + confirm-right ordering enforced via `AlertDialogFooter`.
 
 ## Ship Notes
 
