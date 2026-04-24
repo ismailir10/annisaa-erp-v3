@@ -4,6 +4,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { markAttendanceSchema } from "@/lib/validations/student-attendance";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // Mark attendance for multiple students at once (teacher submits class attendance)
 export async function POST(req: NextRequest) {
@@ -29,7 +30,9 @@ export async function POST(req: NextRequest) {
   if (result.error) return result.error;
   const { classSectionId, date, records } = result.data;
 
-  const today = new Date().toISOString().split("T")[0];
+  // Jakarta TZ — UTC split returned yesterday between 00:00–06:59 WIB
+  // and caused false 400s for early-morning teacher attendance marking.
+  const today = getTodayInTimezone("Asia/Jakarta");
   if (date > today) {
     return NextResponse.json({ error: "Tidak bisa mencatat kehadiran untuk tanggal yang akan datang" }, { status: 400 });
   }

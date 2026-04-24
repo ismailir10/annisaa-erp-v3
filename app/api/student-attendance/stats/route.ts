@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /**
  * GET /api/student-attendance/stats?dateFrom=&dateTo=
@@ -15,7 +16,8 @@ export async function GET(req: NextRequest) {
   if (!isAdminRole(session.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
-  const dateFrom = searchParams.get("dateFrom") ?? new Date().toISOString().split("T")[0];
+  // Jakarta TZ — UTC split showed yesterday's stats 00:00–06:59 WIB.
+  const dateFrom = searchParams.get("dateFrom") ?? getTodayInTimezone("Asia/Jakarta");
   const dateTo = searchParams.get("dateTo") ?? dateFrom;
 
   const stats = await prisma.studentAttendance.groupBy({

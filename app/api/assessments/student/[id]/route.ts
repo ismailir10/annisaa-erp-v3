@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { studentAssessmentSaveSchema } from "@/lib/validations/assessment-template";
@@ -92,29 +93,48 @@ export async function PUT(
   // `publish: true` wins; otherwise honour explicit `status` (legacy admin UI).
   const newStatus = publish ? "PUBLISHED" : status;
 
-  await prisma.$transaction(async (tx) => {
-    if (scores?.length) {
-      await tx.studentAssessmentScore.deleteMany({ where: { assessmentId: id } });
-      await tx.studentAssessmentScore.createMany({
-        data: scores.map((s) => ({
-          assessmentId: id,
-          indicatorId: s.indicatorId,
-          score: s.score,
-          notes: s.notes ?? null,
-        })),
-      });
-    }
+  // Serializable isolation — autosave debounces at 1.2s but concurrent tabs
+  // (or an autosave + explicit Save) can interleave deleteMany + createMany,
+  // producing a transient empty-scores window where a reader sees 0 rows.
+  // Serializable lets Postgres abort the loser on conflict (SQLSTATE 40001).
+  // Prisma surfaces that as P2034; we return 409 so the autosave client
+  // retries on the next keystroke rather than showing a 500 error toast.
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        if (scores?.length) {
+          await tx.studentAssessmentScore.deleteMany({ where: { assessmentId: id } });
+          await tx.studentAssessmentScore.createMany({
+            data: scores.map((s) => ({
+              assessmentId: id,
+              indicatorId: s.indicatorId,
+              score: s.score,
+              notes: s.notes ?? null,
+            })),
+          });
+        }
 
-    if (newStatus) {
-      await tx.studentAssessment.update({
-        where: { id },
-        data: {
-          status: newStatus,
-          publishedAt: newStatus === "PUBLISHED" ? new Date() : undefined,
-        },
-      });
+        if (newStatus) {
+          await tx.studentAssessment.update({
+            where: { id },
+            data: {
+              status: newStatus,
+              publishedAt: newStatus === "PUBLISHED" ? new Date() : undefined,
+            },
+          });
+        }
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+      return NextResponse.json(
+        { error: "Konflik penyimpanan, coba lagi." },
+        { status: 409 },
+      );
     }
-  });
+    throw e;
+  }
 
   return NextResponse.json({ ok: true });
 }

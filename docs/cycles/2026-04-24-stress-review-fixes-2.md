@@ -124,6 +124,31 @@ Ordered gating-first:
 - Cross-tenant FK check at teaching-assignments POST is additive guard — legitimate admin flows are unaffected (their `session.tenantId` matches the target employee/class).
 - README prune: clean.
 
+### Task 10 — learning (Jakarta TZ + assessment isolation) — 2026-04-24
+
+- 3× UTC-drift swap — all three student-attendance routes now resolve the today-sentinel via `getTodayInTimezone("Asia/Jakarta")` instead of `new Date().toISOString().split("T")[0]`. Matches the Jakarta TZ fix shipped for employee-attendance in #121. Affected: `app/api/student-attendance/mark/route.ts:32-34` (false 400 on early-morning teacher marking), `app/api/student-attendance/route.ts:77` (admin dashboard showed yesterday 00:00–06:59 WIB), `app/api/student-attendance/stats/route.ts:18` (stats widget same drift).
+- `app/api/assessments/student/[id]/route.ts:95-118`: PUT transaction now runs with `isolationLevel: Prisma.TransactionIsolationLevel.Serializable`. Concurrent autosave-at-1.2s-debounce × multiple tabs could previously interleave `deleteMany` + `createMany`, producing a transient empty-scores window where a concurrent reader sees zero rows. Serializable serializes snapshots so the second transaction retries cleanly. Preferred over upsert-per-indicator per user prompt — smaller diff, no control-flow change.
+
+### Task 10 — learning Verification
+
+- Between-task gate: `npm run build && npx vitest run` — pending.
+- TZ-helper parity confirmed: `lib/attendance/timezone.ts:22` exports `getTodayInTimezone(tz)`, already used by `lib/parent-helpers.ts` and the employee-attendance routes shipped in #121. No new helper needed.
+- Serializable isolation uses `Prisma.TransactionIsolationLevel.Serializable`. Code review flagged that Prisma does NOT auto-retry on `SQLSTATE 40001` — the error surfaces as `PrismaClientKnownRequestError` with code `P2034`, which an unhandled error path turns into a 500. Fixed pre-commit: caught P2034 and returned 409 with `"Konflik penyimpanan, coba lagi."` so the autosave client retries on the next keystroke instead of showing a hard-error toast. All other errors still bubble up.
+- README prune: clean.
+
 ## Ship Notes
 
-*Populated end-of-cycle.*
+**Required on staging→main promote:**
+- 13 Prisma migrations will apply to prod on first main deploy (see Task 7). Watch Vercel build log for `Applying migration` / `migrate deploy` success line before declaring prod healthy.
+- No new env vars introduced this cycle.
+- No data backfill required (`isolationLevel` is transaction-scoped, no schema change; TZ swap is pure code).
+- `scripts/verify-rls-coverage.sh` + `scripts/verify-api-auth.sh` are new CI gates — PR to staging is the first exercise of both.
+
+**Rollback plan:**
+- Tasks 5/6/8/9/10 — revert the single commit per task. No migrations, no env vars, no data changes.
+- Task 7 — reverting the `vercel-build.sh` change removes the `main` branch from `prisma migrate deploy`; a half-migrated prod DB is NOT reversible by reverting this script. If the 13-migration batch partially applies, manual `prisma migrate resolve` or snapshot restore is the fallback.
+
+**Monitoring after merge:**
+- Supabase advisor: re-run `pg_tables.rowsecurity` audit on prod after promote to confirm the migrations didn't disable RLS on any new table.
+- First Jakarta-morning window (00:00–06:59 WIB) after deploy: verify admin dashboard + teacher attendance still show today's data, not yesterday's.
+- First multi-tab autosave on assessments: no P2034 serialization-failure logs in Vercel runtime logs (occasional retries are fine; burst of them indicates a hot path that needs upsert-per-indicator instead).
