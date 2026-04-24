@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -9,7 +10,10 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
+  // Default to today in Asia/Jakarta — UTC fallback previously returned the
+  // wrong day between 00:00 and 06:59 WIB, showing yesterday's attendance to
+  // admins checking the dashboard before school starts.
+  const date = searchParams.get("date") ?? getTodayInTimezone("Asia/Jakarta");
   const campusId = searchParams.get("campusId");
 
   const empWhere: Record<string, unknown> = { tenantId: session.tenantId, status: "ACTIVE" };

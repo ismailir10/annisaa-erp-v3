@@ -42,7 +42,16 @@ describe("getTodayStudentAttendance", () => {
     const { getTodayStudentAttendance } = await import("@/lib/parent-helpers");
     await getTodayStudentAttendance("stu-99", "ten-42");
 
-    const today = new Date().toISOString().slice(0, 10);
+    // Jakarta-TZ YMD — matches the implementation in lib/parent-helpers.ts
+    // (`getTodayInTimezone("Asia/Jakarta")`). Prior version used
+    // `toISOString().slice(0, 10)` which silently passed only when UTC and
+    // WIB happened to share the same calendar day.
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
     expect(prisma.studentAttendance.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({

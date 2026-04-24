@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
+import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
 
 export type StudentInvoices = {
   id: string;
@@ -176,7 +177,10 @@ export async function getTodayStudentAttendance(
   studentId: string,
   tenantId: string,
 ): Promise<string | null> {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  // Asia/Jakarta date — `toISOString()` would return UTC, so between 00:00
+  // and 06:59 WIB the fallback resolved to *yesterday* in Jakarta. See the
+  // `toLocalYmd` comment below for the analogous local-calendar caveat.
+  const today = getTodayInTimezone("Asia/Jakarta");
   const record = await prisma.studentAttendance.findFirst({
     where: {
       studentId,
@@ -316,7 +320,10 @@ export const getStudentAttendanceRecent = unstable_cache(
   async (studentId: string, days = 30): Promise<StudentAttendanceRecent[]> => {
     const since = new Date();
     since.setDate(since.getDate() - days);
-    const startDate = since.toISOString().split("T")[0];
+    // Format the cutoff in Asia/Jakarta. `toISOString()` would return UTC;
+    // `toLocalYmd` would return host-local (UTC on Vercel) — both drift the
+    // "last 30 days" window by up to a day at the WIB midnight boundary.
+    const startDate = getYmdInTimezone(since, "Asia/Jakarta");
 
     const records = await prisma.studentAttendance.findMany({
       where: { studentId, isVoided: false, date: { gte: startDate } },

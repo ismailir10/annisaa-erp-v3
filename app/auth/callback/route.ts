@@ -78,7 +78,9 @@ export async function GET(request: NextRequest) {
 
     try {
       const { prisma } = await import("@/lib/db");
-      const prismaUser = await prisma.user.findUnique({
+      // email is unique per-tenant (`@@unique([tenantId, email])`) so use
+      // findFirst — single-tenant MVP returns the only match.
+      const prismaUser = await prisma.user.findFirst({
         where: { email: user.email },
       });
 

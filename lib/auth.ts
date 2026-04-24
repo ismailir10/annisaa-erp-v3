@@ -74,7 +74,11 @@ async function _getSession(): Promise<SessionUser | null> {
     // Look up Prisma User by email — serve from cache if fresh.
     let user = getCachedUser(authUser.email);
     if (user === undefined) {
-      user = await prisma.user.findUnique({
+      // email is no longer globally unique — `@@unique([tenantId, email])`.
+      // findFirst returns the matching row in the only tenant for this MVP;
+      // when multi-tenant ships, the upstream caller must pass tenant context
+      // (subdomain / header) so we can scope to the right tenant.
+      user = await prisma.user.findFirst({
         where: { email: authUser.email },
       });
       if (user) setCachedUser(authUser.email, user);

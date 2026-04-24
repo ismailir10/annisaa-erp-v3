@@ -36,10 +36,17 @@ model Tenant {
 }
 
 // ── USER ─────────────────────────────────────────────────────
+// onDelete policy:
+// - tenant   : Restrict — never delete a tenant with active users
+// - employee : SetNull  — keep the user account if the staff record is removed
+// - parent   : SetNull  — keep the user account if the parent record is removed
+// - customRole: SetNull — fall back to the role string if the custom role is deleted
 model User {
   id          String    @id @default(cuid())
   tenantId    String
-  email       String    @unique
+  // email is unique PER TENANT, not globally — see @@unique below.
+  // Two tenants may legitimately have admin@school.com without collision.
+  email       String
   role        String
   employeeId  String?   @unique
   name        String?
@@ -49,11 +56,12 @@ model User {
   customRoleId String?
   status       String  @default("ACTIVE") // ACTIVE | INACTIVE
 
-  tenant     Tenant    @relation(fields: [tenantId], references: [id])
-  employee   Employee? @relation(fields: [employeeId], references: [id])
-  parent     Parent?   @relation(fields: [parentId], references: [id])
-  customRole Role?     @relation(fields: [customRoleId], references: [id])
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  parent     Parent?   @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  customRole Role?     @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
+  @@unique([tenantId, email])
   @@index([tenantId, status])
 }
 
@@ -68,7 +76,7 @@ model Role {
   permissions String // JSON array: ["payroll.approve", "invoice.void"]
   createdAt   DateTime @default(now())
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   users  User[]
 
   @@unique([tenantId, code])
@@ -84,7 +92,7 @@ model Campus {
   lat      Decimal? @db.Decimal(10, 8)
   lng      Decimal? @db.Decimal(11, 8)
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   employees     Employee[]
   classSections ClassSection[]
 
@@ -92,6 +100,8 @@ model Campus {
 }
 
 // ── ORG CONFIG ───────────────────────────────────────────────
+// Cascade so removing a tenant also removes its single org-config row.
+// This is a leaf settings record, not a structural entity.
 model OrgConfig {
   id                    String @id @default(cuid())
   tenantId              String @unique
@@ -103,7 +113,7 @@ model OrgConfig {
   payrollPeriodStartDay Int    @default(21)
   payrollPeriodEndDay   Int    @default(20)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 // ── HOLIDAY ──────────────────────────────────────────────────
@@ -115,7 +125,7 @@ model Holiday {
   type      String
   isHalfDay Boolean @default(false)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, date])
   @@index([tenantId])
@@ -143,8 +153,8 @@ model Employee {
   leaveBalanceAnnual Int @default(12)
   leaveBalanceSick   Int @default(14)
 
-  tenant              Tenant                @relation(fields: [tenantId], references: [id])
-  campus              Campus                @relation(fields: [campusId], references: [id])
+  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campus              Campus                @relation(fields: [campusId], references: [id], onDelete: Restrict)
   user                User?
   salaryValues        EmployeeSalaryValue[]
   attendanceRecords   AttendanceRecord[]
@@ -158,6 +168,8 @@ model Employee {
 }
 
 // ── TEACHING ASSIGNMENT ──────────────────────────────────────
+// Junction; cascade on both sides so removing an employee or class
+// also clears the link.
 model TeachingAssignment {
   id             String   @id @default(cuid())
   employeeId     String
@@ -165,14 +177,15 @@ model TeachingAssignment {
   role           String   @default("HOMEROOM") // HOMEROOM | ASSISTANT
   createdAt      DateTime @default(now())
 
-  employee     Employee     @relation(fields: [employeeId], references: [id])
-  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, classSectionId])
   @@index([classSectionId])
 }
 
 // ── LEAVE ────────────────────────────────────────────────────
+// Cascade — leave requests are tightly bound to the employee.
 model LeaveRequest {
   id         String    @id @default(cuid())
   employeeId String
@@ -187,7 +200,7 @@ model LeaveRequest {
   reviewNote String?
   createdAt  DateTime  @default(now())
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, status, leaveType])
 }
@@ -204,7 +217,7 @@ model SalaryComponentDef {
   isEnabled  Boolean @default(true)
   sortOrder  Int     @default(0)
 
-  tenant       Tenant                @relation(fields: [tenantId], references: [id])
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   values       EmployeeSalaryValue[]
   payrollLines PayrollItemLine[]
 
@@ -213,20 +226,24 @@ model SalaryComponentDef {
   @@index([tenantId, isEnabled])
 }
 
+// Cascade on Employee (values follow the employee); Restrict on
+// componentDef (don't lose value rows just because someone tried to
+// delete a salary component — disable it instead).
 model EmployeeSalaryValue {
   id             String  @id @default(cuid())
   employeeId     String
   componentDefId String
   value          Decimal @default(0) @db.Decimal(15, 2)
 
-  employee     Employee           @relation(fields: [employeeId], references: [id])
-  componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
+  employee     Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id], onDelete: Restrict)
 
   @@unique([employeeId, componentDefId])
   @@index([componentDefId])
 }
 
 // ── ATTENDANCE ───────────────────────────────────────────────
+// Cascade — attendance is a leaf log row.
 model AttendanceRecord {
   id               String    @id @default(cuid())
   employeeId       String
@@ -244,7 +261,7 @@ model AttendanceRecord {
   overriddenAt     DateTime?
   isLocked         Boolean   @default(false)
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, date])
   @@index([employeeId, date])
@@ -253,6 +270,7 @@ model AttendanceRecord {
 }
 
 // ── PAYROLL ──────────────────────────────────────────────────
+// PayrollRun — Restrict on tenant (financial root).
 model PayrollRun {
   id             String    @id @default(cuid())
   tenantId       String
@@ -266,12 +284,15 @@ model PayrollRun {
   exportedAt     DateTime?
   slipsSentAt    DateTime?
 
-  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   items  PayrollItem[]
 
+  @@unique([tenantId, periodStart, periodEnd])
   @@index([tenantId, periodStart])
 }
 
+// PayrollItem — Cascade from PayrollRun (items belong to the run).
+// Restrict on Employee — financial audit; never silently drop pay history.
 model PayrollItem {
   id           String  @id @default(cuid())
   payrollRunId String
@@ -285,14 +306,17 @@ model PayrollItem {
   holidayWorkedDays Int     @default(0)
   dcDays            Int     @default(0)
 
-  payrollRun PayrollRun        @relation(fields: [payrollRunId], references: [id])
-  employee   Employee          @relation(fields: [employeeId], references: [id])
+  payrollRun PayrollRun        @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   lines      PayrollItemLine[]
 
   @@index([payrollRunId, employeeId])
   @@index([employeeId])
 }
 
+// PayrollItemLine — Cascade from PayrollItem (lines follow the item).
+// Restrict on componentDef so a deleted-by-mistake component doesn't
+// silently zero out historical pay slips.
 model PayrollItemLine {
   id               String  @id @default(cuid())
   payrollItemId    String
@@ -304,14 +328,15 @@ model PayrollItemLine {
   adjustmentNote   String?
   finalAmount      Decimal @default(0) @db.Decimal(15, 2)
 
-  payrollItem  PayrollItem        @relation(fields: [payrollItemId], references: [id])
-  componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id])
+  payrollItem  PayrollItem        @relation(fields: [payrollItemId], references: [id], onDelete: Cascade)
+  componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id], onDelete: Restrict)
 
   @@index([payrollItemId])
   @@index([componentDefId])
 }
 
 // ── EMAIL LOG ────────────────────────────────────────────────
+// Cascade — email logs are leaf telemetry.
 model EmailLog {
   id       String   @id @default(cuid())
   tenantId String
@@ -322,7 +347,7 @@ model EmailLog {
   error    String?
   sentAt   DateTime @default(now())
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
 }
@@ -340,7 +365,7 @@ model AcademicYear {
   endDate   String // YYYY-MM-DD
   status    String @default("PLANNING") // PLANNING | ACTIVE | ARCHIVED
 
-  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   classSections ClassSection[]
   feeStructures ProgramFeeStructure[]
 
@@ -360,7 +385,7 @@ model Program {
   ageMax      Int? // Maximum age in months
   status      String  @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
 
-  tenant              Tenant                @relation(fields: [tenantId], references: [id])
+  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   classSections       ClassSection[]
   admissions          Admission[]
   feeStructures       ProgramFeeStructure[]
@@ -381,14 +406,15 @@ model ClassSection {
   campusId       String
   status         String @default("ACTIVE") // ACTIVE | INACTIVE
 
-  tenant              Tenant               @relation(fields: [tenantId], references: [id])
-  program             Program              @relation(fields: [programId], references: [id])
-  academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id])
-  campus              Campus               @relation(fields: [campusId], references: [id])
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  program             Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  campus              Campus               @relation(fields: [campusId], references: [id], onDelete: Restrict)
   enrollments         StudentEnrollment[]
   teachingAssignments TeachingAssignment[]
   studentAttendances  StudentAttendance[]
 
+  @@unique([tenantId, academicYearId, name])
   @@index([tenantId])
 }
 
@@ -420,7 +446,7 @@ model Student {
   withdrawalDate   String? // YYYY-MM-DD
   graduationDate   String? // YYYY-MM-DD
 
-  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   guardians          StudentGuardian[]
   enrollments        StudentEnrollment[]
   admission          Admission?
@@ -453,7 +479,7 @@ model Parent {
   incomeRange     String? // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
   childrenTotal   Int? // Total anak (including non-students at this school)
 
-  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   guardians StudentGuardian[]
   invoices  Invoice[]
   users     User[]
@@ -463,6 +489,7 @@ model Parent {
 }
 
 // ── STUDENT ↔ PARENT JUNCTION (relationship + billing) ──────
+// Junction; cascade so removing a student or parent clears the link.
 model StudentGuardian {
   id           String  @id @default(cuid())
   studentId    String
@@ -472,8 +499,8 @@ model StudentGuardian {
   childOrder   Int? // Anak ke- (this student's position in the parent's family)
   status       String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete)
 
-  student Student @relation(fields: [studentId], references: [id])
-  parent  Parent  @relation(fields: [parentId], references: [id])
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, parentId])
   @@index([parentId])
@@ -481,6 +508,9 @@ model StudentGuardian {
 }
 
 // ── STUDENT ENROLLMENT ───────────────────────────────────────
+// Cascade on Student (enrollments follow the child if hard-deleted);
+// Restrict on ClassSection so the class can't disappear out from under
+// active enrollments.
 model StudentEnrollment {
   id             String   @id @default(cuid())
   studentId      String
@@ -490,8 +520,8 @@ model StudentEnrollment {
   notes          String?
   createdAt      DateTime @default(now())
 
-  student      Student      @relation(fields: [studentId], references: [id])
-  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, classSectionId])
   @@index([classSectionId, status])
@@ -499,6 +529,9 @@ model StudentEnrollment {
 }
 
 // ── ADMISSION ────────────────────────────────────────────────
+// Tenant: Restrict (admissions are CRM funnel records — never auto-drop).
+// Optional FKs (program, student) default to SetNull if the linked entity
+// is removed; we make this explicit.
 model Admission {
   id               String   @id @default(cuid())
   tenantId         String
@@ -522,9 +555,9 @@ model Admission {
   studentId        String?  @unique // Linked when converted to student
   createdAt        DateTime @default(now())
 
-  tenant  Tenant   @relation(fields: [tenantId], references: [id])
-  program Program? @relation(fields: [programId], references: [id])
-  student Student? @relation(fields: [studentId], references: [id])
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  program Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status])
 }
@@ -545,7 +578,7 @@ model FeeComponentDef {
   sortOrder   Int     @default(0)
   status      String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete per CRUD Standard)
 
-  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   feeStructures ProgramFeeStructure[]
   invoiceLines  InvoiceLine[]
 
@@ -554,6 +587,7 @@ model FeeComponentDef {
 }
 
 // ── PROGRAM FEE STRUCTURE ────────────────────────────────────
+// All FKs Restrict — fee structure is configuration, not a leaf row.
 model ProgramFeeStructure {
   id             String  @id @default(cuid())
   tenantId       String
@@ -564,16 +598,18 @@ model ProgramFeeStructure {
   notes          String?
   status         String  @default("ACTIVE") // ACTIVE | INACTIVE
 
-  tenant       Tenant          @relation(fields: [tenantId], references: [id])
-  program      Program         @relation(fields: [programId], references: [id])
-  academicYear AcademicYear    @relation(fields: [academicYearId], references: [id])
-  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  program      Program         @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
 
   @@unique([programId, academicYearId, feeComponentId])
   @@index([tenantId, status])
 }
 
 // ── INVOICE ──────────────────────────────────────────────────
+// Restrict on tenant + student — financial records, never silently drop.
+// Parent is optional billing contact: SetNull on parent removal.
 model Invoice {
   id               String    @id @default(cuid())
   tenantId         String
@@ -592,9 +628,9 @@ model Invoice {
   xenditPaymentUrl String? // Xendit hosted checkout URL
   createdAt        DateTime  @default(now())
 
-  tenant   Tenant        @relation(fields: [tenantId], references: [id])
-  student  Student       @relation(fields: [studentId], references: [id])
-  parent   Parent?       @relation(fields: [parentId], references: [id])
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student  Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  parent   Parent?       @relation(fields: [parentId], references: [id], onDelete: SetNull)
   lines    InvoiceLine[]
   payments Payment[]
 
@@ -607,6 +643,8 @@ model Invoice {
 }
 
 // ── INVOICE LINE ─────────────────────────────────────────────
+// Cascade from Invoice (lines follow the invoice). Restrict on
+// FeeComponentDef — historical lines must keep their reference.
 model InvoiceLine {
   id               String  @id @default(cuid())
   invoiceId        String
@@ -617,14 +655,15 @@ model InvoiceLine {
   adjustmentNote   String?
   finalAmount      Decimal @default(0) @db.Decimal(15, 2)
 
-  invoice      Invoice         @relation(fields: [invoiceId], references: [id])
-  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id])
+  invoice      Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
 
   @@index([invoiceId])
   @@index([feeComponentId])
 }
 
 // ── PAYMENT ──────────────────────────────────────────────────
+// Restrict — payments are an audit trail; never cascade-delete.
 model Payment {
   id              String   @id @default(cuid())
   invoiceId       String
@@ -638,7 +677,7 @@ model Payment {
   paidAt          DateTime @default(now())
   createdAt       DateTime @default(now())
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
 
   @@index([invoiceId, status])
   @@index([createdAt])
@@ -648,6 +687,8 @@ model Payment {
 // PHASE 6: Student Attendance
 // ══════════════════════════════════════════════════════════════
 
+// Cascade on Student (logs follow the child); Restrict on ClassSection
+// so a class can't be deleted out from under outstanding attendance.
 model StudentAttendance {
   id             String    @id @default(cuid())
   studentId      String
@@ -661,8 +702,8 @@ model StudentAttendance {
   isVoided       Boolean   @default(false) // soft-delete; voided = admin marked incorrect
   createdAt      DateTime  @default(now())
 
-  student      Student      @relation(fields: [studentId], references: [id])
-  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, date])
   @@index([studentId, date])
@@ -686,6 +727,7 @@ model StudentJournalTemplate {
   categories StudentJournalCategory[]
 }
 
+// Cascade — categories belong to a single template lifecycle.
 model StudentJournalCategory {
   id         String   @id @default(cuid())
   templateId String
@@ -696,12 +738,13 @@ model StudentJournalCategory {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  template   StudentJournalTemplate    @relation(fields: [templateId], references: [id])
+  template   StudentJournalTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
   indicators StudentJournalIndicator[]
 
   @@index([templateId, scope, status])
 }
 
+// Cascade — indicators belong to a category.
 model StudentJournalIndicator {
   id         String   @id @default(cuid())
   categoryId String
@@ -711,12 +754,13 @@ model StudentJournalIndicator {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  category StudentJournalCategory @relation(fields: [categoryId], references: [id])
+  category StudentJournalCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   entries  StudentJournalEntry[]
 
   @@index([categoryId, status])
 }
 
+// Cascade — entries are audit-log rows tied to the indicator.
 model StudentJournalEntry {
   id               String   @id @default(cuid())
   tenantId         String
@@ -730,7 +774,7 @@ model StudentJournalEntry {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  indicator StudentJournalIndicator @relation(fields: [indicatorId], references: [id])
+  indicator StudentJournalIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, indicatorId, date, scope])
   @@index([tenantId, classSectionId, date])
@@ -771,6 +815,7 @@ model StudentJournalAudit {
 // PHASE 7: Report Cards / Assessments
 // ══════════════════════════════════════════════════════════════
 
+// Restrict on Program — templates are configuration; don't drop with the program.
 model AssessmentTemplate {
   id        String  @id @default(cuid())
   tenantId  String
@@ -779,7 +824,7 @@ model AssessmentTemplate {
   type      String  @default("SEMESTER") // SEMESTER | QUARTERLY | MONTHLY
   isActive  Boolean @default(true)
 
-  program     Program              @relation(fields: [programId], references: [id])
+  program     Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
   categories  AssessmentCategory[]
   assessments StudentAssessment[]
 
@@ -787,26 +832,30 @@ model AssessmentTemplate {
   @@index([tenantId])
 }
 
+// Cascade — categories belong to a template.
 model AssessmentCategory {
   id         String @id @default(cuid())
   templateId String
   name       String // "Perkembangan Motorik Halus"
   sortOrder  Int    @default(0)
 
-  template   AssessmentTemplate    @relation(fields: [templateId], references: [id])
+  template   AssessmentTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
   indicators AssessmentIndicator[]
 }
 
+// Cascade — indicators belong to a category.
 model AssessmentIndicator {
   id          String @id @default(cuid())
   categoryId  String
   description String // "Dapat memegang pensil dengan benar"
   sortOrder   Int    @default(0)
 
-  category AssessmentCategory       @relation(fields: [categoryId], references: [id])
+  category AssessmentCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   scores   StudentAssessmentScore[]
 }
 
+// Restrict on both — academic record; never silently lose a student's
+// rapor by deleting the parent template or student.
 model StudentAssessment {
   id          String    @id @default(cuid())
   studentId   String
@@ -817,13 +866,14 @@ model StudentAssessment {
   publishedAt DateTime?
   createdAt   DateTime  @default(now())
 
-  student  Student                  @relation(fields: [studentId], references: [id])
-  template AssessmentTemplate       @relation(fields: [templateId], references: [id])
+  student  Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  template AssessmentTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
   scores   StudentAssessmentScore[]
 
   @@unique([studentId, templateId, period])
 }
 
+// Cascade — scores belong to an assessment + indicator pair.
 model StudentAssessmentScore {
   id           String  @id @default(cuid())
   assessmentId String
@@ -831,8 +881,8 @@ model StudentAssessmentScore {
   score        String? // BB | MB | BSH | BSB
   notes        String?
 
-  assessment StudentAssessment   @relation(fields: [assessmentId], references: [id])
-  indicator  AssessmentIndicator @relation(fields: [indicatorId], references: [id])
+  assessment StudentAssessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  indicator  AssessmentIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
 
   @@unique([assessmentId, indicatorId])
 }
