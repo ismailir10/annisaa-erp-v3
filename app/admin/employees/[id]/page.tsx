@@ -326,9 +326,9 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
   return (
     <Card className="p-card max-w-3xl mt-4">
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground">←</button>
+        <button onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} aria-label="Bulan sebelumnya" className="p-1 rounded hover:bg-accent text-muted-foreground">←</button>
         <span className="text-sm font-semibold capitalize">{monthLabel}</span>
-        <button onClick={() => { if (month === 12) { setMonth(1); setYear(year + 1); } else setMonth(month + 1); }} className="p-1 rounded hover:bg-accent text-muted-foreground">→</button>
+        <button onClick={() => { if (month === 12) { setMonth(1); setYear(year + 1); } else setMonth(month + 1); }} aria-label="Bulan berikutnya" className="p-1 rounded hover:bg-accent text-muted-foreground">→</button>
       </div>
       {attLoading ? <div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-40" /></div> : data ? (
         <>

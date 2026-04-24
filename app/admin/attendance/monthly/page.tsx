@@ -96,9 +96,9 @@ export default function MonthlyAttendancePage() {
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-accent"><ChevronLeft size={16} /></button>
+        <button onClick={prevMonth} aria-label="Bulan sebelumnya" className="p-2 rounded-lg hover:bg-accent"><ChevronLeft size={16} /></button>
         <span className="text-sm font-semibold w-40 text-center capitalize">{monthLabel}</span>
-        <button onClick={nextMonth} className="p-2 rounded-lg hover:bg-accent"><ChevronRight size={16} /></button>
+        <button onClick={nextMonth} aria-label="Bulan berikutnya" className="p-2 rounded-lg hover:bg-accent"><ChevronRight size={16} /></button>
         <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger>
           <SelectContent>

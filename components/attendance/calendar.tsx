@@ -91,11 +91,11 @@ export function AttendanceCalendar({
     <div>
       {/* Month nav */}
       <div className="flex items-center justify-between mb-4">
-        <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-accent text-muted-foreground">
+        <button onClick={prevMonth} aria-label="Bulan sebelumnya" className="p-2 rounded-lg hover:bg-accent text-muted-foreground">
           <ChevronLeft size={18} />
         </button>
         <h2 className="text-sm font-semibold capitalize">{monthLabel}</h2>
-        <button onClick={nextMonth} className="p-2 rounded-lg hover:bg-accent text-muted-foreground">
+        <button onClick={nextMonth} aria-label="Bulan berikutnya" className="p-2 rounded-lg hover:bg-accent text-muted-foreground">
           <ChevronRight size={18} />
         </button>
       </div>
@@ -189,7 +189,7 @@ export function AttendanceCalendar({
                     month: "long",
                   })}
                 </h3>
-                <button onClick={() => setSelectedDay(null)} className="p-1 rounded-lg hover:bg-accent">
+                <button onClick={() => setSelectedDay(null)} aria-label="Tutup" className="p-1 rounded-lg hover:bg-accent">
                   <X size={16} />
                 </button>
               </div>

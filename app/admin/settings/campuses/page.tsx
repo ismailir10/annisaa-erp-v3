@@ -169,10 +169,10 @@ export default function CampusesPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                    <button onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => setDeleteTarget(c)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                    <button onClick={() => setDeleteTarget(c)} aria-label={`Nonaktifkan ${c.name}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 size={14} />
                     </button>
                   </div>
