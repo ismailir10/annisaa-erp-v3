@@ -246,6 +246,26 @@ DROP INDEX "User_tenantId_email_key";
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 ```
 
+### C6 — ClassSection + PayrollRun composite uniques
+
+`prisma/schema.prisma`:
+- `ClassSection`: added `@@unique([tenantId, academicYearId, name])` — prevents duplicate "TKIT A" entries within the same tenant + year (seed re-run hazard noted in review).
+- `PayrollRun`: added `@@unique([tenantId, periodStart, periodEnd])` — DB-level safety net under the existing app-level overlap check in `/api/payroll/generate`.
+
+Migration: `prisma/migrations/20260424000002_class_section_payroll_run_composite_unique/migration.sql` — two `CREATE UNIQUE INDEX` statements. Rollback = `DROP INDEX` (no data loss either way).
+
+**Pre-deploy data-integrity checks** (both must return 0 rows):
+
+```sql
+SELECT "tenantId", "academicYearId", name, COUNT(*)
+FROM "ClassSection" GROUP BY 1,2,3 HAVING COUNT(*) > 1;
+
+SELECT "tenantId", "periodStart", "periodEnd", COUNT(*)
+FROM "PayrollRun" GROUP BY 1,2,3 HAVING COUNT(*) > 1;
+```
+
+Zero-downtime on Vercel Postgres — catalog-only swap on small tables.
+
 ## Verification
 
 _End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` green. Cross-checked design-system.html §Overlays (AlertDialog rule) for sub-bundle A._

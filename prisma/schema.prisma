@@ -287,6 +287,7 @@ model PayrollRun {
   tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   items  PayrollItem[]
 
+  @@unique([tenantId, periodStart, periodEnd])
   @@index([tenantId, periodStart])
 }
 
@@ -413,6 +414,7 @@ model ClassSection {
   teachingAssignments TeachingAssignment[]
   studentAttendances  StudentAttendance[]
 
+  @@unique([tenantId, academicYearId, name])
   @@index([tenantId])
 }
 
