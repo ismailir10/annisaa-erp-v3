@@ -10,22 +10,22 @@ design-system: each frontend task cross-checks `.claude/standards/design-system.
 
 **Acceptance criteria:**
 
-- [ ] `parseSort` rejects unknown sort fields with 400, no Prisma P2009 schema-leak in error path
-- [ ] Rate limit applied to: `POST /api/invoices/[id]/payments`, `PUT /api/invoices/[id]`, `PUT /api/employees/[id]/salary`, `POST /api/salary-components`
-- [ ] Payroll/email templates HTML-escape `employeeName`, `period`, and any other free-text inputs
-- [ ] `Program.type` Zod enum matches Prisma enum exactly (single source of truth)
-- [ ] `StudentEnrollment.status` Zod enum matches Prisma enum (no `TRANSFERRED` drift)
-- [ ] All FK relations have explicit `onDelete` (no implicit P2003 surprises) — schema-wide audit + fix
-- [ ] Campus delete endpoint uses soft-delete (`deletedAt`) per CRUD.md Cat A
-- [ ] Stats endpoints replace N× `pageSize=1` calls with single GROUP BY (≥3× latency improvement on dashboard)
-- [ ] No raw backend IDs (cuid/uuid/numeric PK) rendered in `<Select>`, combobox, list cells, detail headers, or Edit form prefill — human label always, ID only as `value`
-- [ ] Bare `<button>` elements without `aria-label` reduced to zero in `app/admin/**`
-- [ ] No arbitrary tokens below floor (`text-[9px]`, `text-[10px]`, `text-[11px]`) in `components/**` and `app/**`
-- [ ] Teacher layout uses `px-page-x` consistent with parent/admin
-- [ ] `@libsql/client` + `@prisma/adapter-libsql` removed from `package.json`
-- [ ] CSP header added to `next.config.ts` security headers (report-only mode acceptable)
-- [ ] README drift swept: CSP note, libsql removal reflected, no stale module claims
-- [ ] All gates green: `npm run build && npx vitest run && npx playwright test`
+- [x] `parseSort` rejects unknown sort fields with 400, no Prisma P2009 schema-leak in error path
+- [x] Rate limit applied to: `POST /api/invoices/[id]/payments`, `PUT /api/invoices/[id]`, `PUT /api/employees/[id]/salary`, `POST /api/salary-components`
+- [x] Payroll/email templates HTML-escape `employeeName`, `period`, and any other free-text inputs
+- [x] `Program.type` Zod enum matches Prisma enum exactly (single source of truth)
+- [x] `StudentEnrollment.status` Zod enum matches Prisma enum (no `TRANSFERRED` drift)
+- [x] All FK relations have explicit `onDelete` (no implicit P2003 surprises) — schema-wide audit + fix (already landed via PR #121 migration `20260424000000_explicit_ondelete_actions`; this cycle adds drift-prevention test for 20 rows)
+- [x] Campus delete endpoint uses soft-delete per CRUD.md Cat A — implemented via `status: ACTIVE/INACTIVE` (canonical repo pattern), not `deletedAt` as the spec speculated
+- [x] Stats endpoints replace N× `pageSize=1` calls with single GROUP BY (3.9× synthetic latency improvement on 3 admin list pages)
+- [x] No raw backend IDs (cuid/uuid/numeric PK) rendered in `<Select>`, combobox, list cells, detail headers, or Edit form prefill — human label always, ID only as `value`
+- [x] Bare `<button>` elements without `aria-label` reduced to zero in `app/admin/**` (and swept teacher/parent too — all clean)
+- [x] No arbitrary tokens below floor (`text-[9px]`, `text-[10px]`, `text-[11px]`) in `components/**` and `app/**`
+- [x] Teacher layout uses `px-page-x` consistent with parent/admin
+- [x] `@libsql/client` + `@prisma/adapter-libsql` removed from `package.json`
+- [x] CSP header added to `next.config.ts` security headers (report-only mode — graduate to enforcing once violation reports are clean)
+- [x] README drift swept: CSP note added, libsql removal reflected; no stale libsql/CSP claims remain
+- [x] All gates green: `npm run build && npx vitest run && npx playwright test` (38/40 Playwright pass, 2 intentional skips)
 
 **Non-goals:**
 
@@ -90,7 +90,7 @@ Tasks split by independence so `/build` can dispatch parallel subagents. Indepen
 
 ### Group D — gate
 
-- [ ] **Task 8 — End-of-cycle gate + ship notes.** Run `npm run build && npx vitest run && npx playwright test` against the integrated branch; fill Verification + Ship Notes; request `superpowers:requesting-code-review` before `/ship`.
+- [x] **Task 8 — End-of-cycle gate + ship notes.** Run `npm run build && npx vitest run && npx playwright test` against the integrated branch; fill Verification + Ship Notes; request `superpowers:requesting-code-review` before `/ship`.
 
 ## Implementation
 
@@ -115,6 +115,7 @@ Tasks split by independence so `/build` can dispatch parallel subagents. Indepen
 - Task 6: build + vitest green (322 pass / 42 todo / 2 skip across 48 files); sweep output: 11 `text-[Npx]` occurrences below floor removed (was 11, now 0 in `app/**` + `components/**`; status-badge.tsx doc-comment retained as migration reference); 14 teacher-page outer wrappers normalized (`px-5 pt-X pb-Y` → layout-provided `px-page-x py-6`); 2 sticky-bar `px-5` → `px-page-x`; teacher layout now matches parent layout structure (`max-w-md mx-auto px-page-x py-6`).
 - Task 7: build + vitest green; `npm install` clean (1106 packages, 6 moderate audit findings unchanged from prior baseline); `Content-Security-Policy-Report-Only` header present in `next.config.ts:60`; manual `curl -I` verify deferred to /ship smoke; README ADR row added for CSP + libsql removal; no stale `libsql` / CSP claims remaining in README.
 - Task 3: build + vitest green; 6 tests now in `app/api/__tests__/campus-soft-delete.test.ts` (added 400-on-unknown-status Zod parity + INACTIVE-campus write-guard via Employee POST); full suite 313 pass / 42 todo / 2 skipped across 47 files; manual smoke deferred to /ship.
+- Task 8 — end-of-cycle gate: `npm run build` green; `npx vitest run` 322 pass / 42 todo / 2 skip across 48 files; `DEMO_MODE=true npx playwright test` 38 pass / 2 skip (initial run failed 2 employee-detail specs due to pending Campus migration on shared dev DB — applied `npx prisma migrate deploy` then re-ran clean). Final cycle code review (`superpowers:code-reviewer`) returned Ship-with-caveats; both caveats addressed in this commit (Spec checklist flipped to `[x]`; Ship Notes deploy-ordering elevated to a CRITICAL section). 8 commits ahead of `origin/staging`. Ready for `/ship`.
 
 ## Follow-ups (not blocking this PR)
 
@@ -127,8 +128,32 @@ Tasks split by independence so `/build` can dispatch parallel subagents. Indepen
 - Cache headers on `/api/{invoices,enrollments,students}/stats` — currently uncached; short revalidate window (~30s) would amplify perf gain.
 
 ## Ship Notes
-- Migration `20260424000000_explicit_ondelete_actions` (PR #121) is on staging but not yet on main. Next staging→main promotion will carry it; no new migration in this cycle.
+
+### Deploy ordering (CRITICAL)
+
+**Step 1 — apply migrations BEFORE Vercel deploys the merged code.** The Campus endpoints in this cycle filter `where: { status: "ACTIVE" }` and write `status: "INACTIVE"`. If Vercel deploys the build before Prisma migrate runs, those endpoints crash with column-missing errors.
+
+```bash
+# From the main checkout (or any clone with DATABASE_URL set):
+npx prisma migrate deploy
+```
+
+This applies both:
+- `20260424000000_explicit_ondelete_actions` (from PR #121 — staging-only, will reach prod via this PR)
+- `20260424130000_campus_status_soft_delete` (this cycle — adds `Campus.status TEXT NOT NULL DEFAULT 'ACTIVE'`)
+
+**Note:** During this cycle's gate verification, `prisma migrate deploy` was already run against the shared dev DB to make Playwright pass. Running it again is a no-op (Prisma tracks applied migrations). The instruction above is for any environment that hasn't yet seen these migrations (production prod DB on the staging→main PR).
+
+**Migration shapes — both purely additive, backwards-compatible.** Old code (without `Campus.status` references) keeps working against the new schema; only the new code requires the new column.
+
+**Rollback for Campus migration only** (the explicit-onDelete migration is not safely reversible without data audit — leave it in place):
+```sql
+ALTER TABLE "Campus" DROP COLUMN "status";
+```
+Safe pre-deploy of this cycle's app code. If app code is already deployed, do not roll back the migration without first reverting the app code.
+
+### Other ship notes
+
 - `Student.status` Prisma comment updated from `ACTIVE | GRADUATED | WITHDRAWN` to `ACTIVE | INACTIVE | GRADUATED | WITHDRAWN` (comment-only, reflects existing runtime + UI behavior; admin students soft-delete uses INACTIVE).
-- Run pending migration `20260424130000_campus_status_soft_delete` against staging before merge — adds `Campus.status TEXT NOT NULL DEFAULT 'ACTIVE'`. Backfill is implicit via column default; no data DML required. Existing rows become `ACTIVE`. Rollback: `ALTER TABLE "Campus" DROP COLUMN "status";` (no app code currently reads INACTIVE rows beyond the soft-delete API path, so dropping is safe pre-deploy of this cycle).
 - Restoring a soft-deleted Campus is API-only this cycle (`PUT /api/config/campuses/[id]` with `{ status: "ACTIVE" }`). UI toggle for "Show inactive" + restore button is deferred to a follow-up admin-CRUD-polish cycle. Document for ops if a school accidentally deactivates a campus.
 - Enrollments stats (`/api/enrollments/stats`) tenant-scopes via relation filter (`student: { tenantId }`) because StudentEnrollment has no denormalized tenantId column. Performance is fine at current scale; revisit if multi-tenant denormalization lands (see deferred RLS-perf indexes ADR).
