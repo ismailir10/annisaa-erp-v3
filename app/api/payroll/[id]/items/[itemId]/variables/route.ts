@@ -21,9 +21,9 @@ export async function PUT(
   if (!payrollRun || payrollRun.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  // #9 fix: only allow editing DRAFT payrolls
+  // #9 fix: only allow editing DRAFT payrolls (409 matches peer payroll routes).
   if (payrollRun.status !== "DRAFT") {
-    return NextResponse.json({ error: "Hanya draft yang bisa diedit" }, { status: 400 });
+    return NextResponse.json({ error: "Hanya draft yang bisa diedit" }, { status: 409 });
   }
   if (!(await verifyTenantOwnership("payrollItem", itemId, session.tenantId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

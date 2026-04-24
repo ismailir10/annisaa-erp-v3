@@ -44,18 +44,29 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (payroll.status === "DRAFT") {
-    return NextResponse.json({ error: "Penggajian belum disetujui" }, { status: 400 });
+  if (payroll.status !== "APPROVED") {
+    return NextResponse.json(
+      { error: "Hanya penggajian berstatus APPROVED yang bisa dikirim slip-nya" },
+      { status: 409 }
+    );
   }
 
   const tenant = await prisma.tenant.findUnique({ where: { id: payroll.tenantId } });
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   const errors: string[] = [];
 
   for (let idx = 0; idx < payroll.items.length; idx++) {
     const item = payroll.items[idx];
+
+    // Skip items already emailed — idempotency guard so retried runs after a
+    // serverless timeout don't re-email the same employees.
+    if (item.emailSent) {
+      skipped++;
+      continue;
+    }
 
     // Throttle: 600ms between emails to stay under Resend's 2 req/sec limit
     if (idx > 0) {
@@ -119,6 +130,14 @@ export async function POST(
         },
       });
 
+      // Mark per-item emailSent so a retry skips this employee.
+      if (result.sent) {
+        await prisma.payrollItem.update({
+          where: { id: item.id },
+          data: { emailSent: true },
+        });
+      }
+
       sent++;
     } catch (e) {
       failed++;
@@ -138,13 +157,25 @@ export async function POST(
     }
   }
 
-  // Only mark as SLIPS_SENT if at least one email succeeded
+  // Compare-and-swap: only promote status if still APPROVED. Prevents two
+  // concurrent send-slips invocations from both writing SLIPS_SENT on top of
+  // each other, and prevents promotion if run was cancelled mid-send.
   if (sent > 0) {
-    await prisma.payrollRun.update({
-      where: { id },
+    const swap = await prisma.payrollRun.updateMany({
+      where: { id, status: "APPROVED" },
       data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
     });
+    if (swap.count === 0) {
+      return NextResponse.json({
+        sent,
+        failed,
+        skipped,
+        total: payroll.items.length,
+        errors: errors.length > 0 ? errors : undefined,
+        warning: "Status penggajian sudah diperbarui oleh proses lain",
+      });
+    }
   }
 
-  return NextResponse.json({ sent, failed, total: payroll.items.length, errors: errors.length > 0 ? errors : undefined });
+  return NextResponse.json({ sent, failed, skipped, total: payroll.items.length, errors: errors.length > 0 ? errors : undefined });
 }

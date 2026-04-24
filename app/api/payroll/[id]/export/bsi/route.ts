@@ -30,8 +30,11 @@ export async function GET(
   if (!payroll || payroll.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (payroll.status === "DRAFT") {
-    return NextResponse.json({ error: "Payroll belum disetujui" }, { status: 400 });
+  if (payroll.status !== "APPROVED") {
+    return NextResponse.json(
+      { error: "Hanya penggajian berstatus APPROVED yang bisa diekspor" },
+      { status: 409 }
+    );
   }
 
   // Filter employees with bank accounts

@@ -24,33 +24,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Period start and end required" }, { status: 400 });
   }
 
-  // Prevent duplicate or overlapping payroll runs
-  const existingRun = await prisma.payrollRun.findFirst({
-    where: { tenantId: session.tenantId, periodStart, periodEnd },
-  });
-  if (existingRun) {
-    return NextResponse.json(
-      { error: "Penggajian untuk periode ini sudah ada", id: existingRun.id },
-      { status: 409 }
-    );
-  }
-
-  const overlapping = await prisma.payrollRun.findFirst({
-    where: {
-      tenantId: session.tenantId,
-      status: { not: "CANCELLED" },
-      periodStart: { lte: periodEnd },
-      periodEnd: { gte: periodStart },
-    },
-  });
-  if (overlapping) {
-    return NextResponse.json(
-      { error: `Periode tumpang tindih dengan penggajian ${overlapping.periodStart} - ${overlapping.periodEnd}` },
-      { status: 400 }
-    );
-  }
-
   // Parallelise the 4 independent setup queries — none depend on each other
+  // (overlap + duplicate check happen atomically inside the $transaction below)
   const [orgConfig, holidays, componentDefs, employees] = await Promise.all([
     prisma.orgConfig.findUnique({ where: { tenantId: session.tenantId } }),
     prisma.holiday.findMany({
@@ -136,26 +111,69 @@ export async function POST(req: NextRequest) {
     }));
   });
 
-  const payrollRun = await prisma.$transaction(async (tx) => {
-    const run = await tx.payrollRun.create({
-      data: {
-        tenantId: session.tenantId!, // non-null confirmed by auth check at line 16
-        periodStart,
-        periodEnd,
-        actualWorkDays,
-        createdBy: session.id,
+  // Serializable: duplicate/overlap check + create commit atomically. Prevents
+  // two concurrent POSTs from both passing the guard and inserting duplicate runs.
+  let payrollRun: { id: string };
+  try {
+    payrollRun = await prisma.$transaction(
+      async (tx) => {
+        const existingRun = await tx.payrollRun.findFirst({
+          where: { tenantId: session.tenantId!, periodStart, periodEnd },
+          select: { id: true },
+        });
+        if (existingRun) {
+          throw Object.assign(new Error("DUPLICATE"), { existingId: existingRun.id });
+        }
+
+        const overlapping = await tx.payrollRun.findFirst({
+          where: {
+            tenantId: session.tenantId!,
+            status: { not: "CANCELLED" },
+            periodStart: { lte: periodEnd },
+            periodEnd: { gte: periodStart },
+          },
+          select: { periodStart: true, periodEnd: true },
+        });
+        if (overlapping) {
+          throw Object.assign(new Error("OVERLAP"), {
+            msg: `Periode tumpang tindih dengan penggajian ${overlapping.periodStart} - ${overlapping.periodEnd}`,
+          });
+        }
+
+        const run = await tx.payrollRun.create({
+          data: {
+            tenantId: session.tenantId!, // non-null confirmed by auth check at line 16
+            periodStart,
+            periodEnd,
+            actualWorkDays,
+            createdBy: session.id,
+          },
+          select: { id: true },
+        });
+
+        await tx.payrollItem.createMany({
+          data: itemData.map((item) => ({ ...item, payrollRunId: run.id })),
+        });
+
+        await tx.payrollItemLine.createMany({ data: lineData });
+
+        return run;
       },
-      select: { id: true },
-    });
-
-    await tx.payrollItem.createMany({
-      data: itemData.map((item) => ({ ...item, payrollRunId: run.id })),
-    });
-
-    await tx.payrollItemLine.createMany({ data: lineData });
-
-    return run;
-  });
+      { isolationLevel: "Serializable" }
+    );
+  } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === "DUPLICATE") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return NextResponse.json({ error: "Penggajian untuk periode ini sudah ada", id: (e as any).existingId }, { status: 409 });
+      }
+      if (e.message === "OVERLAP") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return NextResponse.json({ error: (e as any).msg }, { status: 400 });
+      }
+    }
+    throw e;
+  }
 
   return NextResponse.json({ id: payrollRun.id }, { status: 201 });
 }

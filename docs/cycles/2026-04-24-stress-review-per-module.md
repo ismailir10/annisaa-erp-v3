@@ -223,6 +223,19 @@ Staging is 109 commits ahead of `main` spanning ~2 months — design-system foun
 - `app/api/student-journal/entries/home/route.ts` — indicator validation now requires `status: "ACTIVE"`, preventing parents from submitting HOME entries against soft-deleted indicators. Matches teacher batch at `entries/batch/route.ts`.
 - `README.md:84` — Teacher Portal line now includes Buku Penghubung.
 
+### Task 3 — hr (BLOCKER) — fixed 2026-04-24
+
+- `app/api/leave/requests/route.ts` — POST now runs body through `createLeaveRequestSchema` via `validateBody`. Invalid `leaveType` enum values rejected with 400 before persistence.
+- `app/api/payroll/generate/route.ts` — duplicate check + overlap check + run create now execute inside a single `$transaction` with `Serializable` isolation. Concurrent POSTs can no longer both pass the guard and insert duplicate runs.
+- `app/api/payroll/[id]/export/bsi/route.ts` — status guard tightened from `!== "DRAFT"` to `=== "APPROVED"` only; prevents overwriting `SLIPS_SENT` with `EXPORTED`.
+- `app/api/payroll/[id]/send-slips/route.ts` — (a) status guard tightened to `APPROVED` only; (b) per-`PayrollItem` `emailSent` flag now gates the loop so retried runs after a Vercel 60s timeout skip already-sent employees; (c) final status promotion uses `updateMany({ where: { id, status: "APPROVED" } })` compare-and-swap, returning a warning if another process already promoted the run.
+- `prisma/schema.prisma` + `prisma/migrations/20260424000003_add_emailsent_to_payrollitem/migration.sql` — new `PayrollItem.emailSent Boolean @default(false)` column. Additive-only migration; no data backfill needed.
+- `app/api/leave/requests/[id]/approve/route.ts` — approval now reads `AttendanceRecord.isLocked` before upserting `LEAVE` status; locked days are skipped silently so approved-payroll attendance is never overwritten.
+- `app/api/payroll/[id]/route.ts` — PUT fetch + DRAFT guard + overlap check + update now execute inside a `Serializable` `$transaction`. Concurrent DRAFT edits cannot both pass the overlap guard and both write.
+- `app/api/payroll/[id]/items/[itemId]/variables/route.ts` — DRAFT status guard was already present at line 25; status code changed from 400 to 409 to match peer payroll conflict responses.
+- `lib/payroll/engine.ts` — `gajiPokokAmount` capture now explicitly precedes `Math.round` via a distinct `finalAmount` variable. Semantics identical to prior code but structurally guarded against future reorder.
+- `README.md:86` — payroll flow narrative replaced with the full state machine (`DRAFT → APPROVED → EXPORTED → SLIPS_SENT | CANCELLED`) and a pointer to the new `emailSent` idempotency field.
+
 ## Verification
 
 ### Task 1 — students
@@ -236,6 +249,13 @@ Staging is 109 commits ahead of `main` spanning ~2 months — design-system foun
 - Between-task gate: `npm run build && npx vitest run` — green.
 - Manual review: teacher notes POST enrollment lookup now mirrors the scoped pattern at `students/[id]/week/route.ts:30`. Admin + user soft-delete both write `"INACTIVE"`. HOME indicator validation now matches the `status: "ACTIVE"` guard used by `entries/batch/route.ts`.
 - README: prune applied — Teacher Portal line at `README.md:84` now lists Buku Penghubung.
+
+### Task 3 — hr
+
+- Between-task gate: `npm run build && npx vitest run` — green (see commit for numbers).
+- Playwright smoke: Task 3 touches only API routes + lib/payroll/engine.ts; no admin UI page changed, so Playwright is not invoked here. End-of-cycle smoke will run at task 4 commit.
+- Schema change: `PayrollItem.emailSent` additive column + migration `20260424000003_add_emailsent_to_payrollitem`. Migration is `ADD COLUMN ... NOT NULL DEFAULT false` — zero-downtime, no backfill. Prisma client regenerated via `npx prisma generate`. `prisma migrate dev` was NOT run against the shared staging DB; staging will pick the migration up via `scripts/vercel-build.sh` on next deploy.
+- README prune: `README.md:86` replaced with the full payroll state machine and a reference to `PayrollItem.emailSent`.
 
 ## Ship Notes
 

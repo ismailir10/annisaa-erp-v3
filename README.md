@@ -83,7 +83,7 @@ Three portals, three roles.
 
 **Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Buku Penghubung (school-scope indicators + teacher notes per student + week view), Salary Slips (PDF), Profile (accessible via header avatar)
 
-**Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (draft → variables → review → approve → BSI CSV → PDF slips → email), Settings (campus, org config, holidays, salary components)
+**Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (state machine: `DRAFT → variables → review → APPROVED → EXPORTED (BSI CSV) → SLIPS_SENT (PDF email) | CANCELLED`; edits + BSI export gated to APPROVED, send-slips is idempotent per-item via `PayrollItem.emailSent`), Settings (campus, org config, holidays, salary components)
 
 ---
 
