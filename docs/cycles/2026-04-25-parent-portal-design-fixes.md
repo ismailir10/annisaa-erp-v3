@@ -60,4 +60,11 @@ Three issues surfaced on the parent portal: (1) tagihan (invoice) nominal text o
 <filled by /build>
 
 ## Ship Notes
-<filled by /ship>
+- **No migrations.** Pure code changes — new route, template, className edits.
+- **No new env vars.** PDF route reuses `NEXT_PUBLIC_APP_URL` (already configured) for the school-logo image.
+- **Manual smoke after merge to staging:**
+  1. Log in as a guardian on staging, open `/parent/invoices`, tap a paid invoice — confirm "Kuitansi.pdf" link opens an inline PDF (not 404).
+  2. Visit `/parent` on a 375px viewport (Chrome devtools mobile preset) — confirm the outstanding-invoice card amount stays single-line for `Rp 1.475.000`+.
+  3. Spot-check non-paid invoice → kwitansi link should not be visible (gated by `isPaid`); deep-linking to `/api/guardian/invoices/<unpaid-id>/pdf` must return 404.
+- **Rollback:** revert the 3 commits on this branch. No DB or env state to undo.
+- **Follow-ups not addressed in this cycle:** the 2026-04-18 UAT report's primary blocker (Xendit "Bayar" CTA + `xenditPaymentUrl` backfill) and the `/parent/reports` 5.3s page-load perf — both stay queued for separate cycles.
