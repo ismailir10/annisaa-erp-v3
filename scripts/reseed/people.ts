@@ -299,6 +299,10 @@ export type SeedPeopleResult = {
   userIdByPreservedEmail: Record<string, string>;
   enrollmentCount: { y24: number; y25: number };
   teachingAssignmentCount: number;
+  /** Plans surfaced for downstream seeders. */
+  studentPlan: StudentPlan[];
+  employeePlan: EmployeePlan[];
+  parentPlan: ParentPlan[];
 };
 
 export async function seedPeople(
@@ -540,5 +544,8 @@ export async function seedPeople(
     userIdByPreservedEmail,
     enrollmentCount: { y24: enrolledY24, y25: enrolledY25 },
     teachingAssignmentCount,
+    studentPlan,
+    employeePlan,
+    parentPlan,
   };
 }

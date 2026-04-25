@@ -18,7 +18,17 @@
  *
  * Take a manual Supabase snapshot via the dashboard before running.
  */
+import { createClient } from "@supabase/supabase-js";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "../lib/generated/prisma/client";
 import { validateReseedEnv, formatGuardErrors } from "./reseed/guards";
+import { ensurePreservedAuthUsers, adminAuthFrom } from "./reseed/users";
+import { wipeApplicationData } from "./reseed/wipe";
+import { seedOrg } from "./reseed/org";
+import { seedPeople } from "./reseed/people";
+import { seedOperations } from "./reseed/operations";
+import { seedPayroll } from "./reseed/payroll";
+import { seedInvoices } from "./reseed/invoices";
 
 const REMINDER = `
 ==============================================================
@@ -65,7 +75,104 @@ async function main() {
 
   await countdown(5);
 
-  console.log("[reseed] scaffolding complete — orchestration lands in T9.");
+  // ── Connect Prisma + Supabase Admin.
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL!,
+  });
+  const prisma = new PrismaClient({ adapter });
+
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } },
+  );
+  const adminAuth = adminAuthFrom(supabaseAdmin);
+
+  try {
+    console.log("[reseed] (1/8) ensuring preserved auth.users …");
+    const auth = await ensurePreservedAuthUsers(adminAuth);
+    console.log(
+      `        created ${auth.createdEmails.length}, reused ${auth.reusedEmails.length}.`,
+    );
+
+    console.log("[reseed] (2/8) wiping application data …");
+    const wipe = await wipeApplicationData(
+      // wipe needs delete capability; supabaseAdmin.auth.admin satisfies it.
+      {
+        $queryRawUnsafe: (sql: string) => prisma.$queryRawUnsafe(sql),
+        $executeRawUnsafe: (sql: string) => prisma.$executeRawUnsafe(sql),
+        $transaction: (fn) =>
+          prisma.$transaction(async (tx) => {
+            return fn({
+              $executeRawUnsafe: (sql: string) => tx.$executeRawUnsafe(sql),
+            });
+          }),
+      },
+      {
+        ...adminAuth,
+        deleteUser: (uuid) => supabaseAdmin.auth.admin.deleteUser(uuid),
+      },
+      new Set(Object.values(auth.uuidByEmail)),
+    );
+    console.log(
+      `        truncated ${wipe.tablesWiped.length} tables, deleted ${wipe.authDeleted} auth users (${wipe.authPreserved} preserved).`,
+    );
+
+    console.log("[reseed] (3/8) seeding org …");
+    const org = await seedOrg(prisma);
+    console.log(
+      `        tenant=${org.tenantId} | campuses=${Object.keys(org.campusIdByCode).length} | sections=${Object.keys(org.classSectionIdByKey).length}`,
+    );
+
+    console.log("[reseed] (4/8) seeding people …");
+    const people = await seedPeople(prisma, org, auth.uuidByEmail);
+    console.log(
+      `        employees=${Object.keys(people.employeeIdByKode).length} | students=${Object.keys(people.studentIdByIndex).length} | enrollments(y24/y25)=${people.enrollmentCount.y24}/${people.enrollmentCount.y25} | teachingAssignments=${people.teachingAssignmentCount}`,
+    );
+
+    console.log("[reseed] (5/8) seeding operations (attendance + journal) …");
+    const ops = await seedOperations(
+      prisma,
+      org,
+      people,
+      people.studentPlan,
+      people.employeePlan,
+    );
+    console.log(
+      `        studentAttendance=${ops.studentAttendanceCount} | employeeAttendance=${ops.employeeAttendanceCount} | journalEntries=${ops.journalEntryCount}`,
+    );
+
+    console.log("[reseed] (6/8) seeding payroll …");
+    const payroll = await seedPayroll(prisma, org, people, people.employeePlan);
+    console.log(
+      `        runs=${payroll.payrollRunCount} | items=${payroll.payrollItemCount} | salaryValues=${payroll.salaryValueCount}`,
+    );
+
+    console.log("[reseed] (7/8) seeding invoices + Xendit sessions …");
+    const invoices = await seedInvoices(
+      prisma,
+      org,
+      people,
+      people.studentPlan,
+      people.parentPlan,
+    );
+    console.log(
+      `        paid=${invoices.paidInvoiceCount} | live=${invoices.liveInvoiceCount} | xenditCalls=${invoices.xenditCallsMade} (skipped ${invoices.xenditCallsSkipped})`,
+    );
+
+    console.log("[reseed] (8/8) done.");
+    console.log("");
+    console.log("Summary:");
+    console.log(`  Tables truncated     : ${wipe.tablesWiped.length}`);
+    console.log(`  Preserved auth users : ${wipe.authPreserved}`);
+    console.log(`  Students             : ${Object.keys(people.studentIdByIndex).length}`);
+    console.log(`  Employees            : ${Object.keys(people.employeeIdByKode).length}`);
+    console.log(`  Payroll runs         : ${payroll.payrollRunCount}`);
+    console.log(`  Invoices (paid+live) : ${invoices.paidInvoiceCount + invoices.liveInvoiceCount}`);
+    console.log(`  Xendit live sessions : ${invoices.xenditCallsMade}`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 main().catch((err) => {

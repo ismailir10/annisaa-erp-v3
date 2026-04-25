@@ -207,6 +207,33 @@ npm run lint
 
 **Deployment:** Vercel builds via [`scripts/vercel-build.sh`](./scripts/vercel-build.sh); `prisma migrate deploy` runs on both `staging` and `main` refs. Preview branches (`feat/*`) use the staging DB directly and skip migrate deploy. CI (GitHub Actions) runs three required checks on every PR: `Lint, Typecheck & Test` (includes RLS + API-auth coverage guards), `Build`, and `Playwright E2E`.
 
+### Reseeding staging
+
+When the staging database has drifted or needs a fresh realistic dataset, the operator can rebuild it from scratch via `scripts/reseed-staging.ts`. The script wipes every application row, deletes non-preserved Supabase auth users, then rebuilds a multi-year dataset (~200 students, ~28 employees, 22 payroll runs, full attendance + journal history, and live Xendit sandbox sessions for the most-recent invoices).
+
+**Take a manual Supabase snapshot before running.** Use the staging project's dashboard → Database → Backups → "Create backup". The script reminds the operator on every run, but cannot take the snapshot itself.
+
+Required environment variables:
+
+```bash
+STAGING_CONFIRM=yes
+STAGING_SUPABASE_REF=<staging-project-ref>          # e.g. "abcde12345"
+NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co  # must match the ref above
+DATABASE_URL=<staging Postgres pooler URL>
+SUPABASE_SERVICE_ROLE_KEY=<staging service role>
+XENDIT_SECRET_KEY=xnd_development_<sandbox-key>     # SANDBOX prefix enforced
+```
+
+The guard refuses to run if any var is missing, the Supabase URL host doesn't begin with the staging ref, the staging ref contains a "prod"/"production"/"live" substring, or the Xendit key isn't a sandbox key. There is no way to point the script at production.
+
+```bash
+npm run reseed:staging
+```
+
+Six preserved test accounts are kept across reseeds (auth UUIDs reused if present, created if missing): `ismailir10@gmail.com` (SUPER_ADMIN), `wirarajaisme@gmail.com` (SCHOOL_ADMIN), `ismail10rabbanii@gmail.com` + `wirarajaism@gmail.com` (TEACHER, employees IR01/WR03), `rightjet.hq@gmail.com` (GUARDIAN → Bilal Hakim), `commandprompt.adhan@gmail.com` (GUARDIAN → Ahmad Faris Abdullah).
+
+To roll back a botched reseed, restore the manual Supabase snapshot via the dashboard. The script is destructive and idempotent — re-running it after a partial run continues from a consistent wiped-then-seeded state.
+
 ---
 
 ## License
