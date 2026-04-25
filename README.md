@@ -232,7 +232,9 @@ npm run reseed:staging
 
 Six preserved test accounts are kept across reseeds (auth UUIDs reused if present, created if missing): `ismailir10@gmail.com` (SUPER_ADMIN), `wirarajaisme@gmail.com` (SCHOOL_ADMIN), `ismail10rabbanii@gmail.com` + `wirarajaism@gmail.com` (TEACHER, employees IR01/WR03), `rightjet.hq@gmail.com` (GUARDIAN → Bilal Hakim), `commandprompt.adhan@gmail.com` (GUARDIAN → Ahmad Faris Abdullah).
 
-To roll back a botched reseed, restore the manual Supabase snapshot via the dashboard. The script is destructive and idempotent — re-running it after a partial run continues from a consistent wiped-then-seeded state.
+To roll back a botched reseed, restore the manual Supabase snapshot via the dashboard.
+
+**Partial failure:** if the script crashes after the "wiping application data" stage but before completing, **restore the snapshot before re-running**. The wipe is committed by that point and re-running directly will fail with a duplicate-key error on Tenant creation (`t_annisaa` already exists). The script does not auto-rewipe — that protects against accidentally re-truncating a successful run.
 
 ---
 

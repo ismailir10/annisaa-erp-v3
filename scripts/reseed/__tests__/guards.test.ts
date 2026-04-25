@@ -5,7 +5,7 @@ const okEnv = {
   STAGING_CONFIRM: "yes",
   STAGING_SUPABASE_REF: "abcde12345",
   NEXT_PUBLIC_SUPABASE_URL: "https://abcde12345.supabase.co",
-  DATABASE_URL: "postgres://user:pass@host:5432/db",
+  DATABASE_URL: "postgres://postgres.abcde12345:pass@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres",
   SUPABASE_SERVICE_ROLE_KEY: "eyJservice",
   XENDIT_SECRET_KEY: "xnd_development_AAA",
 };
@@ -83,6 +83,31 @@ describe("validateReseedEnv", () => {
     const res = validateReseedEnv({ ...okEnv, XENDIT_SECRET_KEY: "" });
     expect(res.ok).toBe(false);
     expect(res.errors.some((e) => e.includes("XENDIT_SECRET_KEY"))).toBe(true);
+  });
+
+  it("accepts DATABASE_URL pointing at the direct Supabase host", () => {
+    const res = validateReseedEnv({
+      ...okEnv,
+      DATABASE_URL:
+        "postgres://postgres:pass@db.abcde12345.supabase.co:5432/postgres",
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("rejects DATABASE_URL whose host/username doesn't reference the staging ref (split-brain)", () => {
+    const res = validateReseedEnv({
+      ...okEnv,
+      DATABASE_URL:
+        "postgres://postgres.zzzzzzzzzzzz:pass@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres",
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.includes("split-brain"))).toBe(true);
+  });
+
+  it("rejects malformed DATABASE_URL", () => {
+    const res = validateReseedEnv({ ...okEnv, DATABASE_URL: "not a url" });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.includes("not a valid URL"))).toBe(true);
   });
 
   it("rejects a missing DATABASE_URL", () => {

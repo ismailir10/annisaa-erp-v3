@@ -88,7 +88,9 @@ export async function seedOperations(
   opts: { seed?: number; today?: string } = {},
 ): Promise<SeedOperationsResult> {
   const seed = opts.seed ?? 84;
-  const today = opts.today ?? "2026-04-25";
+  // Default to *now* so re-runs after the cycle landing date keep extending
+  // the attendance window. Tests always pass an explicit `today`.
+  const today = opts.today ?? new Date().toISOString().slice(0, 10);
   const rng = createRng(seed);
 
   // ── Student attendance for 2025/26 (current year).

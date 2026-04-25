@@ -62,8 +62,27 @@ export function validateReseedEnv(env: GuardEnv): GuardResult {
     );
   }
 
-  if (!env.DATABASE_URL?.trim()) {
+  const databaseUrl = env.DATABASE_URL?.trim();
+  if (!databaseUrl) {
     errors.push("DATABASE_URL is required.");
+  } else if (stagingRef) {
+    // Cross-check: DATABASE_URL must reference the same staging project.
+    // Supabase direct hosts use `db.<ref>.supabase.co`.
+    // Supabase pooler URLs put the ref in the username: `postgres.<ref>@aws-0-…pooler.supabase.com`.
+    let parsed: URL | null = null;
+    try {
+      parsed = new URL(databaseUrl);
+    } catch {
+      errors.push(`DATABASE_URL is not a valid URL.`);
+    }
+    if (parsed) {
+      const haystack = `${parsed.host}|${parsed.username}`.toLowerCase();
+      if (!haystack.includes(stagingRef)) {
+        errors.push(
+          `DATABASE_URL does not contain staging ref '${stagingRef}'. Refusing to run — possible split-brain (auth wipe in staging Supabase, TRUNCATE elsewhere).`,
+        );
+      }
+    }
   }
 
   if (!env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
