@@ -56,9 +56,6 @@ Three issues surfaced on the parent portal: (1) tagihan (invoice) nominal text o
 - Task 2: gates passed (`npm run build` clean, `npx vitest run` 460 pass / 42 todo / 2 skip). Cross-checked design-system.html typography scale — `text-2xl` (24px) is the immediate step below `text-display` (32px), correct mobile fallback for currency tokens.
 - Task 3: gates passed (`npm run build` clean, `npx vitest run` 460 pass / 42 todo / 2 skip). Cross-checked design-system.html card recipe + `.claude/standards/portal.md:232` (`Card padding | p-4 | md:p-6`) — all 5 swaps now match the canonical token. Sheet wrapper (`SheetContent` lines 119/138/337 in invoice-detail-sheet) intentionally untouched, retains its own padding scale per portal.md sheet rule.
 
-## Verification
-<filled by /build>
-
 ## Ship Notes
 - **No migrations.** Pure code changes — new route, template, className edits.
 - **No new env vars.** PDF route reuses `NEXT_PUBLIC_APP_URL` (already configured) for the school-logo image.
