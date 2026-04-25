@@ -104,7 +104,8 @@ async function callXenditWithBackoff(
       const msg = err instanceof Error ? err.message : String(err);
       const isRateLimit = /429|rate/i.test(msg);
       if (!isRateLimit || attempt > maxRetries) throw err;
-      await sleep(2000 * 2 ** (attempt - 1));
+      // Sandbox uses minute-window rate limits; back off generously.
+      await sleep(15_000 * 2 ** (attempt - 1));
     }
   }
 }
@@ -135,7 +136,7 @@ export async function seedInvoices(
     opts.successReturnUrl ?? "https://annisaa-erp-v3.vercel.app/payment/success";
   const cancelReturnUrl =
     opts.cancelReturnUrl ?? "https://annisaa-erp-v3.vercel.app/payment/cancel";
-  const concurrency = opts.xenditConcurrency ?? 5;
+  const concurrency = opts.xenditConcurrency ?? 2;
 
   const periods = buildInvoicePeriods();
   const recordedBy = people.userIdByPreservedEmail["ismailir10@gmail.com"];
@@ -358,7 +359,7 @@ export async function seedInvoices(
           const existing = await prisma.invoice.findUnique({
             where: { id: job.invoiceId },
           });
-          if (existing?.xenditSessionId) {
+          if (existing?.xenditPaymentUrl) {
             xenditCallsSkipped++;
             continue;
           }
@@ -366,15 +367,14 @@ export async function seedInvoices(
           await prisma.invoice.update({
             where: { id: job.invoiceId },
             data: {
-              xenditSessionId: session.id,
+              xenditSessionId: session.id ?? null,
               xenditPaymentUrl: session.payment_link_url,
               status: "SENT",
               sentAt: new Date(),
             },
           });
           xenditCallsMade++;
-          // Soft pace: ~5 rps total when concurrency=5.
-          await sleep(200);
+          await sleep(600); // safe sandbox pace
         }
       })(),
     );

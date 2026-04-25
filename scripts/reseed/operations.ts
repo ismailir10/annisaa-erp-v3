@@ -101,7 +101,13 @@ export async function seedOperations(
   });
   const y25Filtered = applyDensityRule(y25Days, today, 30);
 
-  let studentAttendanceCount = 0;
+  // ── Build all student attendance rows, then bulk-insert.
+  const stuAttRows: Array<{
+    studentId: string;
+    classSectionId: string;
+    date: string;
+    status: string;
+  }> = [];
   for (const s of studentPlan.filter((x) => x.status === "ACTIVE")) {
     const sectionId = org.classSectionIdByKey[
       sectionKey({
@@ -117,16 +123,17 @@ export async function seedOperations(
         `seedOperations: missing 2025/26 section for student ${s.index}`,
       );
     }
+    const sid = people.studentIdByIndex[s.index];
+    const seen = new Set<string>();
     for (const date of y25Filtered) {
-      await prisma.studentAttendance.create({
-        data: {
-          studentId: people.studentIdByIndex[s.index],
-          classSectionId: sectionId,
-          date,
-          status: pickStudentAttendanceStatus(rng),
-        },
+      if (seen.has(date)) continue; // defense-in-depth against dup dates
+      seen.add(date);
+      stuAttRows.push({
+        studentId: sid,
+        classSectionId: sectionId,
+        date,
+        status: pickStudentAttendanceStatus(rng),
       });
-      studentAttendanceCount++;
     }
   }
 
@@ -136,31 +143,39 @@ export async function seedOperations(
     end: "2025-06-20",
     holidayDates: HOLIDAY_DATES,
   });
-  const y24Filtered = applyDensityRule(y24Days, "2025-06-20", 0); // sample only
+  const y24Filtered = applyDensityRule(y24Days, "2025-06-20", 0);
   for (const s of studentPlan.filter((x) => x.status === "GRADUATED")) {
-    const y24Campus =
-      s.campusCode === "METLAND" ? s.campusCode : s.campusCode;
     const sectionId = org.classSectionIdByKey[
       sectionKey({
         academicYearName: "2024/2025",
-        campusCode: y24Campus,
+        campusCode: s.campusCode,
         programCode: "TKIT-B",
         sectionName: "",
         capacity: 0,
       })
     ];
     if (!sectionId) continue;
+    const sid = people.studentIdByIndex[s.index];
+    const seen = new Set<string>();
     for (const date of y24Filtered) {
-      await prisma.studentAttendance.create({
-        data: {
-          studentId: people.studentIdByIndex[s.index],
-          classSectionId: sectionId,
-          date,
-          status: pickStudentAttendanceStatus(rng),
-        },
+      if (seen.has(date)) continue;
+      seen.add(date);
+      stuAttRows.push({
+        studentId: sid,
+        classSectionId: sectionId,
+        date,
+        status: pickStudentAttendanceStatus(rng),
       });
-      studentAttendanceCount++;
     }
+  }
+  let studentAttendanceCount = 0;
+  for (let i = 0; i < stuAttRows.length; i += 1000) {
+    const batch = stuAttRows.slice(i, i + 1000);
+    const r = await prisma.studentAttendance.createMany({
+      data: batch,
+      skipDuplicates: true,
+    });
+    studentAttendanceCount += r.count;
   }
 
   // ── Employee AttendanceRecord 2024-07 → today (full density, school days).
@@ -170,36 +185,43 @@ export async function seedOperations(
     holidayDates: HOLIDAY_DATES,
   });
 
-  let employeeAttendanceCount = 0;
+  const empAttRows: Array<{
+    employeeId: string;
+    date: string;
+    status: string;
+    checkInTime: Date | null;
+    checkOutTime: Date | null;
+  }> = [];
   for (const e of employeePlan) {
+    const employeeId = people.employeeIdByKode[e.kode];
+    if (!employeeId) continue;
     const hireDate = new Date(`${e.hireDate}T00:00:00Z`);
+    const seen = new Set<string>();
     for (const date of empDays) {
       if (new Date(`${date}T00:00:00Z`) < hireDate) continue;
+      if (seen.has(date)) continue;
+      seen.add(date);
       const status = pickEmployeeAttendanceStatus(rng);
       const minute = rng.int(0, status === "LATE" ? 44 : 13);
       const checkInTime =
         status === "ABSENT" || status === "LEAVE"
           ? null
-          : new Date(
-              `${date}T${status === "LATE" ? "07" : "07"}:${String(
-                status === "LATE" ? minute : minute,
-              ).padStart(2, "0")}:00+07:00`,
-            );
+          : new Date(`${date}T07:${String(minute).padStart(2, "0")}:00+07:00`);
       const checkOutTime =
         status === "ABSENT" || status === "LEAVE"
           ? null
           : new Date(`${date}T16:${String(rng.int(0, 30)).padStart(2, "0")}:00+07:00`);
-      await prisma.attendanceRecord.create({
-        data: {
-          employeeId: people.employeeIdByKode[e.kode],
-          date,
-          status,
-          checkInTime,
-          checkOutTime,
-        },
-      });
-      employeeAttendanceCount++;
+      empAttRows.push({ employeeId, date, status, checkInTime, checkOutTime });
     }
+  }
+  let employeeAttendanceCount = 0;
+  for (let i = 0; i < empAttRows.length; i += 1000) {
+    const batch = empAttRows.slice(i, i + 1000);
+    const r = await prisma.attendanceRecord.createMany({
+      data: batch,
+      skipDuplicates: true,
+    });
+    employeeAttendanceCount += r.count;
   }
 
   // ── Student journal entries — last 14 school days × ACTIVE students × 3 random indicators.
@@ -215,7 +237,16 @@ export async function seedOperations(
     throw new Error("seedOperations: no preserved teacher User to attribute journal entries");
   }
 
-  let journalEntryCount = 0;
+  const journalRows: Array<{
+    tenantId: string;
+    studentId: string;
+    classSectionId: string;
+    indicatorId: string;
+    date: string;
+    scope: string;
+    checked: boolean;
+    recordedByUserId: string;
+  }> = [];
   for (const s of studentPlan.filter((x) => x.status === "ACTIVE")) {
     const sectionId = org.classSectionIdByKey[
       sectionKey({
@@ -227,27 +258,32 @@ export async function seedOperations(
       })
     ];
     for (const date of lastDays) {
-      // Pick 3 indicators (allow repeats — simpler than dedup).
       const picks = new Set<string>();
       while (picks.size < 3 && picks.size < indicatorIds.length) {
         picks.add(rng.pick(indicatorIds));
       }
       for (const indId of picks) {
-        await prisma.studentJournalEntry.create({
-          data: {
-            tenantId: org.tenantId,
-            studentId: people.studentIdByIndex[s.index],
-            classSectionId: sectionId,
-            indicatorId: indId,
-            date,
-            scope: "SCHOOL", // School-recorded indicators only for the seed.
-            checked: rng.bool(0.7),
-            recordedByUserId,
-          },
+        journalRows.push({
+          tenantId: org.tenantId,
+          studentId: people.studentIdByIndex[s.index],
+          classSectionId: sectionId,
+          indicatorId: indId,
+          date,
+          scope: "SCHOOL",
+          checked: rng.bool(0.7),
+          recordedByUserId,
         });
-        journalEntryCount++;
       }
     }
+  }
+  let journalEntryCount = 0;
+  for (let i = 0; i < journalRows.length; i += 1000) {
+    const batch = journalRows.slice(i, i + 1000);
+    const r = await prisma.studentJournalEntry.createMany({
+      data: batch,
+      skipDuplicates: true,
+    });
+    journalEntryCount += r.count;
   }
 
   return {

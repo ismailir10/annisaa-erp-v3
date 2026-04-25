@@ -25,8 +25,10 @@ import { validateReseedEnv, formatGuardErrors } from "./reseed/guards";
 import { ensurePreservedAuthUsers, adminAuthFrom } from "./reseed/users";
 import { wipeApplicationData } from "./reseed/wipe";
 import { seedOrg } from "./reseed/org";
+import { seedExtras } from "./reseed/extras";
 import { seedPeople } from "./reseed/people";
 import { seedOperations } from "./reseed/operations";
+import { seedAssessments } from "./reseed/assessments";
 import { seedPayroll } from "./reseed/payroll";
 import { seedInvoices } from "./reseed/invoices";
 
@@ -118,19 +120,31 @@ async function main() {
       `        truncated ${wipe.tablesWiped.length} tables, deleted ${wipe.authDeleted} auth users (${wipe.authPreserved} preserved).`,
     );
 
-    console.log("[reseed] (3/8) seeding org …");
+    console.log("[reseed] (3/9) seeding org …");
     const org = await seedOrg(prisma);
     console.log(
       `        tenant=${org.tenantId} | campuses=${Object.keys(org.campusIdByCode).length} | sections=${Object.keys(org.classSectionIdByKey).length}`,
     );
 
-    console.log("[reseed] (4/8) seeding people …");
+    console.log("[reseed] (4/9) seeding people …");
     const people = await seedPeople(prisma, org, auth.uuidByEmail);
     console.log(
       `        employees=${Object.keys(people.employeeIdByKode).length} | students=${Object.keys(people.studentIdByIndex).length} | enrollments(y24/y25)=${people.enrollmentCount.y24}/${people.enrollmentCount.y25} | teachingAssignments=${people.teachingAssignmentCount}`,
     );
 
-    console.log("[reseed] (5/8) seeding operations (attendance + journal) …");
+    console.log("[reseed] (5/9) seeding extras (org config + holidays + leave + admissions + parent notes) …");
+    const extras = await seedExtras(
+      prisma,
+      org,
+      people,
+      people.studentPlan,
+      people.employeePlan,
+    );
+    console.log(
+      `        holidays=${extras.holidayCount} | leaveRequests=${extras.leaveRequestCount} | admissions=${extras.admissionCount} | parentNotes=${extras.parentNoteCount}`,
+    );
+
+    console.log("[reseed] (6/9) seeding operations (attendance + journal) …");
     const ops = await seedOperations(
       prisma,
       org,
@@ -142,13 +156,19 @@ async function main() {
       `        studentAttendance=${ops.studentAttendanceCount} | employeeAttendance=${ops.employeeAttendanceCount} | journalEntries=${ops.journalEntryCount}`,
     );
 
-    console.log("[reseed] (6/8) seeding payroll …");
+    console.log("[reseed] (7/9) seeding assessments (rapor) …");
+    const assess = await seedAssessments(prisma, org, people, people.studentPlan);
+    console.log(
+      `        templates=${assess.templates} | indicators=${assess.indicators} | studentAssessments=${assess.studentAssessments} | scores=${assess.scores}`,
+    );
+
+    console.log("[reseed] (8/9) seeding payroll …");
     const payroll = await seedPayroll(prisma, org, people, people.employeePlan);
     console.log(
       `        runs=${payroll.payrollRunCount} | items=${payroll.payrollItemCount} | salaryValues=${payroll.salaryValueCount}`,
     );
 
-    console.log("[reseed] (7/8) seeding invoices + Xendit sessions …");
+    console.log("[reseed] (9/9) seeding invoices + Xendit sessions …");
     const invoices = await seedInvoices(
       prisma,
       org,
@@ -160,7 +180,7 @@ async function main() {
       `        paid=${invoices.paidInvoiceCount} | live=${invoices.liveInvoiceCount} | xenditCalls=${invoices.xenditCallsMade} (skipped ${invoices.xenditCallsSkipped})`,
     );
 
-    console.log("[reseed] (8/8) done.");
+    console.log("[reseed] done.");
     console.log("");
     console.log("Summary:");
     console.log(`  Tables truncated     : ${wipe.tablesWiped.length}`);
