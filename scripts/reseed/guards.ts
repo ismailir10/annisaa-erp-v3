@@ -27,19 +27,6 @@ export function validateReseedEnv(env: GuardEnv): GuardResult {
     );
   }
 
-  const stagingRef = env.STAGING_SUPABASE_REF?.trim().toLowerCase();
-  if (!stagingRef) {
-    errors.push(
-      "STAGING_SUPABASE_REF is required (the Supabase project ref for the staging project, e.g. 'abcde12345').",
-    );
-  } else if (
-    PROD_REF_MARKERS.some((m) => stagingRef.toLowerCase().includes(m))
-  ) {
-    errors.push(
-      `STAGING_SUPABASE_REF='${stagingRef}' contains a prod marker. Refusing to run.`,
-    );
-  }
-
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   if (!supabaseUrl) {
     errors.push("NEXT_PUBLIC_SUPABASE_URL is required.");
@@ -54,6 +41,26 @@ export function validateReseedEnv(env: GuardEnv): GuardResult {
         `NEXT_PUBLIC_SUPABASE_URL='${supabaseUrl}' is not a valid URL.`,
       );
     }
+  }
+
+  // Auto-derive STAGING_SUPABASE_REF from the Supabase URL host when unset.
+  // Pattern: `<ref>.supabase.co` or `<ref>.supabase.in`.
+  let stagingRef = env.STAGING_SUPABASE_REF?.trim().toLowerCase();
+  if (!stagingRef && host) {
+    const m = host.match(/^([a-z0-9-]+)\.supabase\.(co|in)$/i);
+    if (m) stagingRef = m[1].toLowerCase();
+  }
+
+  if (!stagingRef) {
+    errors.push(
+      "STAGING_SUPABASE_REF could not be determined. Either set it explicitly, or supply NEXT_PUBLIC_SUPABASE_URL pointing at a `<ref>.supabase.co` host.",
+    );
+  } else if (
+    PROD_REF_MARKERS.some((m) => stagingRef!.toLowerCase().includes(m))
+  ) {
+    errors.push(
+      `STAGING_SUPABASE_REF='${stagingRef}' contains a prod marker. Refusing to run.`,
+    );
   }
 
   if (host && stagingRef && !host.startsWith(`${stagingRef}.`)) {

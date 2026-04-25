@@ -213,22 +213,32 @@ When the staging database has drifted or needs a fresh realistic dataset, the op
 
 **Take a manual Supabase snapshot before running.** Use the staging project's dashboard → Database → Backups → "Create backup". The script reminds the operator on every run, but cannot take the snapshot itself.
 
-Required environment variables:
+`.env.local` is reserved for local SQLite demo mode — its values do not point at staging. Reseed uses a dedicated, gitignored `.env.staging` file pulled from Vercel:
 
 ```bash
-STAGING_CONFIRM=yes
-STAGING_SUPABASE_REF=<staging-project-ref>          # e.g. "abcde12345"
-NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co  # must match the ref above
-DATABASE_URL=<staging Postgres pooler URL>
-SUPABASE_SERVICE_ROLE_KEY=<staging service role>
-XENDIT_SECRET_KEY=xnd_development_<sandbox-key>     # SANDBOX prefix enforced
+# one-time per env change in Vercel
+npx vercel link            # if not yet linked
+npx vercel env pull .env.staging --environment=preview
 ```
 
-The guard refuses to run if any var is missing, the Supabase URL host doesn't begin with the staging ref, the staging ref contains a "prod"/"production"/"live" substring, or the Xendit key isn't a sandbox key. There is no way to point the script at production.
+That populates `NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `XENDIT_SECRET_KEY` (sandbox) into `.env.staging`. The npm script auto-loads it via `tsx --env-file-if-exists=.env.staging`, so the operator command is just:
 
 ```bash
-npm run reseed:staging
+STAGING_CONFIRM=yes npm run reseed:staging
 ```
+
+`STAGING_CONFIRM=yes` is the destructive-op gate — typed at the prompt, never persisted. `STAGING_SUPABASE_REF` is auto-derived from the `<ref>.supabase.co` host so it doesn't need to live in `.env.staging` either.
+
+| Var | Source |
+|---|---|
+| `STAGING_CONFIRM` | typed at the prompt |
+| `NEXT_PUBLIC_SUPABASE_URL` | `.env.staging` (`npx vercel env pull`) |
+| `DATABASE_URL` | `.env.staging` |
+| `SUPABASE_SERVICE_ROLE_KEY` | `.env.staging` |
+| `XENDIT_SECRET_KEY` | `.env.staging` |
+| `STAGING_SUPABASE_REF` | auto-derived from Supabase URL host (override only if you need to) |
+
+The guard still refuses to run if the Supabase URL doesn't resolve to a `<ref>.supabase.co` host, the resolved ref contains a "prod"/"production"/"live" substring, the Xendit key isn't a `xnd_development_*` sandbox key, or the `DATABASE_URL` host/username doesn't reference the same ref (split-brain check). There is no way to point the script at production.
 
 Six preserved test accounts are kept across reseeds (auth UUIDs reused if present, created if missing): `ismailir10@gmail.com` (SUPER_ADMIN), `wirarajaisme@gmail.com` (SCHOOL_ADMIN), `ismail10rabbanii@gmail.com` + `wirarajaism@gmail.com` (TEACHER, employees IR01/WR03), `rightjet.hq@gmail.com` (GUARDIAN → Bilal Hakim), `commandprompt.adhan@gmail.com` (GUARDIAN → Ahmad Faris Abdullah).
 
