@@ -121,7 +121,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
 
       {hasAnyOutstanding ? (
         <section
-          className="rounded-xl border bg-card p-5"
+          className="rounded-xl border bg-card p-4 md:p-6"
           style={{ borderColor: "var(--border)" }}
         >
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -144,7 +144,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
         </section>
       ) : (
         <section
-          className="rounded-xl border p-5"
+          className="rounded-xl border p-4 md:p-6"
           style={{
             background: "var(--celebration-gold-subtle)",
             borderColor: "var(--celebration-gold)",
