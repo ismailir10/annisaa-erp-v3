@@ -64,7 +64,11 @@ export async function seedPayroll(
   employeePlan: EmployeePlan[],
 ): Promise<SeedPayrollResult> {
   // ── EmployeeSalaryValue: every employee × every salary component.
-  let salaryValueCount = 0;
+  const salaryValueRows: Array<{
+    employeeId: string;
+    componentDefId: string;
+    value: number;
+  }> = [];
   for (const e of employeePlan) {
     const employeeId = people.employeeIdByKode[e.kode];
     if (!employeeId) continue;
@@ -73,30 +77,27 @@ export async function seedPayroll(
     for (const comp of salaryComponents) {
       let value = 0;
       switch (comp.code) {
-        case "gaji_pokok":
-          value = base;
-          break;
-        case "tunjangan_transport":
-          value = TUNJANGAN_TRANSPORT;
-          break;
-        case "tunjangan_msk":
-          value = TUNJANGAN_KEHADIRAN;
-          break;
-        case "deduksi_bpjs":
-          value = POTONGAN_BPJS;
-          break;
-        default:
-          value = 0; // Other components default zero — admin can set later.
+        case "gaji_pokok": value = base; break;
+        case "tunjangan_transport": value = TUNJANGAN_TRANSPORT; break;
+        case "tunjangan_msk": value = TUNJANGAN_KEHADIRAN; break;
+        case "deduksi_bpjs": value = POTONGAN_BPJS; break;
+        default: value = 0;
       }
-      await prisma.employeeSalaryValue.create({
-        data: {
-          employeeId,
-          componentDefId: org.salaryDefIdByCode[comp.code],
-          value,
-        },
+      salaryValueRows.push({
+        employeeId,
+        componentDefId: org.salaryDefIdByCode[comp.code],
+        value,
       });
-      salaryValueCount++;
     }
+  }
+  let salaryValueCount = 0;
+  for (let i = 0; i < salaryValueRows.length; i += 1000) {
+    const batch = salaryValueRows.slice(i, i + 1000);
+    const r = await prisma.employeeSalaryValue.createMany({
+      data: batch,
+      skipDuplicates: true,
+    });
+    salaryValueCount += r.count;
   }
 
   // ── PayrollRun + PayrollItem + PayrollItemLine.
@@ -114,6 +115,14 @@ export async function seedPayroll(
     const periodYear = Number(period.periodStart.slice(0, 4));
     const periodMonth = Number(period.periodStart.slice(5, 7));
 
+    const approvedAt =
+      period.status === "APPROVED" ? new Date(period.periodEnd) : null;
+    const exportedAt = approvedAt
+      ? new Date(approvedAt.getTime() + 24 * 60 * 60 * 1000)
+      : null;
+    const slipsSentAt = approvedAt
+      ? new Date(approvedAt.getTime() + 2 * 24 * 60 * 60 * 1000)
+      : null;
     const run = await prisma.payrollRun.create({
       data: {
         tenantId: org.tenantId,
@@ -123,60 +132,90 @@ export async function seedPayroll(
         status: period.status,
         createdBy: approvedByUserId,
         approvedBy: period.status === "APPROVED" ? approvedByUserId : null,
-        approvedAt: period.status === "APPROVED" ? new Date(period.periodEnd) : null,
+        approvedAt,
+        exportedAt,
+        slipsSentAt,
       },
     });
     payrollRunCount++;
 
-    // Items only for employees hired by the period start.
+    // Build all PayrollItem rows for this run + their lines.
+    const itemsForRun: Array<{
+      base: number;
+      employeeId: string;
+      gross: number;
+      deductions: number;
+      net: number;
+    }> = [];
     for (const e of employeePlan) {
       const employeeId = people.employeeIdByKode[e.kode];
       if (!employeeId) continue;
       const hireY = Number(e.hireDate.slice(0, 4));
       const hireM = Number(e.hireDate.slice(5, 7));
-      if (hireY > periodYear || (hireY === periodYear && hireM > periodMonth)) {
-        continue;
-      }
-
+      if (hireY > periodYear || (hireY === periodYear && hireM > periodMonth)) continue;
       const base = baseSalaryFor(e.jabatan, hireY);
       const gross = base + TUNJANGAN_TRANSPORT + TUNJANGAN_KEHADIRAN;
-      const deductions = POTONGAN_BPJS;
-      const net = gross - deductions;
-
-      const item = await prisma.payrollItem.create({
-        data: {
-          payrollRunId: run.id,
-          employeeId,
-          grossAmount: gross,
-          deductions,
-          netAmount: net,
-        },
+      itemsForRun.push({
+        base,
+        employeeId,
+        gross,
+        deductions: POTONGAN_BPJS,
+        net: gross - POTONGAN_BPJS,
       });
-      payrollItemCount++;
+    }
 
-      // Lines for the four populated components.
-      const lineComponents: Array<{
-        code: string;
-        amount: number;
-      }> = [
-        { code: "gaji_pokok", amount: base },
-        { code: "tunjangan_transport", amount: TUNJANGAN_TRANSPORT },
-        { code: "tunjangan_msk", amount: TUNJANGAN_KEHADIRAN },
-        { code: "deduksi_bpjs", amount: POTONGAN_BPJS },
+    // createMany for items, then re-query their ids by (runId, employeeId)
+    // so we can attach lines (createMany doesn't return ids).
+    await prisma.payrollItem.createMany({
+      data: itemsForRun.map((i) => ({
+        payrollRunId: run.id,
+        employeeId: i.employeeId,
+        grossAmount: i.gross,
+        deductions: i.deductions,
+        netAmount: i.net,
+        emailSent: period.status === "APPROVED",
+      })),
+      skipDuplicates: true,
+    });
+    payrollItemCount += itemsForRun.length;
+    const persistedItems = await prisma.payrollItem.findMany({
+      where: { payrollRunId: run.id },
+      select: { id: true, employeeId: true },
+    });
+    const itemIdByEmp = new Map(persistedItems.map((p) => [p.employeeId, p.id]));
+
+    const lineRows: Array<{
+      payrollItemId: string;
+      componentDefId: string;
+      labelSnapshot: string;
+      categorySnapshot: string;
+      calculatedAmount: number;
+      finalAmount: number;
+    }> = [];
+    for (const it of itemsForRun) {
+      const itemId = itemIdByEmp.get(it.employeeId);
+      if (!itemId) continue;
+      const lineSpecs: Array<[string, number]> = [
+        ["gaji_pokok", it.base],
+        ["tunjangan_transport", TUNJANGAN_TRANSPORT],
+        ["tunjangan_msk", TUNJANGAN_KEHADIRAN],
+        ["deduksi_bpjs", POTONGAN_BPJS],
       ];
-      for (const lc of lineComponents) {
-        const def = salaryComponents.find((s) => s.code === lc.code)!;
-        await prisma.payrollItemLine.create({
-          data: {
-            payrollItemId: item.id,
-            componentDefId: org.salaryDefIdByCode[lc.code],
-            labelSnapshot: def.label,
-            categorySnapshot: def.category,
-            calculatedAmount: lc.amount,
-            finalAmount: lc.amount,
-          },
+      for (const [code, amount] of lineSpecs) {
+        const def = salaryComponents.find((s) => s.code === code)!;
+        lineRows.push({
+          payrollItemId: itemId,
+          componentDefId: org.salaryDefIdByCode[code],
+          labelSnapshot: def.label,
+          categorySnapshot: def.category,
+          calculatedAmount: amount,
+          finalAmount: amount,
         });
       }
+    }
+    for (let i = 0; i < lineRows.length; i += 1000) {
+      const batch = lineRows.slice(i, i + 1000);
+      await prisma.payrollItemLine.createMany({ data: batch, skipDuplicates: true });
     }
   }
 
