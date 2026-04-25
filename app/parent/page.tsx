@@ -262,7 +262,7 @@ export default async function ParentDashboard() {
                   <Receipt size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-currency text-display font-bold leading-none tracking-tight text-status-absent-text">
+                  <p className="font-currency text-2xl sm:text-display font-bold leading-none tracking-tight text-status-absent-text">
                     {formatRupiah(unpaidTotal)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">

@@ -32,10 +32,10 @@ Three issues surfaced on the parent portal: (1) tagihan (invoice) nominal text o
 - **Independent.** No dependency on Tasks 2/3.
 
 ### Task 2 — Responsive currency display on parent home + invoices
-- [ ] Edit `app/parent/page.tsx:265` — change focal amount class from `text-display` to responsive `text-2xl sm:text-display`. Keep `font-currency`, `tabular-nums`, `leading-none`, `tracking-tight`. Add `break-all` fallback only if measurements still overflow; prefer responsive scale alone.
-- [ ] Edit `app/parent/invoices/client.tsx:130` — same change.
-- [ ] Edit `app/parent/invoices/invoice-detail-sheet.tsx` (focal amount near line 155 per explore) — same responsive scale.
-- [ ] Acceptance: 375px viewport, amount `Rp 99.999.999` does not overflow card on all three surfaces.
+- [x] Edit `app/parent/page.tsx:265` — change focal amount class from `text-display` to responsive `text-2xl sm:text-display`. Keep `font-currency`, `tabular-nums`, `leading-none`, `tracking-tight`. Add `break-all` fallback only if measurements still overflow; prefer responsive scale alone.
+- [x] Edit `app/parent/invoices/client.tsx:130` — same change.
+- [x] Edit `app/parent/invoices/invoice-detail-sheet.tsx` (focal amount near line 155 per explore) — same responsive scale.
+- [x] Acceptance: 375px viewport, amount `Rp 99.999.999` does not overflow card on all three surfaces.
 - **Independent.** No dependency on Task 1.
 
 ### Task 3 — Design-system consistency sweep
@@ -48,9 +48,11 @@ Three issues surfaced on the parent portal: (1) tagihan (invoice) nominal text o
 ## Implementation
 - Subagent plan: Tasks 1 and 2 dispatched in parallel (no shared files); Task 3 sequential after (touches Task 2 files).
 - Task 1: kwitansi PDF — `app/api/guardian/invoices/[id]/pdf/route.ts` + `lib/pdf/invoice-receipt.tsx`. New route mirrors guardian access pattern from sibling `[id]/route.ts` (session+role gate, parent.findFirst by parentId/email fallback, childIds.has(studentId), tenantId match). Paid-status guard returns 404 (no draft leak). Template reuses salary-slip visual tokens (TEAL/DARK, A4, 40px padding, formatRupiah). Dual code-review (feature-dev + superpowers): no blockers — IDOR safe, no info disclosure (identical 404 across negative cases), no logo URL injection (hardcoded NEXT_PUBLIC_APP_URL), Decimal→Number safe within IDR range. design-system: PDF visual tokens match design-system.html §brand-colors (TEAL `#5DB4B8`).
+- Task 2: responsive currency display — `app/parent/page.tsx:265`, `app/parent/invoices/client.tsx:130`, `app/parent/invoices/invoice-detail-sheet.tsx:155`. Single token swap on focal Rp amounts: `text-display` → `text-2xl sm:text-display` (24px mobile → 32px sm+). All sibling classes preserved. Code-review (feature-dev): no class drops, valid Tailwind, grep confirms no missed instances of the same pattern in `app/parent/**`.
 
 ## Verification
 - Task 1: gates passed (`npm run build` compiled clean, route registered as `ƒ /api/guardian/invoices/[id]/pdf`; `npx vitest run` 460 pass / 42 todo / 2 skip). Cross-checked design-system.html brand-colors section for kwitansi PDF accent tokens.
+- Task 2: gates passed (`npm run build` clean, `npx vitest run` 460 pass / 42 todo / 2 skip). Cross-checked design-system.html typography scale — `text-2xl` (24px) is the immediate step below `text-display` (32px), correct mobile fallback for currency tokens.
 
 ## Verification
 <filled by /build>

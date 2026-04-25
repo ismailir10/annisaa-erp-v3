@@ -127,7 +127,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Belum dibayar
           </p>
-          <p className="mt-1 font-currency text-display font-bold leading-none tracking-tight text-status-absent-text">
+          <p className="mt-1 font-currency text-2xl sm:text-display font-bold leading-none tracking-tight text-status-absent-text">
             {formatRupiah(summary.total)}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
