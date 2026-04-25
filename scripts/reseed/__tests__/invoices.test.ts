@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { buildInvoicePeriods, computeInvoiceTotal } from "../invoices";
+import {
+  buildInvoicePeriods,
+  computeInvoiceTotal,
+  assertXenditReferencingSmokeRow,
+} from "../invoices";
 
 describe("buildInvoicePeriods", () => {
   const periods = buildInvoicePeriods();
@@ -60,6 +64,50 @@ describe("Xendit referenceId format", () => {
     expect(src).not.toMatch(/staging[-_]/);
     expect(src).not.toMatch(/referenceId:\s*['"`][^'"`]+['"`]\s*\+/);
     expect(src).toMatch(/referenceId:\s*inv\.id/);
+  });
+});
+
+describe("assertXenditReferencingSmokeRow", () => {
+  it("throws when no Xendit-linked invoice exists (full rate-limit scenario)", () => {
+    expect(() => assertXenditReferencingSmokeRow(null)).toThrow(
+      /zero invoices with xenditPaymentUrl/,
+    );
+  });
+
+  it("throws when invoice id is prefixed (regression guard)", () => {
+    expect(() =>
+      assertXenditReferencingSmokeRow({
+        id: "staging-tagihan-cm9abc12345678901234",
+        xenditPaymentUrl: "https://dev.xen.to/aa",
+      }),
+    ).toThrow(/not a bare CUID/);
+  });
+
+  it("throws when invoice id is empty string", () => {
+    expect(() =>
+      assertXenditReferencingSmokeRow({
+        id: "",
+        xenditPaymentUrl: "https://dev.xen.to/aa",
+      }),
+    ).toThrow(/not a bare CUID/);
+  });
+
+  it("throws when xenditPaymentUrl is null despite passing query filter (defense)", () => {
+    expect(() =>
+      assertXenditReferencingSmokeRow({
+        id: "cm9abc1234567890abcde",
+        xenditPaymentUrl: null,
+      }),
+    ).toThrow(/null xenditPaymentUrl/);
+  });
+
+  it("passes for valid CUID + non-null URL", () => {
+    expect(() =>
+      assertXenditReferencingSmokeRow({
+        id: "cm9abc1234567890abcde",
+        xenditPaymentUrl: "https://dev.xen.to/aa",
+      }),
+    ).not.toThrow();
   });
 });
 
