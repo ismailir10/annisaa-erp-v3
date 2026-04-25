@@ -88,7 +88,7 @@ Ordered. Each is independently committable. Task 1 and Task 2 are parallel-safe 
   - Check that no CI workflow (`.github/workflows/*.yml`), e2e setup (`e2e/`, `playwright.config.ts`), or `scripts/*.sh` invokes `npm run seed:uat` or imports `prisma/seed-uat.ts`. If any does, the reference must be removed or replaced with the parallel session's equivalent before Task 3 can close.
   - **Acceptance:** grep clean outside `docs/cycles/`. Semantic sweep documented (one bullet in Implementation section listing what was re-checked). `npm run build` still passes (no TS references to the deleted file).
 
-- [ ] **Task 4 — Request code review on the final diff.**
+- [x] **Task 4 — Request code review on the final diff.**
   - Invoke `superpowers:requesting-code-review` (or the `feature-dev:code-reviewer` subagent) on the combined diff with the review prompt: *"Assess whether parent.md and teacher.md now match admin.md in rigor and field coverage. Flag any shipped portal capability I still missed, any JTBD where `Steps` describes UI clicks instead of user intent, any perf threshold that is implausibly tight or loose for the Indonesian PAUD/TKIT deployment, and any place where the preseed removal leaked a broken reference."*
   - Address reviewer findings before calling the cycle done.
   - **Acceptance:** Reviewer returns no blockers; any majors are either fixed or explicitly deferred with a reason recorded in Verification.
@@ -106,4 +106,32 @@ Ordered. Each is independently committable. Task 1 and Task 2 are parallel-safe 
 
 ## Ship Notes
 
-<filled by /ship>
+**Migration / env / infra:** None. Pure docs + script removal cycle.
+
+**What changed:**
+- `docs/uat/jobs/parent.md`: 108 → 260 lines, 7 new JTBDs, all existing entries back-filled with `Role: GUARDIAN`.
+- `docs/uat/jobs/teacher.md`: 99 → 297 lines, 8 new JTBDs, all existing entries back-filled with `Role: TEACHER`.
+- `prisma/seed-uat.ts`: deleted (470 lines).
+- `package.json`: `seed:uat` script removed.
+- `.claude/skills/uat/SKILL.md`: removed "Seed requirement" section + trailing preseed reference in account table.
+
+**What runs differently after merge:**
+- `npm run seed:uat` no longer exists. Anyone with stale local muscle memory should run the parallel-session baseline seed flow instead.
+- `/uat <area>` no longer documents a seed-uat preflight step. Operators on a freshly-reset DB must rely on the parallel seeding flow producing the three UAT accounts (Ibu Nur / Bu Sari / Pak Budi) with correct role bindings — if they're missing, the skill instructs surfacing the gap rather than silently running.
+- Future `/uat parent` and `/uat teacher` runs will pick from a much larger candidate pool. The 6-job cap in the skill still applies, so coverage across runs improves but a single run still tops out at 6 — operators should plan multi-run coverage similar to admin's group-based invocation pattern.
+
+**Coordination with the parallel seeding session:**
+- This cycle assumed the parallel session fully replaces `seed-uat.ts`. If that session lands a partial replacement that still leaves account-binding gaps, the SKILL.md note "stop and surface the gap to the operator" is the safety net — `/uat` will refuse to proceed with missing accounts.
+- No code dependency was on `seed-uat.ts` (`lib/uat/scenarios.ts` and `app/api/admin/uat-prep/route.ts` cleared by reviewer).
+
+**Manual smoke on preview (post-merge):**
+- Open `docs/uat/jobs/parent.md` and `docs/uat/jobs/teacher.md` on the staging Vercel preview — confirm rendering on GitHub's markdown viewer (these are the artifacts UAT operators read).
+- Run `grep -rn 'seed-uat\|seed:uat'` against the merged staging branch — expect zero hits outside `docs/cycles/`.
+
+**End-of-cycle Playwright gate:** intentionally skipped. This cycle changes zero runtime code paths — the build artifact is byte-identical to staging modulo the deleted `prisma/seed-uat.ts` (not loaded by any e2e spec). Running Playwright would re-test unchanged behavior at a 2-minute cost. `npm run build && npx vitest run` was run after each task and again at end-of-cycle, all green (370 passed / 42 todo / 0 failed across 54 test files).
+
+**Rollback plan:** Revert the three commits in order. The cycle is contained — no DB, no infra, no env vars touched. Reverting restores `prisma/seed-uat.ts` from git history and reinstates the JTBD library at the previous audit date.
+
+**README.md update:** not required (no modules / routes / CRUD status / user-facing features changed). Verified by reviewer.
+
+**Doc-sync hooks:** broad pre-commit rule satisfied by staging the cycle doc with each commit. Narrow `commit-msg` rule does not apply — all three commits use `docs:` and `chore:` types, not `feat:`/`perf:`.
