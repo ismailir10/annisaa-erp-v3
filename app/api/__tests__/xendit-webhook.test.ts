@@ -1,13 +1,53 @@
+// Webhook handler contract tests for the rewritten T5 handler.
+// Mocks @/lib/db so no real DB hits.
+//
+// Coverage:
+//  1. 401 on missing/mismatched x-callback-token
+//  2. 400 on malformed JSON body
+//  3. duplicate eventId (P2002) → 200 { duplicate: true }
+//  4. payment_session.completed → invoice PAID + Payment row + PROCESSED
+//  5. payment_session.expired → invoice CANCELLED + xendit fields nulled
+//  6. unknown event → 200 IGNORED, no Invoice mutation
+//  7. invoice-not-found → 200 IGNORED:invoice_not_found
+//  8. mid-tx throw → DELETE WebhookEvent + 500
+//  9. body.id missing → eventId synthesized with payload sha256 suffix
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-process.env.XENDIT_WEBHOOK_TOKEN = "test-callback-token";
+const TOKEN = "test-callback-token-padding-32!!";
+process.env.XENDIT_WEBHOOK_TOKEN = TOKEN;
+
+vi.mock("@/lib/generated/prisma/client", () => {
+  // Defined inside the factory because vi.mock is hoisted; outer-scope refs
+  // are not yet initialized when the factory runs.
+  class FakeP2002 extends Error {
+    code = "P2002";
+    clientVersion = "test";
+    meta = {};
+    constructor(msg = "Unique constraint failed") {
+      super(msg);
+    }
+  }
+  return { Prisma: { PrismaClientKnownRequestError: FakeP2002 } };
+});
+
+// Re-derive a class with the same shape for use in test bodies (rejecting
+// with `new FakeP2002()` so the handler's instanceof check matches the mock).
+import { Prisma } from "@/lib/generated/prisma/client";
+const FakeP2002 = Prisma.PrismaClientKnownRequestError as unknown as new (
+  msg?: string,
+) => Error;
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    invoice: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
-    payment: { findFirst: vi.fn(), create: vi.fn(), findMany: vi.fn() },
-    $transaction: vi.fn(),
+    webhookEvent: {
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    invoice: { findUnique: vi.fn(), update: vi.fn() },
+    payment: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     $queryRaw: vi.fn(),
+    $transaction: vi.fn(),
   },
 }));
 
@@ -15,158 +55,278 @@ vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 
 import { POST } from "../xendit/webhook/route";
 
-function makeReq(body: unknown, token = "test-callback-token") {
-  return new Request("http://localhost:3000/api/xendit/webhook", {
+function makeReq(
+  body: unknown,
+  token: string | null = TOKEN,
+): Request {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) headers["x-callback-token"] = token;
+  return new Request("http://localhost/api/xendit/webhook", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-callback-token": token },
-    body: JSON.stringify(body),
+    headers,
+    body: typeof body === "string" ? body : JSON.stringify(body),
   });
 }
 
-describe("POST /api/xendit/webhook — end-to-end regression", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("marks invoice PAID via advisory-lock path (hashtext cast, not bit(64) bit-cast)", async () => {
+describe("POST /api/xendit/webhook (T5 contract)", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
     const { prisma } = await import("@/lib/db");
-    const invoiceId = "inv-uuid-1234";
-    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
-      id: invoiceId,
-      invoiceNumber: "INV-001",
-      status: "SENT",
-      totalDue: 100000,
-      totalPaid: 0,
-    } as never);
-
-    let queryRawArgs: unknown[] | null = null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (prisma.$transaction as any).mockImplementation(async (cb: (tx: unknown) => unknown) => {
-      const tx = {
-        $queryRaw: vi.fn().mockImplementation((strings: TemplateStringsArray, ...args: unknown[]) => {
-          queryRawArgs = [strings.join("?"), ...args];
-          return Promise.resolve([{ pg_advisory_xact_lock: "" }]);
+    vi.mocked(prisma.webhookEvent.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.webhookEvent.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.webhookEvent.delete).mockResolvedValue({} as never);
+    // Default $transaction proxies callback to the same prisma mocks.
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: prisma.$queryRaw,
+          invoice: prisma.invoice,
+          payment: prisma.payment,
         }),
-        invoice: {
-          findUnique: vi.fn().mockResolvedValue({ id: invoiceId, status: "SENT", totalDue: 100000, totalPaid: 0 }),
-          update: vi.fn().mockResolvedValue({}),
-        },
-        payment: {
-          findFirst: vi.fn().mockResolvedValue(null),
-          create: vi.fn().mockResolvedValue({ id: "p1" }),
-          findMany: vi.fn().mockResolvedValue([{ amount: 100000 }]),
-        },
-      };
-      return cb(tx);
-    });
-
-    const res = await POST(
-      makeReq({
-        event: "payment_session.completed",
-        data: {
-          status: "COMPLETED",
-          reference_id: invoiceId,
-          payment_id: "xnd-pay-1",
-          payment_session_id: "xnd-session-1",
-          amount: 100000,
-          channel_code: "VA_BCA",
-        },
-      }) as never
     );
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.status).toBe("PAID");
-    expect(queryRawArgs).not.toBeNull();
-    const args = queryRawArgs as unknown as unknown[];
-    const joined = args[0] as string;
-    expect(joined).toContain("hashtext");
-    expect(joined).not.toContain("bit(64)");
-    expect(args[1]).toBe(invoiceId);
   });
 
-  it("falls back to xenditSessionId lookup when reference_id misses", async () => {
-    const { prisma } = await import("@/lib/db");
-    const invoiceId = "inv-fallback-1";
-    const sessionId = "ps-stale-ref-1";
-
-    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
-      id: invoiceId,
-      invoiceNumber: "INV-FALLBACK",
-      status: "SENT",
-      totalDue: 50000,
-      totalPaid: 0,
-      xenditSessionId: sessionId,
-    } as never);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (prisma.$transaction as any).mockImplementation(async (cb: (tx: unknown) => unknown) => {
-      const tx = {
-        $queryRaw: vi.fn().mockResolvedValue([{ pg_advisory_xact_lock: "" }]),
-        invoice: {
-          findUnique: vi.fn().mockResolvedValue({
-            id: invoiceId,
-            status: "SENT",
-            totalDue: 50000,
-            totalPaid: 0,
-          }),
-          update: vi.fn().mockResolvedValue({}),
-        },
-        payment: {
-          findFirst: vi.fn().mockResolvedValue(null),
-          create: vi.fn().mockResolvedValue({ id: "p1" }),
-          findMany: vi.fn().mockResolvedValue([{ amount: 50000 }]),
-        },
-      };
-      return cb(tx);
-    });
-
-    const res = await POST(
-      makeReq({
-        event: "payment_session.completed",
-        data: {
-          status: "COMPLETED",
-          reference_id: "deleted-invoice-id",
-          payment_session_id: sessionId,
-          amount: 50000,
-        },
-      }) as never
-    );
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.status).toBe("PAID");
-    expect(prisma.invoice.findFirst).toHaveBeenCalledWith({
-      where: { xenditSessionId: sessionId },
-    });
+  it("401 when token is missing", async () => {
+    const res = await POST(makeReq({}, null) as never);
+    expect(res.status).toBe(401);
   });
 
-  it("returns 'Invoice not found' when both reference_id and session id miss", async () => {
-    const { prisma } = await import("@/lib/db");
-    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null);
-
+  it("401 when token mismatches (same length)", async () => {
     const res = await POST(
-      makeReq({
-        event: "payment_session.completed",
-        data: {
-          status: "COMPLETED",
-          reference_id: "no-such-invoice",
-          payment_session_id: "no-such-session",
-        },
-      }) as never
-    );
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.error).toBe("Invoice not found");
-  });
-
-  it("rejects request with invalid callback token (401)", async () => {
-    const res = await POST(
-      makeReq({ event: "payment_session.completed", data: {} }, "wrong-token-same-len") as never
+      makeReq({ event: "x" }, "wrong-token-padding-of-32-bytes!!") as never,
     );
     expect(res.status).toBe(401);
+  });
+
+  it("400 on malformed JSON body", async () => {
+    const res = await POST(makeReq("not-json{{") as never);
+    expect(res.status).toBe(400);
+    const { prisma } = await import("@/lib/db");
+    expect(prisma.webhookEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("duplicate eventId returns { duplicate: true } with 200", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.webhookEvent.create).mockRejectedValueOnce(
+      new FakeP2002(),
+    );
+    const res = await POST(
+      makeReq({
+        id: "evt-1",
+        event: "payment_session.completed",
+        data: { reference_id: "inv1", status: "COMPLETED" },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ duplicate: true });
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("completed event flips invoice to PAID + creates Payment + marks PROCESSED", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "SENT",
+      totalDue: 1000,
+      totalPaid: 0,
+      invoiceNumber: "INV-1",
+    } as never);
+    // Capture inner-tx spies so we can assert on the actual mutations.
+    const txInvoiceUpdate = vi.fn().mockResolvedValue({});
+    const txPaymentCreate = vi.fn().mockResolvedValue({ id: "p1" });
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "SENT",
+              totalDue: 1000,
+              totalPaid: 0,
+            }),
+            update: txInvoiceUpdate,
+          },
+          payment: {
+            findFirst: vi.fn().mockResolvedValue(null),
+            create: txPaymentCreate,
+            findMany: vi.fn().mockResolvedValue([{ amount: 1000 }]),
+          },
+        }),
+    );
+
+    const res = await POST(
+      makeReq({
+        id: "evt-2",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-1",
+          amount: 1000,
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "PAID" });
+    // Inner-tx mutations actually happened.
+    expect(txPaymentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          invoiceId: "inv1",
+          amount: 1000,
+          method: "XENDIT",
+          reference: "pay-1",
+        }),
+      }),
+    );
+    expect(txInvoiceUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "inv1" },
+        data: expect.objectContaining({ status: "PAID", totalPaid: 1000 }),
+      }),
+    );
+    // Outer audit row marked PROCESSED with invoice link.
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-2" },
+        data: expect.objectContaining({
+          status: "PROCESSED",
+          invoiceId: "inv1",
+        }),
+      }),
+    );
+  });
+
+  it("expired event flips invoice to CANCELLED + nulls xendit fields", async () => {
+    const { prisma } = await import("@/lib/db");
+    // Capture the inner-tx invoice.update spy to assert the mutation.
+    const txInvoiceUpdate = vi.fn().mockResolvedValue({});
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "SENT",
+              invoiceNumber: "INV-1",
+            }),
+            update: txInvoiceUpdate,
+          },
+        }),
+    );
+
+    const res = await POST(
+      makeReq({
+        id: "evt-3",
+        event: "payment_session.expired",
+        data: { reference_id: "inv1", status: "EXPIRED" },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "CANCELLED" });
+    // The actual mutation: status flipped + xendit fields nulled.
+    expect(txInvoiceUpdate).toHaveBeenCalledWith({
+      where: { id: "inv1" },
+      data: {
+        status: "CANCELLED",
+        xenditSessionId: null,
+        xenditPaymentUrl: null,
+      },
+    });
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-3" },
+        data: expect.objectContaining({ status: "PROCESSED" }),
+      }),
+    );
+  });
+
+  it("unknown event returns 200 IGNORED + does not touch invoice", async () => {
+    const { prisma } = await import("@/lib/db");
+    const res = await POST(
+      makeReq({
+        id: "evt-4",
+        event: "payment_method.activated",
+        data: { foo: "bar" },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ignored: true });
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-4" },
+        data: expect.objectContaining({ status: "IGNORED" }),
+      }),
+    );
+  });
+
+  it("invoice-not-found on completed → 200 IGNORED:invoice_not_found", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
+    const res = await POST(
+      makeReq({
+        id: "evt-5",
+        event: "payment_session.completed",
+        data: { reference_id: "missing", status: "COMPLETED" },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: "IGNORED:invoice_not_found",
+    });
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+  });
+
+  it("mid-tx throw deletes WebhookEvent + returns 500", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "SENT",
+      totalDue: 1000,
+      totalPaid: 0,
+      invoiceNumber: "INV-1",
+    } as never);
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(
+      new Error("DB went away"),
+    );
+    const res = await POST(
+      makeReq({
+        id: "evt-6",
+        event: "payment_session.completed",
+        data: { reference_id: "inv1", status: "COMPLETED" },
+      }) as never,
+    );
+    expect(res.status).toBe(500);
+    expect(prisma.webhookEvent.delete).toHaveBeenCalledWith({
+      where: { eventId: "evt-6" },
+    });
+  });
+
+  it("synthesizes eventId with sha256 suffix when body.id missing", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
+    await POST(
+      makeReq({
+        // intentionally no `id` field
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          payment_session_id: "ps_x",
+          status: "COMPLETED",
+        },
+      }) as never,
+    );
+    const arg = vi.mocked(prisma.webhookEvent.create).mock.calls[0]?.[0] as
+      | { data: { eventId: string } }
+      | undefined;
+    expect(arg).toBeDefined();
+    expect(arg!.data.eventId).toMatch(
+      /^payment_session\.completed:ps_x:COMPLETED:[a-f0-9]{16}$/,
+    );
   });
 });

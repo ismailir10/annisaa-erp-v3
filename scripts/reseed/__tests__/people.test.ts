@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { createRng } from "../rng";
-import { planStudents, planParents, planEmployees, SEED_COUNTS } from "../people";
+import {
+  planStudents,
+  planParents,
+  planEmployees,
+  uniqueName,
+  SEED_COUNTS,
+} from "../people";
 import { buildClassSectionPlan, sectionKey } from "../org";
 
 const today = new Date("2026-04-25T00:00:00Z");
@@ -144,5 +150,134 @@ describe("planEmployees", () => {
   it("kode is unique", () => {
     const kodes = new Set(plan.map((e) => e.kode));
     expect(kodes.size).toBe(plan.length);
+  });
+});
+
+describe("uniqueName helper", () => {
+  it("returns unique name on first try when no collision", () => {
+    const seen = new Set<string>();
+    const r = uniqueName(seen, () => "Alice Smith");
+    expect(r.name).toBe("Alice Smith");
+    expect(r.collisions).toBe(0);
+    expect(r.usedSuffix).toBe(false);
+  });
+
+  it("retries on collision and eventually returns the unique candidate", () => {
+    const seen = new Set<string>(["Alice"]);
+    let n = 0;
+    const r = uniqueName(seen, () => (n++ < 1 ? "Alice" : "Bob"));
+    expect(r.name).toBe("Bob");
+    expect(r.collisions).toBe(1);
+  });
+
+  it("falls back to numeric suffix when generator can't produce a unique name", () => {
+    const seen = new Set<string>(["Alice"]);
+    const r = uniqueName(seen, () => "Alice", 2);
+    expect(r.usedSuffix).toBe(true);
+    expect(r.name).toBe("Alice 2");
+    expect(seen.has("Alice 2")).toBe(true);
+  });
+});
+
+describe("planStudents — full-field + dedup contract", () => {
+  const plan = planStudents({
+    rng: createRng(42),
+    activeCount: SEED_COUNTS.activeStudents,
+    graduatedCount: SEED_COUNTS.graduatedStudents,
+    today,
+  });
+
+  it("every student has every required new field populated", () => {
+    for (const s of plan) {
+      expect(s.nis).toMatch(/^\d{4}\.\d{4}$/);
+      expect(s.nisn).toMatch(/^\d{10}$/);
+      expect(s.nik).toMatch(/^\d{16}$/);
+      expect(s.kkNumber).toMatch(/^\d{16}$/);
+      expect(s.birthPlace.length).toBeGreaterThan(0);
+      expect(["ORANG_TUA", "WALI", "LAINNYA"]).toContain(s.livingWith);
+      expect(s.address.length).toBeGreaterThan(0);
+      // metadata is JSON-encoded
+      const meta = JSON.parse(s.metadata);
+      expect(meta.hobby).toBeDefined();
+      expect(meta.bloodType).toBeDefined();
+      expect(meta.allergies).toBeDefined();
+    }
+  });
+
+  it("Student.name has no duplicates across the entire 200-row plan", () => {
+    const names = plan.map((s) => s.name);
+    const uniq = new Set(names);
+    expect(uniq.size).toBe(names.length);
+  });
+
+  it("preserved children remain at indexes 0,1 with their fixed names + DCARE-Aster gate intact", () => {
+    expect(plan[0].name).toBe("Bilal Hakim");
+    expect(plan[1].name).toBe("Ahmad Faris Abdullah");
+    const metlandDcare = plan.filter(
+      (s) => s.campusCode === "METLAND" && s.programCode === "DCARE",
+    );
+    expect(metlandDcare).toHaveLength(0);
+  });
+});
+
+describe("planParents — full-field + dedup contract", () => {
+  const rng = createRng(42);
+  const students = planStudents({
+    rng,
+    activeCount: SEED_COUNTS.activeStudents,
+    graduatedCount: SEED_COUNTS.graduatedStudents,
+    today,
+  });
+  const parents = planParents({ rng, students });
+
+  it("every parent has the new full-field set populated", () => {
+    for (const p of parents) {
+      expect(p.whatsapp.length).toBeGreaterThan(0);
+      expect(p.address.length).toBeGreaterThan(0);
+      expect(p.nik).toMatch(/^\d{16}$/);
+      expect(p.employer.length).toBeGreaterThan(0);
+      expect(p.employerCity.length).toBeGreaterThan(0);
+      expect([1, 2, 3]).toContain(p.childrenTotal);
+    }
+  });
+
+  it("displayName has no duplicates across the parent plan", () => {
+    const names = parents.map((p) => p.displayName);
+    const uniq = new Set(names);
+    expect(uniq.size).toBe(names.length);
+  });
+
+  it("preserved guardians (Ibu Nurul, Ibu Rina) are first + reserved", () => {
+    expect(parents[0].displayName).toBe("Ibu Nurul");
+    expect(parents[1].displayName).toBe("Ibu Rina");
+  });
+});
+
+describe("planEmployees — full-field + dedup contract", () => {
+  const plan = planEmployees({ rng: createRng(1) });
+
+  it("every employee has formalName/noHp/bankAccountNo/bankName/bpjsEnrolled", () => {
+    for (const e of plan) {
+      expect(e.formalName.length).toBeGreaterThan(0);
+      expect(e.noHp).toMatch(/^\+62\d+/);
+      expect(e.bankAccountNo).toMatch(/^\d{10}$/);
+      expect(e.bankName.length).toBeGreaterThan(0);
+      expect(typeof e.bpjsEnrolled).toBe("boolean");
+    }
+  });
+
+  it("nama is unique across all 28 employees", () => {
+    const names = plan.map((e) => e.nama);
+    const uniq = new Set(names);
+    expect(uniq.size).toBe(names.length);
+  });
+
+  it("preserved teachers IR01/WR03 keep their fixed names + emails", () => {
+    const ir = plan.find((e) => e.kode === "IR01");
+    const wr = plan.find((e) => e.kode === "WR03");
+    expect(ir?.nama).toBe("Ismail Rabbani");
+    expect(wr?.nama).toBe("Wira Raja");
+    expect(ir?.email).toBe("ismail10rabbanii@gmail.com");
+    expect(wr?.email).toBe("wirarajaism@gmail.com");
   });
 });

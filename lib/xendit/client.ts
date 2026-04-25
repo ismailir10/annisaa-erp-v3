@@ -35,7 +35,14 @@ export type CreateSessionParams = {
 };
 
 export type CreateSessionResponse = {
-  id: string;
+  /**
+   * Xendit session id. Null when Xendit returns a response without a
+   * recognizable id field (observed in sandbox; see `pickSessionId`).
+   * The payment URL is still usable; callers should persist `null` in
+   * `Invoice.xenditSessionId` and rely on `xenditPaymentUrl` for
+   * idempotency / re-fetch.
+   */
+  id: string | null;
   payment_link_url: string;
   status: string;
   expires_at: string;
@@ -106,10 +113,44 @@ export async function createXenditSession(
   }
 
   const data = await response.json();
+  if (process.env.XENDIT_DEBUG === "1") {
+    // One-off shape probing. Only enabled when operator opts in.
+    console.log("[XENDIT DEBUG] Session response:", JSON.stringify(data));
+  }
+  const paymentUrl: string | undefined =
+    data.payment_link_url ?? data.checkout?.url;
+  if (!paymentUrl) {
+    // Empty/missing URL would silently break the SENT-transition guard at
+    // app/api/invoices/[id]/route.ts (it gates on truthy xenditPaymentUrl).
+    throw new Error("[XENDIT] Session response missing payment_link_url");
+  }
   return {
-    id: data.id,
-    payment_link_url: data.payment_link_url,
+    id: pickSessionId(data),
+    payment_link_url: paymentUrl,
     status: data.status,
     expires_at: data.expires_at,
   };
+}
+
+/**
+ * Defensive id extraction. Earlier Xendit `/sessions` responses observed
+ * with a missing top-level `id` — `xenditSessionId` came back null even
+ * though `payment_link_url` was set. Try documented shapes in priority
+ * order; return null if none matched (caller stores `null` and continues).
+ *
+ * Exported for unit testing.
+ */
+export function pickSessionId(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  const candidates: unknown[] = [
+    d.id,
+    d.session_id,
+    d.payment_session_id,
+    (d.session as { id?: unknown } | undefined)?.id,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.length > 0) return c;
+  }
+  return null;
 }

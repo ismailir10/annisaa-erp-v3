@@ -89,6 +89,39 @@ export type CreateSessionFn = (
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const CUID_RE = /^c[a-z0-9]{20,}$/;
+
+/**
+ * Pure assert helper exported for unit tests.
+ * Throws if the post-Xendit smoke row is missing or its id is not a bare CUID.
+ *
+ * `row` is what `prisma.invoice.findFirst({ where: { xenditPaymentUrl: { not: null } } })`
+ * would return (or null if no rows match). When null, we throw — meaning every
+ * Xendit call was rate-limited or otherwise failed; operator should retry after
+ * cooldown rather than ship a broken dataset.
+ */
+export function assertXenditReferencingSmokeRow(
+  row: { id: string; xenditPaymentUrl: string | null } | null,
+): void {
+  if (!row) {
+    throw new Error(
+      "[reseed] post-Xendit smoke: zero invoices with xenditPaymentUrl set. Every Xendit call may have been rate-limited. Wait for the sandbox quota window to roll, then re-run.",
+    );
+  }
+  if (!CUID_RE.test(row.id)) {
+    throw new Error(
+      `[reseed] post-Xendit smoke: invoice id '${row.id}' is not a bare CUID. ` +
+        `The webhook handler keys lookup on Invoice.id; any prefix breaks the ` +
+        `round-trip silently. Inspect scripts/reseed/invoices.ts and lib/xendit/client.ts.`,
+    );
+  }
+  if (!row.xenditPaymentUrl) {
+    throw new Error(
+      `[reseed] post-Xendit smoke: invoice ${row.id} has null xenditPaymentUrl despite the query filter. Schema or query mismatch.`,
+    );
+  }
+}
+
 async function callXenditWithBackoff(
   fn: CreateSessionFn,
   params: CreateSessionParams,
@@ -240,7 +273,10 @@ export async function seedInvoices(
         liveJobs.push({
           invoiceId: inv.id,
           params: {
-            referenceId: `staging-tagihan-${inv.id}`,
+            // referenceId MUST be the bare invoice.id so the webhook handler's
+            // `prisma.invoice.findUnique({ where: { id: data.reference_id } })`
+            // lookup succeeds. Matches lib/xendit/helpers.ts (production path).
+            referenceId: inv.id,
             amount: total,
             description: `SPP ${s.programCode} ${period.label} — ${s.name}`,
             customerName: parent?.displayName ?? "Wali Murid",
@@ -380,6 +416,15 @@ export async function seedInvoices(
     );
   }
   await Promise.all(workers);
+
+  // ── Reseed-time smoke assert (catches reference_id/lookup mismatch before
+  // ── handing off to UAT). See assertXenditReferencingSmokeRow doc.
+  const smokeRow = await prisma.invoice.findFirst({
+    where: { xenditPaymentUrl: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, xenditPaymentUrl: true },
+  });
+  assertXenditReferencingSmokeRow(smokeRow);
 
   return {
     paidInvoiceCount,
