@@ -269,6 +269,8 @@ export type SeedOrgResult = {
   classSectionIdByKey: Record<string, string>;
   journalTemplateId: string;
   journalIndicatorIdByLabel: Record<string, string>;
+  /** Indicator IDs grouped by scope, for downstream JournalEntry seeding. */
+  journalIndicatorIdsByScope: Record<"SCHOOL" | "HOME", string[]>;
 };
 
 function sectionKey(p: ClassSectionPlan): string {
@@ -395,6 +397,10 @@ export async function seedOrg(prisma: PrismaClient): Promise<SeedOrgResult> {
   });
 
   const journalIndicatorIdByLabel: Record<string, string> = {};
+  const journalIndicatorIdsByScope: Record<"SCHOOL" | "HOME", string[]> = {
+    SCHOOL: [],
+    HOME: [],
+  };
   const categoryCache = new Map<string, string>();
   const categoryOrderCounter = new Map<string, number>();
   for (const ind of JOURNAL_INDICATORS) {
@@ -422,6 +428,7 @@ export async function seedOrg(prisma: PrismaClient): Promise<SeedOrgResult> {
     });
     categoryOrderCounter.set(catKey, catOrder + 1);
     journalIndicatorIdByLabel[ind.label] = indRow.id;
+    journalIndicatorIdsByScope[ind.scope].push(indRow.id);
   }
 
   return {
@@ -434,6 +441,7 @@ export async function seedOrg(prisma: PrismaClient): Promise<SeedOrgResult> {
     classSectionIdByKey,
     journalTemplateId: template.id,
     journalIndicatorIdByLabel,
+    journalIndicatorIdsByScope,
   };
 }
 
