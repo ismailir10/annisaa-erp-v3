@@ -896,3 +896,33 @@ model StudentAssessmentScore {
 
   @@unique([assessmentId, indicatorId])
 }
+
+// ── WEBHOOK EVENT (audit + dedup) ────────────────────────────
+// Captures every inbound webhook delivery from third-party providers.
+// **Intentionally global (no tenantId)** — webhooks arrive at a
+// tenant-agnostic public endpoint; tenant is resolved post-hoc via the
+// invoice join. Trusting payload-supplied tenantId before auth would be
+// an injection vector.
+// `eventId` is UNIQUE — incoming webhook with the same id is treated as a
+// duplicate at the DB layer (P2002 → 200 noop in the route handler).
+// `payload` keeps the full JSON for replay/audit. **Treat as PII** — never
+// log or echo in error responses; never expose via a user-facing API.
+// On transient FAILURE, the row is DELETED so the next provider retry
+// inserts cleanly. T5 must cap retries to avoid an infinite-retry loop on
+// a poison payload (see app/api/xendit/webhook/route.ts).
+// Retention: 90-day cleanup job is a follow-up (filed in Ship Notes).
+model WebhookEvent {
+  id             String    @id @default(cuid())
+  provider       String // "xendit"
+  eventId        String    @unique
+  eventType      String
+  payload        Json
+  status         String    @default("RECEIVED") // RECEIVED | PROCESSED | IGNORED | FAILED
+  invoiceId      String?
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([provider, createdAt])
+  @@index([invoiceId])
+}
