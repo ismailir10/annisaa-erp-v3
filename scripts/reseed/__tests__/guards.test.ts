@@ -32,12 +32,25 @@ describe("validateReseedEnv", () => {
     expect(res.ok).toBe(false);
   });
 
-  it("rejects missing STAGING_SUPABASE_REF", () => {
-    const res = validateReseedEnv({ ...okEnv, STAGING_SUPABASE_REF: "" });
+  it("auto-derives STAGING_SUPABASE_REF from NEXT_PUBLIC_SUPABASE_URL when unset", () => {
+    const res = validateReseedEnv({
+      ...okEnv,
+      STAGING_SUPABASE_REF: undefined,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.resolved?.stagingRef).toBe("abcde12345");
+  });
+
+  it("fails clearly when neither STAGING_SUPABASE_REF set nor host derivable", () => {
+    const res = validateReseedEnv({
+      ...okEnv,
+      STAGING_SUPABASE_REF: "",
+      NEXT_PUBLIC_SUPABASE_URL: "https://something.example.com",
+    });
     expect(res.ok).toBe(false);
-    expect(res.errors.some((e) => e.includes("STAGING_SUPABASE_REF"))).toBe(
-      true,
-    );
+    expect(
+      res.errors.some((e) => e.includes("could not be determined")),
+    ).toBe(true);
   });
 
   it("rejects a staging ref containing a prod marker", () => {

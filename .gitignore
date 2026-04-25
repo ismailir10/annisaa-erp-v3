@@ -1,6 +1,7 @@
 # env files — NEVER commit these
 .env
 .env.local
+.env.staging
 .env.*.local
 
 # Next.js
