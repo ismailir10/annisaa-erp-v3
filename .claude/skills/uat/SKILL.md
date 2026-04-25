@@ -24,7 +24,7 @@ Override only when the user explicitly asks (e.g. "run uat locally"). Running ag
 | Teacher (`TEACHER`) | `ismail10rabbanii@gmail.com` | Bu Sari |
 | Parent (`GUARDIAN`) | `rightjet.hq@gmail.com` | Pak Budi |
 
-All three must exist in the target DB with the correct role bindings. The UAT seed script (`prisma/seed-uat.ts`) guarantees this — run it once per fresh environment (see "Seed requirement" below).
+All three must exist in the target DB with the correct role bindings. The three accounts are guaranteed by the baseline seeding flow owned separately; if a freshly-reset target is missing any of them, stop and surface the gap to the operator.
 
 ## Browser choice — Chrome MCP primary in staging mode
 
@@ -33,18 +33,6 @@ For staging runs use **Chrome MCP** (`mcp__Claude_in_Chrome__*`). It attaches to
 Preflight the session: navigate to the portal root (`/admin`, `/teacher`, `/parent`) and use `read_page` / `get_page_text` to confirm the signed-in email matches the expected account for the area. Stop and ask the operator to switch profiles if it does not.
 
 For local fallback runs (`DEMO_MODE=true npm run start`) Playwright MCP remains the runner — the demo-cookie pattern below still applies there.
-
-## Seed requirement
-
-Before any staging-mode UAT run against a freshly reset DB, ensure UAT seed data exists:
-
-```bash
-DATABASE_URL="<target postgres url>" npm run seed:uat
-```
-
-Idempotent. Extends the baseline `prisma/seed.ts` with every row the library needs: the three UAT accounts above (with correct role + employee/parent links), admissions in INQUIRY + REGISTERED, fee components + fee structure, invoices in PENDING/OVERDUE/PAID, a PENDING leave request, and a published assessment for the parent's child.
-
-If the seed has never been run on the target environment, stop and tell the operator to run it before retrying `/uat`.
 
 ## Invocation
 
