@@ -61,7 +61,7 @@ Ordered. Each is independently committable. Task 1 and Task 2 are parallel-safe 
   - Bump "Last audited" date to `2026-04-25 in cycle enrich-uat-jobs`.
   - **Acceptance:** File grows to ≥ ~250 lines with all 7 new jobs matching the admin.md field shape. Manual diff review shows existing jobs untouched.
 
-- [ ] **Task 2 — Enrich `docs/uat/jobs/teacher.md` to coverage parity.**
+- [x] **Task 2 — Enrich `docs/uat/jobs/teacher.md` to coverage parity.**
   - Append new JTBDs under new `## Area:` headers in this order: `assessments`, `own-attendance` (name chosen to match the route `app/teacher/attendance/` while staying disjoint from the existing `class-attendance` area — avoids `/uat teacher/attendance` string-matching ambiguity), `student-journal`, `home`. `/uat` filtering: operators run `/uat teacher/class-attendance` or `/uat teacher/own-attendance` to scope to one; running `/uat teacher/attendance` is intentionally not a supported invocation after this cycle.
   - Jobs to add (IDs following the existing `JTBD-TEACHER-<AREA>-NN` pattern):
     - `JTBD-TEACHER-ASSESS-01` — Fill indicator scores for a full class for one template/period, relying on autosave.
@@ -101,6 +101,7 @@ Ordered. Each is independently committable. Task 1 and Task 2 are parallel-safe 
 ## Verification
 
 - Task 1: build + vitest gates green (54 test files, 370 passed, 42 todo, no failures). Doc-only change, no Playwright run needed. Cross-checked JOURNAL-* against `app/parent/student-journal/page.tsx` lines 270–320; HOME-01 against `app/parent/page.tsx` lines 52–84 + 133; MULTI-01 against `?child=` query-param pattern across invoices/attendance/reports/journal pages.
+- Task 2: build + vitest gates green (same 370/42 result). Spec deviation noted: `/spec` assumed `/teacher` home duplicates `/teacher/attendance` GPS check-in; code reality is that `/teacher/attendance` is calendar+leave only and `/teacher` home is the SOLE GPS check-in entry point. Restructured: `JTBD-TEACHER-ATT-OWN-01` covers calendar review (not GPS), `JTBD-TEACHER-ATT-OWN-02` covers leave request, `JTBD-TEACHER-HOME-01` covers GPS check-in/out as the sole entry. Total new JTBDs: 8 (matches spec). Reviewer caught three majors (JOURNAL-03 badge string mismatch — code renders "Guru"/"Orang Tua" not "GURU"/"WALI"; HOME-01 GPS-denied error scenario described a toast that doesn't fire and a request-block that doesn't happen; JOURNAL-02 server-side week-range validation doesn't exist) — all three rewritten to match code reality. File grew 99 → 297 lines.
 
 ## Ship Notes
 
