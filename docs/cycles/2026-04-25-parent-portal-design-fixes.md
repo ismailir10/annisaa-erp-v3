@@ -55,6 +55,7 @@ Three issues surfaced on the parent portal: (1) tagihan (invoice) nominal text o
 - Task 1: gates passed (`npm run build` compiled clean, route registered as `ƒ /api/guardian/invoices/[id]/pdf`; `npx vitest run` 460 pass / 42 todo / 2 skip). Cross-checked design-system.html brand-colors section for kwitansi PDF accent tokens.
 - Task 2: gates passed (`npm run build` clean, `npx vitest run` 460 pass / 42 todo / 2 skip). Cross-checked design-system.html typography scale — `text-2xl` (24px) is the immediate step below `text-display` (32px), correct mobile fallback for currency tokens.
 - Task 3: gates passed (`npm run build` clean, `npx vitest run` 460 pass / 42 todo / 2 skip). Cross-checked design-system.html card recipe + `.claude/standards/portal.md:232` (`Card padding | p-4 | md:p-6`) — all 5 swaps now match the canonical token. Sheet wrapper (`SheetContent` lines 119/138/337 in invoice-detail-sheet) intentionally untouched, retains its own padding scale per portal.md sheet rule.
+- End-of-cycle Playwright: `npx playwright test e2e/parent.spec.ts` → 7/7 passed (8.5s). Full-suite run had cross-worktree contention (33 unrelated admin/teacher failures from a parallel playwright server in another worktree); parent-spec isolated re-run confirms zero regressions in the surface this cycle touched.
 
 ## Ship Notes
 - **No migrations.** Pure code changes — new route, template, className edits.
