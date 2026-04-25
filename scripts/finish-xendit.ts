@@ -62,7 +62,9 @@ async function main() {
         if (!inv) return;
         try {
           const session = await createXenditSession({
-            referenceId: `staging-tagihan-${inv.id}`,
+            // Bare invoice.id — webhook handler lookup keys on this. See
+            // scripts/reseed/invoices.ts comment for the same constraint.
+            referenceId: inv.id,
             amount: Number(inv.totalDue),
             description: `SPP ${inv.periodLabel} — ${inv.student.name}`,
             customerName: inv.parent?.name ?? "Wali Murid",

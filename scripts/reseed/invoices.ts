@@ -240,7 +240,10 @@ export async function seedInvoices(
         liveJobs.push({
           invoiceId: inv.id,
           params: {
-            referenceId: `staging-tagihan-${inv.id}`,
+            // referenceId MUST be the bare invoice.id so the webhook handler's
+            // `prisma.invoice.findUnique({ where: { id: data.reference_id } })`
+            // lookup succeeds. Matches lib/xendit/helpers.ts (production path).
+            referenceId: inv.id,
             amount: total,
             description: `SPP ${s.programCode} ${period.label} — ${s.name}`,
             customerName: parent?.displayName ?? "Wali Murid",

@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { buildInvoicePeriods, computeInvoiceTotal } from "../invoices";
 
 describe("buildInvoicePeriods", () => {
@@ -26,6 +28,38 @@ describe("buildInvoicePeriods", () => {
     for (const p of periods) {
       expect(p.dueDate.endsWith("-10")).toBe(true);
     }
+  });
+});
+
+describe("Xendit referenceId format", () => {
+  // The webhook handler at app/api/xendit/webhook/route.ts looks up the
+  // invoice via `prisma.invoice.findUnique({ where: { id: data.reference_id } })`.
+  // Any prefix (e.g. `staging-tagihan-`) breaks the lookup silently and the
+  // webhook 200s with "Invoice not found".
+  // Assert via static-source check that neither reseed entry point ever
+  // sends a prefixed reference_id.
+  it("scripts/reseed/invoices.ts never builds a prefixed referenceId", () => {
+    const src = readFileSync(
+      resolve(__dirname, "../invoices.ts"),
+      "utf8",
+    );
+    // Block the historical prefix and any obvious reintroduction shape.
+    expect(src).not.toMatch(/staging-tagihan/);
+    expect(src).not.toMatch(/staging[-_]/);
+    expect(src).not.toMatch(/referenceId:\s*['"`][^'"`]+['"`]\s*\+/); // no concat
+    // Sanity: bare-id form is in the file.
+    expect(src).toMatch(/referenceId:\s*inv\.id/);
+  });
+
+  it("scripts/finish-xendit.ts never builds a prefixed referenceId", () => {
+    const src = readFileSync(
+      resolve(__dirname, "../../finish-xendit.ts"),
+      "utf8",
+    );
+    expect(src).not.toMatch(/staging-tagihan/);
+    expect(src).not.toMatch(/staging[-_]/);
+    expect(src).not.toMatch(/referenceId:\s*['"`][^'"`]+['"`]\s*\+/);
+    expect(src).toMatch(/referenceId:\s*inv\.id/);
   });
 });
 
