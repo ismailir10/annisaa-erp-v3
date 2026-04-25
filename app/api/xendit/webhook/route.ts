@@ -32,20 +32,39 @@ export async function POST(req: NextRequest) {
   console.log(`[XENDIT WEBHOOK] Event: ${event}, Reference: ${data?.reference_id}, Status: ${data?.status}`);
 
   if (event === "payment_session.completed" && data?.status === "COMPLETED") {
-    const invoiceId = data.reference_id;
+    const invoiceId: string | null = data.reference_id ?? null;
+    const xenditSessionIdFromPayload: string | null =
+      data.payment_session_id ?? data.id ?? null;
     const amount = data.amount;
 
-    if (!invoiceId) {
-      console.error("[XENDIT WEBHOOK] No reference_id in webhook data");
+    if (!invoiceId && !xenditSessionIdFromPayload) {
+      console.error("[XENDIT WEBHOOK] No reference_id or session id in webhook data");
       // Return 200 to prevent Xendit from retrying
       return NextResponse.json({ error: "Missing reference_id" });
     }
 
-    // Find invoice by ID (reference_id = invoice.id)
-    const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+    // Primary: reference_id == invoice.id (sessions we created tag the invoice id).
+    // Fallback: xenditSessionId == data.payment_session_id — handles invoice id
+    // changes (UAT reseed) or stale dashboard test events that reuse a session.
+    let invoice = invoiceId
+      ? await prisma.invoice.findUnique({ where: { id: invoiceId } })
+      : null;
+
+    if (!invoice && xenditSessionIdFromPayload) {
+      invoice = await prisma.invoice.findFirst({
+        where: { xenditSessionId: xenditSessionIdFromPayload },
+      });
+      if (invoice) {
+        console.warn(
+          `[XENDIT WEBHOOK] reference_id=${invoiceId} miss; matched by xenditSessionId=${xenditSessionIdFromPayload} → invoice ${invoice.invoiceNumber}`
+        );
+      }
+    }
 
     if (!invoice) {
-      console.error(`[XENDIT WEBHOOK] Invoice not found: ${invoiceId}`);
+      console.error(
+        `[XENDIT WEBHOOK] Invoice not found. reference_id=${invoiceId} sessionId=${xenditSessionIdFromPayload} paymentId=${data.payment_id}`
+      );
       // Return 200 — don't make Xendit retry for a missing invoice
       return NextResponse.json({ error: "Invoice not found" });
     }

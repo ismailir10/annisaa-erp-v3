@@ -4,7 +4,7 @@ process.env.XENDIT_WEBHOOK_TOKEN = "test-callback-token";
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    invoice: { findUnique: vi.fn(), update: vi.fn() },
+    invoice: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     payment: { findFirst: vi.fn(), create: vi.fn(), findMany: vi.fn() },
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
@@ -82,6 +82,85 @@ describe("POST /api/xendit/webhook — end-to-end regression", () => {
     expect(joined).toContain("hashtext");
     expect(joined).not.toContain("bit(64)");
     expect(args[1]).toBe(invoiceId);
+  });
+
+  it("falls back to xenditSessionId lookup when reference_id misses", async () => {
+    const { prisma } = await import("@/lib/db");
+    const invoiceId = "inv-fallback-1";
+    const sessionId = "ps-stale-ref-1";
+
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+      id: invoiceId,
+      invoiceNumber: "INV-FALLBACK",
+      status: "SENT",
+      totalDue: 50000,
+      totalPaid: 0,
+      xenditSessionId: sessionId,
+    } as never);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma.$transaction as any).mockImplementation(async (cb: (tx: unknown) => unknown) => {
+      const tx = {
+        $queryRaw: vi.fn().mockResolvedValue([{ pg_advisory_xact_lock: "" }]),
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: invoiceId,
+            status: "SENT",
+            totalDue: 50000,
+            totalPaid: 0,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        payment: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockResolvedValue({ id: "p1" }),
+          findMany: vi.fn().mockResolvedValue([{ amount: 50000 }]),
+        },
+      };
+      return cb(tx);
+    });
+
+    const res = await POST(
+      makeReq({
+        event: "payment_session.completed",
+        data: {
+          status: "COMPLETED",
+          reference_id: "deleted-invoice-id",
+          payment_session_id: sessionId,
+          amount: 50000,
+        },
+      }) as never
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.status).toBe("PAID");
+    expect(prisma.invoice.findFirst).toHaveBeenCalledWith({
+      where: { xenditSessionId: sessionId },
+    });
+  });
+
+  it("returns 'Invoice not found' when both reference_id and session id miss", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null);
+
+    const res = await POST(
+      makeReq({
+        event: "payment_session.completed",
+        data: {
+          status: "COMPLETED",
+          reference_id: "no-such-invoice",
+          payment_session_id: "no-such-session",
+        },
+      }) as never
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.error).toBe("Invoice not found");
   });
 
   it("rejects request with invalid callback token (401)", async () => {
