@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
@@ -11,7 +11,6 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
@@ -37,9 +36,17 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
+import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
+import {
+  runBulkGenerate,
+  type BatchProgressSnapshot,
+  type PlanResponse,
+} from "@/lib/finance/run-bulk-generate";
+import { runBulkRetry } from "@/lib/finance/run-bulk-retry";
 
 // ------------------------------------------------------------------
 // Types
@@ -197,7 +204,6 @@ function GenerateInvoiceFormBody({
         <Select
           value={genForm.academicYearId}
           onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
-          items={years.map((y) => ({ label: y.name, value: y.id }))}
         >
           <SelectTrigger>
             <SelectValue placeholder="Pilih tahun ajaran" />
@@ -238,32 +244,59 @@ export default function InvoicesPage() {
   const [generateDialog, setGenerateDialog] = useState(false);
   const [genForm, setGenForm] = useState({ periodLabel: "", dueDate: "", academicYearId: "" });
   const [generating, setGenerating] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
-  const [stats, setStats] = useState({ total: 0, draft: 0, sent: 0, paid: 0, overdue: 0 });
-  const [sendResults, setSendResults] = useState<
-    { studentName: string; invoiceNumber: string; paymentUrl: string }[] | null
-  >(null);
 
-  // Fetch stats once — single groupBy endpoint, not four pageSize=1 list calls
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/invoices/stats");
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          total: number;
-          draft: number;
-          sent: number;
-          paid: number;
-          overdue: number;
-        };
-        setStats(data);
-      } catch (err) {
-        console.error("[invoices] stats fetch failed", err);
-      }
-    })();
+  // Manual single-invoice dialog — submission redirects to the detail page,
+  // so no list refresh is needed on success (the user leaves the list view).
+  const [manualDialog, setManualDialog] = useState(false);
+
+  // Bulk-generate + bulk-retry orchestration state (shared progress card).
+  // The two flows never overlap on screen — bulk-create runs to completion or
+  // is cancelled before bulk-retry can be triggered.
+  const [progress, setProgress] = useState<BatchProgressSnapshot | null>(null);
+  const [planConfirm, setPlanConfirm] = useState<{
+    plan: PlanResponse;
+    resolve: (proceed: boolean) => void;
+  } | null>(null);
+  const [pausePrompt, setPausePrompt] = useState<{
+    resolve: (decision: "continue" | "cancel") => void;
+  } | null>(null);
+  const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryingRowId, setRetryingRowId] = useState<string | null>(null);
+  const doneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    draft: 0,
+    sent: 0,
+    partiallyPaid: 0,
+    paid: 0,
+    overdue: 0,
+    cancelled: 0,
+    pendingPaymentLink: 0,
+  });
+
+  const fetchStats = useCallback(() => {
+    fetch("/api/invoices/stats")
+      .then((r) => r.json())
+      .then((s) => {
+        if (s?.error) return;
+        setStats({
+          total: s.total ?? 0,
+          draft: s.draft ?? 0,
+          sent: s.sent ?? 0,
+          partiallyPaid: s.partiallyPaid ?? 0,
+          paid: s.paid ?? 0,
+          overdue: s.overdue ?? 0,
+          cancelled: s.cancelled ?? 0,
+          pendingPaymentLink: s.pendingPaymentLink ?? 0,
+        });
+      })
+      .catch((err) => console.error("[invoices] stats fetch failed", err));
   }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   useEffect(() => {
     fetch("/api/academic-years")
@@ -298,6 +331,17 @@ export default function InvoicesPage() {
   useEffect(() => {
     fetchInvoices();
   }, [fetchInvoices]);
+
+  // Cleanup the auto-hide timer on unmount + flip mountedRef so any in-flight
+  // runBulkGenerate callbacks (onProgress, onPauseDecision, post-run toasts)
+  // can short-circuit and avoid setting state on an unmounted component.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (doneAutoHideRef.current) clearTimeout(doneAutoHideRef.current);
+    };
+  }, []);
 
   // ------------------------------------------------------------------
   // Handlers
@@ -338,60 +382,212 @@ export default function InvoicesPage() {
       return;
     }
     setGenerating(true);
-    const res = await fetch("/api/invoices/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(genForm),
-    });
-    if (res.ok) {
-      const d = await res.json();
-      toast.success(`${d.created} tagihan dibuat (${d.skipped} dilewati)`);
-      setGenerateDialog(false);
-      fetchInvoices();
-    } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal membuat tagihan");
+    setGenerateDialog(false);
+
+    // Cancel any pending auto-hide timer from a prior run.
+    if (doneAutoHideRef.current) {
+      clearTimeout(doneAutoHideRef.current);
+      doneAutoHideRef.current = null;
     }
-    setGenerating(false);
+
+    try {
+      const out = await runBulkGenerate({
+        planRequest: genForm,
+        // Promise-based hook: opens the confirm dialog, resolves on user click.
+        onPlan: (plan) =>
+          new Promise<boolean>((resolve) => {
+            if (!mountedRef.current) return resolve(false);
+            if (plan.eligible === 0) {
+              // Belt-and-suspenders — runBulkGenerate short-circuits no-eligible
+              // before calling onPlan, but if a future change wires it here,
+              // surface the error and bail.
+              resolve(false);
+              return;
+            }
+            setPlanConfirm({ plan, resolve });
+          }),
+        onProgress: (snapshot) => {
+          if (!mountedRef.current) return;
+          setProgress({ ...snapshot });
+        },
+        onPauseDecision: () =>
+          new Promise<"continue" | "cancel">((resolve) => {
+            if (!mountedRef.current) return resolve("cancel");
+            setPausePrompt({ resolve });
+          }),
+      });
+
+      if (!mountedRef.current) return;
+
+      if (out.phase === "no-eligible") {
+        const msg =
+          out.plan.skippedAlreadyInvoiced + out.plan.skippedNoFeeStructure > 0
+            ? `Tidak ada siswa yang memenuhi syarat (${out.plan.skippedAlreadyInvoiced} sudah punya tagihan, ${out.plan.skippedNoFeeStructure} belum ada struktur biaya)`
+            : "Tidak ada siswa yang memenuhi syarat";
+        toast.error(msg);
+      } else if (out.phase === "user-cancelled") {
+        // No toast — confirm dialog Cancel button is the user-visible signal.
+        setProgress(null);
+      } else if (out.phase === "aborted") {
+        toast.error(`Dibatalkan setelah ${out.final.done}/${out.final.total} tagihan dibuat`);
+      } else if (out.phase === "done") {
+        const { created, xenditOk, xenditFailed } = out.final;
+        const tail = xenditFailed > 0 ? `, ${xenditFailed} link gagal — bisa di-retry dari list` : "";
+        toast.success(`${created} tagihan dibuat (${xenditOk} link berhasil${tail})`);
+        fetchInvoices();
+        fetchStats();
+
+        // Auto-hide the progress card 5s after completion (Spec §11 task 11).
+        doneAutoHideRef.current = setTimeout(() => {
+          setProgress(null);
+          doneAutoHideRef.current = null;
+        }, 5000);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal membuat tagihan");
+      setProgress(null);
+    } finally {
+      setGenerating(false);
+    }
   }
 
-  async function handleSendInvoices() {
-    const draftIds = data.filter((i) => i.status === "DRAFT").map((i) => i.id);
-    if (draftIds.length === 0) {
-      toast.error("Tidak ada tagihan DRAFT untuk dikirim");
-      return;
+  function handlePlanConfirm() {
+    if (!planConfirm) return;
+    const { resolve } = planConfirm;
+    setPlanConfirm(null);
+    resolve(true);
+  }
+
+  function handlePlanCancel() {
+    if (!planConfirm) return;
+    const { resolve } = planConfirm;
+    setPlanConfirm(null);
+    resolve(false);
+  }
+
+  function handlePauseContinue() {
+    if (!pausePrompt) return;
+    const { resolve } = pausePrompt;
+    setPausePrompt(null);
+    resolve("continue");
+  }
+
+  function handlePauseCancel() {
+    if (!pausePrompt) return;
+    const { resolve } = pausePrompt;
+    setPausePrompt(null);
+    resolve("cancel");
+  }
+
+  // Bulk-retry: enumerate every PENDING_PAYMENT_LINK invoice for the tenant
+  // (capped at 500 to match the existing fetch pattern), then chunk into 25s
+  // and drive the retry endpoint sequentially via runBulkRetry. Reuses the
+  // same <BatchProgressCard> as the bulk-create flow.
+  async function handleBulkRetry() {
+    setRetryConfirmOpen(false);
+    setRetrying(true);
+
+    if (doneAutoHideRef.current) {
+      clearTimeout(doneAutoHideRef.current);
+      doneAutoHideRef.current = null;
     }
 
-    setSending(true);
-    const res = await fetch("/api/xendit/create-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ invoiceIds: draftIds }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal membuat link pembayaran");
-      setSending(false);
-      return;
+    try {
+      const res = await fetch("/api/invoices?status=PENDING_PAYMENT_LINK&pageSize=500");
+      if (!res.ok) {
+        toast.error("Gagal memuat daftar tagihan");
+        return;
+      }
+      const json = await res.json();
+      const ids: string[] = (json.data ?? [])
+        .filter((row: Invoice) => row.status === "PENDING_PAYMENT_LINK")
+        .map((row: Invoice) => row.id);
+
+      if (ids.length === 0) {
+        toast.info("Tidak ada tagihan dengan link gagal");
+        return;
+      }
+
+      const out = await runBulkRetry({
+        invoiceIds: ids,
+        onProgress: (snapshot) => {
+          if (!mountedRef.current) return;
+          setProgress({ ...snapshot });
+        },
+        onPauseDecision: () =>
+          new Promise<"continue" | "cancel">((resolve) => {
+            if (!mountedRef.current) return resolve("cancel");
+            setPausePrompt({ resolve });
+          }),
+      });
+
+      if (!mountedRef.current) return;
+
+      if (out.phase === "no-candidates") {
+        toast.info("Tidak ada tagihan dengan link gagal");
+        setProgress(null);
+      } else if (out.phase === "aborted") {
+        toast.error(`Dibatalkan setelah ${out.final.xenditOk} link berhasil dibuat`);
+      } else if (out.phase === "done") {
+        const { xenditOk, xenditFailed } = out.final;
+        toast.success(`${xenditOk} link berhasil${xenditFailed > 0 ? `, ${xenditFailed} masih gagal` : ""}`);
+        fetchInvoices();
+        fetchStats();
+        doneAutoHideRef.current = setTimeout(() => {
+          setProgress(null);
+          doneAutoHideRef.current = null;
+        }, 5000);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal mencoba ulang link");
+      setProgress(null);
+    } finally {
+      setRetrying(false);
     }
-    const d = await res.json();
-    if (d.created > 0) {
-      toast.success(`${d.created} link pembayaran dibuat`);
-      setSendResults(d.results);
+  }
+
+  // Per-row retry — one invoice id, single POST, no progress card. Refetch
+  // the list + stats on success so the row's status badge flips.
+  async function handleRowRetry(invoiceId: string) {
+    setRetryingRowId(invoiceId);
+    try {
+      const res = await fetch("/api/invoices/retry-payment-links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceIds: [invoiceId] }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.error || "Gagal mencoba ulang link");
+        return;
+      }
+      const out = await res.json();
+      if (out.succeeded > 0) {
+        toast.success("Link pembayaran berhasil dibuat");
+      } else {
+        const firstErr = out.results?.[0]?.error;
+        toast.error(`Masih gagal${firstErr ? `: ${firstErr}` : ""}`);
+      }
+    } finally {
+      if (!mountedRef.current) return;
+      setRetryingRowId(null);
+      // Refresh on every exit path — even after a transient HTTP error the
+      // server might have already advanced state (paymentLinkError updated).
+      // Mirrors handleBulkRetry's unconditional refresh semantics.
+      fetchInvoices();
+      fetchStats();
     }
-    if (d.failed > 0) toast.error(`${d.failed} tagihan gagal`);
-    if (d.errors?.length) d.errors.forEach((e: string) => toast.error(e));
-    fetchInvoices();
-    setSending(false);
   }
 
   async function handleVoidInvoice() {
     if (!voidTarget) return;
     const res = await fetch(`/api/invoices/${voidTarget.id}/void`, { method: "POST" });
+    if (!mountedRef.current) return;
     if (res.ok) {
       toast.success("Tagihan dibatalkan");
       setVoidTarget(null);
       fetchInvoices();
+      fetchStats();
     } else {
       const d = await res.json();
       toast.error(d.error || "Gagal membatalkan tagihan");
@@ -406,21 +602,39 @@ export default function InvoicesPage() {
         header: "",
         cell: ({ row }) => {
           const inv = row.original;
-          const canVoid = inv.status === "DRAFT" || inv.status === "SENT";
+          const canVoid =
+            inv.status === "DRAFT" ||
+            inv.status === "SENT" ||
+            inv.status === "PENDING_PAYMENT_LINK";
+          const isRetryRow = inv.status === "PENDING_PAYMENT_LINK";
+          const isRetryingThisRow = retryingRowId === inv.id;
           return (
             <DataTableRowActions
               onView={() => router.push(`/admin/invoices/${inv.id}`)}
               onVoid={canVoid ? () => setVoidTarget(inv) : undefined}
+              extraActions={
+                isRetryRow
+                  ? [
+                      {
+                        label: isRetryingThisRow ? "Mencoba..." : "Coba Lagi Link",
+                        icon: <RefreshCw size={14} />,
+                        onClick: () => {
+                          if (!isRetryingThisRow) handleRowRetry(inv.id);
+                        },
+                      },
+                    ]
+                  : undefined
+              }
             />
           );
         },
       },
     ],
-    [router],
+    // handleRowRetry is stable across renders for the purposes of this effect
+    // (closes over fetchInvoices/fetchStats which are useCallback-stable).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, retryingRowId],
   );
-
-  // Stats from current page data (approximate — for exact stats, use a separate API)
-  const draftCount = data.filter((i) => i.status === "DRAFT").length;
 
   return (
     <>
@@ -429,23 +643,47 @@ export default function InvoicesPage() {
         description={`${pagination.total} tagihan`}
         actions={
           <div className="flex gap-2">
-            {draftCount > 0 && (
-              <Button size="sm" onClick={() => setSendConfirmOpen(true)} disabled={sending}>
-                {sending ? "Mengirim..." : `Kirim ${draftCount} Tagihan`}
+            {stats.pendingPaymentLink > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setRetryConfirmOpen(true)}
+                disabled={retrying}
+                className="border-warning/40 text-warning hover:bg-warning/10 hover:text-warning"
+              >
+                <RefreshCw size={14} className="mr-1.5" />
+                {retrying
+                  ? "Mencoba..."
+                  : `Coba Lagi Link (${stats.pendingPaymentLink})`}
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={openGenerateDialog}>
+            <Button size="sm" variant="outline" onClick={() => setManualDialog(true)}>
+              <Plus size={14} className="mr-1.5" /> Tagihan Manual
+            </Button>
+            <Button size="sm" variant="outline" onClick={openGenerateDialog} disabled={generating}>
               <Plus size={14} className="mr-1.5" /> Buat Tagihan
             </Button>
           </div>
         }
       />
 
+      {progress && progress.phase !== "idle" && (
+        <BatchProgressCard
+          progress={progress}
+          onContinue={handlePauseContinue}
+          onCancel={handlePauseCancel}
+        />
+      )}
+
       <StatsCardsRow>
         <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />
         <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
         <StatCard label="Lunas" value={stats.paid} icon={CheckCircle} color="success" index={2} />
-        <StatCard label="Jatuh Tempo" value={stats.overdue} icon={AlertTriangle} color="error" index={3} />
+        <StatCard label="Sebagian" value={stats.partiallyPaid} icon={CircleDashed} color="warning" index={3} />
+        <StatCard label="Jatuh Tempo" value={stats.overdue} icon={AlertTriangle} color="error" index={4} />
+        {stats.pendingPaymentLink > 0 && (
+          <StatCard label="Link Gagal" value={stats.pendingPaymentLink} icon={LinkIcon} color="warning" index={5} />
+        )}
       </StatsCardsRow>
 
       <DataTableToolbar
@@ -467,6 +705,7 @@ export default function InvoicesPage() {
               { value: "PAID", label: "Lunas" },
               { value: "PARTIALLY_PAID", label: "Sebagian" },
               { value: "OVERDUE", label: "Jatuh Tempo" },
+              { value: "PENDING_PAYMENT_LINK", label: "Link Gagal" },
             ],
           },
         ]}
@@ -485,14 +724,37 @@ export default function InvoicesPage() {
         emptyDescription="Buat tagihan bulanan untuk semua siswa aktif"
       />
 
-      {/* Send Confirmation */}
+      {/* Bulk Retry Confirmation */}
       <ConfirmDialog
-        open={sendConfirmOpen}
-        onOpenChange={setSendConfirmOpen}
-        title="Kirim Tagihan"
-        description={`Kirim ${draftCount} tagihan? Link pembayaran Xendit akan dibuat untuk setiap tagihan.`}
-        onConfirm={handleSendInvoices}
-        confirmLabel="Ya, Kirim"
+        open={retryConfirmOpen}
+        onOpenChange={setRetryConfirmOpen}
+        title="Coba Lagi Link Pembayaran"
+        description={`Membuat ulang link untuk ${stats.pendingPaymentLink} tagihan. Lanjutkan?`}
+        onConfirm={handleBulkRetry}
+        confirmLabel="Lanjutkan"
+      />
+
+      {/* Bulk-generate plan confirmation — shows eligibility breakdown before
+          the batch loop kicks off. Uses ConfirmDialog so the description can
+          inline the skipped counts. Cancel resolves the orchestrator's onPlan
+          promise with `false`, ending the run before any batch is posted. */}
+      <ConfirmDialog
+        open={!!planConfirm}
+        onOpenChange={(o) => {
+          if (!o && planConfirm) handlePlanCancel();
+        }}
+        title="Buat Tagihan"
+        description={
+          planConfirm
+            ? `${planConfirm.plan.eligible} siswa akan ditagih.` +
+              (planConfirm.plan.skippedAlreadyInvoiced > 0 || planConfirm.plan.skippedNoFeeStructure > 0
+                ? ` Dilewati: ${planConfirm.plan.skippedAlreadyInvoiced} sudah punya tagihan, ${planConfirm.plan.skippedNoFeeStructure} belum ada struktur biaya.`
+                : "") +
+              " Lanjutkan?"
+            : ""
+        }
+        onConfirm={handlePlanConfirm}
+        confirmLabel="Lanjutkan"
       />
 
       {/* Void Confirmation */}
@@ -504,6 +766,10 @@ export default function InvoicesPage() {
         onConfirm={handleVoidInvoice}
         confirmLabel="Ya, Batalkan"
       />
+
+      {/* Manual single-invoice creation — own component handles Dialog/Sheet
+          switch internally and pushes to detail page on success. */}
+      <ManualInvoiceDialog open={manualDialog} onOpenChange={setManualDialog} />
 
       {/* Generate Dialog (desktop) / Sheet (mobile, side="bottom" — narrow single-column form) */}
       {isMobile ? (
@@ -550,55 +816,6 @@ export default function InvoicesPage() {
         </Dialog>
       )}
 
-      {/* Send Results Dialog */}
-      <Dialog open={!!sendResults} onOpenChange={(o) => !o && setSendResults(null)}>
-        <DialogContent className="p-card max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Link Pembayaran Berhasil Dibuat</DialogTitle>
-            <DialogDescription>
-              Salin link di bawah dan kirim ke orang tua via WhatsApp
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-80 overflow-y-auto space-y-3 py-2">
-            {sendResults?.map((r, i) => (
-              <Card key={i} className="p-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{r.studentName}</p>
-                    <p className="text-xs text-muted-foreground font-currency">{r.invoiceNumber}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(r.paymentUrl);
-                      toast.success(`Link ${r.studentName} disalin`);
-                    }}
-                  >
-                    Salin Link
-                  </Button>
-                </div>
-                <p className="text-xs text-primary mt-1 break-all">{r.paymentUrl}</p>
-              </Card>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                const allLinks = sendResults?.map((r) => `${r.studentName}: ${r.paymentUrl}`).join("\n") ?? "";
-                navigator.clipboard.writeText(allLinks);
-                toast.success("Semua link disalin");
-              }}
-            >
-              Salin Semua Link
-            </Button>
-            <DialogClose>
-              <Button>Selesai</Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

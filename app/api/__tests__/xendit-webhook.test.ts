@@ -27,7 +27,28 @@ vi.mock("@/lib/generated/prisma/client", () => {
       super(msg);
     }
   }
-  return { Prisma: { PrismaClientKnownRequestError: FakeP2002 } };
+  // Minimal Decimal shim — webhook + sumDecimals use add / greaterThanOrEqualTo.
+  class FakeDecimal {
+    private n: number;
+    constructor(v: unknown) {
+      this.n = typeof v === "number" ? v : Number(v);
+    }
+    add(other: unknown): FakeDecimal {
+      return new FakeDecimal(this.n + new FakeDecimal(other).n);
+    }
+    greaterThanOrEqualTo(other: unknown): boolean {
+      return this.n >= new FakeDecimal(other).n;
+    }
+    toString(): string {
+      return String(this.n);
+    }
+    toNumber(): number {
+      return this.n;
+    }
+  }
+  return {
+    Prisma: { PrismaClientKnownRequestError: FakeP2002, Decimal: FakeDecimal },
+  };
 });
 
 // Re-derive a class with the same shape for use in test bodies (rejecting
@@ -185,9 +206,20 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     expect(txInvoiceUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "inv1" },
-        data: expect.objectContaining({ status: "PAID", totalPaid: 1000 }),
+        // totalPaid is now a Prisma.Decimal (matches FakeDecimal mock); compare
+        // via .toString() to keep the assertion implementation-agnostic.
+        data: expect.objectContaining({
+          status: "PAID",
+          totalPaid: expect.objectContaining({
+            toString: expect.any(Function),
+          }),
+        }),
       }),
     );
+    const updateCall = txInvoiceUpdate.mock.calls[0][0] as {
+      data: { totalPaid: { toString: () => string } };
+    };
+    expect(updateCall.data.totalPaid.toString()).toBe("1000");
     // Outer audit row marked PROCESSED with invoice link.
     expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
       expect.objectContaining({

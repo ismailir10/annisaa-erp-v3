@@ -27,18 +27,33 @@ export async function POST(
       if (!fresh || fresh.tenantId !== session.tenantId) {
         throw new Error("NOT_FOUND");
       }
-      if (fresh.status !== "DRAFT" && fresh.status !== "SENT") {
+      if (
+        fresh.status !== "DRAFT" &&
+        fresh.status !== "SENT" &&
+        fresh.status !== "PENDING_PAYMENT_LINK"
+      ) {
         throw new Error("INVALID_STATE");
       }
+      // Clear Xendit fields alongside the status flip. Closes the TOCTOU
+      // race where the retry helper writes xenditSessionId/Url after this
+      // void commits — last-write-wins leaves a live link on a CANCELLED
+      // invoice that the parent could still pay; the webhook's CANCELLED
+      // guard handles the late payment but clearing the fields here is the
+      // belt-and-suspenders fix.
       await tx.invoice.update({
         where: { id },
-        data: { status: "CANCELLED" },
+        data: {
+          status: "CANCELLED",
+          xenditSessionId: null,
+          xenditPaymentUrl: null,
+          paymentLinkError: null,
+        },
       });
     });
   } catch (e) {
     if (e instanceof Error) {
       if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Tagihan tidak ditemukan" }, { status: 404 });
-      if (e.message === "INVALID_STATE") return NextResponse.json({ error: "Hanya tagihan DRAFT atau SENT yang bisa dibatalkan" }, { status: 409 });
+      if (e.message === "INVALID_STATE") return NextResponse.json({ error: "Hanya tagihan DRAFT, SENT, atau PENDING_PAYMENT_LINK yang bisa dibatalkan" }, { status: 409 });
     }
     throw e;
   }

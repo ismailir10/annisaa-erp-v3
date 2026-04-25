@@ -1,9 +1,16 @@
 import { z } from "zod";
 
-export const generateInvoicesSchema = z.object({
-  periodLabel: z.string().min(1, "Label periode wajib diisi"),
-  dueDate: z.string().min(1, "Tanggal jatuh tempo wajib diisi"),
-  academicYearId: z.string().min(1, "Tahun ajaran wajib dipilih"),
+export const generatePlanSchema = z.object({
+  periodLabel: z.string().min(1),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  academicYearId: z.string().min(1),
+});
+
+export const generateBatchSchema = z.object({
+  studentIds: z.array(z.string().min(1)).min(1).max(25),
+  periodLabel: z.string().min(1),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  academicYearId: z.string().min(1),
 });
 
 export const recordPaymentSchema = z.object({
@@ -19,5 +26,25 @@ export const adjustInvoiceLineSchema = z.object({
 });
 
 export const updateInvoiceSchema = z.object({
-  status: z.enum(["DRAFT", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"]).optional(),
+  status: z
+    .enum(["DRAFT", "PENDING_PAYMENT_LINK", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])
+    .optional(),
+});
+
+export const retryPaymentLinksSchema = z.object({
+  invoiceIds: z.array(z.string().min(1)).max(25).optional(),
+});
+
+export const createManualInvoiceSchema = z.object({
+  studentId: z.string().min(1),
+  periodLabel: z.string().min(1),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  lines: z
+    .array(
+      z.object({
+        feeComponentId: z.string().min(1),
+        amount: z.number().positive(),
+      })
+    )
+    .min(1),
 });

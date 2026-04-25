@@ -104,6 +104,33 @@ describe("getStudentInvoices", () => {
     expect(result[0].status).toBe("OVERDUE");
   });
 
+  it("should not fetch PENDING_PAYMENT_LINK invoices (admin-only status)", async () => {
+    // PENDING_PAYMENT_LINK is set when Xendit checkout creation fails. The
+    // invoice exists but has no payable URL — parents must never see it
+    // because there is nothing actionable they can do. Admin retries the
+    // link first, which flips the row to SENT before parents discover it.
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+
+    const result = await getStudentInvoices("student-123", "tenant-a");
+
+    // The Prisma `where` filter is an explicit allow-list that does NOT
+    // include PENDING_PAYMENT_LINK — so even if such a row exists in the
+    // DB the query will not return it. We assert the where shape directly.
+    expect(prisma.invoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+        }),
+      })
+    );
+    // Sanity: the allow-list does not include PENDING_PAYMENT_LINK.
+    const call = vi.mocked(prisma.invoice.findMany).mock.calls[0][0] as {
+      where: { status: { in: string[] } };
+    };
+    expect(call.where.status.in).not.toContain("PENDING_PAYMENT_LINK");
+    expect(result).toEqual([]);
+  });
+
   it("should not fetch paid or cancelled invoices", async () => {
     const mockInvoices = [
       {

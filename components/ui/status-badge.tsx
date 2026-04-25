@@ -73,6 +73,7 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   PAID: { label: "Lunas", className: "bg-status-present-subtle text-status-present-text" },
   OVERDUE: { label: "Jatuh Tempo", className: "bg-status-absent-subtle text-status-absent-text" },
   PARTIALLY_PAID: { label: "Sebagian", className: "bg-status-late-subtle text-status-late-text" },
+  PENDING_PAYMENT_LINK: { label: "Link Gagal", className: "bg-status-late-subtle text-status-late-text" },
 
   // Admission (future)
   INQUIRY: { label: "Pertanyaan", className: "bg-status-leave-subtle text-status-leave-text" },

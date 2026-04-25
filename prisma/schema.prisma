@@ -629,13 +629,14 @@ model Invoice {
   dueDate          String // YYYY-MM-DD
   totalDue         Decimal   @default(0) @db.Decimal(15, 2)
   totalPaid        Decimal   @default(0) @db.Decimal(15, 2)
-  status           String    @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
+  status           String    @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED | PENDING_PAYMENT_LINK
   createdBy        String
   sentAt           DateTime?
   paidAt           DateTime?
   parentId         String? // Billing contact (Parent)
   xenditSessionId  String? // Xendit checkout session ID
   xenditPaymentUrl String? // Xendit hosted checkout URL
+  paymentLinkError String? // Diagnostic msg when Xendit session creation failed (status=PENDING_PAYMENT_LINK)
   createdAt        DateTime  @default(now())
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)

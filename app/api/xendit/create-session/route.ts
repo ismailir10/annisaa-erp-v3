@@ -57,14 +57,34 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    // Idempotency: if a Xendit session already exists for this invoice, return it
+    // instead of creating a second one. Admin clicking "Kirim" twice must never
+    // produce two live payment links per invoice.
+    if (invoice.xenditSessionId && invoice.xenditPaymentUrl) {
+      // Defensive: clear any stale paymentLinkError (no-op if already null).
+      await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: { paymentLinkError: null },
+      });
+
+      results.push({
+        studentName: invoice.student.name,
+        invoiceNumber: invoice.invoiceNumber,
+        paymentUrl: invoice.xenditPaymentUrl,
+      });
+      created++;
+      continue;
+    }
+
     try {
       const result = await createXenditSessionForInvoice(invoiceId, session.tenantId);
 
       if (result) {
-        // Update status to SENT (helper only stores Xendit fields)
+        // Update status to SENT (helper only stores Xendit fields).
+        // Clear paymentLinkError — covers the retry-of-PENDING_PAYMENT_LINK path.
         await prisma.invoice.update({
           where: { id: invoiceId },
-          data: { status: "SENT", sentAt: new Date() },
+          data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
         });
 
         results.push({
@@ -74,10 +94,25 @@ export async function POST(req: NextRequest) {
         });
         created++;
       } else {
+        // Helper returns null on TOCTOU-reachable guard conditions (status flipped
+        // to PAID/CANCELLED between our pre-check and the helper's re-check, or
+        // remaining went to 0). Surface a diagnostic so admin sees why.
+        errors.push(`${invoice.student.name}: Gagal membuat sesi pembayaran`);
         failed++;
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
+      // Persist the failure as durable state — invoice becomes filterable in
+      // the admin list under PENDING_PAYMENT_LINK and is retryable from there.
+      try {
+        await prisma.invoice.update({
+          where: { id: invoiceId },
+          data: { status: "PENDING_PAYMENT_LINK", paymentLinkError: msg },
+        });
+      } catch {
+        // Swallow write-back failure — the original Xendit error is still surfaced
+        // to the admin via errors[], counts are still correct.
+      }
       errors.push(`${invoice.student.name}: ${msg}`);
       failed++;
     }
