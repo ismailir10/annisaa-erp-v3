@@ -925,9 +925,8 @@ model StudentAssessmentScore {
 // duplicate at the DB layer (P2002 → 200 noop in the route handler).
 // `payload` keeps the full JSON for replay/audit. **Treat as PII** — never
 // log or echo in error responses; never expose via a user-facing API.
-// On transient FAILURE, the row is DELETED so the next provider retry
-// inserts cleanly. T5 must cap retries to avoid an infinite-retry loop on
-// a poison payload (see app/api/xendit/webhook/route.ts).
+// ERROR rows retained for admin audit; provider retries deduplicate via
+// eventId @unique (Phase 1 short-circuits on P2002 with 200 noop).
 // Retention: 90-day cleanup job is a follow-up (filed in Ship Notes).
 model WebhookEvent {
   id           String    @id @default(cuid())
@@ -935,7 +934,7 @@ model WebhookEvent {
   eventId      String    @unique
   eventType    String
   payload      Json
-  status       String    @default("RECEIVED") // RECEIVED | PROCESSED | IGNORED | FAILED
+  status       String    @default("RECEIVED") // RECEIVED | PROCESSED | ERROR | IGNORED
   invoiceId    String?
   errorMessage String?
   createdAt    DateTime  @default(now())

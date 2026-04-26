@@ -1,16 +1,31 @@
 // Webhook handler contract tests for the rewritten T5 handler.
 // Mocks @/lib/db so no real DB hits.
 //
+// T5 contract (post-rewrite):
+//  - Phase 1 INSERT WebhookEvent always; P2002 → 200 short-circuit.
+//  - Phase 2 errors mark row ERROR + return 200 (NOT 500 + DELETE).
+//  - Phase 1 throws → 500 (no row committed; Xendit retry succeeds).
+//  - xenditSessionId fallback when reference_id misses (PR #136 restored).
+//  - Missing/zero amount → ERROR:MISSING_AMOUNT, no payment row.
+//  - Overpayment > remaining + 1 IDR → credit + ERROR:OVERPAYMENT_FLAGGED.
+//  - payment_session.expired → soft-revert SENT/PENDING_PAYMENT_LINK to
+//    PENDING_PAYMENT_LINK (NOT destructive CANCELLED); PAID/CANCELLED
+//    ignore.
+//
 // Coverage:
 //  1. 401 on missing/mismatched x-callback-token
 //  2. 400 on malformed JSON body
 //  3. duplicate eventId (P2002) → 200 { duplicate: true }
 //  4. payment_session.completed → invoice PAID + Payment row + PROCESSED
-//  5. payment_session.expired → invoice CANCELLED + xendit fields nulled
+//  5. payment_session.expired → soft-revert to PENDING_PAYMENT_LINK
 //  6. unknown event → 200 IGNORED, no Invoice mutation
-//  7. invoice-not-found → 200 IGNORED:invoice_not_found
-//  8. mid-tx throw → DELETE WebhookEvent + 500
+//  7. invoice-not-found → 200 ERROR:invoice_not_found (T5b)
+//  8. Phase 2 throw → ERROR row retained, 200 (no DELETE, no 500)
 //  9. body.id missing → eventId synthesized with payload sha256 suffix
+// 10. T5d missing amount → ERROR:missing_amount + no payment
+// 11. T5d overpayment → credit + ERROR:OVERPAYMENT_FLAGGED
+// 12. T5c xenditSessionId fallback (real PR #136 staging-tagihan- case)
+// 13. T5e expired on PAID → IGNORED:already_paid (no revert)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const TOKEN = "test-callback-token-padding-32!!";
@@ -65,7 +80,7 @@ vi.mock("@/lib/db", () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
-    invoice: { findUnique: vi.fn(), update: vi.fn() },
+    invoice: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     payment: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     $queryRaw: vi.fn(),
     $transaction: vi.fn(),
@@ -234,9 +249,13 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
   });
 
-  it("expired event flips invoice to CANCELLED + nulls xendit fields", async () => {
+  it("expired event soft-reverts SENT invoice → PENDING_PAYMENT_LINK + nulls xendit fields (T5e)", async () => {
     const { prisma } = await import("@/lib/db");
-    // Capture the inner-tx invoice.update spy to assert the mutation.
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "SENT",
+      invoiceNumber: "INV-1",
+    } as never);
     const txInvoiceUpdate = vi.fn().mockResolvedValue({});
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
@@ -261,12 +280,11 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       }) as never,
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ status: "CANCELLED" });
-    // The actual mutation: status flipped + xendit fields nulled.
+    expect(await res.json()).toMatchObject({ status: "REVERTED" });
     expect(txInvoiceUpdate).toHaveBeenCalledWith({
       where: { id: "inv1" },
       data: {
-        status: "CANCELLED",
+        status: "PENDING_PAYMENT_LINK",
         xenditSessionId: null,
         xenditPaymentUrl: null,
       },
@@ -299,26 +317,31 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
   });
 
-  it("invoice-not-found on completed → 200 IGNORED:invoice_not_found", async () => {
+  it("invoice-not-found on completed → 200 ERROR:invoice_not_found (T5b)", async () => {
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null);
     const res = await POST(
       makeReq({
         id: "evt-5",
         event: "payment_session.completed",
-        // payment_id present so we get past the missing-id guard and exercise
-        // the missing-invoice path specifically.
-        data: { reference_id: "missing", status: "COMPLETED", payment_id: "pay-orphan" },
+        data: { reference_id: "missing", status: "COMPLETED", payment_id: "pay-orphan", amount: 100000 },
       }) as never,
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      status: "IGNORED:invoice_not_found",
+      status: "ERROR:invoice_not_found",
     });
     expect(prisma.payment.create).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-5" },
+        data: expect.objectContaining({ status: "ERROR" }),
+      }),
+    );
   });
 
-  it("mid-tx throw deletes WebhookEvent + returns 500", async () => {
+  it("Phase 2 throw retains WebhookEvent + marks ERROR + returns 200 (T5)", async () => {
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv1",
@@ -334,15 +357,17 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-6",
         event: "payment_session.completed",
-        // payment_id present so we get past the missing-id guard and reach
-        // the transaction (where the simulated DB outage fires).
-        data: { reference_id: "inv1", status: "COMPLETED", payment_id: "pay-tx" },
+        data: { reference_id: "inv1", status: "COMPLETED", payment_id: "pay-tx", amount: 1000 },
       }) as never,
     );
-    expect(res.status).toBe(500);
-    expect(prisma.webhookEvent.delete).toHaveBeenCalledWith({
-      where: { eventId: "evt-6" },
-    });
+    expect(res.status).toBe(200);
+    expect(prisma.webhookEvent.delete).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-6" },
+        data: expect.objectContaining({ status: "ERROR" }),
+      }),
+    );
   });
 
   it("inner Payment idempotency: existing xenditPaymentId short-circuits without create", async () => {
@@ -416,14 +441,14 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      status: "IGNORED:missing_payment_id",
+      status: "ERROR:missing_payment_id",
     });
     expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
     expect(prisma.payment.create).not.toHaveBeenCalled();
     expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { eventId: "evt-no-pid" },
-        data: expect.objectContaining({ status: "IGNORED" }),
+        data: expect.objectContaining({ status: "ERROR" }),
       }),
     );
   });
@@ -448,6 +473,185 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     expect(arg).toBeDefined();
     expect(arg!.data.eventId).toMatch(
       /^payment_session\.completed:ps_x:COMPLETED:[a-f0-9]{16}$/,
+    );
+  });
+
+  it("T5d — missing amount → ERROR:missing_amount, no payment row", async () => {
+    const { prisma } = await import("@/lib/db");
+    const res = await POST(
+      makeReq({
+        id: "evt-no-amount",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-x",
+          // intentionally no amount
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "ERROR:missing_amount" });
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-no-amount" },
+        data: expect.objectContaining({
+          status: "ERROR",
+          errorMessage: "MISSING_AMOUNT",
+        }),
+      }),
+    );
+  });
+
+  it("T5d — overpayment is credited but flagged ERROR:OVERPAYMENT_FLAGGED", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "SENT",
+      totalDue: 100_000,
+      totalPaid: 0,
+      invoiceNumber: "INV-1",
+    } as never);
+    const txPaymentCreate = vi.fn().mockResolvedValue({});
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "SENT",
+              totalDue: 100_000,
+              totalPaid: 0,
+              invoiceNumber: "INV-1",
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          payment: {
+            findUnique: vi.fn().mockResolvedValue(null),
+            findMany: vi.fn().mockResolvedValue([{ amount: 200_000 }]),
+            create: txPaymentCreate,
+          },
+        }),
+    );
+    const res = await POST(
+      makeReq({
+        id: "evt-overpaid",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-over",
+          amount: 200_000, // 100k overpayment vs remaining=100k
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "OVERPAID:PAID" });
+    expect(txPaymentCreate).toHaveBeenCalled(); // payment still credited
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-overpaid" },
+        data: expect.objectContaining({
+          status: "ERROR",
+          errorMessage: "OVERPAYMENT_FLAGGED",
+        }),
+      }),
+    );
+  });
+
+  it("T5c — xenditSessionId fallback resolves invoice when reference_id misses (real PR #136 case)", async () => {
+    // Real production payload: reference_id has legacy "staging-tagihan-"
+    // prefix that findUnique misses; payment_session_id resolves via fallback.
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null); // refId miss
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+      id: "cmodtjyva1g7n7bx7lzpw5oht",
+      status: "SENT",
+      totalDue: 800_000,
+      totalPaid: 0,
+      invoiceNumber: "INV-2026-0042",
+    } as never);
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "cmodtjyva1g7n7bx7lzpw5oht",
+              status: "SENT",
+              totalDue: 800_000,
+              totalPaid: 0,
+              invoiceNumber: "INV-2026-0042",
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          payment: {
+            findUnique: vi.fn().mockResolvedValue(null),
+            findMany: vi.fn().mockResolvedValue([{ amount: 800_000 }]),
+            create: vi.fn().mockResolvedValue({}),
+          },
+        }),
+    );
+    const res = await POST(
+      makeReq({
+        id: "evt-real",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "staging-tagihan-cmodtjyva1g7n7bx7lzpw5oht",
+          status: "COMPLETED",
+          payment_id: "py-baa5f75a-73b0-4d57-9476-58f1bb160168",
+          payment_session_id: "ps-69ec4131991c6b6d61d2e989",
+          amount: 800_000,
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "PAID" });
+    expect(prisma.invoice.findFirst).toHaveBeenCalledWith({
+      where: { xenditSessionId: "ps-69ec4131991c6b6d61d2e989" },
+    });
+  });
+
+  it("T5e — expired event on PAID invoice → IGNORED:already_paid (no destructive revert)", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "PAID",
+      invoiceNumber: "INV-1",
+    } as never);
+    const txInvoiceUpdate = vi.fn().mockResolvedValue({});
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "PAID",
+              invoiceNumber: "INV-1",
+            }),
+            update: txInvoiceUpdate,
+          },
+        }),
+    );
+    const res = await POST(
+      makeReq({
+        id: "evt-exp-paid",
+        event: "payment_session.expired",
+        data: { reference_id: "inv1", status: "EXPIRED" },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "IGNORED:already_paid" });
+    expect(txInvoiceUpdate).not.toHaveBeenCalled(); // no revert
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-exp-paid" },
+        data: expect.objectContaining({ status: "IGNORED" }),
+      }),
     );
   });
 });
