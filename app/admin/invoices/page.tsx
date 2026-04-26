@@ -257,9 +257,6 @@ export default function InvoicesPage() {
     plan: PlanResponse;
     resolve: (proceed: boolean) => void;
   } | null>(null);
-  const [pausePrompt, setPausePrompt] = useState<{
-    resolve: (decision: "continue" | "cancel") => void;
-  } | null>(null);
   const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryingRowId, setRetryingRowId] = useState<string | null>(null);
@@ -410,11 +407,6 @@ export default function InvoicesPage() {
           if (!mountedRef.current) return;
           setProgress({ ...snapshot });
         },
-        onPauseDecision: () =>
-          new Promise<"continue" | "cancel">((resolve) => {
-            if (!mountedRef.current) return resolve("cancel");
-            setPausePrompt({ resolve });
-          }),
       });
 
       if (!mountedRef.current) return;
@@ -465,20 +457,6 @@ export default function InvoicesPage() {
     resolve(false);
   }
 
-  function handlePauseContinue() {
-    if (!pausePrompt) return;
-    const { resolve } = pausePrompt;
-    setPausePrompt(null);
-    resolve("continue");
-  }
-
-  function handlePauseCancel() {
-    if (!pausePrompt) return;
-    const { resolve } = pausePrompt;
-    setPausePrompt(null);
-    resolve("cancel");
-  }
-
   // Bulk-retry: enumerate every PENDING_PAYMENT_LINK invoice for the tenant
   // (capped at 500 to match the existing fetch pattern), then chunk into 25s
   // and drive the retry endpoint sequentially via runBulkRetry. Reuses the
@@ -514,11 +492,6 @@ export default function InvoicesPage() {
           if (!mountedRef.current) return;
           setProgress({ ...snapshot });
         },
-        onPauseDecision: () =>
-          new Promise<"continue" | "cancel">((resolve) => {
-            if (!mountedRef.current) return resolve("cancel");
-            setPausePrompt({ resolve });
-          }),
       });
 
       if (!mountedRef.current) return;
@@ -670,8 +643,6 @@ export default function InvoicesPage() {
       {progress && progress.phase !== "idle" && (
         <BatchProgressCard
           progress={progress}
-          onContinue={handlePauseContinue}
-          onCancel={handlePauseCancel}
         />
       )}
 

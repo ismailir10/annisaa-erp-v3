@@ -166,7 +166,7 @@ After Task 4, CTO directive: review for over-engineering. `feature-dev:code-arch
 
 **What stays untouched and earns its keep** (per architect): the lock triangle (webhook + manual-payment + void all serialise on `hashtext(invoice.id)`), the WebhookEvent UNIQUE-on-eventId outer dedup, `PENDING_PAYMENT_LINK` as a durable state, the plan→batch two-step for bulk creation (operator confirms 487-eligible before committing 487 writes), the `Payment.xenditPaymentId` UNIQUE constraint + inner `findUnique` pre-check, `nextInvoiceNumber`'s advisory lock (eliminates a ~yearly retry round-trip), `xendit-retry.ts` (genuinely shared between two endpoints), `sumDecimals` in the write path (column type is Decimal(15,2)).
 
-**Cut 1b — Replace `pLimit(5)` with `Promise.all`**
+**Cut 1b — Replace `pLimit(5)` with `Promise.all`** *(landed)*
 - `lib/finance/p-limit.ts` deleted (38 LOC).
 - `lib/finance/__tests__/p-limit.test.ts` deleted (~80 LOC).
 - `lib/finance/xendit-retry.ts`, `app/api/invoices/generate/batch/route.ts`: drop `pLimit` import + wrap, call `createXenditSessionForInvoice` directly inside `Promise.allSettled(...map())`. Why it was wrong: `pLimit(5)` on 25 Xendit calls = ~7.5s, `Promise.all` on 25 = ~1.5s. Vercel ceiling is 60s; we were never near it. The "cap protects Xendit's rate limit" rationale doesn't apply at 50 invoices/month. ~120 LOC saved.
@@ -181,7 +181,7 @@ After Task 4, CTO directive: review for over-engineering. `feature-dev:code-arch
 - `app/api/__tests__/xendit-webhook.test.ts`: deleted the "P2002 swallowed" test (this race can't happen post-lock); kept the "existing-row short-circuit" + "missing-paymentId rejected" tests (both still earning their place).
 - This **partially reverts my Task 2b commit** — the lock-already-closes-this-race insight changes the trade-off. ~80 LOC saved.
 
-**Cut 4b — Drop pause/resume from `run-bulk-generate.ts`**
+**Cut 4b — Drop pause/resume from `run-bulk-generate.ts`** *(landed)*
 - `lib/finance/run-bulk-generate.ts`: removed `onPauseDecision` callback from input, removed `"paused"` phase from `BatchProgressPhase` union, three-strike batch failure now auto-aborts with a clear toast instead of waiting for operator decision. Backoff retry (1s + 3s) stays — that's a real recoverable transient.
 - `lib/finance/__tests__/run-bulk-generate.test.ts`: removed the "paused → continue" test (~30 LOC); kept the chunking + retry-with-backoff + abort tests.
 - `app/admin/invoices/page.tsx`: removed `pausePrompt` state + `handlePauseContinue` + `handlePauseCancel` + the pause `<ConfirmDialog>`; `runBulkGenerate` invocation drops the `onPauseDecision` callback.
