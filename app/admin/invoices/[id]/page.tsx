@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { XenditActivityCard } from "@/components/admin/invoices/xendit-activity-card";
 import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
@@ -320,6 +321,9 @@ export default function InvoiceDetailPage() {
               </div>
             )}
           </Card>
+
+          {/* Aktivitas Xendit — hides itself when 0 events */}
+          <XenditActivityCard invoiceId={invoice.id} />
         </div>
       </div>
 
