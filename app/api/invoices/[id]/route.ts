@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { updateInvoiceSchema } from "@/lib/validations/invoice";
@@ -53,6 +54,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       sentAt: body.status === "SENT" ? new Date() : existing.sentAt,
     },
   });
+
+  if (body.status && body.status !== existing.status) {
+    revalidateTag("student-invoices", { expire: 0 });
+    revalidateTag("parent-invoice-list", { expire: 0 });
+  }
 
   return NextResponse.json(invoice);
 }

@@ -18,6 +18,9 @@ vi.mock("@/lib/finance/xendit-retry", () => ({
   retryPaymentLinks: vi.fn(),
 }));
 
+// Mock next/cache — vitest has no Next incremental-cache runtime.
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+
 import { POST } from "../invoices/retry-payment-links/route";
 
 function makeReq(body: unknown) {

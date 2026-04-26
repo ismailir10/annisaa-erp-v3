@@ -40,7 +40,7 @@ describe("retryPaymentLinks — empty candidates", () => {
 });
 
 describe("retryPaymentLinks — mixed success/failure", () => {
-  it("3 PENDING invoices, 2 succeed + 1 throws → retried=3, succeeded=2, stillFailed=1; updates correct shape per outcome", async () => {
+  it("3 PENDING invoices, 2 succeed + 1 throws → retried=3, succeeded=2, stillFailed=1; only failure writes paymentLinkError (helper handles success status flip)", async () => {
     const { prisma } = await import("@/lib/db");
     const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
 
@@ -76,21 +76,13 @@ describe("retryPaymentLinks — mixed success/failure", () => {
       error: "Xendit 503",
     });
 
-    // 2 successes get { status: SENT, paymentLinkError: null, sentAt: Date }
+    // Helper now atomically flips status:SENT inside its own advisory-lock tx,
+    // so retry no longer writes back on success — only the 1 failure row
+    // gets { paymentLinkError: <msg> }.
     const updateCalls = vi.mocked(prisma.invoice.update).mock.calls.map((c) => c[0]);
-
-    const successUpdates = updateCalls.filter(
-      (c) => c.where.id === "i-1" || c.where.id === "i-2"
-    );
-    expect(successUpdates).toHaveLength(2);
-    for (const u of successUpdates) {
-      expect(u.data).toMatchObject({ status: "SENT", paymentLinkError: null });
-      expect((u.data as { sentAt: Date }).sentAt).toBeInstanceOf(Date);
-    }
-
-    // The 1 failure gets { paymentLinkError: <msg> } (no status change).
-    const failUpdate = updateCalls.find((c) => c.where.id === "i-3");
-    expect(failUpdate?.data).toEqual({ paymentLinkError: "Xendit 503" });
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0].where.id).toBe("i-3");
+    expect(updateCalls[0].data).toEqual({ paymentLinkError: "Xendit 503" });
   });
 });
 

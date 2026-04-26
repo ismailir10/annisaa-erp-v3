@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { retryPaymentLinksSchema } from "@/lib/validations/invoice";
 import { retryPaymentLinks } from "@/lib/finance/xendit-retry";
@@ -36,6 +37,11 @@ export async function POST(req: NextRequest) {
     session.tenantId,
     parsed.data.invoiceIds ?? null
   );
+
+  if (outcome.succeeded > 0) {
+    revalidateTag("student-invoices", { expire: 0 });
+    revalidateTag("parent-invoice-list", { expire: 0 });
+  }
 
   return NextResponse.json(outcome);
 }

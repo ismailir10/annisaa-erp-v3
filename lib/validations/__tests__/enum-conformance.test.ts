@@ -13,7 +13,7 @@ import {
   toggleGuardianStatusSchema,
 } from "../guardian";
 import { createAdmissionSchema, updateAdmissionSchema } from "../admission";
-import { recordPaymentSchema, updateInvoiceSchema } from "../invoice";
+import { recordPaymentSchema } from "../invoice";
 import { updateStudentAttendanceSchema } from "../student-attendance";
 import { createCategorySchema } from "../student-journal";
 import {
@@ -122,6 +122,9 @@ function zodEnumValues(schema: z.ZodObject<z.ZodRawShape>, key: string): string[
  *   - FeeComponentDef.status (no Zod schema)
  *   - ProgramFeeStructure.status (no Zod schema)
  *   - Payment.status (no Zod schema for payment status mutations)
+ *   - Invoice.status (updateInvoiceSchema is a *transition* enum, not a value
+ *     mirror — admin PUT only allows DRAFT/SENT; other transitions go through
+ *     dedicated endpoints: void, payments, retry-payment-links, webhook)
  *   - StudentJournalTemplate.status (no Zod schema)
  *   - StudentJournalAudit.entityType / .action (server-set, no API input)
  */
@@ -145,7 +148,6 @@ const FIELDS: Row[] = [
   { model: "StudentEnrollment", field: "status", schema: updateEnrollmentSchema, key: "status", label: "StudentEnrollment.status / updateEnrollmentSchema" },
   { model: "Admission", field: "source", schema: createAdmissionSchema, key: "source", label: "Admission.source / createAdmissionSchema" },
   { model: "Admission", field: "status", schema: updateAdmissionSchema, key: "status", label: "Admission.status / updateAdmissionSchema" },
-  { model: "Invoice", field: "status", schema: updateInvoiceSchema, key: "status", label: "Invoice.status / updateInvoiceSchema" },
   { model: "Payment", field: "method", schema: recordPaymentSchema, key: "method", label: "Payment.method / recordPaymentSchema" },
   { model: "StudentAttendance", field: "status", schema: updateStudentAttendanceSchema, key: "status", label: "StudentAttendance.status / updateStudentAttendanceSchema" },
   { model: "StudentJournalCategory", field: "scope", schema: createCategorySchema, key: "scope", label: "StudentJournalCategory.scope / createCategorySchema" },

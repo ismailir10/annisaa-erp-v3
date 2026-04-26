@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
@@ -244,17 +245,8 @@ export async function POST(req: NextRequest) {
     const row = txResult[i];
 
     if (outcome.status === "fulfilled" && outcome.value.result) {
-      // Helper succeeded — flip status + clear any paymentLinkError. Wrap in
-      // try/catch so a transient DB hiccup at this step doesn't drop the result
-      // (the invoice still has its Xendit session attached by the helper).
-      try {
-        await prisma.invoice.update({
-          where: { id: row.invoiceId },
-          data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
-        });
-      } catch {
-        // Best-effort write-back; result row still surfaces success below.
-      }
+      // Helper already flipped status:SENT atomically inside its own
+      // advisory-lock tx; nothing to write here.
       results.push({
         studentId: row.studentId,
         invoiceId: row.invoiceId,
@@ -289,6 +281,11 @@ export async function POST(req: NextRequest) {
         error: msg,
       });
     }
+  }
+
+  if (txResult.length > 0) {
+    revalidateTag("student-invoices", { expire: 0 });
+    revalidateTag("parent-invoice-list", { expire: 0 });
   }
 
   return NextResponse.json({

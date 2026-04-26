@@ -26,9 +26,7 @@ export const adjustInvoiceLineSchema = z.object({
 });
 
 export const updateInvoiceSchema = z.object({
-  status: z
-    .enum(["DRAFT", "PENDING_PAYMENT_LINK", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])
-    .optional(),
+  status: z.enum(["DRAFT", "SENT"]).optional(),
 });
 
 export const retryPaymentLinksSchema = z.object({

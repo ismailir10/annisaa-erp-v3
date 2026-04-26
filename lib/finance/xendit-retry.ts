@@ -77,17 +77,8 @@ export async function retryPaymentLinks(
     const row = candidates[i];
 
     if (outcome.status === "fulfilled" && outcome.value.result) {
-      // Helper already wrote xenditSessionId + xenditPaymentUrl. Flip status +
-      // clear paymentLinkError. Wrap in try/catch so a transient DB hiccup at
-      // this step doesn't drop the result row.
-      try {
-        await prisma.invoice.update({
-          where: { id: row.id },
-          data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
-        });
-      } catch {
-        // best-effort write-back; result row still surfaces success below.
-      }
+      // Helper already flipped status:SENT atomically inside its own
+      // advisory-lock tx; nothing to write here.
       results.push({
         invoiceId: row.id,
         invoiceNumber: row.invoiceNumber,

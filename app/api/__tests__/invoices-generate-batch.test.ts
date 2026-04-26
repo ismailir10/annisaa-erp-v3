@@ -36,6 +36,9 @@ vi.mock("@/lib/xendit/helpers", () => ({
   createXenditSessionForInvoice: vi.fn(),
 }));
 
+// Mock next/cache — vitest has no Next incremental-cache runtime.
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+
 import { POST } from "../invoices/generate/batch/route";
 
 function makeReq(body: unknown) {
@@ -246,13 +249,9 @@ describe("POST /api/invoices/generate/batch — happy path", () => {
       expect(r.paymentUrl).toMatch(/^https:\/\/checkout\.xendit\.co\/web\/inv-/);
     }
 
-    // Each successful invoice gets a SENT/sentAt/paymentLinkError-null update.
-    expect(vi.mocked(prisma.invoice.update)).toHaveBeenCalledTimes(5);
-    const updateCalls = vi.mocked(prisma.invoice.update).mock.calls;
-    for (const [arg] of updateCalls) {
-      expect(arg.data).toMatchObject({ status: "SENT", paymentLinkError: null });
-      expect(arg.data?.sentAt).toBeInstanceOf(Date);
-    }
+    // Helper now flips status:SENT atomically inside its own advisory-lock
+    // tx. The route no longer post-flips on success — verify zero updates.
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
   });
 });
 

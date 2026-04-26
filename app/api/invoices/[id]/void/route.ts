@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 
@@ -46,6 +47,8 @@ export async function POST(
         },
       });
     });
+    revalidateTag("student-invoices", { expire: 0 });
+    revalidateTag("parent-invoice-list", { expire: 0 });
   } catch (e) {
     if (e instanceof Error) {
       if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Tagihan tidak ditemukan" }, { status: 404 });

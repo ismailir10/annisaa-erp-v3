@@ -93,12 +93,16 @@ export async function POST(req: NextRequest) {
     if (event === "payment_session.completed" && data.status === "COMPLETED") {
       const result = await handleSessionCompleted(data, eventId);
       revalidateTag("student-invoices", { expire: 0 });
+      revalidateTag("parent-invoice-list", { expire: 0 });
       return NextResponse.json(result);
     }
 
     if (event === "payment_session.expired") {
       const result = await handleSessionExpired(data, eventId);
-      if (result.invoiceId) revalidateTag("student-invoices", { expire: 0 });
+      if (result.invoiceId) {
+        revalidateTag("student-invoices", { expire: 0 });
+        revalidateTag("parent-invoice-list", { expire: 0 });
+      }
       return NextResponse.json(result);
     }
 
@@ -149,6 +153,17 @@ async function handleSessionCompleted(
     return { ok: true, status: "IGNORED:missing_reference_id", eventId };
   }
 
+  // Refuse to credit a payment without an explicit amount. Falling back to
+  // invoice.totalDue would mark partial captures as PAID and silently mask
+  // amount-mismatch attacks. Surface the bad delivery loud-and-clear.
+  if (amount === null) {
+    console.warn(
+      `[XENDIT WEBHOOK] Completed event missing numeric amount eventId=${eventId} invoiceId=${invoiceId}`,
+    );
+    await markIgnored(eventId, "missing amount", invoiceId);
+    return { ok: true, status: "IGNORED:missing_amount", eventId };
+  }
+
   // Refuse to record a payment with no Xendit identifier. Writing
   // xenditPaymentId: NULL would silently bypass the UNIQUE dedup constraint
   // (Postgres treats multiple NULLs as distinct), and a future replay would
@@ -191,7 +206,7 @@ async function handleSessionCompleted(
     return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
   }
 
-  const paymentAmount = amount ?? Number(invoice.totalDue);
+  const paymentAmount = amount;
   const channelCode =
     typeof data.channel_code === "string" ? data.channel_code : "checkout";
 

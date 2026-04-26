@@ -299,6 +299,29 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
   });
 
+  it("missing amount on completed → 200 IGNORED:missing_amount, no invoice lookup, no payment.create", async () => {
+    const { prisma } = await import("@/lib/db");
+    const res = await POST(
+      makeReq({
+        id: "evt-no-amount",
+        event: "payment_session.completed",
+        // payment_id present but amount is omitted — must NOT fall back to
+        // invoice.totalDue. M3: refuse to credit silent partial captures.
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-no-amount",
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: "IGNORED:missing_amount",
+    });
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+  });
+
   it("invoice-not-found on completed → 200 IGNORED:invoice_not_found", async () => {
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
@@ -306,9 +329,15 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-5",
         event: "payment_session.completed",
-        // payment_id present so we get past the missing-id guard and exercise
-        // the missing-invoice path specifically.
-        data: { reference_id: "missing", status: "COMPLETED", payment_id: "pay-orphan" },
+        // payment_id + amount present so we get past the missing-id and
+        // missing-amount guards and exercise the missing-invoice path
+        // specifically.
+        data: {
+          reference_id: "missing",
+          status: "COMPLETED",
+          payment_id: "pay-orphan",
+          amount: 1000,
+        },
       }) as never,
     );
     expect(res.status).toBe(200);
@@ -334,9 +363,15 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-6",
         event: "payment_session.completed",
-        // payment_id present so we get past the missing-id guard and reach
-        // the transaction (where the simulated DB outage fires).
-        data: { reference_id: "inv1", status: "COMPLETED", payment_id: "pay-tx" },
+        // payment_id + amount present so we get past the missing-id and
+        // missing-amount guards and reach the transaction (where the
+        // simulated DB outage fires).
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-tx",
+          amount: 1000,
+        },
       }) as never,
     );
     expect(res.status).toBe(500);

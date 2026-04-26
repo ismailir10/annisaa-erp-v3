@@ -35,6 +35,9 @@ vi.mock("@/lib/xendit/helpers", () => ({
   createXenditSessionForInvoice: vi.fn(),
 }));
 
+// Mock next/cache — vitest has no Next incremental-cache runtime.
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+
 import { POST } from "../invoices/route";
 
 function makeReq(body: unknown) {
@@ -223,7 +226,7 @@ describe("POST /api/invoices — business validation", () => {
 });
 
 describe("POST /api/invoices — happy path", () => {
-  it("Xendit succeeds → 201, status=SENT, xenditPaymentUrl set, totalDue computed server-side", async () => {
+  it("Xendit succeeds → 201, status=SENT (helper-set), xenditPaymentUrl set, totalDue computed server-side", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
@@ -273,11 +276,9 @@ describe("POST /api/invoices — happy path", () => {
     expect(body.xenditError).toBeUndefined();
     expect(body.lines).toHaveLength(2);
 
-    // The status flip update — paymentLinkError cleared, sentAt set.
-    const updateCall = vi.mocked(prisma.invoice.update).mock.calls[0]?.[0];
-    expect(updateCall?.where).toEqual({ id: "inv-new" });
-    expect(updateCall?.data).toMatchObject({ status: "SENT", paymentLinkError: null });
-    expect(updateCall?.data?.sentAt).toBeInstanceOf(Date);
+    // Helper now flips status:SENT atomically inside its own advisory-lock
+    // tx. The route no longer post-flips on success — verify zero updates.
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
 
     // Server-side totalDue: assert the Decimal passed to invoice.create equals 150_000.
     // (Client-supplied total is ignored — there isn't one in validBody.)

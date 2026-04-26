@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
@@ -164,18 +165,15 @@ export async function POST(req: NextRequest) {
     });
   });
 
-  // Inline Xendit. Failure here is a durable data state, not a transient
-  // error — the invoice already exists in `PENDING_PAYMENT_LINK` so admin
-  // can retry from the list/detail surface.
+  // Inline Xendit. The helper now atomically flips status:SENT inside its
+  // own advisory-lock transaction, so we no longer post-flip here. Failure
+  // here is a durable data state, not a transient error — the invoice already
+  // exists in `PENDING_PAYMENT_LINK` so admin can retry from the list/detail
+  // surface.
   let xenditError: string | undefined;
   try {
     const result = await createXenditSessionForInvoice(created.id, tenantId);
-    if (result) {
-      await prisma.invoice.update({
-        where: { id: created.id },
-        data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
-      });
-    } else {
+    if (!result) {
       xenditError = "Gagal membuat sesi pembayaran";
       try {
         await prisma.invoice.update({
@@ -197,6 +195,9 @@ export async function POST(req: NextRequest) {
       // Best-effort write-back; response still surfaces the error below.
     }
   }
+
+  revalidateTag("student-invoices", { expire: 0 });
+  revalidateTag("parent-invoice-list", { expire: 0 });
 
   // Re-fetch with lines + Xendit fields so the admin UI can surface the link
   // (or error) immediately without a follow-up GET.

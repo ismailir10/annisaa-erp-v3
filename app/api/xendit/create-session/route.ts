@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -80,13 +81,8 @@ export async function POST(req: NextRequest) {
       const result = await createXenditSessionForInvoice(invoiceId, session.tenantId);
 
       if (result) {
-        // Update status to SENT (helper only stores Xendit fields).
-        // Clear paymentLinkError — covers the retry-of-PENDING_PAYMENT_LINK path.
-        await prisma.invoice.update({
-          where: { id: invoiceId },
-          data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
-        });
-
+        // Helper already flipped status:SENT atomically inside its own
+        // advisory-lock tx. Nothing else to write here.
         results.push({
           studentName: invoice.student.name,
           invoiceNumber: invoice.invoiceNumber,
@@ -116,6 +112,11 @@ export async function POST(req: NextRequest) {
       errors.push(`${invoice.student.name}: ${msg}`);
       failed++;
     }
+  }
+
+  if (created > 0) {
+    revalidateTag("student-invoices", { expire: 0 });
+    revalidateTag("parent-invoice-list", { expire: 0 });
   }
 
   return NextResponse.json({

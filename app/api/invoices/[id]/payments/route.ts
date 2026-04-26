@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
+import { recordPaymentSchema } from "@/lib/validations/invoice";
 
 // Record a manual payment for an invoice
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,12 +13,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id: invoiceId } = await params;
-  const body = await req.json();
-
-  const amountNum = Number(body.amount);
-  if (!amountNum || amountNum <= 0 || Number.isNaN(amountNum)) {
-    return NextResponse.json({ error: "Jumlah pembayaran tidak valid" }, { status: 400 });
+  const raw = await req.json();
+  const parsed = recordPaymentSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Input tidak valid" },
+      { status: 400 }
+    );
   }
+  const body = parsed.data;
   const amountDec = new Prisma.Decimal(body.amount.toString());
 
   // Quick tenant-scope check outside the tx so a cross-tenant id bails early.
@@ -51,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         data: {
           invoiceId,
           amount: amountDec,
-          method: body.method ?? "CASH",
+          method: body.method,
           reference: body.reference?.trim() || null,
           notes: body.notes?.trim() || null,
         },
@@ -82,6 +87,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return p;
     });
 
+    revalidateTag("student-invoices", { expire: 0 });
+    revalidateTag("parent-invoice-list", { expire: 0 });
     return NextResponse.json(payment, { status: 201 });
   } catch (e) {
     if (e instanceof Error) {

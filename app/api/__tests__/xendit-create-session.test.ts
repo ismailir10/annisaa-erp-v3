@@ -26,6 +26,9 @@ vi.mock("@/lib/xendit/helpers", () => ({
   createXenditSessionForInvoice: vi.fn(),
 }));
 
+// Mock next/cache — vitest has no Next incremental-cache runtime.
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+
 import { POST } from "../xendit/create-session/route";
 
 function makeReq(body: unknown) {
@@ -82,7 +85,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     });
   });
 
-  it("Xendit success path: helper called, status flipped to SENT with paymentLinkError null", async () => {
+  it("Xendit success path: helper called; route no longer writes status (helper flips it atomically)", async () => {
     const { prisma } = await import("@/lib/db");
     const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
 
@@ -117,12 +120,9 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
 
     expect(createXenditSessionForInvoice).toHaveBeenCalledWith("inv-fresh", "tnt-1");
 
-    // Status flip + paymentLinkError clear in the same update.
-    const updateCall = vi.mocked(prisma.invoice.update).mock.calls[0]?.[0];
-    expect(updateCall?.where).toEqual({ id: "inv-fresh" });
-    expect(updateCall?.data).toMatchObject({ status: "SENT", paymentLinkError: null });
-    expect(updateCall?.data).toHaveProperty("sentAt");
-    expect(updateCall?.data?.sentAt).toBeInstanceOf(Date);
+    // Helper now flips status:SENT atomically inside its own advisory-lock
+    // tx. The route no longer writes back on success — verify zero updates.
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
   });
 
   it("Xendit failure path: persists status=PENDING_PAYMENT_LINK + paymentLinkError, increments failed", async () => {
@@ -165,7 +165,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     });
   });
 
-  it("retry of PENDING_PAYMENT_LINK invoice succeeds: status flips to SENT, paymentLinkError cleared", async () => {
+  it("retry of PENDING_PAYMENT_LINK invoice succeeds: helper handles SENT flip + paymentLinkError clear (route does not double-write)", async () => {
     const { prisma } = await import("@/lib/db");
     const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
 
@@ -198,10 +198,9 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     expect(body.failed).toBe(0);
     expect(body.results[0].paymentUrl).toBe("https://checkout.xendit.co/web/retry-success");
 
-    // The single update on the success path carries both the SENT flip AND
-    // the paymentLinkError clear — that's the retry-of-PENDING contract.
-    const updateCall = vi.mocked(prisma.invoice.update).mock.calls[0]?.[0];
-    expect(updateCall?.data).toMatchObject({ status: "SENT", paymentLinkError: null });
+    // Helper now flips status:SENT + clears paymentLinkError atomically
+    // inside its own advisory-lock tx; route no longer writes back.
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
   });
 
   it("mixed batch: 1 already-sessioned + 1 success + 1 failure → counts and per-row results align", async () => {
@@ -278,15 +277,14 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     expect(createXenditSessionForInvoice).toHaveBeenNthCalledWith(1, "inv-b", "tnt-1");
     expect(createXenditSessionForInvoice).toHaveBeenNthCalledWith(2, "inv-c", "tnt-1");
 
-    // Three updates: A (defensive clear), B (SENT + clear), C (PENDING + error).
+    // Two updates: A (defensive clear) + C (PENDING + error). B's SENT flip
+    // happens atomically inside the helper, not via the route's prisma client
+    // — the helper is mocked here so its internal updates are out of scope.
     const updateCalls = vi.mocked(prisma.invoice.update).mock.calls.map((c) => c[0]);
-    expect(updateCalls).toHaveLength(3);
+    expect(updateCalls).toHaveLength(2);
 
     const aUpdate = updateCalls.find((c) => c?.where.id === "inv-a");
     expect(aUpdate?.data).toEqual({ paymentLinkError: null });
-
-    const bUpdate = updateCalls.find((c) => c?.where.id === "inv-b");
-    expect(bUpdate?.data).toMatchObject({ status: "SENT", paymentLinkError: null });
 
     const cUpdate = updateCalls.find((c) => c?.where.id === "inv-c");
     expect(cUpdate?.data).toEqual({
