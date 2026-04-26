@@ -155,6 +155,11 @@ Each task is one commit. Between every task: `npm run build && npx vitest run` m
 - [`lib/finance/__tests__/invoice-numbers.test.ts`](../../lib/finance/__tests__/invoice-numbers.test.ts): old "deterministic char-sum" assertion replaced with `hashtext(` SQL-shape match + raw tenantId binding assertion. Added anagram-regression test: `"ab"` and `"ba"` now produce distinct lock bindings (the char-sum hash mapped both to 195).
 - Vitest: 6 invoice-numbers tests passed; full suite **604/646 passed** (+1 new anagram test).
 
+### Task 4 — Remove dead PUT auto-Xendit logic
+- [`app/api/invoices/[id]/route.ts`](../../app/api/invoices/[id]/route.ts): deleted the `if (body.status === "SENT" && !existing.xenditPaymentUrl) { try { await createXenditSessionForInvoice(...) } catch ... }` branch (8 lines) plus the now-unused `import { createXenditSessionForInvoice } from "@/lib/xendit/helpers"`. Verified by grep that no production code path creates `Invoice.status === "DRAFT"` post-PR-140 (batch + manual create initialise as `PENDING_PAYMENT_LINK`); the surviving state-machine guard at the top of PUT explicitly only allows DRAFT→SENT, which is unreachable. The PUT route now only updates `status` + `sentAt` — does what its name says.
+- No test pinned this branch (verified via grep on `createXenditSessionForInvoice` + `transitioning.*SENT`); the helper is still used (correctly) by the batch + manual-create + retry paths.
+- Vitest: full suite **604/646 passed** unchanged.
+
 ---
 
 ## Verification
