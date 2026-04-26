@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
@@ -242,6 +243,11 @@ export async function POST(req: NextRequest) {
       // Best-effort write-back; response still surfaces the error below.
     }
   }
+
+  // Bust parent-portal cache so the new invoice appears on the next
+  // /parent/invoices fetch — without this, the 2-minute unstable_cache TTL
+  // gates the parent from seeing the bill until it expires.
+  revalidateTag("parent-invoice-list", { expire: 0 });
 
   // Re-fetch with lines + Xendit fields so the admin UI can surface the link
   // (or error) immediately without a follow-up GET.
