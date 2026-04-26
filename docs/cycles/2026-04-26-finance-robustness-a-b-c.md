@@ -330,18 +330,12 @@ Order is dependency-aware. Each task is one commit per CLAUDE.md `/build` loop. 
 
 ## Implementation
 
-<!-- Per-task: files touched + 1-2 sentence summary. Filled by /build. -->
+- Subagent plan: T0/T1/T2 sequential (touch the same allocator+route); T3→T4 sequential (share `xendit-retry.ts` + `batch-progress-card.tsx`); T5+T6 parallel (independent files); T7 after T5 (depends on ERROR enum); T8 final.
+- Task 0 — failing P2002 race repro test — `app/api/__tests__/invoices-manual-p2002-race.test.ts` (new) + `vitest.config.ts` (added `.claude/worktrees/**` to `exclude` — orphaned harness worktrees were polluting test discovery and blocking the gate). Fixture `describe.skip`'d until T2b lands the retry-once loop; manual run `npx vitest run app/api/__tests__/invoices-manual-p2002-race.test.ts` confirms current code returns 500 (P2002 bubbles unhandled) — T2b will remove the skip and the suite goes green naturally.
 
 ## Verification
 
-<!--
-Filled by /build:
-- npm run build         → pass/fail
-- npx vitest run        → N tests, all green
-- npx playwright test   → N tests, all green
-- Manual smoke: POST /api/invoices, bulk retry of 50 stuck invoices, sandbox webhook with missing amount, cron dry-run via curl with bearer
-- Cross-checked design-system.html §Forms / §DataTable / §Card for T2 + T7 UI work
--->
+- Task 0: gates passed. `npm run build` → green. `npx vitest run` → 584 passed, 2 skipped (T0 fixture), 42 todo. Build size unchanged.
 
 ## Ship Notes
 
