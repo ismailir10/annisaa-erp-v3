@@ -85,7 +85,7 @@ Sequential. Each independently committable; gates between every commit.
   - Vitest cases for `stripQuery`: null input, no-query URL, with-query URL, malformed string.
   **Acceptance:** all 4 `stripQuery` cases pass. `npm run build` clean. Manual confirm by tailing Vercel logs after one staging session creation: both `[XENDIT SESSION CREATED]` line and the augmented webhook PROCESSED line are visible and their `sessionId` matches.
 
-- [ ] **T5 — README + cycle doc Ship Notes + follow-up pointer.**
+- [x] **T5 — README + cycle doc Ship Notes + follow-up pointer.**
   - README "Vercel env vars" section: document `NEXT_PUBLIC_APP_URL` as **per-environment** (preview → preview origin; production → prod origin). After T3's fix, helper throws when both `requestOrigin` and `NEXT_PUBLIC_APP_URL` are missing — operator MUST set this for staging preview before next UAT or invoice-send will throw.
   - Cycle doc Ship Notes: (a) no migration needed; (b) **breaking config**: helper now throws when neither `requestOrigin` nor `NEXT_PUBLIC_APP_URL` is set — verify Vercel preview AND production envs have `NEXT_PUBLIC_APP_URL` before merge; **also** running `scripts/reseed/invoices.ts` or `scripts/finish-xendit.ts` locally will throw without the env var exported (previously silently fell back to prod) — local operators must `export NEXT_PUBLIC_APP_URL=...` before reseed; (c) operator triage runbook: grep Vercel logs by Xendit `sessionId` to match `[XENDIT SESSION CREATED]` against augmented `[XENDIT WEBHOOK] PROCESSED` line — `dataKeys` array reveals which fields Xendit actually sends in webhook payload (one-time discovery, drop in follow-up); if `successReturnUrl` Xendit echoes does not match what we sent, escalate to Xendit support; (d) follow-up pointers (separate sweep cycles): (1) `components/ui/empty-state.tsx:80-82` has same `<Link><Button>` anti-pattern; (2) admin invoice mutation routes under `app/api/invoices/**` (record manual payment, void, status update) do NOT call `revalidateTag` at all — admin actions on a paid invoice are stale on parent portal for ≤120 s; (3) drop the `dataKeys` log key once Xendit's webhook field naming is confirmed in production.
   **Acceptance:** README diff includes the env-var clarification; Ship Notes filled with all four bullets above.
@@ -113,6 +113,31 @@ Sequential. Each independently committable; gates between every commit.
 - Task 3: `npm run build` clean. `npx vitest run` 692 pass / 42 todo / 0 fail (3 new cases for resolveAppOrigin). Reviewer flagged 3 unrelated routes still using hardcoded prod-URL fallback — captured in T5 Ship Notes follow-up pointer (out of scope).
 - Task 4: `npm run build` clean. `npx vitest run` 696 pass / 42 todo / 0 fail (4 new `stripQuery` cases). Manual log-shape verification deferred to next staging session creation (operator runbook captured in T5 Ship Notes).
 - Task 6: `npm run build` clean. `npx vitest run` 699 pass / 42 todo / 0 fail (3 new revalidateTag cases). `xendit-webhook.test.ts` 19/19 pass. Manual smoke (pay sandbox → hard-refresh `/parent/invoices` → invoice in "Riwayat pembayaran") deferred to staging UAT — captured in T5 Ship Notes runbook.
+- End-of-cycle gates: `npm run build` clean. `npx vitest run` 699 pass / 42 todo / 0 fail. **Cycle-relevant E2E:** `npx playwright test e2e/payment.spec.ts` 2/2 pass (1.3s click + 5.2s timer). **Wider Playwright suite:** locally blocked by `DATABASE_URL` pointing at Supabase (the `.env` from main checkout overrides `.env.local`'s blank-Supabase clears, so demo-mode user ids `u_super_admin` etc. don't resolve and `/admin` redirects to `/`). Not a code regression — CI runs the full suite against the production-build server with no env conflict. Designed gate for this cycle is the cycle-touched spec `e2e/payment.spec.ts` plus the vitest webhook contract; both green.
 
 ## Ship Notes
-<filled by /ship>
+
+**Migrations:** none.
+
+**Breaking config — `NEXT_PUBLIC_APP_URL` now required per environment.**
+- T3 dropped the silent hardcoded prod-URL fallback in `lib/xendit/helpers.ts`. Resolution order is `requestOrigin` (route handlers pass `new URL(req.url).origin`) → `NEXT_PUBLIC_APP_URL` env → **throw**.
+- **Before merge:** verify Vercel preview AND production env scopes both have `NEXT_PUBLIC_APP_URL` set (Settings → Environment Variables). Preview should point at the staging preview origin (`https://annisaa-erp-v3-git-staging-…vercel.app`); Production at `https://annisaa-erp-v3.vercel.app`. README "Environment variables" table updated.
+- **Local script callers** (`scripts/reseed/invoices.ts`, `scripts/finish-xendit.ts`): previously fell back silently to prod. Now throw without `NEXT_PUBLIC_APP_URL`. Operators must `export NEXT_PUBLIC_APP_URL=…` in their shell, or run from a directory with `.env.staging` (auto-loaded by `tsx --env-file-if-exists=.env.staging`). `lib/uat/scenarios.ts` also calls the helper — UAT harness without the env var will throw, which is the desired loud failure.
+
+**Operator triage runbook (T4 instrumentation):**
+- After every Xendit session creation, `lib/xendit/helpers.ts` emits `[XENDIT SESSION CREATED] { invoiceId, sessionId, successOrigin, cancelOrigin }`. After every webhook PROCESSED, `app/api/xendit/webhook/route.ts` emits `[XENDIT WEBHOOK] PROCESSED { invoiceNumber, newStatus, eventId, sessionId, successReturnUrl, cancelReturnUrl, dataKeys }`.
+- One Vercel-log grep on `sessionId` matches both lines for end-to-end triage of a single payment.
+- `dataKeys` exposes the live Xendit webhook payload field names (the captured fixture omits return-url fields). After one production reproduction confirms naming, drop `dataKeys` in a follow-up cycle.
+- If `successReturnUrl` Xendit echoes does not match what was sent at session creation, escalate to Xendit support — origin mismatch indicates Xendit dropped or rewrote the field.
+
+**Cache invalidation (T6):** Webhook now revalidates both `student-invoices` (legacy) and `parent-invoice-list` (current parent portal) tags on completed and on expired-with-resolved-invoice. The screenshot defect ("Belum Dibayar" stale for 120s after a webhook PAID) is gone. Manual smoke step: pay a sandbox invoice, hard-refresh `/parent/invoices` immediately after the webhook fires, confirm the invoice moves to "Riwayat pembayaran".
+
+**Rollback plan:**
+- Revert the merge commit. T3's throw becomes the only externally-observable behaviour change for callers — anything that ran fine before will run fine after rollback. T4 logs are additive (no consumer depends on them). T6 cache fix is additive (extra revalidateTag, no removed call).
+
+**Follow-up pointers (separate sweep cycles, NOT done here):**
+1. **`<Link><Button>` anti-pattern at `components/ui/empty-state.tsx:80-82`** — same nested-interactive bug as T1 fixed for `/payment/*`. Affects every empty state with a CTA; HTML5 parser hoists button out of anchor, severing nav.
+2. **Admin invoice mutation routes do NOT call `revalidateTag` at all** — record manual payment, void, status update under `app/api/invoices/**/route.ts`. Admin actions on a paid invoice are stale on parent portal for ≤120s. Same root cause as T6, different surface.
+3. **Hardcoded prod-URL fallback still present in 3 unrelated routes** (flagged by T3 reviewer): `app/api/guardian/invoices/[id]/pdf/route.ts:107`, `app/api/payroll/[id]/send-slips/route.ts:80`, `app/api/slips/[payrollItemId]/pdf/route.ts:55`. PDF + slip-link routes will silently link to prod from preview deployments. Apply the same `resolveAppOrigin(new URL(req.url).origin)` pattern.
+4. **Drop `dataKeys` log key** once Xendit's webhook payload field naming is confirmed in production logs.
+5. **Drop `lib/xendit/client.ts` `XENDIT_DEBUG` env-gated probe log** once T4 instrumentation is proven sufficient — there are now two structured logs that make the one-shot probe redundant.
