@@ -160,6 +160,44 @@ Each task is one commit. Between every task: `npm run build && npx vitest run` m
 - No test pinned this branch (verified via grep on `createXenditSessionForInvoice` + `transitioning.*SENT`); the helper is still used (correctly) by the batch + manual-create + retry paths.
 - Vitest: full suite **604/646 passed** unchanged.
 
+### Architect simplification sweep (CTO mid-cycle directive — YAGNI for 500-student school)
+
+After Task 4, CTO directive: review for over-engineering. `feature-dev:code-architect` agent ran a YAGNI pass on the full post-PR-140 finance surface against the realistic operating profile (1 school, 500 students, ~50 invoices/month, 2-3 admins, Vercel free tier, ~0.05 req/sec average). Six concrete cuts identified, all landed in this cycle.
+
+**What stays untouched and earns its keep** (per architect): the lock triangle (webhook + manual-payment + void all serialise on `hashtext(invoice.id)`), the WebhookEvent UNIQUE-on-eventId outer dedup, `PENDING_PAYMENT_LINK` as a durable state, the plan→batch two-step for bulk creation (operator confirms 487-eligible before committing 487 writes), the `Payment.xenditPaymentId` UNIQUE constraint + inner `findUnique` pre-check, `nextInvoiceNumber`'s advisory lock (eliminates a ~yearly retry round-trip), `xendit-retry.ts` (genuinely shared between two endpoints), `sumDecimals` in the write path (column type is Decimal(15,2)).
+
+**Cut 1b — Replace `pLimit(5)` with `Promise.all`**
+- `lib/finance/p-limit.ts` deleted (38 LOC).
+- `lib/finance/__tests__/p-limit.test.ts` deleted (~80 LOC).
+- `lib/finance/xendit-retry.ts`, `app/api/invoices/generate/batch/route.ts`: drop `pLimit` import + wrap, call `createXenditSessionForInvoice` directly inside `Promise.allSettled(...map())`. Why it was wrong: `pLimit(5)` on 25 Xendit calls = ~7.5s, `Promise.all` on 25 = ~1.5s. Vercel ceiling is 60s; we were never near it. The "cap protects Xendit's rate limit" rationale doesn't apply at 50 invoices/month. ~120 LOC saved.
+
+**Cut 2b — Delete `run-bulk-retry.ts` orchestration core**
+- `lib/finance/run-bulk-retry.ts` deleted (188 LOC).
+- `lib/finance/__tests__/run-bulk-retry.test.ts` deleted (~150 LOC).
+- `app/admin/invoices/page.tsx` `handleBulkRetry` collapsed from `runBulkRetry({ … })` orchestration (chunked 25, 5xx retry-w-backoff, pause/Continue dialog, sticky progress card) to a single `fetch('/api/invoices/retry-payment-links', { method: 'POST', body: JSON.stringify({}) })` + result toast. Why it was wrong: realistic retry scenario is 0-5 PENDING invoices (Xendit sandbox flakes), not a 100+ batch needing chunking + pause/resume. Operator clicks button, sees toast — done. ~340 LOC saved.
+
+**Cut 3b — Drop webhook P2002 swallow + `targetMatches` helper**
+- `app/api/xendit/webhook/route.ts`: removed the `try { tx.payment.create } catch P2002 { recompute }` block + the private `targetMatches(meta, field)` helper. Inner-tx `findUnique({ xenditPaymentId })` pre-check stays (primary dedup). The advisory lock on `hashtext(invoice.id)` (held by webhook + manual-payment + void) serialises concurrent webhook handlers for the same invoice — by the time the second one enters its tx body, the first one's payment row is visible to `findUnique` and the early-return short-circuits. The race window the P2002 catch was defending against is closed by the lock that's already there.
+- `app/api/__tests__/xendit-webhook.test.ts`: deleted the "P2002 swallowed" test (this race can't happen post-lock); kept the "existing-row short-circuit" + "missing-paymentId rejected" tests (both still earning their place).
+- This **partially reverts my Task 2b commit** — the lock-already-closes-this-race insight changes the trade-off. ~80 LOC saved.
+
+**Cut 4b — Drop pause/resume from `run-bulk-generate.ts`**
+- `lib/finance/run-bulk-generate.ts`: removed `onPauseDecision` callback from input, removed `"paused"` phase from `BatchProgressPhase` union, three-strike batch failure now auto-aborts with a clear toast instead of waiting for operator decision. Backoff retry (1s + 3s) stays — that's a real recoverable transient.
+- `lib/finance/__tests__/run-bulk-generate.test.ts`: removed the "paused → continue" test (~30 LOC); kept the chunking + retry-with-backoff + abort tests.
+- `app/admin/invoices/page.tsx`: removed `pausePrompt` state + `handlePauseContinue` + `handlePauseCancel` + the pause `<ConfirmDialog>`; `runBulkGenerate` invocation drops the `onPauseDecision` callback.
+- `components/admin/invoices/batch-progress-card.tsx`: removed `paused` phase rendering (Continue/Cancel buttons), simplified to `running | done | error` phases.
+- Why it was wrong: three-strike failure on a batch is a real infrastructure problem (Vercel timeout, Xendit 500) — clicking Continue won't help. ~90 LOC saved.
+
+**Cut 5b — Drop rate limits from admin-auth-gated mutations**
+- `app/api/invoices/route.ts`, `app/api/invoices/[id]/route.ts`, `app/api/invoices/[id]/payments/route.ts`, `app/api/invoices/[id]/void/route.ts`, `app/api/invoices/generate/batch/route.ts`, `app/api/invoices/retry-payment-links/route.ts`, `app/api/invoices/generate/plan/route.ts`: removed the `rateLimit(...)` calls + 429 returns + `import { rateLimit, getClientIp } from "@/lib/rate-limit"`. Why it was wrong: rate limits defend against (a) credential-stuff brute force (not applicable — Supabase OTP auth) and (b) DDoS (not applicable — Vercel CDN). The remaining "rogue admin loop" threat is fictional for a 3-person team. The 5/min void limit could 429 a determined admin clicking through 6 DRAFT invoices. The webhook keeps its token auth (already not rate-limited). Tests that asserted 429 responses removed/updated. ~35 LOC + 7 imports saved.
+
+**Cut 6b — Plain `Number` accumulation in stats**
+- `app/api/invoices/stats/route.ts`: replaced `Prisma.Decimal` accumulators (`new Prisma.Decimal(0)` + `.add(Decimal)` + final `.toNumber()`) with plain `let totalDue = 0; let totalPaid = 0;` + `+= Number(g._sum.totalDue ?? 0)`. Removed `Prisma` import. Why it was wrong: groupBy returns ~7 buckets with sums in IDR (integer rupiah); IEEE-754 drift across 7 additions of integer values is a non-issue. Decimal arithmetic stays in the write path (payment, webhook) where the column is `Decimal(15,2)` and totals are recomputed from many small line items. ~10 LOC saved + 1 import.
+
+**Total simplification: ~675 LOC + ~260 test LOC removed across 6 cuts.** Behaviour identical for the realistic operating profile. The cycle's 4 correctness fixes (Tasks 1-4) survive intact.
+
+**Cuts deferred to separate cycles** (per architect): void route 404/409 guards moved outside the transaction (control-flow refactor, deserves focused review); `Invoice.totalDue`/`totalPaid` schema migration from `Decimal(15,2)` to `Int` (Indonesian Rupiah is integer-valued — biggest payoff but requires a schema-touch cycle).
+
 ---
 
 ## Verification

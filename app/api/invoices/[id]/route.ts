@@ -39,9 +39,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const body = parsed.data;
 
-  // State-machine guard: only DRAFT -> SENT is valid. Reject SENT from
-  // PAID/CANCELLED/PARTIALLY_PAID so a stale admin tab cannot create a fresh
-  // Xendit session on a voided or already-paid invoice.
+  // State-machine guard: only DRAFT -> SENT is valid via PUT. Xendit session
+  // creation lives on the dedicated POST endpoints (manual create, batch,
+  // retry-payment-links); this guard preserves status-machine purity so a
+  // stale admin tab can't jump straight to SENT and bypass those paths.
   if (body.status === "SENT" && existing.status !== "DRAFT" && existing.status !== "SENT") {
     return NextResponse.json(
       { error: `Tagihan dengan status ${existing.status} tidak bisa diubah ke SENT` },

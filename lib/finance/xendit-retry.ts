@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db";
-import { pLimit } from "@/lib/finance/p-limit";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
 
 export type RetryResultRow =
@@ -32,7 +31,9 @@ export type RetryOutcome = {
  * tenant (capped at 25 per call — client iterates if more are needed).
  * Otherwise: retries only the specified ids (also capped at 25).
  *
- * Concurrency cap: 5 parallel Xendit calls (same shape as the batch endpoint).
+ * Concurrency: all candidates fire in parallel via Promise.allSettled.
+ * At 25 invoices × ~1.5s Xendit latency = ~1.5s wall time, well under the
+ * Vercel 60s function ceiling.
  * Per-outcome write-back: on success → status=SENT + sentAt + paymentLinkError=null
  * (the helper already wrote `xenditSessionId` + `xenditPaymentUrl`); on failure
  * → paymentLinkError=<message> (status stays PENDING_PAYMENT_LINK).
@@ -61,14 +62,9 @@ export async function retryPaymentLinks(
     return { retried: 0, succeeded: 0, stillFailed: 0, results: [] };
   }
 
-  // 25 invoices / 5 parallel × ~1500ms worst-case ≈ 7.5s — well under the
-  // Vercel 60s function ceiling.
-  const limit = pLimit(5);
   const settled = await Promise.allSettled(
     candidates.map((c) =>
-      limit(() =>
-        createXenditSessionForInvoice(c.id, tenantId).then((res) => ({ row: c, result: res }))
-      )
+      createXenditSessionForInvoice(c.id, tenantId).then((res) => ({ row: c, result: res }))
     )
   );
 

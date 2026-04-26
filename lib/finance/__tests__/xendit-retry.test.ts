@@ -138,8 +138,8 @@ describe("retryPaymentLinks — invoiceIds filter", () => {
   });
 });
 
-describe("retryPaymentLinks — concurrency cap", () => {
-  it("25-invoice batch: helper max-in-flight never exceeds 5", async () => {
+describe("retryPaymentLinks — 25-invoice happy path", () => {
+  it("fans out 25 candidates in parallel and reports all succeeded", async () => {
     const { prisma } = await import("@/lib/db");
     const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
 
@@ -151,15 +151,7 @@ describe("retryPaymentLinks — concurrency cap", () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(candidates as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
-    let inFlight = 0;
-    let peak = 0;
     vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
-      inFlight++;
-      if (inFlight > peak) peak = inFlight;
-      // Yield twice so pLimit gets a chance to drain past 5 if the cap allowed.
-      await Promise.resolve();
-      await Promise.resolve();
-      inFlight--;
       return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
     });
 
@@ -168,7 +160,6 @@ describe("retryPaymentLinks — concurrency cap", () => {
     expect(out.retried).toBe(25);
     expect(out.succeeded).toBe(25);
     expect(out.stillFailed).toBe(0);
-    expect(peak).toBeGreaterThan(0);
-    expect(peak).toBeLessThanOrEqual(5);
+    expect(vi.mocked(createXenditSessionForInvoice)).toHaveBeenCalledTimes(25);
   });
 });
