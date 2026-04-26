@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2 } from "lucide-react";
-import type { BatchProgressSnapshot } from "@/lib/finance/run-bulk-generate";
-import type { BulkRetrySnapshot } from "@/lib/finance/run-bulk-retry";
+import type { BatchProgressSnapshot, FailureRow } from "@/lib/finance/run-bulk-generate";
+import type { BulkRetrySnapshot, RetryFailureRow } from "@/lib/finance/run-bulk-retry";
 
 /**
  * Sticky progress card shown during a bulk-generate or bulk-retry run.
@@ -15,34 +17,89 @@ import type { BulkRetrySnapshot } from "@/lib/finance/run-bulk-retry";
  * Inline Tailwind progress bar (single-bar driven by percent) instead of
  * shadcn `<Progress>` so this card stays self-contained.
  *
- * Cancel button + beforeunload guard + per-student error rows land in T4.
+ * T4 additions:
+ *   - "Batalkan" ghost button while phase === "running" — calls `onCancel`
+ *     which the page-level wiring fans out to AbortController.
+ *   - `beforeunload` listener registered while phase === "running" with the
+ *     spec-mandated copy "Pembuatan tagihan sedang berjalan. Yakin keluar?"
+ *   - Collapsible <details> "Lihat detail (N gagal)" listing failed students.
  */
 type GenerateProps = {
   mode?: "generate";
   progress: BatchProgressSnapshot;
+  onCancel?: () => void;
 };
 
 type RetryProps = {
   mode: "retry";
   progress: BulkRetrySnapshot;
+  onCancel?: () => void;
 };
 
 export type BatchProgressCardProps = GenerateProps | RetryProps;
 
-export function BatchProgressCard(props: BatchProgressCardProps) {
-  if (props.mode === "retry") {
-    return <RetryCard progress={props.progress} />;
-  }
-  return <GenerateCard progress={props.progress} />;
+const BEFORE_UNLOAD_MESSAGE = "Pembuatan tagihan sedang berjalan. Yakin keluar?";
+
+/**
+ * beforeunload guard — fires whenever the orchestrator is mid-run so a
+ * fat-finger sidebar click triggers the browser's native confirm dialog.
+ */
+function useBeforeUnloadWhileRunning(running: boolean) {
+  useEffect(() => {
+    if (!running) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Modern browsers ignore custom strings but `returnValue` is still the
+      // canonical signal that a confirm dialog should fire.
+      e.returnValue = BEFORE_UNLOAD_MESSAGE;
+      return BEFORE_UNLOAD_MESSAGE;
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [running]);
 }
 
-function GenerateCard({ progress }: { progress: BatchProgressSnapshot }) {
+export function BatchProgressCard(props: BatchProgressCardProps) {
+  if (props.mode === "retry") {
+    return <RetryCard progress={props.progress} onCancel={props.onCancel} />;
+  }
+  return <GenerateCard progress={props.progress} onCancel={props.onCancel} />;
+}
+
+function FailureDetails({ failures }: { failures: ReadonlyArray<FailureRow | RetryFailureRow> }) {
+  if (failures.length === 0) return null;
+  return (
+    <details className="mt-2">
+      <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+        Lihat detail ({failures.length} gagal)
+      </summary>
+      <ul className="mt-2 space-y-1 text-xs">
+        {failures.map((f, i) => (
+          <li key={`${f.studentId}-${i}`} className="flex flex-col gap-0.5 py-1 border-t border-border/40 first:border-t-0">
+            <span className="font-medium">{f.studentName}</span>
+            <span className="text-muted-foreground">{f.error}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function GenerateCard({
+  progress,
+  onCancel,
+}: {
+  progress: BatchProgressSnapshot;
+  onCancel?: () => void;
+}) {
   const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+  const isRunning = progress.phase === "running";
+  useBeforeUnloadWhileRunning(isRunning);
 
   return (
     <Card className="sticky top-4 z-10 p-4 mb-4 border-primary/30 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
-        {progress.phase === "running" ? (
+        {isRunning ? (
           <Loader2 size={16} className="animate-spin text-primary" aria-hidden />
         ) : null}
         {progress.phase === "done" ? (
@@ -52,7 +109,19 @@ function GenerateCard({ progress }: { progress: BatchProgressSnapshot }) {
           {progress.phase === "running" && `Membuat tagihan… ${progress.done}/${progress.total}`}
           {progress.phase === "done" &&
             `Selesai: ${progress.created} dibuat, ${progress.xenditFailed} gagal Xendit`}
+          {progress.phase === "aborted" &&
+            `Dibatalkan: ${progress.created} dibuat, ${progress.xenditFailed} gagal Xendit`}
         </span>
+        {isRunning && onCancel && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            className="ml-auto h-7 text-xs"
+          >
+            Batalkan
+          </Button>
+        )}
       </div>
 
       <div
@@ -74,13 +143,22 @@ function GenerateCard({ progress }: { progress: BatchProgressSnapshot }) {
           <span className="text-warning">{progress.xenditFailed} link gagal</span>
         )}
       </div>
+
+      <FailureDetails failures={progress.failures ?? []} />
     </Card>
   );
 }
 
-function RetryCard({ progress }: { progress: BulkRetrySnapshot }) {
+function RetryCard({
+  progress,
+  onCancel,
+}: {
+  progress: BulkRetrySnapshot;
+  onCancel?: () => void;
+}) {
   const pct = progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
   const isRunning = progress.phase === "running" || progress.phase === "fetching-pending";
+  useBeforeUnloadWhileRunning(isRunning);
 
   return (
     <Card className="sticky top-4 z-10 p-4 mb-4 border-primary/30 shadow-sm">
@@ -101,6 +179,16 @@ function RetryCard({ progress }: { progress: BulkRetrySnapshot }) {
             `Dibatalkan: ${progress.fixed} diperbaiki, ${progress.stillFailed} masih gagal`}
           {progress.phase === "overflow" && "Memperbaiki link pembayaran…"}
         </span>
+        {isRunning && onCancel && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            className="ml-auto h-7 text-xs"
+          >
+            Batalkan
+          </Button>
+        )}
       </div>
 
       <div
@@ -122,6 +210,8 @@ function RetryCard({ progress }: { progress: BulkRetrySnapshot }) {
           <span className="text-warning">{progress.stillFailed} masih gagal</span>
         )}
       </div>
+
+      <FailureDetails failures={progress.failures ?? []} />
     </Card>
   );
 }

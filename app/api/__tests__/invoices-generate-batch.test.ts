@@ -291,6 +291,13 @@ describe("POST /api/invoices/generate/batch — mixed Xendit outcomes", () => {
     expect(body.skipped).toBe(0);
     expect(body.results).toHaveLength(5);
 
+    // T4 — per-student results carry studentName for the failure-detail UI.
+    for (const r of body.results) {
+      expect(r.studentName).toBeTruthy();
+      expect(r.studentId).toBeTruthy();
+      expect(r.invoiceId).toBeTruthy();
+    }
+
     const sent = body.results.filter((r: { status: string }) => r.status === "SENT");
     const pending = body.results.filter(
       (r: { status: string }) => r.status === "PENDING_PAYMENT_LINK"
@@ -299,6 +306,7 @@ describe("POST /api/invoices/generate/batch — mixed Xendit outcomes", () => {
     expect(pending).toHaveLength(1);
     expect(pending[0].error).toBe("Xendit 503");
     expect(pending[0].invoiceId).toBe("inv-s-5");
+    expect(pending[0].studentName).toBe("Student s-5");
 
     // The failure update writes paymentLinkError but does NOT flip status —
     // the status was already PENDING_PAYMENT_LINK when the invoice was created.
@@ -360,6 +368,53 @@ describe("POST /api/invoices/generate/batch — skipped students", () => {
       status: "SENT",
       paymentUrl: "https://checkout.xendit.co/web/inv-s-1",
     });
+  });
+});
+
+describe("POST /api/invoices/generate/batch — 25-student with 3 Xendit failures", () => {
+  it("3 of 25 Xendit calls fail → 3 entries in results[] with error + studentName populated", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+
+    const studentIds = Array.from({ length: 25 }, (_, i) => `s-${i + 1}`);
+    const { enrollments, feeStructures, studentGuardians } = wireFullEligibility(studentIds);
+
+    vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue(enrollments as never);
+    vi.mocked(prisma.programFeeStructure.findMany).mockResolvedValue(feeStructures as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.studentGuardian.findMany).mockResolvedValue(studentGuardians as never);
+
+    wireHappyTx(studentIds);
+
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+
+    // Fail s-7, s-13, s-22 → invoice ids inv-s-7, inv-s-13, inv-s-22.
+    const failingInvoiceIds = new Set(["inv-s-7", "inv-s-13", "inv-s-22"]);
+    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
+      if (failingInvoiceIds.has(invoiceId)) throw new Error("Xendit 503");
+      return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
+    });
+
+    const res = await POST(makeReq({ ...validBody, studentIds }) as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.created).toBe(25);
+    expect(body.results).toHaveLength(25);
+
+    const failures = body.results.filter(
+      (r: { status: string }) => r.status === "PENDING_PAYMENT_LINK",
+    );
+    expect(failures).toHaveLength(3);
+    for (const f of failures) {
+      expect(f.error).toBe("Xendit 503");
+      expect(f.studentName).toBeTruthy();
+      expect(f.studentId).toBeTruthy();
+    }
+    const failedStudentIds = new Set(failures.map((f: { studentId: string }) => f.studentId));
+    expect(failedStudentIds).toEqual(new Set(["s-7", "s-13", "s-22"]));
   });
 });
 

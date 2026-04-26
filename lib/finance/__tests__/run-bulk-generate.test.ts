@@ -281,3 +281,94 @@ describe("runBulkGenerate — partial Xendit failure tallies xenditOk + xenditFa
     }
   });
 });
+
+// --------------------------------------------------------------------------
+// Cancellation via AbortSignal (T4)
+// --------------------------------------------------------------------------
+
+describe("runBulkGenerate — cancellation via AbortSignal", () => {
+  it("aborts before the next chunk when signal is aborted mid-run", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(60); // 3 chunks
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+
+    const c1 = plan.eligibleStudentIds.slice(0, 25);
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1)));
+
+    const controller = new AbortController();
+    // Abort after the first chunk lands.
+    let chunksObserved = 0;
+    const onProgress = (s: BatchProgressSnapshot) => {
+      if (s.phase === "running" && s.done === 25 && chunksObserved === 0) {
+        chunksObserved++;
+        controller.abort();
+      }
+    };
+
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      onProgress,
+      signal: controller.signal,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("aborted");
+    if (out.phase === "aborted") {
+      // First chunk landed (25), no further chunks dispatched.
+      expect(out.final.done).toBe(25);
+      expect(out.final.phase).toBe("aborted");
+    }
+    // Plan + 1 batch only — chunks 2 & 3 never dispatched.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does nothing when signal is not provided (back-compat)", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(5);
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
+
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("done");
+  });
+});
+
+// --------------------------------------------------------------------------
+// Per-student failure rows accumulate on the snapshot (T4)
+// --------------------------------------------------------------------------
+
+describe("runBulkGenerate — failure rows on snapshot", () => {
+  it("accumulates failures across chunks with studentName + error", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(50); // 2 chunks of 25
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+
+    const c1 = plan.eligibleStudentIds.slice(0, 25);
+    const c2 = plan.eligibleStudentIds.slice(25, 50);
+    // Inject 2 failures in chunk 1 and 1 in chunk 2 (total 3).
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1, [3, 7])));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c2, [2])));
+
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("done");
+    if (out.phase === "done") {
+      expect(out.final.xenditFailed).toBe(3);
+      expect(out.final.failures).toHaveLength(3);
+      for (const f of out.final.failures) {
+        expect(f.studentId).toBeTruthy();
+        expect(f.error).toBe("Xendit unavailable");
+      }
+    }
+  });
+});

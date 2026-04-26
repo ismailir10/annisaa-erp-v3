@@ -34,6 +34,12 @@ export type BulkRetryPhase =
   | "aborted"
   | "overflow";
 
+export type RetryFailureRow = {
+  studentId: string;
+  studentName: string;
+  error: string;
+};
+
 export type BulkRetrySnapshot = {
   phase: BulkRetryPhase;
   total: number;
@@ -41,6 +47,8 @@ export type BulkRetrySnapshot = {
   fixed: number;
   stillFailed: number;
   message?: string;
+  /** Per-student error rows; populated as failures accumulate across chunks. */
+  failures: RetryFailureRow[];
 };
 
 export type PendingInvoice = {
@@ -61,6 +69,7 @@ export type RetryResultRow =
       invoiceId: string;
       invoiceNumber: string;
       studentId: string;
+      studentName?: string;
       status: "SENT";
       paymentUrl: string;
     }
@@ -68,6 +77,7 @@ export type RetryResultRow =
       invoiceId: string;
       invoiceNumber: string;
       studentId: string;
+      studentName?: string;
       status: "PENDING_PAYMENT_LINK";
       error: string;
     };
@@ -90,6 +100,12 @@ export type RunBulkRetryInput = {
    * invoices without user consent is a UX violation.
    */
   onOverflow: (total: number) => boolean | Promise<boolean>;
+  /**
+   * Optional. AbortSignal for mid-run cancellation. The orchestrator checks
+   * `signal.aborted` before starting each chunk and short-circuits to
+   * `phase: "aborted"`. Wired by the BatchProgressCard "Batalkan" button.
+   */
+  signal?: AbortSignal;
   /** Test seam — defaults to global `fetch`. */
   fetchImpl?: typeof fetch;
   /** Test seam — defaults to global `setTimeout`. */
@@ -128,6 +144,7 @@ export async function runBulkRetry(input: RunBulkRetryInput): Promise<RunBulkRet
     processed: 0,
     fixed: 0,
     stillFailed: 0,
+    failures: [],
   });
 
   const listRes = await fetchImpl("/api/invoices/pending-payment-link", {
@@ -152,6 +169,7 @@ export async function runBulkRetry(input: RunBulkRetryInput): Promise<RunBulkRet
       fixed: 0,
       stillFailed: 0,
       message: OVERFLOW_MESSAGE,
+      failures: [],
     });
     const proceed = await input.onOverflow(pending.total);
     if (!proceed) {
@@ -161,6 +179,7 @@ export async function runBulkRetry(input: RunBulkRetryInput): Promise<RunBulkRet
 
   // 3) Chunk + drain loop.
   const ids = pending.data.map((r) => r.id);
+  const nameById = new Map(pending.data.map((r) => [r.id, r.studentName]));
   const chunks = chunk(ids, BATCH_SIZE);
 
   const snapshot: BulkRetrySnapshot = {
@@ -169,12 +188,21 @@ export async function runBulkRetry(input: RunBulkRetryInput): Promise<RunBulkRet
     processed: 0,
     fixed: 0,
     stillFailed: 0,
+    failures: [],
   };
-  input.onProgress({ ...snapshot });
+  input.onProgress({ ...snapshot, failures: [...snapshot.failures] });
 
   const failures: RetryResultRow[] = [];
 
   for (const invoiceIds of chunks) {
+    // Cancellation check — fires before each chunk so an in-flight chunk
+    // completes naturally but no new HTTP calls are dispatched.
+    if (input.signal?.aborted) {
+      snapshot.phase = "aborted";
+      input.onProgress({ ...snapshot, failures: [...snapshot.failures] });
+      return { phase: "aborted", final: { ...snapshot, failures: [...snapshot.failures] }, failures };
+    }
+
     const result = await callRetryWithRetry({ invoiceIds, fetchImpl, sleep });
 
     if (!result.ok) {
@@ -183,8 +211,8 @@ export async function runBulkRetry(input: RunBulkRetryInput): Promise<RunBulkRet
       // stabilises.
       snapshot.phase = "aborted";
       snapshot.message = result.lastError;
-      input.onProgress({ ...snapshot });
-      return { phase: "aborted", final: { ...snapshot }, failures };
+      input.onProgress({ ...snapshot, failures: [...snapshot.failures] });
+      return { phase: "aborted", final: { ...snapshot, failures: [...snapshot.failures] }, failures };
     }
 
     const body = result.value;
@@ -192,14 +220,21 @@ export async function runBulkRetry(input: RunBulkRetryInput): Promise<RunBulkRet
     snapshot.fixed += body.succeeded;
     snapshot.stillFailed += body.stillFailed;
     for (const r of body.results) {
-      if (r.status === "PENDING_PAYMENT_LINK") failures.push(r);
+      if (r.status === "PENDING_PAYMENT_LINK") {
+        failures.push(r);
+        snapshot.failures.push({
+          studentId: r.studentId,
+          studentName: r.studentName ?? nameById.get(r.invoiceId) ?? r.studentId,
+          error: r.error,
+        });
+      }
     }
-    input.onProgress({ ...snapshot });
+    input.onProgress({ ...snapshot, failures: [...snapshot.failures] });
   }
 
   snapshot.phase = "done";
-  input.onProgress({ ...snapshot });
-  return { phase: "done", final: { ...snapshot }, failures };
+  input.onProgress({ ...snapshot, failures: [...snapshot.failures] });
+  return { phase: "done", final: { ...snapshot, failures: [...snapshot.failures] }, failures };
 }
 
 type CallRetryInput = {

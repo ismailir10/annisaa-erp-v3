@@ -161,6 +161,7 @@ describe("runBulkRetry — three-strike abort", () => {
 
     const out = await runBulkRetry({
       onProgress: vi.fn(),
+      onOverflow: () => true,
       fetchImpl: fetchMock as unknown as typeof fetch,
       sleepImpl: sleepMock,
     });
@@ -188,6 +189,7 @@ describe("runBulkRetry — three-strike abort", () => {
 
     const out = await runBulkRetry({
       onProgress: vi.fn(),
+      onOverflow: () => true,
       fetchImpl: fetchMock as unknown as typeof fetch,
       sleepImpl: sleepMock,
     });
@@ -222,7 +224,6 @@ describe("runBulkRetry — overflow detection", () => {
 
     const out = await runBulkRetry({
       onProgress: (s) => snapshots.push({ ...s }),
-      onOverflow: () => true,
       onOverflow,
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
@@ -271,6 +272,7 @@ describe("runBulkRetry — no-pending edge case", () => {
     const onProgress = vi.fn();
     const out = await runBulkRetry({
       onProgress,
+      onOverflow: () => true,
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
 
@@ -312,6 +314,78 @@ describe("runBulkRetry — progress snapshots", () => {
       expect(out.final.fixed).toBe(2);
       expect(out.final.stillFailed).toBe(1);
       expect(out.failures).toHaveLength(1);
+    }
+  });
+});
+
+// --------------------------------------------------------------------------
+// Cancellation via AbortSignal (T4)
+// --------------------------------------------------------------------------
+
+describe("runBulkRetry — cancellation via AbortSignal", () => {
+  it("aborts before the next chunk when signal is aborted mid-run", async () => {
+    const fetchMock = vi.fn();
+    const pending = makePending(60); // 3 chunks
+    fetchMock.mockResolvedValueOnce(jsonResponse(pending));
+
+    const c1 = pending.data.slice(0, 25).map((r) => r.id);
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeRetryResponse(c1)));
+
+    const controller = new AbortController();
+    let chunksObserved = 0;
+    const onProgress = (s: BulkRetrySnapshot) => {
+      if (s.phase === "running" && s.processed === 25 && chunksObserved === 0) {
+        chunksObserved++;
+        controller.abort();
+      }
+    };
+
+    const out = await runBulkRetry({
+      onProgress,
+      onOverflow: () => true,
+      signal: controller.signal,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("aborted");
+    if (out.phase === "aborted") {
+      expect(out.final.processed).toBe(25);
+      expect(out.final.phase).toBe("aborted");
+    }
+    // Pending fetch + 1 retry chunk only.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+// --------------------------------------------------------------------------
+// Per-student failure rows on snapshot (T4)
+// --------------------------------------------------------------------------
+
+describe("runBulkRetry — failure rows on snapshot", () => {
+  it("accumulates failures across chunks with studentName + error", async () => {
+    const fetchMock = vi.fn();
+    const pending = makePending(50);
+    fetchMock.mockResolvedValueOnce(jsonResponse(pending));
+
+    const c1 = pending.data.slice(0, 25).map((r) => r.id);
+    const c2 = pending.data.slice(25, 50).map((r) => r.id);
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeRetryResponse(c1, [3, 7])));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeRetryResponse(c2, [2])));
+
+    const out = await runBulkRetry({
+      onProgress: vi.fn(),
+      onOverflow: () => true,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("done");
+    if (out.phase === "done") {
+      expect(out.final.stillFailed).toBe(3);
+      expect(out.final.failures).toHaveLength(3);
+      for (const f of out.final.failures) {
+        expect(f.studentName).toBeTruthy();
+        expect(f.error).toBe("Xendit unavailable");
+      }
     }
   });
 });

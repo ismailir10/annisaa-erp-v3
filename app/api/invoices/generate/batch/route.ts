@@ -5,6 +5,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { reserveInvoiceNumbers, sumDecimals } from "@/lib/finance/invoice-numbers";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
 import { generateBatchSchema } from "@/lib/validations/invoice";
+import { limit } from "@/lib/finance/concurrency-limit";
 
 /**
  * POST /api/invoices/generate/batch
@@ -206,17 +207,24 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Fan out Xendit Checkout Session creation in parallel.
-  // 25 invoices × ~1.5s wall time ≈ 1.5s total — well under the Vercel 60s ceiling.
+  // Fan out Xendit Checkout Session creation in parallel — capped at 5 concurrent
+  // calls per cycle 2026-04-26 spec B3 (defends against Xendit latency spike +
+  // per-merchant rate-limit serialize-on-server pushing past Vercel's 60s
+  // ceiling). Shared per-request limiter instance — module-level would queue
+  // across unrelated requests.
+  const runLimit = limit(5);
   const settled = await Promise.allSettled(
     txResult.map((row) =>
-      createXenditSessionForInvoice(row.invoiceId, tenantId).then((res) => ({ row, result: res }))
-    )
+      runLimit(() =>
+        createXenditSessionForInvoice(row.invoiceId, tenantId).then((res) => ({ row, result: res })),
+      ),
+    ),
   );
 
   type ResultRow =
     | {
         studentId: string;
+        studentName: string;
         invoiceId: string;
         invoiceNumber: string;
         status: "SENT";
@@ -224,6 +232,7 @@ export async function POST(req: NextRequest) {
       }
     | {
         studentId: string;
+        studentName: string;
         invoiceId: string;
         invoiceNumber: string;
         status: "PENDING_PAYMENT_LINK";
@@ -250,6 +259,7 @@ export async function POST(req: NextRequest) {
       }
       results.push({
         studentId: row.studentId,
+        studentName: row.studentName,
         invoiceId: row.invoiceId,
         invoiceNumber: row.invoiceNumber,
         status: "SENT",
@@ -276,6 +286,7 @@ export async function POST(req: NextRequest) {
       }
       results.push({
         studentId: row.studentId,
+        studentName: row.studentName,
         invoiceId: row.invoiceId,
         invoiceNumber: row.invoiceNumber,
         status: "PENDING_PAYMENT_LINK",

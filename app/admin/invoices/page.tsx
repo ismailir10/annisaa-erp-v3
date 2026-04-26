@@ -281,6 +281,11 @@ export default function InvoicesPage() {
   } | null>(null);
   const retryDoneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // AbortControllers for the two orchestrators — driven by the
+  // BatchProgressCard "Batalkan" button. Reset to null when the run finishes
+  // or is cancelled so the next click starts fresh.
+  const generateAbortRef = useRef<AbortController | null>(null);
+  const retryAbortRef = useRef<AbortController | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     draft: 0,
@@ -408,9 +413,13 @@ export default function InvoicesPage() {
       doneAutoHideRef.current = null;
     }
 
+    // Fresh AbortController per run — wired to the card's Batalkan button.
+    generateAbortRef.current = new AbortController();
+
     try {
       const out = await runBulkGenerate({
         planRequest: genForm,
+        signal: generateAbortRef.current.signal,
         // Promise-based hook: opens the confirm dialog, resolves on user click.
         onPlan: (plan) =>
           new Promise<boolean>((resolve) => {
@@ -461,6 +470,7 @@ export default function InvoicesPage() {
       setProgress(null);
     } finally {
       setGenerating(false);
+      generateAbortRef.current = null;
     }
   }
 
@@ -491,8 +501,12 @@ export default function InvoicesPage() {
       retryDoneAutoHideRef.current = null;
     }
 
+    // Fresh AbortController per run — wired to the card's Batalkan button.
+    retryAbortRef.current = new AbortController();
+
     try {
       const out = await runBulkRetry({
+        signal: retryAbortRef.current.signal,
         onProgress: (snapshot) => {
           if (!mountedRef.current) return;
           setRetryProgress({ ...snapshot });
@@ -539,6 +553,7 @@ export default function InvoicesPage() {
       setRetryProgress(null);
     } finally {
       if (mountedRef.current) setRetrying(false);
+      retryAbortRef.current = null;
     }
   }
 
@@ -673,11 +688,16 @@ export default function InvoicesPage() {
       {progress && progress.phase !== "idle" && (
         <BatchProgressCard
           progress={progress}
+          onCancel={() => generateAbortRef.current?.abort()}
         />
       )}
 
       {retryProgress && (
-        <BatchProgressCard mode="retry" progress={retryProgress} />
+        <BatchProgressCard
+          mode="retry"
+          progress={retryProgress}
+          onCancel={() => retryAbortRef.current?.abort()}
+        />
       )}
 
       {/* Overflow confirm — surfaces when more than 1000 invoices are stuck.

@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/db";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { limit } from "@/lib/finance/concurrency-limit";
 
 export type RetryResultRow =
   | {
       invoiceId: string;
       invoiceNumber: string;
       studentId: string;
+      studentName: string;
       status: "SENT";
       paymentUrl: string;
     }
@@ -13,6 +15,7 @@ export type RetryResultRow =
       invoiceId: string;
       invoiceNumber: string;
       studentId: string;
+      studentName: string;
       status: "PENDING_PAYMENT_LINK";
       error: string;
     };
@@ -54,7 +57,12 @@ export async function retryPaymentLinks(
 
   const candidates = await prisma.invoice.findMany({
     where,
-    select: { id: true, invoiceNumber: true, studentId: true },
+    select: {
+      id: true,
+      invoiceNumber: true,
+      studentId: true,
+      student: { select: { name: true } },
+    },
     orderBy: { createdAt: "asc" },
     take: 25, // hard cap matches batch endpoint shape
   });
@@ -63,10 +71,17 @@ export async function retryPaymentLinks(
     return { retried: 0, succeeded: 0, stillFailed: 0, results: [] };
   }
 
+  // Cap Xendit fan-out at 5 concurrent calls per spec B3 — protects against
+  // per-merchant rate-limit + Xendit latency-spike scenarios that could otherwise
+  // push past Vercel's 60s function timeout. Shared per-request instance.
+  const runLimit = limit(5);
+
   const settled = await Promise.allSettled(
     candidates.map((c) =>
-      createXenditSessionForInvoice(c.id, tenantId).then((res) => ({ row: c, result: res }))
-    )
+      runLimit(() =>
+        createXenditSessionForInvoice(c.id, tenantId).then((res) => ({ row: c, result: res })),
+      ),
+    ),
   );
 
   const results: RetryResultRow[] = [];
@@ -93,6 +108,7 @@ export async function retryPaymentLinks(
         invoiceId: row.id,
         invoiceNumber: row.invoiceNumber,
         studentId: row.studentId,
+        studentName: row.student?.name ?? "",
         status: "SENT",
         paymentUrl: outcome.value.result.paymentUrl,
       });
@@ -120,6 +136,7 @@ export async function retryPaymentLinks(
         invoiceId: row.id,
         invoiceNumber: row.invoiceNumber,
         studentId: row.studentId,
+        studentName: row.student?.name ?? "",
         status: "PENDING_PAYMENT_LINK",
         error: msg,
       });
