@@ -228,7 +228,7 @@ async function handleSessionCompleted(
     typeof data.channel_code === "string" ? data.channel_code : "checkout";
 
   const txOutcome = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${invoice.id}))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoice.id}))`;
 
     const fresh = await tx.invoice.findUnique({ where: { id: invoice.id } });
     if (!fresh) return { status: "PAID", overpaid: false } as const;
@@ -362,7 +362,7 @@ async function handleSessionExpired(
   // T5e — soft-revert (NOT destructive). Only revert SENT and
   // PENDING_PAYMENT_LINK. Already-paid + already-cancelled ignore.
   const result = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
     const fresh = await tx.invoice.findUnique({
       where: { id: invoiceId },
       select: { id: true, status: true, invoiceNumber: true },

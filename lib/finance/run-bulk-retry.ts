@@ -134,7 +134,10 @@ const OVERFLOW_MESSAGE =
  * prompt and `onProgress` into UI state updates.
  */
 export async function runBulkRetry(input: RunBulkRetryInput): Promise<RunBulkRetryOutcome> {
-  const fetchImpl = input.fetchImpl ?? fetch;
+  // Bind native `fetch` — calling fetch via property access throws
+  // "Illegal invocation" because WHATWG fetch requires `this === window`.
+  // Same fix as runBulkGenerate.
+  const fetchImpl = input.fetchImpl ?? fetch.bind(globalThis);
   const sleep = input.sleepImpl ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
 
   // 1) Fetch pending invoices.

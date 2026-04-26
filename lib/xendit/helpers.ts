@@ -6,17 +6,23 @@ import { createXenditSession, stripQuery } from "@/lib/xendit/client";
  *
  * Priority:
  *   1. `requestOrigin` (passed by route handlers from `new URL(req.url).origin`) —
- *      ensures preview deployments redirect to the preview origin, not prod.
+ *      ensures preview/staging/prod each redirect to their own origin, not a
+ *      hardcoded prod URL.
  *   2. `NEXT_PUBLIC_APP_URL` env var — fallback for script callers and
  *      contexts without a request scope.
  *   3. Throw — no silent prod fallback. Misconfigured deploys must fail
  *      loudly at session-creation time, not at the parent's confused-by-
  *      cross-origin-redirect time.
+ *
+ * Trailing slashes are stripped from both inputs because Vercel's env value
+ * was previously configured with a "/" suffix, which produced
+ * "https://host//payment/success?invoice=..." (double slash) and broke the
+ * auto-redirect from Xendit's hosted checkout back to the parent portal.
  */
 export function resolveAppOrigin(requestOrigin?: string): string {
-  if (requestOrigin) return requestOrigin;
+  if (requestOrigin) return requestOrigin.replace(/\/+$/, "");
   const env = process.env.NEXT_PUBLIC_APP_URL;
-  if (env) return env;
+  if (env) return env.replace(/\/+$/, "");
   throw new Error(
     "[XENDIT] No origin available for return URLs — pass requestOrigin or set NEXT_PUBLIC_APP_URL",
   );

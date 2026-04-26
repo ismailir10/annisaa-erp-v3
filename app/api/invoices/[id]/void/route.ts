@@ -18,7 +18,7 @@ export async function POST(
   // check and the void write.
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
       const fresh = await tx.invoice.findUnique({ where: { id } });
       if (!fresh || fresh.tenantId !== session.tenantId) {
         throw new Error("NOT_FOUND");
