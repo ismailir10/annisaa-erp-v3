@@ -105,56 +105,6 @@ describe("Rate limit: POST /api/salary-components", () => {
   });
 });
 
-describe("Rate limit: POST /api/invoices/[id]/payments", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("returns 429 after exceeding the limit (10 req/min)", async () => {
-    const { POST } = await import("../invoices/[id]/payments/route");
-    const { getSession } = await import("@/lib/auth");
-    vi.mocked(getSession).mockResolvedValue(adminSession);
-
-    const makeReq = () =>
-      new Request("http://localhost/api/invoices/inv1/payments", {
-        method: "POST",
-        headers: { "x-forwarded-for": "10.10.10.11" },
-        body: JSON.stringify({ amount: 1000, method: "CASH" }),
-      });
-    const params = Promise.resolve({ id: "inv1" });
-
-    let lastStatus = 0;
-    for (let i = 0; i < 12; i++) {
-      const res = await POST(makeReq() as never, { params } as never);
-      lastStatus = res.status;
-    }
-    expect(lastStatus).toBe(429);
-  });
-});
-
-describe("Rate limit: PUT /api/invoices/[id]", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("returns 429 after exceeding the limit (10 req/min)", async () => {
-    const { PUT } = await import("../invoices/[id]/route");
-    const { getSession } = await import("@/lib/auth");
-    vi.mocked(getSession).mockResolvedValue(adminSession);
-
-    const makeReq = () =>
-      new Request("http://localhost/api/invoices/inv1", {
-        method: "PUT",
-        headers: { "x-forwarded-for": "10.10.10.12" },
-        body: JSON.stringify({ status: "DRAFT" }),
-      });
-    const params = Promise.resolve({ id: "inv1" });
-
-    let lastStatus = 0;
-    for (let i = 0; i < 12; i++) {
-      const res = await PUT(makeReq() as never, { params } as never);
-      lastStatus = res.status;
-    }
-    expect(lastStatus).toBe(429);
-  });
-});
-
 describe("Rate limit: PUT /api/employees/[id]/salary", () => {
   beforeEach(() => vi.clearAllMocks());
 

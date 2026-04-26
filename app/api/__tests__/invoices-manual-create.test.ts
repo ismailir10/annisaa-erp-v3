@@ -131,16 +131,6 @@ describe("POST /api/invoices — auth", () => {
     expect(prisma.studentEnrollment.findFirst).not.toHaveBeenCalled();
   });
 
-  it("returns 429 when rate-limited", async () => {
-    const { rateLimit } = await import("@/lib/rate-limit");
-    const { getSession } = await import("@/lib/auth");
-    vi.mocked(rateLimit).mockReturnValueOnce({ success: false, remaining: 0 });
-
-    const res = await POST(makeReq(validBody) as never);
-    expect(res.status).toBe(429);
-    // Rate-limit short-circuits before auth.
-    expect(getSession).not.toHaveBeenCalled();
-  });
 });
 
 describe("POST /api/invoices — validation", () => {

@@ -211,16 +211,4 @@ describe("POST /api/invoices/generate/plan", () => {
     expect(prisma.invoice.findMany).not.toHaveBeenCalled();
   });
 
-  it("returns 429 when rate limit is exceeded", async () => {
-    const { rateLimit } = await import("@/lib/rate-limit");
-    const { getSession } = await import("@/lib/auth");
-    const { prisma } = await import("@/lib/db");
-    vi.mocked(rateLimit).mockReturnValueOnce({ success: false, remaining: 0 });
-
-    const res = await POST(makeReq(validBody) as never);
-    expect(res.status).toBe(429);
-    // Rate-limit short-circuits before auth + DB.
-    expect(getSession).not.toHaveBeenCalled();
-    expect(prisma.studentEnrollment.findMany).not.toHaveBeenCalled();
-  });
 });

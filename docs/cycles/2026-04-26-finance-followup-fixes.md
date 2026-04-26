@@ -188,7 +188,7 @@ After Task 4, CTO directive: review for over-engineering. `feature-dev:code-arch
 - `components/admin/invoices/batch-progress-card.tsx`: removed `paused` phase rendering (Continue/Cancel buttons), simplified to `running | done | error` phases.
 - Why it was wrong: three-strike failure on a batch is a real infrastructure problem (Vercel timeout, Xendit 500) — clicking Continue won't help. ~90 LOC saved.
 
-**Cut 5b — Drop rate limits from admin-auth-gated mutations**
+**Cut 5b — Drop rate limits from admin-auth-gated mutations** *(landed)*
 - `app/api/invoices/route.ts`, `app/api/invoices/[id]/route.ts`, `app/api/invoices/[id]/payments/route.ts`, `app/api/invoices/[id]/void/route.ts`, `app/api/invoices/generate/batch/route.ts`, `app/api/invoices/retry-payment-links/route.ts`, `app/api/invoices/generate/plan/route.ts`: removed the `rateLimit(...)` calls + 429 returns + `import { rateLimit, getClientIp } from "@/lib/rate-limit"`. Why it was wrong: rate limits defend against (a) credential-stuff brute force (not applicable — Supabase OTP auth) and (b) DDoS (not applicable — Vercel CDN). The remaining "rogue admin loop" threat is fictional for a 3-person team. The 5/min void limit could 429 a determined admin clicking through 6 DRAFT invoices. The webhook keeps its token auth (already not rate-limited). Tests that asserted 429 responses removed/updated. ~35 LOC + 7 imports saved.
 
 **Cut 6b — Plain `Number` accumulation in stats**

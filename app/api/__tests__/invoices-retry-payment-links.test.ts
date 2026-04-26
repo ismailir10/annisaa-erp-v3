@@ -132,21 +132,6 @@ describe("POST /api/invoices/retry-payment-links — validation", () => {
   });
 });
 
-describe("POST /api/invoices/retry-payment-links — rate limit", () => {
-  it("returns 429 when rate-limited", async () => {
-    const { rateLimit } = await import("@/lib/rate-limit");
-    const { getSession } = await import("@/lib/auth");
-    const { retryPaymentLinks } = await import("@/lib/finance/xendit-retry");
-    vi.mocked(rateLimit).mockReturnValueOnce({ success: false, remaining: 0 });
-
-    const res = await POST(makeReq({}) as never);
-    expect(res.status).toBe(429);
-    // Rate-limit short-circuits before auth + helper.
-    expect(getSession).not.toHaveBeenCalled();
-    expect(retryPaymentLinks).not.toHaveBeenCalled();
-  });
-});
-
 describe("POST /api/invoices/retry-payment-links — happy path", () => {
   it("forwards the helper outcome verbatim as JSON", async () => {
     const { getSession } = await import("@/lib/auth");

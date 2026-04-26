@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { nextInvoiceNumber, sumDecimals } from "@/lib/finance/invoice-numbers";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
@@ -26,13 +25,6 @@ import { generateBatchSchema } from "@/lib/validations/invoice";
  *      PENDING_PAYMENT_LINK, paymentLinkError persisted for retry surface.
  */
 export async function POST(req: NextRequest) {
-  // Rate limit: 30 batch calls per minute per IP. Covers a 750-student bulk run
-  // at 25 students per chunk, which is the realistic upper bound.
-  const { success } = rateLimit(`invoices-batch:${getClientIp(req)}`, 30, 60_000);
-  if (!success) {
-    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
-  }
-
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

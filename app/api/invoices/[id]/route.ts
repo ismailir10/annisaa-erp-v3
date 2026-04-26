@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { updateInvoiceSchema } from "@/lib/validations/invoice";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -23,9 +22,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { success } = rateLimit(`invoice-put:${getClientIp(req)}`, 10, 60_000);
-  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
-
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
