@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
 
   const outcome = await retryPaymentLinks(
     session.tenantId,
-    parsed.data.invoiceIds ?? null
+    parsed.data.invoiceIds ?? null,
+    new URL(req.url).origin,
   );
 
   // Bust parent-portal cache when any invoice flipped PENDING_PAYMENT_LINK

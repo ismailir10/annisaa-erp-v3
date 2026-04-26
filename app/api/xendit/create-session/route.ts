@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const result = await createXenditSessionForInvoice(invoiceId, session.tenantId);
+      const result = await createXenditSessionForInvoice(invoiceId, session.tenantId, new URL(req.url).origin);
 
       if (result) {
         // Update status to SENT (helper only stores Xendit fields).

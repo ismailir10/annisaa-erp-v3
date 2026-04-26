@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
   // can retry from the list/detail surface.
   let xenditError: string | undefined;
   try {
-    const result = await createXenditSessionForInvoice(created.id, tenantId);
+    const result = await createXenditSessionForInvoice(created.id, tenantId, new URL(req.url).origin);
     if (result) {
       await prisma.invoice.update({
         where: { id: created.id },

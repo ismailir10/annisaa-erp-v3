@@ -175,7 +175,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
+          $executeRaw: vi.fn().mockResolvedValue(0), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
@@ -260,7 +260,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
+          $executeRaw: vi.fn().mockResolvedValue(0), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
@@ -386,7 +386,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
+          $executeRaw: vi.fn().mockResolvedValue(0), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
@@ -518,7 +518,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
+          $executeRaw: vi.fn().mockResolvedValue(0), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
@@ -577,7 +577,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
+          $executeRaw: vi.fn().mockResolvedValue(0), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "cmodtjyva1g7n7bx7lzpw5oht",
@@ -615,6 +615,104 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     });
   });
 
+  it("T6 — completed event revalidates BOTH student-invoices AND parent-invoice-list tags", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { revalidateTag } = await import("next/cache");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "SENT",
+      totalDue: 1000,
+      totalPaid: 0,
+      invoiceNumber: "INV-1",
+    } as never);
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $executeRaw: vi.fn().mockResolvedValue(0),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "SENT",
+              totalDue: 1000,
+              totalPaid: 0,
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          payment: {
+            findUnique: vi.fn().mockResolvedValue(null),
+            create: vi.fn().mockResolvedValue({ id: "p1" }),
+            findMany: vi.fn().mockResolvedValue([{ amount: 1000 }]),
+          },
+        }),
+    );
+    const res = await POST(
+      makeReq({
+        id: "evt-t6-completed",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-t6",
+          amount: 1000,
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(revalidateTag).toHaveBeenCalledWith("student-invoices", { expire: 0 });
+    expect(revalidateTag).toHaveBeenCalledWith("parent-invoice-list", { expire: 0 });
+  });
+
+  it("T6 — expired event with resolved invoice revalidates BOTH tags", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { revalidateTag } = await import("next/cache");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "SENT",
+      invoiceNumber: "INV-1",
+    } as never);
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $executeRaw: vi.fn().mockResolvedValue(0),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "SENT",
+              invoiceNumber: "INV-1",
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+        }),
+    );
+    const res = await POST(
+      makeReq({
+        id: "evt-t6-expired",
+        event: "payment_session.expired",
+        data: { reference_id: "inv1", status: "EXPIRED" },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(revalidateTag).toHaveBeenCalledWith("student-invoices", { expire: 0 });
+    expect(revalidateTag).toHaveBeenCalledWith("parent-invoice-list", { expire: 0 });
+  });
+
+  it("T6 — expired event with no resolved invoice revalidates NEITHER tag", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { revalidateTag } = await import("next/cache");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null);
+    const res = await POST(
+      makeReq({
+        id: "evt-t6-expired-orphan",
+        event: "payment_session.expired",
+        data: { reference_id: "missing", status: "EXPIRED" },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "ERROR:invoice_not_found" });
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
   it("T5e — expired event on PAID invoice → IGNORED:already_paid (no destructive revert)", async () => {
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
@@ -626,7 +724,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
+          $executeRaw: vi.fn().mockResolvedValue(0), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",

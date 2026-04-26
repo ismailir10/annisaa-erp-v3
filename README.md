@@ -187,8 +187,11 @@ Copy `.env.example` to `.env`. Key variables:
 | `STAGING_EMAIL_OVERRIDE` | — | Admin email | — |
 | `XENDIT_SECRET_KEY` | — | Staging key | Production key |
 | `XENDIT_WEBHOOK_TOKEN` | — | Staging token | Production token |
+| `NEXT_PUBLIC_APP_URL` | — | `https://annisaa-erp-v3-git-staging-…vercel.app` | `https://annisaa-erp-v3.vercel.app` |
 
 Without `RESEND_API_KEY`, emails are simulated (logged, not sent).
+
+**`NEXT_PUBLIC_APP_URL` must be set per-environment.** Used as the origin for Xendit `success_return_url` / `cancel_return_url` when no request scope is available (reseed scripts, UAT harness, cron). Runtime invoice creation derives origin from `req.url` first and only falls back to this env var. **The fallback throws if missing — there is no silent prod fallback.** Misconfigured staging would otherwise redirect parents to prod (cross-origin auth gate, parent perceives "stayed on Xendit"). Set it in Vercel → Project → Settings → Environment Variables for both Preview and Production scopes. Local reseed/finish-xendit script runs require `export NEXT_PUBLIC_APP_URL=…` in shell (or in `.env.staging` from `vercel env pull`) — without it the script throws at session-creation time.
 
 **`DIRECT_URL` on Vercel is mandatory.** The `build` script runs `npx prisma migrate deploy` before `next build`, which applies any unapplied migrations in `prisma/migrations/`. This step requires a direct (non-pooler) Postgres connection — pooler connections on port 6543 go through PgBouncer transaction mode, which doesn't support the advisory locks Prisma uses to serialize migrations. Grab the direct URL from Supabase → Project Settings → Database → Connection string → **URI (Direct connection, port 5432)**.
 

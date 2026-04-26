@@ -18,6 +18,15 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/xendit/client", () => ({
   createXenditSession: vi.fn(),
+  stripQuery: (url: string | null | undefined) => {
+    if (!url) return null;
+    try {
+      const u = new URL(url);
+      return u.origin + u.pathname;
+    } catch {
+      return null;
+    }
+  },
 }));
 
 beforeEach(() => {

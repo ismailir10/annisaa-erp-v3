@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickSessionId } from "../xendit/client";
+import { pickSessionId, stripQuery } from "../xendit/client";
 
 describe("pickSessionId", () => {
   it("picks data.id when present", () => {
@@ -40,5 +40,29 @@ describe("pickSessionId", () => {
   it("returns null on non-object input", () => {
     expect(pickSessionId("not-an-object")).toBeNull();
     expect(pickSessionId(42)).toBeNull();
+  });
+});
+
+describe("stripQuery", () => {
+  it("returns null for null/undefined/empty input", () => {
+    expect(stripQuery(null)).toBeNull();
+    expect(stripQuery(undefined)).toBeNull();
+    expect(stripQuery("")).toBeNull();
+  });
+
+  it("returns origin + pathname unchanged when no query string present", () => {
+    expect(stripQuery("https://annisaa-erp-v3.vercel.app/payment/success")).toBe(
+      "https://annisaa-erp-v3.vercel.app/payment/success",
+    );
+  });
+
+  it("strips query string from URL with ?invoice= param", () => {
+    expect(
+      stripQuery("https://annisaa-erp-v3.vercel.app/payment/success?invoice=inv-123"),
+    ).toBe("https://annisaa-erp-v3.vercel.app/payment/success");
+  });
+
+  it("returns null for malformed URL string", () => {
+    expect(stripQuery("not a url")).toBeNull();
   });
 });

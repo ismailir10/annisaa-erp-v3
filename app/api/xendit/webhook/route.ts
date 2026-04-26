@@ -5,6 +5,7 @@ import { timingSafeEqual, createHash } from "crypto";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { sumDecimals } from "@/lib/finance/invoice-numbers";
+import { stripQuery } from "@/lib/xendit/client";
 
 /**
  * Xendit Payment Session Webhook handler. Two-phase, durable.
@@ -97,12 +98,16 @@ export async function POST(req: NextRequest) {
     if (event === "payment_session.completed" && data.status === "COMPLETED") {
       const result = await handleSessionCompleted(data, eventId, body);
       revalidateTag("student-invoices", { expire: 0 });
+      revalidateTag("parent-invoice-list", { expire: 0 });
       return NextResponse.json(result);
     }
 
     if (event === "payment_session.expired") {
       const result = await handleSessionExpired(data, eventId, body);
-      if (result.invoiceId) revalidateTag("student-invoices", { expire: 0 });
+      if (result.invoiceId) {
+        revalidateTag("student-invoices", { expire: 0 });
+        revalidateTag("parent-invoice-list", { expire: 0 });
+      }
       return NextResponse.json(result);
     }
 
@@ -294,9 +299,20 @@ async function handleSessionCompleted(
   }
 
   await markProcessed(eventId, invoiceId);
-  console.log(
-    `[XENDIT WEBHOOK] Invoice ${invoice.invoiceNumber} → ${newStatus} eventId=${eventId}`,
-  );
+  // Triage: structured log so operator can grep by sessionId across
+  // [XENDIT SESSION CREATED] (helpers.ts) and this PROCESSED line.
+  // dataKeys exposes the live Xendit payload field names (the captured
+  // fixture omits return-url fields; this surfaces what Xendit actually
+  // sends). Drop dataKeys in a follow-up once field naming confirmed.
+  console.log("[XENDIT WEBHOOK] PROCESSED", {
+    invoiceNumber: invoice.invoiceNumber,
+    newStatus,
+    eventId,
+    sessionId: invoice.xenditSessionId,
+    successReturnUrl: stripQuery((data.success_return_url as string | undefined) ?? null),
+    cancelReturnUrl: stripQuery((data.cancel_return_url as string | undefined) ?? null),
+    dataKeys: Object.keys(data),
+  });
   return { ok: true, status: newStatus, eventId };
 }
 

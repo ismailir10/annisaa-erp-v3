@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { CheckCircle } from "lucide-react";
 
 export default function PaymentSuccessPage() {
@@ -39,8 +40,11 @@ export default function PaymentSuccessPage() {
         <p className="text-xs text-muted-foreground mt-4">
           Mengarahkan ke portal dalam {countdown} detik...
         </p>
-        <Link href="/parent/invoices" className="mt-4 inline-block">
-          <Button variant="outline" size="sm">Kembali ke Portal Orang Tua</Button>
+        <Link
+          href="/parent/invoices"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4")}
+        >
+          Kembali ke Portal Orang Tua
         </Link>
         <p className="text-xs text-muted-foreground mt-6">
           An Nisaa&apos; Sekolahku — Pendidikan Anak Usia Dini Islam Terpadu

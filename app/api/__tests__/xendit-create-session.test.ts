@@ -115,7 +115,11 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     expect(body.results).toHaveLength(1);
     expect(body.results[0].paymentUrl).toBe("https://checkout.xendit.co/web/new-url");
 
-    expect(createXenditSessionForInvoice).toHaveBeenCalledWith("inv-fresh", "tnt-1");
+    expect(createXenditSessionForInvoice).toHaveBeenCalledWith(
+      "inv-fresh",
+      "tnt-1",
+      expect.stringMatching(/^https?:\/\//),
+    );
 
     // Status flip + paymentLinkError clear in the same update.
     const updateCall = vi.mocked(prisma.invoice.update).mock.calls[0]?.[0];
@@ -275,8 +279,18 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
 
     // Helper called exactly twice — NOT for inv-a (already sessioned).
     expect(createXenditSessionForInvoice).toHaveBeenCalledTimes(2);
-    expect(createXenditSessionForInvoice).toHaveBeenNthCalledWith(1, "inv-b", "tnt-1");
-    expect(createXenditSessionForInvoice).toHaveBeenNthCalledWith(2, "inv-c", "tnt-1");
+    expect(createXenditSessionForInvoice).toHaveBeenNthCalledWith(
+      1,
+      "inv-b",
+      "tnt-1",
+      expect.stringMatching(/^https?:\/\//),
+    );
+    expect(createXenditSessionForInvoice).toHaveBeenNthCalledWith(
+      2,
+      "inv-c",
+      "tnt-1",
+      expect.stringMatching(/^https?:\/\//),
+    );
 
     // Three updates: A (defensive clear), B (SENT + clear), C (PENDING + error).
     const updateCalls = vi.mocked(prisma.invoice.update).mock.calls.map((c) => c[0]);
