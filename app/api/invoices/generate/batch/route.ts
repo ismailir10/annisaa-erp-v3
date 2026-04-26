@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
@@ -293,6 +294,12 @@ export async function POST(req: NextRequest) {
         error: msg,
       });
     }
+  }
+
+  // Bust parent-portal cache so newly-created invoices land in the parent
+  // list on the next fetch (otherwise the 2-min unstable_cache TTL gates them).
+  if (txResult.length > 0) {
+    revalidateTag("parent-invoice-list", { expire: 0 });
   }
 
   return NextResponse.json({

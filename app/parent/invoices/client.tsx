@@ -2,6 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 import { AlertCircle, Receipt, Sparkles } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/format";
 import { useEffect, useMemo, useState } from "react";
@@ -43,6 +44,7 @@ function isPaid(inv: InvoiceItem): boolean {
 
 export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [showAllPaid, setShowAllPaid] = useState(false);
   const loading = data === null;
 
   useEffect(() => {
@@ -51,16 +53,22 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
     }
   }, [data]);
 
+  const todayYmd = new Date().toISOString().slice(0, 10);
+
   const summary = useMemo(() => {
-    if (!data) return { total: 0, count: 0, nearestDue: null as string | null };
+    if (!data) return { total: 0, count: 0, nearestDue: null as string | null, allOverdue: false };
     const outstanding = data.filter(isOutstanding);
     const total = outstanding.reduce((s, i) => s + (i.totalDue - i.totalPaid), 0);
-    const nearestDue =
-      outstanding
-        .map((i) => i.dueDate)
-        .sort((a, b) => a.localeCompare(b))[0] ?? null;
-    return { total, count: outstanding.length, nearestDue };
-  }, [data]);
+    const dueDates = outstanding.map((i) => i.dueDate).sort((a, b) => a.localeCompare(b));
+    // Prefer the nearest FUTURE due date. If all are past, fall back to the
+    // oldest past one and surface it as "lewat tempo" (overdue) instead of
+    // "terdekat" (nearest) — saying "jatuh tempo terdekat 10 Februari" when
+    // today is 27 April reads as if the bill is still in the future.
+    const nearestFuture = dueDates.find((d) => d >= todayYmd) ?? null;
+    const nearestDue = nearestFuture ?? dueDates[0] ?? null;
+    const allOverdue = nearestFuture === null && dueDates.length > 0;
+    return { total, count: outstanding.length, nearestDue, allOverdue };
+  }, [data, todayYmd]);
 
   if (loading) {
     return (
@@ -105,15 +113,25 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
     );
   }
 
-  const todayYmd = new Date().toISOString().slice(0, 10);
   const due = data
     .filter(isOutstanding)
     .map((inv) => ({ inv, isOverdue: inv.dueDate < todayYmd }))
     .sort((a, b) => a.inv.dueDate.localeCompare(b.inv.dueDate));
+  // Riwayat — newest payment first. paidAt is the authoritative timestamp;
+  // periodLabel is a freeform string ("Jan-2026" vs "Januari 2026") and
+  // localeCompare on it produces alphabetic chaos. Falls back to dueDate
+  // (also reliable) when paidAt is somehow missing on a PAID invoice.
   const paid = data
     .filter(isPaid)
-    .sort((a, b) => b.periodLabel.localeCompare(a.periodLabel));
+    .sort((a, b) => {
+      const aKey = a.paidAt ?? a.dueDate;
+      const bKey = b.paidAt ?? b.dueDate;
+      return bKey.localeCompare(aKey);
+    });
   const hasAnyOutstanding = due.length > 0;
+  const RIWAYAT_INITIAL = 12;
+  const paidVisible = showAllPaid ? paid : paid.slice(0, RIWAYAT_INITIAL);
+  const paidHasMore = paid.length > RIWAYAT_INITIAL;
 
   return (
     <div className="space-y-6 pb-4">
@@ -134,7 +152,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
             {summary.count} tagihan
             {summary.nearestDue ? (
               <>
-                {" · jatuh tempo terdekat "}
+                {summary.allOverdue ? " · lewat tempo sejak " : " · jatuh tempo terdekat "}
                 <b className="text-foreground">
                   {formatDate(summary.nearestDue, { day: "numeric", month: "long", year: "numeric" })}
                 </b>
@@ -200,7 +218,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
             Riwayat pembayaran
           </p>
           <ul className="space-y-2" aria-label="Riwayat pembayaran">
-            {paid.map((inv) => (
+            {paidVisible.map((inv) => (
               <InvoiceRow
                 key={inv.id}
                 invoice={inv}
@@ -210,6 +228,20 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
               />
             ))}
           </ul>
+          {paidHasMore ? (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllPaid((v) => !v)}
+                aria-expanded={showAllPaid}
+              >
+                {showAllPaid
+                  ? `Tampilkan ${RIWAYAT_INITIAL} terakhir`
+                  : `Lihat semua (${paid.length} riwayat)`}
+              </Button>
+            </div>
+          ) : null}
         </section>
       ) : !hasAnyOutstanding ? (
         <EmptyState

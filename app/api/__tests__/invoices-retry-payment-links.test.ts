@@ -7,6 +7,8 @@ vi.mock("@/lib/db", () => ({
   prisma: {},
 }));
 
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return { ...actual, getSession: vi.fn() };
