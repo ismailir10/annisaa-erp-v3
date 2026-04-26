@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { generatePlanSchema } from "@/lib/validations/invoice";
 
 /**
@@ -17,13 +16,6 @@ import { generatePlanSchema } from "@/lib/validations/invoice";
  * logic, just stops short of the transactional createMany.
  */
 export async function POST(req: NextRequest) {
-  // Rate limit: 10 plan calls per minute per IP. Cheap-but-not-free read,
-  // and the admin really only needs one plan per generation flow.
-  const { success } = rateLimit(`invoices-plan:${getClientIp(req)}`, 10, 60_000);
-  if (!success) {
-    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
-  }
-
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

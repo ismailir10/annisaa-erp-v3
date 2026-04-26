@@ -12,10 +12,6 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
-vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: vi.fn(() => ({ success: true, remaining: 99 })),
-  getClientIp: vi.fn(() => "test-ip"),
-}));
 
 // Mock the helper at the boundary the route imports it from.
 vi.mock("@/lib/finance/xendit-retry", () => ({
@@ -41,6 +37,8 @@ function adminSession() {
     tenantId: "tnt-1",
     employeeId: null,
     parentId: null,
+    permissions: [] as string[],
+    customRoleCode: null,
   };
 }
 
@@ -129,21 +127,6 @@ describe("POST /api/invoices/retry-payment-links — validation", () => {
 
     expect(res.status).toBe(200);
     expect(retryPaymentLinks).toHaveBeenCalledWith("tnt-1", null);
-  });
-});
-
-describe("POST /api/invoices/retry-payment-links — rate limit", () => {
-  it("returns 429 when rate-limited", async () => {
-    const { rateLimit } = await import("@/lib/rate-limit");
-    const { getSession } = await import("@/lib/auth");
-    const { retryPaymentLinks } = await import("@/lib/finance/xendit-retry");
-    vi.mocked(rateLimit).mockReturnValueOnce({ success: false, remaining: 0 });
-
-    const res = await POST(makeReq({}) as never);
-    expect(res.status).toBe(429);
-    // Rate-limit short-circuits before auth + helper.
-    expect(getSession).not.toHaveBeenCalled();
-    expect(retryPaymentLinks).not.toHaveBeenCalled();
   });
 });
 

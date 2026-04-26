@@ -11,7 +11,7 @@ function makeTx(initial: LastInvoice) {
   // SELECT-last-invoice call (second). $queryRaw is used for both.
   let queryStep = 0;
   const tx = {
-    $queryRaw: vi.fn(async () => {
+    $queryRaw: vi.fn(async (..._args: unknown[]) => {
       // Step 0 (and any even step) = lock; step 1 (and odd) = select.
       const isLock = queryStep % 2 === 0;
       queryStep++;
@@ -84,16 +84,33 @@ describe("nextInvoiceNumber", () => {
     expect(tx1.__calls).toEqual(["lock", "select", "lock", "select"]);
   });
 
-  it("uses a deterministic, tenant-scoped lock key", async () => {
+  it("acquires a tenant-scoped advisory lock via hashtext()", async () => {
     const tx = makeTx(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await nextInvoiceNumber(tx as any, "tenant-xyz");
-    // The first $queryRaw call's first arg is the TemplateStringsArray; the
-    // second is the lockKey value. Verify the key is the deterministic char-sum.
-    const expectedKey = "tenant-xyz"
-      .split("")
-      .reduce((h, c) => h + c.charCodeAt(0), 0);
+    // First $queryRaw call is the lock. Args: [TemplateStringsArray, ...bindings].
+    // We assert the SQL template contains `hashtext(` and the binding is the
+    // raw tenantId string (Postgres applies hashtext server-side, eliminating
+    // the anagram-collision risk of the previous client-side char-sum hash).
     const args = tx.$queryRaw.mock.calls[0];
-    expect(args[1]).toBe(expectedKey);
+    const sql = (args[0] as TemplateStringsArray).join("");
+    expect(sql).toMatch(/hashtext\(/);
+    expect(sql).toMatch(/pg_advisory_xact_lock/);
+    expect(args[1]).toBe("tenant-xyz");
+  });
+
+  it("two distinct tenant ids produce two distinct lock bindings", async () => {
+    // Anagram regression: previous char-sum hash mapped "ab" and "ba" to the
+    // same lock key, serialising unrelated tenants. With hashtext() the lock
+    // happens server-side off the raw tenantId string, so distinct strings
+    // (even anagrams) produce distinct locks at the DB layer.
+    const txA = makeTx(null);
+    const txB = makeTx(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await nextInvoiceNumber(txA as any, "ab");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await nextInvoiceNumber(txB as any, "ba");
+    expect(txA.$queryRaw.mock.calls[0][1]).toBe("ab");
+    expect(txB.$queryRaw.mock.calls[0][1]).toBe("ba");
   });
 });

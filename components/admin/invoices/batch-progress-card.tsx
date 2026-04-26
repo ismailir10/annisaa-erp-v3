@@ -1,8 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import type { BatchProgressSnapshot } from "@/lib/finance/run-bulk-generate";
 
 /**
@@ -11,21 +10,14 @@ import type { BatchProgressSnapshot } from "@/lib/finance/run-bulk-generate";
  * Visual states drive off `progress.phase`:
  *   - "running": spinner + "Membuat tagihan… N/M"
  *   - "done":    checkmark + "Selesai: N dibuat" (caller auto-hides after 5s)
- *   - "paused":  warning + Continue / Cancel buttons (2 retries already failed)
  *
- * Uses an inline Tailwind progress bar instead of the shadcn `<Progress>`
- * component because that one expects a `<ProgressTrack>` + `<ProgressIndicator>`
- * tree we don't need here — a single bar driven by a percent is simpler and
- * keeps this card self-contained.
+ * Inline Tailwind progress bar (single-bar driven by percent) instead of
+ * shadcn `<Progress>` so this card stays self-contained.
  */
 export function BatchProgressCard({
   progress,
-  onContinue,
-  onCancel,
 }: {
   progress: BatchProgressSnapshot;
-  onContinue?: () => void;
-  onCancel?: () => void;
 }) {
   const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
@@ -38,14 +30,9 @@ export function BatchProgressCard({
         {progress.phase === "done" ? (
           <CheckCircle2 size={16} className="text-success" aria-hidden />
         ) : null}
-        {progress.phase === "paused" ? (
-          <AlertTriangle size={16} className="text-warning" aria-hidden />
-        ) : null}
         <span className="text-sm font-medium">
           {progress.phase === "running" && `Membuat tagihan… ${progress.done}/${progress.total}`}
           {progress.phase === "done" && `Selesai: ${progress.created} dibuat`}
-          {progress.phase === "paused" &&
-            `Koneksi tidak stabil. Lanjutkan dari ${progress.done}/${progress.total}?`}
         </span>
       </div>
 
@@ -68,17 +55,6 @@ export function BatchProgressCard({
           <span className="text-warning">{progress.xenditFailed} link gagal</span>
         )}
       </div>
-
-      {progress.phase === "paused" && (
-        <div className="flex gap-2 mt-3">
-          <Button size="sm" onClick={onContinue}>
-            Lanjutkan
-          </Button>
-          <Button size="sm" variant="outline" onClick={onCancel}>
-            Batalkan
-          </Button>
-        </div>
-      )}
     </Card>
   );
 }

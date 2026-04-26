@@ -149,6 +149,19 @@ async function handleSessionCompleted(
     return { ok: true, status: "IGNORED:missing_reference_id", eventId };
   }
 
+  // Refuse to record a payment with no Xendit identifier. Writing
+  // xenditPaymentId: NULL would silently bypass the UNIQUE dedup constraint
+  // (Postgres treats multiple NULLs as distinct), and a future replay would
+  // double-count the invoice. WebhookEvent eventId UNIQUE still catches
+  // duplicate provider deliveries; this just prevents the inner-tx footgun.
+  if (!paymentId) {
+    console.warn(
+      `[XENDIT WEBHOOK] Completed event missing payment_id + payment_session_id eventId=${eventId} invoiceId=${invoiceId}`,
+    );
+    await markIgnored(eventId, "missing payment_id", invoiceId);
+    return { ok: true, status: "IGNORED:missing_payment_id", eventId };
+  }
+
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
   });
@@ -192,11 +205,18 @@ async function handleSessionCompleted(
     // advisory-lock acquisition; this is the authoritative check.
     if (fresh.status === "CANCELLED") return "CANCELLED";
 
-    const existing = paymentId
-      ? await tx.payment.findFirst({
-          where: { invoiceId: invoice.id, reference: paymentId },
-        })
-      : null;
+    // Idempotency on the Payment.xenditPaymentId UNIQUE column. The outer
+    // WebhookEvent eventId UNIQUE catches duplicate provider deliveries;
+    // this inner check covers the rarer case where the provider sends a
+    // fresh delivery wrapper (different eventId) pointing at the same
+    // underlying Xendit payment_id — replay tooling, infra retry, etc.
+    //
+    // The advisory lock above serialises concurrent webhook handlers for
+    // the same invoice, so by the time a second handler runs this query
+    // the first handler's row is already visible — no P2002 race to swallow.
+    const existing = await tx.payment.findUnique({
+      where: { xenditPaymentId: paymentId },
+    });
     if (existing) return fresh.status as string;
 
     await tx.payment.create({
@@ -204,6 +224,9 @@ async function handleSessionCompleted(
         invoiceId: invoice.id,
         amount: paymentAmount,
         method: "XENDIT",
+        // xenditPaymentId is the immutable provider id (UNIQUE).
+        // reference mirrors it for display + parity with manual references.
+        xenditPaymentId: paymentId,
         reference: paymentId,
         notes: `Xendit payment via ${channelCode}`,
       },

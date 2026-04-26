@@ -91,7 +91,7 @@ function zodEnumValues(schema: z.ZodObject<z.ZodRawShape>, key: string): string[
     (node._def as { type?: string }).type !== "enum" &&
     (node._def as { innerType?: z.ZodTypeAny }).innerType
   ) {
-    node = (node._def as { innerType: z.ZodTypeAny }).innerType;
+    node = (node._def as unknown as { innerType: z.ZodTypeAny }).innerType;
   }
   if (!(node instanceof z.ZodEnum)) {
     throw new Error(

@@ -46,7 +46,6 @@ import {
   type BatchProgressSnapshot,
   type PlanResponse,
 } from "@/lib/finance/run-bulk-generate";
-import { runBulkRetry } from "@/lib/finance/run-bulk-retry";
 
 // ------------------------------------------------------------------
 // Types
@@ -257,9 +256,6 @@ export default function InvoicesPage() {
     plan: PlanResponse;
     resolve: (proceed: boolean) => void;
   } | null>(null);
-  const [pausePrompt, setPausePrompt] = useState<{
-    resolve: (decision: "continue" | "cancel") => void;
-  } | null>(null);
   const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryingRowId, setRetryingRowId] = useState<string | null>(null);
@@ -410,11 +406,6 @@ export default function InvoicesPage() {
           if (!mountedRef.current) return;
           setProgress({ ...snapshot });
         },
-        onPauseDecision: () =>
-          new Promise<"continue" | "cancel">((resolve) => {
-            if (!mountedRef.current) return resolve("cancel");
-            setPausePrompt({ resolve });
-          }),
       });
 
       if (!mountedRef.current) return;
@@ -465,84 +456,37 @@ export default function InvoicesPage() {
     resolve(false);
   }
 
-  function handlePauseContinue() {
-    if (!pausePrompt) return;
-    const { resolve } = pausePrompt;
-    setPausePrompt(null);
-    resolve("continue");
-  }
-
-  function handlePauseCancel() {
-    if (!pausePrompt) return;
-    const { resolve } = pausePrompt;
-    setPausePrompt(null);
-    resolve("cancel");
-  }
-
-  // Bulk-retry: enumerate every PENDING_PAYMENT_LINK invoice for the tenant
-  // (capped at 500 to match the existing fetch pattern), then chunk into 25s
-  // and drive the retry endpoint sequentially via runBulkRetry. Reuses the
-  // same <BatchProgressCard> as the bulk-create flow.
+  // One POST. The retry endpoint enumerates PENDING_PAYMENT_LINK invoices
+  // for the tenant itself (capped at 25 per call); realistic count is 0-5
+  // (Xendit sandbox flakes), so chunking + sticky-progress would be overkill.
   async function handleBulkRetry() {
     setRetryConfirmOpen(false);
     setRetrying(true);
-
-    if (doneAutoHideRef.current) {
-      clearTimeout(doneAutoHideRef.current);
-      doneAutoHideRef.current = null;
-    }
-
     try {
-      const res = await fetch("/api/invoices?status=PENDING_PAYMENT_LINK&pageSize=500");
-      if (!res.ok) {
-        toast.error("Gagal memuat daftar tagihan");
-        return;
-      }
-      const json = await res.json();
-      const ids: string[] = (json.data ?? [])
-        .filter((row: Invoice) => row.status === "PENDING_PAYMENT_LINK")
-        .map((row: Invoice) => row.id);
-
-      if (ids.length === 0) {
-        toast.info("Tidak ada tagihan dengan link gagal");
-        return;
-      }
-
-      const out = await runBulkRetry({
-        invoiceIds: ids,
-        onProgress: (snapshot) => {
-          if (!mountedRef.current) return;
-          setProgress({ ...snapshot });
-        },
-        onPauseDecision: () =>
-          new Promise<"continue" | "cancel">((resolve) => {
-            if (!mountedRef.current) return resolve("cancel");
-            setPausePrompt({ resolve });
-          }),
+      const res = await fetch("/api/invoices/retry-payment-links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
-
       if (!mountedRef.current) return;
-
-      if (out.phase === "no-candidates") {
-        toast.info("Tidak ada tagihan dengan link gagal");
-        setProgress(null);
-      } else if (out.phase === "aborted") {
-        toast.error(`Dibatalkan setelah ${out.final.xenditOk} link berhasil dibuat`);
-      } else if (out.phase === "done") {
-        const { xenditOk, xenditFailed } = out.final;
-        toast.success(`${xenditOk} link berhasil${xenditFailed > 0 ? `, ${xenditFailed} masih gagal` : ""}`);
-        fetchInvoices();
-        fetchStats();
-        doneAutoHideRef.current = setTimeout(() => {
-          setProgress(null);
-          doneAutoHideRef.current = null;
-        }, 5000);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.error || "Gagal mencoba ulang link");
+        return;
       }
+      const out = await res.json();
+      if (out.retried === 0) {
+        toast.info("Tidak ada tagihan dengan link gagal");
+      } else {
+        const tail = out.stillFailed > 0 ? `, ${out.stillFailed} masih gagal` : "";
+        toast.success(`${out.succeeded} link berhasil${tail}`);
+      }
+      fetchInvoices();
+      fetchStats();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mencoba ulang link");
-      setProgress(null);
     } finally {
-      setRetrying(false);
+      if (mountedRef.current) setRetrying(false);
     }
   }
 
@@ -670,8 +614,6 @@ export default function InvoicesPage() {
       {progress && progress.phase !== "idle" && (
         <BatchProgressCard
           progress={progress}
-          onContinue={handlePauseContinue}
-          onCancel={handlePauseCancel}
         />
       )}
 

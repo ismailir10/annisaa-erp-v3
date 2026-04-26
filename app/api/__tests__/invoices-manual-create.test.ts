@@ -28,10 +28,6 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
-vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: vi.fn(() => ({ success: true, remaining: 99 })),
-  getClientIp: vi.fn(() => "test-ip"),
-}));
 
 // Mock the Xendit helper at the boundary the route imports it from. Its own
 // DB writes are out of scope here — we control success/failure/null directly.
@@ -58,6 +54,8 @@ function adminSession() {
     tenantId: "tnt-1",
     employeeId: null,
     parentId: null,
+    permissions: [] as string[],
+    customRoleCode: null,
   };
 }
 
@@ -131,16 +129,6 @@ describe("POST /api/invoices — auth", () => {
     expect(prisma.studentEnrollment.findFirst).not.toHaveBeenCalled();
   });
 
-  it("returns 429 when rate-limited", async () => {
-    const { rateLimit } = await import("@/lib/rate-limit");
-    const { getSession } = await import("@/lib/auth");
-    vi.mocked(rateLimit).mockReturnValueOnce({ success: false, remaining: 0 });
-
-    const res = await POST(makeReq(validBody) as never);
-    expect(res.status).toBe(429);
-    // Rate-limit short-circuits before auth.
-    expect(getSession).not.toHaveBeenCalled();
-  });
 });
 
 describe("POST /api/invoices — validation", () => {

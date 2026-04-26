@@ -174,8 +174,8 @@ describe("runBulkGenerate — multi chunk (60 students → 25 + 25 + 10)", () =>
 // runBulkGenerate — pause / retry on 5xx
 // --------------------------------------------------------------------------
 
-describe("runBulkGenerate — 5xx retry then pause", () => {
-  it("retries 2× with backoff, then pauses with phase=paused; cancel ends the run", async () => {
+describe("runBulkGenerate — 5xx retry then auto-abort", () => {
+  it("retries 2× with backoff, then aborts when 3rd attempt also fails", async () => {
     const fetchMock = vi.fn();
     const plan = makePlan(5);
     fetchMock.mockResolvedValueOnce(jsonResponse(plan));
@@ -183,12 +183,10 @@ describe("runBulkGenerate — 5xx retry then pause", () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: "boom" }, { status: 503 }));
 
     const sleepMock = vi.fn().mockResolvedValue(undefined);
-    const onPauseDecision = vi.fn().mockResolvedValue("cancel" as const);
 
     const out = await runBulkGenerate({
       planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
       onPlan: () => true,
-      onPauseDecision,
       fetchImpl: fetchMock as unknown as typeof fetch,
       sleepImpl: sleepMock,
     });
@@ -200,40 +198,10 @@ describe("runBulkGenerate — 5xx retry then pause", () => {
     expect(sleepMock).toHaveBeenNthCalledWith(1, 1000);
     expect(sleepMock).toHaveBeenNthCalledWith(2, 3000);
 
-    expect(onPauseDecision).toHaveBeenCalledOnce();
     expect(out.phase).toBe("aborted");
     if (out.phase === "aborted") {
       expect(out.final.done).toBe(0); // chunk never landed
     }
-  });
-
-  it("pause -> continue retries the same chunk again", async () => {
-    const fetchMock = vi.fn();
-    const plan = makePlan(5);
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    // First 3 attempts (1 try + 2 retries) all 503; user picks Continue;
-    // 4th try succeeds.
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, { status: 503 }));
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, { status: 503 }));
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, { status: 503 }));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
-
-    const sleepMock = vi.fn().mockResolvedValue(undefined);
-
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
-      onPauseDecision: vi.fn().mockResolvedValue("continue" as const),
-      fetchImpl: fetchMock as unknown as typeof fetch,
-      sleepImpl: sleepMock,
-    });
-
-    expect(out.phase).toBe("done");
-    if (out.phase === "done") {
-      expect(out.final.done).toBe(5);
-    }
-    // 1 plan + 4 batch attempts.
-    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 });
 

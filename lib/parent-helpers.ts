@@ -372,8 +372,17 @@ export type InvoiceListItem = {
  */
 export const getParentInvoiceList = unstable_cache(
   async (parentId: string, studentId: string, tenantId: string): Promise<InvoiceListItem[]> => {
+    // Allow-list: parents see only invoices they can act on (SENT, PARTIALLY_PAID,
+    // OVERDUE) plus historical PAID for the "Riwayat" group. PENDING_PAYMENT_LINK
+    // (Xendit creation failed; admin must retry) and CANCELLED (voided by admin)
+    // never reach the parent — there is nothing actionable and showing them
+    // erodes trust on the most-visible money surface in the app.
     const invoices = await prisma.invoice.findMany({
-      where: { studentId, tenantId, status: { not: "DRAFT" } },
+      where: {
+        studentId,
+        tenantId,
+        status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE", "PAID"] },
+      },
       select: {
         id: true,
         invoiceNumber: true,

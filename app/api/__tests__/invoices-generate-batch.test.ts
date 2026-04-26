@@ -28,10 +28,6 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
-vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: vi.fn(() => ({ success: true, remaining: 99 })),
-  getClientIp: vi.fn(() => "test-ip"),
-}));
 
 // Mock the helper at the boundary the route imports it from. The helper's
 // internal Xendit + DB write is out of scope here; we control its outcomes
@@ -59,6 +55,8 @@ function adminSession() {
     tenantId: "tnt-1",
     employeeId: null,
     parentId: null,
+    permissions: [] as string[],
+    customRoleCode: null,
   };
 }
 
@@ -210,16 +208,6 @@ describe("POST /api/invoices/generate/batch — auth & validation", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 429 when rate-limited", async () => {
-    const { rateLimit } = await import("@/lib/rate-limit");
-    const { getSession } = await import("@/lib/auth");
-    vi.mocked(rateLimit).mockReturnValueOnce({ success: false, remaining: 0 });
-
-    const res = await POST(makeReq(validBody) as never);
-    expect(res.status).toBe(429);
-    // Rate-limit short-circuits before auth.
-    expect(getSession).not.toHaveBeenCalled();
-  });
 });
 
 describe("POST /api/invoices/generate/batch — happy path", () => {
@@ -375,8 +363,8 @@ describe("POST /api/invoices/generate/batch — skipped students", () => {
   });
 });
 
-describe("POST /api/invoices/generate/batch — concurrency cap", () => {
-  it("25-student happy path: helper max-in-flight never exceeds 5", async () => {
+describe("POST /api/invoices/generate/batch — 25-student happy path", () => {
+  it("fans out 25 Xendit calls in parallel and returns all SENT", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
@@ -394,18 +382,7 @@ describe("POST /api/invoices/generate/batch — concurrency cap", () => {
 
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
-    // Track concurrent in-flight calls. Helper resolves on the next microtask
-    // so pLimit gets a chance to actually queue past 5 — if there were no cap,
-    // peak would be 25.
-    let inFlight = 0;
-    let peak = 0;
     vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
-      inFlight++;
-      if (inFlight > peak) peak = inFlight;
-      // Yield twice to let pLimit feed more from the queue if the cap allowed.
-      await Promise.resolve();
-      await Promise.resolve();
-      inFlight--;
       return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
     });
 
@@ -415,7 +392,6 @@ describe("POST /api/invoices/generate/batch — concurrency cap", () => {
 
     expect(body.created).toBe(25);
     expect(body.results).toHaveLength(25);
-    expect(peak).toBeLessThanOrEqual(5);
-    expect(peak).toBeGreaterThan(0);
+    expect(vi.mocked(createXenditSessionForInvoice)).toHaveBeenCalledTimes(25);
   });
 });

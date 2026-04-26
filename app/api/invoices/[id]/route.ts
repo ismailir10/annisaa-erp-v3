@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
 import { updateInvoiceSchema } from "@/lib/validations/invoice";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -24,9 +22,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { success } = rateLimit(`invoice-put:${getClientIp(req)}`, 10, 60_000);
-  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
-
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -40,9 +35,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const body = parsed.data;
 
-  // State-machine guard: only DRAFT -> SENT is valid. Reject SENT from
-  // PAID/CANCELLED/PARTIALLY_PAID so a stale admin tab cannot create a fresh
-  // Xendit session on a voided or already-paid invoice.
+  // State-machine guard: only DRAFT -> SENT is valid via PUT. Xendit session
+  // creation lives on the dedicated POST endpoints (manual create, batch,
+  // retry-payment-links); this guard preserves status-machine purity so a
+  // stale admin tab can't jump straight to SENT and bypass those paths.
   if (body.status === "SENT" && existing.status !== "DRAFT" && existing.status !== "SENT") {
     return NextResponse.json(
       { error: `Tagihan dengan status ${existing.status} tidak bisa diubah ke SENT` },
@@ -57,15 +53,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       sentAt: body.status === "SENT" ? new Date() : existing.sentAt,
     },
   });
-
-  // Auto-create Xendit payment link when transitioning to SENT
-  if (body.status === "SENT" && !existing.xenditPaymentUrl) {
-    try {
-      await createXenditSessionForInvoice(id, session.tenantId);
-    } catch (e) {
-      console.error("[INVOICE PUT] Failed to auto-create Xendit session:", e);
-    }
-  }
 
   return NextResponse.json(invoice);
 }

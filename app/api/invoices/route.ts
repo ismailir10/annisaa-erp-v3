@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { nextInvoiceNumber, sumDecimals } from "@/lib/finance/invoice-numbers";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
@@ -81,16 +80,6 @@ export async function GET(req: NextRequest) {
  *      plus an optional `xenditError` for the failure case.
  */
 export async function POST(req: NextRequest) {
-  // Rate limit: 20 manual creates per minute per IP. Manual create is a
-  // human-driven action, so this is generous but bounded.
-  const { success } = rateLimit(`invoices-manual:${getClientIp(req)}`, 20, 60_000);
-  if (!success) {
-    return NextResponse.json(
-      { error: "Terlalu banyak permintaan. Coba lagi nanti." },
-      { status: 429 }
-    );
-  }
-
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

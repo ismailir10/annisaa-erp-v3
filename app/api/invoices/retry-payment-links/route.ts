@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { retryPaymentLinksSchema } from "@/lib/validations/invoice";
 import { retryPaymentLinks } from "@/lib/finance/xendit-retry";
 
@@ -19,16 +18,6 @@ import { retryPaymentLinks } from "@/lib/finance/xendit-retry";
  * button funnel through this same endpoint.
  */
 export async function POST(req: NextRequest) {
-  // Rate limit: 10 retry calls per minute per IP. Retry is admin-driven,
-  // not a hot path, and each call already fans out to up to 25 Xendit calls.
-  const { success } = rateLimit(`invoices-retry:${getClientIp(req)}`, 10, 60_000);
-  if (!success) {
-    return NextResponse.json(
-      { error: "Terlalu banyak permintaan. Coba lagi nanti." },
-      { status: 429 }
-    );
-  }
-
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

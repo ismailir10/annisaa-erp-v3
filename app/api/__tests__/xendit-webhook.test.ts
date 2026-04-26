@@ -66,7 +66,7 @@ vi.mock("@/lib/db", () => ({
       delete: vi.fn(),
     },
     invoice: { findUnique: vi.fn(), update: vi.fn() },
-    payment: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
+    payment: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     $queryRaw: vi.fn(),
     $transaction: vi.fn(),
   },
@@ -171,7 +171,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
             update: txInvoiceUpdate,
           },
           payment: {
-            findFirst: vi.fn().mockResolvedValue(null),
+            findUnique: vi.fn().mockResolvedValue(null),
             create: txPaymentCreate,
             findMany: vi.fn().mockResolvedValue([{ amount: 1000 }]),
           },
@@ -192,13 +192,15 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "PAID" });
-    // Inner-tx mutations actually happened.
+    // Inner-tx mutations actually happened — note both xenditPaymentId
+    // (UNIQUE idempotency key) AND reference (display) are written.
     expect(txPaymentCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           invoiceId: "inv1",
           amount: 1000,
           method: "XENDIT",
+          xenditPaymentId: "pay-1",
           reference: "pay-1",
         }),
       }),
@@ -304,7 +306,9 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-5",
         event: "payment_session.completed",
-        data: { reference_id: "missing", status: "COMPLETED" },
+        // payment_id present so we get past the missing-id guard and exercise
+        // the missing-invoice path specifically.
+        data: { reference_id: "missing", status: "COMPLETED", payment_id: "pay-orphan" },
       }) as never,
     );
     expect(res.status).toBe(200);
@@ -330,13 +334,98 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-6",
         event: "payment_session.completed",
-        data: { reference_id: "inv1", status: "COMPLETED" },
+        // payment_id present so we get past the missing-id guard and reach
+        // the transaction (where the simulated DB outage fires).
+        data: { reference_id: "inv1", status: "COMPLETED", payment_id: "pay-tx" },
       }) as never,
     );
     expect(res.status).toBe(500);
     expect(prisma.webhookEvent.delete).toHaveBeenCalledWith({
       where: { eventId: "evt-6" },
     });
+  });
+
+  it("inner Payment idempotency: existing xenditPaymentId short-circuits without create", async () => {
+    // Two distinct provider deliveries (different eventId wrapper) for the
+    // same underlying Xendit payment_id. Outer dedup misses (different
+    // eventId), inner findUnique catches it.
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "PARTIALLY_PAID",
+      totalDue: 1000,
+      totalPaid: 1000,
+      invoiceNumber: "INV-1",
+    } as never);
+    const txPaymentCreate = vi.fn();
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "PARTIALLY_PAID",
+              totalDue: 1000,
+              totalPaid: 1000,
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          payment: {
+            // The key assertion: existing row found by xenditPaymentId UNIQUE.
+            findUnique: vi.fn().mockResolvedValue({ id: "p-existing" }),
+            create: txPaymentCreate,
+            findMany: vi.fn(),
+          },
+        }),
+    );
+
+    const res = await POST(
+      makeReq({
+        id: "evt-dup-payment",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-1",
+          amount: 1000,
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    // No payment.create call — existing row short-circuits the tx.
+    expect(txPaymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects completed event with no payment_id and no payment_session_id", async () => {
+    // Without an idempotency key, writing xenditPaymentId: NULL would defeat
+    // the UNIQUE dedup (Postgres allows multi-NULL), so the handler must
+    // refuse the create and mark the audit row IGNORED.
+    const { prisma } = await import("@/lib/db");
+    const res = await POST(
+      makeReq({
+        id: "evt-no-pid",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          // intentionally no payment_id and no payment_session_id
+          amount: 1000,
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: "IGNORED:missing_payment_id",
+    });
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-no-pid" },
+        data: expect.objectContaining({ status: "IGNORED" }),
+      }),
+    );
   });
 
   it("synthesizes eventId with sha256 suffix when body.id missing", async () => {

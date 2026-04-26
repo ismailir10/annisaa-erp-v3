@@ -4,7 +4,7 @@
  * Glue between admin/invoices page and the two server endpoints
  * (`/api/invoices/generate/plan` + `/api/invoices/generate/batch`). Extracted
  * to a non-React module so the orchestration logic — chunking, retry/backoff,
- * progress totals, pause/cancel — can be unit-tested without RTL setup.
+ * progress totals — can be unit-tested without RTL setup.
  *
  * Why client-driven (not server background job)? See cycle doc
  * `docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md` Spec §6-9:
@@ -12,21 +12,16 @@
  * sequential 25-invoice chunks fit comfortably under that ceiling. The browser
  * drives the chain so the server stays stateless.
  *
- *   await runBulkGenerate({
- *     planRequest: { periodLabel, dueDate, academicYearId },
- *     onPlan: ({ eligible, skippedAlreadyInvoiced, skippedNoFeeStructure }) => {
- *       // show confirm dialog; if user cancels, return false to abort
- *       return await userConfirmed();
- *     },
- *     onProgress: (snapshot) => setProgressState(snapshot),
- *     onPauseDecision: () => askUserContinueOrCancel(), // returns "continue" | "cancel"
- *   });
+ * Three-strike batch failure auto-aborts (architect simplification 2026-04-26):
+ * if a chunk's batch endpoint fails after the initial try + 2 backoff retries,
+ * it's a real infrastructure issue (Vercel timeout, Xendit 5xx) — clicking
+ * Continue would just hit it again. Surface the error and stop.
  */
 
 export const BATCH_SIZE = 25;
 export const RETRY_BACKOFFS_MS = [1000, 3000];
 
-export type BatchProgressPhase = "running" | "done" | "paused" | "idle";
+export type BatchProgressPhase = "running" | "done" | "idle";
 
 export type BatchProgressSnapshot = {
   done: number;
@@ -73,11 +68,6 @@ export type RunBulkGenerateInput = {
   onPlan: (plan: PlanResponse) => boolean | Promise<boolean>;
   /** Called after every batch (and at start/end) with the running totals. */
   onProgress?: (snapshot: BatchProgressSnapshot) => void;
-  /**
-   * Called when 2 consecutive retries of the same batch fail. Caller decides
-   * whether to retry once more from the current chunk index or bail out.
-   */
-  onPauseDecision?: () => Promise<"continue" | "cancel">;
   /** Test seam — defaults to global `fetch`. */
   fetchImpl?: typeof fetch;
   /** Test seam — defaults to global `setTimeout`. Returns a cancel-able timer. */
@@ -154,18 +144,10 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
     });
 
     if (!result.ok) {
-      // Retries exhausted. Pause and ask the caller what to do.
-      snapshot.phase = "paused";
-      input.onProgress?.({ ...snapshot });
-
-      const decision = input.onPauseDecision ? await input.onPauseDecision() : "cancel";
-      if (decision === "cancel") {
-        return { phase: "aborted", plan, final: { ...snapshot } };
-      }
-      // Continue: retry the same chunk again from scratch.
-      snapshot.phase = "running";
-      input.onProgress?.({ ...snapshot });
-      continue;
+      // Three-strike batch failure → real infrastructure issue (Vercel
+      // timeout, Xendit 5xx). Surface and stop; the operator can re-run
+      // the cycle once the upstream stabilises.
+      return { phase: "aborted", plan, final: { ...snapshot } };
     }
 
     const body = result.value;

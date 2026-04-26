@@ -71,7 +71,9 @@ export async function getStudentRecentActivity(
         where: {
           studentId,
           tenantId,
-          status: { not: "DRAFT" },
+          // Same allow-list as getParentInvoiceList — never surface
+          // PENDING_PAYMENT_LINK or CANCELLED rows in the parent activity feed.
+          status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE", "PAID"] },
           OR: [
             { sentAt: { gte: sinceDate } },
             { paidAt: { gte: sinceDate } },
