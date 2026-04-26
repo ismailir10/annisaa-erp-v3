@@ -332,10 +332,14 @@ Order is dependency-aware. Each task is one commit per CLAUDE.md `/build` loop. 
 
 - Subagent plan: T0/T1/T2 sequential (touch the same allocator+route); T3→T4 sequential (share `xendit-retry.ts` + `batch-progress-card.tsx`); T5+T6 parallel (independent files); T7 after T5 (depends on ERROR enum); T8 final.
 - Task 0 — failing P2002 race repro test — `app/api/__tests__/invoices-manual-p2002-race.test.ts` (new) + `vitest.config.ts` (added `.claude/worktrees/**` to `exclude` — orphaned harness worktrees were polluting test discovery and blocking the gate). Fixture `describe.skip`'d until T2b lands the retry-once loop; manual run `npx vitest run app/api/__tests__/invoices-manual-p2002-race.test.ts` confirms current code returns 500 (P2002 bubbles unhandled) — T2b will remove the skip and the suite goes green naturally.
+- Task 1 — `InvoiceNumberSequence(tenantId, year, lastNumber)` table + atomic allocator + WIB year. Files: `prisma/schema.prisma` (new model + Tenant relation), `prisma/migrations/20260426000001_invoice_number_sequence/migration.sql` (DDL + seed from existing invoices via `WHERE invoiceNumber ~ '^INV-\d{4}-\d+$'` + `MAX(SUBSTRING)`), `lib/finance/invoice-numbers.ts` (rewrote `nextInvoiceNumber` as thin wrapper over new `reserveInvoiceNumbers(tx, tenantId, count)` — single `INSERT … ON CONFLICT DO UPDATE SET lastNumber = lastNumber + count RETURNING lastNumber`), `app/api/invoices/generate/batch/route.ts` (rewired to use `reserveInvoiceNumbers` for atomic N-number reservation, fixes reviewer blocker on cross-route sequence drift). Code-reviewer pass: 1 blocker fixed inline, 1 hardening recommendation applied.
 
 ## Verification
 
 - Task 0: gates passed. `npm run build` → green. `npx vitest run` → 584 passed, 2 skipped (T0 fixture), 42 todo. Build size unchanged.
+- Task 1: gates passed. `npm run build` → green. `npx vitest run` → 591 passed, 2 skipped, 42 todo (+4 reserveInvoiceNumbers tests, +3 nextInvoiceNumber tests vs old advisory-lock impl).
+- Task 1: Added `lib/finance/invoice-numbers.ts::reserveInvoiceNumbers(tx, tenantId, count)` to fix reviewer-flagged blocker — the batch route at `app/api/invoices/generate/batch/route.ts:153` allocated ONE number then incremented `nextNum++` client-side N times, leaving the new atomic `InvoiceNumberSequence.lastNumber` at `start+1` while emitting numbers `start..start+N-1`. Fix: single round-trip `INSERT … ON CONFLICT DO UPDATE SET lastNumber = lastNumber + count RETURNING lastNumber` reserves a contiguous range. Batch route rewired to consume the array. `nextInvoiceNumber` now thin-wraps `reserveInvoiceNumbers(..., 1)`.
+- Task 1: Hardened year extraction per reviewer recommendation — `Intl.DateTimeFormat.formatToParts()` + explicit `year` part lookup, defensive against future ICU locale changes to `en-CA` stand-alone year rendering. Zero behavior change today.
 
 ## Ship Notes
 

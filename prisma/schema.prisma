@@ -15,24 +15,25 @@ model Tenant {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
 
-  users         User[]
-  roles         Role[]
-  parents       Parent[]
-  campuses      Campus[]
-  employees     Employee[]
-  holidays      Holiday[]
-  orgConfig     OrgConfig?
-  salaryDefs    SalaryComponentDef[]
-  payrollRuns   PayrollRun[]
-  academicYears AcademicYear[]
-  programs      Program[]
-  classSections ClassSection[]
-  students      Student[]
-  admissions    Admission[]
-  feeDefs       FeeComponentDef[]
-  feeStructures ProgramFeeStructure[]
-  invoices      Invoice[]
-  emailLogs     EmailLog[]
+  users                  User[]
+  roles                  Role[]
+  parents                Parent[]
+  campuses               Campus[]
+  employees              Employee[]
+  holidays               Holiday[]
+  orgConfig              OrgConfig?
+  salaryDefs             SalaryComponentDef[]
+  payrollRuns            PayrollRun[]
+  academicYears          AcademicYear[]
+  programs               Program[]
+  classSections          ClassSection[]
+  students               Student[]
+  admissions             Admission[]
+  feeDefs                FeeComponentDef[]
+  feeStructures          ProgramFeeStructure[]
+  invoices               Invoice[]
+  invoiceNumberSequences InvoiceNumberSequence[]
+  emailLogs              EmailLog[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -617,6 +618,22 @@ model ProgramFeeStructure {
   @@index([tenantId, status])
 }
 
+// ── INVOICE NUMBER SEQUENCE ──────────────────────────────────
+// Per-tenant, per-year allocator backing nextInvoiceNumber().
+// The allocator issues a single atomic INSERT … ON CONFLICT DO UPDATE …
+// RETURNING "lastNumber" inside the invoice-creation transaction, so a
+// rollback returns the sequence number too. Year prefix is computed in
+// Asia/Jakarta (WIB) to avoid producing INV-2025 invoices on Jan 1 mornings.
+model InvoiceNumberSequence {
+  tenantId   String
+  year       Int
+  lastNumber Int    @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([tenantId, year])
+}
+
 // ── INVOICE ──────────────────────────────────────────────────
 // Restrict on tenant + student — financial records, never silently drop.
 // Parent is optional billing contact: SetNull on parent removal.
@@ -913,16 +930,16 @@ model StudentAssessmentScore {
 // a poison payload (see app/api/xendit/webhook/route.ts).
 // Retention: 90-day cleanup job is a follow-up (filed in Ship Notes).
 model WebhookEvent {
-  id             String    @id @default(cuid())
-  provider       String // "xendit"
-  eventId        String    @unique
-  eventType      String
-  payload        Json
-  status         String    @default("RECEIVED") // RECEIVED | PROCESSED | IGNORED | FAILED
-  invoiceId      String?
-  errorMessage   String?
-  createdAt      DateTime  @default(now())
-  processedAt    DateTime?
+  id           String    @id @default(cuid())
+  provider     String // "xendit"
+  eventId      String    @unique
+  eventType    String
+  payload      Json
+  status       String    @default("RECEIVED") // RECEIVED | PROCESSED | IGNORED | FAILED
+  invoiceId    String?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  processedAt  DateTime?
 
   @@index([provider, createdAt])
   @@index([invoiceId])

@@ -1,32 +1,21 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { nextInvoiceNumber } from "../invoice-numbers";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { nextInvoiceNumber, reserveInvoiceNumbers } from "../invoice-numbers";
 
-type LastInvoice = { invoiceNumber: string } | null;
-
-function makeTx(initial: LastInvoice) {
-  let last: LastInvoice = initial;
-  const calls: string[] = [];
-
-  // Helper alternates between the advisory-lock call (first) and the
-  // SELECT-last-invoice call (second). $queryRaw is used for both.
-  let queryStep = 0;
+/**
+ * The new allocator issues a single `tx.$queryRaw` call:
+ *   INSERT INTO "InvoiceNumberSequence" … VALUES (tenantId, year, 1)
+ *   ON CONFLICT (tenantId, year) DO UPDATE SET "lastNumber" = … + 1
+ *   RETURNING "lastNumber";
+ *
+ * The mock returns a configurable `lastNumber` so tests can simulate first
+ * allocation (1), Nth allocation (N), or empty rows (defensive fallback).
+ */
+function makeTx(lastNumber: number | null) {
   const tx = {
     $queryRaw: vi.fn(async (..._args: unknown[]) => {
-      // Step 0 (and any even step) = lock; step 1 (and odd) = select.
-      const isLock = queryStep % 2 === 0;
-      queryStep++;
-      if (isLock) {
-        calls.push("lock");
-        return [];
-      }
-      calls.push("select");
-      return last ? [{ invoiceNumber: last.invoiceNumber }] : [];
+      if (lastNumber === null) return [];
+      return [{ lastNumber }];
     }),
-    invoice: {},
-    __setLast: (n: LastInvoice) => {
-      last = n;
-    },
-    __calls: calls,
   };
   return tx;
 }
@@ -36,81 +25,181 @@ describe("nextInvoiceNumber", () => {
     vi.useRealTimers();
   });
 
-  it("returns INV-<currentYear>-0001 on empty tenant", async () => {
-    const tx = makeTx(null);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("happy path: lastNumber=1 returns INV-<year>-0001", async () => {
+    const tx = makeTx(1);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const out = await nextInvoiceNumber(tx as any, "tenant-a");
-    const year = new Date().getFullYear();
+    const year = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+    }).format(new Date());
     expect(out).toBe(`INV-${year}-0001`);
-    // Lock acquired before findFirst
-    expect(tx.__calls).toEqual(["lock", "select"]);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  it("increments suffix from existing INV-2026-0042 -> INV-<currentYear>-0043", async () => {
-    const tx = makeTx({ invoiceNumber: "INV-2026-0042" });
+  it("subsequent allocation: lastNumber=2 returns INV-<year>-0002", async () => {
+    const tx = makeTx(2);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const out = await nextInvoiceNumber(tx as any, "tenant-a");
-    const year = new Date().getFullYear();
-    expect(out).toBe(`INV-${year}-0043`);
+    const year = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+    }).format(new Date());
+    expect(out).toBe(`INV-${year}-0002`);
   });
 
-  it("handles 5-digit overflow: INV-2025-9999 -> INV-<currentYear>-10000", async () => {
-    // Parser only looks at trailing digits; padStart keeps padding for <4 digits but
-    // does not truncate longer numbers.
-    const tx = makeTx({ invoiceNumber: "INV-2025-9999" });
+  it("issues exactly one $queryRaw call (atomic INSERT … RETURNING — no MAX scan, no advisory lock)", async () => {
+    const tx = makeTx(7);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const out = await nextInvoiceNumber(tx as any, "tenant-a");
-    const year = new Date().getFullYear();
-    expect(out).toBe(`INV-${year}-10000`);
-  });
-
-  it("acquires advisory lock before reading last invoice (sequenced calls)", async () => {
-    // Without a real DB we can't test concurrent lock semantics, but we can verify
-    // the call ordering: every call locks first, then reads.
-    const tx1 = makeTx({ invoiceNumber: "INV-2026-0007" });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const a = await nextInvoiceNumber(tx1 as any, "tenant-a");
-
-    // Simulate a "second" call after the first invoice landed.
-    tx1.__setLast({ invoiceNumber: "INV-2026-0008" });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const b = await nextInvoiceNumber(tx1 as any, "tenant-a");
-
-    const year = new Date().getFullYear();
-    expect(a).toBe(`INV-${year}-0008`);
-    expect(b).toBe(`INV-${year}-0009`);
-    expect(a).not.toBe(b);
-    // Lock acquired before each select
-    expect(tx1.__calls).toEqual(["lock", "select", "lock", "select"]);
-  });
-
-  it("acquires a tenant-scoped advisory lock via hashtext()", async () => {
-    const tx = makeTx(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await nextInvoiceNumber(tx as any, "tenant-xyz");
-    // First $queryRaw call is the lock. Args: [TemplateStringsArray, ...bindings].
-    // We assert the SQL template contains `hashtext(` and the binding is the
-    // raw tenantId string (Postgres applies hashtext server-side, eliminating
-    // the anagram-collision risk of the previous client-side char-sum hash).
+    await nextInvoiceNumber(tx as any, "tenant-a");
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     const args = tx.$queryRaw.mock.calls[0];
     const sql = (args[0] as TemplateStringsArray).join("");
-    expect(sql).toMatch(/hashtext\(/);
-    expect(sql).toMatch(/pg_advisory_xact_lock/);
-    expect(args[1]).toBe("tenant-xyz");
+    expect(sql).toMatch(/INSERT INTO "InvoiceNumberSequence"/);
+    expect(sql).toMatch(/ON CONFLICT \("tenantId", "year"\)/);
+    expect(sql).toMatch(/RETURNING "lastNumber"/);
+    // Bindings (tagged-template substitutions): tenantId, year, count, count.
+    // count appears twice — once in VALUES (..., ${count}) and once in
+    // DO UPDATE SET lastNumber = ... + ${count}.
+    expect(args[1]).toBe("tenant-a");
+    expect(args[2]).toBe(
+      Number(
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Jakarta",
+          year: "numeric",
+        }).format(new Date())
+      )
+    );
+    expect(args[3]).toBe(1);
+    expect(args[4]).toBe(1);
   });
 
-  it("two distinct tenant ids produce two distinct lock bindings", async () => {
-    // Anagram regression: previous char-sum hash mapped "ab" and "ba" to the
-    // same lock key, serialising unrelated tenants. With hashtext() the lock
-    // happens server-side off the raw tenantId string, so distinct strings
-    // (even anagrams) produce distinct locks at the DB layer.
-    const txA = makeTx(null);
-    const txB = makeTx(null);
+  it("year boundary: UTC=2025-12-31T17:30Z (= 2026-01-01T00:30 WIB) → year is 2026", async () => {
+    // 2025-12-31 17:30 UTC + 7h Jakarta offset = 2026-01-01 00:30 WIB.
+    // The allocator MUST format in Asia/Jakarta, so getFullYear() (which would
+    // return 2025) is unacceptable. This test pins the WIB calculation.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-12-31T17:30:00Z"));
+    const tx = makeTx(1);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await nextInvoiceNumber(txA as any, "ab");
+    const out = await nextInvoiceNumber(tx as any, "tenant-a");
+    expect(out).toBe("INV-2026-0001");
+    // The bound year must also be 2026 (the row gets seeded under the WIB year).
+    const args = tx.$queryRaw.mock.calls[0];
+    expect(args[2]).toBe(2026);
+  });
+
+  it("year boundary inverse: UTC=2026-01-01T16:00Z (= 2026-01-01T23:00 WIB) → still 2026", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T16:00:00Z"));
+    const tx = makeTx(1);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await nextInvoiceNumber(txB as any, "ba");
-    expect(txA.$queryRaw.mock.calls[0][1]).toBe("ab");
-    expect(txB.$queryRaw.mock.calls[0][1]).toBe("ba");
+    const out = await nextInvoiceNumber(tx as any, "tenant-a");
+    expect(out).toBe("INV-2026-0001");
+  });
+
+  it("padding: lastNumber=12345 returns INV-<year>-12345 (no truncation past 4 digits)", async () => {
+    const tx = makeTx(12345);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const out = await nextInvoiceNumber(tx as any, "tenant-a");
+    const year = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+    }).format(new Date());
+    expect(out).toBe(`INV-${year}-12345`);
+  });
+
+  it("padding: lastNumber=42 zero-pads to 0042", async () => {
+    const tx = makeTx(42);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const out = await nextInvoiceNumber(tx as any, "tenant-a");
+    const year = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+    }).format(new Date());
+    expect(out).toBe(`INV-${year}-0042`);
+  });
+
+  it("defensive fallback: empty rows returned → INV-<year>-0001", async () => {
+    // Postgres should never return zero rows from an INSERT … ON CONFLICT
+    // DO UPDATE … RETURNING — but the nullish coalesce protects against
+    // unexpected driver behaviour without throwing into the caller's tx.
+    const tx = makeTx(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const out = await nextInvoiceNumber(tx as any, "tenant-a");
+    const year = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+    }).format(new Date());
+    expect(out).toBe(`INV-${year}-0001`);
+  });
+
+  it("binds tenantId verbatim (no client-side hashing)", async () => {
+    const tx = makeTx(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await nextInvoiceNumber(tx as any, "tenant-xyz");
+    const args = tx.$queryRaw.mock.calls[0];
+    expect(args[1]).toBe("tenant-xyz");
+  });
+});
+
+describe("reserveInvoiceNumbers", () => {
+  it("count=5 returns 5 contiguous numbers ending at lastNumber", async () => {
+    // DB returned lastNumber=15 → 5 numbers were just reserved → range [11..15]
+    const tx = makeTx(15);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nums = await reserveInvoiceNumbers(tx as any, "tenant-a", 5);
+    const year = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+    }).format(new Date());
+    expect(nums).toEqual([
+      `INV-${year}-0011`,
+      `INV-${year}-0012`,
+      `INV-${year}-0013`,
+      `INV-${year}-0014`,
+      `INV-${year}-0015`,
+    ]);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("count=1 first allocation: returns single INV-<year>-0001", async () => {
+    const tx = makeTx(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nums = await reserveInvoiceNumbers(tx as any, "tenant-a", 1);
+    const year = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+    }).format(new Date());
+    expect(nums).toEqual([`INV-${year}-0001`]);
+  });
+
+  it("rejects non-positive count", async () => {
+    const tx = makeTx(1);
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      reserveInvoiceNumbers(tx as any, "tenant-a", 0)
+    ).rejects.toThrow(/positive integer/);
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      reserveInvoiceNumbers(tx as any, "tenant-a", -3)
+    ).rejects.toThrow(/positive integer/);
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      reserveInvoiceNumbers(tx as any, "tenant-a", 1.5)
+    ).rejects.toThrow(/positive integer/);
+  });
+
+  it("count=25 produces 25 numbers (matches BATCH_SIZE)", async () => {
+    const tx = makeTx(25);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nums = await reserveInvoiceNumbers(tx as any, "tenant-a", 25);
+    expect(nums).toHaveLength(25);
+    expect(nums[0]).toMatch(/-0001$/);
+    expect(nums[24]).toMatch(/-0025$/);
   });
 });
