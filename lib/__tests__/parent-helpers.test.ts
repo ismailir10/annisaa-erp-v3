@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   countAttendanceThisWeek,
+  getParentInvoiceList,
   getStudentInvoices,
   mondayOfWeek,
 } from "../parent-helpers";
@@ -387,6 +388,111 @@ describe("getStudentInvoices", () => {
         where: expect.objectContaining({ studentId: "student-B-456", tenantId: "tenant-b" }),
       })
     );
+  });
+});
+
+describe("getParentInvoiceList", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Happy path — only the 4 allow-listed statuses come back.
+  it("returns SENT, PARTIALLY_PAID, OVERDUE, PAID; excludes PENDING_PAYMENT_LINK, CANCELLED, DRAFT", async () => {
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+
+    await getParentInvoiceList("parent-1", "student-1", "tenant-a");
+
+    expect(prisma.invoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          studentId: "student-1",
+          tenantId: "tenant-a",
+          status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE", "PAID"] },
+        },
+      })
+    );
+
+    const call = vi.mocked(prisma.invoice.findMany).mock.calls[0][0] as {
+      where: { status: { in: string[] } };
+    };
+    expect(call.where.status.in).not.toContain("PENDING_PAYMENT_LINK");
+    expect(call.where.status.in).not.toContain("CANCELLED");
+    expect(call.where.status.in).not.toContain("DRAFT");
+  });
+
+  // The previous deny-list (`status: { not: "DRAFT" }`) leaked PENDING_PAYMENT_LINK
+  // and CANCELLED rows into the parent UI — the row had no payment link and no
+  // error message, looked like a school-side bug. Allow-list closes that hole.
+  it("PAID invoices appear (history group)", async () => {
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+      {
+        id: "inv-paid",
+        invoiceNumber: "INV-2024-001",
+        periodLabel: "April 2024",
+        dueDate: new Date("2024-04-30"),
+        totalDue: 1000000,
+        totalPaid: 1000000,
+        status: "PAID",
+        xenditPaymentUrl: "https://payment.url",
+        sentAt: new Date("2024-04-01"),
+        paidAt: new Date("2024-04-15"),
+        createdAt: new Date("2024-04-01"),
+      },
+    ] as never);
+
+    const result = await getParentInvoiceList("parent-1", "student-1", "tenant-a");
+
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe("PAID");
+    expect(result[0].paidAt).toBe("2024-04-15T00:00:00.000Z");
+  });
+
+  it("includes parentId, studentId, tenantId in cache key — Prisma where uses studentId+tenantId", async () => {
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+
+    await getParentInvoiceList("parent-A", "student-A-123", "tenant-a");
+    await getParentInvoiceList("parent-B", "student-B-456", "tenant-b");
+
+    expect(prisma.invoice.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({ studentId: "student-A-123", tenantId: "tenant-a" }),
+      })
+    );
+    expect(prisma.invoice.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({ studentId: "student-B-456", tenantId: "tenant-b" }),
+      })
+    );
+  });
+
+  it("preserves Decimal-as-Number coercion for totalDue/totalPaid (parent UI expects numbers)", async () => {
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+      {
+        id: "inv-1",
+        invoiceNumber: "INV-2024-001",
+        periodLabel: "April 2024",
+        dueDate: new Date("2024-04-30"),
+        totalDue: 1250000,
+        totalPaid: 500000,
+        status: "PARTIALLY_PAID",
+        xenditPaymentUrl: null,
+        sentAt: new Date("2024-04-01"),
+        paidAt: null,
+        createdAt: new Date("2024-04-01"),
+      },
+    ] as never);
+
+    const result = await getParentInvoiceList("parent-1", "student-1", "tenant-a");
+
+    expect(result[0].totalDue).toBe(1250000);
+    expect(result[0].totalPaid).toBe(500000);
+    expect(result[0].paidAt).toBeNull();
   });
 });
 
