@@ -66,7 +66,7 @@ vi.mock("@/lib/db", () => ({
       delete: vi.fn(),
     },
     invoice: { findUnique: vi.fn(), update: vi.fn() },
-    payment: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
+    payment: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     $queryRaw: vi.fn(),
     $transaction: vi.fn(),
   },
@@ -171,7 +171,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
             update: txInvoiceUpdate,
           },
           payment: {
-            findFirst: vi.fn().mockResolvedValue(null),
+            findUnique: vi.fn().mockResolvedValue(null),
             create: txPaymentCreate,
             findMany: vi.fn().mockResolvedValue([{ amount: 1000 }]),
           },
@@ -192,13 +192,15 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "PAID" });
-    // Inner-tx mutations actually happened.
+    // Inner-tx mutations actually happened — note both xenditPaymentId
+    // (UNIQUE idempotency key) AND reference (display) are written.
     expect(txPaymentCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           invoiceId: "inv1",
           amount: 1000,
           method: "XENDIT",
+          xenditPaymentId: "pay-1",
           reference: "pay-1",
         }),
       }),
@@ -337,6 +339,114 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     expect(prisma.webhookEvent.delete).toHaveBeenCalledWith({
       where: { eventId: "evt-6" },
     });
+  });
+
+  it("inner Payment idempotency: existing xenditPaymentId short-circuits without create", async () => {
+    // Two distinct provider deliveries (different eventId wrapper) for the
+    // same underlying Xendit payment_id. Outer dedup misses (different
+    // eventId), inner findUnique catches it.
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "PARTIALLY_PAID",
+      totalDue: 1000,
+      totalPaid: 1000,
+      invoiceNumber: "INV-1",
+    } as never);
+    const txPaymentCreate = vi.fn();
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "PARTIALLY_PAID",
+              totalDue: 1000,
+              totalPaid: 1000,
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          payment: {
+            // The key assertion: existing row found by xenditPaymentId UNIQUE.
+            findUnique: vi.fn().mockResolvedValue({ id: "p-existing" }),
+            create: txPaymentCreate,
+            findMany: vi.fn(),
+          },
+        }),
+    );
+
+    const res = await POST(
+      makeReq({
+        id: "evt-dup-payment",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-1",
+          amount: 1000,
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    // No payment.create call — existing row short-circuits the tx.
+    expect(txPaymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("inner Payment idempotency: P2002 from concurrent insert is swallowed", async () => {
+    // Race window: two webhook handlers acquire the advisory lock in sequence
+    // but the second one sees no existing row (sibling tx hasn't committed
+    // yet on its findUnique), then create races and hits the UNIQUE
+    // constraint. Handler must recover gracefully.
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "SENT",
+      totalDue: 1000,
+      totalPaid: 0,
+      invoiceNumber: "INV-1",
+    } as never);
+    const txPaymentCreate = vi
+      .fn()
+      .mockRejectedValueOnce(new FakeP2002("Unique constraint failed on xenditPaymentId"));
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "SENT",
+              totalDue: 1000,
+              totalPaid: 0,
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          payment: {
+            findUnique: vi.fn().mockResolvedValue(null),
+            create: txPaymentCreate,
+            // After P2002 the handler recomputes off existing rows — return
+            // the sibling-inserted Payment so totals reconcile to PAID.
+            findMany: vi.fn().mockResolvedValue([{ amount: 1000 }]),
+          },
+        }),
+    );
+
+    const res = await POST(
+      makeReq({
+        id: "evt-p2002",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-race",
+          amount: 1000,
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "PAID" });
+    expect(txPaymentCreate).toHaveBeenCalledTimes(1);
   });
 
   it("synthesizes eventId with sha256 suffix when body.id missing", async () => {

@@ -138,6 +138,11 @@ Each task is one commit. Between every task: `npm run build && npx vitest run` m
 - Vitest: 24 passed (4 new). Build deferred to end-of-cycle gate.
 - **Task 1b (code-review follow-on):** [`lib/parent-activity.ts:74`](../../lib/parent-activity.ts:74) — same deny-list pattern (`status: { not: "DRAFT" }`) leaked the same statuses into the parent recent-activity feed. Switched to the same allow-list. No new test (no pre-existing test file for parent-activity; same shape as Task 1's verified change).
 
+### Task 2 — Webhook persists Payment.xenditPaymentId
+- [`app/api/xendit/webhook/route.ts`](../../app/api/xendit/webhook/route.ts): inner-tx dedup query switched from `tx.payment.findFirst({ invoiceId, reference })` to `tx.payment.findUnique({ xenditPaymentId })` — uses the schema's UNIQUE constraint as the actual idempotency key. Create call now writes `xenditPaymentId: paymentId` alongside `reference: paymentId` (reference kept for human-readable display + parity with manual BANK_TRANSFER references). The create call is wrapped in try/catch that swallows Prisma `P2002` on `xenditPaymentId` as an idempotent retry — recomputes status off existing rows so the response stays accurate even if a sibling tx beat us to the insert.
+- [`app/api/__tests__/xendit-webhook.test.ts`](../../app/api/__tests__/xendit-webhook.test.ts): mock surface updated from `payment.findFirst` to `payment.findUnique`. Existing happy-path test now asserts BOTH `xenditPaymentId` and `reference` are written. Two new tests: (a) findUnique returns existing row → no `payment.create` call, short-circuit returns `fresh.status`; (b) `payment.create` rejects with FakeP2002 → handler swallows, recomputes from `findMany`, returns the recomputed status (`"PAID"` in this fixture). Belt-and-suspenders idempotency behind the existing WebhookEvent UNIQUE-on-eventId outer dedup.
+- Vitest: 12 webhook tests passed (10 existing + 2 new). Full API suite: 185/185 passed across 26 files. Build deferred to end-of-cycle gate.
+
 ---
 
 ## Verification

@@ -192,22 +192,54 @@ async function handleSessionCompleted(
     // advisory-lock acquisition; this is the authoritative check.
     if (fresh.status === "CANCELLED") return "CANCELLED";
 
+    // Idempotency on the Payment.xenditPaymentId UNIQUE column (declared in
+    // schema.prisma). The outer WebhookEvent eventId UNIQUE catches duplicate
+    // provider deliveries; this inner check covers the rarer case where the
+    // provider sends a fresh delivery wrapper (different eventId) that points
+    // at the same underlying Xendit payment_id — e.g. webhook replay tooling
+    // or a Xendit infrastructure retry that surfaces a new event row.
     const existing = paymentId
-      ? await tx.payment.findFirst({
-          where: { invoiceId: invoice.id, reference: paymentId },
+      ? await tx.payment.findUnique({
+          where: { xenditPaymentId: paymentId },
         })
       : null;
     if (existing) return fresh.status as string;
 
-    await tx.payment.create({
-      data: {
-        invoiceId: invoice.id,
-        amount: paymentAmount,
-        method: "XENDIT",
-        reference: paymentId,
-        notes: `Xendit payment via ${channelCode}`,
-      },
-    });
+    try {
+      await tx.payment.create({
+        data: {
+          invoiceId: invoice.id,
+          amount: paymentAmount,
+          method: "XENDIT",
+          // xenditPaymentId is the immutable provider id (UNIQUE constraint).
+          // reference keeps the same value for human-readable display + parity
+          // with manual BANK_TRANSFER references.
+          xenditPaymentId: paymentId,
+          reference: paymentId,
+          notes: `Xendit payment via ${channelCode}`,
+        },
+      });
+    } catch (err) {
+      // P2002 on xenditPaymentId — concurrent insert from a sibling tx (rare;
+      // the advisory lock above usually serialises us). Treat as idempotent
+      // success: a Payment row exists for this Xendit payment_id, so totals
+      // are correct without double-counting. Recompute status off the existing
+      // rows and return.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        const recomputedPayments = await tx.payment.findMany({
+          where: { invoiceId: invoice.id },
+        });
+        const recomputedTotal = sumDecimals(recomputedPayments.map((p) => p.amount));
+        const recomputedDue = new Prisma.Decimal(invoice.totalDue);
+        return recomputedTotal.greaterThanOrEqualTo(recomputedDue)
+          ? "PAID"
+          : "PARTIALLY_PAID";
+      }
+      throw err;
+    }
 
     const allPayments = await tx.payment.findMany({
       where: { invoiceId: invoice.id },
