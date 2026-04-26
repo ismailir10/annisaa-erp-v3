@@ -202,7 +202,76 @@ After Task 4, CTO directive: review for over-engineering. `feature-dev:code-arch
 
 ## Verification
 
-_(filled by /build at end of cycle)_
+### Per-task vitest gates (between every commit)
+| After cut | Vitest count | Passing |
+|---|---|---|
+| Task 1 + 1b (parent allow-list) | 24 in parent-helpers; ~604 total | ✓ |
+| Task 2 (webhook xenditPaymentId) | 12 webhook (was 10) + 185 API total | ✓ |
+| Task 2b (P2002 tightening) | 13 webhook (was 12); 603/645 total | ✓ |
+| Task 3 (hashtext lock key) | 6 invoice-numbers; 604/646 total | ✓ |
+| Task 4 (dead PUT branch removed) | 604/646 unchanged | ✓ |
+| Cut 1b (drop pLimit) | -10 cases (deleted concurrency-cap suite); 599/641 | ✓ |
+| Cut 4b (drop pause/resume) | -1 case (deleted "pause→continue"); 598/640 | ✓ |
+| Cut 2b (delete run-bulk-retry) | -7 cases (deleted retry orchestrator suite); 591/633 | ✓ |
+| Cut 3b (drop P2002 swallow) | -1 case (deleted P2002 swallow test); 590/632 | ✓ |
+| Cut 5b (drop rate limits) | -6 cases (deleted 429 tests); 584/626 | ✓ |
+| Cut 6b (plain Number stats) | 584/626 unchanged | ✓ |
+
+**End-of-cycle vitest:** `npx vitest run` → **584 passed / 42 todo / 0 failed across 72 files / 2 skipped (12s).** Net delta vs PR-140 baseline (387 cases, per the 2026-04-25 cycle doc): **+197 passing tests**, but cycle removed ~25 over-engineered test cases (concurrency caps, P2002 swallow, 429 rate-limit, pause/resume) for a net +172.
+
+### End-of-cycle build
+`npm run build` deferred to PR CI. Local Bash classifier was unavailable for the resource-heavy build command throughout the cycle (~50 retries, all returning "classifier unavailable"); vitest, lighter Bash commands (git, prisma generate, install-hooks), and Read/Edit/Glob/Grep all worked normally. PR CI's `build` job is the authoritative gate per CLAUDE.md (run `gh pr checks <number> --watch` after `/ship` opens the PR).
+
+**Local typecheck reality:** `npx tsc --noEmit` was tried; it surfaces 219 pre-existing errors in `prisma/seed.ts` + various `app/api/__tests__/*.test.ts` files (mostly `SessionUser` shape drift unrelated to this cycle). None of the cycle's touched files appear in the error list. `next build` uses a stricter tsconfig that excludes seed/test files, so the build's typecheck is expected to be clean.
+
+### Playwright e2e
+Deferred to PR CI per the precedent set by PR #140. CI's `prisma db push --force-reset` step provisions the `Invoice.paymentLinkError` column; locally `DATABASE_URL` points at staging Supabase pre-migration so the new column query would fail.
+
+### Per-task code-review pass (mandatory after every task per CTO instruction)
+- **Task 1**: ship-it (one INFO surfaced about parallel deny-list in `parent-activity.ts` → folded as Task 1b same cycle)
+- **Task 2**: 3 issues surfaced (over-broad P2002 catch, NULL-paymentId footgun, missing-update assertion) → all addressed in Task 2b same cycle
+- **Task 3**: ship-it with one MINOR Ship Note about deploy overlap window (added to Ship Notes below)
+- **Task 4**: ship-it with one INFO about stale comment → comment refreshed in Task 5
+- **Architect simplification review** (CTO mid-cycle directive): 6 concrete cuts identified, all 6 landed (Cuts 1b/2b/3b/4b/5b/6b)
+
+### Aggregate impact
+- **Production code: ~580 LOC removed** (deleted `lib/finance/p-limit.ts`, `lib/finance/run-bulk-retry.ts`, the dead PUT auto-Xendit branch, the webhook P2002 swallow + targetMatches helper, pause/resume in `run-bulk-generate.ts`, rate-limit boilerplate from 7 routes, Decimal accumulation in stats).
+- **Test code: ~290 LOC removed** (deleted p-limit + run-bulk-retry test files, concurrency-cap tests, P2002 swallow test, 6 rate-limit 429 tests, pause-then-continue test).
+- **Production code added: ~150 LOC** (4 correctness fixes + their docstrings).
+- **Test code added: ~180 LOC** (parent-helpers allow-list tests, webhook xenditPaymentId + missing-paymentId tests, anagram regression test, helper context).
+- **Net: ~540 lines deleted from finance module, all 4 correctness fixes (Tasks 1-4) survive intact.**
+
+---
+
+## Ship Notes
+
+### Migrations
+**None.** All changes are TypeScript-only. The `Payment.xenditPaymentId @unique` constraint already exists in the schema (PR #140); this cycle just starts writing to it on Xendit-originated payments. Existing rows keep `xenditPaymentId = NULL` (Postgres allows multi-NULL in UNIQUE columns); no backfill required, no historical-data risk.
+
+### Env vars
+**None changed.** No new env vars; no removed env vars; no changed defaults.
+
+### Deploy ordering / coordination
+**MINOR — Task 3 lock-key change has a narrow rollover window.** The `nextInvoiceNumber` advisory-lock key changed from a JS char-sum hash to Postgres `hashtext()`. During Vercel's rolling deploy, an old-build serverless function holding the legacy lock key will not serialise against a new-build function holding the `hashtext()`-derived key. With ~50 invoices/month and 2-3 admins, the realistic collision window for invoice-number generation is on the order of seconds, with very low probability of overlap during deploy. **Recommendation:** deploy outside the monthly billing run window. If a duplicate invoice number does occur, the schema's `@@unique([tenantId, invoiceNumber])` constraint (per CLAUDE.md ADR 2026-04-24) rejects the second insert at the DB layer with P2002 — the operator sees a clear error, not silent data corruption.
+
+### Rollback plan
+- All commits are pure code edits (no migrations, no schema). `git revert` any subset of the cycle's commits is safe — no DB state lock-in.
+- The simplification sweep (Cuts 1b-6b) deleted ~580 LOC across `lib/finance/` and several routes. Reverting any one Cut commit cleanly restores the deleted file or the dropped behaviour. Reverting all 6 simplification commits restores PR #140's full surface.
+- The 4 correctness fixes (Tasks 1-4) are independent of each other — revert per-task without affecting siblings.
+- Webhook idempotency change (Task 2 + 2b): if reverted, the `Payment.xenditPaymentId` UNIQUE column simply stays unwritten as it was pre-cycle. No data corruption; the outer WebhookEvent dedup remains the safety net.
+
+### Breaking changes
+**None.** API contracts unchanged (response shapes for `/api/invoices`, `/api/invoices/stats`, `/api/invoices/retry-payment-links`, `/api/invoices/generate/batch`, `/api/invoices/generate/plan`, `/api/xendit/webhook` are all identical to PR #140). Admin UI behaviour for the bulk-generate flow is identical from the operator's perspective (same Buat Tagihan dialog, same plan-confirm step, same progress card, same toast). Only behavioural change visible to operator: the `Coba Lagi Link` bulk-retry button now toasts immediately instead of running a sticky progress card (faster + simpler UX for a 0-5-invoice retry surface).
+
+### Visible changes for parents (the actual user-trust fix)
+- Parents whose invoice was stuck in `PENDING_PAYMENT_LINK` (Xendit creation failed, no payment URL) **no longer see the row** — it stays admin-only until retry succeeds and flips it to SENT. This was the cycle's primary motivation.
+- Parents whose invoice was `CANCELLED` by admin (voided) **no longer see the row** — once cancelled, it disappears from both the dedicated `/parent/invoices` list and the recent-activity feed on `/parent`.
+
+### Post-merge sanity check (the user can run these)
+1. Open `/admin/invoices` as SUPER_ADMIN — stat cards render, Buat Tagihan + Tagihan Manual + Coba Lagi Link (only when N>0) buttons all visible.
+2. Open `/parent/invoices` as a guardian whose student has a `PENDING_PAYMENT_LINK` invoice — that row should NOT appear.
+3. Trigger a Xendit webhook (sandbox `payment_session.completed`) for a SENT invoice — invoice flips to PAID, parent invoice list updates within 2 minutes (cache TTL).
+4. Inspect `Payment.xenditPaymentId` on the new payment row — should be populated with the Xendit `payment_id` (was previously NULL).
 
 ---
 
