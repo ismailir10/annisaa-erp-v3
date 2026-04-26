@@ -171,7 +171,7 @@ After Task 4, CTO directive: review for over-engineering. `feature-dev:code-arch
 - `lib/finance/__tests__/p-limit.test.ts` deleted (~80 LOC).
 - `lib/finance/xendit-retry.ts`, `app/api/invoices/generate/batch/route.ts`: drop `pLimit` import + wrap, call `createXenditSessionForInvoice` directly inside `Promise.allSettled(...map())`. Why it was wrong: `pLimit(5)` on 25 Xendit calls = ~7.5s, `Promise.all` on 25 = ~1.5s. Vercel ceiling is 60s; we were never near it. The "cap protects Xendit's rate limit" rationale doesn't apply at 50 invoices/month. ~120 LOC saved.
 
-**Cut 2b — Delete `run-bulk-retry.ts` orchestration core**
+**Cut 2b — Delete `run-bulk-retry.ts` orchestration core** *(landed)*
 - `lib/finance/run-bulk-retry.ts` deleted (188 LOC).
 - `lib/finance/__tests__/run-bulk-retry.test.ts` deleted (~150 LOC).
 - `app/admin/invoices/page.tsx` `handleBulkRetry` collapsed from `runBulkRetry({ … })` orchestration (chunked 25, 5xx retry-w-backoff, pause/Continue dialog, sticky progress card) to a single `fetch('/api/invoices/retry-payment-links', { method: 'POST', body: JSON.stringify({}) })` + result toast. Why it was wrong: realistic retry scenario is 0-5 PENDING invoices (Xendit sandbox flakes), not a 100+ batch needing chunking + pause/resume. Operator clicks button, sees toast — done. ~340 LOC saved.
