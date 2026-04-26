@@ -15,10 +15,6 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 
 // Most tests want rate-limit out of the way; the dedicated rate-limit test
 // re-mocks it locally to assert the 429 path.
-vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: vi.fn(() => ({ success: true, remaining: 99 })),
-  getClientIp: vi.fn(() => "test-ip"),
-}));
 
 import { POST } from "../invoices/generate/plan/route";
 

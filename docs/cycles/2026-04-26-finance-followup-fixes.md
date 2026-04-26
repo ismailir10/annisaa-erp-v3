@@ -233,6 +233,11 @@ Deferred to PR CI per the precedent set by PR #140. CI's `prisma db push --force
 - **Task 3**: ship-it with one MINOR Ship Note about deploy overlap window (added to Ship Notes below)
 - **Task 4**: ship-it with one INFO about stale comment → comment refreshed in Task 5
 - **Architect simplification review** (CTO mid-cycle directive): 6 concrete cuts identified, all 6 landed (Cuts 1b/2b/3b/4b/5b/6b)
+- **End-of-cycle review** (`superpowers:code-reviewer` against full diff vs origin/staging): 1 BLOCKER + 2 MAJOR + 1 MINOR found and fixed inline before /ship:
+  - **BLOCKER:** `app/parent/page.tsx:131` household-summary invoice query was missing `tenantId` defense-in-depth filter (allow-list flips in Task 1 + 1b covered the dedicated /parent/invoices and recent-activity feed but missed the home-page tile). Fixed by spreading `...(session.tenantId ? { tenantId: session.tenantId } : {})` into the where clause, matching the existing pattern in the same file.
+  - **MAJOR:** `app/admin/invoices/page.tsx:459` stale comment block referenced the deleted `runBulkRetry` orchestrator. Removed.
+  - **MAJOR:** `e2e/admin.spec.ts:601` Playwright test name `"validates and rate-limits"` lied after Cut 5b removed rate limits. Renamed to `"validates payload"`.
+  - **MINOR:** 4 stale `vi.mock("@/lib/rate-limit", …)` blocks in test files where the production import was already deleted. Removed all four.
 
 ### Aggregate impact
 - **Production code: ~580 LOC removed** (deleted `lib/finance/p-limit.ts`, `lib/finance/run-bulk-retry.ts`, the dead PUT auto-Xendit branch, the webhook P2002 swallow + targetMatches helper, pause/resume in `run-bulk-generate.ts`, rate-limit boilerplate from 7 routes, Decimal accumulation in stats).

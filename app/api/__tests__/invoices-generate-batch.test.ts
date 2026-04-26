@@ -28,10 +28,6 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
-vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: vi.fn(() => ({ success: true, remaining: 99 })),
-  getClientIp: vi.fn(() => "test-ip"),
-}));
 
 // Mock the helper at the boundary the route imports it from. The helper's
 // internal Xendit + DB write is out of scope here; we control its outcomes

@@ -456,14 +456,9 @@ export default function InvoicesPage() {
     resolve(false);
   }
 
-  // Bulk-retry: enumerate every PENDING_PAYMENT_LINK invoice for the tenant
-  // (capped at 500 to match the existing fetch pattern), then chunk into 25s
-  // and drive the retry endpoint sequentially via runBulkRetry. Reuses the
-  // same <BatchProgressCard> as the bulk-create flow.
   // One POST. The retry endpoint enumerates PENDING_PAYMENT_LINK invoices
-  // for the tenant itself (capped at 25 per call); the realistic count is
-  // 0-5 (Xendit sandbox flakes), so the chunking + sticky-progress dance
-  // we used to do here is overkill for this flow.
+  // for the tenant itself (capped at 25 per call); realistic count is 0-5
+  // (Xendit sandbox flakes), so chunking + sticky-progress would be overkill.
   async function handleBulkRetry() {
     setRetryConfirmOpen(false);
     setRetrying(true);

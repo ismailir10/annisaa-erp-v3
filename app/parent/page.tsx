@@ -130,6 +130,10 @@ export default async function ParentDashboard() {
       : Promise.resolve([] as { studentId: string; body: string; createdAt: Date }[]),
     prisma.invoice.findMany({
       where: {
+        // Defense-in-depth: tenantId filter mirrors getStudentInvoices +
+        // getParentInvoiceList. Conditional include matches the studentAttendance
+        // pattern above for the non-null-asserting ternary on session.tenantId.
+        ...(session.tenantId ? { tenantId: session.tenantId } : {}),
         studentId: { in: kidIds },
         status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
       },

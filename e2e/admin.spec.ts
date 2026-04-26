@@ -598,7 +598,7 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await expect(page.getByText(/(link berhasil|masih gagal)/)).toBeVisible({ timeout: 30_000 });
   });
 
-  test("retry-payment-links endpoint validates and rate-limits", async ({ page }) => {
+  test("retry-payment-links endpoint validates payload", async ({ page }) => {
     // Smoke-test the retry endpoint contract — independent of Xendit state.
     // Empty body → retry-all PENDING for tenant, returns the expected shape.
     const res = await page.request.post("/api/invoices/retry-payment-links", { data: {} });
