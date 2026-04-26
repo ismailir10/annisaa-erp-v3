@@ -1,0 +1,8 @@
+{
+  "event": "payment_session.expired",
+  "created": "2026-04-26T11:00:00.000Z",
+  "data": {
+    "reference_id": "cmodtjyva1g7n7bx7lzpw5oht",
+    "payment_session_id": "ps-cccccccccccccccccccccccc"
+  }
+}

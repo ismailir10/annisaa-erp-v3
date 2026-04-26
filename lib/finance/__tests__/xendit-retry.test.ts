@@ -45,9 +45,9 @@ describe("retryPaymentLinks — mixed success/failure", () => {
     const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
 
     const candidates = [
-      { id: "i-1", invoiceNumber: "INV-2026-0001", studentId: "s-1" },
-      { id: "i-2", invoiceNumber: "INV-2026-0002", studentId: "s-2" },
-      { id: "i-3", invoiceNumber: "INV-2026-0003", studentId: "s-3" },
+      { id: "i-1", invoiceNumber: "INV-2026-0001", studentId: "s-1", student: { name: "Aisyah" } },
+      { id: "i-2", invoiceNumber: "INV-2026-0002", studentId: "s-2", student: { name: "Budi" } },
+      { id: "i-3", invoiceNumber: "INV-2026-0003", studentId: "s-3", student: { name: "Citra" } },
     ];
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(candidates as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -72,9 +72,15 @@ describe("retryPaymentLinks — mixed success/failure", () => {
       invoiceId: "i-3",
       invoiceNumber: "INV-2026-0003",
       studentId: "s-3",
+      studentName: "Citra",
       status: "PENDING_PAYMENT_LINK",
       error: "Xendit 503",
     });
+
+    // T4 — every result row carries studentName for the failure-detail UI.
+    for (const r of out.results) {
+      expect(r.studentName).toBeTruthy();
+    }
 
     // 2 successes get { status: SENT, paymentLinkError: null, sentAt: Date }
     const updateCalls = vi.mocked(prisma.invoice.update).mock.calls.map((c) => c[0]);
@@ -110,6 +116,7 @@ describe("retryPaymentLinks — invoiceIds filter", () => {
       id: { in: ["i1", "i2"] },
     });
     expect(arg?.take).toBe(25);
+    expect(arg?.orderBy).toEqual({ createdAt: "asc" });
     expect(createXenditSessionForInvoice).not.toHaveBeenCalled();
   });
 
@@ -138,6 +145,46 @@ describe("retryPaymentLinks — invoiceIds filter", () => {
   });
 });
 
+describe("retryPaymentLinks — 25-invoice with 3 Xendit failures", () => {
+  it("3 of 25 calls fail → 3 entries with error + studentName populated in results", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+
+    const candidates = Array.from({ length: 25 }, (_, i) => ({
+      id: `i-${i + 1}`,
+      invoiceNumber: `INV-2026-${String(i + 1).padStart(4, "0")}`,
+      studentId: `s-${i + 1}`,
+      student: { name: `Student ${i + 1}` },
+    }));
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(candidates as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+
+    const failingIds = new Set(["i-5", "i-12", "i-20"]);
+    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
+      if (failingIds.has(invoiceId)) throw new Error("Xendit 503");
+      return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
+    });
+
+    const out = await retryPaymentLinks("tnt-1", null);
+
+    expect(out.retried).toBe(25);
+    expect(out.succeeded).toBe(22);
+    expect(out.stillFailed).toBe(3);
+
+    const failures = out.results.filter((r) => r.status === "PENDING_PAYMENT_LINK");
+    expect(failures).toHaveLength(3);
+    for (const f of failures) {
+      if (f.status === "PENDING_PAYMENT_LINK") {
+        expect(f.error).toBe("Xendit 503");
+        expect(f.studentName).toBeTruthy();
+        expect(f.studentId).toBeTruthy();
+      }
+    }
+    const failedIds = new Set(failures.map((f) => f.invoiceId));
+    expect(failedIds).toEqual(new Set(["i-5", "i-12", "i-20"]));
+  });
+});
+
 describe("retryPaymentLinks — 25-invoice happy path", () => {
   it("fans out 25 candidates in parallel and reports all succeeded", async () => {
     const { prisma } = await import("@/lib/db");
@@ -147,6 +194,7 @@ describe("retryPaymentLinks — 25-invoice happy path", () => {
       id: `i-${i + 1}`,
       invoiceNumber: `INV-2026-${String(i + 1).padStart(4, "0")}`,
       studentId: `s-${i + 1}`,
+      student: { name: `Student ${i + 1}` },
     }));
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(candidates as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);

@@ -1,44 +1,81 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 
 /**
+ * Resolve the current Asia/Jakarta year as a 4-digit number. Uses
+ * `formatToParts` to extract the `year` token explicitly — defensive against
+ * future ICU changes to how `en-CA` renders a stand-alone year.
+ */
+function jakartaYear(): number {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+  }).formatToParts(new Date());
+  const yearPart = parts.find((p) => p.type === "year");
+  if (!yearPart) throw new Error("Failed to extract Jakarta year");
+  return Number(yearPart.value);
+}
+
+/**
  * Atomically allocate the next invoice number for a tenant.
- * MUST be called inside a Prisma transaction. Acquires a tenant-scoped
- * advisory lock so concurrent callers receive distinct numbers.
  *
- * Format: INV-YYYY-NNNN (4-digit zero-padded suffix, year prefix).
+ * MUST be called inside a Prisma transaction (`tx`). The allocator issues a
+ * single `INSERT … ON CONFLICT DO UPDATE … RETURNING` against the
+ * `InvoiceNumberSequence` table — one round-trip, one row write, no advisory
+ * lock, no MAX-scan, no client-side regex parsing. Concurrent callers serialise
+ * at the row level on `(tenantId, year)`. An outer rollback returns the
+ * allocated number too (sequence stays consistent with committed invoices).
+ *
+ * Year prefix is computed in **Asia/Jakarta** (WIB) so allocations on Jan 1
+ * mornings don't produce `INV-2025-NNNN` invoices because Vercel happens to be
+ * on UTC.
+ *
+ * Format: `INV-YYYY-NNNN` (4-digit zero-padded suffix; longer suffixes are not
+ * truncated once the year crosses 9999 invoices).
  */
 export async function nextInvoiceNumber(
   tx: Prisma.TransactionClient,
   tenantId: string
 ): Promise<string> {
-  // Postgres `hashtext()` returns a deterministic int4 well-distributed
-  // across the input space — matches the convention used by the per-invoice
-  // locks in app/api/xendit/webhook/route.ts and app/api/invoices/[id]/void/route.ts.
-  // The previous sum-of-charcodes hash was anagram-collision-prone, which would
-  // have serialised invoice generation across unrelated tenants in the
-  // multi-tenant phase.
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId}))`;
+  const [number] = await reserveInvoiceNumbers(tx, tenantId, 1);
+  return number;
+}
 
-  // ORDER BY LENGTH(invoiceNumber) first so that "INV-2026-10000" correctly
-  // sorts after "INV-2026-9999" once the suffix overflows 4 digits.
-  // A pure lexicographic ORDER BY invoiceNumber DESC would put "9999" after
-  // "10000", causing nextNum to seed from a stale prior row.
-  const result = await tx.$queryRaw<Array<{ invoiceNumber: string }>>`
-    SELECT "invoiceNumber" FROM "Invoice"
-    WHERE "tenantId" = ${tenantId}
-    ORDER BY LENGTH("invoiceNumber") DESC, "invoiceNumber" DESC
-    LIMIT 1
-  `;
-  const last = result[0] ?? null;
-
-  let nextNum = 1;
-  if (last?.invoiceNumber) {
-    const match = last.invoiceNumber.match(/(\d+)$/);
-    if (match) nextNum = parseInt(match[1]) + 1;
+/**
+ * Atomically reserve N consecutive invoice numbers for a tenant.
+ *
+ * Single round-trip: bumps `lastNumber` by `count` and returns the new value;
+ * caller derives the start as `(returned - count + 1)`. Used by the bulk
+ * generate route to allocate a contiguous range without N round-trips and
+ * without the per-invoice race-loss of allocating one then incrementing
+ * client-side (which would leave the DB sequence behind by `count - 1`).
+ *
+ * Returns numbers in ascending order: `[INV-2026-0001, INV-2026-0002, ...]`.
+ */
+export async function reserveInvoiceNumbers(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  count: number
+): Promise<string[]> {
+  if (!Number.isInteger(count) || count < 1) {
+    throw new Error(`reserveInvoiceNumbers: count must be a positive integer, got ${count}`);
   }
+  const year = jakartaYear();
 
-  const year = new Date().getFullYear();
-  return `INV-${year}-${String(nextNum).padStart(4, "0")}`;
+  const rows = await tx.$queryRaw<Array<{ lastNumber: number }>>`
+    INSERT INTO "InvoiceNumberSequence" ("tenantId", "year", "lastNumber")
+    VALUES (${tenantId}, ${year}, ${count})
+    ON CONFLICT ("tenantId", "year")
+    DO UPDATE SET "lastNumber" = "InvoiceNumberSequence"."lastNumber" + ${count}
+    RETURNING "lastNumber";
+  `;
+  const last = rows[0]?.lastNumber ?? count;
+  const start = last - count + 1;
+
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    out.push(`INV-${year}-${String(start + i).padStart(4, "0")}`);
+  }
+  return out;
 }
 
 /**

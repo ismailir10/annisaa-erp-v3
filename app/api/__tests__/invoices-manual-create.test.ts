@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@/lib/generated/prisma/client";
 
 // In-memory tx mock — the route's transaction body issues two operations:
 //   1. nextInvoiceNumber → tx.$queryRaw twice (advisory lock + last-number lookup)
@@ -90,9 +91,9 @@ function wireHappyPath({
   xenditPaymentUrl?: string | null;
   xenditSessionId?: string | null;
 } = {}) {
-  // nextInvoiceNumber: lock query + last-number SELECT (empty → seeds at 0001).
-  txMock.$queryRaw.mockResolvedValueOnce([]); // advisory lock
-  txMock.$queryRaw.mockResolvedValueOnce([]); // no prior invoice → 0001
+  // Post-T1: reserveInvoiceNumbers is a single atomic INSERT … ON CONFLICT
+  // … RETURNING. One $queryRaw call, returns the bumped lastNumber.
+  txMock.$queryRaw.mockResolvedValueOnce([{ lastNumber: 1 }]);
 
   txMock.invoice.create.mockResolvedValueOnce({ id: invoiceId });
 
@@ -383,5 +384,104 @@ describe("POST /api/invoices — Xendit failure paths", () => {
     expect(updateCall?.data).toEqual({
       paymentLinkError: "Gagal membuat sesi pembayaran",
     });
+  });
+});
+
+describe("POST /api/invoices — P2002 retry loop (T2b)", () => {
+  it("retries once on P2002 and returns 201 (single-conflict + retry-success)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    const { createXenditSessionForInvoice } = await import(
+      "@/lib/xendit/helpers"
+    );
+
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
+      studentId: "s-1",
+    } as never);
+    vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
+      { id: "fc-1", label: "SPP" },
+      { id: "fc-2", label: "Seragam" },
+    ] as never);
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue({
+      parentId: "p-1",
+    } as never);
+
+    // Each attempt issues 1 $queryRaw call (atomic INSERT … ON CONFLICT …
+    // RETURNING). Two attempts → 2 queue entries.
+    txMock.$queryRaw.mockResolvedValueOnce([{ lastNumber: 1 }]);
+    txMock.$queryRaw.mockResolvedValueOnce([{ lastNumber: 2 }]);
+
+    const p2002 = new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`tenantId`,`invoiceNumber`)",
+      {
+        code: "P2002",
+        clientVersion: "test",
+        meta: { target: ["tenantId", "invoiceNumber"] },
+      },
+    );
+
+    txMock.invoice.create
+      .mockRejectedValueOnce(p2002)
+      .mockResolvedValueOnce({ id: "inv-new" });
+
+    vi.mocked(createXenditSessionForInvoice).mockResolvedValue({
+      paymentUrl: "https://checkout.xendit.co/web/inv-new",
+    });
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv-new",
+      invoiceNumber: "INV-2026-0002",
+      totalDue: 150_000,
+      status: "SENT",
+      xenditPaymentUrl: "https://checkout.xendit.co/web/inv-new",
+      xenditSessionId: "xnd-sess-1",
+      paymentLinkError: null,
+      lines: [],
+    } as never);
+
+    const res = await POST(makeReq(validBody) as never);
+    expect(res.status).toBe(201);
+    expect(txMock.invoice.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns 409 with Indonesian copy after 3 P2002s in a row", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
+      studentId: "s-1",
+    } as never);
+    vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
+      { id: "fc-1", label: "SPP" },
+      { id: "fc-2", label: "Seragam" },
+    ] as never);
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue(null);
+
+    // 3 attempts × 1 $queryRaw call each.
+    txMock.$queryRaw.mockResolvedValueOnce([{ lastNumber: 1 }]);
+    txMock.$queryRaw.mockResolvedValueOnce([{ lastNumber: 2 }]);
+    txMock.$queryRaw.mockResolvedValueOnce([{ lastNumber: 3 }]);
+
+    const p2002 = new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`tenantId`,`invoiceNumber`)",
+      {
+        code: "P2002",
+        clientVersion: "test",
+        meta: { target: ["tenantId", "invoiceNumber"] },
+      },
+    );
+
+    txMock.invoice.create
+      .mockRejectedValueOnce(p2002)
+      .mockRejectedValueOnce(p2002)
+      .mockRejectedValueOnce(p2002);
+
+    const res = await POST(makeReq(validBody) as never);
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe("Konflik nomor tagihan, silakan coba lagi");
+    expect(txMock.invoice.create).toHaveBeenCalledTimes(3);
   });
 });

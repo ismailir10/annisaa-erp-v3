@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
-import { nextInvoiceNumber, sumDecimals } from "@/lib/finance/invoice-numbers";
+import { reserveInvoiceNumbers, sumDecimals } from "@/lib/finance/invoice-numbers";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
 import { generateBatchSchema } from "@/lib/validations/invoice";
+import { limit } from "@/lib/finance/concurrency-limit";
 
 /**
  * POST /api/invoices/generate/batch
@@ -147,21 +148,14 @@ export async function POST(req: NextRequest) {
 
   if (invoicesToBuild.length > 0) {
     txResult = await prisma.$transaction(async (tx) => {
-      // Allocate the first number under the tenant-scoped advisory lock —
-      // the lock persists for the life of the transaction so concurrent batches
-      // queue rather than collide on `Invoice.invoiceNumber` uniqueness.
-      const firstNumber = await nextInvoiceNumber(tx, tenantId);
-      const match = firstNumber.match(/^(INV-\d{4}-)(\d+)$/);
-      if (!match) throw new Error(`Unexpected invoice number format: ${firstNumber}`);
-      const prefix = match[1];
-      const padWidth = Math.max(4, match[2].length);
-      let nextNum = parseInt(match[2]);
-
-      const rows = invoicesToBuild.map((inv) => {
-        const invoiceNumber = `${prefix}${String(nextNum).padStart(padWidth, "0")}`;
-        nextNum++;
-        return { ...inv, invoiceNumber };
-      });
+      // Reserve N consecutive invoice numbers in a single round-trip —
+      // bumps the InvoiceNumberSequence row by `invoicesToBuild.length` atomically
+      // so no concurrent caller can interleave numbers with this batch.
+      const numbers = await reserveInvoiceNumbers(tx, tenantId, invoicesToBuild.length);
+      const rows = invoicesToBuild.map((inv, idx) => ({
+        ...inv,
+        invoiceNumber: numbers[idx],
+      }));
 
       await tx.invoice.createMany({
         data: rows.map((r) => ({
@@ -213,17 +207,24 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Fan out Xendit Checkout Session creation in parallel.
-  // 25 invoices × ~1.5s wall time ≈ 1.5s total — well under the Vercel 60s ceiling.
+  // Fan out Xendit Checkout Session creation in parallel — capped at 5 concurrent
+  // calls per cycle 2026-04-26 spec B3 (defends against Xendit latency spike +
+  // per-merchant rate-limit serialize-on-server pushing past Vercel's 60s
+  // ceiling). Shared per-request limiter instance — module-level would queue
+  // across unrelated requests.
+  const runLimit = limit(5);
   const settled = await Promise.allSettled(
     txResult.map((row) =>
-      createXenditSessionForInvoice(row.invoiceId, tenantId).then((res) => ({ row, result: res }))
-    )
+      runLimit(() =>
+        createXenditSessionForInvoice(row.invoiceId, tenantId).then((res) => ({ row, result: res })),
+      ),
+    ),
   );
 
   type ResultRow =
     | {
         studentId: string;
+        studentName: string;
         invoiceId: string;
         invoiceNumber: string;
         status: "SENT";
@@ -231,6 +232,7 @@ export async function POST(req: NextRequest) {
       }
     | {
         studentId: string;
+        studentName: string;
         invoiceId: string;
         invoiceNumber: string;
         status: "PENDING_PAYMENT_LINK";
@@ -257,6 +259,7 @@ export async function POST(req: NextRequest) {
       }
       results.push({
         studentId: row.studentId,
+        studentName: row.studentName,
         invoiceId: row.invoiceId,
         invoiceNumber: row.invoiceNumber,
         status: "SENT",
@@ -283,6 +286,7 @@ export async function POST(req: NextRequest) {
       }
       results.push({
         studentId: row.studentId,
+        studentName: row.studentName,
         invoiceId: row.invoiceId,
         invoiceNumber: row.invoiceNumber,
         status: "PENDING_PAYMENT_LINK",

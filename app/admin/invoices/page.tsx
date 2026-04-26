@@ -46,6 +46,20 @@ import {
   type BatchProgressSnapshot,
   type PlanResponse,
 } from "@/lib/finance/run-bulk-generate";
+import {
+  runBulkRetry,
+  type BulkRetrySnapshot,
+} from "@/lib/finance/run-bulk-retry";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ------------------------------------------------------------------
 // Types
@@ -259,7 +273,20 @@ export default function InvoicesPage() {
   const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryingRowId, setRetryingRowId] = useState<string | null>(null);
+  // Bulk-retry orchestrator state. The retry progress is rendered through
+  // the same `<BatchProgressCard>` shell as bulk-generate (different mode).
+  const [retryProgress, setRetryProgress] = useState<BulkRetrySnapshot | null>(null);
+  const [overflowConfirm, setOverflowConfirm] = useState<{
+    total: number;
+    resolve: (proceed: boolean) => void;
+  } | null>(null);
+  const retryDoneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // AbortControllers for the two orchestrators — driven by the
+  // BatchProgressCard "Batalkan" button. Reset to null when the run finishes
+  // or is cancelled so the next click starts fresh.
+  const generateAbortRef = useRef<AbortController | null>(null);
+  const retryAbortRef = useRef<AbortController | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     draft: 0,
@@ -336,6 +363,7 @@ export default function InvoicesPage() {
     return () => {
       mountedRef.current = false;
       if (doneAutoHideRef.current) clearTimeout(doneAutoHideRef.current);
+      if (retryDoneAutoHideRef.current) clearTimeout(retryDoneAutoHideRef.current);
     };
   }, []);
 
@@ -386,9 +414,13 @@ export default function InvoicesPage() {
       doneAutoHideRef.current = null;
     }
 
+    // Fresh AbortController per run — wired to the card's Batalkan button.
+    generateAbortRef.current = new AbortController();
+
     try {
       const out = await runBulkGenerate({
         planRequest: genForm,
+        signal: generateAbortRef.current.signal,
         // Promise-based hook: opens the confirm dialog, resolves on user click.
         onPlan: (plan) =>
           new Promise<boolean>((resolve) => {
@@ -439,6 +471,7 @@ export default function InvoicesPage() {
       setProgress(null);
     } finally {
       setGenerating(false);
+      generateAbortRef.current = null;
     }
   }
 
@@ -456,38 +489,80 @@ export default function InvoicesPage() {
     resolve(false);
   }
 
-  // One POST. The retry endpoint enumerates PENDING_PAYMENT_LINK invoices
-  // for the tenant itself (capped at 25 per call); realistic count is 0-5
-  // (Xendit sandbox flakes), so chunking + sticky-progress would be overkill.
+  // Bulk retry — drives the runBulkRetry orchestrator end-to-end. The
+  // orchestrator pre-fetches all PENDING_PAYMENT_LINK invoices, chunks them
+  // into 25-item slices, and POSTs each chunk through the same
+  // /api/invoices/retry-payment-links endpoint used by per-row retries.
   async function handleBulkRetry() {
     setRetryConfirmOpen(false);
     setRetrying(true);
+
+    if (retryDoneAutoHideRef.current) {
+      clearTimeout(retryDoneAutoHideRef.current);
+      retryDoneAutoHideRef.current = null;
+    }
+
+    // Fresh AbortController per run — wired to the card's Batalkan button.
+    retryAbortRef.current = new AbortController();
+
     try {
-      const res = await fetch("/api/invoices/retry-payment-links", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+      const out = await runBulkRetry({
+        signal: retryAbortRef.current.signal,
+        onProgress: (snapshot) => {
+          if (!mountedRef.current) return;
+          setRetryProgress({ ...snapshot });
+        },
+        onOverflow: (total) =>
+          new Promise<boolean>((resolve) => {
+            if (!mountedRef.current) return resolve(false);
+            setOverflowConfirm({ total, resolve });
+          }),
       });
+
       if (!mountedRef.current) return;
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err?.error || "Gagal mencoba ulang link");
-        return;
-      }
-      const out = await res.json();
-      if (out.retried === 0) {
+
+      if (out.phase === "no-pending") {
         toast.info("Tidak ada tagihan dengan link gagal");
-      } else {
-        const tail = out.stillFailed > 0 ? `, ${out.stillFailed} masih gagal` : "";
-        toast.success(`${out.succeeded} link berhasil${tail}`);
+        setRetryProgress(null);
+      } else if (out.phase === "user-cancelled") {
+        setRetryProgress(null);
+      } else if (out.phase === "aborted") {
+        toast.error(
+          `Dibatalkan setelah ${out.final.processed}/${out.final.total} tagihan diproses`,
+        );
+      } else if (out.phase === "done") {
+        const { fixed, stillFailed } = out.final;
+        if (fixed > 0 && stillFailed === 0) {
+          toast.success(`${fixed} link berhasil diperbaiki`);
+        } else if (fixed > 0 && stillFailed > 0) {
+          toast.success(
+            `${fixed} link berhasil, ${stillFailed} masih gagal — buka invoice untuk detail`,
+          );
+        } else if (fixed === 0 && stillFailed > 0) {
+          toast.error(`${stillFailed} link masih gagal — buka invoice untuk detail`);
+        }
+        fetchInvoices();
+        fetchStats();
+
+        retryDoneAutoHideRef.current = setTimeout(() => {
+          setRetryProgress(null);
+          retryDoneAutoHideRef.current = null;
+        }, 5000);
       }
-      fetchInvoices();
-      fetchStats();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mencoba ulang link");
+      setRetryProgress(null);
     } finally {
       if (mountedRef.current) setRetrying(false);
+      retryAbortRef.current = null;
     }
+  }
+
+  function handleOverflowConfirm() {
+    if (!overflowConfirm) return;
+    const { resolve } = overflowConfirm;
+    setOverflowConfirm(null);
+    resolve(true);
   }
 
   // Per-row retry — one invoice id, single POST, no progress card. Refetch
@@ -614,8 +689,48 @@ export default function InvoicesPage() {
       {progress && progress.phase !== "idle" && (
         <BatchProgressCard
           progress={progress}
+          onCancel={() => generateAbortRef.current?.abort()}
         />
       )}
+
+      {retryProgress && (
+        <BatchProgressCard
+          mode="retry"
+          progress={retryProgress}
+          onCancel={() => retryAbortRef.current?.abort()}
+        />
+      )}
+
+      {/* Overflow confirm — surfaces when more than 1000 invoices are stuck.
+          Single confirm button per spec; closing the dialog without confirming
+          aborts the orchestrator cleanly. */}
+      <AlertDialog
+        open={!!overflowConfirm}
+        onOpenChange={(o) => {
+          if (!o && overflowConfirm) {
+            const { resolve } = overflowConfirm;
+            setOverflowConfirm(null);
+            resolve(false);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Antrian retry penuh</AlertDialogTitle>
+            <AlertDialogDescription>
+              {overflowConfirm
+                ? `1000 tagihan akan diproses sekarang. Sisa ${overflowConfirm.total - 1000} tagihan: jalankan ulang "Coba Lagi Link" setelah batch ini selesai.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleOverflowConfirm}>
+              Mulai Proses
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <StatsCardsRow>
         <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />

@@ -1,0 +1,13 @@
+{
+  "event": "payment_session.completed",
+  "created": "2026-04-26T10:15:00.000Z",
+  "data": {
+    "status": "COMPLETED",
+    "amount": 500000,
+    "currency": "IDR",
+    "reference_id": "cmodtjyva1g7n7bx7lzpw5oht",
+    "payment_session_id": "ps-aaaaaaaaaaaaaaaaaaaaaaaa",
+    "payment_id": "py-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "updated": "2026-04-26T10:14:55.000Z"
+  }
+}

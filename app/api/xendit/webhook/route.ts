@@ -7,20 +7,23 @@ import { prisma } from "@/lib/db";
 import { sumDecimals } from "@/lib/finance/invoice-numbers";
 
 /**
- * Xendit Payment Session Webhook handler.
+ * Xendit Payment Session Webhook handler. Two-phase, durable.
  *
- * Scope: only `payment_session.completed` and `payment_session.expired`
- * events affect Invoice state. Every other event is logged + IGNORED with
- * 200 (Xendit does not retry on 200).
+ * Phase 1 — Receive + persist (always). The first DB action is the
+ * WebhookEvent INSERT. On P2002 (eventId @unique) we 200 immediately —
+ * Xendit's retry of an already-delivered event is a noop. After this
+ * insert the receipt is durable; nothing in the route DELETEs it.
  *
- * Idempotency: every inbound webhook is INSERTed into `WebhookEvent` with
- * UNIQUE on `eventId`. A duplicate Xendit delivery hits P2002 and 200s
- * immediately — race-free dedup at the DB layer.
+ * Phase 2 — Process + record outcome. Dispatch by event type. Success →
+ * status=PROCESSED + 200. Business-logic error (invoice not found,
+ * missing amount, etc) → status=ERROR + 200 always (Xendit retry would
+ * silently no-op via Phase 1 dedup anyway). Phase 1 itself throwing
+ * (DB unreachable BEFORE row committed) → 500; Xendit retries cleanly
+ * because no row is yet committed.
  *
- * On transient throw mid-processing: the WebhookEvent row is DELETED so
- * the next provider retry can re-INSERT cleanly. Xendit caps retries
- * (typically 5×) so a permanently-failing payload eventually stops; the
- * operator should monitor `WebhookEvent` for FAILED rows during deploy.
+ * The P2002 short-circuit on Phase 1 guarantees at most one Phase 2
+ * dispatch per eventId — the per-invoice advisory lock in Phase 2 then
+ * serialises concurrency at the invoice level.
  *
  * Important: NEVER log `payload` content. Only log `eventId` + `eventType`
  * + a small set of derived non-PII fields.
@@ -87,17 +90,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Audit failure" }, { status: 500 });
   }
 
-  // ── Step 5: business logic. On any throw, DELETE the audit row so the
-  // ── provider retry can re-INSERT cleanly.
+  // ── Step 5: Phase 2 — process + record outcome. Receipt is durable
+  // ── from this point. Errors mark the row ERROR + return 200 (admin-
+  // ── recovery via Aktivitas Xendit panel; Xendit retry would dedup).
   try {
     if (event === "payment_session.completed" && data.status === "COMPLETED") {
-      const result = await handleSessionCompleted(data, eventId);
+      const result = await handleSessionCompleted(data, eventId, body);
       revalidateTag("student-invoices", { expire: 0 });
       return NextResponse.json(result);
     }
 
     if (event === "payment_session.expired") {
-      const result = await handleSessionExpired(data, eventId);
+      const result = await handleSessionExpired(data, eventId, body);
       if (result.invoiceId) revalidateTag("student-invoices", { expire: 0 });
       return NextResponse.json(result);
     }
@@ -106,10 +110,7 @@ export async function POST(req: NextRequest) {
     console.warn(
       `[XENDIT WEBHOOK] Unhandled event eventId=${eventId} event=${event} payloadKeys=${Object.keys(data).join(",")}`,
     );
-    await prisma.webhookEvent.update({
-      where: { eventId },
-      data: { status: "IGNORED", processedAt: new Date() },
-    });
+    await markIgnored(eventId, "status_not_handled");
     return NextResponse.json({ ok: true, ignored: true, event });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
@@ -117,14 +118,17 @@ export async function POST(req: NextRequest) {
       `[XENDIT WEBHOOK] Processing failed eventId=${eventId} event=${event}:`,
       errorMessage,
     );
-    // DELETE so the provider retry inserts cleanly.
-    // Xendit caps retries (~5×); a permanent-poison payload eventually stops.
+    // ERROR row retained for admin audit. Always return 200 — a Xendit
+    // retry of the same eventId would short-circuit at Phase 1 anyway.
     try {
-      await prisma.webhookEvent.delete({ where: { eventId } });
+      await prisma.webhookEvent.update({
+        where: { eventId },
+        data: { status: "ERROR", errorMessage, processedAt: new Date() },
+      });
     } catch {
-      // Ignore delete errors — best-effort cleanup.
+      // Best-effort; the row may have been deleted by an external job.
     }
-    return NextResponse.json({ error: "Processing failed" }, { status: 500 });
+    return NextResponse.json({ ok: true, error: errorMessage });
   }
 }
 
@@ -133,9 +137,16 @@ export async function POST(req: NextRequest) {
 async function handleSessionCompleted(
   data: Record<string, unknown>,
   eventId: string,
+  envelope: Record<string, unknown>,
 ): Promise<{ ok: true; status: string; eventId: string }> {
-  const invoiceId =
+  const refId =
     typeof data.reference_id === "string" ? data.reference_id : "";
+  const sessionId =
+    typeof data.payment_session_id === "string"
+      ? data.payment_session_id
+      : typeof envelope.id === "string"
+        ? (envelope.id as string)
+        : null;
   const paymentId =
     typeof data.payment_id === "string"
       ? data.payment_id
@@ -144,34 +155,50 @@ async function handleSessionCompleted(
         : null;
   const amount = typeof data.amount === "number" ? data.amount : null;
 
-  if (!invoiceId) {
-    await markIgnored(eventId, "missing reference_id");
-    return { ok: true, status: "IGNORED:missing_reference_id", eventId };
+  // T5d — amount-mismatch guard: refuse to credit a missing/zero amount.
+  // Falling back to invoice.totalDue would mask partial captures and
+  // amount-tampering attacks. Mark ERROR + admin reviews via inspector.
+  if (amount == null || amount === 0) {
+    console.warn(
+      `[XENDIT WEBHOOK] Missing/zero amount eventId=${eventId} refId=${refId}`,
+    );
+    await markError(eventId, "MISSING_AMOUNT");
+    return { ok: true, status: "ERROR:missing_amount", eventId };
   }
 
-  // Refuse to record a payment with no Xendit identifier. Writing
-  // xenditPaymentId: NULL would silently bypass the UNIQUE dedup constraint
-  // (Postgres treats multiple NULLs as distinct), and a future replay would
-  // double-count the invoice. WebhookEvent eventId UNIQUE still catches
-  // duplicate provider deliveries; this just prevents the inner-tx footgun.
   if (!paymentId) {
     console.warn(
-      `[XENDIT WEBHOOK] Completed event missing payment_id + payment_session_id eventId=${eventId} invoiceId=${invoiceId}`,
+      `[XENDIT WEBHOOK] Completed event missing payment_id + payment_session_id eventId=${eventId} refId=${refId}`,
     );
-    await markIgnored(eventId, "missing payment_id", invoiceId);
-    return { ok: true, status: "IGNORED:missing_payment_id", eventId };
+    await markError(eventId, "MISSING_PAYMENT_ID");
+    return { ok: true, status: "ERROR:missing_payment_id", eventId };
   }
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-  });
+  // T5c — try reference_id first, then fall back to xenditSessionId. Live
+  // production payload supplied during /spec showed `reference_id` of
+  // "staging-tagihan-<cuid>" (legacy seed prefix) which findUnique misses;
+  // the fallback resolves via payment_session_id.
+  let invoice = refId
+    ? await prisma.invoice.findUnique({ where: { id: refId } })
+    : null;
+  if (!invoice && sessionId) {
+    invoice = await prisma.invoice.findFirst({
+      where: { xenditSessionId: sessionId },
+    });
+    if (invoice) {
+      console.warn(
+        `[XENDIT WEBHOOK] ref_id_miss_session_fallback eventId=${eventId} refId=${refId} sessionId=${sessionId} paymentId=${paymentId} resolvedInvoiceId=${invoice.id}`,
+      );
+    }
+  }
   if (!invoice) {
     console.warn(
-      `[XENDIT WEBHOOK] Invoice not found eventId=${eventId} invoiceId=${invoiceId}`,
+      `[XENDIT WEBHOOK] Invoice not found eventId=${eventId} refId=${refId} sessionId=${sessionId}`,
     );
-    await markIgnored(eventId, "invoice not found", invoiceId);
-    return { ok: true, status: "IGNORED:invoice_not_found", eventId };
+    await markError(eventId, `INVOICE_NOT_FOUND:ref=${refId};session=${sessionId ?? ""}`);
+    return { ok: true, status: "ERROR:invoice_not_found", eventId };
   }
+  const invoiceId = invoice.id;
 
   if (invoice.status === "PAID") {
     await markProcessed(eventId, invoiceId);
@@ -191,41 +218,37 @@ async function handleSessionCompleted(
     return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
   }
 
-  const paymentAmount = amount ?? Number(invoice.totalDue);
+  const paymentAmount = amount; // guaranteed non-null by guard above
   const channelCode =
     typeof data.channel_code === "string" ? data.channel_code : "checkout";
 
-  const newStatus = await prisma.$transaction(async (tx) => {
+  const txOutcome = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${invoice.id}))`;
 
     const fresh = await tx.invoice.findUnique({ where: { id: invoice.id } });
-    if (!fresh) return "PAID";
-    if (fresh.status === "PAID") return "PAID";
-    // In-tx CANCELLED guard — pre-tx check is racy with void's separate
-    // advisory-lock acquisition; this is the authoritative check.
-    if (fresh.status === "CANCELLED") return "CANCELLED";
+    if (!fresh) return { status: "PAID", overpaid: false } as const;
+    if (fresh.status === "PAID") return { status: "PAID", overpaid: false } as const;
+    if (fresh.status === "CANCELLED") return { status: "CANCELLED", overpaid: false } as const;
 
-    // Idempotency on the Payment.xenditPaymentId UNIQUE column. The outer
-    // WebhookEvent eventId UNIQUE catches duplicate provider deliveries;
-    // this inner check covers the rarer case where the provider sends a
-    // fresh delivery wrapper (different eventId) pointing at the same
-    // underlying Xendit payment_id — replay tooling, infra retry, etc.
-    //
-    // The advisory lock above serialises concurrent webhook handlers for
-    // the same invoice, so by the time a second handler runs this query
-    // the first handler's row is already visible — no P2002 race to swallow.
     const existing = await tx.payment.findUnique({
       where: { xenditPaymentId: paymentId },
     });
-    if (existing) return fresh.status as string;
+    if (existing) return { status: fresh.status as string, overpaid: false } as const;
+
+    // T5d — overpayment guard computed INSIDE the lock from authoritative
+    // fresh.totalPaid, not from the pre-tx snapshot. Prevents a false
+    // negative when two concurrent webhooks with different paymentIds
+    // both pre-read totalPaid=0 then both pass the overpayment check.
+    // 1 IDR tolerance for Xendit fee/rounding edge cases.
+    const remaining =
+      Number(fresh.totalDue) - Number(fresh.totalPaid);
+    const overpaid = paymentAmount > remaining + 1;
 
     await tx.payment.create({
       data: {
         invoiceId: invoice.id,
         amount: paymentAmount,
         method: "XENDIT",
-        // xenditPaymentId is the immutable provider id (UNIQUE).
-        // reference mirrors it for display + parity with manual references.
         xenditPaymentId: paymentId,
         reference: paymentId,
         notes: `Xendit payment via ${channelCode}`,
@@ -235,8 +258,6 @@ async function handleSessionCompleted(
     const allPayments = await tx.payment.findMany({
       where: { invoiceId: invoice.id },
     });
-    // Decimal-safe sum — JS-number reduce drifts on three installments
-    // summing to totalDue and could leave the invoice PARTIALLY_PAID.
     const totalPaid = sumDecimals(allPayments.map((p) => p.amount));
     const totalDue = new Prisma.Decimal(invoice.totalDue);
     const status = totalPaid.greaterThanOrEqualTo(totalDue) ? "PAID" : "PARTIALLY_PAID";
@@ -246,14 +267,15 @@ async function handleSessionCompleted(
       data: {
         totalPaid,
         status,
-        // Successful payment clears any stale paymentLinkError from a prior
-        // PENDING_PAYMENT_LINK retry that eventually succeeded.
         paymentLinkError: null,
         paidAt: status === "PAID" ? new Date() : null,
       },
     });
-    return status;
+    return { status, overpaid } as const;
   });
+
+  const newStatus = txOutcome.status;
+  const overpaid = txOutcome.overpaid;
 
   if (newStatus === "CANCELLED") {
     await markIgnored(eventId, "invoice cancelled (in-tx)", invoiceId);
@@ -261,6 +283,14 @@ async function handleSessionCompleted(
       `[XENDIT WEBHOOK] In-tx CANCELLED race on ${invoice.invoiceNumber} eventId=${eventId}`,
     );
     return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
+  }
+
+  if (overpaid) {
+    await markError(eventId, "OVERPAYMENT_FLAGGED", invoiceId);
+    console.warn(
+      `[XENDIT WEBHOOK] Overpayment on ${invoice.invoiceNumber}: paid=${paymentAmount} eventId=${eventId}`,
+    );
+    return { ok: true, status: `OVERPAID:${newStatus}`, eventId };
   }
 
   await markProcessed(eventId, invoiceId);
@@ -273,22 +303,48 @@ async function handleSessionCompleted(
 async function handleSessionExpired(
   data: Record<string, unknown>,
   eventId: string,
+  envelope: Record<string, unknown>,
 ): Promise<{
   ok: true;
   status: string;
   eventId: string;
   invoiceId?: string;
 }> {
-  const invoiceId =
+  const refId =
     typeof data.reference_id === "string" ? data.reference_id : "";
-  if (!invoiceId) {
-    await markIgnored(eventId, "missing reference_id");
-    return { ok: true, status: "IGNORED:missing_reference_id", eventId };
-  }
+  const sessionId =
+    typeof data.payment_session_id === "string"
+      ? data.payment_session_id
+      : typeof envelope.id === "string"
+        ? (envelope.id as string)
+        : null;
 
-  // Wrap in a transaction with the same advisory lock the completed path
-  // uses, so a concurrent `payment_session.completed` for the same invoice
-  // can't race us into a stale CANCELLED state.
+  // T5c fallback — same as completed handler.
+  let resolved = refId
+    ? await prisma.invoice.findUnique({
+        where: { id: refId },
+        select: { id: true, status: true, invoiceNumber: true },
+      })
+    : null;
+  if (!resolved && sessionId) {
+    resolved = await prisma.invoice.findFirst({
+      where: { xenditSessionId: sessionId },
+      select: { id: true, status: true, invoiceNumber: true },
+    });
+    if (resolved) {
+      console.warn(
+        `[XENDIT WEBHOOK] expired ref_id_miss_session_fallback eventId=${eventId} refId=${refId} sessionId=${sessionId} resolvedInvoiceId=${resolved.id}`,
+      );
+    }
+  }
+  if (!resolved) {
+    await markError(eventId, `INVOICE_NOT_FOUND:ref=${refId};session=${sessionId ?? ""}`);
+    return { ok: true, status: "ERROR:invoice_not_found", eventId };
+  }
+  const invoiceId = resolved.id;
+
+  // T5e — soft-revert (NOT destructive). Only revert SENT and
+  // PENDING_PAYMENT_LINK. Already-paid + already-cancelled ignore.
   const result = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
     const fresh = await tx.invoice.findUnique({
@@ -298,34 +354,52 @@ async function handleSessionExpired(
     if (!fresh) {
       return { type: "IGNORED:invoice_not_found" as const, invoiceNumber: "" };
     }
-    if (fresh.status === "PAID" || fresh.status === "CANCELLED") {
+    if (fresh.status === "PAID") {
       return {
-        type: `${fresh.status}:no_change` as const,
+        type: "IGNORED:already_paid" as const,
+        invoiceNumber: fresh.invoiceNumber,
+      };
+    }
+    if (fresh.status === "CANCELLED") {
+      return {
+        type: "IGNORED:already_cancelled" as const,
+        invoiceNumber: fresh.invoiceNumber,
+      };
+    }
+    if (fresh.status !== "SENT" && fresh.status !== "PENDING_PAYMENT_LINK") {
+      return {
+        type: "IGNORED:status_not_revertible" as const,
         invoiceNumber: fresh.invoiceNumber,
       };
     }
     await tx.invoice.update({
       where: { id: invoiceId },
       data: {
-        status: "CANCELLED",
+        status: "PENDING_PAYMENT_LINK",
         xenditSessionId: null,
         xenditPaymentUrl: null,
       },
     });
-    return { type: "CANCELLED" as const, invoiceNumber: fresh.invoiceNumber };
+    return { type: "REVERTED" as const, invoiceNumber: fresh.invoiceNumber };
   });
 
   if (result.type === "IGNORED:invoice_not_found") {
-    await markIgnored(eventId, "invoice not found", invoiceId);
-    return { ok: true, status: "IGNORED:invoice_not_found", eventId };
+    await markError(eventId, "INVOICE_NOT_FOUND_INTX", invoiceId);
+    return { ok: true, status: "ERROR:invoice_not_found_intx", eventId };
+  }
+  if (
+    result.type === "IGNORED:already_paid" ||
+    result.type === "IGNORED:already_cancelled" ||
+    result.type === "IGNORED:status_not_revertible"
+  ) {
+    await markIgnored(eventId, result.type.replace("IGNORED:", ""), invoiceId);
+    return { ok: true, status: result.type, eventId, invoiceId };
   }
   await markProcessed(eventId, invoiceId);
-  if (result.type === "CANCELLED") {
-    console.log(
-      `[XENDIT WEBHOOK] Invoice ${result.invoiceNumber} → CANCELLED (session expired) eventId=${eventId}`,
-    );
-  }
-  return { ok: true, status: result.type, eventId, invoiceId };
+  console.log(
+    `[XENDIT WEBHOOK] Invoice ${result.invoiceNumber} → PENDING_PAYMENT_LINK (session expired, soft-revert) eventId=${eventId}`,
+  );
+  return { ok: true, status: "REVERTED", eventId, invoiceId };
 }
 
 async function markProcessed(
@@ -352,6 +426,22 @@ async function markIgnored(
     data: {
       status: "IGNORED",
       errorMessage: reason,
+      invoiceId: invoiceId ?? null,
+      processedAt: new Date(),
+    },
+  });
+}
+
+async function markError(
+  eventId: string,
+  errorMessage: string,
+  invoiceId?: string,
+): Promise<void> {
+  await prisma.webhookEvent.update({
+    where: { eventId },
+    data: {
+      status: "ERROR",
+      errorMessage,
       invoiceId: invoiceId ?? null,
       processedAt: new Date(),
     },

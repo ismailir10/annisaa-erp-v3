@@ -21,7 +21,13 @@
 export const BATCH_SIZE = 25;
 export const RETRY_BACKOFFS_MS = [1000, 3000];
 
-export type BatchProgressPhase = "running" | "done" | "idle";
+export type BatchProgressPhase = "running" | "done" | "idle" | "aborted";
+
+export type FailureRow = {
+  studentId: string;
+  studentName: string;
+  error: string;
+};
 
 export type BatchProgressSnapshot = {
   done: number;
@@ -30,6 +36,10 @@ export type BatchProgressSnapshot = {
   xenditOk: number;
   xenditFailed: number;
   phase: BatchProgressPhase;
+  /** Per-student error rows; populated as failures accumulate across chunks. */
+  failures: FailureRow[];
+  /** Set on `phase: "aborted"` from three-strike chunk failure (HTTP message). */
+  lastError?: string;
 };
 
 export type PlanResponse = {
@@ -43,6 +53,7 @@ export type PlanResponse = {
 export type BatchResultRow =
   | {
       studentId: string;
+      studentName?: string;
       invoiceId: string;
       invoiceNumber: string;
       status: "SENT";
@@ -50,6 +61,7 @@ export type BatchResultRow =
     }
   | {
       studentId: string;
+      studentName?: string;
       invoiceId: string;
       invoiceNumber: string;
       status: "PENDING_PAYMENT_LINK";
@@ -68,6 +80,12 @@ export type RunBulkGenerateInput = {
   onPlan: (plan: PlanResponse) => boolean | Promise<boolean>;
   /** Called after every batch (and at start/end) with the running totals. */
   onProgress?: (snapshot: BatchProgressSnapshot) => void;
+  /**
+   * Optional. AbortSignal for mid-run cancellation. The orchestrator checks
+   * `signal.aborted` before starting each chunk and short-circuits to
+   * `phase: "aborted"`. Wired by the BatchProgressCard "Batalkan" button.
+   */
+  signal?: AbortSignal;
   /** Test seam — defaults to global `fetch`. */
   fetchImpl?: typeof fetch;
   /** Test seam — defaults to global `setTimeout`. Returns a cancel-able timer. */
@@ -126,11 +144,20 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
     xenditOk: 0,
     xenditFailed: 0,
     phase: "running",
+    failures: [],
   };
-  input.onProgress?.({ ...snapshot });
+  input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
 
   let cursor = 0;
   while (cursor < chunks.length) {
+    // Cancellation check — fires before each chunk so an in-flight chunk
+    // completes naturally but no new HTTP calls are dispatched.
+    if (input.signal?.aborted) {
+      snapshot.phase = "aborted";
+      input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
+      return { phase: "aborted", plan, final: { ...snapshot, failures: [...snapshot.failures] } };
+    }
+
     const studentIds = chunks[cursor];
     const result = await callBatchWithRetry({
       studentIds,
@@ -142,8 +169,13 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
     if (!result.ok) {
       // Three-strike batch failure → real infrastructure issue (Vercel
       // timeout, Xendit 5xx). Surface and stop; the operator can re-run
-      // the cycle once the upstream stabilises.
-      return { phase: "aborted", plan, final: { ...snapshot } };
+      // the cycle once the upstream stabilises. MUST fire onProgress so
+      // the UI transitions out of "running" — otherwise the progress
+      // card freezes mid-spinner with the Batalkan button stuck on.
+      snapshot.phase = "aborted";
+      snapshot.lastError = result.lastError;
+      input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
+      return { phase: "aborted", plan, final: { ...snapshot, failures: [...snapshot.failures] } };
     }
 
     const body = result.value;
@@ -151,15 +183,22 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
     snapshot.created += body.created;
     for (const r of body.results) {
       if (r.status === "SENT") snapshot.xenditOk += 1;
-      else snapshot.xenditFailed += 1;
+      else {
+        snapshot.xenditFailed += 1;
+        snapshot.failures.push({
+          studentId: r.studentId,
+          studentName: r.studentName ?? r.studentId,
+          error: r.error,
+        });
+      }
     }
-    input.onProgress?.({ ...snapshot });
+    input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
     cursor += 1;
   }
 
   snapshot.phase = "done";
-  input.onProgress?.({ ...snapshot });
-  return { phase: "done", plan, final: { ...snapshot } };
+  input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
+  return { phase: "done", plan, final: { ...snapshot, failures: [...snapshot.failures] } };
 }
 
 type CallBatchInput = {
