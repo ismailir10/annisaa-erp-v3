@@ -11,11 +11,13 @@ export async function nextInvoiceNumber(
   tx: Prisma.TransactionClient,
   tenantId: string
 ): Promise<string> {
-  // Hash tenantId to a deterministic int — same scheme used by the legacy
-  // app/api/invoices/generate/route.ts so existing in-flight transactions
-  // can't grab the same lock from a different code path.
-  const lockKey = tenantId.split("").reduce((h, c) => h + c.charCodeAt(0), 0);
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
+  // Postgres `hashtext()` returns a deterministic int4 well-distributed
+  // across the input space — matches the convention used by the per-invoice
+  // locks in app/api/xendit/webhook/route.ts and app/api/invoices/[id]/void/route.ts.
+  // The previous sum-of-charcodes hash was anagram-collision-prone, which would
+  // have serialised invoice generation across unrelated tenants in the
+  // multi-tenant phase.
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId}))`;
 
   // ORDER BY LENGTH(invoiceNumber) first so that "INV-2026-10000" correctly
   // sorts after "INV-2026-9999" once the suffix overflows 4 digits.

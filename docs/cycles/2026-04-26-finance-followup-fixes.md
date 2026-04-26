@@ -150,6 +150,11 @@ Each task is one commit. Between every task: `npm run build && npx vitest run` m
   - 1 new test: completed event with no payment_id + no payment_session_id → 200 IGNORED:missing_payment_id, no invoice/payment touched.
 - Vitest after Task 2b: 13 webhook tests passed (was 12); full suite **603/645 passed** across 74 files (42 todo).
 
+### Task 3 — `nextInvoiceNumber` lock key uses `hashtext()`
+- [`lib/finance/invoice-numbers.ts`](../../lib/finance/invoice-numbers.ts): replaced the JS sum-of-charcodes hash + numeric `pg_advisory_xact_lock(${lockKey})` with `pg_advisory_xact_lock(hashtext(${tenantId}))` — Postgres applies the hash server-side. Matches the convention used by webhook + void per-invoice locks. Comment updated to call out the anagram-collision risk that the previous hash had (latent on single-tenant MVP, would have surfaced as serialised invoice generation across unrelated tenants in the multi-tenant phase).
+- [`lib/finance/__tests__/invoice-numbers.test.ts`](../../lib/finance/__tests__/invoice-numbers.test.ts): old "deterministic char-sum" assertion replaced with `hashtext(` SQL-shape match + raw tenantId binding assertion. Added anagram-regression test: `"ab"` and `"ba"` now produce distinct lock bindings (the char-sum hash mapped both to 195).
+- Vitest: 6 invoice-numbers tests passed; full suite **604/646 passed** (+1 new anagram test).
+
 ---
 
 ## Verification
