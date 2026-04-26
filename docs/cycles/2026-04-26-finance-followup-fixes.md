@@ -136,6 +136,7 @@ Each task is one commit. Between every task: `npm run build && npx vitest run` m
 - [`lib/parent-helpers.ts`](../../lib/parent-helpers.ts) `getParentInvoiceList`: Prisma `where.status` switched from `{ not: "DRAFT" }` to `{ in: ["SENT","PARTIALLY_PAID","OVERDUE","PAID"] }`. Comment above the query documents the allow-list rationale (matches PR #140 Spec §21 — `PENDING_PAYMENT_LINK` and `CANCELLED` never reach parents because there is nothing actionable they can do).
 - [`lib/__tests__/parent-helpers.test.ts`](../../lib/__tests__/parent-helpers.test.ts): added `import { getParentInvoiceList }` and a new `describe("getParentInvoiceList", …)` block with 4 tests — allow-list shape (asserts the 4 included statuses + sanity-check that PENDING/CANCELLED/DRAFT are not in `where.status.in`), PAID appears in history (with `paidAt` ISO string), per-tenant Prisma `where` isolation across two parent calls, Decimal-as-Number coercion (parent UI expects `totalDue`/`totalPaid` as numbers).
 - Vitest: 24 passed (4 new). Build deferred to end-of-cycle gate.
+- **Task 1b (code-review follow-on):** [`lib/parent-activity.ts:74`](../../lib/parent-activity.ts:74) — same deny-list pattern (`status: { not: "DRAFT" }`) leaked the same statuses into the parent recent-activity feed. Switched to the same allow-list. No new test (no pre-existing test file for parent-activity; same shape as Task 1's verified change).
 
 ---
 
