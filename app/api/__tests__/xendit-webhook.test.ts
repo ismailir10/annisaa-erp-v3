@@ -175,7 +175,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
@@ -260,7 +260,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
@@ -386,7 +386,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
@@ -518,7 +518,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
@@ -577,7 +577,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "cmodtjyva1g7n7bx7lzpw5oht",
@@ -626,7 +626,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]),
+          $queryRaw: vi.fn().mockResolvedValue([{}]), $executeRaw: vi.fn().mockResolvedValue(0),
           invoice: {
             findUnique: vi.fn().mockResolvedValue({
               id: "inv1",
