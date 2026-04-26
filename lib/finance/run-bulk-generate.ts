@@ -80,10 +80,6 @@ export type RunBulkGenerateOutcome =
   | { phase: "aborted"; plan: PlanResponse; final: BatchProgressSnapshot }
   | { phase: "done"; plan: PlanResponse; final: BatchProgressSnapshot };
 
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export function chunk<T>(arr: T[], size: number): T[][] {
   if (size <= 0) throw new Error("chunk: size must be > 0");
   const out: T[][] = [];
@@ -97,7 +93,7 @@ export function chunk<T>(arr: T[], size: number): T[][] {
  */
 export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunBulkGenerateOutcome> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const sleep = input.sleepImpl ?? defaultSleep;
+  const sleep = input.sleepImpl ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
 
   // 1) Plan call — never writes, always cheap.
   const planRes = await fetchImpl("/api/invoices/generate/plan", {
