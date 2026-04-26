@@ -149,6 +149,19 @@ async function handleSessionCompleted(
     return { ok: true, status: "IGNORED:missing_reference_id", eventId };
   }
 
+  // Refuse to record a payment with no Xendit identifier. Writing
+  // xenditPaymentId: NULL would silently bypass the UNIQUE dedup constraint
+  // (Postgres treats multiple NULLs as distinct), and a future replay would
+  // double-count the invoice. WebhookEvent eventId UNIQUE still catches
+  // duplicate provider deliveries; this just prevents the inner-tx footgun.
+  if (!paymentId) {
+    console.warn(
+      `[XENDIT WEBHOOK] Completed event missing payment_id + payment_session_id eventId=${eventId} invoiceId=${invoiceId}`,
+    );
+    await markIgnored(eventId, "missing payment_id", invoiceId);
+    return { ok: true, status: "IGNORED:missing_payment_id", eventId };
+  }
+
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
   });
@@ -192,17 +205,14 @@ async function handleSessionCompleted(
     // advisory-lock acquisition; this is the authoritative check.
     if (fresh.status === "CANCELLED") return "CANCELLED";
 
-    // Idempotency on the Payment.xenditPaymentId UNIQUE column (declared in
-    // schema.prisma). The outer WebhookEvent eventId UNIQUE catches duplicate
-    // provider deliveries; this inner check covers the rarer case where the
-    // provider sends a fresh delivery wrapper (different eventId) that points
-    // at the same underlying Xendit payment_id — e.g. webhook replay tooling
-    // or a Xendit infrastructure retry that surfaces a new event row.
-    const existing = paymentId
-      ? await tx.payment.findUnique({
-          where: { xenditPaymentId: paymentId },
-        })
-      : null;
+    // Idempotency on the Payment.xenditPaymentId UNIQUE column. Outer
+    // WebhookEvent eventId UNIQUE catches duplicate provider deliveries;
+    // this covers the rarer case where the provider sends a fresh delivery
+    // wrapper (different eventId) that points at the same underlying Xendit
+    // payment_id — replay tooling or infra retry surfacing a new event row.
+    const existing = await tx.payment.findUnique({
+      where: { xenditPaymentId: paymentId },
+    });
     if (existing) return fresh.status as string;
 
     try {
@@ -212,22 +222,23 @@ async function handleSessionCompleted(
           amount: paymentAmount,
           method: "XENDIT",
           // xenditPaymentId is the immutable provider id (UNIQUE constraint).
-          // reference keeps the same value for human-readable display + parity
-          // with manual BANK_TRANSFER references.
+          // reference mirrors it for human-readable display + parity with
+          // manual BANK_TRANSFER references.
           xenditPaymentId: paymentId,
           reference: paymentId,
           notes: `Xendit payment via ${channelCode}`,
         },
       });
     } catch (err) {
-      // P2002 on xenditPaymentId — concurrent insert from a sibling tx (rare;
-      // the advisory lock above usually serialises us). Treat as idempotent
-      // success: a Payment row exists for this Xendit payment_id, so totals
-      // are correct without double-counting. Recompute status off the existing
-      // rows and return.
+      // P2002 on xenditPaymentId only — concurrent insert from a sibling tx
+      // beat us between findUnique and create (advisory lock usually
+      // serialises us; this catches the rare race). Other unique constraints
+      // must still bubble. Recompute status off existing rows so the response
+      // is accurate; the sibling tx already did the invoice.update.
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
+        err.code === "P2002" &&
+        targetMatches(err.meta, "xenditPaymentId")
       ) {
         const recomputedPayments = await tx.payment.findMany({
           where: { invoiceId: invoice.id },
@@ -349,6 +360,23 @@ async function markProcessed(
       processedAt: new Date(),
     },
   });
+}
+
+// Prisma exposes the failed unique-constraint columns as `meta.target`
+// — usually a string[], occasionally a string. `undefined` shows up when
+// the test mock or an older Prisma omits meta; in that case we accept the
+// match (test fixtures don't synthesise meta and we still want them to
+// exercise the catch).
+function targetMatches(
+  meta: Record<string, unknown> | undefined,
+  field: string,
+): boolean {
+  if (!meta) return true;
+  const target = meta.target;
+  if (target === undefined) return true;
+  if (Array.isArray(target)) return target.includes(field);
+  if (typeof target === "string") return target.includes(field);
+  return false;
 }
 
 async function markIgnored(

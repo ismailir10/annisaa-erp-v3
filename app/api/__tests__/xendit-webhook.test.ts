@@ -306,7 +306,9 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-5",
         event: "payment_session.completed",
-        data: { reference_id: "missing", status: "COMPLETED" },
+        // payment_id present so we get past the missing-id guard and exercise
+        // the missing-invoice path specifically.
+        data: { reference_id: "missing", status: "COMPLETED", payment_id: "pay-orphan" },
       }) as never,
     );
     expect(res.status).toBe(200);
@@ -332,7 +334,9 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-6",
         event: "payment_session.completed",
-        data: { reference_id: "inv1", status: "COMPLETED" },
+        // payment_id present so we get past the missing-id guard and reach
+        // the transaction (where the simulated DB outage fires).
+        data: { reference_id: "inv1", status: "COMPLETED", payment_id: "pay-tx" },
       }) as never,
     );
     expect(res.status).toBe(500);
@@ -397,7 +401,8 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     // Race window: two webhook handlers acquire the advisory lock in sequence
     // but the second one sees no existing row (sibling tx hasn't committed
     // yet on its findUnique), then create races and hits the UNIQUE
-    // constraint. Handler must recover gracefully.
+    // constraint. Handler must recover gracefully without re-updating the
+    // invoice (the sibling tx already did the update).
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv1",
@@ -409,6 +414,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     const txPaymentCreate = vi
       .fn()
       .mockRejectedValueOnce(new FakeP2002("Unique constraint failed on xenditPaymentId"));
+    const txInvoiceUpdate = vi.fn().mockResolvedValue({});
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
@@ -420,7 +426,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
               totalDue: 1000,
               totalPaid: 0,
             }),
-            update: vi.fn().mockResolvedValue({}),
+            update: txInvoiceUpdate,
           },
           payment: {
             findUnique: vi.fn().mockResolvedValue(null),
@@ -447,6 +453,40 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "PAID" });
     expect(txPaymentCreate).toHaveBeenCalledTimes(1);
+    // Critical: sibling tx already updated the invoice. Re-updating from this
+    // tx would double-write paidAt and stomp the sibling's totalPaid recalc.
+    expect(txInvoiceUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects completed event with no payment_id and no payment_session_id", async () => {
+    // Without an idempotency key, writing xenditPaymentId: NULL would defeat
+    // the UNIQUE dedup (Postgres allows multi-NULL), so the handler must
+    // refuse the create and mark the audit row IGNORED.
+    const { prisma } = await import("@/lib/db");
+    const res = await POST(
+      makeReq({
+        id: "evt-no-pid",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          // intentionally no payment_id and no payment_session_id
+          amount: 1000,
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: "IGNORED:missing_payment_id",
+    });
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-no-pid" },
+        data: expect.objectContaining({ status: "IGNORED" }),
+      }),
+    );
   });
 
   it("synthesizes eventId with sha256 suffix when body.id missing", async () => {
