@@ -58,7 +58,7 @@ Sequential. Each independently committable; gates between every commit.
   Drop the `Button` import; add `buttonVariants` import from `@/components/ui/button` and `cn` from `@/lib/utils` (canonical pattern — string concatenation breaks future Tailwind class-merge). Verify visual rendering matches `.claude/standards/design-system.html` outline-sm button token.
   **Acceptance:** `npm run build` clean; manually open both pages in a browser and confirm the click navigates. Cite `.claude/standards/design-system.html` (button outline-sm token) in the cycle Verification line per pre-commit Rule 4.
 
-- [ ] **T2 — Add Playwright coverage for both pages.**
+- [x] **T2 — Add Playwright coverage for both pages.**
   Create new file `e2e/payment.spec.ts` (NOT embedded in `parent.spec.ts` — `/payment/*` routes are auth-exempt per `proxy.ts:55-60`, and the new file avoids the `beforeEach` cookie-injection + DB-dependent guardian lookup that all parent-portal specs require). Two cases:
   1. cold-load `/payment/success?invoice=demo-fake`, assert "Kembali" anchor is visible + clickable, click → URL becomes `/parent/invoices`.
   2. cold-load `/payment/cancel?invoice=demo-fake`, assert auto-redirect lands on `/parent/invoices` within **8 s** (5 s countdown + ≤3 s cold-server hydration in CI; `playwright.config.ts` `reuseExistingServer: !process.env.CI` forces fresh server in CI).
@@ -101,10 +101,12 @@ Sequential. Each independently committable; gates between every commit.
 
 - Subagent plan: tasks T1-T6 sequential (T3+T4 share `lib/xendit/helpers.ts`; T4+T6 share `app/api/xendit/webhook/route.ts`; T2 verifies T1 fix; T5 last). No parallel dispatch.
 - Task 1: Fix dead "Kembali" button — `app/payment/success/page.tsx`, `app/payment/cancel/page.tsx` — replaced `<Link><Button>` anti-pattern with single `<Link className={cn(buttonVariants(...), "mt-4")}>`. Native `<a>` works pre-hydration. `inline-flex` from CVA base class supersedes dropped `inline-block`. Cross-checked `.claude/standards/design-system.html` outline-sm button token. Reviewer pass clean.
+- Task 2: Playwright coverage — `e2e/payment.spec.ts` (new file) — two cases: click "Kembali" link and assert nav to `/parent/invoices`; cold-load `/payment/cancel` and assert auto-redirect within 8 s. Auth-exempt routes per `proxy.ts:55-60`, but destination `/parent/invoices` is auth-gated → spec injects demo session cookie in `beforeEach` (parent.spec.ts pattern). Initial run failed without cookie (proxy redirected to `/`); cookie injection brought both cases green.
 
 ## Verification
 
 - Task 1: `npm run build` clean, `npx vitest run` 689 pass / 42 todo / 0 fail. Cross-checked `.claude/standards/design-system.html` button outline-sm token (inline-flex, h-7, px-2.5, rounded-md). Browser smoke deferred to T2 Playwright (cold-loads page + asserts click-nav, stronger proof than dev-server snapshot — preview server EPERM in this worktree env).
+- Task 2: `npx playwright test e2e/payment.spec.ts` 2/2 green (1.4 s click case + 5.3 s timer case). Build + vitest still green (689 pass).
 
 ## Ship Notes
 <filled by /ship>
