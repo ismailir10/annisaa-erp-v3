@@ -110,7 +110,13 @@ export function chunk<T>(arr: T[], size: number): T[][] {
  * responsible for translating `onPlan` / `onPauseDecision` into UI prompts.
  */
 export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunBulkGenerateOutcome> {
-  const fetchImpl = input.fetchImpl ?? fetch;
+  // Bind native `fetch` to the global scope explicitly. A bare `fetch`
+  // reference assigned to `fetchImpl` works at top level but throws
+  // "Illegal invocation" when called as `obj.fetchImpl(...)` because the
+  // browser's WHATWG fetch requires `this === window` (or globalThis).
+  // The batch loop forwards fetchImpl into callBatchWithRetry which
+  // invokes it as `input.fetchImpl(...)` — property-access binds this.
+  const fetchImpl = input.fetchImpl ?? fetch.bind(globalThis);
   const sleep = input.sleepImpl ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
 
   // 1) Plan call — never writes, always cheap.
