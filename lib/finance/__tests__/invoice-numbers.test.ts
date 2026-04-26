@@ -11,7 +11,7 @@ function makeTx(initial: LastInvoice) {
   // SELECT-last-invoice call (second). $queryRaw is used for both.
   let queryStep = 0;
   const tx = {
-    $queryRaw: vi.fn(async () => {
+    $queryRaw: vi.fn(async (..._args: unknown[]) => {
       // Step 0 (and any even step) = lock; step 1 (and odd) = select.
       const isLock = queryStep % 2 === 0;
       queryStep++;

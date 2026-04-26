@@ -37,6 +37,8 @@ function adminSession() {
     tenantId: "tnt-1",
     employeeId: null,
     parentId: null,
+    permissions: [] as string[],
+    customRoleCode: null,
   };
 }
 

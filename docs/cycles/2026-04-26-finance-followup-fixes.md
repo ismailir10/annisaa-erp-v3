@@ -224,6 +224,8 @@ After Task 4, CTO directive: review for over-engineering. `feature-dev:code-arch
 
 **Local typecheck reality:** `npx tsc --noEmit` was tried; it surfaces 219 pre-existing errors in `prisma/seed.ts` + various `app/api/__tests__/*.test.ts` files (mostly `SessionUser` shape drift unrelated to this cycle). None of the cycle's touched files appear in the error list. `next build` uses a stricter tsconfig that excludes seed/test files, so the build's typecheck is expected to be clean.
 
+**CI follow-up fix (2026-04-26):** PR CI's `Lint, Typecheck & Test` and `Build` jobs failed because PR #140 added required `permissions: string[]` and `customRoleCode: string | null` fields to `SessionUser` in `lib/auth.ts`, but five `app/api/__tests__/invoices-*.test.ts` factories predated that change (~40 TS errors). Two more small test fixes: `lib/finance/__tests__/invoice-numbers.test.ts` `$queryRaw` mock now accepts variadic args (so `mock.calls[0][1]` is typed); `lib/validations/__tests__/enum-conformance.test.ts` `$ZodTypeDef → { innerType }` cast bridged via `unknown`. `npx tsc --noEmit` clean afterwards. `npx vitest run` still 584/626. `npx next build` green. No production code touched in the follow-up.
+
 ### Playwright e2e
 Deferred to PR CI per the precedent set by PR #140. CI's `prisma db push --force-reset` step provisions the `Invoice.paymentLinkError` column; locally `DATABASE_URL` points at staging Supabase pre-migration so the new column query would fail.
 
