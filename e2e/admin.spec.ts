@@ -618,6 +618,94 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     });
     expect(tooManyRes.status()).toBe(400);
   });
+
+  // T2c happy path — exercises the new shadcn <Command> combobox student
+  // picker (no upfront pageSize=500 fetch, debounced search, idle/loading/
+  // empty/error states). Cycle: 2026-04-26-finance-robustness-a-b-c.
+  test("manual create dialog: combobox search → select student → submit → toast", async ({ page }) => {
+    // Resolve a real student name + initial letter from the API. Using the
+    // first letter of the seed-name guarantees at least one match.
+    const studentsRes = await page.request.get(
+      "/api/students?status=ACTIVE&pageSize=1",
+    );
+    const studentsJson = await studentsRes.json();
+    const student = studentsJson.data?.[0] as
+      | { id: string; name: string }
+      | undefined;
+    if (!student) {
+      test.skip(true, "No ACTIVE student available");
+      return;
+    }
+    const firstLetter = student.name.slice(0, 1);
+
+    const feesRes = await page.request.get("/api/fee-components");
+    const fees = (await feesRes.json()) as Array<{
+      id: string;
+      label: string;
+      status: string;
+      isEnabled: boolean;
+    }>;
+    const fee = fees.find((f) => f.status === "ACTIVE" && f.isEnabled);
+    if (!fee) {
+      test.skip(true, "No active fee component available");
+      return;
+    }
+
+    await page.goto("/admin/invoices");
+    await expect(
+      page.getByRole("heading", { name: /^Tagihan$/ }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // The header has "Buat Tagihan" (bulk) and "Tagihan Manual" (single).
+    await page.getByRole("button", { name: /^Tagihan Manual$/ }).click();
+
+    const dialog = page.getByRole("dialog", { name: /Tagihan Manual/ });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+
+    // Combobox trigger shows placeholder until selection lands.
+    const trigger = dialog.getByRole("combobox").first();
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toContainText("Pilih siswa...");
+    await trigger.click();
+
+    // Type the first letter to drive the debounced /api/students fetch.
+    const search = dialog.getByPlaceholder("Cari nama siswa...");
+    await expect(search).toBeVisible({ timeout: 5_000 });
+    await search.fill(firstLetter);
+
+    // Wait for the debounced fetch + render. The result list contains an
+    // item with the student's full name; click it.
+    const studentItem = dialog
+      .getByRole("option")
+      .filter({ hasText: student.name })
+      .first();
+    await expect(studentItem).toBeVisible({ timeout: 5_000 });
+    await studentItem.click();
+
+    // Trigger now reflects the selection (name · NIS or just name).
+    await expect(trigger).toContainText(student.name);
+
+    // Fill periodLabel + line item, then submit.
+    const period = `E2E Combobox ${Date.now()}`;
+    await dialog.getByPlaceholder("April 2026").fill(period);
+
+    const feeSelect = dialog
+      .getByRole("combobox")
+      .filter({ hasText: /Pilih komponen/ })
+      .first();
+    await feeSelect.click();
+    await page.getByRole("option", { name: fee.label }).first().click();
+
+    await dialog.getByPlaceholder("0").fill("75000");
+
+    await dialog.getByRole("button", { name: /^Buat Tagihan$/ }).click();
+
+    // Real Xendit fails in test env so we expect either the success toast
+    // or the warning toast — both indicate the invoice was created.
+    await expect(
+      page.getByText(/Tagihan dibuat( tapi link gagal)?/),
+    ).toBeVisible({ timeout: 30_000 });
+  });
 });
 
 // Helper: first ACTIVE academic year id. Inlined here (rather than in the

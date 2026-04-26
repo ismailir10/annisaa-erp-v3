@@ -89,11 +89,11 @@ beforeEach(() => {
   txMock.invoice.create.mockReset();
 });
 
-// SKIPPED until T2b lands the retry-once loop. T0 commits the repro fixture
-// + assertions documenting the expected post-fix behavior. T2b will remove
-// the .skip so the suite goes green naturally as part of the fix.
-// Run manually with: npx vitest run app/api/__tests__/invoices-manual-p2002-race.test.ts
-describe.skip("POST /api/invoices — P2002 race regression (T0)", () => {
+// T0 fixture — UN-SKIPPED in T2b. After the retry-once loop landed in
+// app/api/invoices/route.ts both assertions go green:
+//   1. P2002 → success after retry → 201
+//   2. 3× P2002 → exhaust → 409 with Indonesian copy
+describe("POST /api/invoices — P2002 race regression (T0)", () => {
   it("FAILS PRE-T2b: should return 201 once retry-once lands (P2002 bubbles unhandled today)", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");

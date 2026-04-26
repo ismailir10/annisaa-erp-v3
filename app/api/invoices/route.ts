@@ -112,9 +112,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Verify every fee component is tenant-owned and enabled. We use distinct
-  // ids so a duplicate id in the payload doesn't bypass the count check below.
-  const lineFeeIds = [...new Set(lines.map((l) => l.feeComponentId))];
+  // Verify every fee component is tenant-owned and enabled. The schema-level
+  // .refine() rejects duplicate feeComponentIds upstream, so this list is
+  // already deduplicated — the count check below verifies "tenant-owned +
+  // enabled" only, not dedup.
+  const lineFeeIds = lines.map((l) => l.feeComponentId);
   const components = await prisma.feeComponentDef.findMany({
     where: { id: { in: lineFeeIds }, tenantId, isEnabled: true },
     select: { id: true, label: true },
@@ -135,34 +137,77 @@ export async function POST(req: NextRequest) {
   const componentLabelById = new Map(components.map((c) => [c.id, c.label]));
   const trimmedLabel = periodLabel.trim();
 
-  const created = await prisma.$transaction(async (tx) => {
-    const invoiceNumber = await nextInvoiceNumber(tx, tenantId);
-    // Server-derived total — any client-provided total is discarded.
-    const totalDue = sumDecimals(lines.map((l) => l.amount));
+  // 3-attempt retry loop on P2002 (invoice-number race). Post-T1 the atomic
+  // ON CONFLICT allocator makes this physically impossible under normal
+  // operation, but we keep the loop as defense against manual-seed corruption
+  // or future allocator regression. Jittered backoff 50/150/450ms ± 50ms.
+  const RETRY_DELAYS_MS = [50, 150, 450];
+  let created: { id: string } | null = null;
+  let lastP2002: Prisma.PrismaClientKnownRequestError | null = null;
 
-    return tx.invoice.create({
-      data: {
-        tenantId,
-        studentId,
-        parentId: guardian?.parentId ?? null,
-        invoiceNumber,
-        periodLabel: trimmedLabel,
-        dueDate,
-        totalDue,
-        status: "PENDING_PAYMENT_LINK",
-        createdBy: session.id,
-        lines: {
-          create: lines.map((l) => ({
-            feeComponentId: l.feeComponentId,
-            labelSnapshot: componentLabelById.get(l.feeComponentId) ?? "",
-            amount: new Prisma.Decimal(l.amount),
-            finalAmount: new Prisma.Decimal(l.amount),
-          })),
-        },
-      },
-      select: { id: true },
-    });
-  });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      created = await prisma.$transaction(async (tx) => {
+        const invoiceNumber = await nextInvoiceNumber(tx, tenantId);
+        // Server-derived total — any client-provided total is discarded.
+        const totalDue = sumDecimals(lines.map((l) => l.amount));
+
+        return tx.invoice.create({
+          data: {
+            tenantId,
+            studentId,
+            parentId: guardian?.parentId ?? null,
+            invoiceNumber,
+            periodLabel: trimmedLabel,
+            dueDate,
+            totalDue,
+            status: "PENDING_PAYMENT_LINK",
+            createdBy: session.id,
+            lines: {
+              create: lines.map((l) => ({
+                feeComponentId: l.feeComponentId,
+                labelSnapshot: componentLabelById.get(l.feeComponentId) ?? "",
+                amount: new Prisma.Decimal(l.amount),
+                finalAmount: new Prisma.Decimal(l.amount),
+              })),
+            },
+          },
+          select: { id: true },
+        });
+      });
+      break;
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        lastP2002 = e;
+        if (attempt < 2) {
+          const jitter = Math.random() * 100 - 50;
+          const delay = Math.max(0, RETRY_DELAYS_MS[attempt] + jitter);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        // Exhausted retries — surface the conflict to the caller.
+        return NextResponse.json(
+          { error: "Konflik nomor tagihan, silakan coba lagi" },
+          { status: 409 }
+        );
+      }
+      // Any other error bubbles to the route's outer 500 handler.
+      throw e;
+    }
+  }
+
+  if (!created) {
+    // Defensive — control flow should already have returned 409 above.
+    return NextResponse.json(
+      { error: "Konflik nomor tagihan, silakan coba lagi" },
+      { status: 409 }
+    );
+  }
+  // Belt-and-suspenders: silence "unused" lint if lastP2002 is set.
+  void lastP2002;
 
   // Inline Xendit. Failure here is a durable data state, not a transient
   // error — the invoice already exists in `PENDING_PAYMENT_LINK` so admin

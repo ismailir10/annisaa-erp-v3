@@ -35,16 +35,23 @@ export const retryPaymentLinksSchema = z.object({
   invoiceIds: z.array(z.string().min(1)).max(25).optional(),
 });
 
-export const createManualInvoiceSchema = z.object({
-  studentId: z.string().min(1),
-  periodLabel: z.string().min(1),
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  lines: z
-    .array(
-      z.object({
-        feeComponentId: z.string().min(1),
-        amount: z.number().positive(),
-      })
-    )
-    .min(1),
-});
+export const createManualInvoiceSchema = z
+  .object({
+    studentId: z.string().min(1),
+    periodLabel: z.string().min(1).max(64, "Maks 64 karakter"),
+    dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    lines: z
+      .array(
+        z.object({
+          feeComponentId: z.string().min(1),
+          amount: z.number().positive(),
+        })
+      )
+      .min(1),
+  })
+  .refine(
+    (data) =>
+      new Set(data.lines.map((l) => l.feeComponentId)).size ===
+      data.lines.length,
+    { message: "Komponen biaya tidak boleh duplikat", path: ["lines"] }
+  );
