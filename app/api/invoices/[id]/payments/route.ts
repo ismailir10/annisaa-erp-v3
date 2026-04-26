@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // a webhook cannot both pass the overpayment guard concurrently.
   try {
     const payment = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
 
       const fresh = await tx.invoice.findUnique({ where: { id: invoiceId } });
       if (!fresh) throw new Error("NOT_FOUND");

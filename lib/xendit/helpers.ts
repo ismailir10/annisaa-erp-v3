@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/db";
 import { createXenditSession } from "@/lib/xendit/client";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
+// Strip trailing slash — env value in Vercel is configured with a trailing
+// "/" which previously produced "https://host//payment/success?invoice=..."
+// (double slash) in success_return_url + cancel_return_url, breaking the
+// auto-redirect from Xendit's hosted checkout back to the parent portal.
+const APP_URL = (
+  process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app"
+).replace(/\/+$/, "");
 
 /**
  * Create a Xendit checkout session for a single invoice and update the DB.

@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
   // Auto-generate employee code: initials + sequence number (atomic)
   const employee = await prisma.$transaction(async (tx) => {
     // Advisory lock per tenant to serialize employee code generation
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(12345, ${tenantId}::bigint)`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(12345, ${tenantId}::bigint)`;
 
     const initials = body.nama
       .trim()
