@@ -64,7 +64,7 @@ Sequential. Each independently committable; gates between every commit.
   2. cold-load `/payment/cancel?invoice=demo-fake`, assert auto-redirect lands on `/parent/invoices` within **8 s** (5 s countdown + ≤3 s cold-server hydration in CI; `playwright.config.ts` `reuseExistingServer: !process.env.CI` forces fresh server in CI).
   **Acceptance:** `npx playwright test e2e/payment.spec.ts` green; full suite still green; run against `DEMO_MODE=true npm run start` per established pattern.
 
-- [ ] **T3 — Origin-aware return URLs (two-level threading).**
+- [x] **T3 — Origin-aware return URLs (two-level threading).**
   - `createXenditSessionForInvoice` in `lib/xendit/helpers.ts` gains `requestOrigin?: string` parameter. Resolution order: `requestOrigin` → `process.env.NEXT_PUBLIC_APP_URL` → **throw** (do not silently fall back to a hardcoded prod URL; throwing is what surfaces a misconfigured deploy at `/build` time, not at the parent's confused-by-redirect time). No `console.warn` — serverless cold-start once-per-call semantics are unreliable; the throw is the contract.
   - `retryPaymentLinks` in `lib/finance/xendit-retry.ts:48` ALSO gains `requestOrigin?: string` parameter. Forwards to `createXenditSessionForInvoice`. Read its current callers (`app/api/invoices/retry-payment-links` route + any other) and have each pass `req.nextUrl.origin`.
   - Update direct route-handler callers:
@@ -102,11 +102,13 @@ Sequential. Each independently committable; gates between every commit.
 - Subagent plan: tasks T1-T6 sequential (T3+T4 share `lib/xendit/helpers.ts`; T4+T6 share `app/api/xendit/webhook/route.ts`; T2 verifies T1 fix; T5 last). No parallel dispatch.
 - Task 1: Fix dead "Kembali" button — `app/payment/success/page.tsx`, `app/payment/cancel/page.tsx` — replaced `<Link><Button>` anti-pattern with single `<Link className={cn(buttonVariants(...), "mt-4")}>`. Native `<a>` works pre-hydration. `inline-flex` from CVA base class supersedes dropped `inline-block`. Cross-checked `.claude/standards/design-system.html` outline-sm button token. Reviewer pass clean.
 - Task 2: Playwright coverage — `e2e/payment.spec.ts` (new file) — two cases: click "Kembali" link and assert nav to `/parent/invoices`; cold-load `/payment/cancel` and assert auto-redirect within 8 s. Auth-exempt routes per `proxy.ts:55-60`, but destination `/parent/invoices` is auth-gated → spec injects demo session cookie in `beforeEach` (parent.spec.ts pattern). Initial run failed without cookie (proxy redirected to `/`); cookie injection brought both cases green.
+- Task 3: Origin threading — `lib/xendit/helpers.ts` (extracted+exported `resolveAppOrigin`, dropped hardcoded prod fallback, added `requestOrigin?: string` 3rd arg), `lib/finance/xendit-retry.ts` (added 3rd arg, forwards to helper), and 4 route handlers (`app/api/{xendit/create-session,invoices,invoices/retry-payment-links,invoices/generate/batch}`) pass `new URL(req.url).origin` (works on plain Request in tests AND NextRequest in prod). Helper throws when neither `requestOrigin` nor `NEXT_PUBLIC_APP_URL` set — no silent prod fallback. New unit `lib/__tests__/xendit-helpers.test.ts` covers requestOrigin-wins, env-fallback, and throw cases (3 cases). Updated 3 existing assertions to expect origin string. `lib/uat/scenarios.ts:70` left at 2-arg call (try/catch wrapper handles env-missing throw). Reviewer pass clean.
 
 ## Verification
 
 - Task 1: `npm run build` clean, `npx vitest run` 689 pass / 42 todo / 0 fail. Cross-checked `.claude/standards/design-system.html` button outline-sm token (inline-flex, h-7, px-2.5, rounded-md). Browser smoke deferred to T2 Playwright (cold-loads page + asserts click-nav, stronger proof than dev-server snapshot — preview server EPERM in this worktree env).
 - Task 2: `npx playwright test e2e/payment.spec.ts` 2/2 green (1.4 s click case + 5.3 s timer case). Build + vitest still green (689 pass).
+- Task 3: `npm run build` clean. `npx vitest run` 692 pass / 42 todo / 0 fail (3 new cases for resolveAppOrigin). Reviewer flagged 3 unrelated routes still using hardcoded prod-URL fallback — captured in T5 Ship Notes follow-up pointer (out of scope).
 
 ## Ship Notes
 <filled by /ship>

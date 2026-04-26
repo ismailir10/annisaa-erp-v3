@@ -47,7 +47,8 @@ export type RetryOutcome = {
  */
 export async function retryPaymentLinks(
   tenantId: string,
-  invoiceIds: string[] | null
+  invoiceIds: string[] | null,
+  requestOrigin?: string,
 ): Promise<RetryOutcome> {
   const where = {
     tenantId,
@@ -79,7 +80,7 @@ export async function retryPaymentLinks(
   const settled = await Promise.allSettled(
     candidates.map((c) =>
       runLimit(() =>
-        createXenditSessionForInvoice(c.id, tenantId).then((res) => ({ row: c, result: res })),
+        createXenditSessionForInvoice(c.id, tenantId, requestOrigin).then((res) => ({ row: c, result: res })),
       ),
     ),
   );

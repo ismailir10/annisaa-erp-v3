@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
   const settled = await Promise.allSettled(
     txResult.map((row) =>
       runLimit(() =>
-        createXenditSessionForInvoice(row.invoiceId, tenantId).then((res) => ({ row, result: res })),
+        createXenditSessionForInvoice(row.invoiceId, tenantId, new URL(req.url).origin).then((res) => ({ row, result: res })),
       ),
     ),
   );

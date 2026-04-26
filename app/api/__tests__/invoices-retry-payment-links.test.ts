@@ -126,7 +126,11 @@ describe("POST /api/invoices/retry-payment-links — validation", () => {
     const res = await POST(makeReq({}) as never);
 
     expect(res.status).toBe(200);
-    expect(retryPaymentLinks).toHaveBeenCalledWith("tnt-1", null);
+    expect(retryPaymentLinks).toHaveBeenCalledWith(
+      "tnt-1",
+      null,
+      expect.stringMatching(/^https?:\/\//),
+    );
   });
 });
 
@@ -176,6 +180,10 @@ describe("POST /api/invoices/retry-payment-links — happy path", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual(mockedOutcome);
-    expect(retryPaymentLinks).toHaveBeenCalledWith("tnt-1", ["i-1", "i-2", "i-3"]);
+    expect(retryPaymentLinks).toHaveBeenCalledWith(
+      "tnt-1",
+      ["i-1", "i-2", "i-3"],
+      expect.stringMatching(/^https?:\/\//),
+    );
   });
 });
