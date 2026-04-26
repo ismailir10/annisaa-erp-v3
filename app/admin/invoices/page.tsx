@@ -46,6 +46,19 @@ import {
   type BatchProgressSnapshot,
   type PlanResponse,
 } from "@/lib/finance/run-bulk-generate";
+import {
+  runBulkRetry,
+  type BulkRetrySnapshot,
+} from "@/lib/finance/run-bulk-retry";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ------------------------------------------------------------------
 // Types
@@ -259,6 +272,14 @@ export default function InvoicesPage() {
   const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryingRowId, setRetryingRowId] = useState<string | null>(null);
+  // Bulk-retry orchestrator state. The retry progress is rendered through
+  // the same `<BatchProgressCard>` shell as bulk-generate (different mode).
+  const [retryProgress, setRetryProgress] = useState<BulkRetrySnapshot | null>(null);
+  const [overflowConfirm, setOverflowConfirm] = useState<{
+    total: number;
+    resolve: (proceed: boolean) => void;
+  } | null>(null);
+  const retryDoneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stats, setStats] = useState({
     total: 0,
@@ -336,6 +357,7 @@ export default function InvoicesPage() {
     return () => {
       mountedRef.current = false;
       if (doneAutoHideRef.current) clearTimeout(doneAutoHideRef.current);
+      if (retryDoneAutoHideRef.current) clearTimeout(retryDoneAutoHideRef.current);
     };
   }, []);
 
@@ -456,38 +478,75 @@ export default function InvoicesPage() {
     resolve(false);
   }
 
-  // One POST. The retry endpoint enumerates PENDING_PAYMENT_LINK invoices
-  // for the tenant itself (capped at 25 per call); realistic count is 0-5
-  // (Xendit sandbox flakes), so chunking + sticky-progress would be overkill.
+  // Bulk retry — drives the runBulkRetry orchestrator end-to-end. The
+  // orchestrator pre-fetches all PENDING_PAYMENT_LINK invoices, chunks them
+  // into 25-item slices, and POSTs each chunk through the same
+  // /api/invoices/retry-payment-links endpoint used by per-row retries.
   async function handleBulkRetry() {
     setRetryConfirmOpen(false);
     setRetrying(true);
+
+    if (retryDoneAutoHideRef.current) {
+      clearTimeout(retryDoneAutoHideRef.current);
+      retryDoneAutoHideRef.current = null;
+    }
+
     try {
-      const res = await fetch("/api/invoices/retry-payment-links", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+      const out = await runBulkRetry({
+        onProgress: (snapshot) => {
+          if (!mountedRef.current) return;
+          setRetryProgress({ ...snapshot });
+        },
+        onOverflow: (total) =>
+          new Promise<boolean>((resolve) => {
+            if (!mountedRef.current) return resolve(false);
+            setOverflowConfirm({ total, resolve });
+          }),
       });
+
       if (!mountedRef.current) return;
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err?.error || "Gagal mencoba ulang link");
-        return;
-      }
-      const out = await res.json();
-      if (out.retried === 0) {
+
+      if (out.phase === "no-pending") {
         toast.info("Tidak ada tagihan dengan link gagal");
-      } else {
-        const tail = out.stillFailed > 0 ? `, ${out.stillFailed} masih gagal` : "";
-        toast.success(`${out.succeeded} link berhasil${tail}`);
+        setRetryProgress(null);
+      } else if (out.phase === "user-cancelled") {
+        setRetryProgress(null);
+      } else if (out.phase === "aborted") {
+        toast.error(
+          `Dibatalkan setelah ${out.final.processed}/${out.final.total} tagihan diproses`,
+        );
+      } else if (out.phase === "done") {
+        const { fixed, stillFailed } = out.final;
+        if (fixed > 0 && stillFailed === 0) {
+          toast.success(`${fixed} link berhasil diperbaiki`);
+        } else if (fixed > 0 && stillFailed > 0) {
+          toast.success(
+            `${fixed} link berhasil, ${stillFailed} masih gagal — buka invoice untuk detail`,
+          );
+        } else if (fixed === 0 && stillFailed > 0) {
+          toast.error(`${stillFailed} link masih gagal — buka invoice untuk detail`);
+        }
+        fetchInvoices();
+        fetchStats();
+
+        retryDoneAutoHideRef.current = setTimeout(() => {
+          setRetryProgress(null);
+          retryDoneAutoHideRef.current = null;
+        }, 5000);
       }
-      fetchInvoices();
-      fetchStats();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mencoba ulang link");
+      setRetryProgress(null);
     } finally {
       if (mountedRef.current) setRetrying(false);
     }
+  }
+
+  function handleOverflowConfirm() {
+    if (!overflowConfirm) return;
+    const { resolve } = overflowConfirm;
+    setOverflowConfirm(null);
+    resolve(true);
   }
 
   // Per-row retry — one invoice id, single POST, no progress card. Refetch
@@ -616,6 +675,40 @@ export default function InvoicesPage() {
           progress={progress}
         />
       )}
+
+      {retryProgress && (
+        <BatchProgressCard mode="retry" progress={retryProgress} />
+      )}
+
+      {/* Overflow confirm — surfaces when more than 1000 invoices are stuck.
+          Single confirm button per spec; closing the dialog without confirming
+          aborts the orchestrator cleanly. */}
+      <AlertDialog
+        open={!!overflowConfirm}
+        onOpenChange={(o) => {
+          if (!o && overflowConfirm) {
+            const { resolve } = overflowConfirm;
+            setOverflowConfirm(null);
+            resolve(false);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Antrian retry penuh</AlertDialogTitle>
+            <AlertDialogDescription>
+              {overflowConfirm
+                ? `1000 tagihan akan diproses sekarang. Sisa ${overflowConfirm.total - 1000} tagihan: jalankan ulang "Coba Lagi Link" setelah batch ini selesai.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleOverflowConfirm}>
+              Mulai Proses
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <StatsCardsRow>
         <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />

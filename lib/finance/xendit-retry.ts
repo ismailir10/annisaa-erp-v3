@@ -55,6 +55,7 @@ export async function retryPaymentLinks(
   const candidates = await prisma.invoice.findMany({
     where,
     select: { id: true, invoiceNumber: true, studentId: true },
+    orderBy: { createdAt: "asc" },
     take: 25, // hard cap matches batch endpoint shape
   });
 

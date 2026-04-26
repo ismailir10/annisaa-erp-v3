@@ -110,6 +110,7 @@ describe("retryPaymentLinks — invoiceIds filter", () => {
       id: { in: ["i1", "i2"] },
     });
     expect(arg?.take).toBe(25);
+    expect(arg?.orderBy).toEqual({ createdAt: "asc" });
     expect(createXenditSessionForInvoice).not.toHaveBeenCalled();
   });
 
