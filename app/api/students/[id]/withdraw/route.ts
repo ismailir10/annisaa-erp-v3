@@ -39,7 +39,7 @@ export async function POST(
     where: {
       studentId,
       tenantId: session.tenantId,
-      status: { in: ["DRAFT", "SENT"] },
+      status: { in: ["DRAFT", "SENT", "PENDING_PAYMENT_LINK"] },
     },
   });
 

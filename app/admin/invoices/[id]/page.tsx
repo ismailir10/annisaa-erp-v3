@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { ArrowLeft, Ban, CreditCard, Phone, Mail } from "lucide-react";
+import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 
@@ -28,6 +28,7 @@ type Payment = { id: string; amount: number; method: string; reference: string |
 type InvoiceDetail = {
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
   totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null;
+  paymentLinkError: string | null;
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
 };
@@ -56,7 +57,7 @@ function PaymentFormBody({
       </Field>
       <Field>
         <FieldLabel>Metode Pembayaran</FieldLabel>
-        <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })} items={{ CASH: "Tunai", BANK_TRANSFER: "Transfer Bank", XENDIT: "Xendit", OTHER: "Lainnya" }}>
+        <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="CASH">Tunai</SelectItem>
@@ -90,6 +91,7 @@ export default function InvoiceDetailPage() {
   const [creatingXendit, setCreatingXendit] = useState(false);
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
   const [voiding, setVoiding] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const fetchInvoice = useCallback(async () => {
     const res = await fetch(`/api/invoices/${id}`);
@@ -134,6 +136,32 @@ export default function InvoiceDetailPage() {
     setCreatingXendit(false);
   }
 
+  async function handleRetryLink() {
+    setRetrying(true);
+    try {
+      const res = await fetch("/api/invoices/retry-payment-links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceIds: [id] }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.error || "Gagal mencoba ulang link");
+        return;
+      }
+      const out = await res.json();
+      if (out.succeeded > 0) {
+        toast.success("Link pembayaran berhasil dibuat");
+      } else {
+        const firstErr = out.results?.[0]?.error;
+        toast.error(`Masih gagal${firstErr ? `: ${firstErr}` : ""}`);
+      }
+      fetchInvoice();
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   async function handleVoidInvoice() {
     setVoiding(true);
     const res = await fetch(`/api/invoices/${id}/void`, { method: "POST" });
@@ -154,7 +182,10 @@ export default function InvoiceDetailPage() {
   const guardianEntry = invoice.student.guardians[0];
   const guardian = guardianEntry?.parent;
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
-  const canVoid = invoice.status === "DRAFT" || invoice.status === "SENT";
+  const canVoid =
+    invoice.status === "DRAFT" ||
+    invoice.status === "SENT" ||
+    invoice.status === "PENDING_PAYMENT_LINK";
 
   return (
     <>
@@ -202,6 +233,21 @@ export default function InvoiceDetailPage() {
         onConfirm={handleVoidInvoice}
         confirmLabel={voiding ? "Membatalkan..." : "Ya, Batalkan"}
       />
+
+      {invoice.paymentLinkError && (
+        <Card className="border-warning/40 bg-warning/5 p-4 mb-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Link pembayaran belum berhasil dibuat</p>
+              <p className="text-xs text-muted-foreground mt-1">{invoice.paymentLinkError}</p>
+            </div>
+            <Button size="sm" onClick={handleRetryLink} disabled={retrying}>
+              {retrying ? "..." : "Coba Lagi"}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Invoice Lines */}

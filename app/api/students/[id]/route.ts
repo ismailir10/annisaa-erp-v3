@@ -68,7 +68,7 @@ export async function PUT(
         data: { status: "WITHDRAWN" },
       });
       await tx.invoice.updateMany({
-        where: { studentId: id, status: { in: ["DRAFT", "SENT"] } },
+        where: { studentId: id, status: { in: ["DRAFT", "SENT", "PENDING_PAYMENT_LINK"] } },
         data: { status: "CANCELLED" },
       });
     });

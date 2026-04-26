@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { timingSafeEqual, createHash } from "crypto";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { sumDecimals } from "@/lib/finance/invoice-numbers";
 
 /**
  * Xendit Payment Session Webhook handler.
@@ -91,13 +92,13 @@ export async function POST(req: NextRequest) {
   try {
     if (event === "payment_session.completed" && data.status === "COMPLETED") {
       const result = await handleSessionCompleted(data, eventId);
-      revalidateTag("student-invoices", {});
+      revalidateTag("student-invoices", { expire: 0 });
       return NextResponse.json(result);
     }
 
     if (event === "payment_session.expired") {
       const result = await handleSessionExpired(data, eventId);
-      if (result.invoiceId) revalidateTag("student-invoices", {});
+      if (result.invoiceId) revalidateTag("student-invoices", { expire: 0 });
       return NextResponse.json(result);
     }
 
@@ -164,6 +165,19 @@ async function handleSessionCompleted(
     return { ok: true, status: "PAID:already", eventId };
   }
 
+  // Guard CANCELLED. TOCTOU: a retry helper read PENDING_PAYMENT_LINK then
+  // made the Xendit network call; meanwhile the void route flipped to
+  // CANCELLED. The helper's later DB update may have left xenditSessionId/Url
+  // populated on a CANCELLED row, so a parent could still pay the orphan
+  // link. Refuse to credit a CANCELLED invoice.
+  if (invoice.status === "CANCELLED") {
+    console.warn(
+      `[XENDIT WEBHOOK] Payment for CANCELLED invoice ${invoice.invoiceNumber} ignored eventId=${eventId}`,
+    );
+    await markIgnored(eventId, "invoice cancelled", invoiceId);
+    return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
+  }
+
   const paymentAmount = amount ?? Number(invoice.totalDue);
   const channelCode =
     typeof data.channel_code === "string" ? data.channel_code : "checkout";
@@ -172,7 +186,11 @@ async function handleSessionCompleted(
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${invoice.id}))`;
 
     const fresh = await tx.invoice.findUnique({ where: { id: invoice.id } });
-    if (!fresh || fresh.status === "PAID") return "PAID";
+    if (!fresh) return "PAID";
+    if (fresh.status === "PAID") return "PAID";
+    // In-tx CANCELLED guard — pre-tx check is racy with void's separate
+    // advisory-lock acquisition; this is the authoritative check.
+    if (fresh.status === "CANCELLED") return "CANCELLED";
 
     const existing = paymentId
       ? await tx.payment.findFirst({
@@ -194,20 +212,33 @@ async function handleSessionCompleted(
     const allPayments = await tx.payment.findMany({
       where: { invoiceId: invoice.id },
     });
-    const totalPaid = allPayments.reduce((s, p) => s + Number(p.amount), 0);
-    const status =
-      totalPaid >= Number(invoice.totalDue) ? "PAID" : "PARTIALLY_PAID";
+    // Decimal-safe sum — JS-number reduce drifts on three installments
+    // summing to totalDue and could leave the invoice PARTIALLY_PAID.
+    const totalPaid = sumDecimals(allPayments.map((p) => p.amount));
+    const totalDue = new Prisma.Decimal(invoice.totalDue);
+    const status = totalPaid.greaterThanOrEqualTo(totalDue) ? "PAID" : "PARTIALLY_PAID";
 
     await tx.invoice.update({
       where: { id: invoice.id },
       data: {
         totalPaid,
         status,
+        // Successful payment clears any stale paymentLinkError from a prior
+        // PENDING_PAYMENT_LINK retry that eventually succeeded.
+        paymentLinkError: null,
         paidAt: status === "PAID" ? new Date() : null,
       },
     });
     return status;
   });
+
+  if (newStatus === "CANCELLED") {
+    await markIgnored(eventId, "invoice cancelled (in-tx)", invoiceId);
+    console.warn(
+      `[XENDIT WEBHOOK] In-tx CANCELLED race on ${invoice.invoiceNumber} eventId=${eventId}`,
+    );
+    return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
+  }
 
   await markProcessed(eventId, invoiceId);
   console.log(

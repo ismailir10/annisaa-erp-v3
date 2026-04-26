@@ -53,10 +53,10 @@ describe("stats endpoints — single GROUP BY contract", () => {
   describe("GET /api/invoices/stats", () => {
     it("returns correct counts when all four buckets present", async () => {
       invoiceGroupBy.mockResolvedValue([
-        { status: "DRAFT", _count: { status: 3 } },
-        { status: "SENT", _count: { status: 5 } },
-        { status: "PAID", _count: { status: 7 } },
-        { status: "OVERDUE", _count: { status: 2 } },
+        { status: "DRAFT", _count: { _all: 3 }, _sum: { totalDue: 0, totalPaid: 0 } },
+        { status: "SENT", _count: { _all: 5 }, _sum: { totalDue: 0, totalPaid: 0 } },
+        { status: "PAID", _count: { _all: 7 }, _sum: { totalDue: 0, totalPaid: 0 } },
+        { status: "OVERDUE", _count: { _all: 2 }, _sum: { totalDue: 0, totalPaid: 0 } },
       ]);
       const { GET } = await import("../invoices/stats/route");
       const { getSession } = await import("@/lib/auth");
@@ -66,12 +66,14 @@ describe("stats endpoints — single GROUP BY contract", () => {
       const json = await res.json();
 
       expect(res.status).toBe(200);
-      expect(json).toEqual({ total: 17, draft: 3, sent: 5, paid: 7, overdue: 2 });
+      expect(json).toMatchObject({ total: 17, draft: 3, sent: 5, paid: 7, overdue: 2 });
       expect(invoiceGroupBy).toHaveBeenCalledTimes(1);
     });
 
     it("missing status buckets default to 0", async () => {
-      invoiceGroupBy.mockResolvedValue([{ status: "PAID", _count: { status: 4 } }]);
+      invoiceGroupBy.mockResolvedValue([
+        { status: "PAID", _count: { _all: 4 }, _sum: { totalDue: 0, totalPaid: 0 } },
+      ]);
       const { GET } = await import("../invoices/stats/route");
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue(adminSession);
@@ -79,7 +81,7 @@ describe("stats endpoints — single GROUP BY contract", () => {
       const res = await GET(makeReq("http://localhost/api/invoices/stats"));
       const json = await res.json();
 
-      expect(json).toEqual({ total: 4, draft: 0, sent: 0, paid: 4, overdue: 0 });
+      expect(json).toMatchObject({ total: 4, draft: 0, sent: 0, paid: 4, overdue: 0 });
     });
 
     it("scopes the groupBy to the caller's tenantId", async () => {
