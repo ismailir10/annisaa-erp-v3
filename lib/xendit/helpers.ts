@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { createXenditSession } from "@/lib/xendit/client";
+import { createXenditSession, stripQuery } from "@/lib/xendit/client";
 
 /**
  * Resolve the origin for Xendit success/cancel return URLs.
@@ -54,6 +54,8 @@ export async function createXenditSessionForInvoice(
 
   const guardianParent = invoice.student.guardians[0]?.parent;
   const appOrigin = resolveAppOrigin(requestOrigin);
+  const successReturnUrl = `${appOrigin}/payment/success?invoice=${invoice.id}`;
+  const cancelReturnUrl = `${appOrigin}/payment/cancel?invoice=${invoice.id}`;
 
   const xenditSession = await createXenditSession({
     referenceId: invoice.id,
@@ -62,8 +64,8 @@ export async function createXenditSessionForInvoice(
     customerName: guardianParent?.name ?? invoice.student.name,
     customerEmail: guardianParent?.email ?? undefined,
     customerPhone: guardianParent?.whatsapp ?? guardianParent?.phone ?? undefined,
-    successReturnUrl: `${appOrigin}/payment/success?invoice=${invoice.id}`,
-    cancelReturnUrl: `${appOrigin}/payment/cancel?invoice=${invoice.id}`,
+    successReturnUrl,
+    cancelReturnUrl,
     expiryDays: 7,
     items: invoice.lines.map((line) => ({
       name: line.labelSnapshot,
@@ -78,6 +80,17 @@ export async function createXenditSessionForInvoice(
       xenditSessionId: xenditSession.id,
       xenditPaymentUrl: xenditSession.payment_link_url,
     },
+  });
+
+  // Operator triage: emit one structured line per session so an operator
+  // can grep by sessionId and match against the webhook PROCESSED line.
+  // Stripped URLs leave `?invoice=` ids out of logs while preserving the
+  // origin (preview/staging/prod) — the field operators need to verify.
+  console.info("[XENDIT SESSION CREATED]", {
+    invoiceId,
+    sessionId: xenditSession.id,
+    successOrigin: stripQuery(successReturnUrl),
+    cancelOrigin: stripQuery(cancelReturnUrl),
   });
 
   return { paymentUrl: xenditSession.payment_link_url };

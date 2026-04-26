@@ -133,6 +133,25 @@ export async function createXenditSession(
 }
 
 /**
+ * Strip query string from a URL — keeps origin + pathname only.
+ * Used by triage logging so `?invoice=…` ids stay out of logs while
+ * the route (`/payment/success` or `/payment/cancel`) and origin
+ * (preview / staging / prod) remain visible for debugging.
+ *
+ * Returns null on falsy input or non-URL strings (defensive — webhook
+ * payload field may be missing on some Xendit payloads).
+ */
+export function stripQuery(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.origin + u.pathname;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Defensive id extraction. Earlier Xendit `/sessions` responses observed
  * with a missing top-level `id` — `xenditSessionId` came back null even
  * though `payment_link_url` was set. Try documented shapes in priority
