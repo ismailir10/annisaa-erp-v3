@@ -1,0 +1,110 @@
+# Parent Payment Redirect Bug — Dead "Kembali" Button + Xendit Auto-Redirect Investigation + Stale Parent Invoice Cache
+
+## Context
+
+Three related defects in the post-payment flow surfaced during sandbox UAT:
+
+1. **The "Kembali ke Portal Orang Tua" button on `/payment/success` and `/payment/cancel` does nothing on click.** Code review of `app/payment/success/page.tsx:42-44` and `app/payment/cancel/page.tsx:42-44` shows the cause: a Shadcn `<Button>` wrapped inside a Next `<Link>`. Our `Button` component (`components/ui/button.tsx:48-56`) renders `@base-ui/react/button` which always emits a real `<button>` element and has no `asChild` slot. The resulting markup is `<a><button>…</button></a>` — invalid nested interactive content. The HTML5 parser hoists the `<button>` out of the `<a>`, severing the navigation. The button has no `onClick`, so nothing happens. Until the auto-redirect timer fires 5 s later, the button is the parent's only escape and it is dead.
+
+2. **After completing a Xendit sandbox payment the parent stays on the Xendit hosted page — no auto-redirect back to `/payment/success`.** Xendit Sessions API doc (verified via context7 `/websites/xendit_co_apidocs`) confirms `success_return_url` and `cancel_return_url` are the correct field names; both are sent as HTTPS by `lib/xendit/client.ts:73-74` and `lib/xendit/helpers.ts:41-42`. Vercel runtime logs over the last 7 days show **one** successful `GET /payment/success` (2026-04-26 12:57:49) immediately after a `payment_session.completed` webhook (12:57:46), so the wiring CAN work. The user's failed sandbox attempt produced no `/payment/*` log line, which means Xendit's hosted page never redirected the browser. Probable causes (rank ordered): (a) Xendit sandbox does not auto-redirect for some payment-method simulators — known behaviour on the Xendit sandbox, parents must click "Selesai"; (b) the user tested on a preview deployment, but `lib/xendit/helpers.ts:4` falls back to the hardcoded production origin `https://annisaa-erp-v3.vercel.app` when `NEXT_PUBLIC_APP_URL` is unset — Xendit redirects to prod, the parent's session is on staging, and the parent perceives "it stayed on Xendit"; (c) a stale session from before the PR #138 reseed reference_id fix was used, so the webhook 200'd but the redirect target was set in the original session and prod refused (auth gate). Without the user's specific session id we cannot distinguish (a) from (b)/(c) — this cycle ships the deterministic UI fix and adds the operator instrumentation needed to pin down the redirect cause on the next reproduction.
+
+3. **A paid invoice still appears in the parent's "Belum Dibayar" group.** Screenshot: `INV-2026-1801` shows status `LUNAS` (PAID) in the detail sheet, but is still listed under "Belum dibayar" with the unpaid total counting it. Root cause: `lib/parent-helpers.ts:408` wraps `getParentInvoiceList` in `unstable_cache` with tag `"parent-invoice-list"` and 120 s TTL; the Xendit webhook at `app/api/xendit/webhook/route.ts:99,105` calls `revalidateTag("student-invoices", { expire: 0 })` — which is the tag for the LEGACY `getStudentInvoices` function (`lib/parent-helpers.ts:160-161`) that no longer feeds the parent invoices page. **Tag mismatch.** Result: list cache stays stale up to 2 minutes after a successful payment; the per-invoice detail sheet hits an uncached API route (`app/api/guardian/invoices/[id]/route.ts`) and shows fresh PAID, while the list shows the stale pre-payment status. Defect was introduced when `getParentInvoiceList` was added (cycle `2026-04-17-parent-invoice-perf`) without updating the webhook's `revalidateTag` call to invalidate the new tag. No invoice mutation route in `app/api/invoices/**` calls `revalidateTag` at all — admin-side mutations (record manual payment, void, status update) are also stale on the parent portal for ≤2 min, captured as a follow-up not fixed here.
+
+The clarification correcting the user's prompt: the fixture at `lib/webhook/__fixtures__/session-completed-realprod.json` does **not** contain `success_return_url` / `cancel_return_url`. Those fields appear on Xendit's documented webhook payload (per Xendit doc) but our captured fixture was synthesized minimally and omits them. The literal URL strings `https://annisaa-erp-v3.vercel.app/payment/{success,cancel}` are present only in `scripts/finish-xendit.ts:73-74` and `scripts/reseed/invoices.ts:169-171`; the production helper `lib/xendit/helpers.ts:41-42` derives them from `NEXT_PUBLIC_APP_URL` with the prod fallback. PR #136 was about the webhook fallback to `xenditSessionId`, not the `/payment/*` middleware allowlist — that allowlist (`proxy.ts:55-60`) was already in place before PR #136 and is correct (returns `NextResponse.next()` before any auth check).
+
+## Spec
+
+### Acceptance criteria
+
+- [ ] **Dead button fixed.** Both `app/payment/success/page.tsx` and `app/payment/cancel/page.tsx` render the "Kembali ke Portal Orang Tua" control as a single anchor styled with `buttonVariants` — no nested `<Button>` inside `<Link>`. Click on the button reliably navigates to `/parent/invoices` whether or not React has hydrated.
+- [ ] **Origin derivation hardened.** Both `createXenditSessionForInvoice` (`lib/xendit/helpers.ts`) AND `retryPaymentLinks` (`lib/finance/xendit-retry.ts:48`) gain an optional `requestOrigin?: string` parameter — two levels of threading. Route-handler callers (`app/api/xendit/create-session/route.ts`, `app/api/invoices/route.ts:217`, `app/api/invoices/generate/batch/route.ts:219`) pass `req.nextUrl.origin`. `retryPaymentLinks` accepts and forwards origin to `createXenditSessionForInvoice`. Helper falls back to `NEXT_PUBLIC_APP_URL`; if both missing, **throws** descriptive error (no silent prod-URL fallback). Script-only callers (`scripts/reseed/invoices.ts`, `scripts/finish-xendit.ts`) continue to hardcode prod URLs explicitly.
+- [ ] **`NEXT_PUBLIC_APP_URL` documented.** README "Reseeding staging" + Vercel env var section state that `NEXT_PUBLIC_APP_URL` should be set per environment (preview → preview-domain, production → prod domain). Without it, runtime requests still work via the new origin-derivation, but reseed scripts will keep redirecting to prod.
+- [ ] **Operator triage logging added.** `lib/xendit/helpers.ts` unconditionally `console.info`s `[XENDIT SESSION CREATED] { invoiceId, sessionId, successOrigin, cancelOrigin }` after every successful session creation (logging is unconditional — no `XENDIT_DEBUG` gate, removed for triage determinism). Webhook handler (`app/api/xendit/webhook/route.ts:297`) — augment the **existing PROCESSED log line**, do NOT add a new one; add `sessionId`, `successReturnUrl`, `cancelReturnUrl` (query-stripped) so an operator greps a single `sessionId` and finds both creation and webhook lines. All URL logs strip the `?invoice=…` query before logging — only origin + path retained.
+- [ ] **E2E coverage.** A new Playwright spec under `e2e/parent.spec.ts` (or a new `e2e/payment.spec.ts`) cold-loads `/payment/success?invoice=demo-fake` in demo mode, asserts the page renders, asserts the "Kembali" button click navigates to `/parent/invoices`, and asserts the auto-redirect timer reaches `/parent/invoices` within 6 s. Same for `/payment/cancel`.
+- [ ] **Vitest unit for origin derivation.** New cases in `app/api/__tests__/xendit-create-session.test.ts` (or sibling) assert: (a) when `req.nextUrl.origin === "https://preview-abc.vercel.app"`, the helper receives `successReturnUrl` starting with that origin; (b) when called from a script (no request), the helper falls back to `NEXT_PUBLIC_APP_URL`; (c) when both are missing, throws a descriptive error rather than silently using prod.
+- [ ] **Stale parent-invoice cache fixed.** Webhook handler at `app/api/xendit/webhook/route.ts:99` (after `payment_session.completed`) AND `:105` (after `payment_session.expired` when `result.invoiceId` truthy) ALSO calls `revalidateTag("parent-invoice-list", { expire: 0 })` alongside the existing `student-invoices` invalidation. On reload of `/parent/invoices` the just-PAID invoice moves from "Belum dibayar" into "Riwayat pembayaran" within at most one round-trip, not after 120 s.
+- [ ] **Build + full vitest suite green.** `npm run build && npx vitest run` passes. Existing 494+ cases stay green; new cases pass.
+
+### Non-goals
+
+- **No change to webhook handler logic.** Idempotency, advisory locks, transaction shape, and `WebhookEvent` table behaviour from PR #138 stay exactly as they are. We only **add** logging in the completed-event branch.
+- **No retry of stale Xendit sessions.** Sessions created before this PR keep whatever `success_return_url` they were created with. Operators wanting to fix stale staging sessions can re-run the reseed.
+- **No new admin UI.** The redirect URL is already visible to admins via the invoice detail page; no new debug surface.
+- **No client-side router workaround for the dead button.** We are not adding `onClick={() => router.push(...)}` to the `<Button>`. We are removing the `<Button>`-inside-`<Link>` anti-pattern at the source. Native `<a>` navigation works without JS hydration, which is more resilient.
+- **No exhaustive Shadcn audit.** This cycle fixes only the two `/payment/*` pages. The architect review found the same `<Link><Button>` bug at `components/ui/empty-state.tsx:80-82`; it is named in the Ship Notes follow-up pointer for a separate sweep cycle, not fixed here.
+
+### Assumptions (correct now if wrong)
+
+1. The `@base-ui/react/button` primitive does not respect `asChild` and always renders a `<button>` — confirmed by reading `components/ui/button.tsx`. If a future migration to a slot-aware primitive happens, the `<Link>+<Button>` pattern would become valid; this fix is forward-compatible because `<a className={buttonVariants(...)}>` is equally valid in both worlds.
+2. Vercel injects the request origin correctly for both preview and production deployments via `req.nextUrl.origin`. If a future deploy sits behind an external proxy that mangles the host header, the fall-through to `NEXT_PUBLIC_APP_URL` still applies.
+3. The Xendit sandbox auto-redirect is **eventually** consistent — most simulators redirect, a few do not. We are not fighting that; we are making the manual escape route work and giving operators the data to triage which simulator method failed when it does happen.
+4. Logging full `success_return_url` (origin + path, query stripped) is acceptable in Vercel logs. Origin is public knowledge for our domain; path is `/payment/success` or `/payment/cancel`. No PII.
+5. The Playwright demo-mode flow can mount `/payment/success` directly without an active Xendit session — the page is a static client component that does not validate the `invoice` query param against the database.
+
+## Tasks
+
+Sequential. Each independently committable; gates between every commit.
+
+- [x] **T1 — Fix the dead "Kembali" button on both `/payment/*` pages.**
+  Replace the `<Link><Button>...</Button></Link>` pattern in `app/payment/success/page.tsx:42-44` and `app/payment/cancel/page.tsx:42-44` with:
+  ```tsx
+  <Link
+    href="/parent/invoices"
+    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4")}
+  >
+    Kembali ke Portal Orang Tua
+  </Link>
+  ```
+  Drop the `Button` import; add `buttonVariants` import from `@/components/ui/button` and `cn` from `@/lib/utils` (canonical pattern — string concatenation breaks future Tailwind class-merge). Verify visual rendering matches `.claude/standards/design-system.html` outline-sm button token.
+  **Acceptance:** `npm run build` clean; manually open both pages in a browser and confirm the click navigates. Cite `.claude/standards/design-system.html` (button outline-sm token) in the cycle Verification line per pre-commit Rule 4.
+
+- [ ] **T2 — Add Playwright coverage for both pages.**
+  Create new file `e2e/payment.spec.ts` (NOT embedded in `parent.spec.ts` — `/payment/*` routes are auth-exempt per `proxy.ts:55-60`, and the new file avoids the `beforeEach` cookie-injection + DB-dependent guardian lookup that all parent-portal specs require). Two cases:
+  1. cold-load `/payment/success?invoice=demo-fake`, assert "Kembali" anchor is visible + clickable, click → URL becomes `/parent/invoices`.
+  2. cold-load `/payment/cancel?invoice=demo-fake`, assert auto-redirect lands on `/parent/invoices` within **8 s** (5 s countdown + ≤3 s cold-server hydration in CI; `playwright.config.ts` `reuseExistingServer: !process.env.CI` forces fresh server in CI).
+  **Acceptance:** `npx playwright test e2e/payment.spec.ts` green; full suite still green; run against `DEMO_MODE=true npm run start` per established pattern.
+
+- [ ] **T3 — Origin-aware return URLs (two-level threading).**
+  - `createXenditSessionForInvoice` in `lib/xendit/helpers.ts` gains `requestOrigin?: string` parameter. Resolution order: `requestOrigin` → `process.env.NEXT_PUBLIC_APP_URL` → **throw** (do not silently fall back to a hardcoded prod URL; throwing is what surfaces a misconfigured deploy at `/build` time, not at the parent's confused-by-redirect time). No `console.warn` — serverless cold-start once-per-call semantics are unreliable; the throw is the contract.
+  - `retryPaymentLinks` in `lib/finance/xendit-retry.ts:48` ALSO gains `requestOrigin?: string` parameter. Forwards to `createXenditSessionForInvoice`. Read its current callers (`app/api/invoices/retry-payment-links` route + any other) and have each pass `req.nextUrl.origin`.
+  - Update direct route-handler callers:
+    - `app/api/xendit/create-session/route.ts` → pass `req.nextUrl.origin`.
+    - `app/api/invoices/route.ts:217` → pass `req.nextUrl.origin`.
+    - `app/api/invoices/generate/batch/route.ts:219` → pass `req.nextUrl.origin`.
+  - `scripts/reseed/invoices.ts`, `scripts/finish-xendit.ts` → no signature change; they set `NEXT_PUBLIC_APP_URL` via env or pass nothing (prod-fallback removed → must rely on env explicitly). **Operator impact:** running these scripts in a clean local env without `NEXT_PUBLIC_APP_URL` exported will now throw — surfaced in T5 Ship Notes.
+  - `lib/uat/scenarios.ts` also calls `createXenditSessionForInvoice` (UAT harness, no request scope). **Decision: leave as-is.** It runs in a process where `NEXT_PUBLIC_APP_URL` must be set or the throw is acceptable (UAT failure surfaces config gap loudly, not silently).
+  **Acceptance:** TypeScript compiles. New vitest cases assert: (a) `requestOrigin` wins over `NEXT_PUBLIC_APP_URL`; (b) when neither is set, helper throws with descriptive error; (c) `retryPaymentLinks` correctly forwards origin to the helper. Existing 494+ cases stay green. `npm run build` clean.
+
+- [ ] **T4 — Operator triage logging.**
+  - Add `stripQuery(url?: string | null): string | null` helper in `lib/xendit/client.ts`. Implementation: `try { const u = new URL(url); return u.origin + u.pathname; } catch { return null; }`. Exported.
+  - In `lib/xendit/helpers.ts`, after `prisma.invoice.update` succeeds, add `console.info("[XENDIT SESSION CREATED]", { invoiceId, sessionId: xenditSession.id, successOrigin: stripQuery(successReturnUrl), cancelOrigin: stripQuery(cancelReturnUrl) })`. Unconditional — no env gate.
+  - In `app/api/xendit/webhook/route.ts`, locate the existing PROCESSED log at lines 297-299 (the `console.log` that logs `invoiceNumber + newStatus + eventId` after `markProcessed`). **Augment** that log line — do NOT add a new one. Convert from template-string format to structured object: `console.log("[XENDIT WEBHOOK] PROCESSED", { invoiceNumber: invoice.invoiceNumber, newStatus, eventId, sessionId: invoice.xenditSessionId, successReturnUrl: stripQuery((data.success_return_url as string) ?? null), cancelReturnUrl: stripQuery((data.cancel_return_url as string) ?? null), dataKeys: Object.keys(data) })`.
+  - **Why `invoice.xenditSessionId` not `data.payment_session_id`:** the webhook `data` payload field name is not guaranteed (the captured fixture omits return URLs entirely; live payload field name was not verified). `invoice.xenditSessionId` is set deterministically at session-creation time and is the same value `[XENDIT SESSION CREATED]` logs — guaranteed grep match.
+  - **`dataKeys: Object.keys(data)` is the safety net.** If Xendit's live payload omits `success_return_url`/`cancel_return_url`, the augmented log shows `null` for those AND lists the keys actually present, so an operator can pivot to whatever field Xendit really sends. After one production reproduction, the `dataKeys` line can be dropped in a follow-up.
+  - Single grep on `sessionId` now matches both `[XENDIT SESSION CREATED]` and `[XENDIT WEBHOOK] PROCESSED` lines for one-shot triage.
+  - Vitest cases for `stripQuery`: null input, no-query URL, with-query URL, malformed string.
+  **Acceptance:** all 4 `stripQuery` cases pass. `npm run build` clean. Manual confirm by tailing Vercel logs after one staging session creation: both `[XENDIT SESSION CREATED]` line and the augmented webhook PROCESSED line are visible and their `sessionId` matches.
+
+- [ ] **T5 — README + cycle doc Ship Notes + follow-up pointer.**
+  - README "Vercel env vars" section: document `NEXT_PUBLIC_APP_URL` as **per-environment** (preview → preview origin; production → prod origin). After T3's fix, helper throws when both `requestOrigin` and `NEXT_PUBLIC_APP_URL` are missing — operator MUST set this for staging preview before next UAT or invoice-send will throw.
+  - Cycle doc Ship Notes: (a) no migration needed; (b) **breaking config**: helper now throws when neither `requestOrigin` nor `NEXT_PUBLIC_APP_URL` is set — verify Vercel preview AND production envs have `NEXT_PUBLIC_APP_URL` before merge; **also** running `scripts/reseed/invoices.ts` or `scripts/finish-xendit.ts` locally will throw without the env var exported (previously silently fell back to prod) — local operators must `export NEXT_PUBLIC_APP_URL=...` before reseed; (c) operator triage runbook: grep Vercel logs by Xendit `sessionId` to match `[XENDIT SESSION CREATED]` against augmented `[XENDIT WEBHOOK] PROCESSED` line — `dataKeys` array reveals which fields Xendit actually sends in webhook payload (one-time discovery, drop in follow-up); if `successReturnUrl` Xendit echoes does not match what we sent, escalate to Xendit support; (d) follow-up pointers (separate sweep cycles): (1) `components/ui/empty-state.tsx:80-82` has same `<Link><Button>` anti-pattern; (2) admin invoice mutation routes under `app/api/invoices/**` (record manual payment, void, status update) do NOT call `revalidateTag` at all — admin actions on a paid invoice are stale on parent portal for ≤120 s; (3) drop the `dataKeys` log key once Xendit's webhook field naming is confirmed in production.
+  **Acceptance:** README diff includes the env-var clarification; Ship Notes filled with all four bullets above.
+
+- [ ] **T6 — Fix stale parent-invoice cache after payment.**
+  Defect: `lib/parent-helpers.ts:408` caches `getParentInvoiceList` under tag `"parent-invoice-list"` (120 s TTL). The webhook (`app/api/xendit/webhook/route.ts:99,105`) only revalidates the legacy tag `"student-invoices"`, so the parent's "Belum Dibayar" group keeps showing a just-PAID invoice for up to 2 minutes. The detail sheet hits an uncached API route and shows `LUNAS` — the visible inconsistency in the screenshot.
+  - In `app/api/xendit/webhook/route.ts`, at **both** revalidation sites — line 99 (after `payment_session.completed`) and line 105 (after `payment_session.expired` when `result.invoiceId` is truthy) — add `revalidateTag("parent-invoice-list", { expire: 0 })` alongside the existing `revalidateTag("student-invoices", { expire: 0 })`. Match the existing two-arg form for in-file consistency (Next.js 16 accepts the `{ expire }` second arg per current types; build passes today). Keep the legacy tag invalidation so any remaining `getStudentInvoices` callers also stay fresh.
+  - Add vitest cases to `app/api/__tests__/xendit-webhook.test.ts`: (a) on `payment_session.completed` for an invoice, BOTH `"student-invoices"` and `"parent-invoice-list"` are revalidated; (b) on `payment_session.expired` when the result includes an `invoiceId`, BOTH tags revalidated; (c) on `payment_session.expired` with no `invoiceId` (no-op path), neither is called. Mock `next/cache#revalidateTag` and assert call list.
+  - **Out of scope (captured in Ship Notes follow-up pointer):** admin-side mutations (`app/api/invoices/**/route.ts` — record manual payment, void, status update) do not call `revalidateTag` either, so admin actions on a paid invoice are also stale on parent portal for ≤2 min. Separate sweep cycle.
+  **Acceptance:** `npm run build && npx vitest run` clean; new cases green; manual smoke — pay a sandbox invoice, hard-refresh `/parent/invoices` immediately after webhook fires, paid invoice appears under "Riwayat pembayaran" not "Belum dibayar". Ship Notes follow-up pointer updated to flag admin mutation stale cache.
+
+## Implementation
+
+- Subagent plan: tasks T1-T6 sequential (T3+T4 share `lib/xendit/helpers.ts`; T4+T6 share `app/api/xendit/webhook/route.ts`; T2 verifies T1 fix; T5 last). No parallel dispatch.
+- Task 1: Fix dead "Kembali" button — `app/payment/success/page.tsx`, `app/payment/cancel/page.tsx` — replaced `<Link><Button>` anti-pattern with single `<Link className={cn(buttonVariants(...), "mt-4")}>`. Native `<a>` works pre-hydration. `inline-flex` from CVA base class supersedes dropped `inline-block`. Cross-checked `.claude/standards/design-system.html` outline-sm button token. Reviewer pass clean.
+
+## Verification
+
+- Task 1: `npm run build` clean, `npx vitest run` 689 pass / 42 todo / 0 fail. Cross-checked `.claude/standards/design-system.html` button outline-sm token (inline-flex, h-7, px-2.5, rounded-md). Browser smoke deferred to T2 Playwright (cold-loads page + asserts click-nav, stronger proof than dev-server snapshot — preview server EPERM in this worktree env).
+
+## Ship Notes
+<filled by /ship>
