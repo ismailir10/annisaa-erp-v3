@@ -176,7 +176,7 @@ After Task 4, CTO directive: review for over-engineering. `feature-dev:code-arch
 - `lib/finance/__tests__/run-bulk-retry.test.ts` deleted (~150 LOC).
 - `app/admin/invoices/page.tsx` `handleBulkRetry` collapsed from `runBulkRetry({ … })` orchestration (chunked 25, 5xx retry-w-backoff, pause/Continue dialog, sticky progress card) to a single `fetch('/api/invoices/retry-payment-links', { method: 'POST', body: JSON.stringify({}) })` + result toast. Why it was wrong: realistic retry scenario is 0-5 PENDING invoices (Xendit sandbox flakes), not a 100+ batch needing chunking + pause/resume. Operator clicks button, sees toast — done. ~340 LOC saved.
 
-**Cut 3b — Drop webhook P2002 swallow + `targetMatches` helper**
+**Cut 3b — Drop webhook P2002 swallow + `targetMatches` helper** *(landed)*
 - `app/api/xendit/webhook/route.ts`: removed the `try { tx.payment.create } catch P2002 { recompute }` block + the private `targetMatches(meta, field)` helper. Inner-tx `findUnique({ xenditPaymentId })` pre-check stays (primary dedup). The advisory lock on `hashtext(invoice.id)` (held by webhook + manual-payment + void) serialises concurrent webhook handlers for the same invoice — by the time the second one enters its tx body, the first one's payment row is visible to `findUnique` and the early-return short-circuits. The race window the P2002 catch was defending against is closed by the lock that's already there.
 - `app/api/__tests__/xendit-webhook.test.ts`: deleted the "P2002 swallowed" test (this race can't happen post-lock); kept the "existing-row short-circuit" + "missing-paymentId rejected" tests (both still earning their place).
 - This **partially reverts my Task 2b commit** — the lock-already-closes-this-race insight changes the trade-off. ~80 LOC saved.

@@ -397,67 +397,6 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     expect(txPaymentCreate).not.toHaveBeenCalled();
   });
 
-  it("inner Payment idempotency: P2002 from concurrent insert is swallowed", async () => {
-    // Race window: two webhook handlers acquire the advisory lock in sequence
-    // but the second one sees no existing row (sibling tx hasn't committed
-    // yet on its findUnique), then create races and hits the UNIQUE
-    // constraint. Handler must recover gracefully without re-updating the
-    // invoice (the sibling tx already did the update).
-    const { prisma } = await import("@/lib/db");
-    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
-      id: "inv1",
-      status: "SENT",
-      totalDue: 1000,
-      totalPaid: 0,
-      invoiceNumber: "INV-1",
-    } as never);
-    const txPaymentCreate = vi
-      .fn()
-      .mockRejectedValueOnce(new FakeP2002("Unique constraint failed on xenditPaymentId"));
-    const txInvoiceUpdate = vi.fn().mockResolvedValue({});
-    vi.mocked(prisma.$transaction).mockImplementationOnce(
-      async (cb: unknown) =>
-        await (cb as (tx: unknown) => unknown)({
-          $queryRaw: vi.fn().mockResolvedValue([{}]),
-          invoice: {
-            findUnique: vi.fn().mockResolvedValue({
-              id: "inv1",
-              status: "SENT",
-              totalDue: 1000,
-              totalPaid: 0,
-            }),
-            update: txInvoiceUpdate,
-          },
-          payment: {
-            findUnique: vi.fn().mockResolvedValue(null),
-            create: txPaymentCreate,
-            // After P2002 the handler recomputes off existing rows — return
-            // the sibling-inserted Payment so totals reconcile to PAID.
-            findMany: vi.fn().mockResolvedValue([{ amount: 1000 }]),
-          },
-        }),
-    );
-
-    const res = await POST(
-      makeReq({
-        id: "evt-p2002",
-        event: "payment_session.completed",
-        data: {
-          reference_id: "inv1",
-          status: "COMPLETED",
-          payment_id: "pay-race",
-          amount: 1000,
-        },
-      }) as never,
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ status: "PAID" });
-    expect(txPaymentCreate).toHaveBeenCalledTimes(1);
-    // Critical: sibling tx already updated the invoice. Re-updating from this
-    // tx would double-write paidAt and stomp the sibling's totalPaid recalc.
-    expect(txInvoiceUpdate).not.toHaveBeenCalled();
-  });
-
   it("rejects completed event with no payment_id and no payment_session_id", async () => {
     // Without an idempotency key, writing xenditPaymentId: NULL would defeat
     // the UNIQUE dedup (Postgres allows multi-NULL), so the handler must

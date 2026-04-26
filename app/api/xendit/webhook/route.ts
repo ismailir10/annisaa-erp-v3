@@ -205,52 +205,32 @@ async function handleSessionCompleted(
     // advisory-lock acquisition; this is the authoritative check.
     if (fresh.status === "CANCELLED") return "CANCELLED";
 
-    // Idempotency on the Payment.xenditPaymentId UNIQUE column. Outer
+    // Idempotency on the Payment.xenditPaymentId UNIQUE column. The outer
     // WebhookEvent eventId UNIQUE catches duplicate provider deliveries;
-    // this covers the rarer case where the provider sends a fresh delivery
-    // wrapper (different eventId) that points at the same underlying Xendit
-    // payment_id — replay tooling or infra retry surfacing a new event row.
+    // this inner check covers the rarer case where the provider sends a
+    // fresh delivery wrapper (different eventId) pointing at the same
+    // underlying Xendit payment_id — replay tooling, infra retry, etc.
+    //
+    // The advisory lock above serialises concurrent webhook handlers for
+    // the same invoice, so by the time a second handler runs this query
+    // the first handler's row is already visible — no P2002 race to swallow.
     const existing = await tx.payment.findUnique({
       where: { xenditPaymentId: paymentId },
     });
     if (existing) return fresh.status as string;
 
-    try {
-      await tx.payment.create({
-        data: {
-          invoiceId: invoice.id,
-          amount: paymentAmount,
-          method: "XENDIT",
-          // xenditPaymentId is the immutable provider id (UNIQUE constraint).
-          // reference mirrors it for human-readable display + parity with
-          // manual BANK_TRANSFER references.
-          xenditPaymentId: paymentId,
-          reference: paymentId,
-          notes: `Xendit payment via ${channelCode}`,
-        },
-      });
-    } catch (err) {
-      // P2002 on xenditPaymentId only — concurrent insert from a sibling tx
-      // beat us between findUnique and create (advisory lock usually
-      // serialises us; this catches the rare race). Other unique constraints
-      // must still bubble. Recompute status off existing rows so the response
-      // is accurate; the sibling tx already did the invoice.update.
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002" &&
-        targetMatches(err.meta, "xenditPaymentId")
-      ) {
-        const recomputedPayments = await tx.payment.findMany({
-          where: { invoiceId: invoice.id },
-        });
-        const recomputedTotal = sumDecimals(recomputedPayments.map((p) => p.amount));
-        const recomputedDue = new Prisma.Decimal(invoice.totalDue);
-        return recomputedTotal.greaterThanOrEqualTo(recomputedDue)
-          ? "PAID"
-          : "PARTIALLY_PAID";
-      }
-      throw err;
-    }
+    await tx.payment.create({
+      data: {
+        invoiceId: invoice.id,
+        amount: paymentAmount,
+        method: "XENDIT",
+        // xenditPaymentId is the immutable provider id (UNIQUE).
+        // reference mirrors it for display + parity with manual references.
+        xenditPaymentId: paymentId,
+        reference: paymentId,
+        notes: `Xendit payment via ${channelCode}`,
+      },
+    });
 
     const allPayments = await tx.payment.findMany({
       where: { invoiceId: invoice.id },
@@ -360,23 +340,6 @@ async function markProcessed(
       processedAt: new Date(),
     },
   });
-}
-
-// Prisma exposes the failed unique-constraint columns as `meta.target`
-// — usually a string[], occasionally a string. `undefined` shows up when
-// the test mock or an older Prisma omits meta; in that case we accept the
-// match (test fixtures don't synthesise meta and we still want them to
-// exercise the catch).
-function targetMatches(
-  meta: Record<string, unknown> | undefined,
-  field: string,
-): boolean {
-  if (!meta) return true;
-  const target = meta.target;
-  if (target === undefined) return true;
-  if (Array.isArray(target)) return target.includes(field);
-  if (typeof target === "string") return target.includes(field);
-  return false;
 }
 
 async function markIgnored(
