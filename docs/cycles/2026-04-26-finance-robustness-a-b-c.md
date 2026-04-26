@@ -349,21 +349,71 @@ Order is dependency-aware. Each task is one commit per CLAUDE.md `/build` loop. 
 - Task 6 — Cron handler + vercel.json. NEW: `app/api/cron/finance-maintenance/route.ts` (POST handler, fail-closed three-layer auth: CRON_SECRET env presence → 500-or-skip, `Authorization: Bearer ${CRON_SECRET}` → 401, User-Agent prefix `vercel-cron/` → 403; two `prisma.$executeRaw` ops — DELETE WebhookEvent older than 90 days + UPDATE Invoice SET status=OVERDUE WHERE status=SENT AND dueDate < TO_CHAR(NOW() AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD'); returns `{webhookPurged, overduePromoted, ranAt}`), `app/api/__tests__/finance-maintenance.test.ts` (7 tests). MODIFIED: `vercel.json` (added `crons: [{path: "/api/cron/finance-maintenance", schedule: "0 1 * * *"}]` — 01:00 UTC = 08:00 WIB, just before school day starts).
 - Task 6: gates passed. `npm run build` → green. `npx vitest run` → 644 passed, 42 todo (+7 cron: missing-secret 500, wrong-bearer 401, missing-auth 401, non-vercel-UA 403, missing-UA 403, happy-path 200 with counts, SQL template inspection). vercel.json crons array landed; CRON_SECRET env requirement surfaced in Ship Notes for pre-merge provisioning.
 - Task 7: gates passed. `npm run build` → green. `npx vitest run` → 688 passed, 42 todo (+44: 9 redactor + 14 extractor + 14 error-labels + 7 webhook-events route). Cross-checked design-system §Status Badges/§Overlays/§Card.
+- Task 8 — End-of-cycle gate + Ship Notes + README finance section. Final gate: `npm run build` green; `npx vitest run` → 689 passed, 42 todo (+1 deep-redact PII test); `npx playwright test` → 15 passed (18.9m), exit 0. End-of-cycle code review pass: 2 critical fixes applied — (a) `lib/webhook/redact-payload.ts` rewritten to recursively redact `customer.*` + `billing_information.*` at ANY depth (Xendit may nest under `data.customer.*` for sessions with embedded customer info); (b) `README.md` finance module entry + ADR table updated with InvoiceNumberSequence, two-phase webhook, cron, Aktivitas panel, new routes, new env var.
 - Task 7 — Aktivitas Xendit panel + helpers. NEW: `lib/webhook/redact-payload.ts` (PII redactor strips customer.* + billing_information.*), `lib/webhook/extract-display-fields.ts` (pure parser → paidAt/paymentMethod/amount/currency/sessionId/paymentId; paymentMethod intentionally null for payment_session.completed Payment Link mode), `lib/webhook/error-labels.ts` (humanized Indonesian error catalog: INVOICE_NOT_FOUND/MISSING_AMOUNT/MISSING_PAYMENT_ID/OVERPAYMENT_FLAGGED/already_paid/already_cancelled/status_not_completed/status_not_handled/status_not_revertible + null fallback), `lib/webhook/__fixtures__/{session-completed-realprod,session-completed-bare-id,session-expired}.json`, `lib/webhook/__tests__/{redact-payload,extract-display-fields,error-labels}.test.ts` (37 tests), `app/api/invoices/[id]/webhook-events/route.ts` (admin-only GET, tenant ownership, redacts payload + extracts fields + maps error label server-side), `app/api/__tests__/invoices-webhook-events.test.ts` (7 tests), `components/admin/invoices/xendit-activity-card.tsx` (client component, hides entirely when 0 events per spec C6 silent-absence policy, two-line row layout, status pills, collapsible payload details). MODIFIED: `app/admin/invoices/[id]/page.tsx` (drops in `<XenditActivityCard>` below Riwayat Pembayaran). Cross-checked design-system.html §Status Badges + §Overlays + §Forms + §Card. Design-system review: 2 blockers fixed inline — (a) StatusPill switched from raw `bg-status-present/10 text-status-present` opacity hacks to canonical `bg-status-present-subtle text-status-present-text` token pairs (matches `components/ui/status-badge.tsx` convention used everywhere else); ERROR uses `bg-status-absent-subtle text-status-absent-text`; all pills now use `text-caption` not `text-xs`; (b) AlertDialog "Antrian retry penuh" was missing AlertDialogCancel — added "Batal" left-positioned per ui.md "Cancel-left, destructive-right" rule + voice.md destructive-confirmation guidance.
 - Task 1: Added `lib/finance/invoice-numbers.ts::reserveInvoiceNumbers(tx, tenantId, count)` to fix reviewer-flagged blocker — the batch route at `app/api/invoices/generate/batch/route.ts:153` allocated ONE number then incremented `nextNum++` client-side N times, leaving the new atomic `InvoiceNumberSequence.lastNumber` at `start+1` while emitting numbers `start..start+N-1`. Fix: single round-trip `INSERT … ON CONFLICT DO UPDATE SET lastNumber = lastNumber + count RETURNING lastNumber` reserves a contiguous range. Batch route rewired to consume the array. `nextInvoiceNumber` now thin-wraps `reserveInvoiceNumbers(..., 1)`.
 - Task 1: Hardened year extraction per reviewer recommendation — `Intl.DateTimeFormat.formatToParts()` + explicit `year` part lookup, defensive against future ICU locale changes to `en-CA` stand-alone year rendering. Zero behavior change today.
 
 ## Ship Notes
 
-<!--
-Filled by /ship:
-- New migration: 20260426000001_invoice_number_sequence (additive, includes seed pass for existing invoices; tenants with zero invoices get no seed row, allocator seeds on first call)
-- New env var: `CRON_SECRET` — **operator MUST set in Vercel project settings before merge.** Generate via `openssl rand -hex 32`. Single-purpose secret, no Xendit/Supabase coupling. Vercel auto-injects this header into cron deliveries when set; absence leaves endpoint publicly callable (handler fails-closed).
-- New cron: vercel.json registers /api/cron/finance-maintenance @ 01:00 UTC (08:00 WIB) daily
-- New routes: GET /api/invoices/pending-payment-link, POST /api/cron/finance-maintenance
-- New schema enum value comment: WebhookEvent.status now uses RECEIVED | PROCESSED | ERROR | IGNORED. **No data backfill required** — production rows currently hold only RECEIVED / PROCESSED / IGNORED (the prior schema comment listed FAILED but the DELETE-on-transient-error path never wrote it). Adding ERROR is purely additive at the comment level.
-- Behavior change for parents: payment_session.expired now reverts invoices to PENDING_PAYMENT_LINK (was CANCELLED). Parent allow-list excludes both, so no parent-visible diff. Admin sees the invoice stay in the list with retry option instead of disappearing into CANCELLED.
-- Duplicate-payment risk note: when admin clicks "Coba Lagi Link" on a PENDING_PAYMENT_LINK invoice, a new Xendit session is created. The OLD session URL still works at Xendit. If parent pays the old link, webhook resolves by reference_id (= invoice.id) regardless of which session was paid — credits correctly. The two-layer idempotency (eventId + xenditPaymentId @unique) protects against double-credit. Safe.
-- Rollback plan: revert merge commit. Migration is additive (no destructive change). Cron entry in vercel.json: removing it restores no-cron behavior. Sequence table can be left in place after rollback (orphaned, harmless) or dropped via separate migration.
-- Post-merge: monitor Vercel logs 24h on /api/cron/finance-maintenance + /api/xendit/webhook for amount-guard activations + ERROR-status webhook events.
--->
+### Pre-merge operator action (REQUIRED)
+
+**Set `CRON_SECRET` in Vercel project settings before merging this PR to staging.** One-time `openssl rand -hex 32` → paste into Vercel dashboard env vars (production + preview). Vercel auto-injects this header into cron deliveries when set; absence leaves the endpoint publicly callable (handler fails-closed with 500). If forgotten, owner gets one batch of cron-failure emails until it lands.
+
+### Migrations
+
+- New: `prisma/migrations/20260426000001_invoice_number_sequence/migration.sql` — additive. Creates `InvoiceNumberSequence(tenantId, year, lastNumber)` table + seed pass extracting `MAX(suffix)` per `(tenantId, year)` from existing invoices. Idempotent — `ON CONFLICT DO NOTHING` guards re-runs. Tenants with zero invoices get no seed row; allocator seeds on first call. No locking on `Invoice` (only reads); safe on hot prod.
+
+### New env vars
+
+- `CRON_SECRET` — operational secret only. Single-purpose (cron auth). One-time `openssl rand -hex 32`. NOT coupled to Xendit/Supabase/anything else.
+
+### New routes
+
+- `GET /api/invoices/pending-payment-link` — admin GET, drives the bulk retry orchestrator
+- `POST /api/cron/finance-maintenance` — Vercel Cron daily @ 01:00 UTC (08:00 WIB)
+- `GET /api/invoices/[id]/webhook-events` — admin GET feeding the Aktivitas Xendit panel
+
+### Schema diff
+
+- `InvoiceNumberSequence` model added (Tenant Restrict relation).
+- `WebhookEvent.status` comment updated: `RECEIVED | PROCESSED | ERROR | IGNORED`. **No data backfill required** — prod rows hold only RECEIVED/PROCESSED/IGNORED. The prior schema comment listed `FAILED` but the DELETE-on-transient-error path never wrote it.
+
+### Behavior changes (admin-visible)
+
+- `payment_session.expired` now soft-reverts SENT/PENDING_PAYMENT_LINK invoices to `PENDING_PAYMENT_LINK` (was `CANCELLED`). PAID/CANCELLED ignore. Parent allow-list excludes both `CANCELLED` and `PENDING_PAYMENT_LINK` → no parent-visible diff.
+- Webhook handler: errors during processing no longer DELETE the audit row + return 500. They mark `status: "ERROR"` + `errorMessage` + return 200. Phase 1 itself failing (DB unreachable) → 500 + Xendit retry.
+- New panel on invoice detail: "Aktivitas Xendit" surfaces all WebhookEvent rows with humanized errorLabel + redacted payload.
+
+### Backward compatibility
+
+- In-flight Xendit sessions before this deploy continue to work. Webhook resolves via `reference_id` first, falls back to `xenditSessionId` for legacy `staging-tagihan-*` references (production payload from /spec proves this path).
+- Existing `WebhookEvent.payload` rows unchanged. Read surface (`/api/invoices/[id]/webhook-events`) recursively redacts `customer.*` + `billing_information.*` at any depth before sending. Followup: redact at write time + tighten DB read access.
+- Two-phase rewrite is purely additive — old rows with status RECEIVED/PROCESSED/IGNORED need no migration.
+- Duplicate-payment risk: when admin retries a PENDING_PAYMENT_LINK link, new Xendit session created. Old URL still works. If parent pays old link, webhook resolves by `reference_id` (= invoice.id) regardless. Two-layer idempotency (`eventId @unique` + `xenditPaymentId @unique`) protects double-credit. Safe.
+
+### Manual smoke on Vercel preview
+
+1. Set `CRON_SECRET` in Vercel env (preview + production).
+2. Wait for deploy → hit `/admin/invoices` → verify "Tagihan Manual" combobox typeahead works on >500 students.
+3. Bulk-generate for a fresh period — verify orchestrator drains all chunks; PROGRESS card shows correct phase + cancel button + `beforeunload` guard.
+4. Force a `PENDING_PAYMENT_LINK` invoice (e.g. by temporarily breaking `XENDIT_SECRET_KEY` then restoring) — verify "Coba Lagi Link (N)" retries cleanly.
+5. POST the real production payload (`lib/webhook/__fixtures__/session-completed-realprod.json`) via curl with the correct `x-callback-token` to `/api/xendit/webhook` → verify a `WebhookEvent` row lands as PROCESSED with `invoiceId` resolved via xenditSessionId fallback.
+6. Open invoice detail → verify "Aktivitas Xendit" panel renders the event with redacted payload (no `customer.email` / `billing_information.*`).
+7. Trigger cron manually: `curl -X POST -H "Authorization: Bearer $CRON_SECRET" -H "User-Agent: vercel-cron/test" https://<preview>.vercel.app/api/cron/finance-maintenance` → verify `{webhookPurged, overduePromoted, ranAt}` JSON.
+
+### Rollback plan
+
+- Revert merge commit. Migration is additive — sequence table stays in DB after rollback (orphaned, harmless); `ON CONFLICT DO NOTHING` makes re-deploy idempotent.
+- vercel.json crons: removing the file/entry restores no-cron behavior.
+- `CRON_SECRET` env var: harmless to leave in place after rollback.
+
+### Deploy ordering
+
+- vercel.json crons activate as soon as Vercel sees the new deployment. If `CRON_SECRET` is added BEFORE merge, the very first scheduled tick succeeds. If after, expect 1-3 cron failures until env var lands. Either order is recoverable.
+
+### Post-merge monitoring (24h)
+
+- `/api/cron/finance-maintenance` — first 01:00 UTC tick should return 200 with `{webhookPurged, overduePromoted, ranAt}`.
+- `/api/xendit/webhook` — watch for `MISSING_AMOUNT` / `OVERPAYMENT_FLAGGED` ERROR rows. Any production ERROR row warrants a manual look at the Aktivitas Xendit panel.
+- `Invoice.status = OVERDUE` count — should populate after the first cron tick if any SENT invoices are past dueDate.

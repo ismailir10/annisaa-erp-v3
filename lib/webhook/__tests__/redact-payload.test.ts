@@ -54,4 +54,33 @@ describe("redactPayload", () => {
     expect(redactPayload("hello")).toBe("hello");
     expect(redactPayload(42)).toBe(42);
   });
+
+  it("recursively redacts customer.* nested under data (Xendit may emit either shape)", () => {
+    const nested = {
+      event: "payment_session.completed",
+      data: {
+        amount: 800_000,
+        customer: {
+          email: "leak@test.com",
+          mobile_number: "+62811000",
+          given_names: "Should",
+          surname: "Vanish",
+        },
+        billing_information: {
+          city: "Jakarta",
+          street_line1: "Jl. Rahasia",
+        },
+      },
+    };
+    const out = redactPayload(nested) as Record<string, unknown>;
+    const data = out.data as Record<string, unknown>;
+    expect(data.customer).toEqual({ REDACTED: true });
+    expect(data.billing_information).toEqual({ REDACTED: true });
+    expect(data.amount).toBe(800_000);
+    // Stringify the entire output and assert PII strings do not appear.
+    const stringified = JSON.stringify(out);
+    expect(stringified).not.toContain("leak@test.com");
+    expect(stringified).not.toContain("+62811000");
+    expect(stringified).not.toContain("Jl. Rahasia");
+  });
 });
