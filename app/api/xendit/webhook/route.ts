@@ -98,12 +98,16 @@ export async function POST(req: NextRequest) {
     if (event === "payment_session.completed" && data.status === "COMPLETED") {
       const result = await handleSessionCompleted(data, eventId, body);
       revalidateTag("student-invoices", { expire: 0 });
+      revalidateTag("parent-invoice-list", { expire: 0 });
       return NextResponse.json(result);
     }
 
     if (event === "payment_session.expired") {
       const result = await handleSessionExpired(data, eventId, body);
-      if (result.invoiceId) revalidateTag("student-invoices", { expire: 0 });
+      if (result.invoiceId) {
+        revalidateTag("student-invoices", { expire: 0 });
+        revalidateTag("parent-invoice-list", { expire: 0 });
+      }
       return NextResponse.json(result);
     }
 
