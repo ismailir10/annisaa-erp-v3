@@ -266,21 +266,9 @@ async function runAutoSweep(
 ): Promise<void> {
   // Cheap pre-check — the count-only branch on /pending-payment-link
   // returns just `{ total: N }` so we don't pay for the row payload.
-  let pendingCount = 0;
-  try {
-    const res = await fetchImpl("/api/invoices/pending-payment-link?count-only=true", {
-      method: "GET",
-    });
-    if (res.ok) {
-      const json = (await res.json()) as { total?: number };
-      pendingCount = json.total ?? 0;
-    }
-  } catch {
-    // Network blip on the count check — skip the sweep gracefully. The
-    // admin can still hit the manual button if there's actually anything
-    // pending; we're not the source of truth here.
-    pendingCount = 0;
-  }
+  // Network blip → fallback 0 (skip sweep gracefully; admin can still hit
+  // the manual button if anything's actually pending).
+  const pendingCount = await fetchPendingCount(fetchImpl, signal, 0);
 
   if (pendingCount === 0) {
     snapshot.sweepRan = false;
@@ -311,19 +299,32 @@ async function runAutoSweep(
   }
 
   // Re-query post-sweep so the UI summary knows whether to surface the
-  // manual "Coba Lagi Link (N)" button.
+  // manual "Coba Lagi Link (N)" button. Fallback to the pre-sweep count
+  // on re-query failure — better to over-report than silently drop the
+  // manual surface.
+  snapshot.pendingAfterSweep = await fetchPendingCount(fetchImpl, signal, pendingCount);
+}
+
+/**
+ * Private helper: GET `?count-only=true` and return `total`, or `fallback`
+ * on any failure (non-ok response, network throw, unparseable JSON).
+ * Intentionally not exported — only `runAutoSweep` needs this shape.
+ */
+async function fetchPendingCount(
+  fetchImpl: typeof fetch,
+  signal: AbortSignal | undefined,
+  fallback: number,
+): Promise<number> {
   try {
     const res = await fetchImpl("/api/invoices/pending-payment-link?count-only=true", {
       method: "GET",
+      signal,
     });
-    if (res.ok) {
-      const json = (await res.json()) as { total?: number };
-      snapshot.pendingAfterSweep = json.total ?? 0;
-    } else {
-      snapshot.pendingAfterSweep = pendingCount;
-    }
+    if (!res.ok) return fallback;
+    const json = (await res.json()) as { total?: number };
+    return json.total ?? 0;
   } catch {
-    snapshot.pendingAfterSweep = pendingCount;
+    return fallback;
   }
 }
 

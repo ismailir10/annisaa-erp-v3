@@ -278,6 +278,9 @@ describe("runBulkGenerate — partial Xendit failure tallies xenditOk + xenditFa
     fetchMock.mockResolvedValueOnce(
       jsonResponse(makeBatchResponse(plan.eligibleStudentIds, [2])),
     );
+    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
+    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const out = await runBulkGenerate({
       planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
@@ -340,6 +343,9 @@ describe("runBulkGenerate — cancellation via AbortSignal", () => {
     const plan = makePlan(5);
     fetchMock.mockResolvedValueOnce(jsonResponse(plan));
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
+    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
+    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const out = await runBulkGenerate({
       planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
@@ -366,6 +372,9 @@ describe("runBulkGenerate — failure rows on snapshot", () => {
     // Inject 2 failures in chunk 1 and 1 in chunk 2 (total 3).
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1, [3, 7])));
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c2, [2])));
+    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
+    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const out = await runBulkGenerate({
       planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
