@@ -2,35 +2,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PendingLinkBreakdownPopover } from "../pending-link-breakdown-popover";
+import {
+  PAYMENT_LINK_ERROR_PREFIXES,
+  type PaymentLinkErrorPrefix,
+} from "@/lib/xendit/error-prefix";
 
-// All 10 buckets must be present on the wire shape — the API zero-fills them.
-type ByPrefix = {
-  "5xx": number;
-  "429": number;
-  "408": number;
-  network: number;
-  "401": number;
-  "403": number;
-  "422": number;
-  "4xx": number;
-  untagged: number;
-  unknown: number;
-};
+// All buckets must be present on the wire shape — the API zero-fills them.
+// Iterates the shared constant so adding a bucket means one edit there.
+type ByPrefix = Record<PaymentLinkErrorPrefix, number>;
 
 function makeByPrefix(overrides: Partial<ByPrefix> = {}): ByPrefix {
-  return {
-    "5xx": 0,
-    "429": 0,
-    "408": 0,
-    network: 0,
-    "401": 0,
-    "403": 0,
-    "422": 0,
-    "4xx": 0,
-    untagged: 0,
-    unknown: 0,
-    ...overrides,
-  };
+  const zero = Object.fromEntries(
+    PAYMENT_LINK_ERROR_PREFIXES.map((p) => [p, 0]),
+  ) as ByPrefix;
+  return { ...zero, ...overrides };
 }
 
 function mockBreakdown(total: number, byPrefix: ByPrefix) {
@@ -164,6 +149,31 @@ describe("PendingLinkBreakdownPopover", () => {
     const fetchMock = mockBreakdown(
       4,
       makeByPrefix({ "401": 1, "5xx": 3 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(
+      <PendingLinkBreakdownPopover
+        count={4}
+        retrying={false}
+        onClickRetry={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Coba Lagi Link/ }));
+
+    await screen.findByText("Rincian gagal");
+    expect(
+      screen.queryByText(/Banyak gagal autentikasi/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does NOT render the auth-heavy warning at exactly the 0.5 boundary (strict >)", async () => {
+    // 2 / 4 = 0.5 — equal to threshold, must NOT trigger (locks in `>` not `>=`).
+    const fetchMock = mockBreakdown(
+      4,
+      makeByPrefix({ "401": 1, "403": 1, "5xx": 2 }),
     );
     vi.stubGlobal("fetch", fetchMock);
 

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import {
+  PAYMENT_LINK_ERROR_PREFIXES,
+  type PaymentLinkErrorPrefix,
+} from "@/lib/xendit/error-prefix";
 
 /**
  * GET /api/invoices/pending-payment-link/breakdown
@@ -45,26 +49,18 @@ export async function GET() {
     GROUP BY 1
   `;
 
-  // Initialize all 10 buckets to 0 so consumer doesn't have to handle absent keys.
-  const byPrefix: Record<string, number> = {
-    "5xx": 0,
-    "429": 0,
-    "408": 0,
-    network: 0,
-    "401": 0,
-    "403": 0,
-    "422": 0,
-    "4xx": 0,
-    untagged: 0,
-    unknown: 0,
-  };
+  // Initialize all buckets to 0 from the shared constant so the consumer
+  // doesn't have to handle absent keys. Adding a bucket = update the constant.
+  const byPrefix = Object.fromEntries(
+    PAYMENT_LINK_ERROR_PREFIXES.map((p) => [p, 0]),
+  ) as Record<PaymentLinkErrorPrefix, number>;
 
   let total = 0;
   for (const row of rows) {
     const n = Number(row.n);
     total += n;
     if (row.prefix in byPrefix) {
-      byPrefix[row.prefix] = n;
+      byPrefix[row.prefix as PaymentLinkErrorPrefix] = n;
     } else {
       // Defensive: an unexpected prefix from older data lands in "unknown".
       byPrefix.unknown += n;

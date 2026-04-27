@@ -28,27 +28,20 @@ import { useState, useCallback } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw } from "lucide-react";
+import {
+  PAYMENT_LINK_ERROR_PREFIXES,
+  type PaymentLinkErrorPrefix,
+} from "@/lib/xendit/error-prefix";
 
-// Order matters: rendered top-to-bottom, transient buckets first so admins
-// recognize the "be patient and retry" categories before the hard ones.
-const PREFIX_ORDER = [
-  "5xx",
-  "429",
-  "408",
-  "network",
-  "401",
-  "403",
-  "422",
-  "4xx",
-  "untagged",
-  "unknown",
-] as const;
-
-type Prefix = (typeof PREFIX_ORDER)[number];
+// 401/403-heavy hint threshold: when (401 + 403) / total exceeds this share
+// the warning surfaces. > 50% of total = "not a flake" — consistent auth
+// failures point at a misconfigured XENDIT_SECRET_KEY, not Xendit flakiness.
+// Strict greater-than (not >=) per spec: a 50/50 split is not yet conclusive.
+const AUTH_HEAVY_THRESHOLD = 0.5;
 
 type Breakdown = {
   total: number;
-  byPrefix: Record<Prefix, number>;
+  byPrefix: Record<PaymentLinkErrorPrefix, number>;
 };
 
 interface Props {
@@ -150,18 +143,18 @@ function EmptyHint() {
 }
 
 function BreakdownBody({ data }: { data: Breakdown }) {
-  const buckets = PREFIX_ORDER.filter((p) => (data.byPrefix?.[p] ?? 0) > 0).map(
-    (p) => [p, data.byPrefix[p]] as const,
-  );
+  const buckets = PAYMENT_LINK_ERROR_PREFIXES.filter(
+    (p) => (data.byPrefix?.[p] ?? 0) > 0,
+  ).map((p) => [p, data.byPrefix[p]] as const);
 
   if (buckets.length === 0) {
     return <EmptyHint />;
   }
 
   // 401/403-heavy hint: surface env mis-config when auth failures dominate.
-  // Threshold matches the cycle spec — > 50% of total = "not a flake."
   const auth = (data.byPrefix["401"] ?? 0) + (data.byPrefix["403"] ?? 0);
-  const authHeavy = data.total > 0 && auth / data.total > 0.5;
+  const authHeavy =
+    data.total > 0 && auth / data.total > AUTH_HEAVY_THRESHOLD;
 
   return (
     <>

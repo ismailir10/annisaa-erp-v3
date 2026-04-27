@@ -1,6 +1,33 @@
 import { XenditApiError, type XenditErrorCode } from "./client";
 
 /**
+ * Canonical render order for the 10 payment-link error buckets surfaced by
+ * `GET /api/invoices/pending-payment-link/breakdown` and rendered by
+ * `PendingLinkBreakdownPopover`. Transient categories come first (`5xx`,
+ * `429`, `408`, `network`) so admins recognize the "be patient and retry"
+ * buckets before the hard ones (auth, validation, untagged legacy rows).
+ *
+ * Single source of truth: the breakdown route uses this to zero-fill the
+ * response, the popover iterates it for render order, and the component test
+ * uses it to build fixture objects with all keys present. Adding a bucket
+ * means updating this constant once — every consumer picks it up.
+ */
+export const PAYMENT_LINK_ERROR_PREFIXES = [
+  "5xx",
+  "429",
+  "408",
+  "network",
+  "401",
+  "403",
+  "422",
+  "4xx",
+  "untagged",
+  "unknown",
+] as const;
+
+export type PaymentLinkErrorPrefix = (typeof PAYMENT_LINK_ERROR_PREFIXES)[number];
+
+/**
  * Classify any caught error into a stable prefix + message pair.
  *
  * Returns the `XenditApiError.code` as the prefix when the error came from
