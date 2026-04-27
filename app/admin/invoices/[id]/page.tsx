@@ -332,24 +332,24 @@ export default function InvoiceDetailPage() {
         <Sheet open={paymentDialog} onOpenChange={setPaymentDialog}>
           <SheetContent side="bottom" className="overflow-y-auto">
             <SheetHeader><SheetTitle>Catat Pembayaran</SheetTitle></SheetHeader>
-            <div className="p-card space-y-field">
+            <div className="space-y-field px-4 pb-4">
               <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
             </div>
             <SheetFooter>
-              <SheetClose><Button variant="outline">Batal</Button></SheetClose>
+              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
               <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
       ) : (
         <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-          <DialogContent className="p-card">
+          <DialogContent>
             <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
-            <div className="p-card space-y-field">
+            <div className="space-y-field">
               <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
             </div>
             <DialogFooter>
-              <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
               <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
             </DialogFooter>
           </DialogContent>
