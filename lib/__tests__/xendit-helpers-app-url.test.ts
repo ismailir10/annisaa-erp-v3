@@ -63,10 +63,10 @@ describe("createXenditSessionForInvoice — APP_URL trailing-slash safety", () =
 
     const args = vi.mocked(createXenditSession).mock.calls[0]?.[0];
     expect(args?.successReturnUrl).toBe(
-      "https://annisaa-erp-v3.vercel.app/payment/success?invoice=inv-1",
+      "https://annisaa-erp-v3.vercel.app/parent/invoices?invoice=inv-1&xenditStatus=paid",
     );
     expect(args?.cancelReturnUrl).toBe(
-      "https://annisaa-erp-v3.vercel.app/payment/cancel?invoice=inv-1",
+      "https://annisaa-erp-v3.vercel.app/parent/invoices?invoice=inv-1&xenditStatus=cancel",
     );
     // Critical: no double slash anywhere except the protocol.
     expect(args?.successReturnUrl).not.toMatch(/(?<!:)\/\//);

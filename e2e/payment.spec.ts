@@ -1,13 +1,16 @@
 import { test, expect } from "@playwright/test";
 
-// /payment/success and /payment/cancel are auth-exempt per proxy.ts:55-60.
-// However the *destination* /parent/invoices IS auth-gated, so we inject
-// the demo session cookie before each test to confirm the click/timer
-// actually lands on the parent portal (not the / login page).
+// /payment/success and /payment/cancel are now thin server-side redirect
+// shims that forward to /parent/invoices?invoice=<id>&xenditStatus=paid|cancel
+// for backwards compatibility with Xendit sessions created before cycle
+// 2026-04-27-finance-ui-polish (return URLs are baked at session-creation
+// time and live up to 7 days). The destination is auth-gated, so we inject
+// the demo session cookie before each test to confirm the redirect actually
+// lands on the parent portal.
 
 let parentUserId: string;
 
-test.describe("Payment return pages", () => {
+test.describe("Payment return shims", () => {
   test.beforeAll(async ({ request }) => {
     const res = await request.get("/api/auth/users");
     const users = await res.json();
@@ -27,19 +30,21 @@ test.describe("Payment return pages", () => {
     }]);
   });
 
-  test("success: Kembali button navigates to /parent/invoices", async ({ page }) => {
+  test("success shim redirects to /parent/invoices with paid status", async ({ page }) => {
     await page.goto("/payment/success?invoice=demo-fake");
-    const link = page.getByRole("link", { name: /Kembali ke Portal Orang Tua/i });
-    await expect(link).toBeVisible();
-    await link.click();
-    await page.waitForURL("**/parent/invoices", { timeout: 8_000 });
-    expect(page.url()).toContain("/parent/invoices");
+    await page.waitForURL("**/parent/invoices?invoice=demo-fake&xenditStatus=paid", { timeout: 8_000 });
+    expect(page.url()).toContain("/parent/invoices?invoice=demo-fake&xenditStatus=paid");
   });
 
-  test("cancel: auto-redirect lands on /parent/invoices within 8s", async ({ page }) => {
+  test("cancel shim redirects to /parent/invoices with cancel status", async ({ page }) => {
     await page.goto("/payment/cancel?invoice=demo-fake");
-    // 5s countdown + ≤3s cold-server hydration buffer
+    await page.waitForURL("**/parent/invoices?invoice=demo-fake&xenditStatus=cancel", { timeout: 8_000 });
+    expect(page.url()).toContain("/parent/invoices?invoice=demo-fake&xenditStatus=cancel");
+  });
+
+  test("success shim with no invoice param falls back to plain /parent/invoices", async ({ page }) => {
+    await page.goto("/payment/success");
     await page.waitForURL("**/parent/invoices", { timeout: 8_000 });
-    expect(page.url()).toContain("/parent/invoices");
+    expect(page.url()).toMatch(/\/parent\/invoices(\?|$)/);
   });
 });

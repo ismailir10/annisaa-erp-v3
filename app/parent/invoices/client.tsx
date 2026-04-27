@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Receipt, Sparkles } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/format";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { PageHeader } from "@/components/portal/page-header";
@@ -43,6 +44,11 @@ function isPaid(inv: InvoiceItem): boolean {
 }
 
 export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const invoiceParam = searchParams.get("invoice");
+  const xenditStatusParam = searchParams.get("xenditStatus");
+
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showAllPaid, setShowAllPaid] = useState(false);
   const loading = data === null;
@@ -52,6 +58,26 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       toast.error("Tagihan belum bisa dimuat. Coba lagi sebentar ya.");
     }
   }, [data]);
+
+  // Xendit return-URL handler. Backend rewires success_return_url and
+  // cancel_return_url to land here with `?invoice=<id>&xenditStatus=paid|cancel`.
+  // Open the detail sheet for the invoice, fire a one-shot toast, then strip
+  // the query params so a refresh does not re-fire the toast. Only acts when
+  // the invoice id resolves against the parent's own data — a stale or
+  // foreign id leaves the params intact for now (a future render with refreshed
+  // data may resolve them).
+  useEffect(() => {
+    if (!data || !invoiceParam || !xenditStatusParam) return;
+    const found = data.find((i) => i.id === invoiceParam);
+    if (!found) return;
+    setSelectedInvoiceId(invoiceParam);
+    if (xenditStatusParam === "paid") {
+      toast.success(`Alhamdulillah, tagihan ${found.periodLabel} terbayar.`);
+    } else if (xenditStatusParam === "cancel") {
+      toast("Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.");
+    }
+    router.replace("/parent/invoices", { scroll: false });
+  }, [data, invoiceParam, xenditStatusParam, router]);
 
   const todayYmd = new Date().toISOString().slice(0, 10);
 
