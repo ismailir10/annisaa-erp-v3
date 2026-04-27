@@ -31,6 +31,7 @@ vi.mock("@/lib/xendit/client", () => ({
 
 beforeEach(() => {
   vi.resetModules();
+  vi.clearAllMocks();
 });
 
 describe("createXenditSessionForInvoice — APP_URL trailing-slash safety", () => {
@@ -63,14 +64,54 @@ describe("createXenditSessionForInvoice — APP_URL trailing-slash safety", () =
 
     const args = vi.mocked(createXenditSession).mock.calls[0]?.[0];
     expect(args?.successReturnUrl).toBe(
-      "https://annisaa-erp-v3.vercel.app/payment/success?invoice=inv-1",
+      "https://annisaa-erp-v3.vercel.app/parent/invoices?invoice=inv-1&xenditStatus=paid",
     );
     expect(args?.cancelReturnUrl).toBe(
-      "https://annisaa-erp-v3.vercel.app/payment/cancel?invoice=inv-1",
+      "https://annisaa-erp-v3.vercel.app/parent/invoices?invoice=inv-1&xenditStatus=cancel",
     );
     // Critical: no double slash anywhere except the protocol.
     expect(args?.successReturnUrl).not.toMatch(/(?<!:)\/\//);
     expect(args?.cancelReturnUrl).not.toMatch(/(?<!:)\/\//);
   });
 
+  it("requestOrigin (staging) wins over NEXT_PUBLIC_APP_URL (prod) — return URLs stay on staging", async () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://annisaa-erp-v3.vercel.app";
+    const stagingOrigin =
+      "https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app";
+
+    const { createXenditSession } = await import("@/lib/xendit/client");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(createXenditSession).mockResolvedValue({
+      id: "ps-staging",
+      payment_link_url: "https://x/y",
+    } as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv-2",
+      tenantId: "tnt-1",
+      status: "SENT",
+      totalDue: 1000,
+      totalPaid: 0,
+      invoiceNumber: "INV-2",
+      periodLabel: "Apr 2026",
+      student: { name: "Aisy", guardians: [] },
+      lines: [],
+    } as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+
+    const { createXenditSessionForInvoice } = await import(
+      "@/lib/xendit/helpers"
+    );
+    await createXenditSessionForInvoice("inv-2", "tnt-1", stagingOrigin);
+
+    const args = vi.mocked(createXenditSession).mock.calls[0]?.[0];
+    expect(args?.successReturnUrl).toBe(
+      `${stagingOrigin}/parent/invoices?invoice=inv-2&xenditStatus=paid`,
+    );
+    expect(args?.cancelReturnUrl).toBe(
+      `${stagingOrigin}/parent/invoices?invoice=inv-2&xenditStatus=cancel`,
+    );
+    // Critical: did NOT silently route back to prod via the env fallback.
+    expect(args?.successReturnUrl).not.toContain("annisaa-erp-v3.vercel.app/parent");
+    expect(args?.cancelReturnUrl).not.toContain("annisaa-erp-v3.vercel.app/parent");
+  });
 });

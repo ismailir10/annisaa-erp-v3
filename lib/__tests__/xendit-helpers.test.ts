@@ -33,4 +33,16 @@ describe("resolveAppOrigin", () => {
     expect(() => resolveAppOrigin()).toThrow(/No origin available/);
     expect(() => resolveAppOrigin(undefined)).toThrow(/NEXT_PUBLIC_APP_URL/);
   });
+
+  // Pinned per cycle 2026-04-27-finance-ui-polish T7. Without this, a future
+  // refactor that drops the requestOrigin parameter or reorders the priority
+  // chain could silently route preview/staging traffic back to prod.
+  it("preview/staging origin survives even when prod env is set (priority pin)", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://annisaa-erp-v3.vercel.app";
+    const stagingOrigin =
+      "https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app";
+    expect(resolveAppOrigin(stagingOrigin)).toBe(stagingOrigin);
+    const previewOrigin = "https://annisaa-erp-v3-git-feat-x-ismails-projects.vercel.app";
+    expect(resolveAppOrigin(previewOrigin)).toBe(previewOrigin);
+  });
 });

@@ -444,7 +444,7 @@ function ManualInvoiceFormBody({
 
       <Field>
         <FieldLabel>Komponen Biaya *</FieldLabel>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
           {form.lines.map((line, index) => (
             <div key={index} className="flex items-center gap-2">
               <div className="flex-1 min-w-0">
@@ -454,7 +454,7 @@ function ManualInvoiceFormBody({
                     v && updateLine(index, { feeComponentId: v })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue placeholder="Pilih komponen" />
                   </SelectTrigger>
                   <SelectContent>
@@ -479,7 +479,7 @@ function ManualInvoiceFormBody({
                 value={line.amount}
                 onChange={(e) => updateLine(index, { amount: e.target.value })}
                 placeholder="0"
-                className="w-32 font-currency"
+                className="w-32 font-currency bg-background"
               />
               <Button
                 type="button"
@@ -495,7 +495,7 @@ function ManualInvoiceFormBody({
           ))}
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={addLine}
             className="self-start"
@@ -505,9 +505,9 @@ function ManualInvoiceFormBody({
         </div>
       </Field>
 
-      <div className="flex items-center justify-between border-t pt-3">
-        <span className="text-sm font-medium">Total</span>
-        <span className="font-currency text-base font-bold">
+      <div className="flex items-center justify-between border-t border-border pt-4 mt-2">
+        <span className="text-sm font-semibold text-foreground">Total</span>
+        <span className="font-currency text-base font-bold tabular-nums text-foreground">
           {formatRupiah(total)}
         </span>
       </div>
@@ -660,7 +660,7 @@ export function ManualInvoiceDialog({
           </div>
           <SheetFooter>
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={submitting}
             >

@@ -60,8 +60,8 @@ export async function createXenditSessionForInvoice(
 
   const guardianParent = invoice.student.guardians[0]?.parent;
   const appOrigin = resolveAppOrigin(requestOrigin);
-  const successReturnUrl = `${appOrigin}/payment/success?invoice=${invoice.id}`;
-  const cancelReturnUrl = `${appOrigin}/payment/cancel?invoice=${invoice.id}`;
+  const successReturnUrl = `${appOrigin}/parent/invoices?invoice=${invoice.id}&xenditStatus=paid`;
+  const cancelReturnUrl = `${appOrigin}/parent/invoices?invoice=${invoice.id}&xenditStatus=cancel`;
 
   const xenditSession = await createXenditSession({
     referenceId: invoice.id,

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InvoicesClient } from "../client";
@@ -18,9 +18,29 @@ vi.mock("../invoice-detail-sheet", () => ({
   ),
 }));
 
+const toastFn = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() });
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn() },
+  get toast() {
+    return toastFn;
+  },
 }));
+
+const replaceFn = vi.fn();
+const refreshFn = vi.fn();
+let mockSearchParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: replaceFn, push: vi.fn(), refresh: refreshFn }),
+  useSearchParams: () => mockSearchParams,
+}));
+
+beforeEach(() => {
+  toastFn.mockClear();
+  toastFn.error.mockClear();
+  toastFn.success.mockClear();
+  replaceFn.mockClear();
+  refreshFn.mockClear();
+  mockSearchParams = new URLSearchParams();
+});
 
 const mockInvoices = [
   {
@@ -151,6 +171,107 @@ describe("InvoicesClient (cycle-4)", () => {
       const row = screen.getByRole("button", { name: /Agustus 2024/ });
       await user.click(row);
       expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
+    });
+  });
+
+  describe("Xendit return-URL handler", () => {
+    it("opens detail sheet, fires success toast, and clears params on ?invoice=&xenditStatus=paid", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&xenditStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Alhamdulillah"),
+      );
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Agustus 2024"),
+      );
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+      expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
+    });
+
+    it("fires neutral cancel toast on ?invoice=&xenditStatus=cancel", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&xenditStatus=cancel");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn).toHaveBeenCalledWith(
+        expect.stringContaining("Pembayaran belum selesai"),
+      );
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+    });
+
+    it("does nothing when invoice id is foreign / not in data", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-foreign&xenditStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(toastFn).not.toHaveBeenCalled();
+      expect(replaceFn).not.toHaveBeenCalled();
+      expect(screen.queryByText(/Sheet open:/)).not.toBeInTheDocument();
+    });
+
+    it("does nothing when xenditStatus is missing", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(replaceFn).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when invoice param is missing", () => {
+      mockSearchParams = new URLSearchParams("xenditStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(replaceFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Webhook → list freshness poll", () => {
+    it("polls router.refresh every 30s when an invoice has an active xendit session", () => {
+      vi.useFakeTimers();
+      const inFlight = mockInvoices.map((inv) =>
+        inv.id === "inv-1"
+          ? { ...inv, xenditPaymentUrl: "https://checkout.xendit.co/abc" }
+          : inv,
+      );
+      render(<InvoicesClient data={inFlight} />);
+      expect(refreshFn).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(30_000);
+      expect(refreshFn).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(30_000);
+      expect(refreshFn).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
+    });
+
+    it("does not poll when no invoice has an active xendit session", () => {
+      vi.useFakeTimers();
+      render(<InvoicesClient data={mockInvoices} />);
+      vi.advanceTimersByTime(60_000);
+      expect(refreshFn).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+  });
+
+  describe("Status flip → PAID emits one-shot toast", () => {
+    it("fires success toast when an invoice transitions from non-PAID to PAID", () => {
+      const { rerender } = render(<InvoicesClient data={mockInvoices} />);
+      // First render: no flip, no toast (prevDataRef seeds with current data)
+      expect(toastFn.success).not.toHaveBeenCalled();
+      // Second render: inv-1 (SENT) flips to PAID
+      const flipped = mockInvoices.map((inv) =>
+        inv.id === "inv-1"
+          ? { ...inv, status: "PAID", totalPaid: inv.totalDue, paidAt: "2024-09-01" }
+          : inv,
+      );
+      rerender(<InvoicesClient data={flipped} />);
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("baru saja terbayar"),
+      );
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Agustus 2024"),
+      );
+    });
+
+    it("does not fire toast on initial mount even if data has PAID rows", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      // mockInvoices includes inv-3 PAID — no toast since there's no prior render
+      // showing it as non-PAID.
+      expect(toastFn.success).not.toHaveBeenCalled();
     });
   });
 });

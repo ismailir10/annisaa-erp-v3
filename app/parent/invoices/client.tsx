@@ -5,7 +5,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Receipt, Sparkles } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/format";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { PageHeader } from "@/components/portal/page-header";
@@ -43,14 +44,90 @@ function isPaid(inv: InvoiceItem): boolean {
 }
 
 export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const invoiceParam = searchParams.get("invoice");
+  const xenditStatusParam = searchParams.get("xenditStatus");
+
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showAllPaid, setShowAllPaid] = useState(false);
+  const [recentlyPaidIds, setRecentlyPaidIds] = useState<Set<string>>(new Set());
+  const prevDataRef = useRef<InvoiceItem[] | null>(null);
   const loading = data === null;
 
   useEffect(() => {
     if (data === null) {
       toast.error("Tagihan belum bisa dimuat. Coba lagi sebentar ya.");
     }
+  }, [data]);
+
+  // Xendit return-URL handler. Backend rewires success_return_url and
+  // cancel_return_url to land here with `?invoice=<id>&xenditStatus=paid|cancel`.
+  // Open the detail sheet for the invoice, fire a one-shot toast, then strip
+  // the query params so a refresh does not re-fire the toast. Only acts when
+  // the invoice id resolves against the parent's own data — a stale or
+  // foreign id leaves the params intact for now (a future render with refreshed
+  // data may resolve them).
+  useEffect(() => {
+    if (!data || !invoiceParam || !xenditStatusParam) return;
+    const found = data.find((i) => i.id === invoiceParam);
+    if (!found) return;
+    setSelectedInvoiceId(invoiceParam);
+    if (xenditStatusParam === "paid") {
+      toast.success(`Alhamdulillah, tagihan ${found.periodLabel} terbayar.`);
+    } else if (xenditStatusParam === "cancel") {
+      toast("Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.");
+    }
+    router.replace("/parent/invoices", { scroll: false });
+  }, [data, invoiceParam, xenditStatusParam, router]);
+
+  // Webhook → list freshness. While at least one outstanding invoice has an
+  // active Xendit payment session (xenditPaymentUrl != null), poll the server
+  // component every 30 s so the parent sees the PAID flip without manual
+  // refresh. Stops as soon as no in-flight payment remains.
+  const hasInFlightPayment = useMemo(
+    () => data?.some((i) => i.xenditPaymentUrl != null && isOutstanding(i)) ?? false,
+    [data],
+  );
+  useEffect(() => {
+    if (!hasInFlightPayment) return;
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [hasInFlightPayment, router]);
+
+  // Diff-detect status transitions to PAID across renders. Fire one-shot toast
+  // and add the row id to the recently-paid set for ring-flash animation.
+  useEffect(() => {
+    if (!data) return;
+    const prev = prevDataRef.current;
+    prevDataRef.current = data;
+    if (!prev) return;
+    const flipped: string[] = [];
+    for (const curr of data) {
+      const prior = prev.find((p) => p.id === curr.id);
+      if (prior && prior.status !== "PAID" && curr.status === "PAID") {
+        flipped.push(curr.id);
+        toast.success(
+          `Alhamdulillah, tagihan ${curr.periodLabel} baru saja terbayar.`,
+        );
+      }
+    }
+    if (flipped.length === 0) return;
+    setRecentlyPaidIds((prevSet) => {
+      const next = new Set(prevSet);
+      flipped.forEach((id) => next.add(id));
+      return next;
+    });
+    const timer = setTimeout(() => {
+      setRecentlyPaidIds((prevSet) => {
+        const next = new Set(prevSet);
+        flipped.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, 1500);
+    return () => clearTimeout(timer);
   }, [data]);
 
   const todayYmd = new Date().toISOString().slice(0, 10);
@@ -161,28 +238,13 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
           </p>
         </section>
       ) : (
-        <section
-          className="rounded-xl border p-4 md:p-6"
-          style={{
-            background: "var(--celebration-gold-subtle)",
-            borderColor: "var(--celebration-gold)",
-          }}
-        >
+        <section className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-4 md:p-6">
           <div className="flex items-center gap-3">
-            <div
-              className="grid size-10 place-items-center rounded-lg"
-              style={{
-                background: "var(--celebration-gold-subtle)",
-                color: "var(--celebration-gold-text)",
-              }}
-            >
+            <div className="grid size-10 place-items-center rounded-lg bg-celebration-gold-subtle text-celebration-gold-text">
               <Sparkles size={18} />
             </div>
             <div>
-              <p
-                className="text-sm font-semibold"
-                style={{ color: "var(--celebration-gold-text)" }}
-              >
+              <p className="text-sm font-semibold text-celebration-gold-text">
                 Lunas semua
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -225,6 +287,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
                 onClick={() => setSelectedInvoiceId(inv.id)}
                 tone="paid"
                 isOverdue={false}
+                highlight={recentlyPaidIds.has(inv.id)}
               />
             ))}
           </ul>
@@ -266,11 +329,13 @@ function InvoiceRow({
   onClick,
   tone,
   isOverdue,
+  highlight = false,
 }: {
   invoice: InvoiceItem;
   onClick: () => void;
   tone: "due" | "paid";
   isOverdue: boolean;
+  highlight?: boolean;
 }) {
   const remaining = invoice.totalDue - invoice.totalPaid;
   const amount = tone === "due" ? remaining : invoice.totalDue;
@@ -285,7 +350,7 @@ function InvoiceRow({
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-baseline gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40"
+        className={`flex w-full items-baseline gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40 ${highlight ? "animate-in fade-in duration-700 ring-2 ring-status-present-text/40" : ""}`}
       >
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">{invoice.periodLabel}</p>
