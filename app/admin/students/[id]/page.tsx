@@ -633,20 +633,20 @@ export default function StudentDetailPage() {
           <Sheet open={guardianDialog} onOpenChange={setGuardianDialog}>
             <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
               <SheetHeader><SheetTitle>{guardianTitle}</SheetTitle></SheetHeader>
-              <div className="p-card">{guardianBody}</div>
+              <div className="px-4 pb-4">{guardianBody}</div>
               <SheetFooter>
-                <Button variant="outline" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
+                <Button variant="ghost" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
                 <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
               </SheetFooter>
             </SheetContent>
           </Sheet>
         ) : (
           <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
-            <DialogContent className="p-card">
+            <DialogContent>
               <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
-              <div className="p-card">{guardianBody}</div>
+              <div>{guardianBody}</div>
               <DialogFooter>
-                <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
                 <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
               </DialogFooter>
             </DialogContent>
@@ -671,20 +671,20 @@ export default function StudentDetailPage() {
           <Sheet open={enrollDialog} onOpenChange={setEnrollDialog}>
             <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
               <SheetHeader><SheetTitle>Daftarkan ke Kelas</SheetTitle></SheetHeader>
-              <div className="p-card">{enrollBody}</div>
+              <div className="px-4 pb-4">{enrollBody}</div>
               <SheetFooter>
-                <Button variant="outline" onClick={() => setEnrollDialog(false)} disabled={enrolling}>Batal</Button>
+                <Button variant="ghost" onClick={() => setEnrollDialog(false)} disabled={enrolling}>Batal</Button>
                 <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
               </SheetFooter>
             </SheetContent>
           </Sheet>
         ) : (
           <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
-            <DialogContent className="p-card">
+            <DialogContent>
               <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
-              <div className="p-card">{enrollBody}</div>
+              <div>{enrollBody}</div>
               <DialogFooter>
-                <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
                 <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
               </DialogFooter>
             </DialogContent>
@@ -715,20 +715,20 @@ export default function StudentDetailPage() {
           <Sheet open={promoteDialog} onOpenChange={setPromoteDialog}>
             <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
               <SheetHeader><SheetTitle>Naik Kelas</SheetTitle></SheetHeader>
-              <div className="p-card">{promoteBody}</div>
+              <div className="px-4 pb-4">{promoteBody}</div>
               <SheetFooter>
-                <Button variant="outline" onClick={() => setPromoteDialog(false)} disabled={promoting}>Batal</Button>
+                <Button variant="ghost" onClick={() => setPromoteDialog(false)} disabled={promoting}>Batal</Button>
                 <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
               </SheetFooter>
             </SheetContent>
           </Sheet>
         ) : (
           <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
-            <DialogContent className="p-card">
+            <DialogContent>
               <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
-              <div className="p-card">{promoteBody}</div>
+              <div>{promoteBody}</div>
               <DialogFooter>
-                <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
                 <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
               </DialogFooter>
             </DialogContent>
@@ -756,20 +756,20 @@ export default function StudentDetailPage() {
           <Sheet open={withdrawDialog} onOpenChange={setWithdrawDialog}>
             <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
               <SheetHeader><SheetTitle>Keluarkan Siswa</SheetTitle></SheetHeader>
-              <div className="p-card">{withdrawBody}</div>
+              <div className="px-4 pb-4">{withdrawBody}</div>
               <SheetFooter>
-                <Button variant="outline" onClick={() => setWithdrawDialog(false)} disabled={withdrawing}>Batal</Button>
+                <Button variant="ghost" onClick={() => setWithdrawDialog(false)} disabled={withdrawing}>Batal</Button>
                 <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
               </SheetFooter>
             </SheetContent>
           </Sheet>
         ) : (
           <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
-            <DialogContent className="p-card">
+            <DialogContent>
               <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
-              <div className="p-card">{withdrawBody}</div>
+              <div>{withdrawBody}</div>
               <DialogFooter>
-                <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
                 <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
               </DialogFooter>
             </DialogContent>

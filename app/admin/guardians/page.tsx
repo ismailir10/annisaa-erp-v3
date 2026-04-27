@@ -262,24 +262,24 @@ export default function GuardiansPage() {
         <Sheet open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
           <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
             <SheetHeader><SheetTitle>Edit Wali</SheetTitle></SheetHeader>
-            <div className="p-card">
+            <div className="px-4 pb-4">
               <GuardianEditFormBody form={editForm} setForm={setEditForm} />
             </div>
             <SheetFooter>
-              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
+              <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
               <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
       ) : (
         <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-          <DialogContent className="p-card">
+          <DialogContent>
             <DialogHeader><DialogTitle>Edit Wali</DialogTitle></DialogHeader>
-            <div className="p-card">
+            <div>
               <GuardianEditFormBody form={editForm} setForm={setEditForm} />
             </div>
             <DialogFooter>
-              <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
               <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
             </DialogFooter>
           </DialogContent>

@@ -270,14 +270,14 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
 
       {/* Submit dialog — renders on top of Sheet */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Ajukan Cuti</DialogTitle>
             <DialogDescription>
               Pengajuan akan dikirim ke admin untuk persetujuan
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-field py-2">
+          <div className="space-y-field">
             <Field>
               <FieldLabel>Jenis Cuti</FieldLabel>
               <Select
@@ -339,7 +339,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
           </div>
           <DialogFooter>
             <DialogClose>
-              <Button variant="outline">Batal</Button>
+              <Button variant="ghost">Batal</Button>
             </DialogClose>
             <Button onClick={handleSubmit} disabled={saving}>
               {saving ? "Mengirim..." : "Ajukan"}
