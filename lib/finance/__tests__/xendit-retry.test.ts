@@ -74,7 +74,8 @@ describe("retryPaymentLinks — mixed success/failure", () => {
       studentId: "s-3",
       studentName: "Citra",
       status: "PENDING_PAYMENT_LINK",
-      error: "Xendit 503",
+      // Prefix-tagged via formatPaymentLinkError — generic Error → "unknown:".
+      error: "unknown: Xendit 503",
     });
 
     // T4 — every result row carries studentName for the failure-detail UI.
@@ -95,8 +96,9 @@ describe("retryPaymentLinks — mixed success/failure", () => {
     }
 
     // The 1 failure gets { paymentLinkError: <msg> } (no status change).
+    // Prefix-tagged via formatPaymentLinkError — generic Error → "unknown:".
     const failUpdate = updateCalls.find((c) => c.where.id === "i-3");
-    expect(failUpdate?.data).toEqual({ paymentLinkError: "Xendit 503" });
+    expect(failUpdate?.data).toEqual({ paymentLinkError: "unknown: Xendit 503" });
   });
 });
 
@@ -175,7 +177,8 @@ describe("retryPaymentLinks — 25-invoice with 3 Xendit failures", () => {
     expect(failures).toHaveLength(3);
     for (const f of failures) {
       if (f.status === "PENDING_PAYMENT_LINK") {
-        expect(f.error).toBe("Xendit 503");
+        // Prefix-tagged via formatPaymentLinkError — generic Error → "unknown:".
+        expect(f.error).toBe("unknown: Xendit 503");
         expect(f.studentName).toBeTruthy();
         expect(f.studentId).toBeTruthy();
       }

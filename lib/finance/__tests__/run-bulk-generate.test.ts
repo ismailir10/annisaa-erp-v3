@@ -88,6 +88,8 @@ describe("runBulkGenerate — single chunk (5 students)", () => {
     const plan = makePlan(5);
     fetchMock.mockResolvedValueOnce(jsonResponse(plan));
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
+    // Auto-sweep gate (T7): 0 pending → no sweep, no extra fetches.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const onProgress = vi.fn();
     const onPlan = vi.fn().mockResolvedValue(true);
@@ -106,10 +108,12 @@ describe("runBulkGenerate — single chunk (5 students)", () => {
       expect(out.final.created).toBe(5);
       expect(out.final.xenditOk).toBe(5);
       expect(out.final.xenditFailed).toBe(0);
+      expect(out.final.sweepRan).toBe(false);
+      expect(out.final.pendingAfterSweep).toBe(0);
     }
 
-    // Plan + 1 batch = 2 fetch calls.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Plan + 1 batch + 1 count-only sweep gate = 3 fetch calls.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const planCall = fetchMock.mock.calls[0];
     expect(planCall[0]).toBe("/api/invoices/generate/plan");
     const batchCall = fetchMock.mock.calls[1];
@@ -117,6 +121,9 @@ describe("runBulkGenerate — single chunk (5 students)", () => {
     const batchBody = JSON.parse(batchCall[1].body);
     expect(batchBody.studentIds).toHaveLength(5);
     expect(batchBody.periodLabel).toBe("April 2026");
+    expect(fetchMock.mock.calls[2][0]).toBe(
+      "/api/invoices/pending-payment-link?count-only=true",
+    );
 
     // onProgress fires at start (running) + after batch + at done.
     const phases = onProgress.mock.calls.map((c) => (c[0] as BatchProgressSnapshot).phase);
@@ -136,6 +143,8 @@ describe("runBulkGenerate — multi chunk (60 students → 25 + 25 + 10)", () =>
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1)));
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c2)));
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c3)));
+    // Auto-sweep gate (T7): 0 pending → no sweep.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const progressSnapshots: BatchProgressSnapshot[] = [];
     const out = await runBulkGenerate({
@@ -146,10 +155,13 @@ describe("runBulkGenerate — multi chunk (60 students → 25 + 25 + 10)", () =>
     });
 
     expect(BATCH_SIZE).toBe(25); // sanity — chunking constant must match spec §6
-    expect(fetchMock).toHaveBeenCalledTimes(4); // plan + 3 batches
+    expect(fetchMock).toHaveBeenCalledTimes(5); // plan + 3 batches + 1 sweep gate
 
     // Verify each batch posted the right slice.
-    const batchBodies = fetchMock.mock.calls.slice(1).map((c) => JSON.parse(c[1].body));
+    // calls[0] is the plan POST, calls[1..3] are the 3 batches, calls[4] is the sweep gate GET.
+    const batchBodies = fetchMock.mock.calls
+      .slice(1, 4)
+      .map((c) => JSON.parse(c[1].body));
     expect(batchBodies[0].studentIds).toHaveLength(25);
     expect(batchBodies[1].studentIds).toHaveLength(25);
     expect(batchBodies[2].studentIds).toHaveLength(10);
@@ -266,6 +278,9 @@ describe("runBulkGenerate — partial Xendit failure tallies xenditOk + xenditFa
     fetchMock.mockResolvedValueOnce(
       jsonResponse(makeBatchResponse(plan.eligibleStudentIds, [2])),
     );
+    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
+    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const out = await runBulkGenerate({
       planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
@@ -328,6 +343,9 @@ describe("runBulkGenerate — cancellation via AbortSignal", () => {
     const plan = makePlan(5);
     fetchMock.mockResolvedValueOnce(jsonResponse(plan));
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
+    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
+    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const out = await runBulkGenerate({
       planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
@@ -354,6 +372,9 @@ describe("runBulkGenerate — failure rows on snapshot", () => {
     // Inject 2 failures in chunk 1 and 1 in chunk 2 (total 3).
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1, [3, 7])));
     fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c2, [2])));
+    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
+    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const out = await runBulkGenerate({
       planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
@@ -370,5 +391,186 @@ describe("runBulkGenerate — failure rows on snapshot", () => {
         expect(f.error).toBe("Xendit unavailable");
       }
     }
+  });
+});
+
+// --------------------------------------------------------------------------
+// Auto-sweep (T7) — orchestrator-level "Coba Lagi Link" between chunks-done
+// and final summary. Spec: docs/cycles/2026-04-27-invoice-create-auto-retry.md
+// §Task 7.
+// --------------------------------------------------------------------------
+
+describe("runBulkGenerate — auto-sweep clears transient failures", () => {
+  it("fires runBulkRetry once when pending > 0 + signal not aborted; transients clear → pendingAfterSweep=0", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(25);
+    // 1) plan
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+    // 2) batch — 22 SENT + 3 PENDING_PAYMENT_LINK (transient)
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(makeBatchResponse(plan.eligibleStudentIds, [5, 11, 18])),
+    );
+    // 3) auto-sweep gate — count-only=true returns 3 pending
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 3 }));
+    // 4) runBulkRetry's pending list (full payload, not count-only)
+    const pendingIds = ["s-6", "s-12", "s-19"];
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: pendingIds.map((id) => ({
+          id,
+          studentName: `Student ${id}`,
+          periodLabel: "April 2026",
+          totalDue: "500000",
+          paymentLinkError: "5xx: Xendit 503",
+        })),
+        total: 3,
+      }),
+    );
+    // 5) runBulkRetry's retry-payment-links call — all 3 succeed
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        retried: 3,
+        succeeded: 3,
+        stillFailed: 0,
+        results: pendingIds.map((id) => ({
+          invoiceId: id,
+          invoiceNumber: `INV-${id}`,
+          studentId: id,
+          status: "SENT" as const,
+          paymentUrl: `https://xendit.local/pay/${id}`,
+        })),
+      }),
+    );
+    // 6) post-sweep re-count — 0 pending
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
+
+    const phases: string[] = [];
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      onProgress: (s) => phases.push(s.phase),
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("done");
+    if (out.phase === "done") {
+      expect(out.final.sweepRan).toBe(true);
+      expect(out.final.pendingAfterSweep).toBe(0);
+      // Chunk counters are intentionally frozen during sweep (see
+      // BatchProgressPhase doc). xenditFailed reflects the post-chunk
+      // pre-sweep count; pendingAfterSweep is the source of truth.
+      expect(out.final.xenditFailed).toBe(3);
+      expect(out.final.xenditOk).toBe(22);
+    }
+
+    // Phase transitions: running → sweeping → done.
+    expect(phases).toContain("running");
+    expect(phases).toContain("sweeping");
+    expect(phases[phases.length - 1]).toBe("done");
+
+    // Sanity: count-only=true was used, not the full list (twice — pre + post sweep).
+    const countCalls = fetchMock.mock.calls.filter((c) =>
+      String(c[0]).includes("/api/invoices/pending-payment-link?count-only=true"),
+    );
+    expect(countCalls).toHaveLength(2);
+  });
+});
+
+describe("runBulkGenerate — auto-sweep cannot clear hard failures", () => {
+  it("fires sweep but pendingAfterSweep > 0 surfaces the manual button", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(25);
+    // 1) plan
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+    // 2) batch — 23 SENT + 2 PENDING (401 hard failures)
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(makeBatchResponse(plan.eligibleStudentIds, [10, 20])),
+    );
+    // 3) pre-sweep count
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 2 }));
+    // 4) runBulkRetry pending list
+    const hardIds = ["s-11", "s-21"];
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: hardIds.map((id) => ({
+          id,
+          studentName: `Student ${id}`,
+          periodLabel: "April 2026",
+          totalDue: "500000",
+          paymentLinkError: "401: Xendit auth failed",
+        })),
+        total: 2,
+      }),
+    );
+    // 5) retry-payment-links — HTTP 200 but Xendit still fails for 401s
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        retried: 2,
+        succeeded: 0,
+        stillFailed: 2,
+        results: hardIds.map((id) => ({
+          invoiceId: id,
+          invoiceNumber: `INV-${id}`,
+          studentId: id,
+          status: "PENDING_PAYMENT_LINK" as const,
+          error: "401: Xendit auth failed",
+        })),
+      }),
+    );
+    // 6) post-sweep count — still 2
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 2 }));
+
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("done");
+    if (out.phase === "done") {
+      expect(out.final.sweepRan).toBe(true);
+      expect(out.final.pendingAfterSweep).toBe(2);
+    }
+  });
+});
+
+describe("runBulkGenerate — user-abort skips auto-sweep", () => {
+  it("does not fetch pending-payment-link when user cancels mid-run", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(60); // 3 chunks
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+
+    const c1 = plan.eligibleStudentIds.slice(0, 25);
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1)));
+
+    const controller = new AbortController();
+    let chunksObserved = 0;
+    const onProgress = (s: BatchProgressSnapshot) => {
+      if (s.phase === "running" && s.done === 25 && chunksObserved === 0) {
+        chunksObserved++;
+        controller.abort();
+      }
+    };
+
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      onProgress,
+      signal: controller.signal,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("aborted");
+    if (out.phase === "aborted") {
+      // sweepRan stays undefined — sweep gate never reached on user-abort.
+      expect(out.final.sweepRan).toBeUndefined();
+      expect(out.final.pendingAfterSweep).toBeUndefined();
+    }
+
+    // Plan + 1 batch only — no pending-payment-link, no retry-payment-links.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes("pending-payment-link"))).toBe(false);
+    expect(urls.some((u) => u.includes("retry-payment-links"))).toBe(false);
   });
 });

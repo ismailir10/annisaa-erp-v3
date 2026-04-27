@@ -38,6 +38,7 @@ import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
+import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
@@ -667,18 +668,11 @@ export default function InvoicesPage() {
         actions={
           <div className="flex gap-2">
             {stats.pendingPaymentLink > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setRetryConfirmOpen(true)}
-                disabled={retrying}
-                className="border-warning/40 text-warning hover:bg-warning/10 hover:text-warning"
-              >
-                <RefreshCw size={14} className="mr-1.5" />
-                {retrying
-                  ? "Mencoba..."
-                  : `Coba Lagi Link (${stats.pendingPaymentLink})`}
-              </Button>
+              <PendingLinkBreakdownPopover
+                count={stats.pendingPaymentLink}
+                retrying={retrying}
+                onClickRetry={() => setRetryConfirmOpen(true)}
+              />
             )}
             <Button size="sm" variant="outline" onClick={() => setManualDialog(true)}>
               <Plus size={14} className="mr-1.5" /> Tagihan Manual

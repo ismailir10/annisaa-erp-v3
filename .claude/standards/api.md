@@ -17,3 +17,14 @@ Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
 3. `tenantId` → tenant ownership
 4. Zod validation → reject bad input
 5. Structured errors: `{ error: "message" }`
+
+## Xendit calls
+
+All Xendit API calls MUST go through `withXenditRetry` (`lib/xendit/with-retry.ts`). Do not call `createXenditSession()` directly except inside the helper. The retry helper provides:
+
+- 3-attempt retry budget with backoff `[250ms, 1000ms]`
+- Honors HTTP 429 `Retry-After` (capped at 3000ms)
+- Classifies failures via `XenditApiError.code` (5xx/429/408/network → retriable; 401/403/422/4xx → hard)
+- Structured `[XENDIT ATTEMPT]` log per attempt for ops grep
+
+When persisting `paymentLinkError` after a final retry exhaustion, use `formatPaymentLinkError(e)` from `lib/xendit/error-prefix.ts` so the SQL aggregator at `GET /api/invoices/pending-payment-link/breakdown` can bucket by category. Landed 2026-04-27 in cycle `invoice-create-auto-retry`.

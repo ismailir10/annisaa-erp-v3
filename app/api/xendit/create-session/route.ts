@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
 
 /**
  * Create Xendit Checkout Sessions — single or bulk.
@@ -104,10 +105,16 @@ export async function POST(req: NextRequest) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       // Persist the failure as durable state — invoice becomes filterable in
       // the admin list under PENDING_PAYMENT_LINK and is retryable from there.
+      // The persisted column is prefix-tagged via formatPaymentLinkError so
+      // the breakdown endpoint can aggregate by category; the user-facing
+      // errors[] line keeps the plain message for readability.
       try {
         await prisma.invoice.update({
           where: { id: invoiceId },
-          data: { status: "PENDING_PAYMENT_LINK", paymentLinkError: msg },
+          data: {
+            status: "PENDING_PAYMENT_LINK",
+            paymentLinkError: formatPaymentLinkError(e),
+          },
         });
       } catch {
         // Swallow write-back failure — the original Xendit error is still surfaced

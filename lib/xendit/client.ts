@@ -6,6 +6,118 @@
 
 const XENDIT_API_URL = "https://api.xendit.co";
 
+/**
+ * Classification codes for `XenditApiError`. Callers (e.g. `withXenditRetry`,
+ * `paymentLinkError` prefix tagger) branch on this string-literal union.
+ */
+export type XenditErrorCode =
+  | "5xx"
+  | "429"
+  | "408"
+  | "network"
+  | "401"
+  | "403"
+  | "422"
+  | "4xx"
+  | "unknown";
+
+/**
+ * Typed error thrown by `createXenditSession` so callers can branch on
+ * `retriable` instead of regex-matching the error message. `status` is null
+ * for network errors (fetch threw before getting a response).
+ */
+export class XenditApiError extends Error {
+  readonly status: number | null;
+  readonly code: XenditErrorCode;
+  readonly retriable: boolean;
+  readonly retryAfterMs?: number;
+
+  constructor(opts: {
+    status: number | null;
+    code: XenditErrorCode;
+    retriable: boolean;
+    message: string;
+    retryAfterMs?: number;
+  }) {
+    super(opts.message);
+    this.name = "XenditApiError";
+    this.status = opts.status;
+    this.code = opts.code;
+    this.retriable = opts.retriable;
+    this.retryAfterMs = opts.retryAfterMs;
+  }
+}
+
+/**
+ * Defensive parse of the `Retry-After` header (RFC 7231 — seconds form).
+ * Multiplies seconds → ms, caps at 3000ms (per spec budget). Returns
+ * `undefined` for missing/non-numeric values so the caller can fall back to
+ * its default backoff schedule rather than crashing on `NaN`.
+ *
+ * Note: HTTP-date form (e.g. "Wed, 21 Oct 2015 07:28:00 GMT") is not
+ * supported — Xendit documents the seconds form, and parsing dates would
+ * complicate the cap. parseInt("Wed", 10) returns NaN → undefined fallback.
+ */
+export function parseRetryAfter(headerValue: string | null): number | undefined {
+  if (headerValue === null) return undefined;
+  const seconds = parseInt(headerValue, 10);
+  if (Number.isNaN(seconds)) return undefined;
+  return Math.min(seconds * 1000, 3000);
+}
+
+/**
+ * Map an HTTP response (already known to be non-OK) to a typed
+ * `XenditApiError`. Body is the parsed JSON (may be `null` if parse failed).
+ */
+function classifyXenditResponse(
+  response: Response,
+  body: unknown,
+): XenditApiError {
+  const status = response.status;
+  const bodyMessage =
+    body && typeof body === "object" && "message" in body &&
+      typeof (body as { message?: unknown }).message === "string"
+      ? (body as { message: string }).message
+      : null;
+  const message = bodyMessage ?? `Xendit API error: ${status}`;
+
+  if (status >= 500 && status <= 599) {
+    return new XenditApiError({ status, code: "5xx", retriable: true, message });
+  }
+  if (status === 408) {
+    return new XenditApiError({ status, code: "408", retriable: true, message });
+  }
+  if (status === 429) {
+    const retryAfterMs = parseRetryAfter(response.headers.get("Retry-After"));
+    return new XenditApiError({
+      status,
+      code: "429",
+      retriable: true,
+      message,
+      retryAfterMs,
+    });
+  }
+  if (status === 401) {
+    return new XenditApiError({ status, code: "401", retriable: false, message });
+  }
+  if (status === 403) {
+    return new XenditApiError({ status, code: "403", retriable: false, message });
+  }
+  if (status === 422) {
+    return new XenditApiError({ status, code: "422", retriable: false, message });
+  }
+  if (status >= 400 && status <= 499) {
+    return new XenditApiError({ status, code: "4xx", retriable: false, message });
+  }
+  // Last-resort default: response was non-OK but not in any known band.
+  return new XenditApiError({
+    status,
+    code: "unknown",
+    retriable: false,
+    message,
+  });
+}
+
 /** Convert Indonesian phone number to E.164 format (+62xxx) */
 function formatPhoneE164(phone: string): string {
   const cleaned = phone.replace(/\D/g, "");
@@ -97,19 +209,32 @@ export async function createXenditSession(
     }));
   }
 
-  const response = await fetch(`${XENDIT_API_URL}/sessions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: getAuthHeader(),
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${XENDIT_API_URL}/sessions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: getAuthHeader(),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    // Fetch itself threw — DNS, TLS, socket reset, etc. No HTTP response to
+    // classify, so retriable network error with status=null.
+    const message = err instanceof Error ? err.message : "Xendit network error";
+    throw new XenditApiError({
+      status: null,
+      code: "network",
+      retriable: true,
+      message,
+    });
+  }
 
   if (!response.ok) {
-    const error = await response.json();
-    console.error("[XENDIT ERROR] Create session failed:", JSON.stringify(error));
-    throw new Error(error.message || `Xendit API error: ${response.status}`);
+    const errorBody: unknown = await response.json().catch(() => null);
+    console.error("[XENDIT ERROR] Create session failed:", JSON.stringify(errorBody));
+    throw classifyXenditResponse(response, errorBody);
   }
 
   const data = await response.json();

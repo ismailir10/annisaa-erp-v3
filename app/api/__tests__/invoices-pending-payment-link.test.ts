@@ -19,8 +19,9 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 
 import { GET } from "../invoices/pending-payment-link/route";
 
-function makeReq() {
-  return new Request("http://localhost:3000/api/invoices/pending-payment-link");
+function makeReq(query?: string) {
+  const url = `http://localhost:3000/api/invoices/pending-payment-link${query ? `?${query}` : ""}`;
+  return new Request(url);
 }
 
 function adminSession() {
@@ -168,5 +169,64 @@ describe("GET /api/invoices/pending-payment-link — happy path", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.total).toBe(1234);
+  });
+});
+
+describe("GET /api/invoices/pending-payment-link?count-only=true", () => {
+  // Count-only branch powers `runBulkGenerate`'s post-chunk auto-sweep gate.
+  // We just need the count, not the rows — saves payload + skips findMany.
+  it("returns only { total } and skips findMany", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.invoice.count).mockResolvedValue(7 as never);
+
+    const res = await GET(makeReq("count-only=true") as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body).toEqual({ total: 7 });
+    expect(body.data).toBeUndefined();
+    expect(prisma.invoice.findMany).not.toHaveBeenCalled();
+    expect(prisma.invoice.count).toHaveBeenCalledTimes(1);
+    const countArg = vi.mocked(prisma.invoice.count).mock.calls[0][0];
+    expect(countArg?.where).toMatchObject({
+      tenantId: "tnt-1",
+      status: "PENDING_PAYMENT_LINK",
+    });
+  });
+
+  it("does not trigger count-only branch when query param is missing or any other value", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.invoice.count).mockResolvedValue(0 as never);
+
+    // count-only=false — full path.
+    await GET(makeReq("count-only=false") as never);
+    expect(prisma.invoice.findMany).toHaveBeenCalledTimes(1);
+
+    vi.clearAllMocks();
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.invoice.count).mockResolvedValue(0 as never);
+
+    // count-only=1 (truthy but not exactly "true") — full path.
+    await GET(makeReq("count-only=1") as never);
+    expect(prisma.invoice.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("403s for non-admin even when count-only is requested", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue({
+      ...adminSession(),
+      role: "TEACHER" as const,
+    });
+
+    const res = await GET(makeReq("count-only=true") as never);
+    expect(res.status).toBe(403);
+    expect(prisma.invoice.count).not.toHaveBeenCalled();
   });
 });
