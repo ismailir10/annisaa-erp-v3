@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createXenditSession, stripQuery } from "@/lib/xendit/client";
+import { withXenditRetry } from "@/lib/xendit/with-retry";
 
 /**
  * Resolve the origin for Xendit success/cancel return URLs.
@@ -63,22 +64,31 @@ export async function createXenditSessionForInvoice(
   const successReturnUrl = `${appOrigin}/parent/invoices?invoice=${invoice.id}&xenditStatus=paid`;
   const cancelReturnUrl = `${appOrigin}/parent/invoices?invoice=${invoice.id}&xenditStatus=cancel`;
 
-  const xenditSession = await createXenditSession({
-    referenceId: invoice.id,
-    amount: remaining,
-    description: `${invoice.invoiceNumber} — ${invoice.student.name} — ${invoice.periodLabel}`,
-    customerName: guardianParent?.name ?? invoice.student.name,
-    customerEmail: guardianParent?.email ?? undefined,
-    customerPhone: guardianParent?.whatsapp ?? guardianParent?.phone ?? undefined,
-    successReturnUrl,
-    cancelReturnUrl,
-    expiryDays: 7,
-    items: invoice.lines.map((line) => ({
-      name: line.labelSnapshot,
-      quantity: 1,
-      price: Number(line.finalAmount),
-    })),
-  });
+  // Wrap the Xendit call in withXenditRetry so transient 5xx/408/429/network
+  // errors retry up to 3 attempts before surfacing. The typed `XenditApiError`
+  // bubbles up on terminal failure so route-handler callers can prefix-tag
+  // `paymentLinkError` (Task 4). TOCTOU guard, params build, and DB persist
+  // remain outside the retry — only the network call itself is retried.
+  const xenditSession = await withXenditRetry(
+    () =>
+      createXenditSession({
+        referenceId: invoice.id,
+        amount: remaining,
+        description: `${invoice.invoiceNumber} — ${invoice.student.name} — ${invoice.periodLabel}`,
+        customerName: guardianParent?.name ?? invoice.student.name,
+        customerEmail: guardianParent?.email ?? undefined,
+        customerPhone: guardianParent?.whatsapp ?? guardianParent?.phone ?? undefined,
+        successReturnUrl,
+        cancelReturnUrl,
+        expiryDays: 7,
+        items: invoice.lines.map((line) => ({
+          name: line.labelSnapshot,
+          quantity: 1,
+          price: Number(line.finalAmount),
+        })),
+      }),
+    { invoiceId, tenantId },
+  );
 
   await prisma.invoice.update({
     where: { id: invoiceId },

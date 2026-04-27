@@ -201,6 +201,14 @@ Acceptance: vitest asserts each write site uses the helper; existing tests for t
 - Test file `lib/__tests__/with-retry.test.ts` — 9 cases: constants, success-on-1, retry-then-success, persistent-5xx 3-attempt terminal, hard 401 (1 attempt), non-typed-error hard, 429 with Retry-After 2000ms, 429 with capped 3000ms, 429 with no Retry-After falling back to BACKOFFS_MS[0].
 - Uses fake timers + `vi.advanceTimersByTimeAsync` to validate exact backoff durations without consuming wall clock.
 
+### Task 3 — Wire inline retry into `lib/xendit/helpers.ts`
+
+- Wrapped the single `createXenditSession()` call inside `createXenditSessionForInvoice` with `withXenditRetry(() => createXenditSession(params), { invoiceId, tenantId })`. TOCTOU guard (steps 1-2) and DB persist (step 4) remain outside the retry — only the network call is retried, matching the spec.
+- Imported `withXenditRetry` from `@/lib/xendit/with-retry`. Existing `XenditApiError` from Task 1 propagates out of the wrap on retry exhaustion so route-handler callers in Task 4 can prefix-tag `paymentLinkError` on `error.code`.
+- Updated `lib/__tests__/xendit-helpers.test.ts`: extended the `vi.mock("@/lib/db", ...)` to include `invoice.findUnique`/`update` and switched `vi.mock("@/lib/xendit/client", ...)` to `importActual` so `XenditApiError` is the real class (needed for `instanceof` assertions while still mocking `createXenditSession`).
+- Added 1 new test case "propagates XenditApiError with code:'5xx' after 3 retry attempts" — uses fake timers + `vi.advanceTimersByTimeAsync(1250)` to fast-forward the 250ms + 1000ms backoffs. Asserts: thrown error is `instanceof XenditApiError`, `code === "5xx"`, `status === 503`, exactly 3 mock calls, and `prisma.invoice.update` was NOT invoked (short-circuit before persist).
+- Vitest: 741 passed (was 740, +1 new). `npm run build` clean. design-system token: not applicable — no frontend changes in this task; the cycle doc carries the token for the cycle as a whole.
+
 <!-- /build continues here -->
 
 ## Verification
