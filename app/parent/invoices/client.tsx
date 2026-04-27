@@ -161,28 +161,13 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
           </p>
         </section>
       ) : (
-        <section
-          className="rounded-xl border p-4 md:p-6"
-          style={{
-            background: "var(--celebration-gold-subtle)",
-            borderColor: "var(--celebration-gold)",
-          }}
-        >
+        <section className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-4 md:p-6">
           <div className="flex items-center gap-3">
-            <div
-              className="grid size-10 place-items-center rounded-lg"
-              style={{
-                background: "var(--celebration-gold-subtle)",
-                color: "var(--celebration-gold-text)",
-              }}
-            >
+            <div className="grid size-10 place-items-center rounded-lg bg-celebration-gold-subtle text-celebration-gold-text">
               <Sparkles size={18} />
             </div>
             <div>
-              <p
-                className="text-sm font-semibold"
-                style={{ color: "var(--celebration-gold-text)" }}
-              >
+              <p className="text-sm font-semibold text-celebration-gold-text">
                 Lunas semua
               </p>
               <p className="mt-1 text-xs text-muted-foreground">

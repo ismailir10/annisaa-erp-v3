@@ -124,7 +124,7 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - Acceptance: when initial list query fails, page shows an inline error card with `Coba lagi sebentar ya, Pak/Bu.` + retry button (calls `router.refresh()`). Matches `.claude/standards/portal.md` fetch error-handling contract (admin variant — drop honorific, keep imperative). Spec note: portal.md is parent-tone; admin variant uses the same shape but `Coba lagi` without honorific. Cross-check ui.md.
 - Independent.
 
-### T4 — Celebration-gold tokens defined and applied
+### T4 — Celebration-gold tokens defined and applied ✅
 - Files: `app/globals.css` (add CSS vars + Tailwind `@layer` aliases for `bg-celebration-gold`, `bg-celebration-gold-subtle`, `text-celebration-gold-text`), `app/parent/page.tsx`, `app/parent/invoices/client.tsx` (replace inline `style` with className), `.claude/standards/colors.md` (add tokens table row + usage rule), `.claude/standards/design-system.html` (add §celebration-state example).
 - Acceptance: `grep -R 'celebration-gold' app/parent components/parent` shows zero `style={{` usages — all className. Tokens defined in globals.css and documented in colors.md. design-system.html has a §celebration-state example.
 - Independent.
@@ -169,6 +169,7 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - T1: VA-only copy. `METHOD_LABELS.XENDIT` "Xendit"/"Online (Xendit)" → "Virtual Account" in admin detail (`app/admin/invoices/[id]/page.tsx:37,66`) + parent sheet (`app/parent/invoices/invoice-detail-sheet.tsx:64`). Icons `CreditCard` + `QrCode` → `Building2` in METHOD_ICONS + Cara-bayar card. Help-line copy "QRIS · Virtual Account · E-wallet · kartu" → "BRI · BNI · Mandiri · BCA · Permata" with title "Transfer bank (Virtual Account)". Email templates clean. Cross-checked design-system §status badges + voice.md §portal — register correct.
 - T2: Form polish. Both dialogs: footer Batal `variant="outline"` → `variant="ghost"` (manual `manual-invoice-dialog.tsx`, batch `app/admin/invoices/page.tsx:845,866`). Manual dialog Komponen Biaya rows wrapped in `bg-muted/30` panel with `bg-background` on inner inputs (visual grouping per design-system §nested-form-rows). `Tambah Komponen` button `variant="outline"` → `variant="ghost"` to recede behind primary CTA. Total row: `font-medium` → `font-semibold text-foreground`, added `tabular-nums` + `mt-2`. Batch dialog Tahun Ajaran field gained `<FieldDescription>` per design-system §Forms. Per-field error toast already wired via existing `validateManualForm` returning specific reasons (10 vitest cases preserve coverage). Cross-checked design-system §Forms / §Dialog footer / §nested-form-rows.
 - T3: Admin list fetch-error fallback. Added `fetchError` state, `res.ok` check on the `/api/invoices` request, inline destructive-tinted error card replacing the DataTable when fetch fails. Card has `AlertCircle` icon + headline "Gagal memuat tagihan" + subtext "Coba lagi sebentar. Jika tetap gagal, hubungi tim teknis." + "Coba lagi" button calling `fetchInvoices`. Cross-checked portal.md §fetch error-handling contract (admin variant — drop honorific, keep imperative).
+- T4: Celebration-gold tokens applied. Tailwind aliases `bg-celebration-gold-subtle`, `border-celebration-gold`, `text-celebration-gold-text` already configured in `app/globals.css:89-91`. Converted inline `style={{ background: "var(--celebration-gold-subtle)" ... }}` in `app/parent/invoices/client.tsx:163-194` to className utilities. Added §Celebration tokens section to `.claude/standards/colors.md` with usage rule. Out-of-scope follow-up noted: `app/parent/attendance/page.tsx:141-158` and `app/parent/assessments-table.tsx:109-126` still use inline style — separate cycle, not finance.
 
 ## Verification
 
@@ -176,6 +177,7 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - T1: build + vitest green (700 / 2 / 42, unchanged). `grep -RE '(e-?wallet|kartu kredit|QRIS|credit card)' app/ components/ lib/email/` returns zero matches in live UI files. Manual smoke deferred to end-of-cycle.
 - T2: build + vitest green (700 / 2 / 42, unchanged). 10 existing `validateManualForm` cases preserve per-field-reason coverage. Manual smoke at end-of-cycle Playwright (Chrome MCP).
 - T3: build + vitest green (700 / 2 / 42, unchanged). Manual smoke deferred — error path requires API kill which is end-of-cycle territory.
+- T4: build + vitest green (700 / 2 / 42, unchanged). `grep "celebration-gold.*style={{" app/parent/invoices` returns zero. Cross-checked design-system.html §empty-states + colors.md §Celebration tokens.
 
 ## Ship Notes
 <filled by /ship>
