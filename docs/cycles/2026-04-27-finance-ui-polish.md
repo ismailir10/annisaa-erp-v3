@@ -91,7 +91,7 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - Acceptance: grep `app/layout.tsx` for `STAGING` returns zero. Build green. Visual: Playwright screenshot of any page on staging shows no top banner.
 - Independent. Trivial.
 
-### T1 — Payment-method copy + icons (admin + parent + email)
+### T1 — Payment-method copy + icons (admin + parent + email) ✅
 - Files: `app/admin/invoices/[id]/page.tsx` (METHOD_LABELS, Select options), `app/parent/invoices/invoice-detail-sheet.tsx` (help line, icon swap), `lib/email/templates/*.ts` (search + replace if any payment-method copy lives there — verify no template change is in scope).
 - Reuse: `Building2` from lucide-react (replaces `CreditCard` for XENDIT method).
 - Acceptance: `grep -RE '(e-?wallet|kartu kredit|QRIS|credit card)' app/ components/ lib/email/` returns zero. METHOD_LABELS displays "Virtual Account". Parent invoice detail help line lists BRI / BNI / Mandiri / BCA / Permata.
@@ -166,10 +166,12 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 
 - Subagent plan: all tasks sequential — file overlaps (T2+T3 share `app/admin/invoices/page.tsx`; T4+T5+T6 share `app/parent/invoices/client.tsx`; T1+T5 share `invoice-detail-sheet.tsx`; T5+T7 share `e2e/payment.spec.ts`). Inline execution, one commit per task.
 - T0: Removed `StagingBanner` component + render call in `app/layout.tsx`. Cross-checked design-system §layout — banner not part of standard chrome.
+- T1: VA-only copy. `METHOD_LABELS.XENDIT` "Xendit"/"Online (Xendit)" → "Virtual Account" in admin detail (`app/admin/invoices/[id]/page.tsx:37,66`) + parent sheet (`app/parent/invoices/invoice-detail-sheet.tsx:64`). Icons `CreditCard` + `QrCode` → `Building2` in METHOD_ICONS + Cara-bayar card. Help-line copy "QRIS · Virtual Account · E-wallet · kartu" → "BRI · BNI · Mandiri · BCA · Permata" with title "Transfer bank (Virtual Account)". Email templates clean. Cross-checked design-system §status badges + voice.md §portal — register correct.
 
 ## Verification
 
 - T0: `npm run build` green. `npx vitest run` 700 passed / 2 skipped / 42 todo. Banner removed from runtime — manual smoke at end-of-cycle Playwright. Cross-checked `design-system.html` §layout (no banner in standard chrome).
+- T1: build + vitest green (700 / 2 / 42, unchanged). `grep -RE '(e-?wallet|kartu kredit|QRIS|credit card)' app/ components/ lib/email/` returns zero matches in live UI files. Manual smoke deferred to end-of-cycle.
 
 ## Ship Notes
 <filled by /ship>

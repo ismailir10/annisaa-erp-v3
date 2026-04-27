@@ -34,7 +34,7 @@ type InvoiceDetail = {
   lines: InvoiceLine[]; payments: Payment[];
 };
 
-const METHOD_LABELS: Record<string, string> = { CASH: "Tunai", BANK_TRANSFER: "Transfer Bank", XENDIT: "Xendit", OTHER: "Lainnya" };
+const METHOD_LABELS: Record<string, string> = { CASH: "Tunai", BANK_TRANSFER: "Transfer Bank", XENDIT: "Virtual Account", OTHER: "Lainnya" };
 
 // ------------------------------------------------------------------
 // Payment Form Body (shared between Dialog + Sheet)
@@ -63,7 +63,7 @@ function PaymentFormBody({
           <SelectContent>
             <SelectItem value="CASH">Tunai</SelectItem>
             <SelectItem value="BANK_TRANSFER">Transfer Bank</SelectItem>
-            <SelectItem value="XENDIT">Xendit</SelectItem>
+            <SelectItem value="XENDIT">Virtual Account</SelectItem>
             <SelectItem value="OTHER">Lainnya</SelectItem>
           </SelectContent>
         </Select>

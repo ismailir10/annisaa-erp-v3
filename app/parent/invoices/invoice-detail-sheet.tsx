@@ -4,13 +4,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/comp
 import { Button } from "@/components/ui/button";
 import {
   Banknote,
-  CreditCard,
+  Building2,
   Download,
   ExternalLink,
   FileText,
   Info,
   Landmark,
-  QrCode,
   type LucideIcon,
 } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/format";
@@ -61,15 +60,15 @@ type InvoiceDetail = {
 const METHOD_LABELS: Record<string, string> = {
   CASH: "Tunai",
   BANK_TRANSFER: "Transfer Bank",
-  XENDIT: "Online (Xendit)",
+  XENDIT: "Virtual Account",
   OTHER: "Lainnya",
 };
 
 const METHOD_ICONS: Record<string, LucideIcon> = {
   CASH: Banknote,
   BANK_TRANSFER: Landmark,
-  XENDIT: CreditCard,
-  OTHER: CreditCard,
+  XENDIT: Building2,
+  OTHER: Building2,
 };
 
 export function InvoiceDetailSheet({
@@ -221,12 +220,12 @@ export function InvoiceDetailSheet({
               <div className="rounded-xl border border-border bg-card p-4">
                 <div className="flex items-center gap-3">
                   <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <QrCode size={18} />
+                    <Building2 size={18} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground">Pembayaran online</p>
+                    <p className="text-sm font-semibold text-foreground">Transfer bank (Virtual Account)</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      QRIS · Virtual Account · E-wallet · kartu
+                      BRI · BNI · Mandiri · BCA · Permata
                     </p>
                   </div>
                 </div>
@@ -270,7 +269,7 @@ export function InvoiceDetailSheet({
               </p>
               <ul className="space-y-2">
                 {invoice.payments.map((p) => {
-                  const Icon = METHOD_ICONS[p.method] ?? CreditCard;
+                  const Icon = METHOD_ICONS[p.method] ?? Building2;
                   return (
                     <li
                       key={p.id}
