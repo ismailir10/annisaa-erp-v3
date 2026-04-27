@@ -273,8 +273,89 @@ Acceptance: vitest asserts each write site uses the helper; existing tests for t
 
 ## Verification
 
-<filled by /build>
+### Spec acceptance criteria
+
+- [x] Inline retry on transient Xendit failures wired into manual create + bulk batch + retry-payment-links — Tasks 1-3, helper at `lib/xendit/with-retry.ts`, vitest covers all paths.
+- [x] Retry budget: 3 attempts total, backoff `[250ms, 1000ms]`. Final transient failure persists `PENDING_PAYMENT_LINK`.
+- [x] Transient classification (5xx / 408 / 429 / network) — covered by `XenditApiError.code` + unit tests.
+- [x] Hard classification (401 / 403 / 422 / other 4xx) — covered.
+- [x] `XenditApiError` typed throw at `lib/xendit/client.ts` with `{ status, code, retriable, retryAfterMs?, message }`.
+- [x] `paymentLinkError` write format prefix-tagged at all 5 sites — Task 4. Helper `formatPaymentLinkError` handles `unknown`/non-Error inputs.
+- [x] Per-attempt structured Vercel log line `[XENDIT ATTEMPT] ...` — Task 2.
+- [x] Auto-sweep in `runBulkGenerate` (post-chunk, gated on `!signal.aborted`, single-shot) — Task 7. 3 vitest cases pass (transient cleared, hard surfaces, user-aborted skips).
+- [x] Admin diagnostic surface — `GET /api/invoices/pending-payment-link/breakdown` (Task 5) + popover component (Task 6). 401/403-heavy hint at `>0.5` ratio, boundary test at exactly `0.5` confirms strict `>`.
+- [x] Backfill script `scripts/backfill-pending-payment-links.ts` with `--tenant`/`--confirm`/`--dry-run` — Task 8. 14 vitest cases.
+- [x] Vitest coverage — all 9 acceptance scenarios from spec covered across `lib/__tests__/with-retry.test.ts`, `lib/__tests__/xendit-helpers.test.ts`, `lib/finance/__tests__/run-bulk-generate.test.ts`, and the 4 route tests. **786 passed | 42 todo | 0 failed.**
+- [⚠️] Playwright `e2e/admin.spec.ts` 21/21 + 1 new — **see "End-of-cycle gate output" below**: new test passes in isolation with the correct admin user ID; full-suite failures are environmental (stale `ADMIN_USER_ID` literal in test fixtures vs locally re-seeded DB), not cycle-introduced.
+- [ ] Manual smoke post-merge on staging — **deferred to post-merge**, documented in Ship Notes manual-steps section.
+
+### End-of-cycle gate output
+
+**`npm run build`** — clean. All routes built successfully including new `/api/invoices/pending-payment-link/breakdown`.
+
+**`npx vitest run`** — `Test Files 90 passed | 2 skipped (92), Tests 786 passed | 42 todo (828)`. Duration 54.89s. Zero failures.
+
+**`npx playwright test`** — `21 passed | 33 failed` over 18.7 min. **All 33 failures are environmental, not cycle-introduced.**
+
+Root cause: the `beforeEach` in `e2e/admin.spec.ts`, `e2e/admin-school-admin.spec.ts`, and the `Tersedia` locator strictness in `e2e/teacher.spec.ts:53` rely on database state that diverges from the local Postgres in this worktree. Specifically, the test files hardcode `ADMIN_USER_ID = "u_super_admin"` (matching `prisma/seed.ts:138`), but the locally-running DB has been reseeded by `scripts/seed-demo-users.ts` (UUID-based admin like `be131b45-b67b-4599-8a11-bd4bc8a35041`) via a prior session. With the wrong ID in the cookie, every test's `page.goto("/admin")` redirects back to `/` (login picker) and `waitForURL("**/admin")` times out at 15s.
+
+**Verification that the cycle's new code passes Playwright cleanly:** ran the cycle's only new e2e test in isolation, after temporarily substituting the local DB's actual admin UUID into `e2e/admin.spec.ts`:
+
+```
+[chromium] › e2e/admin.spec.ts:601:7 › Admin tagihan flows › pending-payment-link breakdown popover renders bucket counts when count > 0
+1 passed (9.3s)
+```
+
+The popover renders, the `5xx` and `401` non-zero buckets display, the auth-heavy warning is correctly suppressed at sub-threshold share, and the inner "Coba Lagi Sekarang" CTA is reachable. **The cycle's code is sound.** The Playwright failure surface is a pre-existing environmental drift (DB seed vs test-fixture user ID) flagged for a separate cleanup cycle — see Ship Notes Known Gaps.
+
+The previous cycle (`686235c docs(cycle): record end-of-cycle Playwright pass (21/21 18.4m)`) ran in an environment where the local DB had been freshly seeded via `prisma/seed.ts` (which writes `u_super_admin`). Re-running `prisma/seed.ts` against the local DB would restore the contract — but that's a workspace-state action outside the scope of this docs-only Task 9 commit and would also trash the demo Supabase Auth user mappings the operator currently needs.
+
+### Spec deviations (documented)
+
+1. **Task 4 — `revalidateTag` "bug fix" reverted.** Spec claimed `revalidateTag("parent-invoice-list", { expire: 0 })` had an invalid signature in Next.js 16. Verification against `node_modules/next/dist/server/web/spec-extension/revalidate.d.ts` confirmed Next.js 16 actually **requires** the second arg (`profile: string | CacheLifeConfig`); single-arg call breaks build with `TS2554`. The codebase uses `{ expire: 0 }` consistently across 6 sites. No change applied. Spec author appears to have been thinking of the Next.js 14 single-arg signature.
+
+2. **Task 6 — single Popover instead of Tooltip+Popover dual trigger.** Spec mentioned both for hover-on-desktop / tap-on-mobile. Implementation uses one `<Popover>` that opens on click on every device — accessible by default (Shadcn handles keyboard + screen-reader semantics), avoids dual-trigger state choreography, satisfies the underlying intent ("render breakdown alongside the button"). Documented inline in `components/admin/invoices/pending-link-breakdown-popover.tsx` header.
 
 ## Ship Notes
 
-<filled by /ship>
+### Migrations
+None — `paymentLinkError` column already exists from prior cycle (2026-04-26 finance robustness).
+
+### Environment Variables
+None new. Existing `XENDIT_SECRET_KEY` / `NEXT_PUBLIC_APP_URL` continue to be used.
+
+### Manual Steps Post-Merge
+
+1. **Verify Vercel plan + maxDuration on staging** — auto-sweep budget math sized against Hobby 60s ceiling. If staging is on Pro (300s), no action needed but worth confirming via `vercel project inspect` or the Vercel dashboard.
+
+2. **Verify `XENDIT_SECRET_KEY` on staging** — confirm it's a real Xendit sandbox key, not the e2e `test-secret` stub. If it's the stub, retries will all hit 401 and the auto-sweep will not help.
+
+3. **Run backfill script against staging tenant** — clears the 584 PENDING_PAYMENT_LINK accumulation:
+   ```bash
+   # Dry-run first to see breakdown
+   npx tsx --env-file-if-exists=.env.local scripts/backfill-pending-payment-links.ts --tenant <staging-tenant-id> --dry-run
+   # Live retry (only after dry-run looks sensible)
+   npx tsx --env-file-if-exists=.env.local scripts/backfill-pending-payment-links.ts --tenant <staging-tenant-id> --confirm
+   ```
+   Expected: most clear (transient 5xx residual), some may stall as 401/422 — those need ops attention via the diagnostic popover.
+
+4. **Smoke test bulk-generate on staging** — trigger creation of ≥10 invoices. Expected: ≥95% land in `SENT` directly out of the chunk loop. Auto-sweep only fires for the residual. Capture `[XENDIT ATTEMPT]` log sample from Vercel logs as evidence the structured logging works in production.
+
+5. **Promote to prod** after staging green for at least 1 cycle — same backfill steps against prod tenant.
+
+### Rollback Plan
+
+```bash
+git revert <PR-merge-SHA>  # No schema change to undo
+```
+The auto-sweep is purely client-side orchestration; reverting removes the new endpoints/components/script and restores the prior single-attempt + manual-button behavior. No DB migration to undo.
+
+### Known Gaps (Follow-up Cycles)
+
+1. **Idempotency on lost-response TOCTOU** — if a Xendit session create succeeds but the response is lost mid-flight (e.g. Vercel timeout), the next retry creates a 2nd Xendit session for the same invoice. Real but rare. Tracked for follow-up cycle. Mitigation: `createXenditSessionForInvoice` already short-circuits if invoice is `PAID`/`CANCELLED`, but doesn't check existing `xenditSessionId`.
+
+2. **>1000 PENDING auto-sweep bypass** — if more than 1000 invoices are stuck after a bulk run, auto-sweep silently skips (orchestrator's `onOverflow: () => false`). Manual button surfaces. Acceptable for current single-PAUD-tenant scale. Revisit if multi-tenant adoption introduces larger accumulations.
+
+3. **`revalidateTag(tag, profile)` signature** — Next.js 16 changed this to require the 2nd arg. Cycle's bundled "bug fix" was based on a stale Next.js 14/15 mental model and was correctly NOT applied. No action needed; flagged here so future spec authors don't re-attempt the same change.
+
+4. **e2e seed/test-fixture drift** — `e2e/admin.spec.ts:6` and `e2e/admin-school-admin.spec.ts` hardcode `ADMIN_USER_ID = "u_super_admin"` matching `prisma/seed.ts`. Local development environments seeded via `scripts/seed-demo-users.ts` (Supabase-Auth UUID-keyed) drift from this contract and the full Playwright suite fails 33/54 with `waitForURL` timeouts. Two clean fixes are possible: (a) make e2e tests dynamically discover the SUPER_ADMIN ID from `/api/auth/users` (the same pattern the existing `firstActiveYearId` helper uses for academic years); or (b) standardize on `prisma/seed.ts` for any environment that runs Playwright. Tracked as a separate ergonomics cycle. **Not cycle-introduced** — verified by reproducing the failure on a fresh checkout of the cycle's base SHA `abaad97`. Also affects the `Teacher › salary slips page loads` test where a strict-mode locator `text=Tersedia` matches 21 elements (the seeded data + slip table both contain the badge text). New cycle test passes 1/1 in isolation when given the correct admin ID.
