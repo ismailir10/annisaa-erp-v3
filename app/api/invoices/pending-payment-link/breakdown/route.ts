@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import {
-  PAYMENT_LINK_ERROR_PREFIXES,
-  type PaymentLinkErrorPrefix,
-} from "@/lib/xendit/error-prefix";
+import { getPendingPaymentLinkBreakdown } from "@/lib/finance/pending-breakdown";
 
 /**
  * GET /api/invoices/pending-payment-link/breakdown
@@ -16,6 +12,9 @@ import {
  * persisted strings have shape `"<prefix>: <message>"`. Rows from before this
  * cycle have unprefixed strings (no colon) and land in the "untagged" bucket.
  *
+ * Aggregation logic lives in `lib/finance/pending-breakdown.ts` — shared with
+ * the backfill CLI script.
+ *
  * Response shape (10 fixed buckets, all numeric, zero-filled):
  *   {
  *     total: N,
@@ -25,10 +24,6 @@ import {
  *       "untagged": S, "unknown": U
  *     }
  *   }
- *
- * Any unexpected prefix (e.g. older data with a different tag scheme) is
- * defensively folded into "unknown" so the consumer never has to handle
- * surprise keys.
  */
 export async function GET() {
   const session = await getSession();
@@ -36,36 +31,6 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const rows = await prisma.$queryRaw<Array<{ prefix: string; n: bigint }>>`
-    SELECT
-      CASE
-        WHEN "paymentLinkError" IS NULL OR position(':' in "paymentLinkError") = 0
-          THEN 'untagged'
-        ELSE substring("paymentLinkError" from 1 for position(':' in "paymentLinkError") - 1)
-      END AS prefix,
-      count(*)::bigint AS n
-    FROM "Invoice"
-    WHERE "tenantId" = ${session.tenantId} AND status = 'PENDING_PAYMENT_LINK'
-    GROUP BY 1
-  `;
-
-  // Initialize all buckets to 0 from the shared constant so the consumer
-  // doesn't have to handle absent keys. Adding a bucket = update the constant.
-  const byPrefix = Object.fromEntries(
-    PAYMENT_LINK_ERROR_PREFIXES.map((p) => [p, 0]),
-  ) as Record<PaymentLinkErrorPrefix, number>;
-
-  let total = 0;
-  for (const row of rows) {
-    const n = Number(row.n);
-    total += n;
-    if (row.prefix in byPrefix) {
-      byPrefix[row.prefix as PaymentLinkErrorPrefix] = n;
-    } else {
-      // Defensive: an unexpected prefix from older data lands in "unknown".
-      byPrefix.unknown += n;
-    }
-  }
-
-  return NextResponse.json({ total, byPrefix });
+  const breakdown = await getPendingPaymentLinkBreakdown(session.tenantId);
+  return NextResponse.json(breakdown);
 }
