@@ -229,6 +229,7 @@ function GenerateInvoiceFormBody({
             ))}
           </SelectContent>
         </Select>
+        <FieldDescription>Periode tagihan akan terikat ke tahun ajaran ini.</FieldDescription>
       </Field>
     </>
   );
@@ -842,7 +843,7 @@ export default function InvoicesPage() {
               <GenerateInvoiceFormBody genForm={genForm} setGenForm={setGenForm} years={years} />
             </div>
             <SheetFooter>
-              <SheetClose><Button variant="outline">Batal</Button></SheetClose>
+              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
               <Button onClick={handleGenerate} disabled={generating}>
                 {generating ? "Membuat..." : "Buat Tagihan"}
               </Button>
@@ -863,7 +864,7 @@ export default function InvoicesPage() {
             </div>
             <DialogFooter>
               <DialogClose>
-                <Button variant="outline">Batal</Button>
+                <Button variant="ghost">Batal</Button>
               </DialogClose>
               <Button onClick={handleGenerate} disabled={generating}>
                 {generating ? "Membuat..." : "Buat Tagihan"}

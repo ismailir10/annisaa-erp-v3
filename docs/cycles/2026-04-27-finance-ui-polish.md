@@ -97,7 +97,7 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - Acceptance: `grep -RE '(e-?wallet|kartu kredit|QRIS|credit card)' app/ components/ lib/email/` returns zero. METHOD_LABELS displays "Virtual Account". Parent invoice detail help line lists BRI / BNI / Mandiri / BCA / Permata.
 - Independent.
 
-### T2 — Form polish: manual create + batch generate dialogs
+### T2 — Form polish: manual create + batch generate dialogs ✅
 - Files:
   - `components/admin/invoices/manual-invoice-dialog.tsx` (full visual pass)
   - `app/admin/invoices/page.tsx` lines 200–231 + 781–815 (batch generate dialog markup — month/year/academic-year fields)
@@ -167,11 +167,13 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - Subagent plan: all tasks sequential — file overlaps (T2+T3 share `app/admin/invoices/page.tsx`; T4+T5+T6 share `app/parent/invoices/client.tsx`; T1+T5 share `invoice-detail-sheet.tsx`; T5+T7 share `e2e/payment.spec.ts`). Inline execution, one commit per task.
 - T0: Removed `StagingBanner` component + render call in `app/layout.tsx`. Cross-checked design-system §layout — banner not part of standard chrome.
 - T1: VA-only copy. `METHOD_LABELS.XENDIT` "Xendit"/"Online (Xendit)" → "Virtual Account" in admin detail (`app/admin/invoices/[id]/page.tsx:37,66`) + parent sheet (`app/parent/invoices/invoice-detail-sheet.tsx:64`). Icons `CreditCard` + `QrCode` → `Building2` in METHOD_ICONS + Cara-bayar card. Help-line copy "QRIS · Virtual Account · E-wallet · kartu" → "BRI · BNI · Mandiri · BCA · Permata" with title "Transfer bank (Virtual Account)". Email templates clean. Cross-checked design-system §status badges + voice.md §portal — register correct.
+- T2: Form polish. Both dialogs: footer Batal `variant="outline"` → `variant="ghost"` (manual `manual-invoice-dialog.tsx`, batch `app/admin/invoices/page.tsx:845,866`). Manual dialog Komponen Biaya rows wrapped in `bg-muted/30` panel with `bg-background` on inner inputs (visual grouping per design-system §nested-form-rows). `Tambah Komponen` button `variant="outline"` → `variant="ghost"` to recede behind primary CTA. Total row: `font-medium` → `font-semibold text-foreground`, added `tabular-nums` + `mt-2`. Batch dialog Tahun Ajaran field gained `<FieldDescription>` per design-system §Forms. Per-field error toast already wired via existing `validateManualForm` returning specific reasons (10 vitest cases preserve coverage). Cross-checked design-system §Forms / §Dialog footer / §nested-form-rows.
 
 ## Verification
 
 - T0: `npm run build` green. `npx vitest run` 700 passed / 2 skipped / 42 todo. Banner removed from runtime — manual smoke at end-of-cycle Playwright. Cross-checked `design-system.html` §layout (no banner in standard chrome).
 - T1: build + vitest green (700 / 2 / 42, unchanged). `grep -RE '(e-?wallet|kartu kredit|QRIS|credit card)' app/ components/ lib/email/` returns zero matches in live UI files. Manual smoke deferred to end-of-cycle.
+- T2: build + vitest green (700 / 2 / 42, unchanged). 10 existing `validateManualForm` cases preserve per-field-reason coverage. Manual smoke at end-of-cycle Playwright (Chrome MCP).
 
 ## Ship Notes
 <filled by /ship>
