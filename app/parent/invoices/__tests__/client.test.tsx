@@ -26,9 +26,10 @@ vi.mock("sonner", () => ({
 }));
 
 const replaceFn = vi.fn();
+const refreshFn = vi.fn();
 let mockSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: replaceFn, push: vi.fn() }),
+  useRouter: () => ({ replace: replaceFn, push: vi.fn(), refresh: refreshFn }),
   useSearchParams: () => mockSearchParams,
 }));
 
@@ -37,6 +38,7 @@ beforeEach(() => {
   toastFn.error.mockClear();
   toastFn.success.mockClear();
   replaceFn.mockClear();
+  refreshFn.mockClear();
   mockSearchParams = new URLSearchParams();
 });
 
@@ -216,6 +218,60 @@ describe("InvoicesClient (cycle-4)", () => {
       render(<InvoicesClient data={mockInvoices} />);
       expect(toastFn.success).not.toHaveBeenCalled();
       expect(replaceFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Webhook → list freshness poll", () => {
+    it("polls router.refresh every 30s when an invoice has an active xendit session", () => {
+      vi.useFakeTimers();
+      const inFlight = mockInvoices.map((inv) =>
+        inv.id === "inv-1"
+          ? { ...inv, xenditPaymentUrl: "https://checkout.xendit.co/abc" }
+          : inv,
+      );
+      render(<InvoicesClient data={inFlight} />);
+      expect(refreshFn).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(30_000);
+      expect(refreshFn).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(30_000);
+      expect(refreshFn).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
+    });
+
+    it("does not poll when no invoice has an active xendit session", () => {
+      vi.useFakeTimers();
+      render(<InvoicesClient data={mockInvoices} />);
+      vi.advanceTimersByTime(60_000);
+      expect(refreshFn).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+  });
+
+  describe("Status flip → PAID emits one-shot toast", () => {
+    it("fires success toast when an invoice transitions from non-PAID to PAID", () => {
+      const { rerender } = render(<InvoicesClient data={mockInvoices} />);
+      // First render: no flip, no toast (prevDataRef seeds with current data)
+      expect(toastFn.success).not.toHaveBeenCalled();
+      // Second render: inv-1 (SENT) flips to PAID
+      const flipped = mockInvoices.map((inv) =>
+        inv.id === "inv-1"
+          ? { ...inv, status: "PAID", totalPaid: inv.totalDue, paidAt: "2024-09-01" }
+          : inv,
+      );
+      rerender(<InvoicesClient data={flipped} />);
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("baru saja terbayar"),
+      );
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Agustus 2024"),
+      );
+    });
+
+    it("does not fire toast on initial mount even if data has PAID rows", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      // mockInvoices includes inv-3 PAID — no toast since there's no prior render
+      // showing it as non-PAID.
+      expect(toastFn.success).not.toHaveBeenCalled();
     });
   });
 });

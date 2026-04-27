@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Receipt, Sparkles } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/format";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
@@ -51,6 +51,8 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
 
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showAllPaid, setShowAllPaid] = useState(false);
+  const [recentlyPaidIds, setRecentlyPaidIds] = useState<Set<string>>(new Set());
+  const prevDataRef = useRef<InvoiceItem[] | null>(null);
   const loading = data === null;
 
   useEffect(() => {
@@ -78,6 +80,55 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
     }
     router.replace("/parent/invoices", { scroll: false });
   }, [data, invoiceParam, xenditStatusParam, router]);
+
+  // Webhook → list freshness. While at least one outstanding invoice has an
+  // active Xendit payment session (xenditPaymentUrl != null), poll the server
+  // component every 30 s so the parent sees the PAID flip without manual
+  // refresh. Stops as soon as no in-flight payment remains.
+  const hasInFlightPayment = useMemo(
+    () => data?.some((i) => i.xenditPaymentUrl != null && isOutstanding(i)) ?? false,
+    [data],
+  );
+  useEffect(() => {
+    if (!hasInFlightPayment) return;
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [hasInFlightPayment, router]);
+
+  // Diff-detect status transitions to PAID across renders. Fire one-shot toast
+  // and add the row id to the recently-paid set for ring-flash animation.
+  useEffect(() => {
+    if (!data) return;
+    const prev = prevDataRef.current;
+    prevDataRef.current = data;
+    if (!prev) return;
+    const flipped: string[] = [];
+    for (const curr of data) {
+      const prior = prev.find((p) => p.id === curr.id);
+      if (prior && prior.status !== "PAID" && curr.status === "PAID") {
+        flipped.push(curr.id);
+        toast.success(
+          `Alhamdulillah, tagihan ${curr.periodLabel} baru saja terbayar.`,
+        );
+      }
+    }
+    if (flipped.length === 0) return;
+    setRecentlyPaidIds((prevSet) => {
+      const next = new Set(prevSet);
+      flipped.forEach((id) => next.add(id));
+      return next;
+    });
+    const timer = setTimeout(() => {
+      setRecentlyPaidIds((prevSet) => {
+        const next = new Set(prevSet);
+        flipped.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [data]);
 
   const todayYmd = new Date().toISOString().slice(0, 10);
 
@@ -236,6 +287,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
                 onClick={() => setSelectedInvoiceId(inv.id)}
                 tone="paid"
                 isOverdue={false}
+                highlight={recentlyPaidIds.has(inv.id)}
               />
             ))}
           </ul>
@@ -277,11 +329,13 @@ function InvoiceRow({
   onClick,
   tone,
   isOverdue,
+  highlight = false,
 }: {
   invoice: InvoiceItem;
   onClick: () => void;
   tone: "due" | "paid";
   isOverdue: boolean;
+  highlight?: boolean;
 }) {
   const remaining = invoice.totalDue - invoice.totalPaid;
   const amount = tone === "due" ? remaining : invoice.totalDue;
@@ -296,7 +350,7 @@ function InvoiceRow({
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-baseline gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40"
+        className={`flex w-full items-baseline gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40 ${highlight ? "animate-in fade-in duration-700 ring-2 ring-status-present-text/40" : ""}`}
       >
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">{invoice.periodLabel}</p>
