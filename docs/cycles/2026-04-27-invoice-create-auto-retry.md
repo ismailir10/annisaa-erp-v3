@@ -226,6 +226,15 @@ Acceptance: vitest asserts each write site uses the helper; existing tests for t
 - Added `lib/__tests__/error-prefix.test.ts` (11 cases): every `XenditErrorCode` value maps to its own prefix; plain `Error` → `"unknown:"`; non-Error throws (`"oops"`, `null`, `undefined`) → stringified under `"unknown:"`; `formatPaymentLinkError` shape verified for `XenditApiError`, `Error`, and non-Error throws.
 - `npm run build` clean. Vitest: **749 passed** (was 741 after Task 3, +8 new from `error-prefix.test.ts`). design-system token: N/A — no frontend changes.
 
+### Task 5 — `GET /api/invoices/pending-payment-link/breakdown`
+
+- New route `app/api/invoices/pending-payment-link/breakdown/route.ts`. Admin-only (403 on missing session or non-admin role via `isAdminRole`). Returns `{ total, byPrefix }` with all 10 buckets (`5xx`, `429`, `408`, `network`, `401`, `403`, `422`, `4xx`, `untagged`, `unknown`) zero-filled so consumers don't have to handle absent keys.
+- SQL aggregation via tagged-template `prisma.$queryRaw` (matches existing codebase style, e.g. `lib/finance/invoice-numbers.ts:64`, `app/api/promotions/route.ts:118`). The `CASE` expression splits `paymentLinkError` on the first colon via Postgres `position()` + `substring()`; the `IS NULL OR position(':' in ...) = 0` guard puts pre-cycle unprefixed rows into the explicit `'untagged'` bucket (avoids the `LEFT(str, -1) = ''` edge case the spec flagged).
+- Tenant-scoped: `WHERE "tenantId" = ${session.tenantId} AND status = 'PENDING_PAYMENT_LINK'`. Status is a literal (no need to interpolate), tenantId is the only parameterised value. `count(*)::bigint` cast and JS `Number(row.n)` coercion handle the BigInt return shape.
+- Defensive: any unexpected `prefix` value (e.g. older data with a different tag scheme like `weirdold:`) folds into `byPrefix.unknown` rather than leaking surprise keys to the consumer.
+- Test file `app/api/__tests__/invoices-pending-payment-link-breakdown.test.ts` (7 cases): 3 auth gates (no session, TEACHER, GUARDIAN — all 403, no SQL fired), empty state (zero rows, all 10 buckets present and zero), 9-row fixture asserting `total=25` + each bucket value, unknown-prefix fold-in (`weirdold` lands in `unknown`), and tenant scoping (captures the tagged-template values, asserts `["tnt-1"]` is the sole interpolation, sanity-checks SQL contains `PENDING_PAYMENT_LINK` + `paymentLinkError` + `GROUP BY`).
+- `npm run build` clean (route registered as `/api/invoices/pending-payment-link/breakdown`). Vitest: **756 passed** (was 749 after Task 4, +7 new). design-system token: N/A — no frontend changes (Task 6 wires the UI).
+
 <!-- /build continues here -->
 
 ## Verification
