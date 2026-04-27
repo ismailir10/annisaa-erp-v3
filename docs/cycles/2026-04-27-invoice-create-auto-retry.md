@@ -194,7 +194,14 @@ Acceptance: vitest asserts each write site uses the helper; existing tests for t
 
 ## Implementation
 
-<filled by /build>
+### Task 2 — Inline retry helper `lib/xendit/with-retry.ts`
+
+- Added `lib/xendit/with-retry.ts` with `withXenditRetry<T>(fn, ctx)`, exported `MAX_ATTEMPTS = 3` and `BACKOFFS_MS = [250, 1000]`. Honors `XenditApiError.retryAfterMs` when present, otherwise indexes into `BACKOFFS_MS` by attempt. Hard errors (retriable=false or non-typed throws) re-throw after one attempt; retriable errors retry up to 3 attempts then re-throw the last `XenditApiError` so callers can read `error.code` for prefix tagging.
+- Structured log per attempt: `[XENDIT ATTEMPT] tenantId=... invoiceId=... attempt=<n> result=<success|transient|hard> status=<httpStatus|null> durationMs=<n>` via `console.log` so success rows are visible too. Convention: final-attempt-failure on retriable error logs `transient` (still the same failure mode in ops grep); `hard` only means non-retriable.
+- Test file `lib/__tests__/with-retry.test.ts` — 9 cases: constants, success-on-1, retry-then-success, persistent-5xx 3-attempt terminal, hard 401 (1 attempt), non-typed-error hard, 429 with Retry-After 2000ms, 429 with capped 3000ms, 429 with no Retry-After falling back to BACKOFFS_MS[0].
+- Uses fake timers + `vi.advanceTimersByTimeAsync` to validate exact backoff durations without consuming wall clock.
+
+<!-- /build continues here -->
 
 ## Verification
 
