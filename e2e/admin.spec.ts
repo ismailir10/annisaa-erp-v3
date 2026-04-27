@@ -598,6 +598,72 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await expect(page.getByText(/(link berhasil|masih gagal)/)).toBeVisible({ timeout: 30_000 });
   });
 
+  test("pending-payment-link breakdown popover renders bucket counts when count > 0", async ({ page }) => {
+    // Mock the diagnostic endpoint with a deterministic payload — browser-side
+    // GET from app/admin/invoices/page.tsx is interceptable via page.route().
+    // Stats endpoint we cannot mock (server-side), so we ensure pendingPaymentLink
+    // > 0 by creating a real failing-Xendit invoice via the batch endpoint first.
+    await page.route(
+      "**/api/invoices/pending-payment-link/breakdown",
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            total: 6,
+            byPrefix: {
+              "5xx": 4,
+              "401": 2,
+              "429": 0,
+              "408": 0,
+              network: 0,
+              "403": 0,
+              "422": 0,
+              "4xx": 0,
+              untagged: 0,
+              unknown: 0,
+            },
+          }),
+        }),
+    );
+
+    // Pre-condition: ensure stats.pendingPaymentLink > 0 so the trigger renders.
+    // Reuse the same path the header-retry test uses — fake-Xendit lands rows
+    // in PENDING_PAYMENT_LINK deterministically.
+    const period = `E2E Breakdown ${Date.now()}`;
+    const yearId = await firstActiveYearId(page);
+    const planRes = await page.request.post("/api/invoices/generate/plan", {
+      data: { periodLabel: period, dueDate: "2026-12-31", academicYearId: yearId },
+    });
+    const plan = await planRes.json();
+    const studentIds: string[] = (plan.eligibleStudentIds ?? []).slice(0, 2);
+    if (studentIds.length === 0) {
+      test.skip(true, "No eligible students for breakdown popover scenario");
+      return;
+    }
+    const batchRes = await page.request.post("/api/invoices/generate/batch", {
+      data: { studentIds, periodLabel: period, dueDate: "2026-12-31", academicYearId: yearId },
+    });
+    expect(batchRes.ok()).toBeTruthy();
+
+    await page.goto("/admin/invoices");
+    const trigger = page.getByRole("button", { name: /Coba Lagi Link \(\d+\)/ });
+    await expect(trigger).toBeVisible({ timeout: 15_000 });
+
+    // Click the trigger → popover opens, breakdown fetch fires, mocked payload
+    // renders. Assert non-zero buckets are present and zero buckets are not.
+    await trigger.click();
+    await expect(page.getByText("Rincian gagal")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("5xx")).toBeVisible();
+    await expect(page.getByText("401")).toBeVisible();
+    // Auth share = 2/6 ≈ 0.33 — below 0.5 threshold, warning should NOT appear.
+    await expect(page.getByText(/Banyak gagal autentikasi/)).not.toBeVisible();
+    // The retry CTA inside the popover.
+    await expect(
+      page.getByRole("button", { name: /Coba Lagi Sekarang/ }),
+    ).toBeVisible();
+  });
+
   test("retry-payment-links endpoint validates payload", async ({ page }) => {
     // Smoke-test the retry endpoint contract — independent of Xendit state.
     // Empty body → retry-all PENDING for tenant, returns the expected shape.
