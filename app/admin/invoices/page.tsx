@@ -855,7 +855,7 @@ export default function InvoicesPage() {
                 Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
               </SheetDescription>
             </SheetHeader>
-            <div className="p-card space-y-field">
+            <div className="space-y-field px-4 pb-4">
               <GenerateInvoiceFormBody genForm={genForm} setGenForm={setGenForm} years={years} />
             </div>
             <SheetFooter>
@@ -868,14 +868,14 @@ export default function InvoicesPage() {
         </Sheet>
       ) : (
         <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
-          <DialogContent className="p-card">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Buat Tagihan Bulanan</DialogTitle>
               <DialogDescription>
                 Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
               </DialogDescription>
             </DialogHeader>
-            <div className="p-card space-y-field">
+            <div className="space-y-field">
               <GenerateInvoiceFormBody genForm={genForm} setGenForm={setGenForm} years={years} />
             </div>
             <DialogFooter>
