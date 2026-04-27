@@ -38,7 +38,7 @@ import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
 import {
@@ -247,6 +247,7 @@ export default function InvoicesPage() {
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
@@ -331,6 +332,7 @@ export default function InvoicesPage() {
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
+    setFetchError(false);
     try {
       const params = new URLSearchParams({
         page: String(pagination.page),
@@ -342,11 +344,12 @@ export default function InvoicesPage() {
       if (statusFilter !== "all") params.set("status", statusFilter);
 
       const res = await fetch(`/api/invoices?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data tagihan");
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -769,18 +772,31 @@ export default function InvoicesPage() {
         ]}
       />
 
-      <DataTable
-        columns={columnsWithActions}
-        data={data}
-        pagination={pagination}
-        onPageChange={handlePageChange}
-        onPageSizeChange={handlePageSizeChange}
-        onSortChange={handleSortChange}
-        defaultSort={{ field: "createdAt", order: "desc" }}
-        loading={loading}
-        emptyTitle="Belum ada tagihan"
-        emptyDescription="Buat tagihan bulanan untuk semua siswa aktif"
-      />
+      {fetchError ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 flex items-start gap-3">
+          <AlertCircle className="size-5 shrink-0 text-destructive mt-0.5" />
+          <div className="flex-1 min-w-0 space-y-2">
+            <p className="text-sm font-semibold text-foreground">Gagal memuat tagihan</p>
+            <p className="text-sm text-muted-foreground">Coba lagi sebentar. Jika tetap gagal, hubungi tim teknis.</p>
+            <Button size="sm" variant="outline" onClick={fetchInvoices}>
+              <RefreshCw size={14} className="mr-1.5" /> Coba lagi
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <DataTable
+          columns={columnsWithActions}
+          data={data}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          onSortChange={handleSortChange}
+          defaultSort={{ field: "createdAt", order: "desc" }}
+          loading={loading}
+          emptyTitle="Belum ada tagihan"
+          emptyDescription="Buat tagihan bulanan untuk semua siswa aktif"
+        />
+      )}
 
       {/* Bulk Retry Confirmation */}
       <ConfirmDialog

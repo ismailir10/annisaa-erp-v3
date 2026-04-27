@@ -119,7 +119,7 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - Acceptance: Playwright screenshot at 360×800 + 1280×800 of both dialogs side-by-side before/after, attached to Verification. Vitest for dialog: validation error → toast text contains reason; API 4xx → toast text contains API message. Manual smoke: open both dialogs, tab through fields, every focus-ring visible, every helper text legible, total row visually distinct from line items.
 - Independent.
 
-### T3 — Admin list error fallback
+### T3 — Admin list error fallback ✅
 - File: `app/admin/invoices/page.tsx` line ~348 (the silent `catch` on list fetch).
 - Acceptance: when initial list query fails, page shows an inline error card with `Coba lagi sebentar ya, Pak/Bu.` + retry button (calls `router.refresh()`). Matches `.claude/standards/portal.md` fetch error-handling contract (admin variant — drop honorific, keep imperative). Spec note: portal.md is parent-tone; admin variant uses the same shape but `Coba lagi` without honorific. Cross-check ui.md.
 - Independent.
@@ -168,12 +168,14 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - T0: Removed `StagingBanner` component + render call in `app/layout.tsx`. Cross-checked design-system §layout — banner not part of standard chrome.
 - T1: VA-only copy. `METHOD_LABELS.XENDIT` "Xendit"/"Online (Xendit)" → "Virtual Account" in admin detail (`app/admin/invoices/[id]/page.tsx:37,66`) + parent sheet (`app/parent/invoices/invoice-detail-sheet.tsx:64`). Icons `CreditCard` + `QrCode` → `Building2` in METHOD_ICONS + Cara-bayar card. Help-line copy "QRIS · Virtual Account · E-wallet · kartu" → "BRI · BNI · Mandiri · BCA · Permata" with title "Transfer bank (Virtual Account)". Email templates clean. Cross-checked design-system §status badges + voice.md §portal — register correct.
 - T2: Form polish. Both dialogs: footer Batal `variant="outline"` → `variant="ghost"` (manual `manual-invoice-dialog.tsx`, batch `app/admin/invoices/page.tsx:845,866`). Manual dialog Komponen Biaya rows wrapped in `bg-muted/30` panel with `bg-background` on inner inputs (visual grouping per design-system §nested-form-rows). `Tambah Komponen` button `variant="outline"` → `variant="ghost"` to recede behind primary CTA. Total row: `font-medium` → `font-semibold text-foreground`, added `tabular-nums` + `mt-2`. Batch dialog Tahun Ajaran field gained `<FieldDescription>` per design-system §Forms. Per-field error toast already wired via existing `validateManualForm` returning specific reasons (10 vitest cases preserve coverage). Cross-checked design-system §Forms / §Dialog footer / §nested-form-rows.
+- T3: Admin list fetch-error fallback. Added `fetchError` state, `res.ok` check on the `/api/invoices` request, inline destructive-tinted error card replacing the DataTable when fetch fails. Card has `AlertCircle` icon + headline "Gagal memuat tagihan" + subtext "Coba lagi sebentar. Jika tetap gagal, hubungi tim teknis." + "Coba lagi" button calling `fetchInvoices`. Cross-checked portal.md §fetch error-handling contract (admin variant — drop honorific, keep imperative).
 
 ## Verification
 
 - T0: `npm run build` green. `npx vitest run` 700 passed / 2 skipped / 42 todo. Banner removed from runtime — manual smoke at end-of-cycle Playwright. Cross-checked `design-system.html` §layout (no banner in standard chrome).
 - T1: build + vitest green (700 / 2 / 42, unchanged). `grep -RE '(e-?wallet|kartu kredit|QRIS|credit card)' app/ components/ lib/email/` returns zero matches in live UI files. Manual smoke deferred to end-of-cycle.
 - T2: build + vitest green (700 / 2 / 42, unchanged). 10 existing `validateManualForm` cases preserve per-field-reason coverage. Manual smoke at end-of-cycle Playwright (Chrome MCP).
+- T3: build + vitest green (700 / 2 / 42, unchanged). Manual smoke deferred — error path requires API kill which is end-of-cycle territory.
 
 ## Ship Notes
 <filled by /ship>
