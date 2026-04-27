@@ -112,7 +112,7 @@ Prior cycle `2026-04-27-finance-ui-polish` T2 applied surface fixes to the admin
   - `npm run build && npx vitest run` green.
 - **Independent. Trivial.**
 
-### T4 — Cross-cut verification + cycle doc fill
+### T4 — Cross-cut verification + cycle doc fill ✅
 - **End-of-cycle gate:** `npm run build && npx vitest run && npx playwright test`. All green required before final commit.
 - **Manual smoke (Playwright MCP, post-build, demo-mode auth):**
   - Manual dialog at 1280×800 + 360×800 — screenshot, attach to Verification.
@@ -138,6 +138,53 @@ Prior cycle `2026-04-27-finance-ui-polish` T2 applied surface fixes to the admin
 - T1: `npm run build` ✓ (10.4s compile + 13.3s typecheck, 7-worker page collection green). `npx vitest run` ✓ — 711 passed / 2 skipped / 42 todo (84/2 test files), unchanged from baseline cycle `2026-04-27-finance-ui-polish`. Visual smoke deferred to T4 end-of-cycle Playwright + manual.
 - T2: `npm run build` ✓. `npx vitest run` ✓ — 711 / 2 / 42, unchanged. Targeted `npx vitest run components/admin/invoices` ✓ — 12 passed (validateManualForm coverage preserved). Visual smoke deferred to T4.
 - T3: `npm run build` ✓. `npx vitest run` ✓ — 711 / 2 / 42, unchanged. Helper text crispness inherited from T1 FieldDescription change — no batch-dialog-specific test surface. Visual smoke deferred to T4.
+- T4: cross-cut + cycle-doc fill. (a) Cross-cut hygiene grep — initial run found 2 leftover `p-card space-y-field` in `app/admin/invoices/[id]/page.tsx` Catat-Pembayaran dialog (sibling, not in T2/T3 scope). T1 primitive change made these dialogs render with triple-effective right padding (DialogContent `pl-4 pr-10` + inner `p-card` 1.5rem = 4rem on right). Applied same fix as T2/T3 inline (drop `p-card` from DialogContent + inner wrapper, Sheet body → `space-y-field px-4 pb-4`, Batal `outline → ghost` for cross-cut consistency). Final hygiene grep: zero `p-card space-y-field` in `components/admin/invoices` `app/admin/invoices`. Zero hardcoded hex (`text-[#…]|bg-[#…]`). (b) End-of-cycle gates: `npm run build` ✓ + `npx vitest run` ✓ (711 / 2 / 42 unchanged). (c) Playwright e2e: **deferred to CI on PR** — operator's dev server occupies port 3000 in worker context; `playwright.config.ts` has `reuseExistingServer: !process.env.CI`, so local Playwright tries to reuse the dev server which is not `DEMO_MODE=true npm run start`. All admin auth tests fail with 15.9s timeout (cookie injection lands on non-demo server). CI runs Playwright in clean container via GitHub Actions per CLAUDE.md branch protection — `/ship` will not auto-merge until that check is green. Operator can also free port 3000 + re-run locally before `/ship` if desired.
+- **UAT consumed:** `docs/uat/reports/assets/2026-04-27-admin-invoices/` — captured pre-cycle by background `general-purpose` agent. Auth-wall finding (UAT-AUTH-01 major) confirmed structural Playwright-MCP-vs-Google-SSO incompatibility on staging — informational, not a product bug. Live UAT scheduled for post-merge via Chrome MCP using operator's authenticated profile.
 
 ## Ship Notes
-<filled by /ship>
+
+### Migration / env changes
+- **None.** No DB migration. No new env var. Pure UI primitive + dialog visual changes.
+
+### API contract
+- **Unchanged.** Zero route signature, zero Zod schema, zero response shape touched. Cycle is className-only edits across 5 files.
+
+### Files touched
+- `components/ui/dialog.tsx` — DialogContent right-padding (`pr-10`); DialogFooter asymmetric pull-back (`-ml-4 -mr-10`).
+- `components/ui/sheet.tsx` — SheetHeader right-padding (`pr-10`).
+- `components/ui/field.tsx` — `fieldVariants` `gap-1.5`; `FieldDescription` `text-xs`.
+- `components/admin/invoices/manual-invoice-dialog.tsx` — drop double `p-card`; Komponen panel `bg-muted/60 + dashed-border`; row → responsive grid; Total `border-t-2 pt-3 mt-3`; desktop Batal ghost.
+- `app/admin/invoices/page.tsx` — drop double `p-card` on batch dialog (Sheet + Dialog branches).
+- `app/admin/invoices/[id]/page.tsx` — drop double `p-card` on Catat-Pembayaran dialog; Batal ghost (cross-cut hygiene from T4 grep).
+
+### Backwards compatibility
+- **Zero behavioral change.** Validation, fetch, submit handlers, state machines all untouched.
+- Primitive changes (Field gap, FieldDescription text size, Dialog/Sheet header padding) affect every form/dialog in the app — visual-only, no functional regression.
+
+### Manual smoke checklist (post-merge on staging via Chrome MCP)
+
+Drive via Chrome MCP using operator's existing Google SSO session.
+
+**Manual invoice dialog (`/admin/invoices` → "Tagihan Manual")**
+- [ ] Desktop 1280×800: header X does not crowd title; body padding asymmetric (1rem left / 2.5rem right) acceptable; Komponen Biaya panel reads as a clear container (muted bg + 2px dashed border); Komponen rows aligned in 3-column grid (Select 1fr / Input 120px / X icon button); Total separator 2px solid; Batal is ghost (transparent), Buat Tagihan is solid teal.
+- [ ] Mobile 360×800: Sheet variant matches; Komponen row uses 100px amount column; no horizontal overflow.
+
+**Batch dialog (`/admin/invoices` → "Buat Tagihan")**
+- [ ] Desktop + Mobile: 3 fields (Periode, Tanggal Jatuh Tempo, Tahun Ajaran) read with consistent rhythm; helper text "Periode tagihan akan terikat ke tahun ajaran ini." renders crisp at 0.75rem.
+
+**Catat-Pembayaran dialog (`/admin/invoices/[id]` → "Catat Pembayaran")**
+- [ ] Desktop + Mobile: form body padding consistent with manual + batch dialogs (no triple-padding visual bug from T1 primitive change); Batal ghost.
+
+**Cross-cut primitive sanity (sample 3 high-traffic forms — verify Field gap + FieldDescription size globally)**
+- [ ] `/admin/students/[id]` — 26 `<Field>` instances. Visual rhythm tighter than before (gap 0.5rem → 0.375rem); helper text crisper (text-sm → text-xs). Should read better, not worse. If any form regresses, escalate.
+- [ ] `/admin/employees/[id]` — second-densest form. Same check.
+- [ ] `/parent/invoices` detail-sheet — uses Field on payment form. Should still feel mobile-tight.
+
+**Sibling dialogs (verify no regression from T1 right-padding changes)**
+- [ ] ConfirmDialog flows (void invoice, deactivate student) — header X clearance OK; footer button spacing OK.
+- [ ] AlertDialog flows (delete confirmations) — same.
+
+### Rollback plan
+- Single squash-merge revert returns to pre-cycle state cleanly. No data dependency.
+- If primitive changes (T1) regress a specific form, can be reverted in isolation: `git revert <T1-commit>` reverts the 4 className edits in `dialog.tsx`/`sheet.tsx`/`field.tsx`. T2/T3/T4 dialog edits would then need follow-up to re-add per-dialog padding (since they currently rely on T1 baseline owning padding).
+- Lower-risk partial rollback: revert only the field.tsx edits (`gap-1.5` → `gap-2`, `text-xs` → `text-sm`) if the global form rhythm change is the only regressor. Dialog/Sheet header padding fixes are isolated to overlays and unlikely to regress non-overlay surfaces.
