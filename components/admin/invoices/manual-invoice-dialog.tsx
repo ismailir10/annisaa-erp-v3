@@ -444,34 +444,35 @@ function ManualInvoiceFormBody({
 
       <Field>
         <FieldLabel>Komponen Biaya *</FieldLabel>
-        <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+        <div className="flex flex-col gap-2 rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/60 p-3">
           {form.lines.map((line, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <div className="flex-1 min-w-0">
-                <Select
-                  value={line.feeComponentId}
-                  onValueChange={(v) =>
-                    v && updateLine(index, { feeComponentId: v })
-                  }
-                >
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Pilih komponen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {feeComponents.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">
-                        Belum ada komponen aktif
-                      </div>
-                    ) : (
-                      feeComponents.map((fc) => (
-                        <SelectItem key={fc.id} value={fc.id}>
-                          {fc.label}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div
+              key={index}
+              className="grid grid-cols-[1fr_100px_auto] md:grid-cols-[1fr_120px_auto] gap-2 items-center"
+            >
+              <Select
+                value={line.feeComponentId}
+                onValueChange={(v) =>
+                  v && updateLine(index, { feeComponentId: v })
+                }
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Pilih komponen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {feeComponents.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      Belum ada komponen aktif
+                    </div>
+                  ) : (
+                    feeComponents.map((fc) => (
+                      <SelectItem key={fc.id} value={fc.id}>
+                        {fc.label}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
               <Input
                 type="number"
                 min={0}
@@ -479,7 +480,7 @@ function ManualInvoiceFormBody({
                 value={line.amount}
                 onChange={(e) => updateLine(index, { amount: e.target.value })}
                 placeholder="0"
-                className="w-32 font-currency bg-background"
+                className="w-full font-currency bg-background"
               />
               <Button
                 type="button"
@@ -505,7 +506,7 @@ function ManualInvoiceFormBody({
         </div>
       </Field>
 
-      <div className="flex items-center justify-between border-t border-border pt-4 mt-2">
+      <div className="flex items-center justify-between border-t-2 border-border pt-3 mt-3">
         <span className="text-sm font-semibold text-foreground">Total</span>
         <span className="font-currency text-base font-bold tabular-nums text-foreground">
           {formatRupiah(total)}
@@ -649,7 +650,7 @@ export function ManualInvoiceDialog({
             <SheetTitle>{title}</SheetTitle>
             <SheetDescription>{description}</SheetDescription>
           </SheetHeader>
-          <div className="p-card space-y-field">
+          <div className="space-y-field px-4 pb-4">
             <ManualInvoiceFormBody
               form={form}
               setForm={setForm}
@@ -677,12 +678,12 @@ export function ManualInvoiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-card max-w-xl">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="p-card space-y-field">
+        <div className="space-y-field">
           <ManualInvoiceFormBody
             form={form}
             setForm={setForm}
@@ -693,7 +694,7 @@ export function ManualInvoiceDialog({
         </div>
         <DialogFooter>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
