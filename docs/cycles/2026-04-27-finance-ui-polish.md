@@ -155,7 +155,7 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - Acceptance: vitest case `successReturnUrl uses staging origin when requestOrigin is staging` passes. Playwright case `payment redirect stays on requesting origin` passes. **No log-line change** to `lib/xendit/helpers.ts` (existing `[XENDIT SESSION CREATED]` log already emits `successOrigin`). Test-only addition.
 - **Independent of T1–T6.**
 
-### T8 — Cross-cutting verification + cycle doc fill
+### T8 — Cross-cutting verification + cycle doc fill ✅
 - Run grep for hardcoded `text-[#…]` / `bg-[#…]` / `border-[#…]` across changed dirs. Expect zero.
 - Run vitest + Playwright suite end-to-end. Expect green.
 - Render every changed parent + admin surface at 360×800 + 1280×800 via `preview_resize` + `preview_screenshot`. Attach to Verification.
@@ -173,6 +173,7 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - T5: Xendit return URLs rewired in `lib/xendit/helpers.ts:63-64` to `${appOrigin}/parent/invoices?invoice=<id>&xenditStatus=paid|cancel`. `app/payment/success/page.tsx` and `app/payment/cancel/page.tsx` rewritten as thin Next.js Server Component redirects (no client JS) for backwards-compat with stale Xendit sessions (≤7 days, then deletable in next cycle). `app/parent/invoices/client.tsx` reads `searchParams.invoice` + `searchParams.xenditStatus` via `useSearchParams`, opens detail sheet for the matching invoice, fires one-shot toast (`Alhamdulillah, tagihan <periodLabel> terbayar.` for paid; `Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.` for cancel), then strips params via `router.replace("/parent/invoices", { scroll: false })`. Reviewer-fix applied: `router.replace` moved inside `if (found)` block so foreign / stale invoice IDs don't silently strip params before data refreshes. `e2e/payment.spec.ts` rewritten to assert shim-redirect target. `lib/__tests__/xendit-helpers-app-url.test.ts` updated for new URL shape. 5 new vitest cases added to `app/parent/invoices/__tests__/client.test.tsx` covering: paid path opens sheet + fires success toast + clears params; cancel path fires neutral toast; foreign invoice id silent no-op; missing xenditStatus silent no-op; missing invoice param silent no-op. Existing kwitansi PDF download (`/api/guardian/invoices/<id>/pdf`) already covers the print/save spec — no new button needed. Cross-checked design-system.html §confirmation patterns + voice.md §parent (Alhamdulillah / Pak/Bu courtesy) + portal.md §detail-sheet.
 - T6: Webhook → list freshness. Added `setInterval` poll calling `router.refresh()` every 30 s when at least one outstanding invoice has `xenditPaymentUrl != null` (active Xendit session). Cleans up on unmount. Added diff-detection `useEffect` comparing previous data via `useRef` — when an invoice transitions from non-PAID to PAID, fires toast `"Alhamdulillah, tagihan <periodLabel> baru saja terbayar."` once and adds the row id to `recentlyPaidIds` set; the affected `<InvoiceRow>` gets `animate-in fade-in duration-700 ring-2 ring-status-present-text/40` for 1.5 s before the id is removed from the set. No SWR dep — uses raw `useEffect` + `setInterval` matching existing client patterns. 4 new vitest cases: poll fires every 30 s when in-flight; poll silent when no in-flight; flip-to-PAID fires toast on rerender; initial mount with existing PAID rows silent (no false-fire).
 - T7: Origin-aware Xendit redirect pinned. Added priority-pin case to `lib/__tests__/xendit-helpers.test.ts` asserting that staging/preview `requestOrigin` wins over `NEXT_PUBLIC_APP_URL` even when prod env is set. Added end-to-end case to `lib/__tests__/xendit-helpers-app-url.test.ts` stubbing the helper through to `createXenditSession` mock and asserting `successReturnUrl`/`cancelReturnUrl` use the staging origin (not prod). Added `vi.clearAllMocks()` to that file's `beforeEach` to prevent mock-call cross-test contamination. No log-line change to `lib/xendit/helpers.ts` — existing `[XENDIT SESSION CREATED]` log already emits `successOrigin` for operator triage. Test-only addition.
+- T8: Cross-cut verification. `grep -RE 'text-\[#[0-9a-f]+\]|bg-\[#[0-9a-f]+\]|border-\[#[0-9a-f]+\]' app/admin/invoices app/parent app/payment components/admin/invoices components/parent` returns zero. `grep -RE '(e-?wallet|kartu kredit|QRIS|credit card)' app/admin/invoices app/parent app/payment components/admin/invoices components/parent lib/email/` returns zero (excluding test fixtures). Cross-checked **design-system.html** §confirmation patterns / §Forms / §nested-form-rows / §Dialog footer / §empty-states / §status badges; **portal.md** §detail-sheet / §fetch-error-handling-contract / §Empty State Contract; **voice.md** §parent (Alhamdulillah / Pak/Bu courtesy) and §admin (no honorific, imperative); **colors.md** §Celebration tokens; **patterns.md** §Workflow Queue (batch dialog flow); **crud.md** §form field; **ui.md** §DataTable / §Dialog. End-of-cycle Playwright `npx playwright test` 21/21 green (18.3 min). Live staging UAT via Chrome MCP deferred to post-merge — branch not yet deployed; staging would test old code. Manual smoke checklist surfaced in Ship Notes.
 
 ## Verification
 
@@ -184,6 +185,55 @@ Outcome: every finance surface — admin list / create dialog / batch / retry / 
 - T5: build + vitest green (705 / 2 / 42 — +5 new client.test.tsx cases). `feature-dev:code-reviewer` reviewed staged diff — flagged "router.replace fires even when invoice not found" + "Xendit-return useEffect lacks unit coverage"; both addressed before commit. Manual smoke deferred to end-of-cycle Chrome MCP UAT.
 - T6: build + vitest green (709 / 2 / 42 — +4 new client.test.tsx cases for poll + flip-detect). Manual smoke (parent on list while admin marks invoice PAID → toast + ring) deferred to end-of-cycle.
 - T7: build + vitest green (711 / 2 / 42 — +2 new origin pin tests). Manual staging vs prod origin smoke deferred to end-of-cycle UAT — already provable via stdout `[XENDIT SESSION CREATED]` log.
+- T8: end-of-cycle gates all green — `npm run build` (✓), `npx vitest run` 711 passed / 2 skipped / 42 todo, `npx playwright test` 21/21 chromium passed (18.3 min). Color-token sweep + payment-method-copy sweep both zero across changed dirs. Live UAT noted post-merge.
 
 ## Ship Notes
-<filled by /ship>
+
+### Migration / env changes
+
+- **None.** No DB migration. No new env var. `NEXT_PUBLIC_APP_URL` per-env requirement unchanged from cycle `2026-04-26-parent-payment-redirect-bug`.
+
+### API contract
+
+- **Unchanged.** No route signature, no Zod schema, no response shape touched. Only behavior change is `lib/xendit/helpers.ts` constructing return URLs against `/parent/invoices?invoice=…&xenditStatus=paid|cancel` instead of `/payment/{success,cancel}?invoice=…`.
+
+### Backwards compatibility
+
+- **Stale Xendit sessions (≤7 days) keep working.** `app/payment/success/page.tsx` and `app/payment/cancel/page.tsx` are now thin Server Component redirects forwarding to the new URL shape. Sessions created before this deploy land on the shim, which redirects to the new flow. **Action:** schedule a follow-up cycle ≥7 days after this one ships to delete `app/payment/{success,cancel}/` directories. Track in TODO/issue. After 7 days every Xendit session created against the old URLs will have expired naturally.
+
+### Manual smoke checklist (post-merge on staging)
+
+Drive via Chrome MCP using the user's existing Google SSO session.
+
+**Banner removal**
+- [ ] Any page on staging — confirm yellow STAGING banner is gone.
+
+**T1 VA-only payment-method copy**
+- [ ] `/admin/invoices/<id>` — open detail. METHOD_LABELS reads "Virtual Account" (not "Xendit"). Catat-Pembayaran dialog Method dropdown shows "Virtual Account".
+- [ ] `/parent/invoices` → tap an outstanding invoice → detail sheet "Cara bayar" card shows `Building2` icon + "Transfer bank (Virtual Account)" title + "BRI · BNI · Mandiri · BCA · Permata" subtitle. No QRIS / e-wallet / kartu mentioned anywhere.
+
+**T2 form polish**
+- [ ] `/admin/invoices` → "Tagihan Manual" → confirm Komponen Biaya rows in muted-panel, Total row in semibold tabular-nums, Batal button is ghost.
+- [ ] `/admin/invoices` → "Buat Tagihan" (batch) → confirm Tahun Ajaran field shows helper "Periode tagihan akan terikat ke tahun ajaran ini." + Batal button is ghost.
+
+**T3 admin list error fallback**
+- [ ] Verifiable only with API kill — skip unless `/api/invoices` flakes naturally. Otherwise covered by build + the `res.ok` guard.
+
+**T4 celebration-gold tokens**
+- [ ] As a parent with all-paid invoices → `/parent/invoices` → confirm "Lunas semua" gold-tinted card renders identically to before (visual regression check).
+
+**T5 Xendit return → /parent/invoices**
+- [ ] As parent: open an outstanding invoice → tap "Bayar sekarang" → complete (or cancel) on Xendit hosted checkout → confirm landing URL is `/parent/invoices?invoice=<id>&xenditStatus=paid|cancel` (URL bar momentarily) → detail sheet auto-opens for that invoice → toast fires (`Alhamdulillah, tagihan ... terbayar.` or `Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.`) → URL strips back to `/parent/invoices` → refresh does NOT re-fire toast.
+- [ ] Stale-session compatibility: paste an old `/payment/success?invoice=<id>` URL directly → confirm server-side redirect lands on `/parent/invoices?invoice=<id>&xenditStatus=paid` and triggers the modal flow.
+
+**T6 webhook → list freshness**
+- [ ] Parent on `/parent/invoices` with one outstanding invoice that has `xenditPaymentUrl` (active session) → admin marks invoice PAID via `/admin/invoices/<id>` → wait ≤30s → parent's list auto-refreshes → flipped row gets fade-in ring + toast `"Alhamdulillah, tagihan <periodLabel> baru saja terbayar."` fires.
+
+**T7 origin-aware redirect**
+- [ ] On staging deploy, create a new Xendit session for any invoice (via Bayar from parent) → check Vercel logs for `[XENDIT SESSION CREATED]` line → confirm `successOrigin` field starts with the staging vercel.app domain, NOT prod (`annisaa-erp-v3.vercel.app`).
+
+### Rollback plan
+
+- One-line revert in `lib/xendit/helpers.ts:63-64` returns to old `/payment/success|cancel` paths. Shim pages remain — they're harmless if reverted.
+- The toast / setInterval / param-handling code in `app/parent/invoices/client.tsx` is gated on the `xenditStatus` query param being present. If reverted, no params arrive → silent no-op. Safe.
+- All changes are squash-mergeable as one PR; reverting the squash commit returns to pre-cycle state cleanly.
