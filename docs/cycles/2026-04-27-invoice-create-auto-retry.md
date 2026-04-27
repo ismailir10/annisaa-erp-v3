@@ -209,6 +209,23 @@ Acceptance: vitest asserts each write site uses the helper; existing tests for t
 - Added 1 new test case "propagates XenditApiError with code:'5xx' after 3 retry attempts" — uses fake timers + `vi.advanceTimersByTimeAsync(1250)` to fast-forward the 250ms + 1000ms backoffs. Asserts: thrown error is `instanceof XenditApiError`, `code === "5xx"`, `status === 503`, exactly 3 mock calls, and `prisma.invoice.update` was NOT invoked (short-circuit before persist).
 - Vitest: 741 passed (was 740, +1 new). `npm run build` clean. design-system token: not applicable — no frontend changes in this task; the cycle doc carries the token for the cycle as a whole.
 
+### Task 4 — Prefix-tag `paymentLinkError` writes (5 sites) + bundled `revalidateTag` "bug"
+
+- Added `lib/xendit/error-prefix.ts` with `prefixForError(e)` and `formatPaymentLinkError(e)`. Branches on `instanceof XenditApiError` → uses `error.code`; falls back to `"unknown"` for plain `Error`, raw strings, `null`, `undefined`. The colon separator is load-bearing: Task 5's breakdown endpoint splits `paymentLinkError` on the first colon to aggregate by category.
+- Wired `formatPaymentLinkError` into all 5 spec'd write sites:
+  - `app/api/invoices/route.ts` (POST manual create) — both the catch-block (Xendit threw, prefix from `XenditApiError.code`) and the helper-returns-null branch (TOCTOU). The null branch wraps the constant message in `new Error(...)` so it lands as `"unknown: Gagal membuat sesi pembayaran"` rather than dropping into the SQL `"untagged"` bucket.
+  - `app/api/invoices/generate/batch/route.ts` — the per-invoice fan-out catch (both rejected and fulfilled-with-null branches use the helper).
+  - `lib/finance/xendit-retry.ts` — same shape as the batch route.
+  - `app/api/xendit/create-session/route.ts` (legacy single endpoint) — persisted `paymentLinkError` is prefix-tagged; the user-facing `errors[]` line keeps the plain message for readability (preserves the existing `"<student>: <msg>"` contract that the admin UI displays).
+- **`revalidateTag` bug investigation — spec was wrong, no fix needed.** The spec claimed `revalidateTag("parent-invoice-list", { expire: 0 })` was an invalid signature. Verified against `node_modules/next/dist/server/web/spec-extension/revalidate.d.ts`: in Next.js 16 the signature is `revalidateTag(tag: string, profile: string | CacheLifeConfig): undefined` — the second argument is **required**. Removing it broke the build with `TS2554: Expected 2 arguments, but got 1`. The codebase already uses `{ expire: 0 }` consistently in 6 other `revalidateTag` call sites (webhook, retry-payment-links, employees). Reverted both changes; left the original calls intact. The spec author appears to have been thinking of the Next.js 14 single-arg signature.
+- Updated 6 existing test fixtures to the new prefix-tagged write format:
+  - `lib/finance/__tests__/xendit-retry.test.ts` — 3 sites (mixed-success, 25-of-25 with-3-failures, single-failure update assertion).
+  - `app/api/__tests__/invoices-manual-create.test.ts` — 2 sites (helper-throws, helper-returns-null).
+  - `app/api/__tests__/invoices-generate-batch.test.ts` — 2 sites (mixed-outcomes failure update, 25-student-with-3-failures error string).
+  - `app/api/__tests__/xendit-create-session.test.ts` — 2 sites (single Xendit-failure update, mixed-batch C-update). The user-facing `errors[]` assertion in this file unchanged because that field still carries the plain message.
+- Added `lib/__tests__/error-prefix.test.ts` (11 cases): every `XenditErrorCode` value maps to its own prefix; plain `Error` → `"unknown:"`; non-Error throws (`"oops"`, `null`, `undefined`) → stringified under `"unknown:"`; `formatPaymentLinkError` shape verified for `XenditApiError`, `Error`, and non-Error throws.
+- `npm run build` clean. Vitest: **749 passed** (was 741 after Task 3, +8 new from `error-prefix.test.ts`). design-system token: N/A — no frontend changes.
+
 <!-- /build continues here -->
 
 ## Verification

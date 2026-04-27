@@ -306,7 +306,8 @@ describe("POST /api/invoices/generate/batch — mixed Xendit outcomes", () => {
     );
     expect(sent).toHaveLength(4);
     expect(pending).toHaveLength(1);
-    expect(pending[0].error).toBe("Xendit 503");
+    // Prefix-tagged via formatPaymentLinkError — generic Error → "unknown:".
+    expect(pending[0].error).toBe("unknown: Xendit 503");
     expect(pending[0].invoiceId).toBe("inv-s-5");
     expect(pending[0].studentName).toBe("Student s-5");
 
@@ -314,7 +315,7 @@ describe("POST /api/invoices/generate/batch — mixed Xendit outcomes", () => {
     // the status was already PENDING_PAYMENT_LINK when the invoice was created.
     const updateCalls = vi.mocked(prisma.invoice.update).mock.calls.map((c) => c[0]);
     const failureUpdate = updateCalls.find((c) => c.where.id === "inv-s-5");
-    expect(failureUpdate?.data).toEqual({ paymentLinkError: "Xendit 503" });
+    expect(failureUpdate?.data).toEqual({ paymentLinkError: "unknown: Xendit 503" });
   });
 });
 
@@ -411,7 +412,8 @@ describe("POST /api/invoices/generate/batch — 25-student with 3 Xendit failure
     );
     expect(failures).toHaveLength(3);
     for (const f of failures) {
-      expect(f.error).toBe("Xendit 503");
+      // Prefix-tagged via formatPaymentLinkError — generic Error → "unknown:".
+      expect(f.error).toBe("unknown: Xendit 503");
       expect(f.studentName).toBeTruthy();
       expect(f.studentId).toBeTruthy();
     }

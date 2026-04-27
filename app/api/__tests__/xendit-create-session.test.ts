@@ -162,10 +162,14 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     expect(body.errors).toEqual(["Citra: Xendit 503 Service Unavailable"]);
 
     // The failure write-back: status flips to PENDING_PAYMENT_LINK and the
-    // error message is persisted for diagnosis + retry.
+    // error message is persisted for diagnosis + retry. The persisted column
+    // is prefix-tagged via formatPaymentLinkError — generic Error → "unknown:".
     expect(prisma.invoice.update).toHaveBeenCalledWith({
       where: { id: "inv-fail" },
-      data: { status: "PENDING_PAYMENT_LINK", paymentLinkError: "Xendit 503 Service Unavailable" },
+      data: {
+        status: "PENDING_PAYMENT_LINK",
+        paymentLinkError: "unknown: Xendit 503 Service Unavailable",
+      },
     });
   });
 
@@ -303,9 +307,10 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     expect(bUpdate?.data).toMatchObject({ status: "SENT", paymentLinkError: null });
 
     const cUpdate = updateCalls.find((c) => c?.where.id === "inv-c");
+    // Prefix-tagged via formatPaymentLinkError — generic Error → "unknown:".
     expect(cUpdate?.data).toEqual({
       status: "PENDING_PAYMENT_LINK",
-      paymentLinkError: "Xendit 500",
+      paymentLinkError: "unknown: Xendit 500",
     });
   });
 });

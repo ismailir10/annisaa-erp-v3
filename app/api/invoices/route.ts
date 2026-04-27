@@ -7,6 +7,7 @@ import { paginatedResponse } from "@/lib/api/response";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { nextInvoiceNumber, sumDecimals } from "@/lib/finance/invoice-numbers";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
 import { createManualInvoiceSchema } from "@/lib/validations/invoice";
 
 export async function GET(req: NextRequest) {
@@ -222,7 +223,13 @@ export async function POST(req: NextRequest) {
         data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
       });
     } else {
-      xenditError = "Gagal membuat sesi pembayaran";
+      // Helper-returns-null is the TOCTOU guard path (PAID/CANCELLED
+      // mid-flight, or remaining went to 0). Tag as "unknown:" so it lands
+      // in the diagnostic breakdown alongside other untyped failures rather
+      // than dropping into the "untagged" bucket.
+      xenditError = formatPaymentLinkError(
+        new Error("Gagal membuat sesi pembayaran"),
+      );
       try {
         await prisma.invoice.update({
           where: { id: created.id },
@@ -233,7 +240,9 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (e) {
-    xenditError = e instanceof Error ? e.message : "Unknown error";
+    // Prefix-tag with the XenditApiError.code (after retry exhaustion) so
+    // /api/invoices/pending-payment-link/breakdown can aggregate by category.
+    xenditError = formatPaymentLinkError(e);
     try {
       await prisma.invoice.update({
         where: { id: created.id },

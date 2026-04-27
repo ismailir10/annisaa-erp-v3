@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
 import { limit } from "@/lib/finance/concurrency-limit";
 
 export type RetryResultRow =
@@ -119,12 +120,12 @@ export async function retryPaymentLinks(
       //   - rejected: helper threw (Xendit 4xx/5xx, network error, etc.)
       //   - fulfilled with null: TOCTOU guard tripped (PAID/CANCELLED mid-flight,
       //     or remaining went to 0). Surface a diagnostic so admin can retry.
+      // Both are prefix-tagged via formatPaymentLinkError so the breakdown
+      // endpoint can aggregate by Xendit error category.
       const msg =
         outcome.status === "rejected"
-          ? outcome.reason instanceof Error
-            ? outcome.reason.message
-            : "Unknown error"
-          : "Gagal membuat sesi pembayaran";
+          ? formatPaymentLinkError(outcome.reason)
+          : formatPaymentLinkError(new Error("Gagal membuat sesi pembayaran"));
       try {
         await prisma.invoice.update({
           where: { id: row.id },

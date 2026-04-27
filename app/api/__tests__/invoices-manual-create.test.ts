@@ -321,7 +321,8 @@ describe("POST /api/invoices — Xendit failure paths", () => {
       status: "PENDING_PAYMENT_LINK",
       xenditPaymentUrl: null,
       xenditSessionId: null,
-      paymentLinkError: "Xendit 503",
+      // Fixture mirrors the new prefix-tagged write format.
+      paymentLinkError: "unknown: Xendit 503",
       lines: [],
     } as never);
 
@@ -330,14 +331,15 @@ describe("POST /api/invoices — Xendit failure paths", () => {
     const body = await res.json();
 
     expect(body.status).toBe("PENDING_PAYMENT_LINK");
-    expect(body.paymentLinkError).toBe("Xendit 503");
-    expect(body.xenditError).toBe("Xendit 503");
+    expect(body.paymentLinkError).toBe("unknown: Xendit 503");
+    // Prefix-tagged via formatPaymentLinkError — generic Error → "unknown:".
+    expect(body.xenditError).toBe("unknown: Xendit 503");
 
     // The failure update writes paymentLinkError; status was already
     // PENDING_PAYMENT_LINK from invoice.create, so no status flip needed.
     const updateCall = vi.mocked(prisma.invoice.update).mock.calls[0]?.[0];
     expect(updateCall?.where).toEqual({ id: "inv-new" });
-    expect(updateCall?.data).toEqual({ paymentLinkError: "Xendit 503" });
+    expect(updateCall?.data).toEqual({ paymentLinkError: "unknown: Xendit 503" });
   });
 
   it("helper returns null → 201, status=PENDING_PAYMENT_LINK, xenditError = 'Gagal membuat sesi pembayaran'", async () => {
@@ -371,7 +373,8 @@ describe("POST /api/invoices — Xendit failure paths", () => {
       status: "PENDING_PAYMENT_LINK",
       xenditPaymentUrl: null,
       xenditSessionId: null,
-      paymentLinkError: "Gagal membuat sesi pembayaran",
+      // Fixture mirrors the new prefix-tagged write format.
+      paymentLinkError: "unknown: Gagal membuat sesi pembayaran",
       lines: [],
     } as never);
 
@@ -380,11 +383,13 @@ describe("POST /api/invoices — Xendit failure paths", () => {
     const body = await res.json();
 
     expect(body.status).toBe("PENDING_PAYMENT_LINK");
-    expect(body.xenditError).toBe("Gagal membuat sesi pembayaran");
+    // The TOCTOU/null-result branch is wrapped in an Error and prefix-tagged
+    // so the breakdown endpoint can aggregate it.
+    expect(body.xenditError).toBe("unknown: Gagal membuat sesi pembayaran");
 
     const updateCall = vi.mocked(prisma.invoice.update).mock.calls[0]?.[0];
     expect(updateCall?.data).toEqual({
-      paymentLinkError: "Gagal membuat sesi pembayaran",
+      paymentLinkError: "unknown: Gagal membuat sesi pembayaran",
     });
   });
 });
