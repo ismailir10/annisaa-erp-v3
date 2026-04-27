@@ -18,10 +18,24 @@
  * Continue would just hit it again. Surface the error and stop.
  */
 
+import { runBulkRetry } from "./run-bulk-retry";
+
 export const BATCH_SIZE = 25;
 export const RETRY_BACKOFFS_MS = [1000, 3000];
 
-export type BatchProgressPhase = "running" | "done" | "idle" | "aborted";
+/**
+ * Phase enum for the orchestrator's progress snapshot.
+ *
+ * - `idle` / `running` / `done` / `aborted` — the chunk-loop lifecycle.
+ * - `sweeping` — auto-sweep is firing (post-chunk, pre-done). The UI shows
+ *   "Memeriksa link gagal..." while `runBulkRetry` drains residual
+ *   `PENDING_PAYMENT_LINK` invoices left by transient Xendit blips. The
+ *   underlying chunk counters (`xenditOk` / `xenditFailed`) are intentionally
+ *   frozen during sweep — `pendingAfterSweep` is the source of truth for
+ *   the post-sweep summary, so leaving the counters untouched avoids
+ *   double-counting.
+ */
+export type BatchProgressPhase = "running" | "sweeping" | "done" | "idle" | "aborted";
 
 export type FailureRow = {
   studentId: string;
@@ -40,6 +54,19 @@ export type BatchProgressSnapshot = {
   failures: FailureRow[];
   /** Set on `phase: "aborted"` from three-strike chunk failure (HTTP message). */
   lastError?: string;
+  /**
+   * Whether the post-chunk auto-sweep ran. Undefined until chunks complete;
+   * `true` when pending count > 0 + signal not aborted; `false` when chunks
+   * landed clean (no sweep needed). User-aborted runs leave this undefined.
+   */
+  sweepRan?: boolean;
+  /**
+   * Pending-payment-link count after the auto-sweep (or pre-sweep count if
+   * the sweep itself aborted). UI uses this to decide whether to surface the
+   * manual "Coba Lagi Link (N)" button. Undefined until chunks complete;
+   * `0` when no sweep was needed.
+   */
+  pendingAfterSweep?: number;
 };
 
 export type PlanResponse = {
@@ -202,9 +229,102 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
     cursor += 1;
   }
 
+  // 4) Auto-sweep — orchestrator-level "Coba Lagi Link" so the admin doesn't
+  // have to click it in the normal case. Runs ONCE if the chunk loop landed
+  // any invoices in PENDING_PAYMENT_LINK and the user did not cancel. The
+  // sweep is single-shot by design: if it itself fails (3-strike abort
+  // inside runBulkRetry), the residual count stays > 0 and the manual
+  // button surfaces — looping the sweep would just hit the same upstream
+  // issue.
+  if (!input.signal?.aborted) {
+    await runAutoSweep(snapshot, fetchImpl, input.signal, input.onProgress);
+  }
+
   snapshot.phase = "done";
   input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
   return { phase: "done", plan, final: { ...snapshot, failures: [...snapshot.failures] } };
+}
+
+/**
+ * Post-chunk auto-sweep. Mutates `snapshot` in place:
+ * - sets `snapshot.sweepRan` (true if sweep fired, false if no pending)
+ * - sets `snapshot.pendingAfterSweep` (post-sweep count, or pre-sweep count
+ *   on a sweep abort, or 0 when the sweep was skipped)
+ * - flips `snapshot.phase = "sweeping"` while the sweep runs (UI shows
+ *   "Memeriksa link gagal..."). Caller bumps phase back to "done" after.
+ *
+ * The sweep's own `runBulkRetry` snapshots are deliberately NOT translated
+ * back into the parent's chunk counters — see `BatchProgressPhase` doc above
+ * for rationale. Only the phase transition + final `pendingAfterSweep` count
+ * matter to the UI.
+ */
+async function runAutoSweep(
+  snapshot: BatchProgressSnapshot,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal | undefined,
+  onProgress: ((s: BatchProgressSnapshot) => void) | undefined,
+): Promise<void> {
+  // Cheap pre-check — the count-only branch on /pending-payment-link
+  // returns just `{ total: N }` so we don't pay for the row payload.
+  let pendingCount = 0;
+  try {
+    const res = await fetchImpl("/api/invoices/pending-payment-link?count-only=true", {
+      method: "GET",
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { total?: number };
+      pendingCount = json.total ?? 0;
+    }
+  } catch {
+    // Network blip on the count check — skip the sweep gracefully. The
+    // admin can still hit the manual button if there's actually anything
+    // pending; we're not the source of truth here.
+    pendingCount = 0;
+  }
+
+  if (pendingCount === 0) {
+    snapshot.sweepRan = false;
+    snapshot.pendingAfterSweep = 0;
+    return;
+  }
+
+  snapshot.sweepRan = true;
+  snapshot.phase = "sweeping";
+  onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
+
+  try {
+    await runBulkRetry({
+      signal,
+      fetchImpl,
+      // Auto-sweep cannot prompt the user — if there are >1000 pending we
+      // bail rather than silently process a destructive batch. The UI's
+      // manual button is still available as the explicit-consent path.
+      onOverflow: () => false,
+      // Intentionally no-op: see runAutoSweep doc above for why we don't
+      // translate runBulkRetry's snapshot into the parent's counters.
+      onProgress: () => {},
+    });
+  } catch {
+    // 3-strike sweep abort or unexpected throw — fall through to the
+    // re-count below; whatever's still pending will surface the manual
+    // button via `pendingAfterSweep > 0`.
+  }
+
+  // Re-query post-sweep so the UI summary knows whether to surface the
+  // manual "Coba Lagi Link (N)" button.
+  try {
+    const res = await fetchImpl("/api/invoices/pending-payment-link?count-only=true", {
+      method: "GET",
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { total?: number };
+      snapshot.pendingAfterSweep = json.total ?? 0;
+    } else {
+      snapshot.pendingAfterSweep = pendingCount;
+    }
+  } catch {
+    snapshot.pendingAfterSweep = pendingCount;
+  }
 }
 
 type CallBatchInput = {

@@ -14,8 +14,13 @@ import { getSession, isAdminRole } from "@/lib/auth";
  * `<AlertDialog>` overflow banner ("Antrian retry penuh") so the operator
  * knows a follow-up run will be needed. Ordered `createdAt asc` so chunking
  * is deterministic and oldest-stuck invoices retry first.
+ *
+ * Query param `?count-only=true`: skip the row fetch and return only
+ * `{ total: N }`. Used by `runBulkGenerate`'s post-chunk auto-sweep gate —
+ * we just need to know "is there anything to sweep?", not the rows. Saves
+ * payload size and DB load on the (common) "no failures, skip sweep" path.
  */
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -25,6 +30,15 @@ export async function GET(_req: NextRequest) {
     tenantId: session.tenantId,
     status: "PENDING_PAYMENT_LINK" as const,
   };
+
+  // `new URL(req.url).searchParams` works for both `NextRequest` (production)
+  // and plain `Request` (vitest fixtures). Avoids `req.nextUrl` which is
+  // only on the Next-augmented type.
+  const countOnly = new URL(req.url).searchParams.get("count-only") === "true";
+  if (countOnly) {
+    const total = await prisma.invoice.count({ where });
+    return NextResponse.json({ total });
+  }
 
   const [rows, total] = await Promise.all([
     prisma.invoice.findMany({
