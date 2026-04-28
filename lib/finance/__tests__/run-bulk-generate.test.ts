@@ -3,6 +3,7 @@ import {
   runBulkGenerate,
   chunk,
   BATCH_SIZE,
+  INTER_CHUNK_DELAY_MS,
   type PlanResponse,
   type BatchResponse,
   type BatchProgressSnapshot,
@@ -152,6 +153,7 @@ describe("runBulkGenerate — multi chunk (60 students → 25 + 25 + 10)", () =>
       onPlan: () => true,
       onProgress: (s) => progressSnapshots.push({ ...s }),
       fetchImpl: fetchMock as unknown as typeof fetch,
+      sleepImpl: vi.fn().mockResolvedValue(undefined),
     });
 
     expect(BATCH_SIZE).toBe(25); // sanity — chunking constant must match spec §6
@@ -214,6 +216,137 @@ describe("runBulkGenerate — 5xx retry then auto-abort", () => {
     if (out.phase === "aborted") {
       expect(out.final.done).toBe(0); // chunk never landed
     }
+  });
+});
+
+// --------------------------------------------------------------------------
+// runBulkGenerate — inter-chunk pacing (cycle 2026-04-28 T2)
+// --------------------------------------------------------------------------
+
+describe("runBulkGenerate — inter-chunk pacing", () => {
+  it("sleeps INTER_CHUNK_DELAY_MS exactly N-1 times for N successful chunks", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(60); // 3 chunks: 25 + 25 + 10
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds.slice(0, 25))));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds.slice(25, 50))));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds.slice(50, 60))));
+    // Auto-sweep gate: 0 pending → no sweep.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
+
+    const sleepMock = vi.fn().mockResolvedValue(undefined);
+
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sleepImpl: sleepMock,
+    });
+
+    expect(out.phase).toBe("done");
+    // 3 chunks → 2 inter-chunk sleeps. No retry sleeps because no 5xx.
+    const interChunkCalls = sleepMock.mock.calls.filter((c) => c[0] === INTER_CHUNK_DELAY_MS);
+    expect(interChunkCalls).toHaveLength(2);
+  });
+
+  it("does not sleep after the final chunk", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(25); // exactly 1 chunk
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
+
+    const sleepMock = vi.fn().mockResolvedValue(undefined);
+
+    await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sleepImpl: sleepMock,
+    });
+
+    const interChunkCalls = sleepMock.mock.calls.filter((c) => c[0] === INTER_CHUNK_DELAY_MS);
+    expect(interChunkCalls).toHaveLength(0);
+  });
+
+  it("paces on chunk-failure path before the loop terminates (M2 regression guard)", async () => {
+    // Two chunks. First succeeds; second three-strikes on 503. The pacing
+    // call site fires on the failure path too — the spec's M2 fix guards
+    // against a future change that keeps the loop running past a chunk
+    // failure. Today the loop terminates on three-strike, but the sleep
+    // call site is still hit because the chunk that failed is NOT the
+    // last chunk in the loop.
+    const fetchMock = vi.fn();
+    const plan = makePlan(50); // 2 chunks: 25 + 25
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+    // Wait — with 2 chunks, the FAILING chunk would be the last one
+    // (cursor=1 of 2, isLastChunk=true) → sleep skipped. Use 3 chunks
+    // instead, with the MIDDLE chunk failing.
+    fetchMock.mockReset();
+
+    const plan3 = makePlan(75); // 3 chunks: 25 + 25 + 25
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan3));
+    // Chunk 1 succeeds.
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan3.eligibleStudentIds.slice(0, 25))));
+    // Chunk 2 three-strikes on 503 → 3 fetch calls return 503.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "boom" }, { status: 503 }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "boom" }, { status: 503 }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "boom" }, { status: 503 }));
+
+    const sleepMock = vi.fn().mockResolvedValue(undefined);
+
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sleepImpl: sleepMock,
+    });
+
+    expect(out.phase).toBe("aborted");
+    // Sleep call sequence:
+    //   index 0 — 1000ms inter-chunk (after chunk 1 success, before chunk 2)
+    //   index 1 — 1000ms retry backoff (chunk 2 attempt 1 → 2)
+    //   index 2 — 3000ms retry backoff (chunk 2 attempt 2 → 3)
+    //   index 3 — 1000ms inter-chunk (failure path, after chunk 2 abort)
+    // RETRY_BACKOFFS_MS[0] equals INTER_CHUNK_DELAY_MS (both 1000) so we
+    // cannot disambiguate by value alone. Assert both the full ordered
+    // sequence (proves the 3000 retry-backoff sandwich) AND the total count
+    // (proves no extra/missing sleep) — together they make the test
+    // falsifiable for the M2 regression: removing the failure-path sleep
+    // would drop the count from 4 to 3.
+    expect(sleepMock.mock.calls.map((c) => c[0])).toEqual([1000, 1000, 3000, 1000]);
+    expect(sleepMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("skips inter-chunk sleep when signal is already aborted", async () => {
+    const fetchMock = vi.fn();
+    const plan = makePlan(50); // 2 chunks
+    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds.slice(0, 25))));
+
+    const sleepMock = vi.fn().mockResolvedValue(undefined);
+    const ctrl = new AbortController();
+
+    // Abort right after the first chunk completes by intercepting onProgress.
+    let chunksCompleted = 0;
+    const out = await runBulkGenerate({
+      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
+      onPlan: () => true,
+      onProgress: (s) => {
+        if (s.done >= 25 && chunksCompleted === 0) {
+          chunksCompleted += 1;
+          ctrl.abort();
+        }
+      },
+      signal: ctrl.signal,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sleepImpl: sleepMock,
+    });
+
+    expect(out.phase).toBe("aborted");
+    // After chunk 1, signal is aborted → inter-chunk sleep skipped.
+    const interChunkCalls = sleepMock.mock.calls.filter((c) => c[0] === INTER_CHUNK_DELAY_MS);
+    expect(interChunkCalls).toHaveLength(0);
   });
 });
 

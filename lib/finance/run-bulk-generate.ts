@@ -22,6 +22,20 @@ import { runBulkRetry } from "./run-bulk-retry";
 
 export const BATCH_SIZE = 25;
 export const RETRY_BACKOFFS_MS = [1000, 3000];
+/**
+ * Cross-chunk pacing — sleeps between successive chunk dispatches to keep the
+ * sustained outbound rate under the Xendit sandbox quota (~30-60 req/min).
+ * Concurrency cap inside the batch endpoint is 2 (cycle 2026-04-28 T1); paired
+ * with this 1s gap, the worst-case sustained outbound is well below 60 req/min.
+ *
+ * Fires on every iteration of the chunk loop (success path AND failure path —
+ * regression guard for the M2 leak in the 2026-04-28 spec review). Skipped only
+ * on the last chunk or on `signal.aborted`. Today's three-strike chunk failure
+ * terminates the loop, so the failure-path sleep is functionally moot, but
+ * placing it at the iteration boundary keeps the throttle correct if loop
+ * semantics ever change.
+ */
+export const INTER_CHUNK_DELAY_MS = 1000;
 
 /**
  * Phase enum for the orchestrator's progress snapshot.
@@ -199,6 +213,8 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
       sleep,
     });
 
+    const isLastChunk = cursor === chunks.length - 1;
+
     if (!result.ok) {
       // Three-strike batch failure → real infrastructure issue (Vercel
       // timeout, Xendit 5xx). Surface and stop; the operator can re-run
@@ -208,6 +224,14 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
       snapshot.phase = "aborted";
       snapshot.lastError = result.lastError;
       input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
+
+      // Inter-chunk pace fires on the failure path too (cycle 2026-04-28 T2 /
+      // M2 fix). Today the loop terminates here so the sleep is moot, but
+      // keeping it at the iteration boundary preserves throttle correctness
+      // if a future change continues past a chunk failure.
+      if (!isLastChunk && !input.signal?.aborted) {
+        await sleep(INTER_CHUNK_DELAY_MS);
+      }
       return { phase: "aborted", plan, final: { ...snapshot, failures: [...snapshot.failures] } };
     }
 
@@ -226,6 +250,12 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
       }
     }
     input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
+
+    // Inter-chunk pace before the next chunk dispatches. Skipped on last
+    // chunk (no next dispatch) and on aborted signal (caller wants out fast).
+    if (!isLastChunk && !input.signal?.aborted) {
+      await sleep(INTER_CHUNK_DELAY_MS);
+    }
     cursor += 1;
   }
 
