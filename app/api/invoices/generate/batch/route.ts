@@ -10,6 +10,23 @@ import { generateBatchSchema } from "@/lib/validations/invoice";
 import { limit } from "@/lib/finance/concurrency-limit";
 
 /**
+ * Defensive function-execution ceiling (cycle 2026-04-28 T1/T3 budget math).
+ *
+ * With concurrency=2 + the 429 retry trim shipped in `with-retry.ts`, the
+ * per-chunk worst case fits under 60s — but the platform default on Vercel
+ * Hobby is shorter (10s) and the entire budget reasoning assumes a 60s
+ * ceiling. Pinning `maxDuration` here ensures the function actually runs to
+ * the spec's claimed bound; the synthetic timing test in
+ * `lib/finance/__tests__/xendit-retry.timing.test.ts` Case B verifies the
+ * 429-storm worst case settles in <59s simulated.
+ *
+ * If the deploy plan later moves to Vercel Pro (300s ceiling), this can be
+ * raised for additional headroom — Pro accepts up to 800s for fluid
+ * compute. The 60s value is the safe default that works on either tier.
+ */
+export const maxDuration = 60;
+
+/**
  * POST /api/invoices/generate/batch
  *
  * Create up to 25 invoices in a single transaction, then attach Xendit
@@ -209,12 +226,13 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Fan out Xendit Checkout Session creation in parallel — capped at 5 concurrent
-  // calls per cycle 2026-04-26 spec B3 (defends against Xendit latency spike +
-  // per-merchant rate-limit serialize-on-server pushing past Vercel's 60s
-  // ceiling). Shared per-request limiter instance — module-level would queue
-  // across unrelated requests.
-  const runLimit = limit(5);
+  // Fan out Xendit Checkout Session creation in parallel — capped at 2 concurrent
+  // calls per cycle 2026-04-28 (was 5 from cycle 2026-04-26 B3). Lowered to keep
+  // sustained outbound rate inside Xendit sandbox quota (~30-60 req/min); the
+  // earlier cap of 5 burst above 200 req/min and produced the 305 × 429
+  // accumulation observed on the 2026-04-28 staging snapshot. See
+  // docs/cycles/2026-04-28-finance-bulk-throttle.md for the throttle math.
+  const runLimit = limit(2);
   const settled = await Promise.allSettled(
     txResult.map((row) =>
       runLimit(() =>

@@ -73,10 +73,11 @@ export async function retryPaymentLinks(
     return { retried: 0, succeeded: 0, stillFailed: 0, results: [] };
   }
 
-  // Cap Xendit fan-out at 5 concurrent calls per spec B3 — protects against
-  // per-merchant rate-limit + Xendit latency-spike scenarios that could otherwise
-  // push past Vercel's 60s function timeout. Shared per-request instance.
-  const runLimit = limit(5);
+  // Cap Xendit fan-out at 2 concurrent calls per cycle 2026-04-28 (was 5 from
+  // cycle 2026-04-26 B3). Lowered to keep sustained outbound rate inside Xendit
+  // sandbox quota (~30-60 req/min). See
+  // docs/cycles/2026-04-28-finance-bulk-throttle.md for the throttle math.
+  const runLimit = limit(2);
 
   const settled = await Promise.allSettled(
     candidates.map((c) =>
