@@ -258,6 +258,50 @@ export async function createXenditSession(
 }
 
 /**
+ * Deploy-time health probe — pings Xendit `GET /balance` to validate the
+ * configured `XENDIT_SECRET_KEY`. Throws a typed `XenditApiError` on failure
+ * so callers can branch on `error.code` (matches the breakdown taxonomy).
+ *
+ * Cycle 2026-04-28 T4: added so a missing/wrong key fails loud at deploy
+ * time instead of silently accumulating `PENDING_PAYMENT_LINK` rows on the
+ * next bulk-create run. Used by `GET /api/health/xendit`.
+ *
+ * Timeout: 5 seconds via `AbortController`. A timeout surfaces as a
+ * `network`-coded error (the fetch threw before getting a response).
+ */
+export async function pingXenditBalance(timeoutMs: number = 5000): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${XENDIT_API_URL}/balance`, {
+      method: "GET",
+      headers: {
+        Authorization: getAuthHeader(),
+      },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Xendit network error";
+    throw new XenditApiError({
+      status: null,
+      code: "network",
+      retriable: true,
+      message,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    const errorBody: unknown = await response.json().catch(() => null);
+    throw classifyXenditResponse(response, errorBody);
+  }
+  // Success — discard body, caller only cares about ok/throw.
+}
+
+/**
  * Strip query string from a URL — keeps origin + pathname only.
  * Used by triage logging so `?invoice=…` ids stay out of logs while
  * the route (`/payment/success` or `/payment/cancel`) and origin
