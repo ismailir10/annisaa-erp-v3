@@ -147,7 +147,7 @@ CTO accepts the wall-clock regression (7-9min vs prior 3-5min) as the price of s
 
 Build clean. Vitest green.
 
-### T6 — End-of-cycle gate + seed-path invariant check
+### T6 — End-of-cycle gate + seed-path invariant check ✓
 
 **Files:** none (gate only).
 **Acceptance:** Before final commit:
@@ -156,7 +156,7 @@ Build clean. Vitest green.
 3. Verification section gets gate output + Playwright pin + the seed-invariant diff output.
 4. design-system token cross-checked (no frontend changes this cycle — note the absence in Verification).
 
-### T7 — Update README.md
+### T7 — Update README.md ✓ (folded into T4 commit)
 
 **Files:** `README.md`.
 **Acceptance:** Cycle adds `/api/health/xendit` (a new route), so README route inventory needs an entry. Plus a one-line entry in "Recent cycles" or equivalent footer per the 2026-04-20 narrow doc-sync rule (cycle doc alone insufficient for `feat:` scoped commits that touch `app/**` or `lib/**`). Build clean.
@@ -185,10 +185,26 @@ Build clean. Vitest green.
 - T3 — gates passed (`npm run build` clean; `npx vitest run --no-file-parallelism` 794 passed / 42 todo / 0 fail). Reviewer agent clean (no blockers/majors).
 - T4 — gates passed (`npm run build` clean; `npx vitest run --no-file-parallelism` 805 passed / 42 todo / 0 fail; +11 new health-route cases). Both `feature-dev:code-reviewer` and `superpowers:code-reviewer` (security pass — public unauthenticated route) cleared with no blockers/majors. Security review confirmed: no secret leak path, DoS amplifier bounded by rate-limit-before-cache + 30s TTL, no cache-poisoning surface (no user-controlled inputs flow into the cached value), AbortController timer cleared in `finally`, `force-dynamic` prevents Next response caching.
 - T5 — gates passed (`npm run build` clean; `npx vitest run --no-file-parallelism` 807 passed / 42 todo / 0 fail; +2 new timing-budget cases). Reviewer flagged one item which self-resolved as non-defect (the `Date.now()`-under-fake-timers mechanism is correct; possible 50ms overcount is irrelevant against 30s / 59s budgets). One observation noted as out-of-scope: test guards the 60s ceiling per spec, not concurrency value (T1 itself + commit history guard the concurrency cap).
+- T6 — end-of-cycle gates ALL GREEN. (1) Seed-path invariant: `git diff --name-only origin/staging...HEAD` returned only `README.md`, `app/api/health/xendit/**`, `app/api/invoices/generate/batch/route.ts`, `docs/cycles/2026-04-28-finance-bulk-throttle.md`, `lib/__tests__/with-retry.test.ts`, `lib/finance/__tests__/run-bulk-generate.test.ts`, `lib/finance/__tests__/xendit-retry.timing.test.ts`, `lib/finance/run-bulk-generate.ts`, `lib/finance/xendit-retry.ts`, `lib/xendit/client.ts`, `lib/xendit/with-retry.ts`. **Zero matches against the seed-path glob** (`prisma/seed.ts`, `scripts/reseed/**`, `scripts/reseed-staging.ts`, `scripts/seed-demo-users.ts`, `app/api/admin/seed/**`). Tagihan row count on staging is invariant under this PR. (2) `npm run build` clean. (3) `npx vitest run --no-file-parallelism` — 92 files passed / 2 skipped, 807 tests passed / 42 todo / 0 fail. (4) `npx playwright test` — **21/21 passed** in 18.5min including the bulk-tagihan flow `e2e/admin.spec.ts:429:7 › bulk generate plans, confirms, runs sequential batches`. design-system token cross-check: not applicable — this cycle has no frontend changes (no `app/**/*.tsx`, `components/**/*.tsx`, `tailwind.config.*`, or `app/globals.css` touched), so the pre-commit Rule 4 frontend gate doesn't fire.
 
 ## Ship Notes
 
-<filled by /ship — see structure below>
+### Migrations
+None. No DB schema change.
+
+### New env vars
+None added by this PR. The route reads the existing `XENDIT_SECRET_KEY` (already configured at the Vercel Preview scope).
+
+### New routes
+- `GET /api/health/xendit` — public, unauthenticated, rate-limited 30/min/IP, 30s in-memory result cache. Returns `{ ok, source: "xendit", tier: "live"|"sandbox"|"unknown", checkedAt }` on 200 / `{ ok:false, source, tier, error, code, checkedAt }` on 503.
+
+### Behavior changes
+- Bulk Xendit fan-out concurrency: `limit(5)` → `limit(2)` in both `app/api/invoices/generate/batch/route.ts` and `lib/finance/xendit-retry.ts`.
+- Bulk orchestrator: 1-second pace between successive chunk dispatches (success or failure path) in `lib/finance/run-bulk-generate.ts`.
+- 429 retry budget: 2 attempts (1 retry, 1500ms backoff or honored `Retry-After`) instead of the default 3-attempt budget. Other retriable codes unchanged.
+
+### User-visible wall-clock impact
+A bulk run of 500 invoices was ~3-5 min target before; now realistic ~7-9 min, worst-case (sandbox 429 storm) <60s/chunk × 20 chunks + 19s pacing. CTO accepted the regression in the spec — sandbox-quota safety is the binding constraint.
 
 ### Post-merge staging smoke
 
