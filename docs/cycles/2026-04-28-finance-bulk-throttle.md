@@ -119,7 +119,7 @@ CTO accepts the wall-clock regression (7-9min vs prior 3-5min) as the price of s
 **Files:** `lib/finance/run-bulk-generate.ts`, `lib/finance/__tests__/run-bulk-generate.test.ts`.
 **Acceptance:** New exported constant `export const INTER_CHUNK_DELAY_MS = 1000`. After every chunk (success OR three-strike failure that does NOT abort the loop) and before the next chunk dispatches, `await input.sleep(INTER_CHUNK_DELAY_MS)`. Skip the sleep ONLY when (a) it is the last chunk in the loop, OR (b) `signal.aborted` is true at the gate check. Note that today a three-strike chunk failure terminates the loop (`phase: "aborted"`) so in practice the failure-path sleep only fires if a future change keeps the loop running past a chunk failure — implement the call site to fire on both paths regardless, so the spec contract holds even if the loop semantics evolve. Three new test cases: (a) sleep fires N-1 times for N chunks happy-path, (b) sleep skipped after the final chunk, (c) **sleep fires after a chunk-failure path before the loop terminates** (regression guard for the M2 leak). Existing test snapshots untouched. Build clean. Vitest green.
 
-### T3 — 429 retry budget trimmed to 2 attempts (1 retry)
+### T3 — 429 retry budget trimmed to 2 attempts (1 retry) ✓
 
 **Files:** `lib/xendit/with-retry.ts`, `lib/xendit/__tests__/with-retry.test.ts`.
 **Acceptance:** Add `BACKOFF_429_MS = 1500` constant. `withXenditRetry` adds an early-throw branch: when `err.code === "429"` AND `attempt >= 2`, re-throw immediately without scheduling a third attempt. The first retry (attempt=2) still fires; backoff is `err.retryAfterMs` if present (≤3s cap from PR #151), otherwise `BACKOFF_429_MS = 1500`. All other retriable codes (`5xx`, `408`, `network`) keep the existing 3-attempt budget with `BACKOFFS_MS = [250, 1000]`. New tests: (a) 429-no-`Retry-After` waits 1500ms once then re-throws on 2nd failure, (b) 429-with-`Retry-After: 2` honors header, (c) 429 then 200 → success on 2nd attempt, (d) 5xx storm still uses 3 attempts (regression guard). Existing 9 cases stay green. Build clean. Vitest green.
@@ -173,11 +173,13 @@ Build clean. Vitest green.
 - Subagent plan: tasks executed inline sequentially in this worktree. Parallel subagents rejected — small per-task diffs across shared git tree would risk staging conflicts. Per-task commit cadence preserved.
 - T1 — Concurrency 5 → 2 — `app/api/invoices/generate/batch/route.ts:217`, `lib/finance/xendit-retry.ts:79` — both `limit(5)` → `limit(2)`, comments cite cycle doc + sandbox-quota rationale.
 - T2 — Inter-chunk pacing — `lib/finance/run-bulk-generate.ts` exports `INTER_CHUNK_DELAY_MS = 1000`, fires `await sleep(...)` at end of both success + failure paths inside the chunk loop, gated by `!isLastChunk && !signal.aborted`. Test file `lib/finance/__tests__/run-bulk-generate.test.ts` adds 4 cases (N-1 happy-path, last-chunk skip, M2 failure-path regression guard, signal-abort skip) plus patches the existing 60-student test to inject a no-op `sleepImpl` (saves 2s real-time).
+- T3 — 429 retry trim — `lib/xendit/with-retry.ts` adds `MAX_ATTEMPTS_429 = 2` + `BACKOFF_429_MS = 1500`. Loop now branches `maxAttempts` and no-`Retry-After` backoff on `err.code === "429"`. Other retriable codes (`5xx`, `408`, `network`) keep the existing 3-attempt + `[250, 1000]` schedule. `lib/__tests__/with-retry.test.ts` updates case (g) to 1500ms and adds (h) 429-storm exhausts at 2 attempts, (i) 429 then 200 succeeds on retry, (j) 5xx regression guard at 3 attempts.
 
 ## Verification
 
 - T1 — gates passed (`npm run build` clean; `npx vitest run --no-file-parallelism` 786 passed / 42 todo / 0 fail). Concurrency cap is internal — no test assertions changed. Reviewer agent clean (no blockers/majors).
 - T2 — gates passed (`npm run build` clean; `npx vitest run --no-file-parallelism` 790 passed / 42 todo / 0 fail). Reviewer agent flagged 2 issues; both fixed: (a) M2-guard test now also asserts `toHaveBeenCalledTimes(4)` so removing the failure-path sleep is falsifiable, (b) existing 60-student multi-chunk test now mocks `sleepImpl` to skip the 2s of real-time sleeps the new pacing introduces.
+- T3 — gates passed (`npm run build` clean; `npx vitest run --no-file-parallelism` 794 passed / 42 todo / 0 fail). Reviewer agent clean (no blockers/majors).
 
 ## Ship Notes
 

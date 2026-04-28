@@ -19,8 +19,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { XenditApiError } from "../xendit/client";
 import {
+  BACKOFF_429_MS,
   BACKOFFS_MS,
   MAX_ATTEMPTS,
+  MAX_ATTEMPTS_429,
   withXenditRetry,
 } from "../xendit/with-retry";
 
@@ -69,6 +71,11 @@ describe("withXenditRetry — exported constants", () => {
   it("exports MAX_ATTEMPTS = 3 and BACKOFFS_MS = [250, 1000]", () => {
     expect(MAX_ATTEMPTS).toBe(3);
     expect(BACKOFFS_MS).toEqual([250, 1000]);
+  });
+
+  it("exports MAX_ATTEMPTS_429 = 2 and BACKOFF_429_MS = 1500 (cycle 2026-04-28 T3)", () => {
+    expect(MAX_ATTEMPTS_429).toBe(2);
+    expect(BACKOFF_429_MS).toBe(1500);
   });
 });
 
@@ -202,7 +209,7 @@ describe("withXenditRetry — Retry-After honored", () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
-  it("(g) 429 with no Retry-After falls back to BACKOFFS_MS[0] = 250ms", async () => {
+  it("(g) 429 with no Retry-After falls back to BACKOFF_429_MS = 1500ms (cycle 2026-04-28 T3)", async () => {
     vi.useFakeTimers();
     const fn = vi
       .fn()
@@ -212,12 +219,73 @@ describe("withXenditRetry — Retry-After honored", () => {
     const promise = withXenditRetry(fn, ctx);
     await vi.advanceTimersByTimeAsync(0);
 
-    await vi.advanceTimersByTimeAsync(249);
+    // Advancing by less than 1500ms should NOT trigger attempt 2 yet
+    await vi.advanceTimersByTimeAsync(1499);
     expect(fn).toHaveBeenCalledTimes(1);
+    // Cross the 1500ms threshold
     await vi.advanceTimersByTimeAsync(1);
     const result = await promise;
 
     expect(result).toBe("ok");
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+// --------------------------------------------------------------------------
+// withXenditRetry — 429 attempt cap (cycle 2026-04-28 T3)
+// --------------------------------------------------------------------------
+
+describe("withXenditRetry — 429 attempt cap", () => {
+  it("(h) 429-storm exhausts at exactly 2 attempts (1 retry), not 3", async () => {
+    vi.useFakeTimers();
+    const err = rateLimited(undefined);
+    const fn = vi.fn().mockRejectedValue(err);
+
+    const promise = withXenditRetry(fn, ctx).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(BACKOFF_429_MS); // backoff after attempt 1
+    const caught = await promise;
+
+    // Re-throws on attempt 2 (no third attempt scheduled).
+    expect(caught).toBeInstanceOf(XenditApiError);
+    expect((caught as XenditApiError).code).toBe("429");
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(logSpy).toHaveBeenCalledTimes(2);
+    expect(logSpy.mock.calls[0][0]).toMatch(/attempt=1 result=transient status=429/);
+    expect(logSpy.mock.calls[1][0]).toMatch(/attempt=2 result=transient status=429/);
+  });
+
+  it("(i) 429 then 200 succeeds on retry (single retry budget honored)", async () => {
+    vi.useFakeTimers();
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(rateLimited(undefined))
+      .mockResolvedValueOnce("ok");
+
+    const promise = withXenditRetry(fn, ctx);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(BACKOFF_429_MS);
+    const result = await promise;
+
+    expect(result).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("(j) 5xx storm regression guard — still uses 3 attempts despite 429 trim", async () => {
+    vi.useFakeTimers();
+    const err = transient5xx();
+    const fn = vi.fn().mockRejectedValue(err);
+
+    const promise = withXenditRetry(fn, ctx).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(BACKOFFS_MS[0]);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(BACKOFFS_MS[1]);
+    const caught = await promise;
+
+    // 5xx must still get the full 3-attempt budget — only 429 was trimmed.
+    expect(caught).toBeInstanceOf(XenditApiError);
+    expect((caught as XenditApiError).code).toBe("5xx");
+    expect(fn).toHaveBeenCalledTimes(3);
   });
 });

@@ -25,6 +25,22 @@ import { XenditApiError } from "./client";
 
 export const MAX_ATTEMPTS = 3;
 export const BACKOFFS_MS = [250, 1000] as const;
+/**
+ * Per-code attempt cap for the dominant retriable failure on the affected
+ * sandbox env. 429 retries get **2 attempts total (1 retry)** instead of the
+ * default 3, so a storm of rate-limit errors fits the 60s function ceiling
+ * with concurrency=2 (cycle 2026-04-28 T1). Residual 429s after the single
+ * retry persist `PENDING_PAYMENT_LINK` and drain via the orchestrator's
+ * auto-sweep + manual button — same fallback chain as today.
+ *
+ * Other retriable codes (`5xx`, `408`, `network`) keep `MAX_ATTEMPTS = 3`.
+ */
+export const MAX_ATTEMPTS_429 = 2;
+/**
+ * Backoff used when 429 retry fires WITHOUT a `Retry-After` header. With a
+ * header, `err.retryAfterMs` (already capped at 3000ms in `client.ts`) wins.
+ */
+export const BACKOFF_429_MS = 1500;
 
 export interface WithXenditRetryContext {
   invoiceId: string;
@@ -81,14 +97,20 @@ export async function withXenditRetry<T>(
       logAttempt(ctx, attempt, "transient", err.status, durationMs);
       lastError = err;
 
-      if (attempt >= MAX_ATTEMPTS) {
+      // Per-code attempt cap. 429 gets a tighter budget (cycle 2026-04-28 T3)
+      // so a rate-limit storm doesn't blow the chunk's 60s function ceiling
+      // when paired with the concurrency=2 cap.
+      const maxAttempts = err.code === "429" ? MAX_ATTEMPTS_429 : MAX_ATTEMPTS;
+      if (attempt >= maxAttempts) {
         throw err;
       }
 
       const backoffMs =
         err.retryAfterMs !== undefined
           ? err.retryAfterMs
-          : BACKOFFS_MS[attempt - 1];
+          : err.code === "429"
+            ? BACKOFF_429_MS
+            : BACKOFFS_MS[attempt - 1];
       await sleep(backoffMs);
     }
   }
