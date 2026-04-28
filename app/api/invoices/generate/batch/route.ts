@@ -10,6 +10,23 @@ import { generateBatchSchema } from "@/lib/validations/invoice";
 import { limit } from "@/lib/finance/concurrency-limit";
 
 /**
+ * Defensive function-execution ceiling (cycle 2026-04-28 T1/T3 budget math).
+ *
+ * With concurrency=2 + the 429 retry trim shipped in `with-retry.ts`, the
+ * per-chunk worst case fits under 60s — but the platform default on Vercel
+ * Hobby is shorter (10s) and the entire budget reasoning assumes a 60s
+ * ceiling. Pinning `maxDuration` here ensures the function actually runs to
+ * the spec's claimed bound; the synthetic timing test in
+ * `lib/finance/__tests__/xendit-retry.timing.test.ts` Case B verifies the
+ * 429-storm worst case settles in <59s simulated.
+ *
+ * If the deploy plan later moves to Vercel Pro (300s ceiling), this can be
+ * raised for additional headroom — Pro accepts up to 800s for fluid
+ * compute. The 60s value is the safe default that works on either tier.
+ */
+export const maxDuration = 60;
+
+/**
  * POST /api/invoices/generate/batch
  *
  * Create up to 25 invoices in a single transaction, then attach Xendit
