@@ -88,7 +88,7 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Acceptance:** new unit test asserts shape; admin-edited entry shows `lastAdminEdit`, teacher-saved entry shows `null`, teacher-edited (non-admin) entry shows `null`. Test asserts helper makes exactly 2 Prisma queries (audit findMany + user findMany) and zero per-entry lookups. `npx vitest run` green.
   - **Depends on:** T1.
 
-- [ ] **T5 — "Diedit admin" badge in teacher + parent week views.**
+- [x] **T5 — "Diedit admin" badge in teacher + parent week views.**
   - Update `app/teacher/student-journal/students/[id]/page.tsx` and `app/parent/student-journal/page.tsx` (and any client component) to render a small `Pencil` icon when `entry.lastAdminEdit` is non-null.
   - **Touch-friendly interaction:** use Shadcn `Popover` (click/tap-to-open), NOT bare `Tooltip` — Radix Tooltip is hover-only and does not open on iOS/Android tap. Popover content shows: "Diedit admin pada {tanggal}" + admin name. Apply `aria-label="Entri ini diedit oleh admin pada {tanggal}"` to the icon button for screen readers.
   - **Frontend gate + commit-msg hook:** stage the cycle doc with the Implementation section updated to include "design-system.html §15" AND stage `README.md` with a one-line entry under the Student Journal module table noting "audit visibility (Diedit admin badge)" — both in the SAME commit as the `.tsx` files. Use commit subject `feat(student-journal):` so commit-msg narrow rule (which requires README staged for `feat:` touching `app/**`) passes cleanly.
@@ -122,6 +122,13 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Depends on:** T1–T8.
 
 ## Implementation
+
+- **T5 — "Diedit admin" badge in teacher + parent week views.** Cites `design-system.html §15` (Student Journal week view + cell affordances).
+  - `components/portal/week-grid.tsx` — extended `Entry` type with `lastAdminEdit?: { changedAt; changedByName } | null`. Added Popover-based badge: small Pencil icon (16×16, amber-100 bg, amber-700 fill) at `top-0.5 right-0.5` of cell when entry has admin override. Click/tap opens Popover with "Diedit admin" + `{name} pada {tanggal}`. `aria-label="Entri ini diedit oleh admin pada {tanggal}"`. Touch-friendly via Popover (BaseUI `render` prop), not Tooltip — Tooltip is hover-only on iOS/Android.
+  - Deterministic Indonesian month abbreviations via `ID_MONTHS_SHORT` lookup table (caught by code-reviewer — `toLocaleDateString("id-ID")` falls back to system locale on older Android WebViews and would print English months on the deployment target).
+  - `app/teacher/student-journal/students/[id]/page.tsx` + `app/parent/student-journal/page.tsx` — extended local `Entry` type with optional `lastAdminEdit` so the WeekGrid prop matches.
+  - `README.md` — student-journal module table row updated to mention "audit visibility (Diedit admin badge)" + `JournalStatus` enum (satisfies commit-msg narrow rule for `feat:` touching `app/**`).
+  - Verified: `npm run build` ✓; `npx vitest run` 823 passed (no UI tests in vitest; Playwright spec deferred to T9).
 
 - **T4 — Audit summary in week endpoints.**
   - `lib/student-journal/audit.ts` — added `resolveLastAdminEditByEntryId(tenantId, entryIds)` helper. Exactly 2 Prisma queries: audit `findMany` filtered to `entityType=ENTRY, action=UPDATE, entityId in [...]` ordered desc by `changedAt`, then user `findMany` filtered to `SCHOOL_ADMIN | SUPER_ADMIN` for distinct changers. Merges in app code via Map. Falls back to "Admin" label when `User.name` is null. JSDoc documents the demoted-admin caveat (badge disappears if role flipped to TEACHER post-edit; intentional, fix path noted).
@@ -169,6 +176,13 @@ Ordered. Each is committable independently. Dependencies marked.
   - `tsconfig.tsbuildinfo` was modified by build but is gitignored — untracked via `git rm --cached`.
 
 ## Verification
+
+- **T5 gates passed:**
+  - `npm run build` ✓ (Compiled successfully).
+  - `npx vitest run` — 823 passed, no regressions.
+  - Browser preview start blocked by EPERM uv_cwd (pre-existing harness issue, unrelated to T5). Render-prop pattern matches working repo example (`pending-link-breakdown-popover.tsx`); BaseUI Popover docs confirm onClick fires on iOS/Android tap.
+  - Code-reviewer flagged `toLocaleDateString` localization risk → fixed via `ID_MONTHS_SHORT` lookup before commit.
+  - End-of-cycle Playwright spec for badge rendering deferred to T9.
 
 - **T4 gates passed:**
   - `npm run build` — green.

@@ -1,6 +1,7 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Indicator = {
   id: string;
@@ -15,11 +16,17 @@ type Category = {
   indicators: Indicator[];
 };
 
+type LastAdminEdit = {
+  changedAt: string | Date;
+  changedByName: string;
+};
+
 type Entry = {
   id?: string;
   indicatorId: string;
   date: string;
   checked: boolean;
+  lastAdminEdit?: LastAdminEdit | null;
 };
 
 type WeekGridProps = {
@@ -29,6 +36,18 @@ type WeekGridProps = {
   editable?: boolean;
   onToggle?: (indicatorId: string, date: string, next: boolean) => void | Promise<void>;
 };
+
+// Deterministic month abbrevs — toLocaleDateString("id-ID") silently falls back
+// to system locale on older Android WebViews, which would print English months.
+const ID_MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+  "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+];
+
+function formatAdminEditDate(d: string | Date): string {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return `${date.getDate()} ${ID_MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
+}
 
 function formatColDate(ymd: string): string {
   // YYYY-MM-DD -> MM/DD (short label)
@@ -42,8 +61,12 @@ const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"];
 export function WeekGrid({ categories, entries, dates, editable = false, onToggle }: WeekGridProps) {
   // Build lookup: `${indicatorId}|${date}` -> checked
   const lookup = new Map<string, boolean>();
+  // Parallel lookup: `${indicatorId}|${date}` -> lastAdminEdit (when entry was overridden by admin)
+  const adminEditLookup = new Map<string, LastAdminEdit>();
   for (const e of entries) {
-    lookup.set(`${e.indicatorId}|${e.date}`, e.checked);
+    const k = `${e.indicatorId}|${e.date}`;
+    lookup.set(k, e.checked);
+    if (e.lastAdminEdit) adminEditLookup.set(k, e.lastAdminEdit);
   }
 
   // Today's YYYY-MM-DD in local time — used to highlight today's column.
@@ -124,13 +147,16 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                     {ind.label}
                   </td>
                   {dates.map((d) => {
-                    const checked = lookup.get(`${ind.id}|${d}`) ?? false;
+                    const k = `${ind.id}|${d}`;
+                    const checked = lookup.get(k) ?? false;
+                    const adminEdit = adminEditLookup.get(k);
                     const isToday = d === todayYmd;
                     const todayBottomAccent = isToday && isLastRowOverall ? " border-b-2 border-primary" : "";
+                    const adminEditDateLabel = adminEdit ? formatAdminEditDate(adminEdit.changedAt) : null;
                     return (
                       <td
                         key={d}
-                        className={`text-center p-0 align-middle${isToday ? " bg-status-present-subtle" : ""}${todayBottomAccent}`}
+                        className={`text-center p-0 align-middle relative${isToday ? " bg-status-present-subtle" : ""}${todayBottomAccent}`}
                       >
                         {editable && onToggle ? (
                           <button
@@ -154,6 +180,27 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                             )}
                           </span>
                         )}
+                        {adminEdit && adminEditDateLabel ? (
+                          <Popover>
+                            <PopoverTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-amber-100 hover:bg-amber-200 active:bg-amber-300 flex items-center justify-center transition-colors"
+                                  aria-label={`Entri ini diedit oleh admin pada ${adminEditDateLabel}`}
+                                >
+                                  <Pencil size={10} className="text-amber-700" strokeWidth={2.5} />
+                                </button>
+                              }
+                            />
+                            <PopoverContent className="w-auto max-w-[220px] p-3 text-xs">
+                              <p className="font-medium text-foreground">Diedit admin</p>
+                              <p className="text-muted-foreground mt-1">
+                                {adminEdit.changedByName} pada {adminEditDateLabel}
+                              </p>
+                            </PopoverContent>
+                          </Popover>
+                        ) : null}
                       </td>
                     );
                   })}

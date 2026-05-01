@@ -35,7 +35,13 @@ type Child = {
 
 type Indicator = { id: string; label: string; order: number };
 type Category = { id: string; name: string; scope: string; indicators: Indicator[] };
-type Entry = { id?: string; indicatorId: string; date: string; checked: boolean };
+type Entry = {
+  id?: string;
+  indicatorId: string;
+  date: string;
+  checked: boolean;
+  lastAdminEdit?: { changedAt: string; changedByName: string } | null;
+};
 type Note = {
   id: string;
   date: string;
