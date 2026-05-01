@@ -103,7 +103,7 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Acceptance:** Playwright spec in `e2e/teacher.spec.ts` adds a step that opens dialog, fills body, submits, verifies toast and notes-count badge increments. Mobile breakpoint check screenshot in Verification. Parent portal still works (regression check via existing parent journal Playwright spec).
   - **Depends on:** none (independent of T1–T5).
 
-- [ ] **T7 — Parent week empty state for zero-entries weeks.**
+- [x] **T7 — Parent week empty state for zero-entries weeks.**
   - In `app/parent/student-journal/page.tsx`: when selected child has zero entries AND zero notes for the visible week, render `EmptyState` with `BookHeart` icon, title `"Belum ada catatan minggu ini"`, description `"Catatan akan muncul saat guru atau orang tua mengisi."` Distinguish from no-children state (already exists at line 165–173).
   - **Commit subject:** use `fix(student-journal):` (bug-fix prefix per portal Empty State Contract gap) — avoids commit-msg narrow rule that requires README staged for `feat:` touching `app/**`. Cycle doc still must be staged (broad rule + frontend gate).
   - **Frontend gate:** stage cycle doc with `design-system.html §15` citation in the Implementation section in the SAME commit as the `.tsx` file.
@@ -122,6 +122,11 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Depends on:** T1–T8.
 
 ## Implementation
+
+- **T7 — Parent week empty state for zero-entries weeks.** Cites `design-system.html §15` (Empty State Contract).
+  - `app/parent/student-journal/page.tsx` — when `data.schoolEntries.length === 0 && data.homeEntries.length === 0 && data.notes.length === 0` (i.e. selected child has zero entries AND zero notes for the visible week), render `EmptyState` with `BookHeart` icon, title "Belum ada catatan minggu ini", description "Catatan akan muncul saat guru atau orang tua mengisi." Distinct from the no-children state at line 165–173.
+  - `fix(student-journal):` commit prefix used — `fix:` is exempt from commit-msg narrow rule, no README update needed.
+  - Verified: `npm run build` ✓; `npx vitest run` 823 passed (no regressions).
 
 - **T6 — "Tambah Catatan" affordance on teacher class-day grid.** Cites `design-system.html §15` (note compose dialog + per-student row affordances).
   - Renamed `components/student-journal/parent-note-dialog.tsx` → `note-compose-dialog.tsx` (via `git mv`); component renamed `ParentNoteDialog` → `NoteComposeDialog`. Added optional props `title?: string` and `placeholder?: string` (defaults preserve current parent UI). DRY win — no fork.
@@ -184,6 +189,10 @@ Ordered. Each is committable independently. Dependencies marked.
   - `tsconfig.tsbuildinfo` was modified by build but is gitignored — untracked via `git rm --cached`.
 
 ## Verification
+
+- **T7 gates passed:**
+  - `npm run build` ✓.
+  - `npx vitest run` — 823 passed.
 
 - **T6 gates passed:**
   - `npm run build` ✓ (Compiled successfully).

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, BookHeart, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -243,6 +244,14 @@ export default function ParentStudentJournalPage() {
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
+      ) : data.schoolEntries.length === 0 &&
+        data.homeEntries.length === 0 &&
+        data.notes.length === 0 ? (
+        <EmptyState
+          icon={BookHeart}
+          title="Belum ada catatan minggu ini"
+          description="Catatan akan muncul saat guru atau orang tua mengisi."
+        />
       ) : (
         <Tabs defaultValue="school">
           <TabsList className="w-full">
