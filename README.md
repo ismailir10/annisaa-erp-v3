@@ -1,9 +1,8 @@
 # An Nisaa' School ERP
 
-School management system for **An Nisaa' Sekolahku** — an Islamic PAUD/TKIT in Bekasi, Indonesia. 2 campuses, 40+ teachers, 500+ students. Single-tenant MVP; multi-tenant requires tenant-from-host resolution in `lib/auth.ts` before onboarding a second tenant (session resolver currently keys on email alone, guarded by `assertSingleTenant()`).
+School management system for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in Bekasi, Indonesia. 2 campuses, 40+ teachers, 500+ students. Single-tenant MVP; multi-tenant requires tenant-from-host resolution in `lib/auth.ts` before onboarding a second tenant (resolver currently keys on email, guarded by `assertSingleTenant()`).
 
-**Production:** [annisaa-erp-v3.vercel.app](https://annisaa-erp-v3.vercel.app)
-**Repo:** [github.com/ismailir10/annisaa-erp-v3](https://github.com/ismailir10/annisaa-erp-v3)
+**Production:** [annisaa-erp-v3.vercel.app](https://annisaa-erp-v3.vercel.app) · **Repo:** [github.com/ismailir10/annisaa-erp-v3](https://github.com/ismailir10/annisaa-erp-v3)
 
 ---
 
@@ -11,170 +10,106 @@ School management system for **An Nisaa' Sekolahku** — an Islamic PAUD/TKIT in
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Next.js 15 (App Router) |
-| Language | TypeScript (strict) |
-| Database | Supabase PostgreSQL (prod: Mumbai, staging: Tokyo) / SQLite (local dev) |
+| Framework | Next.js 15 (App Router) + TypeScript strict |
+| Database | Supabase Postgres (prod Mumbai, staging Tokyo) / SQLite (local dev) |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
-| UI | Shadcn UI + Tailwind CSS + TanStack Table |
-| Fonts | Plus Jakarta Sans + JetBrains Mono |
+| UI | Shadcn UI + Tailwind + TanStack Table; fonts Plus Jakarta Sans + JetBrains Mono |
 | Payment | Xendit Checkout Session API |
-| Email | Resend (branded HTML template + PDF attachment) |
-| PDF | @react-pdf/renderer |
-| Hosting | Vercel |
-| CI | GitHub Actions (build, typecheck, test, e2e) |
-| Testing | Vitest (unit) + Playwright (E2E) |
+| Email | Resend |
+| PDF | `@react-pdf/renderer` |
+| Hosting | Vercel (region pinned `sin1`) |
+| CI | GitHub Actions: build, typecheck, vitest, Playwright |
 
 ---
 
 ## Modules
 
-Six domain modules. Parent Portal is a view *across* students + finance + learning, not its own module.
+Seven domain modules. Parent Portal is a view *across* students + finance + learning, not its own module.
 
-| Module | Domain | Key Models |
-|--------|--------|------------|
-| **core** | Auth, tenant, config | Tenant, User, Campus, OrgConfig, Holiday, EmailLog |
-| **hr** | Staff management — gated by `hr.*` permissions; `SCHOOL_ADMIN` excluded from every HR surface (employees, attendance, leave, payroll, salary components). Custom roles can re-grant any subset. See [`docs/cycles/2026-04-25-super-admin-rbac-sidebar-fix.md`](docs/cycles/2026-04-25-super-admin-rbac-sidebar-fix.md). | Employee, SalaryComponentDef, PayrollRun, PayrollItem, AttendanceRecord, LeaveRequest |
-| **academic** | School structure | AcademicYear, Program, ClassSection, TeachingAssignment |
-| **students** | Student lifecycle | Student, Guardian, StudentEnrollment, Admission |
-| **finance** | Fees & payments — Invoice state machine: `DRAFT → SENT → PAID \| PARTIALLY_PAID \| OVERDUE \| CANCELLED \| PENDING_PAYMENT_LINK` (void serialized with webhook + manual payments via `pg_advisory_xact_lock`; `SENT` rejected from terminal states; OVERDUE auto-promoted by daily cron @ 08:00 WIB; PENDING_PAYMENT_LINK is the recovery state for failed Xendit creation + the soft-revert target on `payment_session.expired`). Atomic invoice numbering via `InvoiceNumberSequence(tenantId, year, lastNumber)` row-locked allocator (no advisory race). Two-phase Xendit webhook (receive-always, process-second; ERROR rows retained for admin audit). Admin "Aktivitas Xendit" panel on invoice detail surfaces webhook timeline w/ PII redacted. Inline retry on transient Xendit errors (5xx/408/429/network) via `withXenditRetry` (3 attempts, 250ms+1000ms backoff, honors `Retry-After` capped at 3s) plus orchestrator-level auto-sweep at the end of `runBulkGenerate` (single-shot `runBulkRetry` if any `PENDING_PAYMENT_LINK` residual after chunks done). Admin diagnostic popover on the "Coba Lagi Link (N)" header button surfaces a per-prefix breakdown (`5xx`/`429`/`408`/`network`/`401`/`403`/`422`/`4xx`/`untagged`/`unknown`) via `GET /api/invoices/pending-payment-link/breakdown` so operators can distinguish "Xendit was flaky" from "your `XENDIT_SECRET_KEY` is wrong" without grepping logs. One-shot CLI backfill at `scripts/backfill-pending-payment-links.ts` clears legacy accumulation. — see [`docs/cycles/2026-04-27-invoice-create-auto-retry.md`](docs/cycles/2026-04-27-invoice-create-auto-retry.md). Bulk fan-out throttled to concurrency=2 + 1s inter-chunk pacing; 429 retry budget trimmed to 2 attempts (1 retry, 1500ms backoff or honored `Retry-After`) so a rate-limit storm fits the 60s function ceiling. Deploy-time credential probe at `GET /api/health/xendit` pings Xendit `/balance` and reports tier (`live`/`sandbox`/`unknown`) derived from the `XENDIT_SECRET_KEY` prefix — rate-limited 30/min/IP and 30s in-memory cached so the probe cannot be turned into a DoS amplifier against the merchant quota — see [`docs/cycles/2026-04-28-finance-bulk-throttle.md`](docs/cycles/2026-04-28-finance-bulk-throttle.md). | FeeComponentDef, ProgramFeeStructure, Invoice, InvoiceLine, Payment, InvoiceNumberSequence, WebhookEvent |
-| **learning** | Academic outcomes | StudentAttendance, AssessmentTemplate, AssessmentCategory, StudentAssessment |
-| **student-journal** | Buku Penghubung (school + home) — bi-directional + admin audit visibility ("Diedit admin" badge) on teacher/parent week views + per-student "Tambah Catatan" + "Lihat minggu" chevron affordances on teacher class-day grid + Indonesian 403 remediation copy via shared `lib/student-journal/messages.ts` + Simpan bar lifted above PortalBottomNav (z-40 + bottom-16) + parent "Di Rumah" toggle today-only edit window (server + client) + parent Catatan tab persistence via `?view=` URL param — see [`docs/cycles/2026-05-01-student-journal-uat-blockers.md`](docs/cycles/2026-05-01-student-journal-uat-blockers.md) | StudentJournalTemplate, StudentJournalCategory, StudentJournalIndicator, StudentJournalEntry, StudentJournalNote, StudentJournalAudit, JournalStatus enum |
+| Module | Domain |
+|--------|--------|
+| **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
+| **hr** | Staff lifecycle: employees, attendance, leave, payroll, salary components — gated by `hr.*` permissions |
+| **academic** | School structure: academic year, programs, class sections, teaching assignments |
+| **students** | Student lifecycle: students, guardians, enrollments, admissions |
+| **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
+| **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |
+| **student-journal** | Buku Penghubung — bi-directional school + home indicators with audit trail |
 
 ---
 
 ## Portals
 
-Three portals, three roles.
+| Portal | Route | Role | Layout | Access |
+|---|---|---|---|---|
+| Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop sidebar | Everything incl. payroll, salary, bank |
+| Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions, academics, attendance, invoices, employees (no salary/payroll) |
+| Teacher | `/teacher` | `TEACHER` | Mobile-first `max-w-md` | Own attendance + leave; assigned classes only |
+| Parent | `/parent` | `GUARDIAN` | Mobile-first `max-w-md` | Own child only |
 
-| Portal | Route | Role | Layout |
-|---|---|---|---|
-| Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop — sidebar + data tables; full access including payroll |
-| Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop — sidebar + data tables; no payroll/salary |
-| Teacher | `/teacher` | `TEACHER` | Mobile-first, `max-w-md`, bottom nav |
-| Parent | `/parent` | `GUARDIAN` | Mobile-first, `max-w-md`, bottom nav |
-
-### Data Access Rules
-
-| Role | Access |
-|------|--------|
-| `SUPER_ADMIN` | Everything — payroll, salary fields, bank data, all HR data, all modules |
-| `SCHOOL_ADMIN` | Students, admissions, academics, attendance, invoices, employees (basic info only — no salary/payroll) |
-| `TEACHER` | Own attendance, own leave slips, assigned classes only |
-| `GUARDIAN` | Own child's data only (invoices, attendance, reports) |
-
-### Features
-
-**Parent Portal** — Home (greeting + Hijri date + per-kid card with this-week mini-strip + outstanding-tagihan focal card or lunas celebration), Invoices (focal due-amount + Belum dibayar / Riwayat groups + Xendit detail sheet), Attendance (weekly grid view with bespoke chevron navigator + compact summary card + school-note list), Reports (compact celebration card + Buka rapor CTA + history), Profile (avatar-tap from home → identity + Kontak + Anak Anda + logout), Buku Penghubung (school week view read-only + home indicators editable + parent-authored home notes with edit/delete)
-
-**Teacher Portal** — Check-in/out (GPS as documentation), Attendance Calendar (with inline Cuti/Izin bottom sheet), Nilai Siswa (per-class assessment entry with BB/MB/BSH/BSB toggle + draft autosave + publish), Buku Penghubung (school-scope indicators + teacher notes per student + week view), Salary Slips (PDF), Profile (accessible via header avatar)
-
-**Admin Portal** — Dashboard, Employee Management, Attendance (daily + monthly grid + LEAVE override), Payroll (state machine: `DRAFT → variables → review → APPROVED → EXPORTED (BSI CSV) → SLIPS_SENT (PDF email) | CANCELLED`; edits + BSI export gated to APPROVED, send-slips is idempotent per-item via `PayrollItem.emailSent`), Settings (campus, org config, holidays, salary components)
+- **Parent** — home (greeting + Hijri date + per-kid card), invoices (Xendit), attendance week grid, reports, profile, Buku Penghubung (read school, edit home + notes).
+- **Teacher** — check-in/out, attendance calendar, Nilai Siswa, Buku Penghubung (school scope), salary slip PDF, profile.
+- **Admin** — dashboard, employees, attendance (daily/monthly/LEAVE override), payroll (`DRAFT → APPROVED → EXPORTED → SLIPS_SENT`), settings.
 
 ---
 
 ## Architecture Decisions
 
-Short log. Each entry is a decision that constrains future work.
+Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + cycle link; pre-commit rejects > 400 chars. Pre-2026 baseline + process-meta ADRs live in [`docs/adrs/archive.md`](docs/adrs/archive.md).
 
 | Date | Decision | Why |
 |---|---|---|
-| 2025 | Next.js App Router + Server Components by default | Supabase SSR integration, streaming, and route-handler co-location |
-| 2025 | Prisma over direct Supabase client for business logic | Type safety, migration history, easier local SQLite dev |
-| 2025 | Soft-delete everywhere (`status=INACTIVE`) | Audit trail, undo, no data loss |
-| 2025 | Shadcn-first UI (62 components installed) | Consistency, accessibility, avoids bespoke drift |
-| 2026-04 | Xendit over Midtrans for parent invoice payments | Xendit Checkout Session API is simpler and has cleaner webhook semantics |
-| 2026-04 | Performance optimization phase 2: bundle analyzer + dynamic imports | Initial bundle was >400KB; see [`docs/cycles/2025-04-15-performance-optimization-phase2.md`](docs/cycles/2025-04-15-performance-optimization-phase2.md) |
-| 2026-04-15 | 3-command workflow (`/spec`, `/build`, `/ship`) over upstream 7 | Lower friction for small cycles; every upstream skill is still mapped into one of the three |
-| 2026-04-15 | One markdown file per cycle, enforced by pre-commit hook | Stop scratch-file proliferation from non-Opus sessions |
-| 2026-04-18 | Unified PR-based `/ship`: all roles open a PR to `staging` and merge manually when CI is green — no direct pushes to `staging` or `main` | GitHub free plan doesn't support branch protection / auto-merge; manual merge + pre-push hook + CTO discipline is the enforcement layer (supersedes 2026-04-15 role-gated push) |
-| 2026-04-15 | `prd.md` retired; README.md becomes single source of truth for status/roadmap/ADRs | Eliminate three-way doc drift |
-| 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) instead of two separate templates | Keeps admin config flat (one accordion page, two tabs); parent portal and teacher grid share the same `<WeekGrid>` component; audit trail stays on a single `StudentJournalAudit` table |
-| 2026-04-24 | Teachers access class rosters via `GET /api/teacher/students?classId=…` (guarded by `requireTeacherForClass`), not the admin-only `/api/students` | Closes a PII enumeration leak found in the 2026-04-24 comprehensive code review. `/api/students` and `/api/employees` are now strict-admin (with a ≤10s `userCache` staleness window — role changes propagate within one page navigation); teacher data access runs through dedicated, class-scoped routes. See [`docs/cycles/2026-04-24-critical-money-and-auth-hotfix.md`](docs/cycles/2026-04-24-critical-money-and-auth-hotfix.md) |
-| 2026-04-24 | `ConfirmDialog` rebuilt on Radix-equivalent `AlertDialog` (Base UI), destructive variant uses `variant="destructive"` token, dialog stays open when `onConfirm` rejects | Lets the caller toast an error and the user retry without re-opening the host menu/sheet. Lock-modal Esc/click-outside semantics also align destructive confirmations with the design-system overlays rule. See [`docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md`](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
-| 2026-04-24 | Date helpers in parent + admin attendance routes use `getYmdInTimezone(d, "Asia/Jakarta")` instead of `toISOString()` / host-local components | UTC fallback returned yesterday's data between 00:00–06:59 WIB; host-local fallback was a no-op on Vercel (UTC host). New `Intl.DateTimeFormat`-based helper is host-independent. See [`docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md`](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
-| 2026-04-24 | Promote + bulk-promote capacity check happens inside `$transaction` with `SELECT … FOR UPDATE OF cs` — mirrors enroll route | Closes the over-enrollment race where two concurrent promotes both saw "one seat free" against a stale snapshot |
-| 2026-04-24 | Prisma schema: `User.email` is unique per tenant (`@@unique([tenantId, email])`), every relation declares explicit `onDelete`, ClassSection + PayrollRun get composite uniques | Schema now matches the multi-tenant intent the README has been claiming; FK behavior visible without consulting Prisma defaults; DB-level guards under app-level overlap checks. See [`docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md`](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
-| 2026-04-24 | RLS enforces **tenant-scoped SELECT only**; INSERT/UPDATE/DELETE go through `service_role` (Prisma bypasses RLS). App-layer `tenantId` filtering in route handlers is the real write-side isolation — **a leaked service_role key bypasses RLS entirely.** `scripts/verify-rls-coverage.sh` is wired into CI to fail if any tenant-scoped model lacks an ENABLE + policy migration. `EmailLog.tenantId` + `OrgConfig.tenantId` FKs tightened from CASCADE to RESTRICT by `20260424120100_tenant_cascade_to_restrict`; tenant hard-delete is now blocked while audit rows or per-tenant config exist (admin must archive/export first — correct multi-tenant compliance posture). 18 tenantId/composite indexes dropped by `20260421000001_rls_security_cleanup` recreated by `20260424120000_recreate_rls_tenantid_indexes` (the other 19 were already restored by `20260421000002_rls_fk_indexes`). See [`docs/cycles/2026-04-24-stress-review-followups.md`](docs/cycles/2026-04-24-stress-review-followups.md) |
-| 2026-04-24 | Accept prefix collision on `20260424000000_*` migrations (`explicit_ondelete_actions` + `fix_emaillog_rls`) — both already applied to staging and cannot be renamed | Prisma `_migrations` table keys on `migration_name`; renaming an applied migration would cause it to re-apply or break state. Lex ordering of the suffix is deterministic today. Future migrations MUST avoid the `YYYYMMDD000000` prefix when another migration already exists at that timestamp |
-| 2026-04-24 | `Content-Security-Policy-Report-Only` added to `next.config.ts` security headers; `@libsql/client` + `@prisma/adapter-libsql` removed (zero usages, prototype leftovers) | Report-only logs violations without blocking — graduate to enforcing once the console is clean. Allowlist: Supabase realtime (https + wss), Xendit Checkout (`js.xendit.co`), Google Fonts, Vercel Analytics. Still uses `'unsafe-inline'` + `'unsafe-eval'` for Next.js 16 client bundles; future hardening via per-request nonces. See [`docs/cycles/2026-04-24-outstanding-findings-audit.md`](docs/cycles/2026-04-24-outstanding-findings-audit.md) |
-| 2026-04-25 | Parent portal **kuitansi (paid-invoice receipt) PDF** route added at `GET /api/guardian/invoices/[id]/pdf`. The link in the invoice detail sheet previously 404'd because no route existed. Auth mirrors the sibling JSON guardian route (session + GUARDIAN role + `parent.findFirst` by parentId/email + `childIds.has(studentId)` + tenant match). Paid-status guard returns 404 (no draft-existence leak). Template reuses `lib/pdf/salary-slip.tsx` visual tokens (TEAL `#5DB4B8`, DARK, A4, Helvetica, `formatRupiah`). See [`docs/cycles/2026-04-25-parent-portal-design-fixes.md`](docs/cycles/2026-04-25-parent-portal-design-fixes.md) |
-| 2026-04-25 | Permission-based RBAC replaces role-string checks for HR surfaces. `hasPermission()` consults `session.permissions` only (derived from `customRole.permissions` JSON or `getSystemRolePermissions(role)`); `SCHOOL_ADMIN` defaults exclude every `hr.*` code; `SUPER_ADMIN` retains all. Single `assertPermission("hr.view")` in `app/admin/(hr)/layout.tsx` gates pages; `requirePermission()` gates every HR API route. Sidebar filters via `permission?: PermissionCode` on nav items (replacing `superAdminOnly`). `Pengaturan` moved out of `<SidebarFooter>` into scrollable nav. Migration `20260425000000_promote_owner_to_super_admin` promotes the live owner so HR access is retained. See [`docs/cycles/2026-04-25-super-admin-rbac-sidebar-fix.md`](docs/cycles/2026-04-25-super-admin-rbac-sidebar-fix.md) |
-| 2026-04-25 | New invoice status `PENDING_PAYMENT_LINK` + nullable `Invoice.paymentLinkError` column for invoices whose Xendit checkout creation failed | Failed payment-link creation is a durable data state, not a transient runtime hiccup. Admin sees the failure on the list (warning badge), retries from the row or via a header bulk button. Parent portal allow-list excludes the status by construction. See [`docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md`](docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md) |
-| 2026-04-25 | Bulk invoice generation moves to client-driven chunked batches with inline Xendit (Vercel free tier 60s ceiling) | Legacy `POST /api/invoices/generate` ran everything in one transactional sweep — adding inline Xendit (~500-1500ms each × 500 students) would blow the budget. Replaced with `/generate/plan` (preview) + `/generate/batch` (≤25 students, `pLimit(5)` Xendit, status `PENDING_PAYMENT_LINK` until Xendit confirms) sequentially driven from the admin UI, plus a sticky progress card. **Breaking:** the legacy endpoint is removed. See [`docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md`](docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md) |
-| 2026-04-25 | `POST /api/invoices/retry-payment-links` for PENDING_PAYMENT_LINK retry — both per-row and bulk | Failed Xendit creation lands the invoice in PENDING_PAYMENT_LINK with the error persisted; admin retries from the row action OR the header bulk button (sticky progress card while running). Detail page surfaces the error + "Coba Lagi" button. Endpoint accepts optional `invoiceIds` (cap 25) — omitted → retry ALL pending for the tenant; explicit list → retry those. `pLimit(5)` matches the batch endpoint's concurrency cap. See [`docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md`](docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md) |
-| 2026-04-25 | `POST /api/invoices` for manual single-student invoice with custom line items + inline Xendit + admin "Tagihan Manual" dialog | Bulk-generate covers the monthly batch path; manual-create covers ad-hoc charges (uang pangkal mid-year, replacement seragam, sibling discount, field-trip). Server validates student is active in tenant, every fee component is tenant-scoped + enabled, totalDue is server-derived via `sumDecimals`. Same PENDING_PAYMENT_LINK + paymentLinkError contract as bulk on Xendit failure. See [`docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md`](docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md) |
-| 2026-04-26 | Finance follow-ups: parent invoice list + recent-activity feed switch from deny-list (`status: { not: "DRAFT" }`) to allow-list (`SENT/PARTIALLY_PAID/OVERDUE/PAID`); Xendit webhook now writes `Payment.xenditPaymentId` + uses the UNIQUE constraint as inner-tx idempotency (with narrowed P2002 swallow + missing-paymentId pre-tx guard); `nextInvoiceNumber` advisory-lock key consolidates on Postgres `hashtext()` matching webhook + void convention; dead PUT auto-Xendit branch removed | Closes the four residual issues that survived PR #140's tagihan rewrite — most-visible was `PENDING_PAYMENT_LINK` + `CANCELLED` invoices leaking into the parent UI as unpayable rows with no error message. See [`docs/cycles/2026-04-26-finance-followup-fixes.md`](docs/cycles/2026-04-26-finance-followup-fixes.md) |
-| 2026-04-27 | Invoice creation auto-retry (in progress): `lib/xendit/client.ts` throws typed `XenditApiError` (`{ status, code, retriable, retryAfterMs?, message }`); `lib/xendit/with-retry.ts` adds `withXenditRetry(fn, ctx)` (3 attempts, 250ms+1000ms backoff, honors capped `Retry-After`). `createXenditSessionForInvoice` now wraps its single Xendit call in `withXenditRetry` so transient 5xx/408/429/network errors retry inline before persisting `PENDING_PAYMENT_LINK`. Per-attempt `[XENDIT ATTEMPT]` log line for ops grep. Task 4 adds `lib/xendit/error-prefix.ts` (`formatPaymentLinkError(e)` → `"<XenditErrorCode|unknown>: <message>"`); all 5 `paymentLinkError` write sites (manual create, batch generate, manual retry orchestrator, legacy create-session) now persist prefix-tagged so the upcoming breakdown endpoint can SQL-aggregate by category. Spec-flagged `revalidateTag` "bug" was a false alarm — Next.js 16 requires the second argument; existing `{ expire: 0 }` calls left intact. Task 5 adds `GET /api/invoices/pending-payment-link/breakdown` — admin-only diagnostic that aggregates the tenant's `PENDING_PAYMENT_LINK` invoices by `paymentLinkError` prefix in SQL (`$queryRaw` with `position(':' in ...)` + `substring()`, no row pull into Node), returns `{ total, byPrefix }` with all 10 buckets (`5xx`, `429`, `408`, `network`, `401`, `403`, `422`, `4xx`, `untagged`, `unknown`) zero-filled. Pre-cycle rows without a colon land in `untagged` via an explicit CASE branch; unexpected prefixes fold into `unknown` defensively. Task 6 adds `components/admin/invoices/pending-link-breakdown-popover.tsx` — Shadcn Popover wrapping the "Coba Lagi Link (N)" header button with a lazy-fetched per-prefix bullet list (non-zero buckets only, transient-first ordering, 401/403-heavy hint pointing at `XENDIT_SECRET_KEY` when auth share > 0.5). Task 6 follow-up extracts `PAYMENT_LINK_ERROR_PREFIXES` + `PaymentLinkErrorPrefix` to `lib/xendit/error-prefix.ts` so the breakdown route, popover, and test fixture share one bucket list (was duplicated 3x); also names the auth-heavy threshold (`AUTH_HEAVY_THRESHOLD = 0.5`) and adds a strict-`>` boundary test. Task 7 adds the orchestrator-level auto-sweep in `lib/finance/run-bulk-generate.ts`: after the chunk loop completes (success path only — 3-strike abort and user-cancel both early-return), the orchestrator pre-checks `/api/invoices/pending-payment-link?count-only=true` (new query-param branch on the existing endpoint, returns `{ total: N }` only — skips `findMany`), and if `total > 0` fires `runBulkRetry` exactly once with the same `AbortSignal` + `fetchImpl` passed through. New `BatchProgressPhase = "sweeping"` flips the progress card to "Memeriksa link gagal..." while the sweep drains; new `BatchProgressSnapshot.{sweepRan, pendingAfterSweep}` fields drive the post-sweep summary so the manual "Coba Lagi Link (N)" button only surfaces when the sweep itself couldn't clear the residual. Single-shot by design — if the sweep aborts mid-way (3-strike inside `runBulkRetry`), the residual count stays > 0 and the manual button takes over rather than looping. Task 8 adds the one-shot backfill CLI `scripts/backfill-pending-payment-links.ts` (`--tenant <id> [--confirm] [--dry-run]`) that re-runs `retryPaymentLinks` directly server-side (no HTTP / no session) until pending=0, stall, or `MAX_ITERATIONS=50` cap. Same task extracts SQL aggregation into `lib/finance/pending-breakdown.ts` (`getPendingPaymentLinkBreakdown`) — single source of truth for both the breakdown route and the script. Per-iteration `[XENDIT BACKFILL]` log on top of the per-attempt `[XENDIT ATTEMPT]` lines. See [`docs/cycles/2026-04-27-invoice-create-auto-retry.md`](docs/cycles/2026-04-27-invoice-create-auto-retry.md) |
-| 2026-04-26 | **Finance Robustness A+B+C**: (a) `InvoiceNumberSequence(tenantId, year, lastNumber)` table + atomic `INSERT … ON CONFLICT DO UPDATE … RETURNING` allocator (`reserveInvoiceNumbers(tx, tenantId, count)`) replaces advisory-lock + `SELECT MAX` + regex-parse — eliminates the production P2002 race that returned 500s on `POST /api/invoices`. Year computed in Asia/Jakarta via `formatToParts`. (b) Webhook handler rewritten to two-phase pattern: Phase 1 always commits `WebhookEvent` with status `RECEIVED` (P2002 → 200 short-circuit on dup `eventId`); Phase 2 process + record outcome (PROCESSED / ERROR / IGNORED). Phase 2 errors mark `status: "ERROR"` + return 200 (no DELETE-on-transient). xenditSessionId fallback restored when `reference_id` misses (PR #136 regression). Amount-mismatch guard (MISSING_AMOUNT / OVERPAYMENT_FLAGGED). `payment_session.expired` soft-reverts to `PENDING_PAYMENT_LINK` instead of destructive `CANCELLED`. (c) Bulk retry orchestrator at `lib/finance/run-bulk-retry.ts` drains all stuck invoices via chunked POSTs (was silently capped at 25); inline 10-LOC concurrency limiter at `lib/finance/concurrency-limit.ts` caps Xendit fan-out at 5. AlertDialog gates >1000 stuck case. Manual-create dialog gets shadcn Command combobox typeahead (was `pageSize=500` client filter). New cron `POST /api/cron/finance-maintenance` @ 01:00 UTC daily: 90-day `WebhookEvent` retention purge + `SENT → OVERDUE` promotion. New admin `/admin/invoices/[id]` "Aktivitas Xendit" panel surfaces webhook timeline (paidAt, payment method, amount, error label) with PII recursively redacted. **New env var:** `CRON_SECRET` (one-time `openssl rand -hex 32`). **New entities:** `InvoiceNumberSequence`. **New routes:** `GET /api/invoices/pending-payment-link`, `POST /api/cron/finance-maintenance`, `GET /api/invoices/[id]/webhook-events`. See [`docs/cycles/2026-04-26-finance-robustness-a-b-c.md`](docs/cycles/2026-04-26-finance-robustness-a-b-c.md) |
+| 2026-04 | Xendit over Midtrans for parent payments | Cleaner Checkout Session API + webhook semantics |
+| 2026-04 | Bundle perf phase 2: analyzer + dynamic imports | Initial bundle was >400KB — see [cycle](docs/cycles/2025-04-15-performance-optimization-phase2.md) |
+| 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) | One admin page + shared `<WeekGrid>`; one audit table — see [cycle](docs/cycles/2026-04-21-student-journal.md) |
+| 2026-04-24 | Teachers use `/api/teacher/students?classId=…`, not admin `/api/students` | Closes PII enumeration leak — see [cycle](docs/cycles/2026-04-24-critical-money-and-auth-hotfix.md) |
+| 2026-04-24 | `ConfirmDialog` rebuilt on AlertDialog (Base UI), stays open on `onConfirm` reject | Caller toasts and user retries — see [cycle](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
+| 2026-04-24 | Date helpers use `getYmdInTimezone(d, "Asia/Jakarta")` not `toISOString()` | UTC fallback returned yesterday's data 00:00–06:59 WIB on Vercel — see [cycle](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
+| 2026-04-24 | Capacity check inside `$transaction` with `SELECT … FOR UPDATE OF cs` | Closes over-enrollment race on concurrent promote |
+| 2026-04-24 | Prisma: `@@unique([tenantId, email])`, explicit `onDelete` everywhere | Schema matches multi-tenant intent — see [cycle](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
+| 2026-04-24 | RLS = tenant-scoped SELECT only; writes via `service_role` | App-layer `tenantId` filter is real write isolation; CI guard `verify-rls-coverage.sh` — see [cycle](docs/cycles/2026-04-24-stress-review-followups.md) |
+| 2026-04-24 | Accept prefix collision on `20260424000000_*` migrations | Already applied; rename would break Prisma `_migrations` state. Future migrations must avoid `YYYYMMDD000000` when one exists |
+| 2026-04-24 | `Content-Security-Policy-Report-Only` added; `@libsql/*` removed | Logs without blocking — graduate after console clean — see [cycle](docs/cycles/2026-04-24-outstanding-findings-audit.md) |
+| 2026-04-25 | Parent kuitansi PDF route `GET /api/guardian/invoices/[id]/pdf` | Detail-sheet link previously 404'd — see [cycle](docs/cycles/2026-04-25-parent-portal-design-fixes.md) |
+| 2026-04-25 | Permission-based RBAC for HR replaces role-string checks | `hasPermission()` from `session.permissions`; `SCHOOL_ADMIN` excludes `hr.*` — see [cycle](docs/cycles/2026-04-25-super-admin-rbac-sidebar-fix.md) |
+| 2026-04-25 | Tagihan async pipeline: `PENDING_PAYMENT_LINK` status, chunked bulk-gen, retry endpoint, manual single-student create | Vercel free 60s ceiling forces ≤25-row chunks + `pLimit(5)`; durable failure state — see [cycle](docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md) |
+| 2026-04-26 | Finance Robustness: `InvoiceNumberSequence` allocator, two-phase webhook, bulk retry orchestrator, parent allow-list | Eliminates P2002 race on `POST /api/invoices`; new `CRON_SECRET` env — see [cycle](docs/cycles/2026-04-26-finance-robustness-a-b-c.md) + [follow-ups](docs/cycles/2026-04-26-finance-followup-fixes.md) |
+| 2026-04-27 | Invoice creation auto-retry: typed `XenditApiError` + `withXenditRetry` (3 attempts, honors `Retry-After`) | Transient 5xx/408/429/network retried inline before persisting failure — see [cycle](docs/cycles/2026-04-27-invoice-create-auto-retry.md) |
+| 2026-04-28 | Bulk fan-out throttled: concurrency=2, 1s inter-chunk pacing, 2-attempt 429 budget | Rate-limit storm fits 60s function ceiling — see [cycle](docs/cycles/2026-04-28-finance-bulk-throttle.md) |
 
 ---
 
 ## Setup
 
-### Prerequisites
-- Node.js 20+
-- npm
-
-### Clone and install
-
 ```bash
 git clone https://github.com/ismailir10/annisaa-erp-v3.git
 cd annisaa-erp-v3
 npm install
+./scripts/install-hooks.sh           # required: pre-commit, prepare-commit-msg, commit-msg, pre-push
+npx prisma generate && npx prisma db push && npx prisma db seed
+npm run dev                          # http://localhost:3000 — demo mode, no Supabase
 ```
 
-### Install git hooks (required for contributors)
-
-```bash
-./scripts/install-hooks.sh
-```
-
-This enables pre-commit (markdown allowlist + doc sync + seed drift), prepare-commit-msg (model trailer), and pre-push (blocks direct pushes to `staging`/`main` for all roles — use `/ship` instead). Without the hooks, commits may be rejected by CI or, when the repo moves to GitHub Pro, by branch protection.
-
-### Database (local demo mode)
-
-```bash
-npx prisma generate
-npx prisma db push
-npx prisma db seed    # 24 employees, 23 holidays, sample attendance + payroll
-npm run dev
-```
-
-Open http://localhost:3000 — demo mode with user selector, no Supabase needed.
+Tests: `npm run build && npx vitest run` (mandated gate before every commit), `npx playwright test`, `npm run lint`.
 
 ### Environment variables
 
-Copy `.env.example` to `.env`. Key variables:
+Copy `.env.example` to `.env`. Per-env values:
 
 | Variable | Local | Staging | Production |
 |---|---|---|---|
-| `DATABASE_URL` | `file:./dev.db` | Supabase Tokyo pooler (port 6543) | Supabase Mumbai pooler (port 6543) |
-| `DIRECT_URL` | — (optional) | Supabase Tokyo direct (port 5432) — **required on Vercel** | Supabase Mumbai direct (port 5432) — **required on Vercel** |
-| `NEXT_PUBLIC_SUPABASE_URL` | — | Staging Supabase URL | Production Supabase URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | — | Staging anon key | Production anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | — | Staging service key | Production service key |
-| `RESEND_API_KEY` | — | Resend key | Resend key |
+| `DATABASE_URL` | `file:./dev.db` | Supabase Tokyo pooler (6543) | Supabase Mumbai pooler (6543) |
+| `DIRECT_URL` | optional | Supabase Tokyo direct (5432) — required¹ | Supabase Mumbai direct (5432) — required¹ |
+| `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | — | Staging | Production |
+| `RESEND_API_KEY` (omit → emails simulated) | — | Resend key | Resend key |
 | `STAGING_EMAIL_OVERRIDE` | — | Admin email | — |
-| `XENDIT_SECRET_KEY` | — | Staging key | Production key |
-| `XENDIT_WEBHOOK_TOKEN` | — | Staging token | Production token |
-| `NEXT_PUBLIC_APP_URL` | — | `https://annisaa-erp-v3-git-staging-…vercel.app` | `https://annisaa-erp-v3.vercel.app` |
+| `XENDIT_SECRET_KEY` / `XENDIT_WEBHOOK_TOKEN` | — | Sandbox | Production |
+| `NEXT_PUBLIC_APP_URL` | — | Staging Vercel preview URL² | `https://annisaa-erp-v3.vercel.app`² |
+| `CRON_SECRET` | — | `openssl rand -hex 32` | `openssl rand -hex 32` |
 
-Without `RESEND_API_KEY`, emails are simulated (logged, not sent).
-
-**`NEXT_PUBLIC_APP_URL` must be set per-environment.** Used as the origin for Xendit `success_return_url` / `cancel_return_url` when no request scope is available (reseed scripts, UAT harness, cron). Runtime invoice creation derives origin from `req.url` first and only falls back to this env var. **The fallback throws if missing — there is no silent prod fallback.** Misconfigured staging would otherwise redirect parents to prod (cross-origin auth gate, parent perceives "stayed on Xendit"). Set it in Vercel → Project → Settings → Environment Variables for both Preview and Production scopes. Local reseed/finish-xendit script runs require `export NEXT_PUBLIC_APP_URL=…` in shell (or in `.env.staging` from `vercel env pull`) — without it the script throws at session-creation time.
-
-**`DIRECT_URL` on Vercel is mandatory.** The `build` script runs `npx prisma migrate deploy` before `next build`, which applies any unapplied migrations in `prisma/migrations/`. This step requires a direct (non-pooler) Postgres connection — pooler connections on port 6543 go through PgBouncer transaction mode, which doesn't support the advisory locks Prisma uses to serialize migrations. Grab the direct URL from Supabase → Project Settings → Database → Connection string → **URI (Direct connection, port 5432)**.
-
-**Function region is pinned to `sin1` (Singapore)** via `vercel.json`. Staging Supabase is in `ap-northeast-1` (Tokyo) and most users are in Indonesia — `sin1` is ~35ms from the DB and ~15ms from Jakarta, vs ~180ms for the Vercel default `iad1` (US East). Pages making many sequential Prisma calls are dominated by RTT, so this pin alone removes roughly 1–2s of latency per page with no code change. Production DB (`ap-south-1`, Mumbai) also benefits from `sin1` (~65ms) — if prod moves to a different region later, revisit this.
-
-### Tests
-
-```bash
-npm run build && npx vitest run   # mandated gate before every commit
-npx playwright test               # E2E (selective)
-npm run lint
-```
+¹ **`DIRECT_URL` mandatory on Vercel.** `build` runs `prisma migrate deploy`, which needs port 5432 — pooler 6543 (PgBouncer transaction mode) doesn't support advisory locks.
+² **`NEXT_PUBLIC_APP_URL` per-env, throws if missing.** Origin for Xendit return URLs when no request scope (reseed/cron). No silent prod fallback.
 
 ---
 
@@ -182,21 +117,14 @@ npm run lint
 
 | Environment | Branch | URL | Database | Purpose |
 |---|---|---|---|---|
-| **Local** | any | localhost:3000 | SQLite (`file:./dev.db`) | Demo mode |
-| **Staging** | `staging` | [Vercel preview](https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app/) | Supabase SG | Test with safe data (3 test users, test teacher emails) |
-| **Production** | `main` | annisaa-erp-v3.vercel.app | Supabase SG | Real teachers, real payroll |
+| Local | any | localhost:3000 | SQLite | Demo mode |
+| Staging | `staging` | [preview](https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app/) | Supabase Tokyo | Safe data |
+| Production | `main` | annisaa-erp-v3.vercel.app | Supabase Mumbai | Real users |
 
-**Deployment:** Vercel builds via [`scripts/vercel-build.sh`](./scripts/vercel-build.sh); `prisma migrate deploy` runs on both `staging` and `main` refs. Preview branches (`feat/*`) use the staging DB directly and skip migrate deploy. CI (GitHub Actions) runs three required checks on every PR: `Lint, Typecheck & Test` (includes RLS + API-auth coverage guards), `Build`, and `Playwright E2E`.
+Vercel builds via [`scripts/vercel-build.sh`](./scripts/vercel-build.sh); `prisma migrate deploy` runs on `staging` + `main`. Preview branches use staging DB and skip migrate deploy. CI runs three required checks per PR: `Lint, Typecheck & Test` (incl. RLS + API-auth coverage guards), `Build`, `Playwright E2E`.
 
-### Reseeding staging
-
-The reseed runbook lives at [`docs/runbooks/reseed-staging.md`](docs/runbooks/reseed-staging.md) — env setup, command, recovery, and post-reseed UAT smoke.
+Reseed runbook: [`docs/runbooks/reseed-staging.md`](docs/runbooks/reseed-staging.md).
 
 ---
 
-## License & developer pointer
-
 Private — An Nisaa' Sekolahku. How we work (workflow, safety, standards): see [CLAUDE.md](./CLAUDE.md).
-
-
-

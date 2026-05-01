@@ -136,7 +136,7 @@ The harmony principle: each row below has exactly ONE owner; the other file link
 **Dependencies:** Tasks 1, 2.
 **Files modified:** `README.md`.
 
-### Task 3b — Rewrite README.md (cell-level)
+### Task 3b — Rewrite README.md (cell-level) [x]
 **Acceptance:** Modules table cells collapsed to 1-line; Key Models column dropped. ADR table: rows trimmed to ≤ 2 sentences + cycle link, archived rows removed. Portals Features prose: 1-line per portal. Setup env-var prose trimmed. Stale numbers refreshed. No `/uat` mentions. README.md ≤ 130 lines. `wc -l README.md` confirms. `grep -cE "CRUD|Roadmap|Current Phase" README.md` returns 0 matches OR matches only inside dev-pointer footer. All cycle-doc links resolve via `test -f`.
 **Dependencies:** Task 3a.
 **Files modified:** `README.md`.
@@ -246,6 +246,7 @@ CLAUDE.md 366 - 125 = 241 lines projected. Target was ≤ 220 — likely need an
 - Task 1: audit-only, no gates run (no code change). Inputs verified: `app/api` route count = 128 (`find app/api -name route.ts | wc -l`), `components/ui` = 68, e2e specs = 6 files. `proxy.ts` exists, `middleware.ts` does not. README ghost references confirmed via `grep -n "CRUD\|Roadmap\|Current Phase" README.md`.
 - Task 2: gates passed (build + vitest). New files: `docs/adrs/archive.md` (8 archived ADRs — pre-2026 baseline + process-meta), `docs/runbooks/reseed-staging.md` (full reseed prose + post-reseed UAT smoke). Archive cells byte-equal to source verified via diff against README lines 96-99, 102-105.
 - Task 3a: gates passed (build + vitest). README.md 295 → 202 lines (down 93). Deleted: Contents/TOC, Development Workflow section (15 lines), Reseeding subsection (60 lines, runbook pointer left), License + "For developers" sections (merged into 3-line footer). Tables (Modules, ADRs) untouched — Task 3b trims cells.
+- Task 3b: gates passed (build + vitest). README.md 202 → 130 lines (target hit exactly). Modules cells: 1-line each, "Key Models" col dropped. ADR table: 24 rows → 17 rows (4 archived as pre-2026 baseline + 4 archived as process-meta + 4 finance ADRs from 2026-04-25 consolidated to 1 row + 2 finance ADRs from 2026-04-26 consolidated to 1 row + 2 from 2026-04-27/28 each kept as own row). Portals + Data Access folded into one 5-col table. Setup compressed to single block. Env-var footnotes consolidated. Cell-length self-check: zero ADR cells > 400 chars. Link integrity: all 14 cycle-doc + 2 nested-doc links resolve via `test -f`. Ghost grep: zero `CRUD|Roadmap|Current Phase|Last updated` matches. `/uat` count: 0.
 
 ## Ship Notes
 <!-- filled by /ship -->
