@@ -155,7 +155,7 @@ The harmony principle: each row below has exactly ONE owner; the other file link
 **Dependencies:** Task 3b (need rewritten README to validate against), Task 4 (CLAUDE.md `/uat` text needs update before un-ignore lands).
 **Files modified:** `.githooks/pre-commit`, `scripts/test-hooks.sh`, `.gitignore`.
 
-### Task 6 — Verification + close-out
+### Task 6 — Verification + close-out [x]
 **Acceptance:** `npm run build && npx vitest run` green. `bash scripts/test-hooks.sh` green. **Playwright skipped** (docs-only, zero UI risk — recorded explicitly in Verification section). README + CLAUDE.md targets met. Single-source-of-truth matrix invariants hold (no production URL in CLAUDE.md, no workflow detail in README, no standards detail in README, no `/uat` in README, etc.). Link integrity grep passes zero broken. Cycle doc Verification section filled with command outputs + manual smoke notes. Ship Notes filled: no migrations, no env vars, rollback = revert the squash-merge commit on staging (since cycle = 6+ commits in one PR).
 **Dependencies:** Tasks 1-5.
 **Files modified:** this cycle doc only.
@@ -249,6 +249,33 @@ CLAUDE.md 366 - 125 = 241 lines projected. Target was ≤ 220 — likely need an
 - Task 3b: gates passed (build + vitest). README.md 202 → 130 lines (target hit exactly). Modules cells: 1-line each, "Key Models" col dropped. ADR table: 24 rows → 17 rows (4 archived as pre-2026 baseline + 4 archived as process-meta + 4 finance ADRs from 2026-04-25 consolidated to 1 row + 2 finance ADRs from 2026-04-26 consolidated to 1 row + 2 from 2026-04-27/28 each kept as own row). Portals + Data Access folded into one 5-col table. Setup compressed to single block. Env-var footnotes consolidated. Cell-length self-check: zero ADR cells > 400 chars. Link integrity: all 14 cycle-doc + 2 nested-doc links resolve via `test -f`. Ghost grep: zero `CRUD|Roadmap|Current Phase|Last updated` matches. `/uat` count: 0.
 - Task 4: gates passed (build + vitest, after npm install resolved a pre-existing missing `dotenv` transitive dep — package.json reverted, dotenv resides only in worktree-local node_modules). CLAUDE.md 366 → 220 lines (target hit exactly). Removed: 20-row coverage mapping, "Last updated" line, production URL line, tech-stack inline mentions, PR #74 backstory, Key Documents section (merged into Documentation Maintenance), CRUD ownership claim. Consolidated: Multi-LLM Safety §0–§4 into 5 mechanisms with worktree as single block. Standards table kept (canonical home per harmony matrix), trimmed; HTML preamble added documenting `design-system.html` (canonical) and `parent-portal-cycle4.html` (scratch, do-not-extend). File Structure tree refreshed to current counts (19/5/5/128/68 e2e 6). All cross-doc invariants hold: no prod URL, no tech-stack inline, no ghost refs, single worktree-claim block.
 - Task 5: gates passed (build + vitest + `bash scripts/test-hooks.sh` 20/20). Pre-commit Rule 6 (ADR cell ≤ 400 chars when README staged) added at end of `.githooks/pre-commit` using awk to scan `## Architecture Decisions` section, skip header + separator rows, check each pipe-delimited cell. test-hooks.sh extended with 3 ADR cases (pass at short, reject at 500-char in ADR, accept long cell in non-ADR table). Hook self-tested against rewritten README: exit 0, zero violations. `.gitignore` lines 54-56 removed (`docs/uat/reports/` un-ignored + comment block); existing 2 reports already tracked.
+- Task 6: end-of-cycle gates green (build=0, vitest=0, test-hooks 20/20). **Playwright skipped** — pure-docs cycle, zero UI risk; recorded explicitly here per spec acceptance. Final invariant sweep:
+  - README.md = 130 lines (target ≤ 130 ✓)
+  - CLAUDE.md = 220 lines (target ≤ 220 ✓)
+  - README ghosts (CRUD/Roadmap/Current Phase/Last updated): 0 matches
+  - README `/uat` refs: 0
+  - CLAUDE.md ghosts (CRUD status/Last updated/Roadmap): 0
+  - CLAUDE.md prod URL: 0 (single source = README)
+  - CLAUDE.md tech-stack inline: 0 (single source = README)
+  - CLAUDE.md PR #74 backstory: 0
+  - CLAUDE.md coverage-map remnants (`context-engineering`/`incremental-implementation`): 0
+  - CLAUDE.md worktree-claim dup: 1 (single canonical block ✓)
+  - UAT reports `.gitignore` exclusion: 0 (un-ignored ✓)
+  - ADR cells > 400 chars: 0 (silence = clean)
+  - Link integrity (README + CLAUDE.md + archive + runbook): all resolve, silence
+  - test-hooks.sh: 20/20 passed
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+- **Migrations:** none. No schema changes.
+- **Env vars:** none. (No code changes; `dotenv` was a pre-existing transitive dep gap surfaced mid-cycle when npx cache invalidated — fixed locally only, not in `package.json`. Surface separately if it recurs in CI.)
+- **Hook changes:** `.githooks/pre-commit` gains Rule 6 (ADR cell ≤ 400 chars when README.md staged). Contributors who already have `.githooks/.installed` get the new rule automatically on next commit since `core.hooksPath=.githooks`. New contributors run `./scripts/install-hooks.sh` per README Setup.
+- **`.gitignore` change:** `docs/uat/reports/` un-ignored. Future `/uat` runs commit reports automatically. The 2 already-tracked reports are unaffected.
+- **Manual smoke (post-merge on staging):**
+  1. Open the merged PR's diff on GitHub — confirm README.md renders cleanly (Modules table, Portals table, ADRs table all readable; no broken links).
+  2. Open the merged CLAUDE.md on GitHub — confirm Standards table renders, no orphaned section, doc-maintenance table includes new doc paths.
+  3. Run `bash scripts/test-hooks.sh` on staging — expect 20/20 green.
+  4. Make a trial commit on staging (any feat branch) editing README's ADR table to add a 500-char cell — expect pre-commit to reject with "ADR table cell exceeds 400 chars".
+  5. Verify `git ls-files docs/uat/reports/` returns the 2 existing reports (or any newer ones) — confirms un-ignore landed.
+- **Rollback:** revert the squash-merge commit on staging via `gh pr revert <pr>` or `git revert -m 1 <merge-sha>`. Cycle is 7 commits in one PR; reverting the squash is the clean path. No data migrations to roll back.
+- **Frontend gate (Rule 4) impact:** none — this cycle has no frontend diffs, so the rule doesn't fire. Cycle doc contains no `design-system` mention; that's intentional (gate only triggers when frontend files are staged).
