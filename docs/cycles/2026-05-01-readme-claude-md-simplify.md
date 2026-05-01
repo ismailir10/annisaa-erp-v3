@@ -141,7 +141,7 @@ The harmony principle: each row below has exactly ONE owner; the other file link
 **Dependencies:** Task 3a.
 **Files modified:** `README.md`.
 
-### Task 4 — Rewrite CLAUDE.md
+### Task 4 — Rewrite CLAUDE.md [x]
 **Acceptance:** CLAUDE.md ≤ 220 lines. All checklist items from "Acceptance criteria → CLAUDE.md" section pass. `wc -l CLAUDE.md` confirms. Documentation Maintenance table no longer claims README owns CRUD. Coverage mapping is gone. Standards table **kept** (single-source per matrix) with trimmed columns + HTML preamble. Worktree section is single-block. File Structure counts match current repo. No production URL, no tech-stack list, no "Last updated" line.
 **Dependencies:** Task 1.
 **Files modified:** `CLAUDE.md`.
@@ -247,6 +247,7 @@ CLAUDE.md 366 - 125 = 241 lines projected. Target was ≤ 220 — likely need an
 - Task 2: gates passed (build + vitest). New files: `docs/adrs/archive.md` (8 archived ADRs — pre-2026 baseline + process-meta), `docs/runbooks/reseed-staging.md` (full reseed prose + post-reseed UAT smoke). Archive cells byte-equal to source verified via diff against README lines 96-99, 102-105.
 - Task 3a: gates passed (build + vitest). README.md 295 → 202 lines (down 93). Deleted: Contents/TOC, Development Workflow section (15 lines), Reseeding subsection (60 lines, runbook pointer left), License + "For developers" sections (merged into 3-line footer). Tables (Modules, ADRs) untouched — Task 3b trims cells.
 - Task 3b: gates passed (build + vitest). README.md 202 → 130 lines (target hit exactly). Modules cells: 1-line each, "Key Models" col dropped. ADR table: 24 rows → 17 rows (4 archived as pre-2026 baseline + 4 archived as process-meta + 4 finance ADRs from 2026-04-25 consolidated to 1 row + 2 finance ADRs from 2026-04-26 consolidated to 1 row + 2 from 2026-04-27/28 each kept as own row). Portals + Data Access folded into one 5-col table. Setup compressed to single block. Env-var footnotes consolidated. Cell-length self-check: zero ADR cells > 400 chars. Link integrity: all 14 cycle-doc + 2 nested-doc links resolve via `test -f`. Ghost grep: zero `CRUD|Roadmap|Current Phase|Last updated` matches. `/uat` count: 0.
+- Task 4: gates passed (build + vitest, after npm install resolved a pre-existing missing `dotenv` transitive dep — package.json reverted, dotenv resides only in worktree-local node_modules). CLAUDE.md 366 → 220 lines (target hit exactly). Removed: 20-row coverage mapping, "Last updated" line, production URL line, tech-stack inline mentions, PR #74 backstory, Key Documents section (merged into Documentation Maintenance), CRUD ownership claim. Consolidated: Multi-LLM Safety §0–§4 into 5 mechanisms with worktree as single block. Standards table kept (canonical home per harmony matrix), trimmed; HTML preamble added documenting `design-system.html` (canonical) and `parent-portal-cycle4.html` (scratch, do-not-extend). File Structure tree refreshed to current counts (19/5/5/128/68 e2e 6). All cross-doc invariants hold: no prod URL, no tech-stack inline, no ghost refs, single worktree-claim block.
 
 ## Ship Notes
 <!-- filled by /ship -->
