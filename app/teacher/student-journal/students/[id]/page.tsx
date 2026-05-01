@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +19,7 @@ import { NoteThread } from "@/components/student-journal/note-thread";
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
+import { JOURNAL_FORBIDDEN_MSG } from "@/lib/student-journal/messages";
 import { formatDate } from "@/lib/format";
 
 type Indicator = { id: string; label: string; order: number };
@@ -56,9 +57,13 @@ function formatWeekLabel(weekStartYmd: string, dates: string[]): string {
 export default function TeacherStudentWeekPage() {
   const { id: studentId } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const today = new Date().toISOString().slice(0, 10);
-  const [ws, setWs] = useState<string>(() => weekStart(today));
+  // Honor `?week=YYYY-MM-DD` from the entry-grid chevron so the week view
+  // opens scoped to the picker's selected date (UAT 2026-05-01 cycle T2).
+  const initialAnchor = searchParams.get("week") ?? today;
+  const [ws, setWs] = useState<string>(() => weekStart(initialAnchor));
   const [data, setData] = useState<WeekData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -74,8 +79,11 @@ export default function TeacherStudentWeekPage() {
       `/api/student-journal/students/${studentId}/week?weekStart=${weekStartYmd}`,
     );
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal memuat data");
+      const err = await res.json().catch(() => ({} as { error?: string }));
+      // Prefer server JSON body; fall back to the Indonesian remediation copy on 403
+      // (UAT 2026-05-01 — raw "Forbidden" toast was unhelpful to Bu Sari).
+      const fallback = res.status === 403 ? JOURNAL_FORBIDDEN_MSG : "Gagal memuat data";
+      toast.error((err as { error?: string }).error || fallback);
       setLoading(false);
       return;
     }
@@ -109,8 +117,9 @@ export default function TeacherStudentWeekPage() {
       body: JSON.stringify({ studentId, date: noteDate, body: noteBody.trim() }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal menyimpan");
+      const err = await res.json().catch(() => ({} as { error?: string }));
+      const fallback = res.status === 403 ? JOURNAL_FORBIDDEN_MSG : "Gagal menyimpan";
+      toast.error((err as { error?: string }).error || fallback);
       setSaving(false);
       return;
     }

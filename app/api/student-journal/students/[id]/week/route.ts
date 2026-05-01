@@ -4,6 +4,10 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
+import {
+  JOURNAL_FORBIDDEN_MSG,
+  JOURNAL_NOT_ENROLLED_MSG,
+} from "@/lib/student-journal/messages";
 
 export async function GET(
   req: NextRequest,
@@ -19,12 +23,12 @@ export async function GET(
 
   // 2. Role check — teacher only (parent uses /children/[id]/week)
   if (session.role !== "TEACHER") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
   }
 
   // 3. Require tenantId + employeeId
   if (!session.tenantId || !session.employeeId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
   }
 
   // 4. Look up ALL student's active enrollments. Grant if teacher is assigned
@@ -39,7 +43,7 @@ export async function GET(
     select: { classSectionId: true },
   });
   if (enrollments.length === 0) {
-    return NextResponse.json({ error: "Student not enrolled" }, { status: 404 });
+    return NextResponse.json({ error: JOURNAL_NOT_ENROLLED_MSG }, { status: 404 });
   }
 
   // 5. Verify teacher is assigned to one of the student's classes
@@ -51,7 +55,7 @@ export async function GET(
     },
   });
   if (!assignment) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
   }
 
   // 6. Resolve weekStart param

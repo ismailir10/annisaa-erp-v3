@@ -191,6 +191,7 @@ export default function StudentJournalEntryPage() {
         onToggle={handleToggle}
         onAddNote={(s) => setNoteStudent(s)}
         noteCounts={noteCounts}
+        visibleDate={date}
       />
 
       {noteStudent && (
@@ -215,8 +216,8 @@ export default function StudentJournalEntryPage() {
         />
       )}
 
-      {/* Sticky save bar */}
-      <div className="fixed bottom-0 inset-x-0 z-20 safe-area-bottom bg-background border-t border-border px-page-x py-3">
+      {/* Sticky save bar — sits above PortalBottomNav (z-30, h≈65px). z-40 + bottom-16 prevents the BottomNav from covering the Simpan button (UAT 2026-05-01 blocker B1). */}
+      <div className="fixed bottom-16 inset-x-0 z-40 bg-background border-t border-border px-page-x py-3">
         <div className="max-w-md mx-auto">
           <Button
             onClick={handleSave}

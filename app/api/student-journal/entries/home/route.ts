@@ -4,6 +4,14 @@ import { prisma } from "@/lib/db";
 import { requireGuardianForStudent } from "@/lib/student-journal/guards";
 import { homeEntryBatchSchema } from "@/lib/validations/student-journal";
 import { rateLimit } from "@/lib/rate-limit";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+
+/**
+ * Indonesian copy when the parent attempts to backfill or post-date a home
+ * entry. Server-side enforced (UAT 2026-05-01 cycle T4); the same string is
+ * surfaced by the client toast so the rule is consistent across the boundary.
+ */
+const HOME_TODAY_ONLY_MSG = "Hanya hari ini yang bisa diubah";
 
 export async function POST(req: NextRequest) {
   // Parse body first so we can extract studentId for the rate-limit key
@@ -34,6 +42,16 @@ export async function POST(req: NextRequest) {
   const guard = await requireGuardianForStudent(studentId);
   if (guard.error) return guard.error;
   const { session } = guard;
+
+  // Today-only edit window (UAT 2026-05-01 cycle T4). The parent's "Di Rumah"
+  // tab must reject any backfill or future-date toggle — silent past-day
+  // backfill corrupts the trust artifact. Tenant timezone is "Asia/Jakarta"
+  // (single-tenant MVP; OrgConfig.timezone defaults to it). Lift to a
+  // session-derived timezone when multi-tenant arrives.
+  const today = getTodayInTimezone("Asia/Jakarta");
+  if (date !== today) {
+    return NextResponse.json({ error: HOME_TODAY_ONLY_MSG }, { status: 400 });
+  }
 
   // Validate all indicator IDs: must be HOME-scope and belong to tenant template
   const tmpl = await prisma.studentJournalTemplate.findUnique({

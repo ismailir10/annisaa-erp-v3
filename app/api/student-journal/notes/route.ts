@@ -4,6 +4,10 @@ import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { noteBodySchema } from "@/lib/validations/student-journal";
 import { requireGuardianForStudent } from "@/lib/student-journal/guards";
+import {
+  JOURNAL_FORBIDDEN_MSG,
+  JOURNAL_NOT_ENROLLED_MSG,
+} from "@/lib/student-journal/messages";
 
 export async function POST(req: NextRequest) {
   // Rate limit: 20 notes per minute per IP
@@ -41,7 +45,7 @@ export async function POST(req: NextRequest) {
   if (session.role === "TEACHER") {
     // Verify teacher is assigned to student's active class
     if (!session.tenantId || !session.employeeId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
     }
 
     // Student may have multiple ACTIVE enrollments (e.g. cross-program day-care
@@ -58,7 +62,7 @@ export async function POST(req: NextRequest) {
       select: { classSectionId: true },
     });
     if (enrollments.length === 0) {
-      return NextResponse.json({ error: "Student not enrolled" }, { status: 404 });
+      return NextResponse.json({ error: JOURNAL_NOT_ENROLLED_MSG }, { status: 404 });
     }
 
     const assignment = await prisma.teachingAssignment.findFirst({
@@ -69,13 +73,13 @@ export async function POST(req: NextRequest) {
       },
     });
     if (!assignment) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
     }
   } else if (session.role === "GUARDIAN") {
     const guard = await requireGuardianForStudent(studentId);
     if (guard.error) return guard.error;
   } else {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
   }
 
   // Create note

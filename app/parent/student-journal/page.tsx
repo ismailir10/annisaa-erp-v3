@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, BookHeart, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -77,7 +78,39 @@ function weekLabel(dates: string[]): string {
 
 // ── Component ─────────────────────────────────────────────────────
 
+type TabView = "school" | "home" | "notes";
+const VALID_VIEWS: readonly TabView[] = ["school", "home", "notes"] as const;
+
+function isValidView(v: string | null | undefined): v is TabView {
+  return v != null && (VALID_VIEWS as readonly string[]).includes(v);
+}
+
 export default function ParentStudentJournalPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Active tab persisted in URL (UAT 2026-05-01 cycle T5) — without this the
+  // tab resets to "Sekolah" on every Catatan create/delete because the
+  // re-render reseeds defaultValue. URL keeps the user where they were.
+  const viewParam = searchParams.get("view");
+  const activeView: TabView = isValidView(viewParam) ? viewParam : "school";
+
+  const setActiveView = useCallback(
+    (next: string) => {
+      if (!isValidView(next)) return;
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "school") {
+        params.delete("view");
+      } else {
+        params.set("view", next);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const [children, setChildren] = useState<Child[] | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
   const [currentWeek, setCurrentWeek] = useState<string>(() => {
@@ -253,7 +286,7 @@ export default function ParentStudentJournalPage() {
           description="Catatan akan muncul saat guru atau orang tua mengisi."
         />
       ) : (
-        <Tabs defaultValue="school">
+        <Tabs value={activeView} onValueChange={setActiveView}>
           <TabsList className="w-full">
             <TabsTrigger value="school" className="flex-1">
               Di Sekolah
