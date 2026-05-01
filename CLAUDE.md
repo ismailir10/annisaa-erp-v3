@@ -1,16 +1,6 @@
 # School ERP — Operating Manual
 
-> **Read this file completely before making any changes.** This is the operating manual for AI development sessions on this repo. For project status, modules, roadmap, and architecture decisions, see [README.md](./README.md). For domain standards (UI / CRUD / Portal / API / Security / Colors), see `.claude/standards/*.md` — loaded on demand by `/build`, not on every session.
-
-## Project quick reference
-
-**An Nisaa' School ERP** — school management system for An Nisaa' Sekolahku (Islamic PAUD/TKIT, Bekasi). 2 campuses, 40+ teachers, 500+ students. SaaS-ready single-tenant MVP.
-
-**Production:** [annisaa-erp-v3.vercel.app](https://annisaa-erp-v3.vercel.app)
-**Staging:** [annisaa-erp-v3.vercel.app](https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app/)
-**Repo:** [github.com/ismailir10/annisaa-erp-v3](https://github.com/ismailir10/annisaa-erp-v3)
-
-Tech stack, module list, CRUD status, roadmap, and architecture decisions all live in **README.md**. This file is the *how*; README is the *what*.
+> **Read this file completely before making any changes.** Operating manual for AI development sessions on this repo. What this product is — modules, portals, ADRs, setup, environments — lives in [README.md](./README.md). This file is the *how*; README is the *what*.
 
 ---
 
@@ -22,215 +12,107 @@ Every development cycle uses exactly these three commands and exactly **one** ma
 /spec   →   /build   →   /ship
 ```
 
-The upstream `agent-skills` plugin (addyosmani/agent-skills) remains installed — it still provides the underlying skills. Our three project-level commands wrap the plugin's skills and fold all 20 of them into the 3-step flow, so nothing from the upstream framework is lost. Where a `superpowers:*` skill is stronger than its `agent-skills:*` counterpart (brainstorming, writing-plans, subagent-driven-development, code-reviewer), our commands prefer the superpowers variant.
+The upstream `addyosmani/agent-skills` plugin remains installed and provides the underlying skills. Our three project-level commands fold every upstream skill into one of `/spec`, `/build`, or `/ship`; per-skill mapping lives in `.claude/skills/{spec,build,ship}/SKILL.md`. Where a `superpowers:*` skill is stronger than its `agent-skills:*` counterpart (brainstorming, writing-plans, subagent-driven-development, code-reviewer), our commands prefer the superpowers variant.
 
 ### Canonical entry points
 
-Users should not have to think about worktrees, hooks, or role files. Always rebase from staging to ensure local and your worktree is sync with latest staging. The two entry sentences are:
+Users should not have to think about worktrees, hooks, or role files. Always rebase from staging so the worktree branches off latest. Two entry sentences:
 
 | Role | Entry sentence | What the assistant does automatically |
 |------|----------------|----------------------------------------|
 | Product builder | `you are product-builder, <request>` | Writes `.claude/session-role`, derives a slug, runs `setup-worktree.sh`, enters the worktree, then runs `/spec` on `<request>` |
-| CTO | `you are cto, <request>` | Writes `.claude/session-role` (main checkout stays), then executes the request directly |
+| CTO | `you are cto, <request>` | Writes `.claude/session-role`; if user asks for a clean branch, sets up a worktree the same way; otherwise executes the request directly |
 
-It should invoke /caveman and /using-superpowers by default. The `SessionStart` hook (`scripts/check-role.sh`) plus `/spec` Step 0 enforce this end-to-end.
-
-### Coverage mapping — nothing is dropped
-
-| Upstream skill | Folded into |
-|---|---|
-| `idea-refine` | `/spec` (when the request is vague) |
-| `spec-driven-development` | `/spec` |
-| `planning-and-task-breakdown` | `/spec` |
-| `context-engineering` | `/spec` + `/build` |
-| `source-driven-development` | `/build` |
-| `incremental-implementation` | `/build` |
-| `frontend-ui-engineering` | `/build` (auto on `components/`, `app/*/page.tsx`) |
-| `api-and-interface-design` | `/build` (auto on `app/api/`) |
-| `security-and-hardening` | `/build` (auto on `app/api/`, `lib/auth`, `middleware.ts`) |
-| `test-driven-development` | `/build` |
-| `browser-testing-with-devtools` | `/build` |
-| `debugging-and-error-recovery` | `/build` |
-| `code-review-and-quality` | `/build` |
-| `code-simplification` | `/build` |
-| `performance-optimization` | `/build` (when the spec mentions perf) |
-| `git-workflow-and-versioning` | `/ship` |
-| `ci-cd-and-automation` | `/ship` |
-| `documentation-and-adrs` | `/ship` |
-| `deprecation-and-migration` | `/ship` (only when the spec declares a deprecation) |
-| `shipping-and-launch` | `/ship` |
+Invoke `/caveman` and `/using-superpowers` by default. The `SessionStart` hook (`scripts/check-role.sh`) plus `/spec` Step 0 enforce this end-to-end.
 
 ### Per-command responsibilities
 
-**`/spec`** — define + plan. Creates the cycle doc with Context / Spec / Tasks sections. Surface assumptions before handing off to `/build`.
+**`/spec`** — define + plan. Creates the cycle doc with Context / Spec / Tasks. Surfaces assumptions before handing off to `/build`.
 
 **`/build`** — loops over the cycle doc's Tasks, one at a time:
-- Use sub agent development
+- Subagent-driven development where tasks are independent
 - Implement the slice
-- Run the **between-task gate**: `npm run build && npx vitest run` — must pass before moving on
-- Review + simplify the diff
-- Update the cycle doc's Implementation + Verification sections
+- Run the **between-task gate**: `npm run build && npx vitest run` — must pass before the next task
+- Review + simplify the diff (`feature-dev:code-reviewer` agent)
+- Update the cycle doc's Implementation + Verification
 - Commit (one commit per task, not per cycle)
-- After the **last task**: run the **end-of-cycle gate** before committing (see below) and then /requesting-code-review for review
-- Fill Ship Notes in the cycle doc
+- After the **last task**: run the **end-of-cycle gate** + request code review, then fill Ship Notes
 
-**`/ship`** — create a PR from the feature branch to `staging` and hand off a two-command merge instruction to the user. `/ship` opens the PR and stops; the user watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all three checks are green. **Both `cto` and `product-builder` use this same flow — no direct pushes to `staging` or `main` for anyone.**
-- `/ship` → PR feat/* → staging, merged manually by the author when CI is green
-- `/ship --to-main` → PR staging → main, merged manually by the CTO when CI is green (explicit ask only; CTO-initiated)
-
-Playwright must have passed (recorded in the cycle doc Verification section) before running `/ship`.
+**`/ship`** — opens a PR from `feat/*` → `staging` and stops. The author watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all three checks are green. **Both `cto` and `product-builder` use this — no direct pushes to `staging` or `main`.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only). Playwright must have passed (recorded in cycle doc Verification) before `/ship`.
 
 ### Testing gates
 
-Two-tier system — fast unit gate between every task, Playwright smoke once per cycle:
+Two-tier — fast unit gate between every task, Playwright smoke once per cycle:
 
 | Gate | Command | When |
 |------|---------|------|
-| Between-task (fast) | `npm run build && npx vitest run` | Before every commit during `/build` |
-| End-of-cycle (smoke) | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
+| Between-task | `npm run build && npx vitest run` | Before every commit during `/build` |
+| End-of-cycle | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
 
-**Why two tiers:** Playwright spins up a dev server and runs ~20 browser tests (~2 min cold). Running it between every task adds 10+ min to a 5-task cycle. Running it once at the end catches UI regressions without slowing iteration.
-
-**Playwright notes:**
-- Tests live in `e2e/` — three portals: `admin.spec.ts`, `teacher.spec.ts`, `parent.spec.ts`
-- Uses demo-mode auth (cookie-based, direct cookie injection — no login UI, no rate-limit exposure)
-- Runs against the **production build** (`DEMO_MODE=true npm run start`) — not dev server. Requires `npm run build` first.
-- `reuseExistingServer: !process.env.CI` — reuses a running server locally; forces a fresh server in CI
-- Chromium only (no multi-browser), workers: 1 (demo mode is stateful)
-- If a Playwright test fails at end-of-cycle, fix it before committing the last task
-
-If you're committing manually outside `/build`, run at minimum:
-```bash
-npm run build && npx vitest run
-```
+**Why two tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches UI regressions without slowing iteration. **Pure-docs cycles may skip Playwright** — record the skip explicitly in Verification. Tests live in `e2e/` (6 specs); demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
 
 ### Standalone: `/uat` — heuristic user-acceptance testing
 
-`/uat <area>` is **not** part of the 3-step loop. Run it on demand when you want a synthetic first-pass on UX friction and performance in a specific portal area — e.g. `/uat parent/invoices`, `/uat teacher/class-attendance`, `/uat admin/payroll`.
+`/uat <area>` is **not** part of the 3-step loop. Run on demand for a synthetic first-pass on UX friction in a portal area (e.g. `/uat parent/invoices`).
 
-The command role-plays a fixed persona (Pak Budi, Bu Sari, or Ibu Nur) through scripted Jobs-to-be-Done via Playwright MCP, measures page/API/click-to-visible timings against strict thresholds, and produces a severity-gated report at `docs/uat/reports/YYYY-MM-DD-<area>.md`.
+The command role-plays a fixed persona (Pak Budi, Bu Sari, Ibu Nur) through scripted Jobs-to-be-Done via Playwright MCP, measures page/API/click-to-visible timings against strict thresholds (page load >4s = blocker, API >2s = blocker, click-to-visible >3s = blocker — strict for mid-range Android + intermittent 4G), and produces a severity-gated report at `docs/uat/reports/YYYY-MM-DD-<area>.md`.
 
-**Key points:**
-- **Heuristic, not real UAT.** An LLM persona cannot replicate thumb reach, sunlight glare, or emotional distrust. The report is a cheap first pass, not a substitute for real users.
-- **Reports are gitignored by default.** They only enter git when a `/spec` cycle consumes one (via `git add -f`).
-- **`/spec` integration:** when starting a new cycle, `/spec` reads the latest relevant UAT report, applies a 60-day staleness rule, and surfaces blocker/major findings into the cycle doc's Context.
-- **`/build` maintenance:** after each task that changes user-facing capability, update `docs/uat/jobs/<portal>.md` to keep the JTBD library current.
-- **Performance thresholds** (page load >4s = blocker, API >2s = blocker, click-to-visible >3s = blocker) are strict for the Indonesian PAUD/TKIT deployment reality (mid-range Android + intermittent 4G).
+Reports are committed alongside the cycle that produced or consumed them. `/spec` reads the latest relevant report (60-day staleness rule) and surfaces blocker/major findings into the cycle Context. `/build` updates `docs/uat/jobs/<portal>.md` after any task that changes user-facing capability. Heuristic, not real UAT — an LLM persona cannot replicate thumb reach, sunlight glare, or emotional distrust.
 
-Jobs library: `docs/uat/jobs/{admin,teacher,parent}.md`. Personas: `.claude/personas/{pak-budi,bu-sari,ibu-nur}.md`. Skill definition: `.claude/skills/uat/SKILL.md`.
+Personas: `.claude/personas/{pak-budi,bu-sari,ibu-nur}.md`. Skill: `.claude/skills/uat/SKILL.md`. Jobs library: [`docs/uat/jobs/{admin,teacher,parent}.md`](docs/uat/jobs/).
 
 ---
 
 ## Multi-LLM Safety
 
-Other LLMs (Sonnet, Haiku, GLM 5.2, GPT, etc.) may work on this repo. Three mechanisms keep this safe:
+Other LLMs (Sonnet, Haiku, GLM, GPT) may work on this repo. Five mechanisms:
 
-### 0. Auto staging/main sync (`scripts/sync-staging.sh`)
+### Auto staging sync (`scripts/sync-staging.sh`)
 
-Every `SessionStart` runs `scripts/sync-staging.sh` in the main checkout. If the session opens on `staging` or `main` and the local branch lags `origin/<branch>`, the hook fast-forwards. Behavior:
+Every `SessionStart` runs `scripts/sync-staging.sh` in the main checkout. If the session is on `staging`/`main` and lags `origin/<branch>`, the hook fast-forwards (main checkout only, linked worktrees skipped; ff only; dirty tree → warn no-op; offline → silent exit). **Preflight gate:** `/spec` and `/build` refuse to proceed if the current `feat/*` branch is >5 commits behind `origin/staging` — user must rebase first.
 
-- Runs only in the main checkout (`$GIT_DIR == $GIT_COMMON_DIR`); linked worktrees are skipped so feature branches are never moved.
-- Fast-forward only — never merges, rebases, or rewrites history.
-- Dirty tree or local-only commits → hook warns and takes no action. Assistant must surface this to the user.
-- Offline or fetch failure → silent exit.
+### Session role (`.claude/session-role`)
 
-This closes the "local staging drifts behind origin for days" gap: new cycles now always branch from up-to-date staging.
+Every session declares its role on turn one:
 
-**Complementary preflight gate:** `/spec` and `/build` both refuse to proceed if the current `feat/*` branch is >5 commits behind `origin/staging`. The user is told to rebase before the cycle can continue. This prevents the SessionStart ff (which only moves `staging`/`main`) from silently leaving feature branches stale.
-
-### 1. Session role (`.claude/session-role`)
-
-Every session declares its role on turn one. File format:
 ```
-role=cto              # cto or product-builder — both open PRs via /ship; no direct pushes to staging
-model=claude-opus-4-7 # or claude-sonnet-4-6, glm-5.2, gpt-5, human — must match the current assistant's model ID
+role=cto              # cto or product-builder
+model=claude-opus-4-7 # or claude-sonnet-4-6, glm-5.2, gpt-5, human — must match current assistant
 ```
 
-If the file is missing or stale (>12h), the `SessionStart` hook (`scripts/check-role.sh`) prints an instruction telling the assistant to ask the user. The three slash commands refuse to run until it's set.
+If missing or stale (>12h), `SessionStart` (`scripts/check-role.sh`) prints an instruction telling the assistant to ask the user. The three slash commands refuse to run until the file is set. **No env var reads** — Claude Code doesn't reliably export `CLAUDE_MODEL` to subprocesses.
 
-**Role override on every session start (critical):** The file persists between sessions and can carry a stale role from a previous AI session. To prevent this, the `SessionStart` hook always prints a reminder. The assistant MUST follow this rule:
+**Override on every session start:** if the user's first message declares a role ("you are cto", "act as product-builder", "cto mode", or equivalent), the assistant MUST immediately rewrite `.claude/session-role` with the declared role + own model ID before any other action — even if the file already exists and is fresh. No "already set" exception.
 
-> **If the user's first message in a session declares a role — "you are cto", "act as product-builder", "i am cto", "cto mode", or any clear equivalent — the assistant MUST immediately rewrite `.claude/session-role` with the declared role and its own model ID before taking any other action, even if the file already exists and is fresh.**
+### Worktree isolation
 
-This overrides whatever the file currently says. There is no "it's already set" exception.
+**Every session works in its own git worktree** — one per cycle, created fresh, all roles. `check-role.sh` blocks `/spec`/`/build`/`/ship` until the session is inside a worktree. Worktrees prevent parallel sessions stomping on lockfiles + build artifacts and give each session a clean slate.
 
-**No env var reads.** Claude Code doesn't reliably export `CLAUDE_MODEL` to subprocesses and other CLIs use different variables. The file is the single source of truth.
+**The user never touches setup.** When a session starts in the main checkout, the AI derives a kebab-case slug, runs `bash scripts/setup-worktree.sh <slug>`, `EnterWorktree`s into `.worktrees/<slug>`, rewrites `.claude/session-role`, then proceeds.
 
-### 2. Git hooks (`.githooks/`)
+`setup-worktree.sh` does: `git worktree add .worktrees/<slug> -b feat/<slug> origin/staging` (always latest), symlinks `.env`/`.env.local`/`node_modules` from main checkout, runs `install-hooks.sh`. If `package.json` deps change inside the worktree, run `npm install` to replace the symlink.
 
-Installed via `scripts/install-hooks.sh` which sets `core.hooksPath=.githooks` and writes `.githooks/.installed` as a marker.
+Recovery: claude-harness worktrees at `.claude/worktrees/<slug>` bypass setup-worktree and lack env symlinks → `bash scripts/bootstrap-env-symlinks.sh` (idempotent). Cleanup when merged: `bash scripts/cleanup-merged.sh` (default `--report`; `--yes` to remove). Auto-skips dirty/checked-out/un-pushed.
 
-- **`pre-commit`** — enforces the markdown allowlist (one-file-per-cycle rule), doc-sync (code changes must stage cycle doc, README.md, or CLAUDE.md), and seed drift prevention (`prisma/seed.ts` cannot be committed without `lib/db.ts` also staged).
-- **`prepare-commit-msg`** — appends `Model-Trailer: <model>` and `Role: <role>` from `.claude/session-role` to every commit that doesn't already have them.
-- **`pre-push`** — blocks direct pushes to `staging` or `main` for **all roles** (including `cto`). Everyone uses `/ship` to open a PR instead. Direct pushes to feature branches (`feat/*`) are always allowed.
+### Git hooks (`.githooks/`)
 
-### 3. Worktree isolation (every session gets its own working tree)
+Installed via `scripts/install-hooks.sh` (sets `core.hooksPath=.githooks`, writes `.githooks/.installed` marker).
 
-**Every session works in its own dedicated git worktree — one worktree per cycle, created fresh at session start.** This applies to all roles (cto, product-builder, etc.).
+- **`pre-commit`** — markdown allowlist (one-file-per-cycle), doc-sync (code changes must stage cycle doc / README / CLAUDE.md), seed drift (`prisma/seed.ts` requires `lib/db.ts`), frontend gate (frontend diffs require cycle doc to mention `design-system`), ADR-cell-length (cells > 400 chars in README's ADR table rejected).
+- **`prepare-commit-msg`** — auto-appends `Model-Trailer: <model>` and `Role: <role>` from `.claude/session-role`.
+- **`commit-msg`** — narrow doc-sync: `^(feat|perf)` commit subject + staged `app/**` or `lib/**` requires README staged (cycle doc alone insufficient).
+- **`pre-push`** — blocks direct pushes to `staging` / `main` for **all roles** including `cto`. Use `/ship`. Direct pushes to `feat/*` always allowed.
 
-**Why:** Worktrees prevent parallel sessions from stomping on each other's lockfiles and build artifacts. They also give each session a clean slate — no dirty state inherited from a crashed previous session.
+The exact rule table + every test scenario lives in `scripts/test-hooks.sh` — run it to see what the hook blocks or allows.
 
-**Rule:**
-- **Every session — regardless of role — MUST work in a worktree.** No exceptions. `check-role.sh` enforces this for all roles.
-- `role=cto` → worktree required. Uses `/ship` (PR model) like everyone else — no direct push to staging.
-- `role=product-builder` → **every new session = new worktree, no exceptions.** `check-role.sh` blocks `/spec`, `/build`, and `/ship` until the session is inside a worktree.
+### GitHub branch protection (the real boundary)
 
-**The user never touches worktree setup.** When the user opens a Claude Code session in the main checkout and types anything (e.g. `/spec build the crud sweep`), the AI detects it is in the main checkout via the `SessionStart` hook and does the setup automatically regardless of role:
+Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Required (when repo moves to GitHub Pro):
 
-1. Derives a kebab-case slug from the user's request
-2. Runs `bash scripts/setup-worktree.sh <slug>` via the Bash tool
-3. Uses `EnterWorktree` to move into `.worktrees/<slug>`
-4. Rewrites `.claude/session-role` with its own model ID
-5. Proceeds with the user's original request
+- `staging` + `main`: require PR, no direct push for anyone (incl. owner), status checks must pass before merge
+- Required CI checks (job names from `.github/workflows/ci.yml`): `Lint, Typecheck & Test`, `Build`, `Playwright E2E`
 
-`setup-worktree.sh` does everything in one step:
-- `git worktree add .worktrees/<slug> -b feat/<slug> origin/staging` — always branches from latest `origin/staging`, never from a stale local HEAD
-- Symlinks `.env` and `.env.local` from the main checkout (fixes "missing env" errors)
-- Symlinks `node_modules` from the main checkout (no `npm install` needed)
-- Runs `install-hooks.sh` inside the worktree
-
-**`.env` / `node_modules` in worktrees:** Both are gitignored and absent from fresh worktrees. The setup script symlinks them so `npm run dev`, `npm run build`, and Prisma work immediately. If a branch changes `package.json` dependencies, run `npm install` inside the worktree to replace the `node_modules` symlink.
-
-**Claude-harness worktrees at `.claude/worktrees/<slug>`:** The Claude Code harness may create worktrees at this path directly, bypassing `scripts/setup-worktree.sh` — so `.env` / `.env.local` are not symlinked and `npm run dev` / `npm run build` / Prisma fail with missing-env errors. Recovery (works from any worktree path, idempotent):
-```bash
-bash scripts/bootstrap-env-symlinks.sh
-```
-The script locates the main checkout via `git rev-parse --git-common-dir` and restores the missing symlinks.
-
-**Cleanup when the cycle is merged:**
-
-Preferred — `bash scripts/cleanup-merged.sh` from the main checkout. Default mode is `--report` (dry-run); pass `--yes` to actually remove. The script auto-detects every merged feat/* worktree (remote ref deleted by squash + content matches `origin/staging`, or branch is FF ancestor of `origin/staging`) and skips anything dirty, currently checked out, or with un-pushed local commits. SessionStart already runs `--report` so you see candidates on every fresh session.
-
-```bash
-bash scripts/cleanup-merged.sh           # dry-run, prints candidates
-bash scripts/cleanup-merged.sh --yes     # actually remove
-```
-
-Manual fallback for one-off cleanup:
-```bash
-git worktree remove .worktrees/<slug>
-git branch -D feat/<slug>
-```
-
-### 4. GitHub branch protection (the real boundary)
-
-Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Required settings:
-
-- **`staging`**: require PR, no direct push for anyone (including owner), status checks must pass before merge
-- **`main`**: require PR from `staging` only, same status checks
-
-**Required GitHub Actions CI checks on every PR to `staging` and `main`** (actual job names from `.github/workflows/ci.yml`):
-```
-Lint, Typecheck & Test    # tsc + lint + vitest + RLS + API-auth coverage guards
-Build                     # npm run build
-Playwright E2E            # npx playwright test against production server
-```
-
-`/ship` opens the PR and stops — the author merges manually after confirming all three checks are green. (Note: branch protection, required status checks, and "Allow auto-merge" require GitHub Pro and are **not active** on this repo today. The settings above are the aspirational target for when the repo moves to Pro. On the free plan, the only real safety net is the `pre-push` hook blocking direct pushes to `staging`/`main` plus the CTO's discipline to wait for green CI before clicking merge.)
-
-**staging → main cadence:** After every 2-4 merged cycles on staging (or when the user says "ship to prod"), CTO runs `/ship --to-main` to create the staging → main PR. CTO reviews and merges after CI passes.
-
-If you are setting up a fresh clone or forking this repo, configure the Actions workflow and branch protection before running `/ship`.
+`/ship` opens the PR and stops; the author merges after CI is green. Branch protection / required checks / auto-merge require GitHub Pro and are **not active today**. On the free plan the safety net is `pre-push` blocking direct pushes + CTO discipline. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
 
 ### Commit attribution
 
@@ -241,126 +123,98 @@ Role: cto
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-This is appended automatically by the `prepare-commit-msg` hook. `/build` also includes it in the commit HEREDOC as a belt-and-suspenders measure. If both fail, the commit still lands but with `Model-Trailer: human` — surface this to the user so they can investigate.
+Auto-appended by `prepare-commit-msg`. If the hook fails, the commit lands with `Model-Trailer: human` — surface this to the user.
 
 ---
 
 ## One-File-Per-Cycle Rule
 
-**Only these markdown files are allowed in the repo:**
+**Allowed markdown files:**
 - `README.md`, `CLAUDE.md`, `LICENSE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (root)
-- `docs/**` (including `docs/cycles/YYYY-MM-DD-<slug>.md`, **one per cycle**)
+- `docs/**` (incl. `docs/cycles/YYYY-MM-DD-<slug>.md`, **one per cycle**)
 - `.github/**`, `.claude/**`, `.agent-skills/**`, `.githooks/**`
 
-Any other staged `.md` file is rejected by the `pre-commit` hook with an error pointing at this rule.
+Any other staged `.md` is rejected by `pre-commit`.
 
-**Never create `SPEC.md`, `PLAN.md`, `TEST-REPORT.md`, `NOTES.md`, `PHASE1-VERIFY.md`, or similar scratch files.** Everything that belongs to a cycle goes into the cycle doc's six sections. If you feel the urge to drop a sibling file, resist — the hook will reject it anyway.
+**Never create `SPEC.md`, `PLAN.md`, `TEST-REPORT.md`, `NOTES.md`, etc.** Everything for a cycle goes into the cycle doc's six sections.
 
-The cycle doc template:
 ```markdown
 # <Cycle Title>
-## Context       <!-- /spec: why we're doing this -->
-## Spec          <!-- /spec: acceptance criteria -->
-## Tasks         <!-- /spec: ordered atomic tasks -->
+## Context        <!-- /spec: why -->
+## Spec           <!-- /spec: acceptance criteria -->
+## Tasks          <!-- /spec: ordered atomic tasks -->
 ## Implementation <!-- /build: per-task files + summary -->
 ## Verification   <!-- /build: gates + manual smoke -->
 ## Ship Notes     <!-- /ship: migrations, env vars, rollback -->
 ```
 
-**`/ship` preflight checklist** (must pass before opening PR):
-- [ ] `npm run build && npx vitest run && npx playwright test` all green
-- [ ] Verification section in cycle doc filled
-- [ ] **README.md updated** — mandatory if cycle adds/changes modules, routes, CRUD status, or entities
-- [ ] Ship Notes filled (migrations, new env vars, rollback plan)
+**`/ship` preflight:**
+- [ ] `npm run build && npx vitest run && npx playwright test` all green (Playwright skip allowed for pure-docs cycles)
+- [ ] Verification section filled
+- [ ] **README.md updated** if cycle adds/changes modules, routes, or entities
+- [ ] Ship Notes filled
 
 ---
 
 ## Documentation Maintenance
 
-Two docs are kept current every cycle:
+Single-source-of-truth contract — every fact has exactly one owner; the other doc links if needed.
 
-| Document | Role | Update when |
+| Document | Owns | Update when |
 |---|---|---|
-| **README.md** | Single source of truth — project map, modules, CRUD status, roadmap, ADRs, workflow, setup | Modules change, CRUD status changes, roadmap shifts, architecture decisions made, new user-facing features |
-| **CLAUDE.md** | This file — operating manual for AI agents (workflow + safety rules) | Workflow process, safety mechanism, or one-file-per-cycle rule changes. Domain standards live in `.claude/standards/*.md` and update independently. |
+| **README.md** | Product identity, tech stack, modules, portals, ADRs (last 60d), setup, environments | Modules/routes/entities change; new ADR; setup/env changes |
+| **CLAUDE.md** | Workflow, multi-LLM safety, hooks, standards table, doc-maintenance, file structure, `/uat`, one-file-per-cycle rule | Workflow/safety/hooks/standards listing change |
+| `.claude/standards/*.md` | Domain rules (UI / patterns / voice / CRUD / portal / API / security / colors) | When a standard needs correction |
+| `docs/cycles/YYYY-MM-DD-<slug>.md` | Per-cycle history (one per cycle) | `/spec` creates, `/build`+`/ship` update |
+| `docs/adrs/archive.md` | ADRs > 60d OR codified in CLAUDE.md/standards | When trimming README's active ADR table |
+| `docs/runbooks/*.md` + `docs/uat/{jobs,reports}/*.md` + `.claude/personas/*.md` | Runbooks, UAT JTBD library, UAT reports (committed), fixed personas | When procedure / capability / persona changes |
 
-**`prd.md` is retired.** All product/roadmap/ADR content lives in README.md. Do not recreate prd.md.
+**`prd.md` is retired.** All product/roadmap/ADR content lives in README.md.
 
-**The cycle doc** is where per-cycle history lives. Do not duplicate cycle details into README.md or CLAUDE.md — link to the cycle doc instead.
+**Two-layer doc-sync enforcement:**
 
-Two hooks enforce doc-sync, in layers:
+1. **`pre-commit` (broad):** code changes (`app/**`, `components/**`, `lib/**`, `prisma/**`) must stage cycle doc / README / CLAUDE.md.
+2. **`commit-msg` (narrow):** `^(feat|perf)` subject + staged `app/**` or `lib/**` requires README staged (cycle doc alone insufficient). `fix:`/`refactor:`/`chore:`/`docs:`/`test:`/`style:`/`build:`/`ci:`/`release:` covered only by the broad rule. `Merge`/`Revert`/`fixup!`/`squash!`/`amend!` bypass.
 
-1. **`pre-commit` (broad rule):** code changes (anything under `app/**`, `components/**`, `lib/**`, `prisma/**`) must stage at least one of the current cycle doc, README.md, or CLAUDE.md. Catches "code without any docs update".
-2. **`commit-msg` (narrow rule, added 2026-04-20):** if the commit subject matches `^(feat|perf)(\([^)]+\))?!?:` AND staged files touch `app/**` or `lib/**`, **README.md must be staged** — cycle doc alone is insufficient. This is the stricter rule for user-visible-behavior commits. `fix:`/`refactor:`/`chore:`/`docs:`/`test:`/`style:`/`build:`/`ci:`/`release:` remain covered only by the broad rule. Merge/Revert/fixup!/squash!/amend! subjects always bypass.
-
-Rationale: on 2026-04-20 PR #74 had to retroactively add five cycles to the README history that had merged weeks earlier — each `feat:`/`perf:` PR passed the broad rule by staging only its own cycle doc, and the README narrative drifted. See `docs/cycles/2026-04-20-doc-sync-hook-tighten.md`.
-
-The exact rule table and all test scenarios live in `scripts/test-hooks.sh` — run it to see every case the hook blocks or allows.
+The exact table + test scenarios live in `scripts/test-hooks.sh`.
 
 ---
 
 ## Standards (loaded on demand by `/build`)
 
-Domain standards are no longer inlined here — they live under `.claude/standards/` and are loaded only when relevant files are staged. `/build` consults the dispatcher table in `.claude/skills/build/SKILL.md` (Step 1 — Load context) and loads the **union** of matching standards per task.
+Domain standards live under `.claude/standards/` — loaded only when relevant files are staged. `/build` consults the dispatcher in `.claude/skills/build/SKILL.md` (Step 1 — Load context) and loads the **union** of matching standards per task.
 
-| File | Covers | Loaded when staged paths match |
+| File | Covers | Loaded when |
 |---|---|---|
-| `.claude/standards/design-system.html` | **Canonical visual reference** — brand, colors, typography, spacing, icons, buttons, forms, status badges, DataTable, empty/loading/error states, stat cards, portal shells, overlays (Dialog/Sheet/AlertDialog/Toast), student journal, attendance flows, completeness audit, voice & tone. 4000-line HTML mockup exported from Claude Design. | Any frontend change — consulted by `/build` alongside the MD standards below. Also enforced by pre-commit Rule 4 (frontend gate). |
-| `.claude/standards/ui.md` | Shadcn-FIRST rule, DataTable + action-column standard, spacing + typography tokens, overlays rule | `components/**`, `app/*/page.tsx`, `lib/format.ts` |
-| `.claude/standards/patterns.md` | Page recipes — Admin List, Admin Detail, Admin Form, Portal Dashboard, Workflow Queue, Daily Data Entry | `app/*/page.tsx`, `app/**/client.tsx`, `components/{admin,teacher,parent,portal}/**` |
-| `.claude/standards/voice.md` | Voice & tone — 3 personas (admin / teacher / parent), Islamic courtesy layer, copy rules for errors/empty/success/destructive, SMS/email/in-app variants, canonical glossary | Any diff introducing user-facing copy (toasts, labels, descriptions, empty-state text, email subjects, SMS strings) under `app/**/*.tsx`, `components/**/*.tsx`, `lib/email/**`, `lib/**/messages.ts` |
-| `.claude/standards/crud.md` | ERPNext-inspired CRUD (Categories A/B/C), soft-delete, list/detail layouts, form field, edit dialog, edit toggle | `app/admin/**` **with** `<Dialog` / `FormField` / `<Field` / create-or-edit form content |
-| `.claude/standards/portal.md` | Portal consistency, portal navigation, Empty State Contract, fetch error-handling contract, Household Overview (parent home), WeekGrid contract, cycle-tap attendance | `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` |
-| `.claude/standards/api.md` | GET list pagination contract, mutation shape | `app/api/**`, `lib/validations/**`, `middleware.ts` |
-| `.claude/standards/security.md` | API route checklist, data-access roles table, new-route security checklist | `app/api/**`, `lib/auth*`, `middleware.ts` |
-| `.claude/standards/colors.md` | Color Standard + Brand tokens | `app/globals.css`, `tailwind.config.*`, `bg-status-*` / `text-status-*` className edits, or files containing arbitrary-color classNames `text-[#…]` / `bg-[#…]` / `border-[#…]` |
+| `design-system.html` | **Canonical visual reference** — brand, colors, typography, spacing, components, overlays, portal shells, voice & tone (4000-line Claude Design export) | Any frontend change. Enforced by frontend-gate (Rule 4). |
+| `parent-portal-cycle4.html` | Scratch parent-portal snapshot | Reference only, scope-locked, do not extend |
+| `ui.md` | Shadcn-FIRST, DataTable + action-column, spacing tokens, overlays | `components/**`, `app/*/page.tsx`, `lib/format.ts` |
+| `patterns.md` | Page recipes — Admin List/Detail/Form, Portal Dashboard, Workflow Queue, Daily Data Entry | `app/*/page.tsx`, `app/**/client.tsx`, `components/{admin,teacher,parent,portal}/**` |
+| `voice.md` | Voice & tone — 3 personas, Islamic courtesy layer, error/empty/success/destructive copy, glossary | Any user-facing copy diff under `app/**/*.tsx`, `components/**/*.tsx`, `lib/email/**`, `lib/**/messages.ts` |
+| `crud.md` | ERPNext-inspired CRUD (Categories A/B/C), soft-delete, list/detail layouts, edit dialog | `app/admin/**` with `<Dialog`/`FormField`/`<Field`/create-or-edit form |
+| `portal.md` | Portal nav, Empty State Contract, fetch error contract, Household Overview, WeekGrid, cycle-tap attendance | `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` |
+| `api.md` | GET list pagination, mutation shape | `app/api/**`, `lib/validations/**`, `proxy.ts` |
+| `security.md` | API route checklist, data-access roles, new-route security | `app/api/**`, `lib/auth*`, `proxy.ts` |
+| `colors.md` | Color tokens + brand | `app/globals.css`, `tailwind.config.*`, `bg-status-*`/`text-status-*` edits, files containing `text-[#…]`/`bg-[#…]`/`border-[#…]` |
 
-The table above is the breadcrumb — former top-level sections (UI Standards, CRUD Standard, Portal Consistency Standard, API Standards, Security, Color Standard + Brand) now live in the listed files.
-
-### Frontend gate (pre-commit Rule 4)
-
-When staged files include frontend (`app/**/*.{tsx,css}`, `components/**/*.tsx`, `tailwind.config.*`), the staged cycle doc MUST contain the literal token `design-system` somewhere in its body. This is a soft cross-check — a one-line bullet in the Verification section ("Cross-checked design-system.html §N for Z") satisfies the gate. Bypass with `--no-verify` if the phrase genuinely doesn't fit, but expect PR review pushback.
-
-Rationale: the Claude Design reference at `.claude/standards/design-system.html` is the single source of truth for tokens, recipes, and copy. Forcing every frontend cycle to cite it keeps the reference alive and prevents silent drift. Landed 2026-04-22 in cycle `design-system-foundations`.
+**Frontend gate (pre-commit Rule 4):** frontend diffs (`app/**/*.{tsx,css}`, `components/**/*.tsx`, `tailwind.config.*`) require the staged cycle doc to contain the literal token `design-system`. A one-line Verification bullet ("Cross-checked design-system.html §N for Z") satisfies the gate. Keeps the reference alive against silent drift.
 
 ---
 
 ## File Structure
 
 ```
-app/admin/          22 admin pages
-app/teacher/        6 teacher pages
-app/parent/         4 parent pages
-app/api/            69 API routes (organized by domain)
-components/ui/      62 Shadcn components (full library)
-config/             Nav config, app constants
-lib/                Business logic, utilities, API helpers
-lib/api/            Shared pagination, validation, response
-lib/validations/    Zod schemas per domain
-lib/payroll/        Payroll calculation engine
-lib/xendit/         Xendit API client
-lib/email/          Resend integration
-prisma/             Schema + seed data
-proxy.ts            Next.js 16 middleware entry (renamed from middleware.ts)
-docs/cycles/        One markdown file per development cycle
-.claude/skills/     Project slash commands (spec/, build/, ship/ — each a SKILL.md)
-.claude/standards/  Domain standards loaded on demand by /build
-.githooks/          Pre-commit, prepare-commit-msg, pre-push hooks
-scripts/            check-role.sh, install-hooks.sh, verify-rls-coverage.sh, verify-api-auth.sh
+app/{admin,teacher,parent}/  19 / 5 / 5 portal pages
+app/api/                     128 routes (organized by domain)
+components/ui/               68 Shadcn components
+lib/{api,validations,payroll,xendit,email}/  business logic, retry, integrations
+prisma/                      schema + seed
+proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
+e2e/                         6 specs (admin, admin-school-admin, teacher, parent, design-system, payment)
+docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
+.claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
+.githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
+scripts/                     setup-worktree, install-hooks, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, test-hooks, reseed-staging
 ```
 
-E2E specs: `e2e/admin.spec.ts` (9), `e2e/teacher.spec.ts` (5), `e2e/parent.spec.ts` (6). Demo-mode auth — no live Supabase or env vars needed locally. Lint: `npm run lint`.
-
-## Key Documents
-
-| Doc | Purpose | Updated |
-|-----|---------|---------|
-| `README.md` | Project map: modules, CRUD status, roadmap, ADRs, workflow, setup | Every cycle |
-| `CLAUDE.md` | This file — AI operating manual (workflow + safety rules) | When workflow, safety, or one-file-per-cycle rules change |
-| `.claude/standards/*.md` | On-demand reference loaded by `/build` (ui, crud, portal, api, security, colors) | When a standard itself needs correction |
-| `docs/cycles/YYYY-MM-DD-<slug>.md` | One per cycle — Context / Spec / Tasks / Implementation / Verification / Ship Notes | Created by `/spec`, updated by `/build` and `/ship` |
-| `.claude/personas/*.md` | Fixed UAT personas (Pak Budi, Bu Sari, Ibu Nur) — device, context, frustrations, give-up triggers | Rarely — personas are stable |
-| `docs/uat/jobs/*.md` | Per-portal Jobs-to-be-Done library — maintained by `/build` when user-facing capability changes | Each cycle that touches portal UX |
-| `docs/uat/reports/*.md` | UAT reports (gitignored) — produced by `/uat`, consumed by `/spec` | On demand |
-
-**Last updated:** 2026-04-20 (standards split — domain reference moved to `.claude/standards/*.md`, loaded on demand by `/build`).
+Demo-mode auth means E2E + local dev need no live Supabase. Lint: `npm run lint`.

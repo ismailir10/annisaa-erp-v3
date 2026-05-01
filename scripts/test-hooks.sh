@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# test-hooks.sh — fixture test for .githooks/commit-msg
+# test-hooks.sh — fixture tests for .githooks/commit-msg + ADR-cell-length rule in .githooks/pre-commit
 #
-# Runs the commit-msg hook against a matrix of scratch-repo scenarios to
-# prove it enforces the spec in docs/cycles/2026-04-20-doc-sync-hook-tighten.md.
+# commit-msg cases enforce docs/cycles/2026-04-20-doc-sync-hook-tighten.md.
+# pre-commit ADR cases enforce docs/cycles/2026-05-01-readme-claude-md-simplify.md (Rule 6).
 #
 # Usage: bash scripts/test-hooks.sh
 # Exit:  0 if all scenarios match expected outcome, 1 otherwise.
@@ -14,10 +14,15 @@ set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HOOK="$ROOT/.githooks/commit-msg"
+PRE_COMMIT_HOOK="$ROOT/.githooks/pre-commit"
 
 if [ ! -x "$HOOK" ]; then
   echo "test-hooks: $HOOK not executable or missing" >&2
   echo "            run scripts/install-hooks.sh" >&2
+  exit 1
+fi
+if [ ! -x "$PRE_COMMIT_HOOK" ]; then
+  echo "test-hooks: $PRE_COMMIT_HOOK not executable or missing" >&2
   exit 1
 fi
 
@@ -155,6 +160,117 @@ run_case "Edge feat: + README only → accept" \
 run_case "Edge feat(scope): + app/ no README → reject" \
   reject "feat(invoices): new field" \
   "app/api/invoices/route.ts"
+
+echo ""
+echo "Testing .githooks/pre-commit Rule 6 (ADR cell length)..."
+echo ""
+
+# run_adr_case <name> <expect:accept|reject> <readme-content> [extra_file_path]
+# Stages README.md plus an optional second file (default: none).
+# Pre-commit hook needs .githooks/.installed marker and a copy of itself
+# in $PWD/.githooks/pre-commit.
+run_adr_case() {
+  local name="$1" expect="$2" readme_content="$3"
+  local extra="${4:-}"
+  local casenum=$((PASS + FAIL + 1))
+  local casedir="$TMPDIR/adrcase-$casenum"
+
+  mkdir -p "$casedir/.githooks"
+  cp "$PRE_COMMIT_HOOK" "$casedir/.githooks/pre-commit"
+  chmod +x "$casedir/.githooks/pre-commit"
+  touch "$casedir/.githooks/.installed"
+
+  (
+    cd "$casedir"
+    git init -q -b main >/dev/null 2>&1
+    git config user.email "t@t"
+    git config user.name "t"
+    printf '%s' "$readme_content" > README.md
+    git add README.md
+    if [ -n "$extra" ]; then
+      local parent
+      parent="$(dirname "$extra")"
+      [ "$parent" != "." ] && mkdir -p "$parent"
+      printf 'cycle doc body\n' > "$extra"
+      git add "$extra"
+    fi
+    bash .githooks/pre-commit >/dev/null 2>&1
+  )
+  local exitcode=$?
+
+  local outcome="accept"
+  [ "$exitcode" != "0" ] && outcome="reject"
+
+  if [ "$outcome" = "$expect" ]; then
+    echo "  ✅ $name"
+    PASS=$((PASS + 1))
+  else
+    echo "  ❌ $name — expected $expect, got $outcome (exit $exitcode)"
+    FAIL=$((FAIL + 1))
+    FAILED_NAMES="$FAILED_NAMES\n    - $name"
+  fi
+}
+
+# Build 500-char filler portably
+S500=$(printf '%500s' '' | tr ' ' x)
+
+run_adr_case "ADR1 short cells → accept" accept \
+"# README
+
+## Architecture Decisions
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-04-15 | Short decision | Short reason |
+
+## Setup
+"
+
+run_adr_case "ADR2 cell at 500 chars in ADR table → reject" reject \
+"# README
+
+## Architecture Decisions
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-04-15 | Short | $S500 |
+
+## Setup
+"
+
+run_adr_case "ADR3 long cell in non-ADR table → accept" accept \
+"# README
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | $S500 |
+
+## Architecture Decisions
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-04-15 | Short | Short |
+
+## Setup
+"
+
+# Regression: real-world commit stages README.md alongside a cycle doc.
+# Earlier case-pattern detection (case " $STAGED " in *' README.md '*) only
+# matched space-delimited lists; STAGED is newline-separated, so the rule
+# silently skipped multi-file commits. Lock the loop-based detection in.
+run_adr_case "ADR4 README + cycle-doc, 500-char ADR cell → reject" reject \
+"# README
+
+## Architecture Decisions
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-04-15 | Short | $S500 |
+
+## Setup
+" "docs/cycles/2026-05-01-x.md"
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# pre-commit — enforce one-file-per-cycle + doc sync + seed drift + frontend gate + portal text-size floor
+# pre-commit — enforce one-file-per-cycle + doc sync + seed drift + frontend gate + portal text-size floor + ADR cell length
 #
-# Five rules:
+# Six rules:
 #  1. Markdown allowlist: any staged .md file must be in the allowlist below.
 #     The allowlist is: README.md, CLAUDE.md, LICENSE.md at repo root;
 #     anything under docs/, .github/, .claude/, .agent-skills/.
@@ -20,6 +20,9 @@
 #     portal.md §68-72 floor is text-xs (12 px). Codified 2026-04-24 in
 #     cycle parent-portal-text-size-sweep after comprehensive review flagged
 #     35+ regressions that breached the standard.
+#  6. ADR cell length: when README.md is staged, every cell in the
+#     ## Architecture Decisions table must be ≤ 400 chars. Forces ADRs to
+#     stay terse — long narrative belongs in the linked cycle doc.
 #
 # Bypass: git commit --no-verify (discouraged; GitHub branch protection on
 # staging/main is the real enforcement layer).
@@ -210,6 +213,50 @@ if [ -n "$BAD_TEXT_SIZES" ]; then
   echo "  Fix: replace with text-xs. Loosen surrounding layout if 12 px feels" >&2
   echo "  too dense — don't shrink text below the floor." >&2
   exit 1
+fi
+
+# ---------- Rule 6: ADR cell length ----------
+# When README.md is staged, scan its ## Architecture Decisions table and
+# reject if any data cell exceeds 400 chars. Forces ADR brevity — long
+# narrative belongs in the linked cycle doc, not the row.
+README_STAGED=0
+while IFS= read -r f; do
+  [ "$f" = "README.md" ] && README_STAGED=1
+done <<EOF
+$STAGED
+EOF
+
+if [ "$README_STAGED" = "1" ] && [ -f README.md ]; then
+  ADR_VIOLATIONS=$(awk '
+    /^## Architecture Decisions/ { in_adr = 1; next }
+    /^## / && in_adr { in_adr = 0 }
+    in_adr && /^\|/ {
+      # Skip header row and separator row
+      if ($0 ~ /^\| ?Date ?\|/) next
+      if ($0 ~ /^\|[[:space:]]*-/) next
+      n = split($0, cells, "|")
+      for (i = 2; i < n; i++) {
+        cell = cells[i]
+        gsub(/^[[:space:]]+/, "", cell); gsub(/[[:space:]]+$/, "", cell)
+        if (length(cell) > 400) {
+          datetag = cells[2]
+          gsub(/^[[:space:]]+/, "", datetag); gsub(/[[:space:]]+$/, "", datetag)
+          print "    row " datetag ": cell " (i-1) " is " length(cell) " chars"
+        }
+      }
+    }
+  ' README.md)
+
+  if [ -n "$ADR_VIOLATIONS" ]; then
+    echo "pre-commit: ADR table cell exceeds 400 chars." >&2
+    printf '%s\n' "$ADR_VIOLATIONS" >&2
+    echo "" >&2
+    echo "  Each ADR cell must be ≤ 2 sentences + cycle link. Long narrative" >&2
+    echo "  belongs in the linked cycle doc — not the ADR row." >&2
+    echo "" >&2
+    echo "  Fix: trim the cell and link the cycle doc for detail." >&2
+    exit 1
+  fi
 fi
 
 exit 0
