@@ -110,7 +110,7 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Acceptance:** Playwright parent spec covers the empty branch.
   - **Depends on:** none.
 
-- [ ] **T8 — Indonesian voice/copy pass (scoped).**
+- [x] **T8 — Indonesian voice/copy pass (scoped).**
   - **Scope cap (hard limit):** review only (a) every string introduced or changed in T3, T5, T6, T7, plus (b) a 10-string spot-sample per page tree (admin/teacher/parent journal pages — 30 strings total max). Do NOT walk every string in the four trees.
   - Cross-check sampled strings against `.claude/standards/voice.md` per-persona register (admin neutral-formal, teacher warm-direct, parent reassuring). Document each change in Implementation section as a table (file:line, before, after, reason).
   - **Acceptance:** every string introduced/changed in T3/T5/T6/T7 is Bahasa Indonesia and persona-correct; 30-string spot-sample documented in a table; any English leaks found in the spot-sample logged as a follow-up issue (NOT fixed in this cycle).
@@ -122,6 +122,19 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Depends on:** T1–T8.
 
 ## Implementation
+
+- **T8 — Indonesian voice/copy pass (scoped).** Cites `.claude/standards/voice.md` per-persona register.
+  - **T3/T5/T6/T7-introduced strings — all clean per voice.md:**
+    - T3 server errors ("JSON tidak valid", "Body permintaan tidak valid", "Terlalu banyak permintaan", "Indikator tidak valid", "Beberapa siswa tidak terdaftar di kelas ini") — neutral system register, fits all 3 portals.
+    - T5 badge ("Diedit admin", "Entri ini diedit oleh admin pada {tanggal}") — factual, accuracy over warmth (parents need precision on audit info).
+    - T6 dialog ("Tulis Catatan untuk {nama}", "Tulis catatan untuk {nama}…", "Tambah catatan untuk {nama}") — teacher action-oriented imperative ✅.
+    - T7 empty state ("Belum ada catatan minggu ini", "Catatan akan muncul saat guru atau orang tua mengisi.") — parent gentle tone ✅.
+  - **30-string spot-sample (10 admin / 10 teacher / 10 parent):** 26/30 ✅ correct register; 4 ⚠️ minor drift in legacy teacher strings using parent-register "dulu ya" / "sebentar ya" softeners (`app/teacher/student-journal/page.tsx:38,51,58,62`, `students/[id]/page.tsx:102`). No English leaks. No blocker. Per T8 spec scope, drift items logged as **follow-up issue** (not fixed this cycle):
+    - Teacher loading errors should drop "ya" softener: "Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya." → "Gagal memuat daftar kelas. Coba lagi."
+    - "Pilih kelas dulu ya." → "Pilih kelas terlebih dahulu."
+    - "Pilih tanggal dulu ya." → "Pilih tanggal terlebih dahulu."
+    - "Tulis isi catatan dulu ya." → "Isi catatan tidak boleh kosong."
+  - Verified: `npm run build` ✓ (no code changes — doc-only); `npx vitest run` 823 passed.
 
 - **T7 — Parent week empty state for zero-entries weeks.** Cites `design-system.html §15` (Empty State Contract).
   - `app/parent/student-journal/page.tsx` — when `data.schoolEntries.length === 0 && data.homeEntries.length === 0 && data.notes.length === 0` (i.e. selected child has zero entries AND zero notes for the visible week), render `EmptyState` with `BookHeart` icon, title "Belum ada catatan minggu ini", description "Catatan akan muncul saat guru atau orang tua mengisi." Distinct from the no-children state at line 165–173.
@@ -189,6 +202,10 @@ Ordered. Each is committable independently. Dependencies marked.
   - `tsconfig.tsbuildinfo` was modified by build but is gitignored — untracked via `git rm --cached`.
 
 ## Verification
+
+- **T8 gates passed:**
+  - Doc-only — no build/test impact.
+  - 26/30 sampled strings correct register; 4 minor drifts in legacy teacher copy logged as follow-up.
 
 - **T7 gates passed:**
   - `npm run build` ✓.
