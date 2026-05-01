@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { noteBodySchema } from "@/lib/validations/student-journal";
@@ -42,7 +42,21 @@ export async function POST(req: NextRequest) {
   const { studentId, date, body: noteBody } = parsed.data;
 
   // Role-based authorization
-  if (session.role === "TEACHER") {
+  if (isAdminRole(session.role)) {
+    // Admin (SUPER_ADMIN | SCHOOL_ADMIN) writes notes on behalf of staff —
+    // tenant-scope check only, no class assignment required. Cycle T1
+    // acceptance criterion (c) "admin → 200".
+    if (!session.tenantId) {
+      return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
+    }
+    const studentInTenant = await prisma.student.findFirst({
+      where: { id: studentId, tenantId: session.tenantId },
+      select: { id: true },
+    });
+    if (!studentInTenant) {
+      return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
+    }
+  } else if (session.role === "TEACHER") {
     // Verify teacher is assigned to student's active class
     if (!session.tenantId || !session.employeeId) {
       return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });

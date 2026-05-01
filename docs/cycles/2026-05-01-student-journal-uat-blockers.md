@@ -200,6 +200,12 @@ All new strings introduced in T1–T5 are Indonesian and persona-correct per `.c
 
 No regressions to existing copy. No English leaks introduced.
 
+### T1 follow-up — admin branch on notes POST (post-`f6dda9f`)
+
+Code reviewer (`feature-dev:code-reviewer`) flagged that the post-rebase string-translation trim accidentally dropped the admin branch on `app/api/student-journal/notes/route.ts`, contradicting the cycle's own Spec acceptance criterion (c) "admin → 200". Added a leading `isAdminRole(session.role)` branch that does a tenant-scope check on the `Student` row (no class assignment required for admin) and 403s on cross-tenant attempts with the unified `JOURNAL_FORBIDDEN_MSG`. Teacher (PR #154 multi-enrollment shape) and guardian branches preserved verbatim.
+
+Tests unchanged — 826/826 vitest still green; build green.
+
 ### T8 — End-of-cycle gate + finalization
 
 - `npm run build` green.
