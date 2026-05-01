@@ -51,8 +51,4 @@ artifacts/
 playwright-report/
 test-results/
 
-# UAT reports — written by /uat, committed only when a /spec cycle consumes them
-# (the consuming cycle uses `git add -f` to stage the specific report into its commit)
-docs/uat/reports/
-
 .playwright-mcp/
