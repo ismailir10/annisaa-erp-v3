@@ -34,6 +34,16 @@ type Student = {
   nik: string | null; kkNumber: string | null; livingWith: string | null;
   guardians: Guardian[]; enrollments: Enrollment[];
 };
+function parseStudentMetadata(raw: string | null | undefined): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 type ClassSection = { id: string; name: string; program: { name: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number }; capacity: number };
 type AttendanceRecord = { id: string; date: string; status: string; notes: string | null; classSection: { name: string } };
 type AttendanceSummary = { present: number; absent: number; sick: number; permission: number; total: number };
@@ -283,7 +293,7 @@ export default function StudentDetailPage() {
   if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
 
   const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
-  const metadata = student.metadata ? JSON.parse(student.metadata) : null;
+  const metadata = parseStudentMetadata(student.metadata);
 
   return (
     <>
