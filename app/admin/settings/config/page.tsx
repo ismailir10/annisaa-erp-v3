@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { parseWorkingDays } from "@/lib/payroll/working-days";
 
 const DAYS = [
   { key: "MON", label: "Senin" },
@@ -38,16 +39,22 @@ export default function OrgConfigPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data) {
-          setForm({
-            workingDays: JSON.parse(data.workingDays),
-            workStartTime: data.workStartTime,
-            workEndTime: data.workEndTime,
-            gracePeriodMinutes: String(data.gracePeriodMinutes),
-            timezone: data.timezone,
-            payrollPeriodStartDay: String(data.payrollPeriodStartDay),
-            payrollPeriodEndDay: String(data.payrollPeriodEndDay),
-          });
+          const days = parseWorkingDays(data.workingDays);
+          setForm((prev) => ({
+            workingDays: days.length > 0 ? days : prev.workingDays,
+            workStartTime: data.workStartTime ?? prev.workStartTime,
+            workEndTime: data.workEndTime ?? prev.workEndTime,
+            gracePeriodMinutes: String(data.gracePeriodMinutes ?? prev.gracePeriodMinutes),
+            timezone: data.timezone ?? prev.timezone,
+            payrollPeriodStartDay: String(data.payrollPeriodStartDay ?? prev.payrollPeriodStartDay),
+            payrollPeriodEndDay: String(data.payrollPeriodEndDay ?? prev.payrollPeriodEndDay),
+          }));
         }
+      })
+      .catch(() => {
+        toast.error("Gagal memuat konfigurasi");
+      })
+      .finally(() => {
         setLoading(false);
       });
   }, []);

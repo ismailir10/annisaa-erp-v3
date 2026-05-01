@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
-import { calculateWorkingDays } from "@/lib/payroll/working-days";
+import { calculateWorkingDays, parseWorkingDays } from "@/lib/payroll/working-days";
 import { calculatePayroll, SalaryComponent } from "@/lib/payroll/engine";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Org config not set" }, { status: 400 });
   }
 
-  const workingDays = JSON.parse(orgConfig.workingDays) as string[];
+  const workingDays = parseWorkingDays(orgConfig.workingDays);
   const actualWorkDays = calculateWorkingDays(periodStart, periodEnd, workingDays, holidays);
 
   const components: SalaryComponent[] = componentDefs.map((c) => ({

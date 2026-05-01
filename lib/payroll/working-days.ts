@@ -1,3 +1,44 @@
+const VALID_DAY_CODES = new Set(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]);
+
+/**
+ * Tolerant parser for OrgConfig.workingDays.
+ *
+ * Historical drift: rows seeded before the current API path stored the value
+ * as a CSV string ("MON,TUE,WED,THU,FRI") while the current API writes a
+ * JSON-encoded array ('["MON","TUE","WED","THU","FRI"]'). JSON.parse on the
+ * legacy CSV form throws SyntaxError and crashes any consumer. This parser
+ * accepts both shapes plus the empty/null edge cases. Anything truly
+ * unparseable returns an empty array — caller decides the fallback.
+ */
+export function parseWorkingDays(stored: string | null | undefined): string[] {
+  if (!stored) return [];
+  const trimmed = stored.trim();
+  if (!trimmed) return [];
+
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return normalizeDayCodes(parsed);
+    } catch {
+      // fall through to CSV path
+    }
+  }
+
+  return normalizeDayCodes(trimmed.split(","));
+}
+
+function normalizeDayCodes(values: unknown[]): string[] {
+  const out: string[] = [];
+  for (const v of values) {
+    if (typeof v !== "string") continue;
+    const code = v.trim().toUpperCase();
+    if (VALID_DAY_CODES.has(code) && !out.includes(code)) {
+      out.push(code);
+    }
+  }
+  return out;
+}
+
 /**
  * Calculate actual working days in a payroll period.
  * Excludes weekends (not in workingDays) and holidays.
