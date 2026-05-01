@@ -208,6 +208,8 @@ Ordered. Each is committable independently. Dependencies marked.
 
 ## Verification
 
+- **Post-PR CI fix (commit `chore(ci):`):** First CI run on staging revealed pre-existing tsc break (17 errors, surfaced since #151 but tolerated by Next.js SWC build). Fixed in same PR: tsconfig `target` ES2017 → ES2020 (zero runtime impact, `noEmit: true`); collapsed 6 duplicate `$executeRaw` keys in `xendit-webhook.test.ts` mock objects. Post-fix: `npx tsc --noEmit` 0 errors, `npm run build` ✓, `npx vitest run` 823 pass.
+
 - **T9 / end-of-cycle gates passed:**
   - `npm run build` ✓ green.
   - `npx vitest run` — 823 passed / 42 todo / 2 skipped (95 test files). +16 new tests vs cycle entry (T2: 4, T3: 5, T4: 7).
