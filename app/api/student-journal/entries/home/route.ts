@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
         category: {
           templateId: tmpl.id,
           scope: "HOME",
+          template: { tenantId: session.tenantId },
         },
       },
       select: { id: true },

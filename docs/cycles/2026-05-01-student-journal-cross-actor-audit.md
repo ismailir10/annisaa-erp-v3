@@ -73,7 +73,7 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Acceptance:** new unit test in `__tests__/api/student-journal/categories.test.ts` proves two concrete observable states: (a) after PUT `{status:'INACTIVE'}` on a category whose indicators are `ACTIVE`, `findMany({where:{categoryId}})` returns ALL child indicators with `status: 'INACTIVE'`; (b) after PUT `{status:'ACTIVE'}` on a category whose indicators are `INACTIVE` from step (a), `findMany({where:{categoryId}})` STILL returns all child indicators with `status: 'INACTIVE'` (no auto-reactivate). `npm run build && npx vitest run` green.
   - **Depends on:** T1.
 
-- [ ] **T3 — Tenant scoping tighten on `entries/batch`.**
+- [x] **T3 — Tenant scoping tighten on `entries/batch`.**
   - In `app/api/student-journal/entries/batch/route.ts`: add explicit `tenantId: session.tenantId` to every Prisma `where` (indicator validation, enrollment validation). Replace English error strings with Indonesian: `"JSON tidak valid"`, `"Body permintaan tidak valid"`. Update any `status: "ACTIVE"` string literal in `where` clauses to `status: JournalStatus.ACTIVE`.
   - **Acceptance:** new unit test asserts cross-tenant indicator IDs are rejected even with a valid teacher-class guard. `npm run build && npx vitest run` green.
   - **Depends on:** T1 (status field is now an enum after T1; build will fail without enum import).
@@ -123,6 +123,13 @@ Ordered. Each is committable independently. Dependencies marked.
 
 ## Implementation
 
+- **T3 — Tenant scoping tighten + Indonesian errors on `entries/batch`.**
+  - `app/api/student-journal/entries/batch/route.ts` — added defensive nested `category.template.tenantId` filter on indicator findMany and `student.tenantId` filter on enrollment findMany. Pre-T3 was sound (template.tenantId is `@unique`, so transitive scoping held), but the explicit filters document the trust boundary and survive future refactors.
+  - English error strings replaced: `"Invalid JSON body"` → `"JSON tidak valid"`, `"Invalid request body"` → `"Body permintaan tidak valid"`, `"Too many requests"` → `"Terlalu banyak permintaan"`, `"Invalid indicators"` → `"Indikator tidak valid"`, `"One or more students not in class"` → `"Beberapa siswa tidak terdaftar di kelas ini"`.
+  - `app/api/student-journal/entries/home/route.ts` — parity fix: added `category.template.tenantId` defensive filter on indicator findMany (caught by code-reviewer as asymmetric hardening).
+  - New test: `tests/student-journal/api-entries-batch-tenant-scope.test.ts` — 5 cases (indicator where contains template.tenantId, enrollment where contains student.tenantId, cross-tenant indicator → 400, Indonesian copy on bad JSON, Indonesian copy on missing enrollments).
+  - Verified: `npx vitest run` 816 passed (+5) / 42 todo / 2 skipped.
+
 - **T2 — Cascade-deactivate indicators on category PUT.**
   - `app/api/student-journal/categories/[id]/route.ts` — when `parsed.data.status === JournalStatus.INACTIVE`, wraps category update + indicator `updateMany` in `prisma.$transaction`. Indicator `updateMany` filtered to `{ categoryId, status: ACTIVE }` so already-INACTIVE rows are NOT touched (preserves their `updatedAt` audit signal — caught in code review). Reactivation (status: ACTIVE) and non-status updates (e.g. `order` only) skip the transaction entirely — no auto-reactivate cascade.
   - New test: `tests/student-journal/api-categories-cascade.test.ts` — 4 cases (deactivate cascades, reactivate doesn't, non-status doesn't, cross-tenant 404). Mocks via `vi.hoisted` to avoid hoisting race.
@@ -154,6 +161,11 @@ Ordered. Each is committable independently. Dependencies marked.
   - `tsconfig.tsbuildinfo` was modified by build but is gitignored — untracked via `git rm --cached`.
 
 ## Verification
+
+- **T3 gates passed:**
+  - `npm run build` — green.
+  - `npx vitest run` — 816 passed (+5 from T3), 42 todo, 2 skipped.
+  - Code-reviewer (superpowers, security-sensitive) cleared T3; noted entries/home parity gap → fixed in same commit.
 
 - **T2 gates passed:**
   - `npm run build` — green.
