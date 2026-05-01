@@ -42,7 +42,10 @@ const nextConfig: NextConfig = {
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.xendit.co https://vitals.vercel-insights.com https://va.vercel-scripts.com",
-      "frame-ancestors 'none'",
+      // 'self' (not 'none') so /admin/design-system can embed the static
+      // /admin/design-system-reference.html via <iframe>. Same-origin only —
+      // external sites still cannot frame the app.
+      "frame-ancestors 'self'",
       "form-action 'self'",
       "base-uri 'self'",
       "object-src 'none'",
@@ -52,7 +55,10 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [
-          { key: "X-Frame-Options", value: "DENY" },
+          // SAMEORIGIN (not DENY) so /admin/design-system can embed the
+          // static /admin/design-system-reference.html via <iframe>.
+          // Aligns with the matching CSP frame-ancestors 'self' above.
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
