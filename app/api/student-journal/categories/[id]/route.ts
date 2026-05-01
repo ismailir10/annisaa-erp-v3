@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import { updateCategorySchema } from "@/lib/validations/student-journal";
@@ -42,9 +43,25 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const updated = await prisma.studentJournalCategory.update({
-    where: { id },
-    data: parsed.data,
-  });
+  // Cascade-deactivate child indicators when category is deactivated. Reactivation
+  // does NOT cascade — admin must reactivate indicators explicitly.
+  const cascadeDeactivate = parsed.data.status === JournalStatus.INACTIVE;
+
+  const updated = cascadeDeactivate
+    ? await prisma.$transaction(async (tx) => {
+        const cat = await tx.studentJournalCategory.update({
+          where: { id },
+          data: parsed.data,
+        });
+        await tx.studentJournalIndicator.updateMany({
+          where: { categoryId: id, status: JournalStatus.ACTIVE },
+          data: { status: JournalStatus.INACTIVE },
+        });
+        return cat;
+      })
+    : await prisma.studentJournalCategory.update({
+        where: { id },
+        data: parsed.data,
+      });
   return NextResponse.json({ data: updated });
 }

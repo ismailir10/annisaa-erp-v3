@@ -68,7 +68,7 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Acceptance:** pre-migration `SELECT DISTINCT status FROM ...` output documented in Implementation section for all 4 tables; `npx prisma migrate dev` succeeds; `npm run build` (TypeScript check) green; `npx vitest run` green; `grep -r 'status: "ACTIVE"' app/api/student-journal prisma/seed.ts lib/validations/student-journal.ts` returns zero results.
   - **Depends on:** none. **Blocks:** T2, T3, T4 (all touch `status` typing).
 
-- [ ] **T2 — Cascade-deactivate indicators on category PUT.**
+- [x] **T2 — Cascade-deactivate indicators on category PUT.**
   - In `app/api/student-journal/categories/[id]/route.ts`: when PUT body sets `status: JournalStatus.INACTIVE`, wrap the update in `prisma.$transaction` and additionally `prisma.studentJournalIndicator.updateMany({ where: { categoryId: id }, data: { status: JournalStatus.INACTIVE } })`. When PUT sets `status: JournalStatus.ACTIVE`, do NOT auto-reactivate child indicators (admin must reactivate explicitly).
   - **Acceptance:** new unit test in `__tests__/api/student-journal/categories.test.ts` proves two concrete observable states: (a) after PUT `{status:'INACTIVE'}` on a category whose indicators are `ACTIVE`, `findMany({where:{categoryId}})` returns ALL child indicators with `status: 'INACTIVE'`; (b) after PUT `{status:'ACTIVE'}` on a category whose indicators are `INACTIVE` from step (a), `findMany({where:{categoryId}})` STILL returns all child indicators with `status: 'INACTIVE'` (no auto-reactivate). `npm run build && npx vitest run` green.
   - **Depends on:** T1.
@@ -123,6 +123,11 @@ Ordered. Each is committable independently. Dependencies marked.
 
 ## Implementation
 
+- **T2 — Cascade-deactivate indicators on category PUT.**
+  - `app/api/student-journal/categories/[id]/route.ts` — when `parsed.data.status === JournalStatus.INACTIVE`, wraps category update + indicator `updateMany` in `prisma.$transaction`. Indicator `updateMany` filtered to `{ categoryId, status: ACTIVE }` so already-INACTIVE rows are NOT touched (preserves their `updatedAt` audit signal — caught in code review). Reactivation (status: ACTIVE) and non-status updates (e.g. `order` only) skip the transaction entirely — no auto-reactivate cascade.
+  - New test: `tests/student-journal/api-categories-cascade.test.ts` — 4 cases (deactivate cascades, reactivate doesn't, non-status doesn't, cross-tenant 404). Mocks via `vi.hoisted` to avoid hoisting race.
+  - Verified: `npx vitest run tests/student-journal/api-categories-cascade.test.ts` 4/4 pass; full suite 811 passed (+4) / 42 todo / 2 skipped.
+
 - **T1 — `JournalStatus` enum migration.**
   - Schema: added `enum JournalStatus { ACTIVE INACTIVE }`; changed `status` field from `String` to `JournalStatus` on `StudentJournalTemplate`, `StudentJournalCategory`, `StudentJournalIndicator`, `StudentJournalNote`. `StudentJournalEntry` and `StudentJournalAudit` unchanged (no `status` field).
   - Migration: `prisma/migrations/20260501000000_student_journal_status_enum/migration.sql` — hand-written (Prisma `migrate dev` blocked by pre-existing RLS shadow-DB issue). Uses `ALTER COLUMN ... TYPE "JournalStatus" USING "status"::"JournalStatus"` with default-drop/restore. Applied to staging DB via `prisma migrate deploy`.
@@ -149,6 +154,11 @@ Ordered. Each is committable independently. Dependencies marked.
   - `tsconfig.tsbuildinfo` was modified by build but is gitignored — untracked via `git rm --cached`.
 
 ## Verification
+
+- **T2 gates passed:**
+  - `npm run build` — green.
+  - `npx vitest run` — 93 test files / 811 tests passed (+4 from T2), 42 todo, 2 skipped.
+  - Code-reviewer caught `updateMany` would touch already-INACTIVE rows + drift their `updatedAt` — fixed before commit by adding `status: ACTIVE` to the where clause.
 
 - **T1 gates passed:**
   - `npm run build` — green (Next.js 16 production build, all routes compile).
