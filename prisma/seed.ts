@@ -1379,6 +1379,36 @@ async function main() {
     console.log(`✅ Journal: ${journalEntryCount} entries + 2 notes`);
   }
 
+  // Sync InvoiceNumberSequence to the highest seeded invoice number per
+  // (tenant, year). Without this, the atomic allocator in
+  // lib/finance/invoice-numbers.ts would start a fresh tenant at lastNumber=1
+  // and collide with the seeded INV-YYYY-0001 row, producing P2002 unique
+  // constraint failures on the first POST /api/invoices in CI. The seed
+  // creates Invoice rows directly with explicit invoiceNumber values, so the
+  // sequence table never gets bumped through the normal allocator path.
+  for (const t of await prisma.tenant.findMany({ select: { id: true } })) {
+    const invoices = await prisma.invoice.findMany({
+      where: { tenantId: t.id },
+      select: { invoiceNumber: true },
+    });
+    const maxByYear = new Map<number, number>();
+    for (const { invoiceNumber } of invoices) {
+      const m = invoiceNumber.match(/^INV-(\d{4})-(\d+)$/);
+      if (!m) continue;
+      const year = Number(m[1]);
+      const n = Number(m[2]);
+      const prev = maxByYear.get(year) ?? 0;
+      if (n > prev) maxByYear.set(year, n);
+    }
+    for (const [year, lastNumber] of maxByYear) {
+      await prisma.invoiceNumberSequence.upsert({
+        where: { tenantId_year: { tenantId: t.id, year } },
+        update: { lastNumber },
+        create: { tenantId: t.id, year, lastNumber },
+      });
+    }
+  }
+
   console.log("\n🎉 Seed complete!");
 }
 
