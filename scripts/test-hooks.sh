@@ -165,12 +165,13 @@ echo ""
 echo "Testing .githooks/pre-commit Rule 6 (ADR cell length)..."
 echo ""
 
-# run_adr_case <name> <expect:accept|reject> <readme-content>
-# Stages README.md only (no app/lib/components touched, so doc-sync rule
-# does not interfere). Pre-commit hook needs .githooks/.installed marker
-# and a copy of itself in $PWD/.githooks/pre-commit.
+# run_adr_case <name> <expect:accept|reject> <readme-content> [extra_file_path]
+# Stages README.md plus an optional second file (default: none).
+# Pre-commit hook needs .githooks/.installed marker and a copy of itself
+# in $PWD/.githooks/pre-commit.
 run_adr_case() {
   local name="$1" expect="$2" readme_content="$3"
+  local extra="${4:-}"
   local casenum=$((PASS + FAIL + 1))
   local casedir="$TMPDIR/adrcase-$casenum"
 
@@ -186,6 +187,13 @@ run_adr_case() {
     git config user.name "t"
     printf '%s' "$readme_content" > README.md
     git add README.md
+    if [ -n "$extra" ]; then
+      local parent
+      parent="$(dirname "$extra")"
+      [ "$parent" != "." ] && mkdir -p "$parent"
+      printf 'cycle doc body\n' > "$extra"
+      git add "$extra"
+    fi
     bash .githooks/pre-commit >/dev/null 2>&1
   )
   local exitcode=$?
@@ -247,6 +255,22 @@ run_adr_case "ADR3 long cell in non-ADR table → accept" accept \
 
 ## Setup
 "
+
+# Regression: real-world commit stages README.md alongside a cycle doc.
+# Earlier case-pattern detection (case " $STAGED " in *' README.md '*) only
+# matched space-delimited lists; STAGED is newline-separated, so the rule
+# silently skipped multi-file commits. Lock the loop-based detection in.
+run_adr_case "ADR4 README + cycle-doc, 500-char ADR cell → reject" reject \
+"# README
+
+## Architecture Decisions
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-04-15 | Short | $S500 |
+
+## Setup
+" "docs/cycles/2026-05-01-x.md"
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed"

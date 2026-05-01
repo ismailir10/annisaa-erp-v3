@@ -220,9 +220,11 @@ fi
 # reject if any data cell exceeds 400 chars. Forces ADR brevity — long
 # narrative belongs in the linked cycle doc, not the row.
 README_STAGED=0
-case " $STAGED " in
-  *' README.md '*) README_STAGED=1 ;;
-esac
+while IFS= read -r f; do
+  [ "$f" = "README.md" ] && README_STAGED=1
+done <<EOF
+$STAGED
+EOF
 
 if [ "$README_STAGED" = "1" ] && [ -f README.md ]; then
   ADR_VIOLATIONS=$(awk '

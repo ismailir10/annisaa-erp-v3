@@ -61,7 +61,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 | Date | Decision | Why |
 |---|---|---|
 | 2026-04 | Xendit over Midtrans for parent payments | Cleaner Checkout Session API + webhook semantics |
-| 2026-04 | Bundle perf phase 2: analyzer + dynamic imports | Initial bundle was >400KB — see [cycle](docs/cycles/2025-04-15-performance-optimization-phase2.md) |
+| 2025-04 | Bundle perf phase 2: analyzer + dynamic imports | Initial bundle was >400KB — see [cycle](docs/cycles/2025-04-15-performance-optimization-phase2.md) |
 | 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) | One admin page + shared `<WeekGrid>`; one audit table — see [cycle](docs/cycles/2026-04-21-student-journal.md) |
 | 2026-04-24 | Teachers use `/api/teacher/students?classId=…`, not admin `/api/students` | Closes PII enumeration leak — see [cycle](docs/cycles/2026-04-24-critical-money-and-auth-hotfix.md) |
 | 2026-04-24 | `ConfirmDialog` rebuilt on AlertDialog (Base UI), stays open on `onConfirm` reject | Caller toasts and user retries — see [cycle](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
