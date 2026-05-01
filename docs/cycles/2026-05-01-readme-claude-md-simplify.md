@@ -126,7 +126,7 @@ The harmony principle: each row below has exactly ONE owner; the other file link
 **Dependencies:** none.
 **Files touched:** none (audit notes go inline in cycle doc).
 
-### Task 2 — Scaffold archive + runbook directories
+### Task 2 — Scaffold archive + runbook directories [x]
 **Acceptance:** `docs/adrs/archive.md` and `docs/runbooks/reseed-staging.md` created. Archive file has H1 + 1-paragraph "What's archived and why" + the ADR rows being moved out of README in Task 3a. **Archived ADR cells must be byte-equal to source cells before any trimming** — no lossy edits during the move. Runbook file has the verbatim Reseeding section from README plus the Post-reseed UAT smoke. Pre-commit allowlist already covers `docs/**` so no hook change needed.
 **Dependencies:** Task 1 (audit determines which ADRs move).
 **Files created:** `docs/adrs/archive.md`, `docs/runbooks/reseed-staging.md`.
@@ -244,6 +244,7 @@ CLAUDE.md 366 - 125 = 241 lines projected. Target was ≤ 220 — likely need an
 ## Verification
 
 - Task 1: audit-only, no gates run (no code change). Inputs verified: `app/api` route count = 128 (`find app/api -name route.ts | wc -l`), `components/ui` = 68, e2e specs = 6 files. `proxy.ts` exists, `middleware.ts` does not. README ghost references confirmed via `grep -n "CRUD\|Roadmap\|Current Phase" README.md`.
+- Task 2: gates passed (build + vitest). New files: `docs/adrs/archive.md` (8 archived ADRs — pre-2026 baseline + process-meta), `docs/runbooks/reseed-staging.md` (full reseed prose + post-reseed UAT smoke). Archive cells byte-equal to source verified via diff against README lines 96-99, 102-105.
 
 ## Ship Notes
 <!-- filled by /ship -->
