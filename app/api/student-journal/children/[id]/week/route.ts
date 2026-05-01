@@ -3,6 +3,7 @@ import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireGuardianForStudent } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
 
 export async function GET(
   req: NextRequest,
@@ -124,14 +125,24 @@ export async function GET(
       }),
     ]);
 
+  const allEntryIds = [...schoolEntries, ...homeEntries].map((e) => e.id);
+  const lastEditByEntryId = await resolveLastAdminEditByEntryId(
+    session.tenantId,
+    allEntryIds,
+  );
+  const decorate = (e: (typeof schoolEntries)[number]) => ({
+    ...e,
+    lastAdminEdit: lastEditByEntryId.get(e.id) ?? null,
+  });
+
   return NextResponse.json({
     data: {
       weekStart: ws,
       dates,
       schoolCategories,
       homeCategories,
-      schoolEntries,
-      homeEntries,
+      schoolEntries: schoolEntries.map(decorate),
+      homeEntries: homeEntries.map(decorate),
       notes,
     },
   });

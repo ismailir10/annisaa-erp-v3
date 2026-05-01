@@ -78,14 +78,14 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Acceptance:** new unit test asserts cross-tenant indicator IDs are rejected even with a valid teacher-class guard. `npm run build && npx vitest run` green.
   - **Depends on:** T1 (status field is now an enum after T1; build will fail without enum import).
 
-- [ ] **T4 — Audit summary in week endpoints.**
+- [x] **T4 — Audit summary in week endpoints.**
   - Extend `app/api/student-journal/students/[id]/week/route.ts` and `app/api/student-journal/children/[id]/week/route.ts` response: per entry, attach `lastAdminEdit: { changedAt: Date, changedByName: string } | null`.
   - **Implementation contract — exactly two queries, no per-row lookups:**
     1. `prisma.studentJournalAudit.findMany({ where: { tenantId, entityType: 'ENTRY', action: 'UPDATE', entityId: { in: entryIds } }, orderBy: { changedAt: 'desc' } })` — fetch all audit rows for the visible entries in one query.
     2. `prisma.user.findMany({ where: { id: { in: distinctChangerIds }, role: { in: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] } }, select: { id: true, name: true } })` — resolve admin names + filter to admin-only changers in one query.
     3. Merge in application code: build a `Map<userId, name>` of admins, then for each entryId pick the first audit row (already sorted desc) whose `changedByUserId` is in the admin map. Attach as `lastAdminEdit`.
   - Note: `StudentJournalAudit` has no FK relation to `User` in Prisma, so `include: { user: true }` will not work — must use the two-query merge above.
-  - **Acceptance:** new unit test asserts shape; admin-edited entry shows `lastAdminEdit`, teacher-saved entry shows `null`, teacher-edited (non-admin) entry shows `null`. Test also asserts the route makes ≤3 Prisma queries total per call (use a query counter or spy). `npx vitest run` green.
+  - **Acceptance:** new unit test asserts shape; admin-edited entry shows `lastAdminEdit`, teacher-saved entry shows `null`, teacher-edited (non-admin) entry shows `null`. Test asserts helper makes exactly 2 Prisma queries (audit findMany + user findMany) and zero per-entry lookups. `npx vitest run` green.
   - **Depends on:** T1.
 
 - [ ] **T5 — "Diedit admin" badge in teacher + parent week views.**
@@ -122,6 +122,14 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Depends on:** T1–T8.
 
 ## Implementation
+
+- **T4 — Audit summary in week endpoints.**
+  - `lib/student-journal/audit.ts` — added `resolveLastAdminEditByEntryId(tenantId, entryIds)` helper. Exactly 2 Prisma queries: audit `findMany` filtered to `entityType=ENTRY, action=UPDATE, entityId in [...]` ordered desc by `changedAt`, then user `findMany` filtered to `SCHOOL_ADMIN | SUPER_ADMIN` for distinct changers. Merges in app code via Map. Falls back to "Admin" label when `User.name` is null. JSDoc documents the demoted-admin caveat (badge disappears if role flipped to TEACHER post-edit; intentional, fix path noted).
+  - `app/api/student-journal/students/[id]/week/route.ts` — calls helper after entries fetched, decorates each entry with `lastAdminEdit: {changedAt, changedByName} | null`.
+  - `app/api/student-journal/children/[id]/week/route.ts` — same pattern across schoolEntries + homeEntries (one helper call covers both).
+  - `tests/student-journal/audit-summary.test.ts` — new, 7 cases (zero entries skips DB; no audit rows = 1 query no user lookup; admin vs teacher distinction; role filter shape; where-clause shape; null-name fallback to "Admin"; multiple-edits-pick-latest).
+  - `tests/student-journal/audit.test.ts` — added `vi.mock("@/lib/db")` since audit.ts now imports prisma at module level (caught by failing test on first run).
+  - Verified: `npx vitest run` 823 passed (+7) / 42 todo / 2 skipped. Code-reviewer initially flagged spec acceptance text claiming "≤3 prisma queries total per call" — corrected to "helper makes exactly 2 queries; no per-entry lookup" since route-level total includes pre-existing categories/entries/notes fetches.
 
 - **T3 — Tenant scoping tighten + Indonesian errors on `entries/batch`.**
   - `app/api/student-journal/entries/batch/route.ts` — added defensive nested `category.template.tenantId` filter on indicator findMany and `student.tenantId` filter on enrollment findMany. Pre-T3 was sound (template.tenantId is `@unique`, so transitive scoping held), but the explicit filters document the trust boundary and survive future refactors.
@@ -161,6 +169,11 @@ Ordered. Each is committable independently. Dependencies marked.
   - `tsconfig.tsbuildinfo` was modified by build but is gitignored — untracked via `git rm --cached`.
 
 ## Verification
+
+- **T4 gates passed:**
+  - `npm run build` — green.
+  - `npx vitest run` — 823 passed (+7 from T4), 42 todo, 2 skipped.
+  - Code-reviewer flagged: (a) demoted-admin silent-drop semantics — addressed via JSDoc caveat on helper; (b) spec acceptance "≤3 queries total per call" inaccurate — corrected acceptance text to match actual helper contract (2 queries).
 
 - **T3 gates passed:**
   - `npm run build` — green.

@@ -3,6 +3,7 @@ import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
 
 export async function GET(
   req: NextRequest,
@@ -126,7 +127,16 @@ export async function GET(
     }),
   ]);
 
+  const lastEditByEntryId = await resolveLastAdminEditByEntryId(
+    session.tenantId,
+    entries.map((e) => e.id),
+  );
+  const entriesWithAudit = entries.map((e) => ({
+    ...e,
+    lastAdminEdit: lastEditByEntryId.get(e.id) ?? null,
+  }));
+
   return NextResponse.json({
-    data: { weekStart: ws, dates, categories, entries, notes },
+    data: { weekStart: ws, dates, categories, entries: entriesWithAudit, notes },
   });
 }
