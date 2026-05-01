@@ -27,20 +27,26 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 4. Look up student's active enrollment to get classSectionId
-  const enrollment = await prisma.studentEnrollment.findFirst({
-    where: { studentId, status: "ACTIVE" },
+  // 4. Look up ALL student's active enrollments. Grant if teacher is assigned
+  //    to ANY of them — students with cross-program enrollments (e.g. day-care
+  //    + school) can otherwise 403 when findFirst picks the wrong class.
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: {
+      studentId,
+      status: "ACTIVE",
+      classSection: { tenantId: session.tenantId },
+    },
     select: { classSectionId: true },
   });
-  if (!enrollment) {
+  if (enrollments.length === 0) {
     return NextResponse.json({ error: "Student not enrolled" }, { status: 404 });
   }
 
-  // 5. Verify teacher is assigned to that class (and it belongs to their tenant)
+  // 5. Verify teacher is assigned to one of the student's classes
   const assignment = await prisma.teachingAssignment.findFirst({
     where: {
       employeeId: session.employeeId,
-      classSectionId: enrollment.classSectionId,
+      classSectionId: { in: enrollments.map((e) => e.classSectionId) },
       classSection: { tenantId: session.tenantId },
     },
   });
