@@ -459,7 +459,15 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     // Final toast lands on the success path — copy varies by xenditOk vs
     // xenditFailed counts. Real Xendit calls fail (see suite header §2),
     // so we expect "X tagihan dibuat ... link gagal" — see page.tsx:436.
-    await expect(page.getByText(/tagihan dibuat \(/)).toBeVisible({ timeout: 30_000 });
+    //
+    // Timeout is 60s (not 30s) because the post-chunk auto-sweep (cycle
+    // 2026-04-26-finance-robustness-a-b-c) re-runs runBulkRetry against
+    // every PENDING_PAYMENT_LINK invoice landed by the chunk loop. With
+    // ~50 seeded students and a fake Xendit key, the sweep does its full
+    // 3-strike abort cycle on each retry chunk before the orchestrator
+    // flips phase=done. Empirically lands ~35-45s on CI; 60s is the
+    // safe ceiling.
+    await expect(page.getByText(/tagihan dibuat \(/)).toBeVisible({ timeout: 60_000 });
   });
 
   test("manual create surfaces alert card on detail page when Xendit fails", async ({ page }) => {
@@ -576,13 +584,20 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     });
     expect(batchRes.ok()).toBeTruthy();
 
-    // List page header should show "Coba Lagi Link (N)" with N >= 1.
+    // List page header should show "Coba Lagi Link (N)" with N >= 1. The
+    // header surface is now wrapped in PendingLinkBreakdownPopover (cycle
+    // 2026-04-? — finance auto-retry, PR #151) so clicking the trigger
+    // opens the popover, NOT the confirm dialog directly. The confirm
+    // dialog is opened by the "Coba Lagi Sekarang" button inside the
+    // popover body.
     await page.goto("/admin/invoices");
     const retryBtn = page.getByRole("button", { name: /Coba Lagi Link \(\d+\)/ });
     await expect(retryBtn).toBeVisible({ timeout: 15_000 });
 
-    // Click → confirm dialog opens with the pending count.
+    // Click trigger → popover opens. Then click the inner "Coba Lagi
+    // Sekarang" button to open the confirm dialog.
     await retryBtn.click();
+    await page.getByRole("button", { name: /^Coba Lagi Sekarang$/ }).click();
     await expect(page.getByText(/Membuat ulang link/)).toBeVisible({ timeout: 5_000 });
 
     // Confirming kicks off the retry orchestration. Since real Xendit still
@@ -735,13 +750,17 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await trigger.click();
 
     // Type the first letter to drive the debounced /api/students fetch.
-    const search = dialog.getByPlaceholder("Cari nama siswa...");
+    // The combobox PopoverContent renders in a portal at document.body —
+    // OUTSIDE the dialog's DOM subtree. Scope the search input + result
+    // options to `page`, not `dialog`, otherwise the locators resolve to
+    // zero matches and time out.
+    const search = page.getByPlaceholder("Cari nama siswa...");
     await expect(search).toBeVisible({ timeout: 5_000 });
     await search.fill(firstLetter);
 
     // Wait for the debounced fetch + render. The result list contains an
     // item with the student's full name; click it.
-    const studentItem = dialog
+    const studentItem = page
       .getByRole("option")
       .filter({ hasText: student.name })
       .first();
@@ -762,7 +781,12 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await feeSelect.click();
     await page.getByRole("option", { name: fee.label }).first().click();
 
-    await dialog.getByPlaceholder("0").fill("75000");
+    // The amount input is the only `<input type="number">` (role=spinbutton)
+    // inside the manual-invoice dialog. Locating by role is more robust than
+    // by placeholder="0" — Radix Select's portaled SelectContent occasionally
+    // shadows the dialog's locator scope after the fee-component dropdown
+    // round trip, and `dialog.getByPlaceholder("0")` resolves to zero matches.
+    await dialog.getByRole("spinbutton").fill("75000");
 
     await dialog.getByRole("button", { name: /^Buat Tagihan$/ }).click();
 

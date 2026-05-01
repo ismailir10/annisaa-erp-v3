@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-05-01 (student-journal-cross-actor-audit — seed updated to use JournalStatus enum, adapter parity unchanged).
+// Last verified: 2026-05-01 (seed-invoice-number-sequence-fix — seed appended an InvoiceNumberSequence sync block; adapter parity unchanged).
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
