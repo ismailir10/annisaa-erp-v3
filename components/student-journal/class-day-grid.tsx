@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, MessageSquarePlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Indicator = {
@@ -29,9 +29,13 @@ type ClassDayGridProps = {
   /** state[studentId][indicatorId] = checked */
   state: Record<string, Record<string, boolean>>;
   onToggle: (studentId: string, indicatorId: string) => void;
+  /** Open the add-note dialog for this student. If absent, the affordance is hidden. */
+  onAddNote?: (student: Student) => void;
+  /** Per-student notes count (for optimistic badge next to add-note button). */
+  noteCounts?: Record<string, number>;
 };
 
-export function ClassDayGrid({ students, categories, state, onToggle }: ClassDayGridProps) {
+export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts }: ClassDayGridProps) {
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
 
   function toggleExpand(studentId: string) {
@@ -67,44 +71,61 @@ export function ClassDayGrid({ students, categories, state, onToggle }: ClassDay
             transition={{ delay: i * 0.02 }}
             className="rounded-xl border border-border bg-card overflow-hidden"
           >
-            {/* Student header — tap to expand */}
-            <button
-              onClick={() => toggleExpand(student.id)}
-              className="w-full flex items-center justify-between p-3.5 text-left"
-              aria-expanded={isExpanded}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
-                    checkedCount === totalIndicators && totalIndicators > 0
-                      ? "bg-primary"
-                      : "bg-muted-foreground/40"
-                  }`}
-                >
-                  {checkedCount === totalIndicators && totalIndicators > 0 ? (
-                    <Check size={14} />
+            {/* Student header — tap area expands; sibling icon button adds a note */}
+            <div className="flex items-stretch">
+              <button
+                onClick={() => toggleExpand(student.id)}
+                className="flex-1 flex items-center justify-between p-3.5 text-left"
+                aria-expanded={isExpanded}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
+                      checkedCount === totalIndicators && totalIndicators > 0
+                        ? "bg-primary"
+                        : "bg-muted-foreground/40"
+                    }`}
+                  >
+                    {checkedCount === totalIndicators && totalIndicators > 0 ? (
+                      <Check size={14} />
+                    ) : (
+                      <span>{student.name[0]}</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{student.name}</p>
+                    {student.nickname && (
+                      <p className="text-xs text-muted-foreground">{student.nickname}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {checkedCount}/{totalIndicators}
+                  </span>
+                  {isExpanded ? (
+                    <ChevronUp size={16} className="text-muted-foreground" />
                   ) : (
-                    <span>{student.name[0]}</span>
+                    <ChevronDown size={16} className="text-muted-foreground" />
                   )}
                 </div>
-                <div>
-                  <p className="text-sm font-medium">{student.name}</p>
-                  {student.nickname && (
-                    <p className="text-xs text-muted-foreground">{student.nickname}</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {checkedCount}/{totalIndicators}
-                </span>
-                {isExpanded ? (
-                  <ChevronUp size={16} className="text-muted-foreground" />
-                ) : (
-                  <ChevronDown size={16} className="text-muted-foreground" />
-                )}
-              </div>
-            </button>
+              </button>
+              {onAddNote ? (
+                <button
+                  type="button"
+                  onClick={() => onAddNote(student)}
+                  className="px-3 flex items-center justify-center gap-1 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border"
+                  aria-label={`Tambah catatan untuk ${student.name}`}
+                >
+                  <MessageSquarePlus size={18} />
+                  {(noteCounts?.[student.id] ?? 0) > 0 ? (
+                    <span className="text-[10px] font-medium text-primary tabular-nums">
+                      {noteCounts?.[student.id]}
+                    </span>
+                  ) : null}
+                </button>
+              ) : null}
+            </div>
 
             {/* Expanded indicator checklist */}
             <AnimatePresence initial={false}>

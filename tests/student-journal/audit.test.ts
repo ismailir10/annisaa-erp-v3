@@ -1,4 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// audit.ts imports prisma at module level for resolveLastAdminEditByEntryId — mock it
+// to avoid DATABASE_URL requirement when only diffJson is exercised here.
+vi.mock("@/lib/db", () => ({ prisma: {} }));
+
 import { diffJson } from "@/lib/student-journal/audit";
 
 describe("diffJson", () => {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { entryBatchSchema } from "@/lib/validations/student-journal";
@@ -18,14 +19,14 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return NextResponse.json({ error: "JSON tidak valid" }, { status: 400 });
   }
 
   const parsed = entryBatchSchema.safeParse(body);
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0];
     return NextResponse.json(
-      { error: firstIssue?.message ?? "Invalid request body" },
+      { error: firstIssue?.message ?? "Body permintaan tidak valid" },
       { status: 400 }
     );
   }
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
   // Rate limit after auth (keyed per user)
   const rl = rateLimit(`sj-teacher-${session.id}`, 30, 60_000);
   if (!rl.success) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
   }
 
   if (entries.length === 0) {
@@ -47,7 +48,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify all distinct indicatorIds belong to SCHOOL-scope active indicators
-  // in this tenant's template
+  // in this tenant's template. Tenant scoping is enforced both via the template
+  // lookup AND defensively on the nested relation chain (template.tenantId).
   const distinctIndicatorIds = [...new Set(entries.map((e) => e.indicatorId))];
 
   const template = await prisma.studentJournalTemplate.findUnique({
@@ -55,27 +57,29 @@ export async function POST(req: NextRequest) {
   });
 
   if (!template) {
-    return NextResponse.json({ error: "Invalid indicators" }, { status: 400 });
+    return NextResponse.json({ error: "Indikator tidak valid" }, { status: 400 });
   }
 
   const validIndicators = await prisma.studentJournalIndicator.findMany({
     where: {
       id: { in: distinctIndicatorIds },
-      status: "ACTIVE",
+      status: JournalStatus.ACTIVE,
       category: {
         scope: "SCHOOL",
-        status: "ACTIVE",
+        status: JournalStatus.ACTIVE,
         templateId: template.id,
+        template: { tenantId: session.tenantId },
       },
     },
     select: { id: true },
   });
 
   if (validIndicators.length !== distinctIndicatorIds.length) {
-    return NextResponse.json({ error: "Invalid indicators" }, { status: 400 });
+    return NextResponse.json({ error: "Indikator tidak valid" }, { status: 400 });
   }
 
-  // Verify all distinct studentIds are actively enrolled in this class
+  // Verify all distinct studentIds are actively enrolled in this class. Enrollment
+  // has no tenantId column — defensive tenant scope via student.tenantId.
   const distinctStudentIds = [...new Set(entries.map((e) => e.studentId))];
 
   const validEnrollments = await prisma.studentEnrollment.findMany({
@@ -83,13 +87,14 @@ export async function POST(req: NextRequest) {
       studentId: { in: distinctStudentIds },
       classSectionId,
       status: "ACTIVE",
+      student: { tenantId: session.tenantId },
     },
     select: { studentId: true },
   });
 
   if (validEnrollments.length !== distinctStudentIds.length) {
     return NextResponse.json(
-      { error: "One or more students not in class" },
+      { error: "Beberapa siswa tidak terdaftar di kelas ini" },
       { status: 400 }
     );
   }

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, BookHeart, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -20,7 +21,7 @@ import { PortalTabs } from "@/components/portal/portal-tabs";
 import { PageHeader } from "@/components/portal/page-header";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
-import { ParentNoteDialog } from "@/components/student-journal/parent-note-dialog";
+import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { formatDateShort } from "@/lib/format";
 
@@ -35,7 +36,13 @@ type Child = {
 
 type Indicator = { id: string; label: string; order: number };
 type Category = { id: string; name: string; scope: string; indicators: Indicator[] };
-type Entry = { id?: string; indicatorId: string; date: string; checked: boolean };
+type Entry = {
+  id?: string;
+  indicatorId: string;
+  date: string;
+  checked: boolean;
+  lastAdminEdit?: { changedAt: string; changedByName: string } | null;
+};
 type Note = {
   id: string;
   date: string;
@@ -237,6 +244,14 @@ export default function ParentStudentJournalPage() {
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
+      ) : data.schoolEntries.length === 0 &&
+        data.homeEntries.length === 0 &&
+        data.notes.length === 0 ? (
+        <EmptyState
+          icon={BookHeart}
+          title="Belum ada catatan minggu ini"
+          description="Catatan akan muncul saat guru atau orang tua mengisi."
+        />
       ) : (
         <Tabs defaultValue="school">
           <TabsList className="w-full">
@@ -334,7 +349,7 @@ export default function ParentStudentJournalPage() {
 
       {/* Write / Edit dialog */}
       {childId && (
-        <ParentNoteDialog
+        <NoteComposeDialog
           open={noteDialog !== null}
           onOpenChange={(open) => {
             if (!open) setNoteDialog(null);
@@ -349,6 +364,7 @@ export default function ParentStudentJournalPage() {
             noteDialog?.mode === "edit" ? noteDialog.body : undefined
           }
           noteId={noteDialog?.mode === "edit" ? noteDialog.noteId : undefined}
+          placeholder="Tulis catatan rumah di sini..."
           onSaved={() => {
             if (childId) loadWeekData(childId, currentWeek);
           }}

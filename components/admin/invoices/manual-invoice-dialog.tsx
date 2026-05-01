@@ -153,6 +153,7 @@ function StudentPicker({
 
     const q = query.trim();
     if (!q) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ kind: "idle" });
       return;
     }

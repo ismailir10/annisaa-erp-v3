@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import {
@@ -25,6 +26,14 @@ export async function GET(req: NextRequest) {
     scope = s.data;
   }
 
+  let statusFilter: JournalStatus | undefined;
+  if (statusParam !== "ALL") {
+    if (statusParam !== JournalStatus.ACTIVE && statusParam !== JournalStatus.INACTIVE) {
+      return NextResponse.json({ error: "status tidak valid" }, { status: 400 });
+    }
+    statusFilter = statusParam;
+  }
+
   const tmpl = await prisma.studentJournalTemplate.findUnique({
     where: { tenantId: session.tenantId },
   });
@@ -34,11 +43,11 @@ export async function GET(req: NextRequest) {
     where: {
       templateId: tmpl.id,
       ...(scope && { scope }),
-      ...(statusParam !== "ALL" && { status: statusParam }),
+      ...(statusFilter && { status: statusFilter }),
     },
     include: {
       indicators: {
-        where: statusParam !== "ALL" ? { status: statusParam } : undefined,
+        where: statusFilter ? { status: statusFilter } : undefined,
         orderBy: { order: "asc" },
       },
     },
@@ -75,7 +84,7 @@ export async function POST(req: NextRequest) {
   const tmpl = await prisma.studentJournalTemplate.upsert({
     where: { tenantId: session.tenantId },
     update: {},
-    create: { tenantId: session.tenantId, status: "ACTIVE" },
+    create: { tenantId: session.tenantId },
   });
 
   const cat = await prisma.studentJournalCategory.create({

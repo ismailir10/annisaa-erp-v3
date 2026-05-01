@@ -23,7 +23,7 @@ import { formatDateShort } from "@/lib/format";
 
 type Mode = "create" | "edit";
 
-export type ParentNoteDialogProps = {
+export type NoteComposeDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: Mode;
@@ -32,10 +32,15 @@ export type ParentNoteDialogProps = {
   initialDate?: string;
   initialBody?: string;
   noteId?: string;
+  /** Override the dialog title. Default: "Tulis Catatan" / "Edit Catatan". */
+  title?: string;
+  /** Override the textarea placeholder. Default: "Tulis catatan rumah di sini...". */
+  placeholder?: string;
   onSaved: () => void;
 };
 
 const MAX_LEN = 2000;
+const DEFAULT_PLACEHOLDER = "Tulis catatan rumah di sini...";
 
 function pickDefaultDate(weekDates: string[], initialDate?: string): string {
   if (initialDate && weekDates.includes(initialDate)) return initialDate;
@@ -44,7 +49,7 @@ function pickDefaultDate(weekDates: string[], initialDate?: string): string {
   return weekDates[0] ?? today;
 }
 
-export function ParentNoteDialog({
+export function NoteComposeDialog({
   open,
   onOpenChange,
   mode,
@@ -53,8 +58,10 @@ export function ParentNoteDialog({
   initialDate,
   initialBody,
   noteId,
+  title,
+  placeholder,
   onSaved,
-}: ParentNoteDialogProps) {
+}: NoteComposeDialogProps) {
   const [date, setDate] = useState<string>(() =>
     pickDefaultDate(weekDates, initialDate),
   );
@@ -132,7 +139,7 @@ export function ParentNoteDialog({
       <DialogContent className="p-card max-w-sm mx-4">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "Tulis Catatan" : "Edit Catatan"}
+            {title ?? (mode === "create" ? "Tulis Catatan" : "Edit Catatan")}
           </DialogTitle>
         </DialogHeader>
 
@@ -164,7 +171,7 @@ export function ParentNoteDialog({
               onChange={(e) => setBody(e.target.value)}
               maxLength={MAX_LEN}
               rows={5}
-              placeholder="Tulis catatan rumah di sini..."
+              placeholder={placeholder ?? DEFAULT_PLACEHOLDER}
               aria-invalid={error ? true : undefined}
             />
             <div className="flex items-center justify-between mt-1">

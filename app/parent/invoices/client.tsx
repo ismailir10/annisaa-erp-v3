@@ -72,6 +72,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
     if (!data || !invoiceParam || !xenditStatusParam) return;
     const found = data.find((i) => i.id === invoiceParam);
     if (!found) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedInvoiceId(invoiceParam);
     if (xenditStatusParam === "paid") {
       toast.success(`Alhamdulillah, tagihan ${found.periodLabel} terbayar.`);
@@ -115,6 +116,7 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
       }
     }
     if (flipped.length === 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRecentlyPaidIds((prevSet) => {
       const next = new Set(prevSet);
       flipped.forEach((id) => next.add(id));

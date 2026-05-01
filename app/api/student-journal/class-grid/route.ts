@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireTeacherForClass } from "@/lib/student-journal/guards";
 
@@ -56,11 +57,11 @@ export async function GET(req: NextRequest) {
         where: {
           templateId: template.id,
           scope: "SCHOOL",
-          status: "ACTIVE",
+          status: JournalStatus.ACTIVE,
         },
         include: {
           indicators: {
-            where: { status: "ACTIVE" },
+            where: { status: JournalStatus.ACTIVE },
             orderBy: { order: "asc" },
           },
         },

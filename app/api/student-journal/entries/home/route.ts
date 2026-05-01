@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireGuardianForStudent } from "@/lib/student-journal/guards";
 import { homeEntryBatchSchema } from "@/lib/validations/student-journal";
@@ -49,10 +50,11 @@ export async function POST(req: NextRequest) {
     const validIndicators = await prisma.studentJournalIndicator.findMany({
       where: {
         id: { in: indicatorIds },
-        status: "ACTIVE",
+        status: JournalStatus.ACTIVE,
         category: {
           templateId: tmpl.id,
           scope: "HOME",
+          template: { tenantId: session.tenantId },
         },
       },
       select: { id: true },

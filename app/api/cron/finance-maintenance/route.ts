@@ -1,3 +1,4 @@
+// @public — Vercel Cron endpoint, gated by CRON_SECRET bearer token (not user session).
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 

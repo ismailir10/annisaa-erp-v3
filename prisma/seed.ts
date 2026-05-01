@@ -1,4 +1,5 @@
 import { PrismaClient } from "../lib/generated/prisma/client";
+import { JournalStatus } from "../lib/generated/prisma/enums";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
@@ -375,7 +376,7 @@ async function main() {
   const tmpl = await prisma.studentJournalTemplate.upsert({
     where: { tenantId: tenant.id },
     update: {},
-    create: { tenantId: tenant.id, status: "ACTIVE" },
+    create: { tenantId: tenant.id, status: JournalStatus.ACTIVE },
   });
 
   const journalDefaults: Array<{ scope: "SCHOOL" | "HOME"; name: string; indicators: string[] }> = [
