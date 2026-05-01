@@ -131,7 +131,7 @@ The harmony principle: each row below has exactly ONE owner; the other file link
 **Dependencies:** Task 1 (audit determines which ADRs move).
 **Files created:** `docs/adrs/archive.md`, `docs/runbooks/reseed-staging.md`.
 
-### Task 3a — Rewrite README.md (structural)
+### Task 3a — Rewrite README.md (structural) [x]
 **Acceptance:** Sections deleted/moved/restructured: Contents/TOC, Roadmap+Current Phase ghost entries, Development Workflow section, Reseeding Staging subsection, License + "For developers" footer merge. Cycle-doc links not yet trimmed but file structure matches final shape. README.md compiles (no broken markdown). Intermediate line count ≤ 200.
 **Dependencies:** Tasks 1, 2.
 **Files modified:** `README.md`.
@@ -245,6 +245,7 @@ CLAUDE.md 366 - 125 = 241 lines projected. Target was ≤ 220 — likely need an
 
 - Task 1: audit-only, no gates run (no code change). Inputs verified: `app/api` route count = 128 (`find app/api -name route.ts | wc -l`), `components/ui` = 68, e2e specs = 6 files. `proxy.ts` exists, `middleware.ts` does not. README ghost references confirmed via `grep -n "CRUD\|Roadmap\|Current Phase" README.md`.
 - Task 2: gates passed (build + vitest). New files: `docs/adrs/archive.md` (8 archived ADRs — pre-2026 baseline + process-meta), `docs/runbooks/reseed-staging.md` (full reseed prose + post-reseed UAT smoke). Archive cells byte-equal to source verified via diff against README lines 96-99, 102-105.
+- Task 3a: gates passed (build + vitest). README.md 295 → 202 lines (down 93). Deleted: Contents/TOC, Development Workflow section (15 lines), Reseeding subsection (60 lines, runbook pointer left), License + "For developers" sections (merged into 3-line footer). Tables (Modules, ADRs) untouched — Task 3b trims cells.
 
 ## Ship Notes
 <!-- filled by /ship -->
