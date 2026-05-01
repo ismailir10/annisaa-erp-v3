@@ -98,9 +98,14 @@ test.describe("Parent flows", () => {
   test("parent can open Penghubung tab with Di Sekolah/Di Rumah/Catatan tabs", async ({ page }) => {
     await page.goto("/parent/student-journal");
     await page.waitForURL("**/parent/student-journal", { timeout: 15_000 });
-    // Page heading always renders regardless of whether the guardian has a child
+    // Page heading always renders regardless of whether the guardian has a child.
+    // Match by role+name to avoid strict-mode violation — "Buku Penghubung" also
+    // appears as a sidebar nav link, so a bare text selector resolves to two
+    // elements.
     await expect(
-      page.locator("text=Buku Penghubung").or(page.locator("text=Belum ada data anak"))
+      page
+        .getByRole("heading", { name: /^Buku Penghubung$/ })
+        .or(page.getByText(/Belum ada data anak/))
     ).toBeVisible({ timeout: 10_000 });
     // If week data loads the tabs appear — conditional check (empty DB is fine)
     const schoolTab = page.getByRole("tab", { name: /Di Sekolah/i });
