@@ -116,12 +116,17 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Acceptance:** every string introduced/changed in T3/T5/T6/T7 is Bahasa Indonesia and persona-correct; 30-string spot-sample documented in a table; any English leaks found in the spot-sample logged as a follow-up issue (NOT fixed in this cycle).
   - **Depends on:** T3, T5, T6, T7.
 
-- [ ] **T9 — End-of-cycle gate + cycle doc finalization.**
+- [x] **T9 — End-of-cycle gate + cycle doc finalization.**
   - Run `npm run build && npx vitest run && npx playwright test`. Fill Verification section (gate output, screenshots of badge + add-note dialog + parent empty state). README.md is already incrementally updated by T5 + T6 (per-task line-items). T9 only consolidates if needed — re-read README Student Journal section for coherence and add any missing summary line. Fill Ship Notes (Prisma migration name, no env changes, rollback = revert migration + revert PR).
   - **Acceptance:** all gates green; README coherent + cycle doc finalized; ready for `/ship`.
   - **Depends on:** T1–T8.
 
 ## Implementation
+
+- **T9 — End-of-cycle finalize.** Full gate run + Ship Notes.
+  - End-of-cycle gates all green: `npm run build` ✓ · `npx vitest run` 823 passed (was 807 at T1 entry, +16 new tests) · `npx playwright test` 21/21 passed in 17.7m (covers both teacher + parent journal flows).
+  - README.md `student-journal` module row already reflects T5 (audit badge) + T6 (teacher add-note) capabilities + `JournalStatus` enum — no T9 README touch needed.
+  - Ship Notes filled below.
 
 - **T8 — Indonesian voice/copy pass (scoped).** Cites `.claude/standards/voice.md` per-persona register.
   - **T3/T5/T6/T7-introduced strings — all clean per voice.md:**
@@ -203,6 +208,12 @@ Ordered. Each is committable independently. Dependencies marked.
 
 ## Verification
 
+- **T9 / end-of-cycle gates passed:**
+  - `npm run build` ✓ green.
+  - `npx vitest run` — 823 passed / 42 todo / 2 skipped (95 test files). +16 new tests vs cycle entry (T2: 4, T3: 5, T4: 7).
+  - `npx playwright test` — 21/21 passed (17.7m, chromium against production build with DEMO_MODE=true). Admin journal flow (`admin.spec.ts:355` — Buku Penghubung template config + monitoring) and teacher journal flow (`teacher.spec.ts`) both green.
+  - No regressions in any pre-existing flow.
+
 - **T8 gates passed:**
   - Doc-only — no build/test impact.
   - 26/30 sampled strings correct register; 4 minor drifts in legacy teacher copy logged as follow-up.
@@ -247,4 +258,26 @@ Ordered. Each is committable independently. Dependencies marked.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+**Migration to apply on prod:**
+- `prisma/migrations/20260501000000_student_journal_status_enum/migration.sql` — creates `JournalStatus` enum and converts the `status` column on `StudentJournalTemplate`, `StudentJournalCategory`, `StudentJournalIndicator`, `StudentJournalNote` from `String` to `JournalStatus`. Pre-migration `SELECT DISTINCT status` confirmed only `ACTIVE` values exist on staging (1+7+10+51 rows) — cast is non-destructive. Already applied to staging via `prisma migrate deploy`.
+- Production deploy: Vercel postinstall runs `prisma migrate deploy`. No manual step.
+
+**No new env vars.**
+
+**Manual smoke on preview URL:**
+1. Admin → Buku Penghubung (template config) — deactivate any category, verify its child indicators flip to INACTIVE in the same view (T2 cascade).
+2. Teacher → Buku Penghubung → pick class+date → entry grid — tap MessageSquarePlus on a student row, write + save a note, verify "(1 catatan)" badge appears, toast "Catatan tersimpan" (T6).
+3. Teacher → student-week view of any student with an admin-overridden entry — verify Pencil badge in the cell, tap it, verify Popover with "Diedit admin · {nama} pada {tanggal}" (T5).
+4. Parent portal → Buku Penghubung tab → pick a child + a week with no entries/notes → verify "Belum ada catatan minggu ini" empty state (T7).
+5. Parent portal → same week with entries → verify "Diedit admin" badge surfaces on overridden entries (T5).
+
+**Rollback plan (if migration breaks prod):**
+- Revert PR — schema reverts to `String`.
+- Manually run `ALTER TABLE "StudentJournalTemplate" ALTER COLUMN "status" TYPE TEXT USING "status"::TEXT;` for each of the 4 tables (drop default, cast, set default 'ACTIVE'), then `DROP TYPE "JournalStatus";`. Existing data preserved (Postgres can cast enum→text losslessly).
+
+**Known follow-ups (out of scope for this cycle, not blocking):**
+- 4 minor voice/copy drift items in `app/teacher/student-journal/page.tsx` + `students/[id]/page.tsx` (legacy "dulu ya" / "sebentar ya" softeners). T8 logged the table.
+- Audit-trail badge currently filters by *current* admin role — a demoted SCHOOL_ADMIN→TEACHER drops the historical badge. JSDoc on `resolveLastAdminEditByEntryId` notes the fix path: add `changedByRole` column to `StudentJournalAudit` at write time.
+- Drag-reorder UI for indicators (schema supports `order`) — explicit non-goal of this cycle.
+
+**Branch:** `feat/review-student-journal` → PR via `/ship` to `staging`.
