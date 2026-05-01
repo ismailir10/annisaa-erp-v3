@@ -159,18 +159,36 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                         className={`text-center p-0 align-middle relative${isToday ? " bg-status-present-subtle" : ""}${todayBottomAccent}`}
                       >
                         {editable && onToggle ? (
-                          <button
-                            type="button"
-                            onClick={() => onToggle(ind.id, d, !checked)}
-                            className="flex items-center justify-center w-[44px] h-[44px] mx-auto rounded-md transition-colors hover:bg-primary/10 active:bg-primary/20"
-                            aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"}`}
-                          >
-                            {checked ? (
-                              <Check size={16} className="text-primary" strokeWidth={2.5} />
-                            ) : (
-                              <span className="w-4 h-4 rounded border border-muted-foreground/40 block" />
-                            )}
-                          </button>
+                          isToday ? (
+                            <button
+                              type="button"
+                              onClick={() => onToggle(ind.id, d, !checked)}
+                              className="flex items-center justify-center w-[44px] h-[44px] mx-auto rounded-md transition-colors hover:bg-primary/10 active:bg-primary/20"
+                              aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"}`}
+                            >
+                              {checked ? (
+                                <Check size={16} className="text-primary" strokeWidth={2.5} />
+                              ) : (
+                                <span className="w-4 h-4 rounded border border-muted-foreground/40 block" />
+                              )}
+                            </button>
+                          ) : (
+                            // Past- or future-day cell while in editable mode (parent "Di Rumah").
+                            // UAT 2026-05-01 cycle T4 — only today is editable to prevent silent backfill.
+                            <button
+                              type="button"
+                              disabled
+                              aria-disabled="true"
+                              className="flex items-center justify-center w-[44px] h-[44px] mx-auto rounded-md opacity-50 cursor-not-allowed"
+                              aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"} — hanya hari ini bisa diubah`}
+                            >
+                              {checked ? (
+                                <Check size={14} className="text-muted-foreground" strokeWidth={2} />
+                              ) : (
+                                <span className="w-3.5 h-3.5 rounded border border-muted-foreground/30 block" />
+                              )}
+                            </button>
+                          )
                         ) : (
                           <span className="flex items-center justify-center h-[36px]">
                             {checked ? (

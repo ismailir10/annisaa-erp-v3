@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown, ChevronUp, MessageSquarePlus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, ChevronDown, ChevronRight, ChevronUp, MessageSquarePlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Indicator = {
@@ -33,9 +34,12 @@ type ClassDayGridProps = {
   onAddNote?: (student: Student) => void;
   /** Per-student notes count (for optimistic badge next to add-note button). */
   noteCounts?: Record<string, number>;
+  /** Picker date (YYYY-MM-DD) — passed through as `?week=` when the chevron drills into the per-student week view. */
+  visibleDate?: string;
 };
 
-export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts }: ClassDayGridProps) {
+export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts, visibleDate }: ClassDayGridProps) {
+  const router = useRouter();
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
 
   function toggleExpand(studentId: string) {
@@ -125,6 +129,21 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                   ) : null}
                 </button>
               ) : null}
+              {visibleDate ? (
+                <button
+                  type="button"
+                  data-testid="open-week-view"
+                  onClick={() =>
+                    router.push(
+                      `/teacher/student-journal/students/${student.id}?week=${visibleDate}`,
+                    )
+                  }
+                  className="px-3 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border"
+                  aria-label={`Lihat minggu ${student.name}`}
+                >
+                  <ChevronRight size={18} />
+                </button>
+              ) : null}
             </div>
 
             {/* Expanded indicator checklist */}
@@ -151,17 +170,17 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                               <button
                                 key={indicator.id}
                                 onClick={() => onToggle(student.id, indicator.id)}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-[44px] ${
+                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                                   isChecked
                                     ? "bg-primary/10 border-primary text-primary"
-                                    : "border-border text-foreground hover:border-primary/30"
+                                    : "bg-transparent border-border text-foreground hover:border-primary/30"
                                 }`}
                               >
                                 <div
                                   className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                                     isChecked
                                       ? "bg-primary border-primary"
-                                      : "border-border"
+                                      : "bg-transparent border-muted-foreground/40"
                                   }`}
                                 >
                                   {isChecked && <Check size={11} className="text-white" />}

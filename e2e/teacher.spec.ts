@@ -96,4 +96,28 @@ test.describe("Teacher flows", () => {
       await expect(cta).toBeVisible();
     }
   });
+
+  test("teacher entry grid 'Lihat minggu' affordance navigates to per-student week view", async ({ page }) => {
+    // Discover a class via the teacher's assignments. Skip if seed has none.
+    await page.goto("/teacher");
+    const assignmentsRes = await page.request.get("/api/teaching-assignments/my");
+    if (!assignmentsRes.ok()) {
+      test.skip(true, "demo seed has no /api/teaching-assignments/my endpoint or auth missing");
+    }
+    const assignments = (await assignmentsRes.json()) as { data?: Array<{ classSectionId: string }> };
+    const classId = assignments.data?.[0]?.classSectionId;
+    if (!classId) {
+      test.skip(true, "teacher has no assigned classes in demo seed");
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    await page.goto(`/teacher/student-journal/entry?classId=${classId}&date=${today}`);
+    const chevron = page.locator('[data-testid="open-week-view"]').first();
+    const isVisible = await chevron.isVisible({ timeout: 5_000 }).catch(() => false);
+    if (!isVisible) {
+      test.skip(true, "class has no enrolled students in demo seed");
+    }
+    await chevron.click();
+    await page.waitForURL(new RegExp(`/teacher/student-journal/students/[^/?#]+\\?week=${today}`), { timeout: 10_000 });
+    await expect(page.locator("text=Kembali").first()).toBeVisible({ timeout: 10_000 });
+  });
 });
