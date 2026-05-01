@@ -44,7 +44,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const enrollment = await prisma.studentEnrollment.findFirst({
+    // Student may have multiple ACTIVE enrollments (e.g. cross-program day-care
+    // students). Fetch ALL of them and grant if the teacher is assigned to ANY
+    // of the student's classes — otherwise findFirst can return a class the
+    // teacher isn't assigned to and the request 403s even though the teacher
+    // IS authorized via another enrollment.
+    const enrollments = await prisma.studentEnrollment.findMany({
       where: {
         studentId,
         status: "ACTIVE",
@@ -52,14 +57,14 @@ export async function POST(req: NextRequest) {
       },
       select: { classSectionId: true },
     });
-    if (!enrollment) {
+    if (enrollments.length === 0) {
       return NextResponse.json({ error: "Student not enrolled" }, { status: 404 });
     }
 
     const assignment = await prisma.teachingAssignment.findFirst({
       where: {
         employeeId: session.employeeId,
-        classSectionId: enrollment.classSectionId,
+        classSectionId: { in: enrollments.map((e) => e.classSectionId) },
         classSection: { tenantId: session.tenantId },
       },
     });
