@@ -1,3 +1,4 @@
+// @public — deploy-time health probe; no user session, no PII, no mutation.
 /**
  * Deploy-time health probe for the configured Xendit credential.
  *

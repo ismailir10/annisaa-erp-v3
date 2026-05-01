@@ -4,7 +4,7 @@
 # Every app/api/**/route.ts MUST either:
 #   - reference a session helper: getSession(, requireAdmin(, requireSuperAdmin(,
 #     requireTeacher(, requireParent(, requireGuardian(, requireAuth(,
-#     requireTeacherForClass(, or requireGuardianForStudent(
+#     requireTeacherForClass(, requireGuardianForStudent(, or requirePermission(
 #   - OR declare itself public with a top-of-file `// @public` sentinel comment.
 #
 # Rationale: proxy.ts short-circuits /api/* before any auth check (each route
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-AUTH_PATTERN='getSession\(|requireAdmin\(|requireSuperAdmin\(|requireTeacher\(|requireParent\(|requireGuardian\(|requireAuth\(|requireTeacherForClass\(|requireGuardianForStudent\(|// @public'
+AUTH_PATTERN='getSession\(|requireAdmin\(|requireSuperAdmin\(|requireTeacher\(|requireParent\(|requireGuardian\(|requireAuth\(|requireTeacherForClass\(|requireGuardianForStudent\(|requirePermission\(|// @public'
 
 missing=()
 total=0
