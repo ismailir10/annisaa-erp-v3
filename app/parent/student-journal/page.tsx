@@ -20,7 +20,7 @@ import { PortalTabs } from "@/components/portal/portal-tabs";
 import { PageHeader } from "@/components/portal/page-header";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
-import { ParentNoteDialog } from "@/components/student-journal/parent-note-dialog";
+import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { formatDateShort } from "@/lib/format";
 
@@ -340,7 +340,7 @@ export default function ParentStudentJournalPage() {
 
       {/* Write / Edit dialog */}
       {childId && (
-        <ParentNoteDialog
+        <NoteComposeDialog
           open={noteDialog !== null}
           onOpenChange={(open) => {
             if (!open) setNoteDialog(null);
@@ -355,6 +355,7 @@ export default function ParentStudentJournalPage() {
             noteDialog?.mode === "edit" ? noteDialog.body : undefined
           }
           noteId={noteDialog?.mode === "edit" ? noteDialog.noteId : undefined}
+          placeholder="Tulis catatan rumah di sini..."
           onSaved={() => {
             if (childId) loadWeekData(childId, currentWeek);
           }}

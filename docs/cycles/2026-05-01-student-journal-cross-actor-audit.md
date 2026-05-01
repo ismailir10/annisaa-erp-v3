@@ -95,7 +95,7 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Acceptance:** Playwright smoke confirms popover opens on click/tap + content text correct; aria-label asserted; commit lands without hook rejection. Cite `design-system.html` §15 in Implementation section.
   - **Depends on:** T4.
 
-- [ ] **T6 — "Tambah Catatan" affordance on teacher class-day grid.**
+- [x] **T6 — "Tambah Catatan" affordance on teacher class-day grid.**
   - **Component decision:** parameterize existing `components/student-journal/parent-note-dialog.tsx` — add TWO optional props: `placeholder?: string` (default keeps current "Tulis catatan rumah di sini...") AND `title?: string` (default keeps current `mode === "create" ? "Tulis Catatan" : "Edit Catatan"`). Rename the file to `note-compose-dialog.tsx` and rename the exported component `ParentNoteDialog` → `NoteComposeDialog`. **Confirmed import callsite to update in the same commit:** `app/parent/student-journal/page.tsx` line 23 — change import path AND component name AND pass current placeholder explicitly. Do NOT fork a new `teacher-note-dialog.tsx` — DRY violation.
   - Add a per-student icon button (`MessageSquarePlus`, `size="icon"`, ghost variant) to the student-row header in `components/student-journal/class-day-grid.tsx`. Click opens `NoteComposeDialog` with `placeholder="Tulis catatan untuk {namaSiswa}..."`, `title="Tulis Catatan untuk {namaSiswa}"`, and date defaulted to the grid date. Submit POSTs to `/api/student-journal/notes`. Show success toast in Indonesian ("Catatan tersimpan"). Append optimistically to a small `(N catatan)` badge that links to student-week view. Add `aria-label="Tambah catatan untuk {namaSiswa}"` on the icon button.
   - **Mobile:** verify the icon button doesn't push the indicator grid past the row width on iPad portrait (768px) and on a 360px Android phone — teacher uses both. Document in Verification.
@@ -122,6 +122,14 @@ Ordered. Each is committable independently. Dependencies marked.
   - **Depends on:** T1–T8.
 
 ## Implementation
+
+- **T6 — "Tambah Catatan" affordance on teacher class-day grid.** Cites `design-system.html §15` (note compose dialog + per-student row affordances).
+  - Renamed `components/student-journal/parent-note-dialog.tsx` → `note-compose-dialog.tsx` (via `git mv`); component renamed `ParentNoteDialog` → `NoteComposeDialog`. Added optional props `title?: string` and `placeholder?: string` (defaults preserve current parent UI). DRY win — no fork.
+  - `app/parent/student-journal/page.tsx` — updated import path + component name + now passes `placeholder="Tulis catatan rumah di sini..."` explicitly so the parent owns its copy and won't drift if the default ever changes.
+  - `components/student-journal/class-day-grid.tsx` — restructured the student-row header from a single `<button>` (which would have nested-button violation when adding the icon) to a `flex` of two siblings: main expand button + icon button (`MessageSquarePlus`, 18px, ghost). Icon button has `aria-label="Tambah catatan untuk {namaSiswa}"`. Added optional `noteCounts?: Record<string, number>` prop — when present and >0, shows a small primary-colored count next to the icon (optimistic, increments on dialog `onSaved`).
+  - `app/teacher/student-journal/entry/page.tsx` — wired `NoteComposeDialog`. State: `noteStudent: Student | null` controls open + `noteCounts: Record<string, number>` for optimistic badge. Dialog props: `mode="create"`, `studentId`, `weekDates` (computed from current `date` via `weekStart`/`weekDates` helpers), `initialDate=date`, `title="Tulis Catatan untuk {name}"`, `placeholder="Tulis catatan untuk {name}…"`. On `onSaved`, increments `noteCounts[studentId]` and closes dialog. Existing toast "Catatan tersimpan" from dialog handler is reused.
+  - `README.md` — student-journal module table row updated to mention "per-student 'Tambah Catatan' affordance on teacher class-day grid" (satisfies commit-msg narrow rule).
+  - Verified: `npm run build` ✓; `npx vitest run` 823 passed (no regressions). Code-reviewer flagged 3 issues — (a) missing optimistic notes-count badge → added before commit; (b) parent placeholder not passed explicitly → fixed; (c) README + cycle doc must stage with frontend → done in same commit.
 
 - **T5 — "Diedit admin" badge in teacher + parent week views.** Cites `design-system.html §15` (Student Journal week view + cell affordances).
   - `components/portal/week-grid.tsx` — extended `Entry` type with `lastAdminEdit?: { changedAt; changedByName } | null`. Added Popover-based badge: small Pencil icon (16×16, amber-100 bg, amber-700 fill) at `top-0.5 right-0.5` of cell when entry has admin override. Click/tap opens Popover with "Diedit admin" + `{name} pada {tanggal}`. `aria-label="Entri ini diedit oleh admin pada {tanggal}"`. Touch-friendly via Popover (BaseUI `render` prop), not Tooltip — Tooltip is hover-only on iOS/Android.
@@ -176,6 +184,12 @@ Ordered. Each is committable independently. Dependencies marked.
   - `tsconfig.tsbuildinfo` was modified by build but is gitignored — untracked via `git rm --cached`.
 
 ## Verification
+
+- **T6 gates passed:**
+  - `npm run build` ✓ (Compiled successfully).
+  - `npx vitest run` — 823 passed, no regressions.
+  - Code-reviewer flagged 3 issues fixed before commit (notes-count badge, explicit parent placeholder, README staging).
+  - End-of-cycle Playwright spec for the add-note flow deferred to T9.
 
 - **T5 gates passed:**
   - `npm run build` ✓ (Compiled successfully).

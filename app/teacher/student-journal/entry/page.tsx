@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
+import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { Save, Users } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/portal/page-header";
+import { weekStart, weekDates } from "@/lib/student-journal/week";
 
 type Student = {
   id: string;
@@ -48,6 +50,12 @@ export default function StudentJournalEntryPage() {
   const [gridState, setGridState] = useState<Record<string, Record<string, boolean>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Add-note dialog state + optimistic per-student note counter (resets each grid load)
+  const [noteStudent, setNoteStudent] = useState<Student | null>(null);
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  const noteDialogOpen = noteStudent !== null;
+  const noteWeekDates = date ? weekDates(weekStart(date)) : [];
 
   const loadGrid = useCallback(async () => {
     if (!classId || !date) return;
@@ -178,7 +186,31 @@ export default function StudentJournalEntryPage() {
         categories={categories}
         state={gridState}
         onToggle={handleToggle}
+        onAddNote={(s) => setNoteStudent(s)}
+        noteCounts={noteCounts}
       />
+
+      {noteStudent && (
+        <NoteComposeDialog
+          open={noteDialogOpen}
+          onOpenChange={(o) => {
+            if (!o) setNoteStudent(null);
+          }}
+          mode="create"
+          studentId={noteStudent.id}
+          weekDates={noteWeekDates}
+          initialDate={date}
+          title={`Tulis Catatan untuk ${noteStudent.name}`}
+          placeholder={`Tulis catatan untuk ${noteStudent.name}…`}
+          onSaved={() => {
+            setNoteCounts((prev) => ({
+              ...prev,
+              [noteStudent.id]: (prev[noteStudent.id] ?? 0) + 1,
+            }));
+            setNoteStudent(null);
+          }}
+        />
+      )}
 
       {/* Sticky save bar */}
       <div className="fixed bottom-0 inset-x-0 z-20 safe-area-bottom bg-background border-t border-border px-page-x py-3">
