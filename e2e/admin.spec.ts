@@ -781,7 +781,12 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await feeSelect.click();
     await page.getByRole("option", { name: fee.label }).first().click();
 
-    await dialog.getByPlaceholder("0").fill("75000");
+    // The amount input is the only `<input type="number">` (role=spinbutton)
+    // inside the manual-invoice dialog. Locating by role is more robust than
+    // by placeholder="0" — Radix Select's portaled SelectContent occasionally
+    // shadows the dialog's locator scope after the fee-component dropdown
+    // round trip, and `dialog.getByPlaceholder("0")` resolves to zero matches.
+    await dialog.getByRole("spinbutton").fill("75000");
 
     await dialog.getByRole("button", { name: /^Buat Tagihan$/ }).click();
 
