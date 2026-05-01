@@ -11,7 +11,7 @@ export async function GET() {
   const tmpl = await prisma.studentJournalTemplate.upsert({
     where: { tenantId: session.tenantId },
     update: {},
-    create: { tenantId: session.tenantId, status: "ACTIVE" },
+    create: { tenantId: session.tenantId },
   });
   return NextResponse.json({ data: tmpl });
 }

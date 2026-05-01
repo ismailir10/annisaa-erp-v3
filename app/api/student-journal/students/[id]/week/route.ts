@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
@@ -83,10 +84,10 @@ export async function GET(
   // 9. Parallel fetch: SCHOOL categories + entries + notes
   const [categories, entries, notes] = await Promise.all([
     prisma.studentJournalCategory.findMany({
-      where: { templateId: tmpl.id, scope: "SCHOOL", status: "ACTIVE" },
+      where: { templateId: tmpl.id, scope: "SCHOOL", status: JournalStatus.ACTIVE },
       include: {
         indicators: {
-          where: { status: "ACTIVE" },
+          where: { status: JournalStatus.ACTIVE },
           orderBy: { order: "asc" },
         },
       },
@@ -112,7 +113,7 @@ export async function GET(
         tenantId: session.tenantId,
         studentId,
         date: { gte: ws, lte: dateEnd },
-        status: "ACTIVE",
+        status: JournalStatus.ACTIVE,
       },
       orderBy: { createdAt: "desc" },
       select: {

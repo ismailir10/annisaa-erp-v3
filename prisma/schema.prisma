@@ -744,27 +744,32 @@ model StudentAttendance {
 // PHASE 8: Student Journal (Buku Penghubung)
 // ══════════════════════════════════════════════════════════════
 
+enum JournalStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model StudentJournalTemplate {
-  id             String   @id @default(cuid())
-  tenantId       String   @unique
+  id             String        @id @default(cuid())
+  tenantId       String        @unique
   academicYearId String?
-  status         String   @default("ACTIVE") // ACTIVE | INACTIVE
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status         JournalStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   categories StudentJournalCategory[]
 }
 
 // Cascade — categories belong to a single template lifecycle.
 model StudentJournalCategory {
-  id         String   @id @default(cuid())
+  id         String        @id @default(cuid())
   templateId String
   scope      String // SCHOOL | HOME
   name       String
-  order      Int      @default(0)
-  status     String   @default("ACTIVE")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  order      Int           @default(0)
+  status     JournalStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
   template   StudentJournalTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
   indicators StudentJournalIndicator[]
@@ -774,13 +779,13 @@ model StudentJournalCategory {
 
 // Cascade — indicators belong to a category.
 model StudentJournalIndicator {
-  id         String   @id @default(cuid())
+  id         String        @id @default(cuid())
   categoryId String
   label      String
-  order      Int      @default(0)
-  status     String   @default("ACTIVE")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  order      Int           @default(0)
+  status     JournalStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
   category StudentJournalCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   entries  StudentJournalEntry[]
@@ -810,16 +815,16 @@ model StudentJournalEntry {
 }
 
 model StudentJournalNote {
-  id           String   @id @default(cuid())
+  id           String        @id @default(cuid())
   tenantId     String
   studentId    String
   date         String
   authorUserId String
   authorRole   String
-  body         String   @db.Text
-  status       String   @default("ACTIVE")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  body         String        @db.Text
+  status       JournalStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([tenantId, studentId, date])
 }

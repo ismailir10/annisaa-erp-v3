@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireGuardianForStudent } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
@@ -55,20 +56,20 @@ export async function GET(
   const [schoolCategories, homeCategories, schoolEntries, homeEntries, notes] =
     await Promise.all([
       prisma.studentJournalCategory.findMany({
-        where: { templateId: tmpl.id, scope: "SCHOOL", status: "ACTIVE" },
+        where: { templateId: tmpl.id, scope: "SCHOOL", status: JournalStatus.ACTIVE },
         include: {
           indicators: {
-            where: { status: "ACTIVE" },
+            where: { status: JournalStatus.ACTIVE },
             orderBy: { order: "asc" },
           },
         },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
       }),
       prisma.studentJournalCategory.findMany({
-        where: { templateId: tmpl.id, scope: "HOME", status: "ACTIVE" },
+        where: { templateId: tmpl.id, scope: "HOME", status: JournalStatus.ACTIVE },
         include: {
           indicators: {
-            where: { status: "ACTIVE" },
+            where: { status: JournalStatus.ACTIVE },
             orderBy: { order: "asc" },
           },
         },
@@ -109,7 +110,7 @@ export async function GET(
           tenantId: session.tenantId,
           studentId,
           date: { gte: ws, lte: dateEnd },
-          status: "ACTIVE",
+          status: JournalStatus.ACTIVE,
         },
         orderBy: { createdAt: "desc" },
         select: {

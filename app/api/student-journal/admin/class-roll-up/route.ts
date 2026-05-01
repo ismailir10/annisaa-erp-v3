@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
@@ -67,9 +68,9 @@ export async function GET(req: NextRequest) {
         category: {
           templateId: template.id,
           scope: "SCHOOL",
-          status: "ACTIVE",
+          status: JournalStatus.ACTIVE,
         },
-        status: "ACTIVE",
+        status: JournalStatus.ACTIVE,
       },
     });
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
@@ -75,12 +76,12 @@ export async function GET(
         where: {
           templateId: template.id,
           scope: "SCHOOL",
-          status: "ACTIVE",
+          status: JournalStatus.ACTIVE,
         },
         orderBy: { order: "asc" },
         include: {
           indicators: {
-            where: { status: "ACTIVE" },
+            where: { status: JournalStatus.ACTIVE },
             orderBy: { order: "asc" },
             select: { id: true, label: true, order: true },
           },
@@ -90,12 +91,12 @@ export async function GET(
         where: {
           templateId: template.id,
           scope: "HOME",
-          status: "ACTIVE",
+          status: JournalStatus.ACTIVE,
         },
         orderBy: { order: "asc" },
         include: {
           indicators: {
-            where: { status: "ACTIVE" },
+            where: { status: JournalStatus.ACTIVE },
             orderBy: { order: "asc" },
             select: { id: true, label: true, order: true },
           },
@@ -124,7 +125,7 @@ export async function GET(
           tenantId: session.tenantId,
           studentId,
           date: { gte: ws, lte: weekEnd },
-          status: "ACTIVE",
+          status: JournalStatus.ACTIVE,
         },
         orderBy: { createdAt: "desc" },
         select: {

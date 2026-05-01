@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-04-25 (super-admin-rbac-sidebar-fix — seed adds SUPER_ADMIN demo user, data-only, adapter parity unchanged).
+// Last verified: 2026-05-01 (student-journal-cross-actor-audit — seed updated to use JournalStatus enum, adapter parity unchanged).
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
