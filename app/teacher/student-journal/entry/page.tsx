@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,7 +55,10 @@ export default function StudentJournalEntryPage() {
   const [noteStudent, setNoteStudent] = useState<Student | null>(null);
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
   const noteDialogOpen = noteStudent !== null;
-  const noteWeekDates = date ? weekDates(weekStart(date)) : [];
+  const noteWeekDates = useMemo(
+    () => (date ? weekDates(weekStart(date)) : []),
+    [date],
+  );
 
   const loadGrid = useCallback(async () => {
     if (!classId || !date) return;
