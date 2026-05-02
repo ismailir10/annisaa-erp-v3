@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateEmployeePayroll, calculatePayroll, SalaryComponent, AttendanceVariables } from "../engine";
+import { assertGajiPokokSortOrder, calculateEmployeePayroll, calculatePayroll, SalaryComponent, AttendanceVariables } from "../engine";
 
 // Real salary components matching An Nisaa' structure
 const components: SalaryComponent[] = [
@@ -163,6 +163,57 @@ describe("calculateEmployeePayroll", () => {
         -1
       )
     ).toThrow("actualWorkingDays must be > 0");
+  });
+
+  describe("F-15 — gaji_pokok sortOrder guard", () => {
+    it("throws when a PCT_OF_BASE component appears before gaji_pokok", () => {
+      // Malordered: pct_bonus has sortOrder=1, gaji_pokok has sortOrder=2.
+      // Engine would silently compute pct against gajiPokokAmount=0.
+      const malordered: SalaryComponent[] = [
+        { id: "p1", code: "pct_bonus", label: "PCT Bonus", category: "INCOME", calcType: "PCT_OF_BASE", isProRated: false, sortOrder: 1 },
+        { id: "g1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: true, sortOrder: 2 },
+      ];
+
+      expect(() => assertGajiPokokSortOrder(malordered)).toThrow(
+        "gaji_pokok must precede all PCT_OF_BASE components in sortOrder"
+      );
+
+      // calculatePayroll should also throw (it invokes the assertion).
+      expect(() =>
+        calculatePayroll(
+          [{ id: "e1", salaryValues: [], attendanceRecords: [], variables: defaultVars }],
+          malordered,
+          22
+        )
+      ).toThrow("gaji_pokok must precede all PCT_OF_BASE components in sortOrder");
+    });
+
+    it("throws when PCT_OF_BASE shares sortOrder with gaji_pokok", () => {
+      // Same sortOrder is also unsafe — sort is not stable on equal keys.
+      const tied: SalaryComponent[] = [
+        { id: "g1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: true, sortOrder: 1 },
+        { id: "p1", code: "pct_bonus", label: "PCT Bonus", category: "INCOME", calcType: "PCT_OF_BASE", isProRated: false, sortOrder: 1 },
+      ];
+      expect(() => assertGajiPokokSortOrder(tied)).toThrow(
+        "gaji_pokok must precede all PCT_OF_BASE components in sortOrder"
+      );
+    });
+
+    it("passes when every PCT_OF_BASE has higher sortOrder than gaji_pokok", () => {
+      const correct: SalaryComponent[] = [
+        { id: "g1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: true, sortOrder: 1 },
+        { id: "p1", code: "pct_bonus", label: "PCT Bonus", category: "INCOME", calcType: "PCT_OF_BASE", isProRated: false, sortOrder: 2 },
+      ];
+      expect(() => assertGajiPokokSortOrder(correct)).not.toThrow();
+    });
+
+    it("does nothing when gaji_pokok is absent", () => {
+      // Tenants that don't use gaji_pokok shouldn't trip the guard.
+      const noBase: SalaryComponent[] = [
+        { id: "p1", code: "pct_bonus", label: "PCT Bonus", category: "INCOME", calcType: "PCT_OF_BASE", isProRated: false, sortOrder: 1 },
+      ];
+      expect(() => assertGajiPokokSortOrder(noBase)).not.toThrow();
+    });
   });
 
   it("counts leave days for pro-rating", () => {

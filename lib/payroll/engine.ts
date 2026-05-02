@@ -151,6 +151,24 @@ function calculateAttendanceBased(
 }
 
 /**
+ * Validate that `gaji_pokok` precedes every PCT_OF_BASE component in
+ * sortOrder. The engine captures `gajiPokokAmount` lazily as it iterates
+ * sorted components; if a PCT_OF_BASE row appears before `gaji_pokok`, the
+ * percentage is silently computed against 0 and the slip looks plausible
+ * (no error, no NaN) but the value is wrong. F-15 closes this trap by
+ * failing loud at calculation time.
+ */
+export function assertGajiPokokSortOrder(components: SalaryComponent[]): void {
+  const gajiPokok = components.find((c) => c.code === "gaji_pokok");
+  if (!gajiPokok) return; // No gaji_pokok configured — nothing to validate
+  for (const c of components) {
+    if (c.calcType === "PCT_OF_BASE" && c.sortOrder <= gajiPokok.sortOrder) {
+      throw new Error("gaji_pokok must precede all PCT_OF_BASE components in sortOrder");
+    }
+  }
+}
+
+/**
  * Calculate payroll for all employees in a period.
  */
 export function calculatePayroll(
@@ -169,6 +187,8 @@ export function calculatePayroll(
       "Check that the payroll period has working days configured and holidays are not covering the entire period."
     );
   }
+
+  assertGajiPokokSortOrder(components);
 
   const results = new Map<string, PayrollItemResult>();
 

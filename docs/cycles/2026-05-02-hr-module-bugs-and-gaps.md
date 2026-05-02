@@ -169,6 +169,7 @@ Active projects: only `udbivhchbizpxoryejgz` (staging-sgp). **Production app SSO
 - Task 2: `npm run build` ✓; `npx vitest run` ✓ (845→passed earlier; final 8 in payroll.test.ts).
 - Task 3: `npm run build` ✓; `npx vitest run` ✓ (857 passed); 11 unit tests in attendance.test.ts. Live evidence (staging, pre-fix): override accepted '2024-02-31', 'not-a-date', '2099-12-31' → 200; post-fix logically blocks all three at Zod layer + DB CHECK constraint as defense-in-depth.
 - Task 1: `npm run build` ✓; `npx vitest run` ✓ (873 passed); 16 new tests in salary scope. Live evidence (staging, pre-fix): salary PUT with garbage body → 500 empty; post-fix returns 400 with structured error.
+- Tasks 4–12 (batched verifications): `npm run build` ✓; `npx vitest run` ✓ (927 passed across 109 test files). New tests: 16 self-service perms + 4 payroll approve CAS + 8 leave POST + 4 leave approve holiday + 4 engine sortOrder + 15 employee status routes. RLS coverage check ✓ (25/25).
 
 ## Ship Notes
 <filled by /ship>
