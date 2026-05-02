@@ -174,6 +174,81 @@ Active projects: only `udbivhchbizpxoryejgz` (staging-sgp). **Production app SSO
 - Task 3: `npm run build` ✓; `npx vitest run` ✓ (857 passed); 11 unit tests in attendance.test.ts. Live evidence (staging, pre-fix): override accepted '2024-02-31', 'not-a-date', '2099-12-31' → 200; post-fix logically blocks all three at Zod layer + DB CHECK constraint as defense-in-depth.
 - Task 1: `npm run build` ✓; `npx vitest run` ✓ (873 passed); 16 new tests in salary scope. Live evidence (staging, pre-fix): salary PUT with garbage body → 500 empty; post-fix returns 400 with structured error.
 - Tasks 4–12 (batched verifications): `npm run build` ✓; `npx vitest run` ✓ (927 passed across 109 test files). New tests: 16 self-service perms + 4 payroll approve CAS + 8 leave POST + 4 leave approve holiday + 4 engine sortOrder + 15 employee status routes. RLS coverage check ✓ (25/25).
+- End-of-cycle final gates: `npm run build` ✓; `npx vitest run` ✓ (**967 passed | 42 todo across 112 files**); `bash scripts/verify-rls-coverage.sh` ✓ (26/26 incl new AuditLog).
+- **Playwright e2e: CI-gated.** Local run on this worktree fails because the linked `.env` points at the staging Supabase project which is seeded with cuid user IDs (`cmodt0...`) rather than the deterministic seed IDs (`u_super_admin`) the e2e specs expect. CI runs against a freshly-seeded ephemeral DB and is the authoritative gate per CLAUDE.md. Cycle proceeds to `/ship`; the PR's CI Playwright check must be green before the author merges.
 
 ## Ship Notes
-<filled by /ship>
+
+### Migrations to run (in order)
+
+```
+prisma/migrations/20260502000000_add_audit_log_table/
+prisma/migrations/20260502000001_attendance_date_check_constraint/
+prisma/migrations/20260502000002_orgconfig_lembur_compliant_flag/
+```
+
+The middle migration **deletes any malformed rows** in `AttendanceRecord.date` (regex + cal-day cast) before adding the CHECK constraint. Staging cleanup already happened during this cycle's investigation (see Cleanup section above, 3 known bad rows deleted manually). Prod is expected to be clean — the CHECK should attach with no DELETE side-effects on a healthy table — but if the migration logs any DELETEs at deploy time, surface to the CTO before greenlighting `/ship --to-main`.
+
+### New permission codes added
+
+`PERMISSION_GROUPS.hr` gained three new codes:
+- `payroll.edit` — gates `PUT /api/employees/[id]/salary`
+- `attendance.checkin` — gates self-service check-in/out
+- `leave.submit` — gates self-service leave submit
+
+TEACHER default permissions expanded to include `attendance.checkin` and `leave.submit`. SUPER_ADMIN gets all three via the owner short-circuit. `derivePermissions` unions `["attendance.checkin","leave.submit"]` for any user with an `employeeId` so a stale custom-role JSON cannot lock an employee out of self-service. **Custom-role administrators should consciously add these codes when designing new roles.**
+
+### New env vars
+
+None.
+
+### New endpoints
+
+- `POST /api/employees/[id]/deactivate` — replaces the prior PUT-status shortcut; audit + idempotent.
+- `POST /api/employees/[id]/restore` — symmetrical to deactivate.
+- `POST /api/leave/requests/[id]/cancel` — supports both PENDING and APPROVED requests; APPROVED restores balance and removes generated LEAVE attendance rows in a single Serializable transaction.
+- `POST /api/payroll/[id]/cancel` — DRAFT-only; CAS flip + child-row delete.
+- `GET /api/leave/stats` — single groupBy replacing 3 sequential `pageSize=1` list calls on the leave page.
+
+### Behavior changes for callers
+
+- `PUT /api/employees/[id]` no longer accepts `{status: ...}`. UI callers must use the new POST endpoints. The cycle migrated both admin pages; any external client still posting status will silently have it stripped (Zod `.strip()`).
+- `PUT /api/employees/[id]/salary` permission moved from `payroll.view` (read) to `payroll.edit` (write). SCHOOL_ADMIN never had `payroll.view` (HR is excluded from that role's defaults), so the only callers affected are SUPER_ADMIN (owner short-circuit) and any custom role that previously listed `payroll.view`. Custom roles intending salary edits must list `payroll.edit` explicitly.
+- `POST /api/payroll/[id]/approve` now returns 409 (not 400) on a lost CAS race or non-DRAFT state. Callers should refetch on 409.
+- Leave POST + approve now consume `calculateWorkingDays`; days for a leave window that includes a public holiday will be 1 lower than before.
+
+### Feature flags
+
+- `OrgConfig.lemburCompliant Boolean @default(false)` — when true, the engine applies UU 13/2003 §78(4) tiered overtime (1.5× first hour, 2× thereafter on weekdays). Default `false` preserves the historical flat formula. **Holiday OT (UU §85, 2× hourly + daily wage) is intentionally not implemented in this light-touch flag** — when the flag is on, all overtime hours including those falling on holidays are calculated at the weekday tiered rate. A separate cycle should add holiday-OT detection + the §85 formula before any tenant uses tiered overtime in payroll runs that span holidays.
+
+### Manual smoke after preview deploy
+
+1. As SUPER_ADMIN, navigate to `/admin/employees`, deactivate any active employee, then click the new "Aktifkan" action — verify status flips back to ACTIVE without redirecting.
+2. As SUPER_ADMIN, attempt to submit a leave request spanning a public holiday — verify `days` excludes the holiday.
+3. Navigate to `/admin/payroll` filter dropdown — confirm `EXPORTED` is no longer listed.
+4. Generate a payroll run for any past month — confirm it succeeds and a 45-day-too-long range returns 400.
+5. The new attendance override route should reject `2024-02-31` with a structured 400.
+
+### Rollback plan
+
+- Revert the merge commit on staging.
+- All three migrations are forward-only data-additive (audit table, CHECK constraint, default-false column). Schema rollback requires:
+  - `DROP TABLE "AuditLog" CASCADE;`
+  - `ALTER TABLE "AttendanceRecord" DROP CONSTRAINT "AttendanceRecord_date_format_check";`
+  - `ALTER TABLE "OrgConfig" DROP COLUMN "lemburCompliant";`
+- The deleted garbage `AttendanceRecord` rows (in this cycle's pre-flight DELETE) cannot be recovered without a backup restore — they were already invalid data.
+
+### Out-of-scope follow-ups (filed separately)
+
+- **Production Supabase outage.** Both prod projects (`qrnbanxcrmrwganpmzmn`, `vxwywmvpxetdgnxejjgk`) are INACTIVE. Production SSO is currently broken — high-priority CTO action.
+- **F-30 teacher self-service UI** — endpoints + perms now exist; portal UI integration is a separate cycle.
+- **F-29 per-employee attendance-variables UI** on payroll generate.
+- **`AttendanceRecord.date` column type** — string-with-CHECK is good defense-in-depth, but a proper `@db.Date` migration plus updates to `lib/payroll/working-days.ts`, leave routes, and listing routes would close the type ambiguity. Separate cycle.
+- **F-03 Position master table** — `/api/employees/positions` returns DISTINCT existing jabatan, creating a chicken-egg for new roles.
+- **F-04 LeaveBalance per-year model** — current balance reset is approximated via `startDate >= year-01-01` rather than a proper accrual table.
+- **F-01 status enums repo-wide.**
+- **BPJS / PPh21 calculation review.**
+- **Holiday OT (UU §85)** for `lemburCompliant` flag.
+- **`attendance.view` permission code is overloaded** — used by both `/api/attendance/my` (self-service) and admin-side listing. Future cycle should split to `attendance.self` to avoid accidentally granting TEACHER admin-view access.
+- **UI buttons for leave-cancel and payroll-cancel** — backend-only landed this cycle.
+- **`AuditLog` retention job.**
