@@ -4,7 +4,8 @@ import { escapeHtml } from "../escape";
 
 /**
  * Branded HTML email template for salary slip delivery.
- * Uses An Nisaa' brand colors: teal #5DB4B8, dark #1A2E2F
+ * Talib by An Nisaa' Sekolahku branding.
+ * Brand colors: teal #5DB4B8, dark #1A2E2F.
  * Inline styles for email client compatibility.
  *
  * User-controlled strings (employeeName, period) are HTML-escaped to
@@ -31,11 +32,11 @@ export function salarySlipEmailHtml({
       <!-- Header (light) -->
       <div style="background:#FFFFFF;border-radius:12px 12px 0 0;padding:24px 28px;text-align:center;border:1px solid #E5E2DE;border-bottom:3px solid #5DB4B8;">
         <img src="${appUrl}/logo.png" alt="An Nisaa'" width="48" height="48" style="border-radius:12px;margin-bottom:8px;" />
-        <h1 style="margin:0;color:#1A2E2F;font-size:18px;font-weight:700;letter-spacing:0.5px;">
-          An Nisaa' Sekolahku
+        <h1 style="margin:0;color:#1A2E2F;font-size:20px;font-weight:700;letter-spacing:-0.01em;">
+          Talib
         </h1>
-        <p style="margin:4px 0 0;color:#57534E;font-size:12px;">
-          Pendidikan Anak Usia Dini Islam Terpadu
+        <p style="margin:2px 0 0;color:#57534E;font-size:12px;">
+          by An Nisaa' Sekolahku
         </p>
       </div>
 
@@ -66,7 +67,7 @@ export function salarySlipEmailHtml({
         <p style="margin:0;color:#9B9BB0;font-size:11px;line-height:1.5;">
           Dokumen resmi — An Nisaa' Sekolahku<br>
           Taman Aster, Bekasi · Metland Cibitung<br>
-          Email ini dikirim secara otomatis oleh sistem penggajian.
+          Dikirim otomatis oleh Talib · talib.annisaasekolahku.com
         </p>
       </div>
     </td></tr>
