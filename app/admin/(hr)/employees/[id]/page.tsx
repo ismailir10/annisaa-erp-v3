@@ -47,6 +47,8 @@ export default function EmployeeDetailPage() {
   const [saving, setSaving] = useState(false);
   const [savingSalary, setSavingSalary] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
+  // F-18: restore confirm dialog state. Symmetrical to deactivate.
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ nama: "", formalName: "", email: "", noHp: "", jabatan: "", campusId: "", hireDate: "", bankName: "", bankAccountNo: "", bpjsEnrolled: false });
 
@@ -85,8 +87,40 @@ export default function EmployeeDetailPage() {
   }
 
   async function handleDeactivate() {
-    await fetch(`/api/employees/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "INACTIVE" }) });
-    toast.success("Karyawan dinonaktifkan"); router.push("/admin/employees");
+    const res = await fetch(`/api/employees/${id}/deactivate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal menonaktifkan karyawan");
+      return;
+    }
+    toast.success("Karyawan dinonaktifkan");
+    router.push("/admin/employees");
+  }
+
+  // F-18: restore handler — calls dedicated POST /restore endpoint, refetches
+  // employee on success so the header flips back to ACTIVE state in-place
+  // (no redirect — admin stays on the same detail page they came from).
+  async function handleRestore() {
+    const res = await fetch(`/api/employees/${id}/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal mengaktifkan karyawan");
+      return;
+    }
+    // Close the dialog FIRST so the network refetch doesn't keep it visible
+    // on slow connections (mid-range Android + 4G is the deployment reality).
+    setRestoreOpen(false);
+    toast.success("Karyawan diaktifkan kembali");
+    const updated = await fetch(`/api/employees/${id}`).then((r) => r.json());
+    setEmployee(updated);
   }
 
   if (loading) return <DetailPageSkeleton />;
@@ -107,7 +141,12 @@ export default function EmployeeDetailPage() {
             {!isEditing && <Button variant="outline" size="sm" onClick={startEditing}><Pencil size={14} className="mr-1" /> Edit</Button>}
             <Button variant="outline" size="sm" onClick={() => setDeactivateOpen(true)} className="text-destructive hover:text-destructive">Nonaktifkan</Button>
           </>
-        ) : undefined}
+        ) : (
+          // F-18: when INACTIVE, surface an Aktifkan (restore) action so the
+          // admin can re-activate without leaving the detail page. Uses the
+          // dedicated POST /restore endpoint (idempotent + audited).
+          <Button variant="outline" size="sm" onClick={() => setRestoreOpen(true)}>Aktifkan</Button>
+        )}
       />
 
       <AdminTabs defaultValue="profile">
@@ -297,6 +336,16 @@ export default function EmployeeDetailPage() {
       </AdminTabs>
 
       <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Karyawan" description={`Nonaktifkan ${employee.nama}? Karyawan tidak bisa login dan tidak masuk penggajian berikutnya.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" />
+
+      {/* F-18: restore confirm — non-destructive, mirrors deactivate copy. */}
+      <ConfirmDialog
+        open={restoreOpen}
+        onOpenChange={setRestoreOpen}
+        title="Aktifkan Karyawan"
+        description={`Aktifkan ${employee.nama}? Karyawan akan kembali masuk daftar aktif dan bisa login lagi.`}
+        onConfirm={handleRestore}
+        confirmLabel="Aktifkan"
+      />
     </>
   );
 }

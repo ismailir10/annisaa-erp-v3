@@ -17,11 +17,14 @@ export const PERMISSION_GROUPS = {
       "employees.create": "Tambah karyawan",
       "employees.edit": "Edit karyawan",
       "attendance.view": "Lihat kehadiran",
+      "attendance.checkin": "Catat kehadiran sendiri (check-in/check-out)",
       "attendance.override": "Override kehadiran",
       "leave.view": "Lihat pengajuan cuti",
+      "leave.submit": "Ajukan cuti sendiri",
       "leave.approve": "Setujui/tolak cuti",
       "payroll.view": "Lihat penggajian",
       "payroll.create": "Buat penggajian",
+      "payroll.edit": "Edit komponen gaji karyawan",
       "payroll.approve": "Setujui penggajian",
       "payroll.send_slips": "Kirim slip gaji",
     },
@@ -124,7 +127,16 @@ export function getSystemRolePermissions(role: string): string[] {
         "users.edit",
       ];
     case "TEACHER":
-      return ["attendance.view", "students.view"];
+      // Self-service permissions: a TEACHER can see their own attendance
+      // (`attendance.view`), clock in/out (`attendance.checkin`), and submit
+      // their own leave requests (`leave.submit`). Reading admin-side leave
+      // listings (`leave.view`) is NOT included — that's an admin permission.
+      return [
+        "attendance.view",
+        "attendance.checkin",
+        "leave.submit",
+        "students.view",
+      ];
     case "GUARDIAN":
       return ["students.view", "invoices.view"];
     default:

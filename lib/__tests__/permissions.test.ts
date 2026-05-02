@@ -120,11 +120,25 @@ describe("getSystemRolePermissions", () => {
     expect(perms).toContain("users.edit");
   });
 
-  it("TEACHER → attendance.view + students.view only", () => {
+  it("TEACHER → self-service set: attendance.view, attendance.checkin, leave.submit, students.view", () => {
     expect(getSystemRolePermissions("TEACHER")).toEqual([
       "attendance.view",
+      "attendance.checkin",
+      "leave.submit",
       "students.view",
     ]);
+  });
+
+  it("TEACHER → has attendance.checkin (Task 4 / F-09)", () => {
+    expect(getSystemRolePermissions("TEACHER")).toContain("attendance.checkin");
+  });
+
+  it("TEACHER → has leave.submit (Task 4 / F-09)", () => {
+    expect(getSystemRolePermissions("TEACHER")).toContain("leave.submit");
+  });
+
+  it("TEACHER → does NOT have leave.view (admin-only listing perm)", () => {
+    expect(getSystemRolePermissions("TEACHER")).not.toContain("leave.view");
   });
 
   it("GUARDIAN → students.view + invoices.view only", () => {

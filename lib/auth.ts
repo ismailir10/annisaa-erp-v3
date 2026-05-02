@@ -72,6 +72,14 @@ function setCachedEntry(
  * here would lock an admin out of the whole app if one customRole row gets
  * corrupted.
  */
+// Self-service essentials — perms that any user with an Employee record needs
+// to access their own data. A custom role JSON that pre-dates F-09 won't list
+// these codes, but we still want the user to be able to clock in or submit a
+// leave request for themselves. We union them in for any role linked to an
+// Employee row so a stale customRole.permissions cannot lock an employee out
+// of self-service. Custom roles can still gate or restrict every other perm.
+const SELF_SERVICE_ESSENTIALS = ["attendance.checkin", "leave.submit"];
+
 function derivePermissions(
   user: CachedUser,
 ): { permissions: string[]; customRoleCode: string | null } {
@@ -80,7 +88,10 @@ function derivePermissions(
     try {
       const parsed = JSON.parse(customRole.permissions);
       if (Array.isArray(parsed) && parsed.every((p) => typeof p === "string")) {
-        return { permissions: parsed, customRoleCode: customRole.code };
+        const merged = user.employeeId
+          ? Array.from(new Set([...parsed, ...SELF_SERVICE_ESSENTIALS]))
+          : parsed;
+        return { permissions: merged, customRoleCode: customRole.code };
       }
       console.error(
         `[AUTH] customRole.permissions for role ${JSON.stringify(customRole.code)} is not a string[] — falling back to role defaults`,

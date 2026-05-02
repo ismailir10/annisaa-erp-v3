@@ -38,6 +38,16 @@ vi.mock("@/lib/db", () => ({
           create: vi.fn().mockResolvedValue({ id: "pay1" }),
           findMany: vi.fn().mockResolvedValue([{ amount: "1000" }]),
         },
+        // Employee salary PUT (F-05) wraps upsert + audit in $transaction; the
+        // rate-limit smoke fires 12 requests with empty arrays so findMany
+        // returns [] and no upsert calls happen — only the audit row writes.
+        employeeSalaryValue: {
+          upsert: vi.fn().mockResolvedValue({}),
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        auditLog: {
+          create: vi.fn().mockResolvedValue({}),
+        },
       })
     ),
   },

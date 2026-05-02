@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 
-export const revalidate = 3600; // 1h — historical monthly data
+// F-12: removed `export const revalidate = 3600`. Route reads per-tenant
+// session data; ISR caching by URL would mix tenants. Next.js currently
+// auto-detects the dynamic context and skips ISR, but the declaration is a
+// latent footgun if a future refactor makes the route appear cacheable.
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission("attendance.view");

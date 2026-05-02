@@ -270,7 +270,7 @@ export default function PayrollListPage() {
               { value: "all", label: "Semua Status" },
               { value: "DRAFT", label: "Draft" },
               { value: "APPROVED", label: "Disetujui" },
-              { value: "EXPORTED", label: "Diekspor" },
+              // F-22: `EXPORTED` removed — no code path produces this status.
               { value: "SLIPS_SENT", label: "Slip Terkirim" },
             ],
           },
