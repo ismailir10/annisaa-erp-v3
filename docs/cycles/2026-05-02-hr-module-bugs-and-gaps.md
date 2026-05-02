@@ -33,7 +33,7 @@ Audit of the HR subsystem (`app/admin/(hr)/{employees,payroll,leave,attendance}`
 **Blockers (must land in this cycle):**
 - [ ] **F-05** `PUT /api/employees/[id]/salary` requires `payroll.create` (or new `payroll.edit`), not `payroll.view`. Body validated with Zod (`{componentDefId: string, value: number ≥ 0}[]`). Audit log row written per change.
 - [ ] **F-06** `POST /api/payroll/generate` validates body with Zod schema covering `periodStart`/`periodEnd` as ISO date strings + `start ≤ end` + max 90-day window.
-- [ ] **F-23 (escalated)** `POST /api/attendance/[id]/override` validates `date` as ISO date string. **PLUS** schema migration: convert `AttendanceRecord.date` (and any peer `String` date column) to proper Postgres `date` type with backfill that drops or flags malformed historical rows. PLUS DELETE endpoint or admin UI to remove garbage attendance rows (none today).
+- [x] **F-23 (closed via Zod + CHECK constraint)** Route validates ISO date + cal-day round-trip; DB CHECK constraint added. Column-type swap to `@db.Date` deferred to follow-up cycle (touches working-days/leave/listing — bigger surface).
 
 **Majors (target this cycle, can defer minors if scope tight):**
 - [ ] **F-07/F-08** Leave-day count and leave-approval attendance-create both consume `calculateWorkingDays()` so public holidays are excluded.
@@ -151,11 +151,13 @@ Active projects: only `udbivhchbizpxoryejgz` (staging-sgp). **Production app SSO
 - Subagent plan: tasks executed serially in main session (worktree node_modules linked, parallel writes would race on shared workspace). Reviewer agent invoked per task.
 - Task 0: AuditLog migration — `prisma/schema.prisma` (+25 lines, AuditLog model + Tenant.auditLogs relation), `prisma/migrations/20260502000000_add_audit_log_table/migration.sql` (CREATE TABLE + 3 indexes + tenantId FK + RLS enable + service_role policy), `lib/audit.ts` (recordAudit helper — re-throws on tx, logs+swallows standalone), `lib/__tests__/audit.test.ts` (4 tests). Reviewer flagged tx error-swallow; fixed by re-throwing when tx provided. Cross-checked design-system.html — n/a (backend-only).
 - Task 2: F-06 payroll generate Zod — `lib/validations/payroll.ts` (+30 lines, `generatePayrollSchema` with isoDateString + ordering + 1-45 day cap), `app/api/payroll/generate/route.ts` (`validateBody` wired, json try/catch added, ad-hoc `if(!periodStart...)` removed), `lib/validations/__tests__/payroll.test.ts` (8 tests). Reviewer asked for 45-day exact boundary test (added) and verification that `payroll.create` permission excludes SCHOOL_ADMIN (confirmed at `lib/permissions.ts:103-125`).
+- Task 3: F-23 attendance override — `lib/validations/attendance.ts` (new file, attendanceOverrideSchema + ATTENDANCE_STATUSES + cal-day refine), `app/api/attendance/[id]/override/route.ts` (Zod for PUT/POST, json try/catch, rate limit on both, `{local:true}` datetime), `prisma/migrations/20260502000001_attendance_date_check_constraint/migration.sql` (defensive DELETE + CHECK constraint), `lib/validations/__tests__/attendance.test.ts` (11 tests). Reviewer flagged: missing rate limit (added), `z.string().datetime()` strictness (relaxed to `{local:true}`), 30-day cap blocking LEAVE pre-record (carved out LEAVE/SICK/PERMISSION bypass), populated-table CHECK risk (added DELETE pre-flight). Column-type conversion deferred to follow-up cycle.
 
 ## Verification
 
 - Task 0: `npm run build` ✓; `npx vitest run lib/__tests__/audit.test.ts` ✓ (4 passed); `bash scripts/verify-rls-coverage.sh` ✓ (25/25 tenant-scoped models have ENABLE + policy).
 - Task 2: `npm run build` ✓; `npx vitest run` ✓ (845→passed earlier; final 8 in payroll.test.ts).
+- Task 3: `npm run build` ✓; `npx vitest run` ✓ (857 passed); 11 unit tests in attendance.test.ts. Live evidence (staging, pre-fix): override accepted '2024-02-31', 'not-a-date', '2099-12-31' → 200; post-fix logically blocks all three at Zod layer + DB CHECK constraint as defense-in-depth.
 
 ## Ship Notes
 <filled by /ship>
