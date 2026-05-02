@@ -49,7 +49,7 @@ Two-tier — fast unit gate between every task, Playwright smoke once per cycle:
 | Between-task | `npm run build && npx vitest run` | Before every commit during `/build` |
 | End-of-cycle | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
 
-**Why two tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches UI regressions without slowing iteration. **Pure-docs cycles may skip Playwright** — record the skip explicitly in Verification. Tests live in `e2e/` (6 specs); demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
+**Why two tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches UI regressions without slowing iteration. **Pure-docs cycles may skip Playwright** — record the skip explicitly in Verification. Tests live in `e2e/` (7 specs); demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
 
 ### Standalone: `/uat` — heuristic user-acceptance testing
 
@@ -210,7 +210,7 @@ components/ui/               68 Shadcn components
 lib/{api,validations,payroll,xendit,email}/  business logic, retry, integrations
 prisma/                      schema + seed
 proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
-e2e/                         6 specs (admin, admin-school-admin, teacher, parent, design-system, payment)
+e2e/                         7 specs (admin, admin-school-admin, teacher, parent, design-system, payment, branding)
 docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
 .claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
