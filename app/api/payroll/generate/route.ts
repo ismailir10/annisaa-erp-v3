@@ -4,6 +4,8 @@ import { requirePermission } from "@/lib/auth-guards";
 import { calculateWorkingDays, parseWorkingDays } from "@/lib/payroll/working-days";
 import { calculatePayroll, SalaryComponent } from "@/lib/payroll/engine";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
+import { generatePayrollSchema } from "@/lib/validations/payroll";
 
 export async function POST(req: NextRequest) {
   // Rate limit: 2 payroll generations per minute
@@ -16,12 +18,16 @@ export async function POST(req: NextRequest) {
   if ("error" in auth) return auth.error;
   const { session } = auth;
 
-  const body = await req.json();
-  const { periodStart, periodEnd } = body;
-
-  if (!periodStart || !periodEnd) {
-    return NextResponse.json({ error: "Period start and end required" }, { status: 400 });
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
+
+  const result = await validateBody(generatePayrollSchema, rawBody);
+  if (result.error) return result.error;
+  const { periodStart, periodEnd } = result.data;
 
   // Parallelise the 4 independent setup queries — none depend on each other
   // (overlap + duplicate check happen atomically inside the $transaction below)

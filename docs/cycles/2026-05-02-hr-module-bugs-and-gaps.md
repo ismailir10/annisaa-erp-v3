@@ -83,7 +83,7 @@ Tasks are grouped by independence so `/build` can dispatch parallel subagents. *
 ### Group A — auth & validation hardening (parallel)
 0. [x] **PRE-TASK** — `AuditLog` model added: schema + migration + RLS policy + `lib/audit.ts` helper + tests. CTO confirmed inclusion in this cycle. design-system reference n/a (backend only).
 1. [ ] **[P]** Fix F-05: salary route — switch perm to `payroll.create`, add Zod body schema, add audit log row (depends on Task 0). **Acceptance:** unit test asserts a `payroll.view`-only session gets 403; bad body shape gets 400; valid call writes both `EmployeeSalaryValue` and an audit log entry.
-2. [ ] **[P]** Fix F-06: payroll generate — add Zod schema for body. **Acceptance:** unit test asserts non-ISO `periodStart` returns 400; reversed range returns 400; valid range proceeds.
+2. [x] Fix F-06: payroll generate — `generatePayrollSchema` (ISO date + start≤end + ≤45 day cap) in `lib/validations/payroll.ts`; route uses `validateBody(...)` + json try/catch; 8 unit tests covering happy path, malformed start, reversed range, 60-day over-cap, exact 45-day boundary, empty body, slash-format, single-day. Verified `payroll.create` permission is SUPER_ADMIN-only via `lib/permissions.ts:103-125`.
 3. [ ] **[P]** Fix F-23: attendance override — add Zod schema with ISO date validation **and** schema migration converting `AttendanceRecord.date` (`String`) to `@db.Date` with backfill that nulls/quarantines malformed historical rows. **Acceptance:** unit test asserts `"2024-02-31"` returns 400; migration leaves no row with invalid `date` parseable to NULL.
 4. [ ] **[P]** Fix F-09 (expanded): replace `session.role !== "TEACHER"` with `!session.employeeId || !hasPermission(session, "attendance.checkin")` in **all four** routes — `app/api/attendance/{my,check-in,check-out}/route.ts` AND `app/api/leave/requests/route.ts:17` (POST submit). **Reviewer flagged:** the leave-request submit was missed in original audit. Add `attendance.checkin` and `leave.submit` permissions to non-teacher employee roles. Also add Zod for `lat`/`lng` body fields in check-in/out (covers former F-30). **Acceptance:** unit test asserts non-TEACHER user with linked `Employee` and proper permission gets 200 across all 4 endpoints.
 5. [ ] **[P]** Fix F-24: `GET /api/leave/balance` — add tenant-ownership check on `employeeId`.
@@ -150,10 +150,12 @@ Active projects: only `udbivhchbizpxoryejgz` (staging-sgp). **Production app SSO
 
 - Subagent plan: tasks executed serially in main session (worktree node_modules linked, parallel writes would race on shared workspace). Reviewer agent invoked per task.
 - Task 0: AuditLog migration — `prisma/schema.prisma` (+25 lines, AuditLog model + Tenant.auditLogs relation), `prisma/migrations/20260502000000_add_audit_log_table/migration.sql` (CREATE TABLE + 3 indexes + tenantId FK + RLS enable + service_role policy), `lib/audit.ts` (recordAudit helper — re-throws on tx, logs+swallows standalone), `lib/__tests__/audit.test.ts` (4 tests). Reviewer flagged tx error-swallow; fixed by re-throwing when tx provided. Cross-checked design-system.html — n/a (backend-only).
+- Task 2: F-06 payroll generate Zod — `lib/validations/payroll.ts` (+30 lines, `generatePayrollSchema` with isoDateString + ordering + 1-45 day cap), `app/api/payroll/generate/route.ts` (`validateBody` wired, json try/catch added, ad-hoc `if(!periodStart...)` removed), `lib/validations/__tests__/payroll.test.ts` (8 tests). Reviewer asked for 45-day exact boundary test (added) and verification that `payroll.create` permission excludes SCHOOL_ADMIN (confirmed at `lib/permissions.ts:103-125`).
 
 ## Verification
 
 - Task 0: `npm run build` ✓; `npx vitest run lib/__tests__/audit.test.ts` ✓ (4 passed); `bash scripts/verify-rls-coverage.sh` ✓ (25/25 tenant-scoped models have ENABLE + policy).
+- Task 2: `npm run build` ✓; `npx vitest run` ✓ (845→passed earlier; final 8 in payroll.test.ts).
 
 ## Ship Notes
 <filled by /ship>
