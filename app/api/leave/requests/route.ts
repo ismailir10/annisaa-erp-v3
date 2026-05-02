@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { requirePermission } from "@/lib/auth-guards";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
@@ -8,13 +9,16 @@ import { validateBody } from "@/lib/api/validate";
 import { createLeaveRequestSchema } from "@/lib/validations/leave";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-// Teacher: submit leave request
+// Self-service: submit leave request
 export async function POST(req: NextRequest) {
   const { success } = rateLimit(`leave-request:${getClientIp(req)}`, 5, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.employeeId || session.role !== "TEACHER") {
+  // Permission gate (replaces legacy `session.role !== "TEACHER"` string
+  // check). F-09 expansion — non-teaching staff with linked Employee rows
+  // were previously locked out of submitting their own leave requests.
+  if (!session?.employeeId || !hasPermission(session, "leave.submit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -61,3 +61,34 @@ export const attendanceOverrideSchema = z
   );
 
 export type AttendanceOverrideInput = z.infer<typeof attendanceOverrideSchema>;
+
+/**
+ * Body schema for self-service check-in / check-out.
+ *
+ * `lat` / `lng` are optional GPS coordinates captured by the teacher portal —
+ * a phone GPS may be unavailable (indoor, denied permission), in which case
+ * the field is omitted entirely. When present, both must be finite numbers
+ * inside the legal earth-coordinate ranges. String types are rejected: the
+ * old route silently destructured `body.lat` / `body.lng`, accepting whatever
+ * shape the caller sent and forwarding it to `prisma.create`.
+ */
+export const attendanceCheckInSchema = z
+  .object({
+    lat: z
+      .number()
+      .finite()
+      .min(-90, "Latitude di luar rentang valid")
+      .max(90, "Latitude di luar rentang valid")
+      .optional(),
+    lng: z
+      .number()
+      .finite()
+      .min(-180, "Longitude di luar rentang valid")
+      .max(180, "Longitude di luar rentang valid")
+      .optional(),
+  })
+  // Strip unknown keys silently — clients may send extra debug fields and we
+  // don't want to 400 on harmless additions, but we do want to ignore them.
+  .strip();
+
+export type AttendanceCheckInInput = z.infer<typeof attendanceCheckInSchema>;

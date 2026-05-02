@@ -78,7 +78,7 @@ describe("GET /api/attendance/my", () => {
   });
 
   describe("Role Validation", () => {
-    it("should return 403 if role is not TEACHER", async () => {
+    it("should return 403 if caller lacks attendance.view (e.g. SCHOOL_ADMIN with no HR perms)", async () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
@@ -100,7 +100,7 @@ describe("GET /api/attendance/my", () => {
       expect(json).toEqual({ error: "Forbidden" });
     });
 
-    it("should return 403 if role is GUARDIAN", async () => {
+    it("should return 403 if role is GUARDIAN (lacks attendance.view)", async () => {
       const { getSession } = await import("@/lib/auth");
       vi.mocked(getSession).mockResolvedValue({
         id: "user-1",
@@ -110,7 +110,7 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
-        permissions: [],
+        permissions: ["students.view", "invoices.view"],
         customRoleCode: null,
       });
 
@@ -122,7 +122,7 @@ describe("GET /api/attendance/my", () => {
       expect(json).toEqual({ error: "Forbidden" });
     });
 
-    it("should allow access if role is TEACHER", async () => {
+    it("should allow access if caller has attendance.view (TEACHER default)", async () => {
       const { getSession } = await import("@/lib/auth");
       const { prisma } = await import("@/lib/db");
 
@@ -134,7 +134,12 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
-        permissions: [],
+        permissions: [
+          "attendance.view",
+          "attendance.checkin",
+          "leave.submit",
+          "students.view",
+        ],
         customRoleCode: null,
       });
 
@@ -160,7 +165,7 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
-        permissions: [],
+        permissions: ["attendance.view"],
         customRoleCode: null,
       });
 
@@ -195,7 +200,7 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
-        permissions: [],
+        permissions: ["attendance.view"],
         customRoleCode: null,
       });
 
@@ -231,7 +236,7 @@ describe("GET /api/attendance/my", () => {
         tenantId: "tenant-1",
         employeeId: "employee-1",
         parentId: null,
-        permissions: [],
+        permissions: ["attendance.view"],
         customRoleCode: null,
       });
 
