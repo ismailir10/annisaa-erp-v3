@@ -163,6 +163,13 @@ export type CreateSessionResponse = {
 /**
  * Create a Xendit Checkout Session for an invoice.
  * Returns the payment link URL that can be shared with parents.
+ *
+ * DEMO_MODE short-circuit: when `process.env.DEMO_MODE === "true"` (CI
+ * Playwright runs, demo deploys), skip the real Xendit API call and
+ * return a synthetic session. Two reasons:
+ *   1. CI hits localhost http URLs that Xendit rejects with INVALID_URL.
+ *   2. Sandbox rate limit blocks bulk tagihan tests with RATE_LIMIT_EXCEEDED.
+ * Real Xendit integration is verified manually on staging deploy.
  */
 export async function createXenditSession(
   params: CreateSessionParams
@@ -171,6 +178,15 @@ export async function createXenditSession(
   const expiryDays = params.expiryDays ?? 7;
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + expiryDays);
+
+  if (process.env.DEMO_MODE === "true") {
+    return {
+      id: `demo_session_${params.referenceId}`,
+      payment_link_url: `https://demo.xendit.local/checkout/${params.referenceId}`,
+      status: "ACTIVE",
+      expires_at: expiresAt.toISOString(),
+    };
+  }
 
   const body: Record<string, unknown> = {
     reference_id: params.referenceId,
@@ -270,6 +286,8 @@ export async function createXenditSession(
  * `network`-coded error (the fetch threw before getting a response).
  */
 export async function pingXenditBalance(timeoutMs: number = 5000): Promise<void> {
+  if (process.env.DEMO_MODE === "true") return; // health check no-op in demo
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
