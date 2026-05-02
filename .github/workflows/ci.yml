@@ -130,6 +130,11 @@ jobs:
           DEMO_MODE: "true"
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
           NEXTAUTH_SECRET: "ci-e2e-dummy-secret"
+          # Xendit sandbox key — `xnd_development_*` prefix. Without this
+          # the admin tagihan tests (admin.spec.ts:429-706) fail with
+          # INVALID_API_KEY because lib/xendit/client.ts hits the live
+          # Xendit API even on test data. Repo secret, not env-scoped.
+          XENDIT_SECRET_KEY: ${{ secrets.XENDIT_SECRET_KEY }}
 
       - name: Upload Playwright report on failure
         if: failure()
