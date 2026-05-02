@@ -77,7 +77,7 @@ export async function POST(
 
     try {
       // Generate PDF for this employee
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
       const slipData: SlipData = {
         schoolName: tenant?.name ?? "An Nisaa' Sekolahku",
         logoUrl: `${appUrl}/logo.png`,

@@ -52,7 +52,7 @@ export async function GET(
 
   const tenant = await prisma.tenant.findUnique({ where: { id: item.payrollRun.tenantId } });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
   const data: SlipData = {
     schoolName: tenant?.name ?? "School",
     logoUrl: `${appUrl}/logo.png`,
