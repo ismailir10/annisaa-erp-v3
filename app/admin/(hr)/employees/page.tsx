@@ -285,10 +285,10 @@ export default function EmployeesPage() {
 
   const handleDeactivate = useCallback(async () => {
     if (!deactivateTarget) return;
-    const res = await fetch(`/api/employees/${deactivateTarget.id}`, {
-      method: "PUT",
+    const res = await fetch(`/api/employees/${deactivateTarget.id}/deactivate`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "INACTIVE" }),
+      body: JSON.stringify({}),
     });
     if (res.ok) {
       toast.success(`${deactivateTarget.nama} dinonaktifkan`);

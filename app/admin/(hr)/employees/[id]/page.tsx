@@ -85,8 +85,18 @@ export default function EmployeeDetailPage() {
   }
 
   async function handleDeactivate() {
-    await fetch(`/api/employees/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "INACTIVE" }) });
-    toast.success("Karyawan dinonaktifkan"); router.push("/admin/employees");
+    const res = await fetch(`/api/employees/${id}/deactivate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal menonaktifkan karyawan");
+      return;
+    }
+    toast.success("Karyawan dinonaktifkan");
+    router.push("/admin/employees");
   }
 
   if (loading) return <DetailPageSkeleton />;

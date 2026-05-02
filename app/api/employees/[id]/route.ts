@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
@@ -48,16 +47,16 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const rawBody = await req.json();
-
-  // Deactivate shortcut — only status field, skip full validation
-  if (Object.keys(rawBody).length === 1 && rawBody.status === "INACTIVE") {
-    const employee = await prisma.employee.update({
-      where: { id },
-      data: { status: "INACTIVE" },
-    });
-    revalidateTag("employees-count", {});
-    return NextResponse.json(employee);
+  // F-13 fix: PUT no longer accepts `status` writes. The previous shortcut
+  // here let `{status:"INACTIVE"}` skip validation, but the bigger bug was
+  // that `updateEmployeeSchema` extended `status` so `{status:"ACTIVE"}`
+  // would silently re-activate a deactivated employee. Both paths are gone
+  // — status transitions go through POST /deactivate and POST /restore.
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
 
   const result = await validateBody(updateEmployeeSchema, rawBody);
