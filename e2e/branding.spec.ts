@@ -59,4 +59,11 @@ test.describe("Branding — Talib wordmark", () => {
     await page.waitForURL("**/parent", { timeout: 15_000 });
     await expect(page.getByText("Talib", { exact: true }).first()).toBeVisible();
   });
+
+  test("login screen shows Talib wordmark + tagline", async ({ page }) => {
+    await page.context().clearCookies();
+    await page.goto("/");
+    await expect(page.getByText("Talib", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/Sahabat belajar anak/)).toBeVisible();
+  });
 });
