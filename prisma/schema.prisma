@@ -116,6 +116,10 @@ model OrgConfig {
   timezone              String @default("Asia/Jakarta")
   payrollPeriodStartDay Int    @default(21)
   payrollPeriodEndDay   Int    @default(20)
+  // F-14: When true, overtime (lembur) calculation follows UU 13/2003 §78(4)
+  // tiered rates (1.5× first hour, 2× thereafter). Defaults false to preserve
+  // the historical flat per-hour calculation until tenants explicitly opt in.
+  lemburCompliant       Boolean @default(false)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 }

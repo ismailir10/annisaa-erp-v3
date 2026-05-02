@@ -73,7 +73,9 @@ export async function POST(req: NextRequest) {
     sortOrder: c.sortOrder,
   }));
 
-  // Calculate payroll
+  // Calculate payroll. F-14: propagate the org-level lemburCompliant flag so
+  // tenants that opt in get UU 13/2003 §78(4) tiered overtime rates; everyone
+  // else stays on the historical flat formula.
   const results = calculatePayroll(
     employees.map((e) => ({
       id: e.id,
@@ -84,7 +86,8 @@ export async function POST(req: NextRequest) {
       attendanceRecords: e.attendanceRecords.map((r) => ({ status: r.status })),
     })),
     components,
-    actualWorkDays
+    actualWorkDays,
+    { lemburCompliant: orgConfig.lemburCompliant }
   );
 
   // Pre-generate item IDs so PayrollItemLines can reference them without an

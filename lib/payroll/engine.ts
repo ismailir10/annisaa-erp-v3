@@ -20,6 +20,14 @@ export type AttendanceVariables = {
   outdoorDays: number;
   holidayWorkedDays: number;
   dcDays: number;
+  /**
+   * F-14: when true, the `lembur` ATTENDANCE_BASED component follows
+   * UU 13/2003 §78(4) tiered rates (1.5× first hour, 2× thereafter on
+   * weekdays). When false/undefined, the historical flat formula
+   * `perUnitValue * overtimeHours` is used. Sourced from
+   * `OrgConfig.lemburCompliant` and threaded through `calculatePayroll`.
+   */
+  lemburCompliant?: boolean;
 };
 
 export type PayrollLineResult = {
@@ -137,13 +145,21 @@ function calculateAttendanceBased(
       return perUnitValue * variables.holidayWorkedDays;
     case "insentif_dc":
       return perUnitValue * variables.dcDays;
-    case "lembur":
+    case "lembur": {
       // COMPLIANCE NOTE: Indonesian labor law (UU 13/2003 Art. 78(4)) requires overtime
       // premium rates: 1.5x hourly rate for the first hour, 2x for subsequent hours on weekdays;
-      // 2x hourly rate + daily wage for holiday overtime. The current implementation uses a flat
-      // per-hour rate (perUnitValue * hours). This should be reviewed with the school's HR to
-      // ensure compliance if overtime is a regular practice.
+      // 2x hourly rate + daily wage for holiday overtime. The flat formula below is the
+      // historical (non-compliant) path; when `OrgConfig.lemburCompliant` is true the engine
+      // applies the tiered rates per F-14. Holiday-overtime handling remains a follow-up.
+      if (variables.lemburCompliant) {
+        const hours = variables.overtimeHours;
+        if (hours <= 0) return 0;
+        const firstHourPortion = Math.min(hours, 1);
+        const remainingHours = Math.max(0, hours - 1);
+        return firstHourPortion * perUnitValue * 1.5 + remainingHours * perUnitValue * 2;
+      }
       return perUnitValue * variables.overtimeHours;
+    }
     default:
       // Generic attendance-based: multiply by days present
       return perUnitValue * daysPresent;
@@ -171,6 +187,16 @@ export function assertGajiPokokSortOrder(components: SalaryComponent[]): void {
 /**
  * Calculate payroll for all employees in a period.
  */
+export type CalculatePayrollOptions = {
+  /**
+   * F-14: when true, propagate `lemburCompliant=true` into every employee's
+   * AttendanceVariables so the engine applies UU 13/2003 §78(4) tiered
+   * overtime rates. Per-employee `variables.lemburCompliant`, if explicitly
+   * set, takes precedence over this org-wide default.
+   */
+  lemburCompliant?: boolean;
+};
+
 export function calculatePayroll(
   employees: {
     id: string;
@@ -179,7 +205,8 @@ export function calculatePayroll(
     variables?: AttendanceVariables;
   }[],
   components: SalaryComponent[],
-  actualWorkingDays: number
+  actualWorkingDays: number,
+  options: CalculatePayrollOptions = {}
 ): Map<string, PayrollItemResult> {
   if (actualWorkingDays <= 0) {
     throw new Error(
@@ -197,17 +224,26 @@ export function calculatePayroll(
     outdoorDays: 0,
     holidayWorkedDays: 0,
     dcDays: 0,
+    lemburCompliant: options.lemburCompliant ?? false,
   };
 
   for (const emp of employees) {
     const { daysPresent, daysLeave } = countAttendanceDays(emp.attendanceRecords);
+    // Per-employee variables (if provided) win, but inherit the org-wide
+    // lemburCompliant flag when the caller did not set it explicitly.
+    const variables: AttendanceVariables = emp.variables
+      ? {
+          ...emp.variables,
+          lemburCompliant: emp.variables.lemburCompliant ?? options.lemburCompliant ?? false,
+        }
+      : defaultVars;
     const result = calculateEmployeePayroll(
       components,
       emp.salaryValues,
       daysPresent,
       daysLeave,
       actualWorkingDays,
-      emp.variables ?? defaultVars
+      variables
     );
     results.set(emp.id, result);
   }
