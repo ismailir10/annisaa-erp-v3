@@ -36,7 +36,7 @@ Acceptance: end-of-cycle gate (build + vitest + playwright) green; manual smoke 
 
 ## Implementation
 
-(filled by /build per task)
+- **Task 1** — `components/brand/talib-wordmark.tsx` + 4 unit tests in `components/brand/__tests__/`. Reusable size variants (sm/md/lg) with optional `showSublabel`. Inherits brand typography from `--font-sans` (Plus Jakarta Sans).
 
 ## Verification
 
