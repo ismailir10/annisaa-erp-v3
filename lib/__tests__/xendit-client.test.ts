@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { pickSessionId, stripQuery } from "../xendit/client";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { pickSessionId, stripQuery, createXenditSession, pingXenditBalance } from "../xendit/client";
 
 describe("pickSessionId", () => {
   it("picks data.id when present", () => {
@@ -64,5 +64,69 @@ describe("stripQuery", () => {
 
   it("returns null for malformed URL string", () => {
     expect(stripQuery("not a url")).toBeNull();
+  });
+});
+
+describe("createXenditSession — DEMO_MODE", () => {
+  const originalDemoMode = process.env.DEMO_MODE;
+  const originalKey = process.env.XENDIT_SECRET_KEY;
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+  afterEach(() => {
+    process.env.DEMO_MODE = originalDemoMode;
+    process.env.XENDIT_SECRET_KEY = originalKey;
+    fetchSpy.mockClear();
+  });
+
+  it("returns a synthetic session without hitting fetch when DEMO_MODE=true", async () => {
+    process.env.DEMO_MODE = "true";
+    delete process.env.XENDIT_SECRET_KEY;
+
+    const result = await createXenditSession({
+      referenceId: "inv-123",
+      amount: 100_000,
+      description: "Test invoice",
+      customerName: "Test Parent",
+      successReturnUrl: "http://localhost:3000/parent/invoices?invoice=inv-123",
+      cancelReturnUrl: "http://localhost:3000/parent/invoices?invoice=inv-123",
+    });
+
+    expect(result.id).toBe("demo_session_inv-123");
+    expect(result.payment_link_url).toBe("https://demo.xendit.local/checkout/inv-123");
+    expect(result.status).toBe("ACTIVE");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does NOT short-circuit when DEMO_MODE is unset (real path triggers auth lookup)", async () => {
+    delete process.env.DEMO_MODE;
+    delete process.env.XENDIT_SECRET_KEY;
+
+    await expect(
+      createXenditSession({
+        referenceId: "inv-456",
+        amount: 50_000,
+        description: "x",
+        customerName: "x",
+        successReturnUrl: "https://example.com/s",
+        cancelReturnUrl: "https://example.com/c",
+      }),
+    ).rejects.toThrow("XENDIT_SECRET_KEY not configured");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("pingXenditBalance — DEMO_MODE", () => {
+  const originalDemoMode = process.env.DEMO_MODE;
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+  afterEach(() => {
+    process.env.DEMO_MODE = originalDemoMode;
+    fetchSpy.mockClear();
+  });
+
+  it("no-ops without hitting fetch when DEMO_MODE=true", async () => {
+    process.env.DEMO_MODE = "true";
+    await expect(pingXenditBalance()).resolves.toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
