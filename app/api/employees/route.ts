@@ -95,8 +95,14 @@ export async function POST(req: NextRequest) {
 
   // Auto-generate employee code: initials + sequence number (atomic)
   const employee = await prisma.$transaction(async (tx) => {
-    // Advisory lock per tenant to serialize employee code generation
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(12345, ${tenantId}::bigint)`;
+    // F-25: advisory lock per tenant to serialize employee code generation.
+    // Use single-arg `pg_advisory_xact_lock(hashtext(...))` for parity with
+    // invoice/webhook locks (`hashtext(invoiceId)`); namespacing by string
+    // prevents collision with the bare numeric `12345` previously used —
+    // any future caller that picks the same arbitrary integer would deadlock
+    // employee creation. `hashtext` returns int4; Postgres implicitly widens
+    // it to int8 for the `pg_advisory_xact_lock(bigint)` overload.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"employee_create_" + tenantId}))`;
 
     const initials = body.nama
       .trim()
