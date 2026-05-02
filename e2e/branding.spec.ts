@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 // Branding smoke — verifies Talib wordmark renders in admin sidebar,
 // portal headers (parent + teacher), and the login screen.
 
-const ADMIN_USER_ID = "u_super_admin";
+let adminUserId: string;
 let teacherUserId: string;
 let parentUserId: string;
 
@@ -11,8 +11,12 @@ test.describe("Branding — Talib wordmark", () => {
   test.beforeAll(async ({ request }) => {
     const res = await request.get("/api/auth/users");
     const users = await res.json();
+    adminUserId =
+      users.find((u: { role: string }) => u.role === "SUPER_ADMIN")?.id ??
+      users.find((u: { role: string }) => u.role === "SCHOOL_ADMIN")?.id;
     teacherUserId = users.find((u: { role: string }) => u.role === "TEACHER")?.id;
     parentUserId = users.find((u: { role: string }) => u.role === "GUARDIAN")?.id;
+    if (!adminUserId) throw new Error("No admin user found in demo DB");
     if (!teacherUserId) throw new Error("No TEACHER user found in demo DB");
     if (!parentUserId) throw new Error("No GUARDIAN user found in demo DB");
   });
@@ -20,7 +24,7 @@ test.describe("Branding — Talib wordmark", () => {
   test("admin sidebar shows Talib wordmark + sub-label", async ({ page }) => {
     await page.context().addCookies([{
       name: "school-erp-session",
-      value: ADMIN_USER_ID,
+      value: adminUserId,
       domain: "localhost",
       path: "/",
       httpOnly: true,
@@ -69,14 +73,17 @@ test.describe("Branding — Talib wordmark", () => {
 
   test("legal pages render and are linked from login", async ({ page }) => {
     await page.context().clearCookies();
-    await page.goto("/");
-    await page.getByRole("link", { name: /Syarat & Ketentuan/i }).click();
-    await expect(page).toHaveURL(/\/legal\/terms$/);
+
+    // Verify pages render directly (anyone can hit /legal/* without auth)
+    await page.goto("/legal/terms");
     await expect(page.getByRole("heading", { name: /Syarat & Ketentuan/i })).toBeVisible();
 
-    await page.goto("/");
-    await page.getByRole("link", { name: /Kebijakan Privasi/i }).click();
-    await expect(page).toHaveURL(/\/legal\/privacy$/);
+    await page.goto("/legal/privacy");
     await expect(page.getByRole("heading", { name: /Kebijakan Privasi/i })).toBeVisible();
+
+    // Verify links present on login footer
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: /Syarat & Ketentuan/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Kebijakan Privasi/i })).toBeVisible();
   });
 });

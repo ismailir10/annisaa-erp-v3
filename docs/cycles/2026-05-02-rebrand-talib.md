@@ -43,11 +43,29 @@ Acceptance: end-of-cycle gate (build + vitest + playwright) green; manual smoke 
 - **Task 5** — `lib/email/templates/salary-slip.ts`: header h1 "An Nisaa' Sekolahku" → "Talib" + sub "by An Nisaa' Sekolahku" (school description retained as `Pendidikan Anak Usia Dini Islam Terpadu` removed; replaced with sub-label). Footer signature appends "Dikirim otomatis oleh Talib · talib.annisaasekolahku.com". Added `RESEND_FROM_EMAIL="Talib by An Nisaa' <noreply@annisaasekolahku.com>"` to `.env.example` (Resend DKIM verified for `annisaasekolahku.com` per CTO confirmation 2026-05-02). 8/8 email unit tests pass.
 - **Task 6** — Created `app/legal/terms/page.tsx` + `app/legal/privacy/page.tsx` (Indonesian PDP boilerplate per UU 27/2022, lists controllers + 3rd-party processors + UU PDP rights, both `robots: noindex`). Created `components/layout/legal-footer.tsx` and wired it into login screen below auth card. Added 5th Playwright spec verifying both legal links from login → page renders.
 - **Task 7** — `CLAUDE.md`: heading retitled "Talib (engineering id: `school-erp`) — Operating Manual"; branch-protection block rewritten to reflect that GitHub branch protection is free for private repos since Feb 2023 (no Pro upgrade needed; enabling moves to Cycle B). `app/admin/design-system/page.tsx` iframe title swept "An Nisaa' ERP Design System reference" → "Talib Design System reference". `package.json` `name` field intentionally retained as `school-erp` (engineering identifier, never user-visible).
+- **Task 8 (proxy fix surfaced by Playwright)** — `proxy.ts` allowlist extended with `/legal/` so `/legal/terms` and `/legal/privacy` are publicly accessible without auth (otherwise the middleware redirected unauthenticated visitors to `/`, breaking the legal-page contract that login footer links must work for any visitor). E2E branding spec switched to dynamic admin user discovery (current demo seed has `SCHOOL_ADMIN` rather than the previously-hardcoded `u_super_admin`).
 
 ## Verification
 
-(filled by /build at end of cycle)
+- [x] `npm run build` — clean
+- [x] `npx vitest run` — 971 passed | 42 todo | 2 skipped (113 files)
+- [x] `npx playwright test` — 27 passed, 1 skipped (full suite, ~20 min)
+- [x] `e2e/branding.spec.ts` — 5/5 specs pass (admin sidebar, teacher header, parent header, login wordmark+tagline, legal pages)
+- [x] Bu Sari voice check on login tagline against `.claude/standards/voice.md` — passes (warm, BI, no second-person, no filler)
+- [x] Cross-checked design-system.html §typography for wordmark sizing tokens
+- [ ] Staging smoke (after merge to staging): manual review of admin / parent / teacher / login on staging URL, soak 24-48h before merge to main
+- [ ] Cookie scope check on staging (DevTools → Application → Cookies): Supabase auth cookies set on host only, no `Domain=.annisaasekolahku.com` leak
+- [ ] Email smoke (after merge to staging): send test salary slip → confirm Talib sender + branding in Gmail/Outlook
+- [ ] OG card preview on staging URL via opengraph.xyz / X validator
 
 ## Ship Notes
 
-(filled by /ship)
+- **Branch:** `feat/rebrand-talib` → staging → main
+- **Migrations:** none
+- **Env vars:** update `RESEND_FROM_EMAIL` on Vercel to `Talib by An Nisaa' <noreply@annisaasekolahku.com>` (production scope) before/after merge
+- **Rollback:** Vercel "Promote previous deployment" reverts the visual change; legal pages stay (no harm); `proxy.ts` `/legal/` allowlist is forward-compatible
+- **Post-merge actions:**
+  - 24-48h soak on staging URL → manual brand review across admin/parent/teacher/login
+  - Send test salary-slip email from staging → verify sender + body branding in Gmail/Outlook
+  - OG card preview via opengraph.xyz against staging URL
+- **Out of scope (deferred to Cycle B):** Supabase prod project provisioning, Vercel env var audit, R2 backups, branch protection on `main` + `staging`, DR drill, Xendit prod webhook re-point
