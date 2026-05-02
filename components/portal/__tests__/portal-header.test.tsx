@@ -12,7 +12,7 @@ describe("PortalHeader", () => {
         onLogout={() => {}}
       />,
     );
-    expect(screen.getByText("An Nisaa'")).toBeInTheDocument();
+    expect(screen.getByText("Talib")).toBeInTheDocument();
     expect(screen.getByText("Siti")).toBeInTheDocument();
     expect(screen.getByText("SN")).toBeInTheDocument();
   });
