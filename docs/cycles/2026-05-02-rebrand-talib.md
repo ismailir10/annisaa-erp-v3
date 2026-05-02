@@ -37,7 +37,8 @@ Acceptance: end-of-cycle gate (build + vitest + playwright) green; manual smoke 
 ## Implementation
 
 - **Task 1** — `components/brand/talib-wordmark.tsx` + 4 unit tests in `components/brand/__tests__/`. Reusable size variants (sm/md/lg) with optional `showSublabel`. Inherits brand typography from `--font-sans` (Plus Jakarta Sans).
-- **Task 2** — Root `app/layout.tsx` metadata: title template "%s · Talib", `metadataBase` set to prod URL, applicationName "Talib", `openGraph` + `twitter` cards, `robots: { index: false, follow: false }` (soft-launch, no SEO), `viewport.themeColor = "#0F172A"`. Created `app/manifest.ts` (Next.js Metadata API → `/manifest.webmanifest`). Created edge-runtime `app/opengraph-image.tsx` (1200×630, slate background, white wordmark) → `/opengraph-image`.
+- **Task 2** — Root `app/layout.tsx` metadata: title template "%s · Talib", `metadataBase` set to prod URL, applicationName "Talib", `openGraph` + `twitter` cards, `robots: { index: false, follow: false }` (soft-launch, no SEO), `viewport.themeColor = "#0F172A"`. Created `app/manifest.ts` (Next.js Metadata API → `/manifest.webmanifest`). Created edge-runtime `app/opengraph-image.tsx` (1200×630, slate background, white wordmark) → `/opengraph-image`. README heading + intro renamed (folded in to satisfy doc-sync narrow rule for `feat:` + `app/**`).
+- **Task 3** — `components/admin/sidebar.tsx` brand block replaced with `<TalibWordmark size="md" showSublabel />`. `components/portal/portal-header.tsx` `brandLabel` default flipped from `"An Nisaa'"` to `"Talib"`. Updated `portal-header.test.tsx` assertion. Added `e2e/branding.spec.ts` with 3 specs (admin sidebar, teacher header, parent header).
 
 ## Verification
 

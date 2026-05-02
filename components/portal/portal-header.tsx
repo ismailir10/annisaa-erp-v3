@@ -18,7 +18,7 @@ export type PortalHeaderProps = {
   profileHref?: string;
   /** Logout handler. The trailing icon button fires this. */
   onLogout: () => void | Promise<void>;
-  /** Brand label to the right of the logo. Defaults to "An Nisaa'". */
+  /** Brand label to the right of the logo. Defaults to "Talib". */
   brandLabel?: string;
   className?: string;
 };
@@ -37,7 +37,7 @@ export function PortalHeader({
   avatarFallback,
   profileHref,
   onLogout,
-  brandLabel = "An Nisaa'",
+  brandLabel = "Talib",
   className,
 }: PortalHeaderProps) {
   const firstName = userName.split(" ")[0] ?? userName;
