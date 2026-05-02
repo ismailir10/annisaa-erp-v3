@@ -90,7 +90,7 @@ Tasks are grouped by independence so `/build` can dispatch parallel subagents. *
 6. [x] Fix F-12: removed `export const revalidate = 3600`; replaced with explanatory comment.
 7. [x] Fix F-25: employee-creation advisory lock now uses `pg_advisory_xact_lock(hashtext('employee_create_' || tenantId))` for parity with invoice/webhook locks. Bare `12345` namespace removed.
 8. [x] Fix F-13: removed `status` from `updateEmployeeSchema` (PUT now strips status silently); removed deactivate shortcut from `app/api/employees/[id]/route.ts`; new `POST /api/employees/[id]/{deactivate,restore}` endpoints (perm `employees.edit`, rate limit, tenant ownership, idempotent on already-target-state, atomic via `$transaction` + `recordAudit`); admin list + detail pages migrated to new endpoint with `res.ok` error handling. 15 new tests.
-8a. [ ] **[P] (NEW — reviewer)** Fix payroll-approve race: `app/api/payroll/[id]/approve/route.ts:24` `prisma.$transaction(...)` lacks `{isolationLevel:"Serializable"}` (or compare-and-swap `updateMany`). Two concurrent approves can both pass `status==="DRAFT"` check before either commits. Pattern parity with `send-slips` route. **Acceptance:** unit test fires two concurrent approves; only one succeeds, the other returns 409.
+8a. [x] Fix payroll-approve race: replaced read-then-update pattern with compare-and-swap `updateMany({where:{id, status:"DRAFT"}, ...})`. Returns 409 when count=0. Pattern parity with send-slips route. 4 unit tests.
 
 ### Group B — business-logic correctness (parallel within group)
 9. [ ] **[P]** Fix F-07: `app/api/leave/requests/route.ts` day count uses `calculateWorkingDays()`.
