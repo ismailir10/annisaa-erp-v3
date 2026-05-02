@@ -34,6 +34,7 @@ model Tenant {
   invoices               Invoice[]
   invoiceNumberSequences InvoiceNumberSequence[]
   emailLogs              EmailLog[]
+  auditLogs              AuditLog[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -918,6 +919,30 @@ model StudentAssessmentScore {
   indicator  AssessmentIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
 
   @@unique([assessmentId, indicatorId])
+}
+
+// ── AUDIT LOG ────────────────────────────────────────────────
+// Append-only history of mutating actions on sensitive entities.
+// Every row is keyed to a tenant + actor; `before` and `after` capture
+// the JSON shape pre/post mutation so reviewers can reconstruct intent.
+// No update/delete API — rows live forever (or until a retention job).
+// Retention: a periodic cleanup job is a follow-up — not in scope yet.
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  actorId   String // session.id (User.id) of the actor; not a FK so deleted users keep history
+  entity    String // "Employee" | "EmployeeSalaryValue" | "PayrollRun" | etc.
+  entityId  String
+  action    String // "create" | "update" | "delete" | domain-specific verb
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, actorId, createdAt])
 }
 
 // ── WEBHOOK EVENT (audit + dedup) ────────────────────────────
