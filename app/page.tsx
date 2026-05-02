@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { Mail, Loader2 } from "lucide-react";
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
+import { LegalFooter } from "@/components/layout/legal-footer";
 
 type UserOption = {
   id: string;
@@ -260,6 +261,7 @@ function LoginPage() {
         <p className="text-center text-sidebar-foreground text-xs mt-6">
           {isSupabaseConfigured ? "Talib by An Nisaa' Sekolahku" : "Demo mode — Supabase Auth belum dikonfigurasi"}
         </p>
+        <LegalFooter />
       </motion.div>
     </main>
   );

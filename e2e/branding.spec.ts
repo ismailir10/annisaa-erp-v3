@@ -66,4 +66,17 @@ test.describe("Branding — Talib wordmark", () => {
     await expect(page.getByText("Talib", { exact: true }).first()).toBeVisible();
     await expect(page.getByText(/Sahabat belajar anak/)).toBeVisible();
   });
+
+  test("legal pages render and are linked from login", async ({ page }) => {
+    await page.context().clearCookies();
+    await page.goto("/");
+    await page.getByRole("link", { name: /Syarat & Ketentuan/i }).click();
+    await expect(page).toHaveURL(/\/legal\/terms$/);
+    await expect(page.getByRole("heading", { name: /Syarat & Ketentuan/i })).toBeVisible();
+
+    await page.goto("/");
+    await page.getByRole("link", { name: /Kebijakan Privasi/i }).click();
+    await expect(page).toHaveURL(/\/legal\/privacy$/);
+    await expect(page.getByRole("heading", { name: /Kebijakan Privasi/i })).toBeVisible();
+  });
 });
