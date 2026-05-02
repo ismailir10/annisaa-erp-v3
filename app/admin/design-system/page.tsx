@@ -59,7 +59,7 @@ export default function DesignSystemPage() {
       <div className="flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
         <iframe
           src={referenceUrl}
-          title="An Nisaa' ERP Design System reference"
+          title="Talib Design System reference"
           className="block h-[calc(100vh-200px)] w-full border-0"
           // allow-same-origin so same-origin static HTML can load its inline
           // scripts / Google Fonts; no need for scripts-from-other-origins.
