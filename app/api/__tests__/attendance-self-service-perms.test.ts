@@ -27,6 +27,9 @@ const aggregateLeave = vi.fn();
 const findFirstLeaveRequest = vi.fn();
 const createLeaveRequest = vi.fn();
 
+const findManyHoliday = vi.fn();
+const transactionMock = vi.fn();
+
 vi.mock("@/lib/db", () => ({
   prisma: {
     attendanceRecord: {
@@ -39,12 +42,17 @@ vi.mock("@/lib/db", () => ({
     },
     employee: {
       findUnique: findUniqueEmployee,
+      findFirst: findUniqueEmployee,
     },
     leaveRequest: {
       aggregate: aggregateLeave,
       findFirst: findFirstLeaveRequest,
       create: createLeaveRequest,
     },
+    holiday: {
+      findMany: findManyHoliday,
+    },
+    $transaction: transactionMock,
   },
 }));
 
@@ -86,7 +94,19 @@ beforeEach(() => {
     timezone: "Asia/Jakarta",
     workStartTime: "08:00",
     gracePeriodMinutes: 15,
+    workingDays: JSON.stringify(["MON", "TUE", "WED", "THU", "FRI"]),
   });
+  findManyHoliday.mockResolvedValue([]);
+  transactionMock.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+    cb({
+      employee: { findUnique: findUniqueEmployee, findFirst: findUniqueEmployee },
+      leaveRequest: {
+        aggregate: aggregateLeave,
+        findFirst: findFirstLeaveRequest,
+        create: createLeaveRequest,
+      },
+    })
+  );
   createAttendance.mockResolvedValue({
     id: "att-1",
     date: "2026-05-02",

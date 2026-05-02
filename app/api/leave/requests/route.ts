@@ -8,6 +8,7 @@ import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
 import { createLeaveRequestSchema } from "@/lib/validations/leave";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { calculateWorkingDays, parseWorkingDays } from "@/lib/payroll/working-days";
 
 // Self-service: submit leave request
 export async function POST(req: NextRequest) {
@@ -33,77 +34,120 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tanggal selesai harus setelah tanggal mulai" }, { status: 400 });
   }
 
-  let days = 0;
-  const current = new Date(start);
-  while (current <= end) {
-    const dow = current.getDay();
-    if (dow !== 0 && dow !== 6) days++; // Skip weekends
-    current.setDate(current.getDate() + 1);
-  }
+  // F-07: holiday-aware working-day count. Previous loop skipped weekends
+  // only — a leave request that straddled Idul Fitri counted the holiday
+  // against the employee's balance. `calculateWorkingDays` is the canonical
+  // tenant-aware day counter used by payroll; reusing it keeps leave/payroll
+  // arithmetic consistent.
+  const [orgConfig, holidays] = await Promise.all([
+    prisma.orgConfig.findUnique({
+      where: { tenantId: session.tenantId! },
+      select: { workingDays: true },
+    }),
+    prisma.holiday.findMany({
+      where: {
+        tenantId: session.tenantId!,
+        date: { gte: startDate, lte: endDate },
+      },
+      select: { date: true, isHalfDay: true },
+    }),
+  ]);
 
-  if (days === 0) {
+  const workingDayCodes = parseWorkingDays(orgConfig?.workingDays);
+  // Default to Mon-Fri when OrgConfig is absent so a missing config does
+  // not silently produce zero working days. Matches admin form default.
+  const effectiveWorkingDays =
+    workingDayCodes.length > 0 ? workingDayCodes : ["MON", "TUE", "WED", "THU", "FRI"];
+
+  const days = calculateWorkingDays(startDate, endDate, effectiveWorkingDays, holidays);
+
+  if (days <= 0) {
     return NextResponse.json({ error: "Tidak ada hari kerja dalam rentang tanggal tersebut" }, { status: 400 });
   }
 
-  // Single fetch: check active status + grab leave balances in one query
-  const employee = await prisma.employee.findUnique({
-    where: { id: session.employeeId },
-    select: { status: true, leaveBalanceAnnual: true, leaveBalanceSick: true },
-  });
-  if (employee?.status !== "ACTIVE") {
-    return NextResponse.json({ error: "Karyawan tidak aktif" }, { status: 400 });
-  }
+  // F-10: balance check + overlap check + create wrapped in a single
+  // serializable transaction. Prevents two concurrent submissions from both
+  // passing the balance/overlap guard and inserting overlapping rows.
+  // Errors are thrown as tagged Errors and converted to HTTP responses below
+  // — Prisma's Serializable retry semantics rely on the transaction throwing.
+  type LeaveTxError = { tag: "INACTIVE" | "INSUFFICIENT_BALANCE" | "OVERLAP"; message: string };
+  try {
+    const created = await prisma.$transaction(
+      async (tx) => {
+        const employee = await tx.employee.findFirst({
+          where: { id: session.employeeId!, tenantId: session.tenantId! },
+          select: { status: true, leaveBalanceAnnual: true, leaveBalanceSick: true },
+        });
+        if (employee?.status !== "ACTIVE") {
+          const err: LeaveTxError = { tag: "INACTIVE", message: "Karyawan tidak aktif" };
+          throw Object.assign(new Error(err.tag), err);
+        }
 
-  // Check balance for ANNUAL and SICK via DB aggregate (no rows fetched)
-  if (leaveType === "ANNUAL" || leaveType === "SICK") {
-    const year = new Date().getFullYear();
-    const usedAgg = await prisma.leaveRequest.aggregate({
-      _sum: { days: true },
-      where: {
-        employeeId: session.employeeId,
-        status: "APPROVED",
-        leaveType,
-        startDate: { gte: `${year}-01-01` },
+        if (leaveType === "ANNUAL" || leaveType === "SICK") {
+          const year = new Date().getFullYear();
+          const usedAgg = await tx.leaveRequest.aggregate({
+            _sum: { days: true },
+            where: {
+              employeeId: session.employeeId!,
+              status: "APPROVED",
+              leaveType,
+              startDate: { gte: `${year}-01-01` },
+            },
+          });
+          const used = usedAgg._sum.days ?? 0;
+          const total = leaveType === "ANNUAL" ? employee.leaveBalanceAnnual : employee.leaveBalanceSick;
+          const remaining = total - used;
+
+          if (days > remaining) {
+            const err: LeaveTxError = {
+              tag: "INSUFFICIENT_BALANCE",
+              message: `Sisa cuti ${leaveType === "ANNUAL" ? "tahunan" : "sakit"} tidak cukup (tersisa ${remaining} hari)`,
+            };
+            throw Object.assign(new Error(err.tag), err);
+          }
+        }
+
+        const overlap = await tx.leaveRequest.findFirst({
+          where: {
+            employeeId: session.employeeId!,
+            status: { in: ["PENDING", "APPROVED"] },
+            OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
+          },
+          select: { id: true },
+        });
+        if (overlap) {
+          const err: LeaveTxError = {
+            tag: "OVERLAP",
+            message: "Sudah ada pengajuan cuti yang bertumpuk pada tanggal tersebut",
+          };
+          throw Object.assign(new Error(err.tag), err);
+        }
+
+        return tx.leaveRequest.create({
+          data: {
+            employeeId: session.employeeId!,
+            leaveType,
+            startDate,
+            endDate,
+            days,
+            reason,
+          },
+        });
       },
-    });
-    const used = usedAgg._sum.days ?? 0;
-    const total = leaveType === "ANNUAL" ? employee!.leaveBalanceAnnual : employee!.leaveBalanceSick;
-    const remaining = total - used;
+      { isolationLevel: "Serializable" }
+    );
 
-    if (days > remaining) {
-      return NextResponse.json(
-        { error: `Sisa cuti ${leaveType === "ANNUAL" ? "tahunan" : "sakit"} tidak cukup (tersisa ${remaining} hari)` },
-        { status: 400 }
-      );
+    return NextResponse.json(created, { status: 201 });
+  } catch (e) {
+    if (e instanceof Error) {
+      const tag = (e as Error & Partial<LeaveTxError>).tag;
+      const message = (e as Error & Partial<LeaveTxError>).message;
+      if (tag === "INACTIVE" || tag === "INSUFFICIENT_BALANCE" || tag === "OVERLAP") {
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
     }
+    throw e;
   }
-
-  // Check for overlapping requests
-  const overlap = await prisma.leaveRequest.findFirst({
-    where: {
-      employeeId: session.employeeId,
-      status: { in: ["PENDING", "APPROVED"] },
-      OR: [
-        { startDate: { lte: endDate }, endDate: { gte: startDate } },
-      ],
-    },
-  });
-  if (overlap) {
-    return NextResponse.json({ error: "Sudah ada pengajuan cuti yang bertumpuk pada tanggal tersebut" }, { status: 400 });
-  }
-
-  const request = await prisma.leaveRequest.create({
-    data: {
-      employeeId: session.employeeId,
-      leaveType,
-      startDate,
-      endDate,
-      days,
-      reason,
-    },
-  });
-
-  return NextResponse.json(request, { status: 201 });
 }
 
 // Admin: list all leave requests

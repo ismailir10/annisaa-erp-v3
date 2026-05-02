@@ -93,10 +93,10 @@ Tasks are grouped by independence so `/build` can dispatch parallel subagents. *
 8a. [x] Fix payroll-approve race: replaced read-then-update pattern with compare-and-swap `updateMany({where:{id, status:"DRAFT"}, ...})`. Returns 409 when count=0. Pattern parity with send-slips route. 4 unit tests.
 
 ### Group B — business-logic correctness (parallel within group)
-9. [ ] **[P]** Fix F-07: `app/api/leave/requests/route.ts` day count uses `calculateWorkingDays()`.
-10. [ ] **[P]** Fix F-08: `app/api/leave/requests/[id]/approve/route.ts` skip-holiday during attendance-record create.
-11. [ ] **[P]** Fix F-10: wrap balance + overlap + create in `prisma.$transaction(..., { isolationLevel: "Serializable" })`.
-12. [ ] **[P]** Fix F-15: engine.ts — add a sortOrder validation pass. Throw `Error("gaji_pokok must precede all PCT_OF_BASE components in sortOrder")` if violated. **Acceptance:** unit test feeds malordered components and asserts throw.
+9. [x] Fix F-07: leave POST uses `calculateWorkingDays()` w/ Holiday + OrgConfig fetch (MON-FRI fallback when missing).
+10. [x] Fix F-08: leave approve loop now skips both non-working days and `Holiday` rows when creating LEAVE attendance rows. holidaySet normalized via `.slice(0,10)`.
+11. [x] Fix F-10: balance/overlap/create wrapped in single `$transaction(..., { isolationLevel: "Serializable" })`. Tagged Errors map to 400; unknown errors propagate. Employee fetch inside tx now `findFirst({id, tenantId})` for tenant scoping.
+12. [x] Fix F-15: `assertGajiPokokSortOrder()` exported from engine.ts; throws when any `PCT_OF_BASE` has sortOrder ≤ gaji_pokok's. Called from `calculatePayroll`. Rejects ties (sort instability).
 13. [ ] ~~Fix F-17~~ **REMOVED — false positive.** Reviewer verified `lib/payroll/working-days.ts:106-108` already includes `PRESENT_NO_CHECKOUT` in the `daysPresent++` branch. No change needed.
 14. [ ] **[P]** Fix F-14 (light-touch): wrap flat overtime calc behind a `lembur_compliant` feature flag in `OrgConfig`; default flat (current behavior) but expose tiered formula path. Document in cycle Ship Notes. **Acceptance:** flag off → existing behavior; flag on → 1.5×/2× tiered. Unit test for both branches.
 
