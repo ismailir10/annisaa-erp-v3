@@ -162,6 +162,9 @@ Active projects: only `udbivhchbizpxoryejgz` (staging-sgp). **Production app SSO
 - Tasks 9+11: leave POST F-07 holiday-aware day count + F-10 Serializable txn — `app/api/leave/requests/route.ts`, OrgConfig MON-FRI fallback; tagged-error mapping; employee fetch tenant-scoped via `findFirst`.
 - Task 10: F-08 leave approve holiday skip — `app/api/leave/requests/[id]/approve/route.ts`, holidaySet built from `Holiday.findMany`, normalized via `.slice(0,10)`, both weekends and holidays skipped.
 - Task 12: F-15 engine sortOrder guard — `lib/payroll/engine.ts` exports `assertGajiPokokSortOrder`. Rejects ties to defend against `Array.sort` instability.
+- Task 14: F-14 lembur compliance flag — `OrgConfig.lemburCompliant` migration; engine tiered (1.5×/2×) when set; flat default; per-employee override. 8 new tests.
+- Task 15: F-27 leave cancel — owner-or-admin, Serializable txn, balance restoration, generated-LEAVE-row delete via `overrideReason.startsWith('Cuti:')` discriminator, audit. 7 tests.
+- Task 16: F-28 payroll cancel — new endpoint, CAS DRAFT→CANCELLED, child-row delete, audit. 5 tests.
 
 ## Verification
 
