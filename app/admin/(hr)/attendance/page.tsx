@@ -17,6 +17,7 @@ import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
+import { computeAbsentCount } from "./absent-stat";
 
 type EmployeeAttendance = {
   employee: { id: string; kode: string; nama: string; jabatan: string; campusName: string };
@@ -27,13 +28,25 @@ type EmployeeAttendance = {
 };
 
 type Campus = { id: string; name: string };
+type Holiday = { date: string };
+
+// F-20: today's date string used to skip the weekend/holiday exclusion when
+// the admin is looking at the live "today" view (employees who haven't
+// clocked in YET should still count as "tidak hadir" so the dashboard can
+// nudge them). For past dates we want a clean stat — weekends and holidays
+// are not absences.
+const TODAY_ISO = new Date().toISOString().split("T")[0];
 
 export default function AttendancePage() {
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(TODAY_ISO);
   const [campusId, setCampusId] = useState("all");
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [data, setData] = useState<EmployeeAttendance[]>([]);
   const [loading, setLoading] = useState(true);
+  // F-20: holiday list fetched once. Used only to exclude past-date holidays
+  // from the "tidak hadir" stat. Empty fetch failure is non-fatal — the stat
+  // simply falls back to weekend-only exclusion.
+  const [holidays, setHolidays] = useState<Set<string>>(new Set());
 
   // Override modal
   const [overrideOpen, setOverrideOpen] = useState(false);
@@ -68,9 +81,22 @@ export default function AttendancePage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // F-20: holidays fetched once on mount; non-blocking for the table.
+  useEffect(() => {
+    fetch("/api/config/holidays")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: Holiday[]) =>
+        setHolidays(new Set((Array.isArray(rows) ? rows : []).map((h) => h.date))),
+      )
+      .catch(() => {
+        // Non-fatal: stat falls back to weekend-only exclusion.
+      });
+  }, []);
+
   const present = data.filter((d) => ["PRESENT", "LATE", "PRESENT_NO_CHECKOUT"].includes(d.attendance?.status ?? "")).length;
   const late = data.filter((d) => d.attendance?.status === "LATE").length;
-  const absent = data.filter((d) => !d.attendance).length;
+  // F-20: weekends and holidays are not "tidak hadir" for past dates.
+  const absent = computeAbsentCount({ selectedDate: date, today: TODAY_ISO, data, holidays });
   const leave = data.filter((d) => d.attendance?.status === "LEAVE").length;
 
   function openOverride(ea: EmployeeAttendance) {

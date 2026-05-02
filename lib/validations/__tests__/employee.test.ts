@@ -53,6 +53,54 @@ describe("createEmployeeSchema — sanity", () => {
     const r = createEmployeeSchema.safeParse({});
     expect(r.success).toBe(false);
   });
+
+  it("F-26: role defaults to TEACHER when omitted (back-compat with seed)", () => {
+    const r = createEmployeeSchema.safeParse({
+      nama: "Ali",
+      email: "ali@x.com",
+      jabatan: "Guru",
+      campusId: "c1",
+      hireDate: "2026-01-01",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.role).toBe("TEACHER");
+  });
+
+  it("F-26: role accepts SCHOOL_ADMIN", () => {
+    const r = createEmployeeSchema.safeParse({
+      nama: "Bu Admin",
+      email: "admin@x.com",
+      jabatan: "Admin Tata Usaha",
+      campusId: "c1",
+      hireDate: "2026-01-01",
+      role: "SCHOOL_ADMIN",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.role).toBe("SCHOOL_ADMIN");
+  });
+
+  it("F-26: rejects GUARDIAN and SUPER_ADMIN — only TEACHER/SCHOOL_ADMIN allowed", () => {
+    expect(
+      createEmployeeSchema.safeParse({
+        nama: "X",
+        email: "x@x.com",
+        jabatan: "G",
+        campusId: "c1",
+        hireDate: "2026-01-01",
+        role: "GUARDIAN",
+      }).success,
+    ).toBe(false);
+    expect(
+      createEmployeeSchema.safeParse({
+        nama: "X",
+        email: "x@x.com",
+        jabatan: "G",
+        campusId: "c1",
+        hireDate: "2026-01-01",
+        role: "SUPER_ADMIN",
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("employeeStatusReasonSchema", () => {

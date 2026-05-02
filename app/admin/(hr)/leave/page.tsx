@@ -158,24 +158,21 @@ export default function AdminLeavePage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
 
-  // Stats fetch once
+  // F-21: single stats endpoint replaces the prior 3-call pattern. The old
+  // code fired three sequential `pageSize=1` list queries just to read
+  // `pagination.total` — wasteful when one `groupBy` returns all buckets.
   useEffect(() => {
     (async () => {
       try {
-        const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
-          fetch("/api/leave/requests?pageSize=1&status=PENDING"),
-          fetch("/api/leave/requests?pageSize=1&status=APPROVED"),
-          fetch("/api/leave/requests?pageSize=1&status=REJECTED"),
-        ]);
-        const parseTotal = async (res: Response) => {
-          if (!res.ok) return 0;
-          const data = await res.json();
-          return data.pagination?.total ?? 0;
-        };
-        const p = await parseTotal(pendingRes);
-        const a = await parseTotal(approvedRes);
-        const r = await parseTotal(rejectedRes);
-        setStats({ total: p + a + r, pending: p, approved: a, rejected: r });
+        const res = await fetch("/api/leave/stats");
+        if (!res.ok) return; // Stats stay at default zeros — non-critical
+        const json = await res.json();
+        setStats({
+          total: json.total ?? 0,
+          pending: json.pending ?? 0,
+          approved: json.approved ?? 0,
+          rejected: json.rejected ?? 0,
+        });
       } catch {
         // Stats stay at default zeros — non-critical
       }

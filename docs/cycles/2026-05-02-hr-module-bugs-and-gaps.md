@@ -105,16 +105,16 @@ Tasks are grouped by independence so `/build` can dispatch parallel subagents. *
 16. [x] Fix F-28: payroll cancel endpoint — new `app/api/payroll/[id]/cancel/route.ts`. CAS on `status="DRAFT"` flip; explicit child-row delete (PayrollItemLine then PayrollItem); audit row; 409 on non-DRAFT or lost CAS race. 5 tests. **UI button deferred to follow-up.**
 
 ### Group D — UI & CRUD parity (parallel)
-17. [ ] **[P]** Fix F-18: employee list + detail — Restore action visible for INACTIVE employees per `.claude/standards/crud.md` Category A. → **depends on Task 8** (needs the new `POST /employees/[id]/restore` endpoint Task 8 introduces). **Acceptance:** Playwright smoke navigates to inactive employee, clicks Restore, sees status flip.
-18. [ ] **[P]** Fix F-19: deactivate handler awaits response, surfaces error toast, blocks redirect on failure.
-19. [ ] **[P]** Fix F-22: remove `EXPORTED` status filter from `app/admin/(hr)/payroll/page.tsx`.
-20. [ ] **[P]** Fix F-26: `app/admin/(hr)/employees/[new]/page.tsx` — add `role` select (TEACHER / ADMIN / FINANCE / STAFF). Validate against existing role taxonomy. **Acceptance:** newly-created admin-role employee gets correct permissions.
+17. [x] Fix F-18: Restore (Aktifkan) action shown for INACTIVE employees on list + detail; ConfirmDialog wraps; calls `POST /api/employees/[id]/restore`; detail-page closes dialog before refetch (slow-network UX).
+18. [x] Fix F-19: deactivate handler awaits `res.ok` and surfaces error toast (already landed in Task 8).
+19. [x] Fix F-22: removed `EXPORTED` status filter from payroll page.
+20. [x] Fix F-26: `createEmployeeSchema` accepts `role: z.enum(["TEACHER","SCHOOL_ADMIN"]).default("TEACHER")`; `POST /api/employees` reads validated role; create-form Select added (Guru / Admin Sekolah).
 
 ### Group E — minors (stretch, parallel)
-21. [ ] **[P]** Fix F-11: attendance export validates `month`/`year`.
-22. [ ] **[P]** Fix F-20: attendance dashboard absent-stat ignores weekends/holidays for past dates.
-23. [ ] **[P]** Fix F-21: new `GET /api/leave/stats` + refactor leave page to single fetch.
-24. [ ] **[P]** Fix F-29: per-employee attendance-variables UI on payroll generate flow. **Note:** non-trivial — may slip to a follow-up cycle. **Acceptance:** generated payroll reflects entered overtimeHours/outdoorDays/etc.
+21. [x] Fix F-11: attendance export validates `month`/`year` with String round-trip + range guards. Rejects `1.5`, `1abc`, `13`, `1900`.
+22. [x] Fix F-20: dashboard absent-stat — past weekend/holiday returns 0 via `computeAbsentCount` helper. Today/future unchanged.
+23. [x] Fix F-21: `GET /api/leave/stats` (groupBy single query); leave page refactored from 3 fetches to 1.
+24. [ ] **DEFERRED to follow-up cycle** — F-29 per-employee attendance-variables UI on payroll generate is non-trivial and out of scope for this cycle. Filed as follow-up.
 
 ### Out of scope (file as separate cycles)
 - **F-30** teacher self-service attendance check-in/out — needs Portal Consistency review and product call on geofencing.
@@ -165,6 +165,7 @@ Active projects: only `udbivhchbizpxoryejgz` (staging-sgp). **Production app SSO
 - Task 14: F-14 lembur compliance flag — `OrgConfig.lemburCompliant` migration; engine tiered (1.5×/2×) when set; flat default; per-employee override. 8 new tests.
 - Task 15: F-27 leave cancel — owner-or-admin, Serializable txn, balance restoration, generated-LEAVE-row delete via `overrideReason.startsWith('Cuti:')` discriminator, audit. 7 tests.
 - Task 16: F-28 payroll cancel — new endpoint, CAS DRAFT→CANCELLED, child-row delete, audit. 5 tests.
+- Tasks 17–23 batched commit (UI + minors, file-overlap forced): F-18 Restore UI on list + detail (ConfirmDialog, refetch in place); F-19 deactivate awaits res.ok (already in Task 8); F-22 EXPORTED option removed from payroll filter; F-26 role select on creation form + role accepted in createEmployeeSchema (TEACHER/SCHOOL_ADMIN); F-11 export validates month/year via String round-trip; F-20 absent-stat ignores past weekends/holidays via `computeAbsentCount`; F-21 single `/api/leave/stats` groupBy endpoint replacing 3-fetch pattern. Reviewer flagged decimal-month bypass (added String round-trip) and detail-page restore dialog stays open during refetch (closed before fetch). 26+ new tests across leave-stats, attendance-export-validation, absent-stat, employee role enum.
 
 ## Verification
 

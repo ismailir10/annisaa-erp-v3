@@ -138,12 +138,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Create teacher user account
+    // F-26: role now comes from validated body (defaults to TEACHER for
+    // back-compat with seed/legacy callers that omit the field).
     await tx.user.create({
       data: {
         tenantId,
         email: body.email.trim(),
-        role: "TEACHER",
+        role: body.role,
         name: body.nama.trim(),
         employeeId: emp.id,
       },

@@ -11,6 +11,13 @@ export const createEmployeeSchema = z.object({
   bankName: z.string().optional().nullable(),
   bankAccountNo: z.string().optional().nullable(),
   bpjsEnrolled: z.boolean().default(false),
+  // F-26: caller-supplied role for the auto-created `User` row. Previously
+  // hard-coded to `TEACHER`, which prevented HR from creating non-teaching
+  // staff (admin/finance/etc.) through the employee form. Only TEACHER and
+  // SCHOOL_ADMIN are accepted here — GUARDIAN is the parent role and is not
+  // an employee. SUPER_ADMIN is intentionally excluded; promoting an
+  // employee to SUPER_ADMIN must go through a deliberate admin-side flow.
+  role: z.enum(["TEACHER", "SCHOOL_ADMIN"]).default("TEACHER"),
 });
 
 // F-13 fix: `status` is intentionally NOT extended onto the partial schema.

@@ -10,6 +10,7 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
@@ -144,10 +145,13 @@ const columns: ColumnDef<Employee>[] = [
 
 const INDONESIAN_BANKS = ["Bank BSI", "BRI", "BCA", "Bank Mandiri", "BNI", "CIMB Niaga", "BJB", "Bank Muamalat", "Bank Mega", "Bank Permata", "Lainnya"];
 
+// F-26: `role` controls the auto-created User row. `TEACHER` is the legacy
+// default; `SCHOOL_ADMIN` covers non-teaching staff (admin/finance/etc).
 const EMPTY_CREATE_FORM = {
   nama: "", formalName: "", email: "", noHp: "",
   jabatan: "", campusId: "", hireDate: "",
   bankName: "Bank BSI", bankAccountNo: "", bpjsEnrolled: false,
+  role: "TEACHER" as "TEACHER" | "SCHOOL_ADMIN",
 };
 
 export default function EmployeesPage() {
@@ -171,6 +175,9 @@ export default function EmployeesPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [deactivateTarget, setDeactivateTarget] = useState<Employee | null>(null);
+  // F-18: restore confirmation target. Symmetrical to deactivate — uses
+  // the dedicated POST /restore endpoint, which is idempotent and audited.
+  const [restoreTarget, setRestoreTarget] = useState<Employee | null>(null);
 
   // Create dialog state
   const [createOpen, setCreateOpen] = useState(false);
@@ -300,6 +307,23 @@ export default function EmployeesPage() {
     }
   }, [deactivateTarget, fetchEmployees]);
 
+  const handleRestore = useCallback(async () => {
+    if (!restoreTarget) return;
+    const res = await fetch(`/api/employees/${restoreTarget.id}/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (res.ok) {
+      toast.success(`${restoreTarget.nama} diaktifkan kembali`);
+      setRestoreTarget(null);
+      fetchEmployees();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal mengaktifkan karyawan");
+    }
+  }, [restoreTarget, fetchEmployees]);
+
   const columnsWithActions = useMemo<ColumnDef<Employee>[]>(
     () => [
       ...columns,
@@ -313,6 +337,13 @@ export default function EmployeesPage() {
             onDeactivate={
               row.original.status === "ACTIVE"
                 ? () => setDeactivateTarget(row.original)
+                : undefined
+            }
+            // F-18: restore (Aktifkan) shown when employee is INACTIVE.
+            // Calls the dedicated POST /restore endpoint added in Task 8.
+            onActivate={
+              row.original.status === "INACTIVE"
+                ? () => setRestoreTarget(row.original)
                 : undefined
             }
             isActive={row.original.status === "ACTIVE"}
@@ -393,6 +424,16 @@ export default function EmployeesPage() {
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
         entityName={deactivateTarget?.nama ?? ""}
         onConfirm={handleDeactivate}
+      />
+
+      {/* F-18: restore confirm — non-destructive, simple ConfirmDialog */}
+      <ConfirmDialog
+        open={!!restoreTarget}
+        onOpenChange={(o) => !o && setRestoreTarget(null)}
+        title={`Aktifkan "${restoreTarget?.nama ?? ""}"?`}
+        description="Karyawan akan kembali masuk daftar aktif dan bisa login lagi."
+        confirmLabel="Aktifkan"
+        onConfirm={handleRestore}
       />
 
       {/* Create Employee — Dialog on desktop, Sheet on mobile */}
@@ -510,6 +551,22 @@ function CreateEmployeeFormBody({
       </div>
       <div className="grid grid-cols-2 gap-field">
         <Field><FieldLabel>Tanggal Masuk *</FieldLabel><Input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+        <Field>
+          <FieldLabel>Peran Akun *</FieldLabel>
+          <Select
+            value={form.role}
+            onValueChange={(v) => v && setForm({ ...form, role: v as "TEACHER" | "SCHOOL_ADMIN" })}
+            items={{ TEACHER: "Guru", SCHOOL_ADMIN: "Admin Sekolah" }}
+          >
+            <SelectTrigger><SelectValue placeholder="Pilih peran" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TEACHER">Guru</SelectItem>
+              <SelectItem value="SCHOOL_ADMIN">Admin Sekolah</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-field">
         <Field>
           <FieldLabel>Bank</FieldLabel>
           <Select value={form.bankName} onValueChange={(v) => v && setForm({ ...form, bankName: v })}>
