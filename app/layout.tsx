@@ -19,8 +19,14 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "An Nisaa' Sekolahku — Sistem Kehadiran & Penggajian",
-  description: "Sistem manajemen kehadiran guru dan penggajian untuk An Nisaa' Sekolahku",
+  metadataBase: new URL("https://talib.annisaasekolahku.com"),
+  title: {
+    default: "Talib — by An Nisaa' Sekolahku",
+    template: "%s · Talib",
+  },
+  description:
+    "Talib adalah platform manajemen sekolah An Nisaa' Sekolahku — kehadiran, jurnal harian, tagihan, dan komunikasi orang tua dalam satu tempat.",
+  applicationName: "Talib",
   icons: {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
@@ -28,6 +34,29 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    siteName: "Talib by An Nisaa' Sekolahku",
+    title: "Talib — Platform Sekolah An Nisaa'",
+    description:
+      "Kehadiran, jurnal harian, tagihan, komunikasi orang tua dalam satu tempat.",
+    url: "https://talib.annisaasekolahku.com",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Talib — Platform Sekolah An Nisaa'",
+    description:
+      "Kehadiran, jurnal harian, tagihan, komunikasi orang tua dalam satu tempat.",
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
+export const viewport = {
+  themeColor: "#0F172A",
 };
 
 export default function RootLayout({
