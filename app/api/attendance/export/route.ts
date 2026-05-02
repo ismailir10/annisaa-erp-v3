@@ -1,16 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("attendance.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { searchParams } = new URL(req.url);
-  const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
-  const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()));
+  // F-11: validate month (1-12) and year (2000-2100). Previously `parseInt`
+  // on `"foo"` returned `NaN` which silently produced an empty CSV — the
+  // employee JOIN still emitted header + zero-count rows. Bad input must
+  // surface as a 400 instead of a misleading-but-200 export.
+  const monthRaw = searchParams.get("month") ?? String(new Date().getMonth() + 1);
+  const yearRaw = searchParams.get("year") ?? String(new Date().getFullYear());
+  const month = parseInt(monthRaw, 10);
+  const year = parseInt(yearRaw, 10);
+  // String round-trip rejects decimals ("1.5" → 1) and trailing junk ("1abc" → 1)
+  // that parseInt would silently accept. Number.isInteger alone is not enough.
+  if (
+    String(month) !== monthRaw.trim() ||
+    String(year) !== yearRaw.trim() ||
+    month < 1 ||
+    month > 12 ||
+    year < 2000 ||
+    year > 2100
+  ) {
+    return NextResponse.json(
+      { error: "Bulan dan tahun tidak valid" },
+      { status: 400 },
+    );
+  }
 
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
   const endDate = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;

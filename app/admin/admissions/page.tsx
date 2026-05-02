@@ -18,11 +18,20 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetClose,
+} from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { StatCard } from "@/components/admin/stat-card";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { Plus, UserPlus, Users, PhoneCall, CheckCircle } from "lucide-react";
+import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -68,11 +77,248 @@ const SOURCE_LABELS: Record<string, string> = {
   OTHER: "Lainnya",
 };
 
+// Happy-path transitions for the Admission state machine.
+// Mirrors VALID_TRANSITIONS in `app/api/admissions/[id]/route.ts`.
+// Terminal states (REGISTERED, CANCELLED) have no next step.
+const NEXT_STATUS: Record<string, { status: string; label: string } | undefined> = {
+  INQUIRY: { status: "VISIT_SCHEDULED", label: "Jadwalkan Kunjungan" },
+  VISIT_SCHEDULED: { status: "VISITED", label: "Tandai Sudah Kunjungan" },
+  VISITED: { status: "ADMITTED", label: "Terima" },
+  ADMITTED: { status: "REGISTERED", label: "Daftarkan" },
+};
+
+// Terminal states — hide "Batalkan" when already at one of these.
+const TERMINAL_STATUSES = new Set(["REGISTERED", "CANCELLED"]);
+
+// ------------------------------------------------------------------
+// Form body (shared between Dialog on desktop and Sheet on mobile)
+// ------------------------------------------------------------------
+
+type AdmissionForm = {
+  childName: string;
+  childAge: string;
+  childGender: string;
+  parentName: string;
+  parentPhone: string;
+  parentWhatsapp: string;
+  parentEmail: string;
+  parentEducation: string;
+  parentOccupation: string;
+  parentIncome: string;
+  programId: string;
+  source: string;
+  notes: string;
+  followUpDate: string;
+};
+
+type AdmissionFormBodyProps = {
+  form: AdmissionForm;
+  setForm: React.Dispatch<React.SetStateAction<AdmissionForm>>;
+  programs: Program[];
+};
+
+function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <Field>
+          <FieldLabel>Nama Anak *</FieldLabel>
+          <Input
+            value={form.childName}
+            onChange={(e) => setForm({ ...form, childName: e.target.value })}
+            placeholder="Aisyah"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Usia</FieldLabel>
+          <Input
+            value={form.childAge}
+            onChange={(e) => setForm({ ...form, childAge: e.target.value })}
+            placeholder="4 tahun"
+          />
+        </Field>
+      </div>
+      <Field>
+        <FieldLabel>Jenis Kelamin</FieldLabel>
+        <Select
+          value={form.childGender}
+          onValueChange={(v) => v && setForm({ ...form, childGender: v })}
+          items={{ L: "Laki-laki", P: "Perempuan" }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Pilih" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="L">Laki-laki</SelectItem>
+            <SelectItem value="P">Perempuan</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field>
+          <FieldLabel>Nama Orang Tua *</FieldLabel>
+          <Input
+            value={form.parentName}
+            onChange={(e) => setForm({ ...form, parentName: e.target.value })}
+            placeholder="Ibu Fatimah"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>WhatsApp</FieldLabel>
+          <Input
+            value={form.parentWhatsapp}
+            onChange={(e) => setForm({ ...form, parentWhatsapp: e.target.value })}
+            placeholder="081234567890"
+          />
+        </Field>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Field>
+          <FieldLabel>Pendidikan Orang Tua</FieldLabel>
+          <Select
+            value={form.parentEducation}
+            onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
+            items={{ SMA: "SMA", "D1-D3": "D1-D3", S1: "S1", S2: "S2", S3: "S3" }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SMA">SMA</SelectItem>
+              <SelectItem value="D1-D3">D1-D3</SelectItem>
+              <SelectItem value="S1">S1</SelectItem>
+              <SelectItem value="S2">S2</SelectItem>
+              <SelectItem value="S3">S3</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Pekerjaan</FieldLabel>
+          <Select
+            value={form.parentOccupation}
+            onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
+            items={{
+              "Karyawan Swasta": "Karyawan Swasta",
+              ASN: "ASN",
+              Guru: "Guru",
+              Wiraswasta: "Wiraswasta",
+              BUMN: "BUMN",
+              "Ibu Rumah Tangga": "Ibu Rumah Tangga",
+              Lainnya: "Lainnya",
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Karyawan Swasta">Karyawan Swasta</SelectItem>
+              <SelectItem value="ASN">ASN</SelectItem>
+              <SelectItem value="Guru">Guru</SelectItem>
+              <SelectItem value="Wiraswasta">Wiraswasta</SelectItem>
+              <SelectItem value="BUMN">BUMN</SelectItem>
+              <SelectItem value="Ibu Rumah Tangga">Ibu Rumah Tangga</SelectItem>
+              <SelectItem value="Lainnya">Lainnya</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Penghasilan</FieldLabel>
+          <Select
+            value={form.parentIncome}
+            onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
+            items={{
+              "< Rp 1 Juta": "< Rp 1 Juta",
+              "Rp 1-2 Juta": "Rp 1-2 Juta",
+              "Rp 3-5 Juta": "Rp 3-5 Juta",
+              "Rp 5-10 Juta": "Rp 5-10 Juta",
+              "> Rp 10 Juta": "> Rp 10 Juta",
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="< Rp 1 Juta">&lt; Rp 1 Juta</SelectItem>
+              <SelectItem value="Rp 1-2 Juta">Rp 1-2 Juta</SelectItem>
+              <SelectItem value="Rp 3-5 Juta">Rp 3-5 Juta</SelectItem>
+              <SelectItem value="Rp 5-10 Juta">Rp 5-10 Juta</SelectItem>
+              <SelectItem value="> Rp 10 Juta">&gt; Rp 10 Juta</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      <Field>
+        <FieldLabel>Program Diminati</FieldLabel>
+        <Select
+          value={form.programId}
+          onValueChange={(v) => v && setForm({ ...form, programId: v })}
+          items={programs.map((p) => ({ label: p.name, value: p.id }))}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Pilih program" />
+          </SelectTrigger>
+          <SelectContent>
+            {programs.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field>
+          <FieldLabel>Sumber</FieldLabel>
+          <Select
+            value={form.source}
+            onValueChange={(v) => v && setForm({ ...form, source: v })}
+            items={{
+              WHATSAPP: "WhatsApp",
+              WALK_IN: "Datang Langsung",
+              WEBSITE: "Website",
+              REFERRAL: "Referensi",
+              OTHER: "Lainnya",
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+              <SelectItem value="WALK_IN">Datang Langsung</SelectItem>
+              <SelectItem value="WEBSITE">Website</SelectItem>
+              <SelectItem value="REFERRAL">Referensi</SelectItem>
+              <SelectItem value="OTHER">Lainnya</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Tanggal Follow Up</FieldLabel>
+          <Input
+            type="date"
+            value={form.followUpDate}
+            onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
+          />
+        </Field>
+      </div>
+      <Field>
+        <FieldLabel>Catatan</FieldLabel>
+        <Input
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="Catatan tambahan..."
+        />
+      </Field>
+    </>
+  );
+}
+
 // ------------------------------------------------------------------
 // Page (columns defined inside to access convertToStudent)
 // ------------------------------------------------------------------
 
 export default function AdmissionsPage() {
+  const isMobile = useIsMobile();
   const [data, setData] = useState<Admission[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -99,7 +345,7 @@ export default function AdmissionsPage() {
       const a = admitted.pagination?.total ?? 0;
       const r = registered.pagination?.total ?? 0;
       setStats({ total: i + a + r, inquiry: i, admitted: a, registered: r });
-    }).catch(() => { /* stats are non-critical */ });
+    }).catch((err) => console.error("[admissions] stats fetch failed", err));
   }, []);
 
   // Dialog state
@@ -129,7 +375,7 @@ export default function AdmissionsPage() {
     fetch("/api/programs")
       .then((r) => r.json())
       .then((p) => setPrograms(Array.isArray(p) ? p : p.data ?? []))
-      .catch(() => { /* programs lookup is non-critical */ });
+      .catch((err) => console.error("[admissions] programs fetch failed", err));
   }, []);
 
   const fetchAdmissions = useCallback(async () => {
@@ -185,7 +431,7 @@ export default function AdmissionsPage() {
   async function convertToStudent(admissionId: string) {
     const res = await fetch(`/api/admissions/${admissionId}/convert`, { method: "POST" });
     if (res.ok) {
-      toast.success("Berhasil dikonversi menjadi siswa");
+      toast.success("Dikonversi menjadi siswa");
       fetchAdmissions();
     } else {
       const d = await res.json();
@@ -207,7 +453,7 @@ export default function AdmissionsPage() {
       body: JSON.stringify(form),
     });
     if (res.ok) {
-      toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran berhasil dicatat");
+      toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran tercatat");
       setDialogOpen(false);
       setEditingAdmission(null);
       fetchAdmissions();
@@ -216,6 +462,23 @@ export default function AdmissionsPage() {
       toast.error(d.error || "Gagal");
     }
     setSaving(false);
+  }
+
+  async function advanceStatus(a: Admission) {
+    const next = NEXT_STATUS[a.status];
+    if (!next) return;
+    const res = await fetch(`/api/admissions/${a.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: next.status }),
+    });
+    if (res.ok) {
+      toast.success(`Status diubah ke ${next.label}`);
+      fetchAdmissions();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal mengubah status");
+    }
   }
 
   async function handleCancel() {
@@ -326,6 +589,22 @@ export default function AdmissionsPage() {
         if (a.studentId) {
           return <span className="text-xs text-muted-foreground">Sudah jadi siswa</span>;
         }
+        const next = NEXT_STATUS[a.status];
+        const extras: { label: string; icon?: React.ReactNode; onClick: () => void }[] = [];
+        if (next) {
+          extras.push({
+            label: `Lanjutkan ke ${next.label}`,
+            icon: <ArrowRight size={14} />,
+            onClick: () => advanceStatus(a),
+          });
+        }
+        if (!TERMINAL_STATUSES.has(a.status)) {
+          extras.push({
+            label: "Konversi ke Siswa",
+            icon: <UserPlus size={14} />,
+            onClick: () => convertToStudent(a.id),
+          });
+        }
         return (
           <DataTableRowActions
             onEdit={() => {
@@ -340,13 +619,8 @@ export default function AdmissionsPage() {
               });
               setDialogOpen(true);
             }}
-            onDeactivate={a.status !== "CANCELLED" ? () => setCancelTarget(a) : undefined}
-            isActive={a.status !== "CANCELLED"}
-            extraActions={a.status !== "CANCELLED" ? [{
-              label: "Konversi ke Siswa",
-              icon: <UserPlus size={14} />,
-              onClick: () => convertToStudent(a.id),
-            }] : undefined}
+            onCancel={!TERMINAL_STATUSES.has(a.status) ? () => setCancelTarget(a) : undefined}
+            extraActions={extras.length ? extras : undefined}
           />
         );
       },
@@ -365,12 +639,12 @@ export default function AdmissionsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow cols={4}>
         <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Inquiry" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
         <StatCard label="Diterima" value={stats.admitted} icon={CheckCircle} color="success" index={2} />
         <StatCard label="Terdaftar" value={stats.registered} icon={UserPlus} color="primary" index={3} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama anak atau orang tua..."
@@ -410,195 +684,51 @@ export default function AdmissionsPage() {
         emptyDescription="Catat inquiry baru ketika orang tua menghubungi sekolah"
       />
 
-      {/* Add Admission Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>Nama Anak *</FieldLabel>
-                <Input
-                  value={form.childName}
-                  onChange={(e) => setForm({ ...form, childName: e.target.value })}
-                  placeholder="Aisyah"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Usia</FieldLabel>
-                <Input
-                  value={form.childAge}
-                  onChange={(e) => setForm({ ...form, childAge: e.target.value })}
-                  placeholder="4 tahun"
-                />
-              </Field>
+      {/* Add/Edit Admission — Sheet on mobile (bottom, form is narrow when grids collapse), Dialog on desktop */}
+      {isMobile ? (
+        <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
+          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</SheetTitle>
+            </SheetHeader>
+            <div className="p-card space-y-field">
+              <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
+              <div className="flex flex-col-reverse gap-2 pt-2">
+                <Button onClick={handleSubmit} disabled={saving}>
+                  {saving ? "Menyimpan..." : "Simpan"}
+                </Button>
+                <SheetClose render={<Button variant="outline">Batal</Button>} />
+              </div>
             </div>
-            <Field>
-              <FieldLabel>Jenis Kelamin</FieldLabel>
-              <Select
-                value={form.childGender}
-                onValueChange={(v) => v && setForm({ ...form, childGender: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="L">Laki-laki</SelectItem>
-                  <SelectItem value="P">Perempuan</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>Nama Orang Tua *</FieldLabel>
-                <Input
-                  value={form.parentName}
-                  onChange={(e) => setForm({ ...form, parentName: e.target.value })}
-                  placeholder="Ibu Fatimah"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>WhatsApp</FieldLabel>
-                <Input
-                  value={form.parentWhatsapp}
-                  onChange={(e) => setForm({ ...form, parentWhatsapp: e.target.value })}
-                  placeholder="081234567890"
-                />
-              </Field>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="p-card">
+            <DialogHeader>
+              <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
+            </DialogHeader>
+            <div className="p-card space-y-field">
+              <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <Field>
-                <FieldLabel>Pendidikan Orang Tua</FieldLabel>
-                <Select
-                  value={form.parentEducation}
-                  onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SMA">SMA</SelectItem>
-                    <SelectItem value="D1-D3">D1-D3</SelectItem>
-                    <SelectItem value="S1">S1</SelectItem>
-                    <SelectItem value="S2">S2</SelectItem>
-                    <SelectItem value="S3">S3</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Pekerjaan</FieldLabel>
-                <Select
-                  value={form.parentOccupation}
-                  onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Karyawan Swasta">Karyawan Swasta</SelectItem>
-                    <SelectItem value="ASN">ASN</SelectItem>
-                    <SelectItem value="Guru">Guru</SelectItem>
-                    <SelectItem value="Wiraswasta">Wiraswasta</SelectItem>
-                    <SelectItem value="BUMN">BUMN</SelectItem>
-                    <SelectItem value="Ibu Rumah Tangga">Ibu Rumah Tangga</SelectItem>
-                    <SelectItem value="Lainnya">Lainnya</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Penghasilan</FieldLabel>
-                <Select
-                  value={form.parentIncome}
-                  onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="< Rp 1 Juta">&lt; Rp 1 Juta</SelectItem>
-                    <SelectItem value="Rp 1-2 Juta">Rp 1-2 Juta</SelectItem>
-                    <SelectItem value="Rp 3-5 Juta">Rp 3-5 Juta</SelectItem>
-                    <SelectItem value="Rp 5-10 Juta">Rp 5-10 Juta</SelectItem>
-                    <SelectItem value="> Rp 10 Juta">&gt; Rp 10 Juta</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel>Program Diminati</FieldLabel>
-              <Select
-                value={form.programId}
-                onValueChange={(v) => v && setForm({ ...form, programId: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih program" />
-                </SelectTrigger>
-                <SelectContent>
-                  {programs.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>Sumber</FieldLabel>
-                <Select
-                  value={form.source}
-                  onValueChange={(v) => v && setForm({ ...form, source: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-                    <SelectItem value="WALK_IN">Datang Langsung</SelectItem>
-                    <SelectItem value="WEBSITE">Website</SelectItem>
-                    <SelectItem value="REFERRAL">Referensi</SelectItem>
-                    <SelectItem value="OTHER">Lainnya</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Tanggal Follow Up</FieldLabel>
-                <Input
-                  type="date"
-                  value={form.followUpDate}
-                  onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
-                />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel>Catatan</FieldLabel>
-              <Input
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="Catatan tambahan..."
-              />
-            </Field>
-          </div>
-          <DialogFooter>
-            <DialogClose>
-              <Button variant="outline">Batal</Button>
-            </DialogClose>
-            <Button onClick={handleSubmit} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <DialogClose>
+                <Button variant="outline">Batal</Button>
+              </DialogClose>
+              <Button onClick={handleSubmit} disabled={saving}>
+                {saving ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!cancelTarget}
         onOpenChange={(o) => !o && setCancelTarget(null)}
-        title="Batalkan Pendaftaran"
-        description={`Batalkan pendaftaran "${cancelTarget?.childName}"? Status akan diubah menjadi CANCELLED.`}
+        entityName={cancelTarget ? `pendaftaran ${cancelTarget.childName}` : ""}
+        action="cancel"
         onConfirm={handleCancel}
-        confirmLabel="Batalkan"
       />
     </>
   );

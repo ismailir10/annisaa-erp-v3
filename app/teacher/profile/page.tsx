@@ -1,10 +1,12 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { User, Mail, Phone, Building2, Briefcase, CreditCard } from "lucide-react";
+import { User, Mail, Phone, Building2, Briefcase, CreditCard, Wallet, ChevronRight } from "lucide-react";
+import { PageHeader } from "@/components/portal/page-header";
 
 export default async function TeacherProfilePage() {
   const session = await getSession();
@@ -27,8 +29,8 @@ export default async function TeacherProfilePage() {
   ];
 
   return (
-    <div className="px-5 pt-6 pb-4">
-      <h1 className="text-lg font-bold mb-4">Profil Saya</h1>
+    <div>
+      <PageHeader title="Profil Saya" />
 
       {/* Avatar + Name */}
       <div className="flex items-center gap-4 mb-6">
@@ -38,11 +40,26 @@ export default async function TeacherProfilePage() {
         <div>
           <h2 className="text-base font-semibold">{employee.nama}</h2>
           <div className="flex items-center gap-2 mt-1">
-            <Badge variant="secondary" className="text-[10px] font-currency">{employee.kode}</Badge>
+            <Badge variant="secondary" className="text-xs font-currency">{employee.kode}</Badge>
             <StatusBadge status="ACTIVE" />
           </div>
         </div>
       </div>
+
+      {/* Quick links */}
+      <Card className="p-0 overflow-hidden mb-4">
+        <Link
+          href="/teacher/slips"
+          className="flex items-center gap-3 px-4 py-3.5 hover:bg-accent transition-colors"
+        >
+          <Wallet size={16} className="text-muted-foreground shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Slip Gaji</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Lihat slip gaji bulanan</p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+        </Link>
+      </Card>
 
       {/* Info Card */}
       <Card className="p-0 overflow-hidden">
@@ -55,7 +72,7 @@ export default async function TeacherProfilePage() {
             >
               <Icon size={16} className="text-muted-foreground shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{f.label}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">{f.label}</p>
                 <p className="text-sm font-medium mt-0.5 truncate">{f.value}</p>
               </div>
             </div>

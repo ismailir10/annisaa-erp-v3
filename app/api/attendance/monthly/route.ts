@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 
-export const revalidate = 3600; // 1h — historical monthly data
+// F-12: removed `export const revalidate = 3600`. Route reads per-tenant
+// session data; ISR caching by URL would mix tenants. Next.js currently
+// auto-detects the dynamic context and skips ISR, but the declaration is a
+// latent footgun if a future refactor makes the route appear cacheable.
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json([], { status: 403 });
-  }
+  const auth = await requirePermission("attendance.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { searchParams } = new URL(req.url);
   const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));

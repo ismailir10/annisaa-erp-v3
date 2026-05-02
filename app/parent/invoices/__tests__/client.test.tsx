@@ -1,33 +1,46 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InvoicesClient } from "../client";
 
-// Mock InvoiceDetailSheet
-vi.mock("@/components/parent/invoice-detail-sheet", () => ({
-  InvoiceDetailSheet: ({ open, onOpenChange, invoice }: any) => (
+vi.mock("../invoice-detail-sheet", () => ({
+  InvoiceDetailSheet: ({
+    open,
+    invoiceId,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    invoiceId: string | null;
+  }) => (
     <div data-testid="invoice-detail-sheet">
-      {open && <div>Invoice Sheet: {invoice?.invoiceNumber}</div>}
-      <button onClick={() => onOpenChange(false)}>Close</button>
+      {open && <div>Sheet open: {invoiceId}</div>}
     </div>
   ),
 }));
 
-// Mock toast
+const toastFn = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() });
 vi.mock("sonner", () => ({
-  toast: {
-    error: vi.fn(),
+  get toast() {
+    return toastFn;
   },
 }));
 
-// Mock Framer Motion to avoid animation issues in tests
-vi.mock("framer-motion", () => ({
-  motion: {
-    div: ({ children, className, ...props }: any) => (
-      <div className={className} {...props}>{children}</div>
-    ),
-  },
+const replaceFn = vi.fn();
+const refreshFn = vi.fn();
+let mockSearchParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: replaceFn, push: vi.fn(), refresh: refreshFn }),
+  useSearchParams: () => mockSearchParams,
 }));
+
+beforeEach(() => {
+  toastFn.mockClear();
+  toastFn.error.mockClear();
+  toastFn.success.mockClear();
+  replaceFn.mockClear();
+  refreshFn.mockClear();
+  mockSearchParams = new URLSearchParams();
+});
 
 const mockInvoices = [
   {
@@ -42,16 +55,6 @@ const mockInvoices = [
     sentAt: "2024-08-01",
     paidAt: null,
     createdAt: "2024-08-01",
-    lines: [],
-    payments: [],
-    student: {
-      name: "Test Student",
-      nickname: "Test",
-      classSection: {
-        name: "TKIT A",
-        program: { name: "TKIT" },
-      },
-    },
   },
   {
     id: "inv-2",
@@ -65,16 +68,6 @@ const mockInvoices = [
     sentAt: "2024-09-01",
     paidAt: null,
     createdAt: "2024-09-01",
-    lines: [],
-    payments: [],
-    student: {
-      name: "Test Student",
-      nickname: "Test",
-      classSection: {
-        name: "TKIT A",
-        program: { name: "TKIT" },
-      },
-    },
   },
   {
     id: "inv-3",
@@ -88,393 +81,197 @@ const mockInvoices = [
     sentAt: "2024-07-01",
     paidAt: "2024-07-15",
     createdAt: "2024-07-01",
-    lines: [],
-    payments: [],
-    student: {
-      name: "Test Student",
-      nickname: "Test",
-      classSection: {
-        name: "TKIT A",
-        program: { name: "TKIT" },
-      },
-    },
   },
 ];
 
-describe("InvoicesClient", () => {
+describe("InvoicesClient (cycle-4)", () => {
   describe("Loading State", () => {
-    it("shows loading skeletons when data is null", () => {
+    it("shows skeleton when data is null", () => {
       render(<InvoicesClient data={null} />);
-
-      // Should show stat card skeletons
       const skeletons = document.querySelectorAll(".animate-pulse");
       expect(skeletons.length).toBeGreaterThan(0);
     });
+  });
 
-    it("keeps showing skeleton while data is null", () => {
-      render(<InvoicesClient data={null} />);
-
-      // Check that skeleton elements are present
-      const skeletons = document.querySelectorAll(".rounded-2xl");
-      expect(skeletons.length).toBeGreaterThan(0);
+  describe("Page Header", () => {
+    it("renders Tagihan h1", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Tagihan");
     });
   });
 
-  describe("Error State", () => {
-    it("shows loading skeleton initially when data is null", () => {
-      render(<InvoicesClient data={null} />);
-
-      // Initially shows loading state
-      const skeletons = document.querySelectorAll(".animate-pulse");
-      expect(skeletons.length).toBeGreaterThan(0);
-    });
-
-    // Note: The actual error state appears after useEffect runs,
-    // but since useEffect doesn't run in test environment synchronously,
-    // we test that loading state is shown
-  });
-
-  describe("Empty State", () => {
-    it("shows empty state when data is an empty array", () => {
-      render(<InvoicesClient data={[]} />);
-
-      expect(screen.getByText("Belum ada tagihan")).toBeInTheDocument();
-    });
-
-    it("shows empty state with context when filtered", async () => {
-      const user = userEvent.setup();
+  describe("Outstanding state — Frame 4", () => {
+    it("renders focal card with display-size due total", () => {
       render(<InvoicesClient data={mockInvoices} />);
-
-      // Click on overdue filter (has 0 invoices)
-      const overdueButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Jatuh Tempo")
-      );
-      expect(overdueButton).toBeDefined();
-
-      if (overdueButton) {
-        await user.click(overdueButton);
-        // The empty state should show "Tidak ada tagihan Jatuh Tempo"
-        // Since it might be broken across elements, use a more flexible matcher
-        const emptyState = screen.queryByText("Jatuh Tempo");
-        expect(emptyState).toBeInTheDocument();
-      }
+      // SENT 1_000_000 unpaid + PARTIAL remaining 500_000 = 1.500.000
+      expect(screen.getByText(/1\.500\.000/)).toBeInTheDocument();
     });
 
-    it("shows empty state icon", () => {
-      render(<InvoicesClient data={[]} />);
+    it("shows count of outstanding tagihan", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      // Two outstanding (SENT + PARTIALLY_PAID)
+      expect(screen.getByText(/2 tagihan/)).toBeInTheDocument();
+    });
 
-      const icon = document.querySelector("svg");
-      expect(icon).toBeInTheDocument();
+    it("renders Belum dibayar eyebrow group", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      // Eyebrow appears twice: inside focal card + as section heading
+      expect(screen.getAllByText("Belum dibayar").length).toBeGreaterThan(0);
+    });
+
+    it("renders due rows with period label", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByText("Agustus 2024")).toBeInTheDocument();
+      expect(screen.getByText("September 2024")).toBeInTheDocument();
+    });
+
+    it("renders Riwayat pembayaran eyebrow when paid history exists", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByText("Riwayat pembayaran")).toBeInTheDocument();
+      expect(screen.getByText("Juli 2024")).toBeInTheDocument();
     });
   });
 
-
-  describe("Data Rendering - Filter", () => {
-    it("renders InvoiceFilter component", () => {
-      render(<InvoicesClient data={mockInvoices} />);
-
-      // Check that filter buttons exist
-      expect(screen.getByText("Semua")).toBeInTheDocument();
-      expect(screen.getByText("Belum Bayar")).toBeInTheDocument();
-      expect(screen.getByText("Dibayar Sebagian")).toBeInTheDocument();
-      // Use getAllByText for "Lunas" since it appears in filter and stat card
-      expect(screen.getAllByText("Lunas").length).toBeGreaterThan(0);
-      expect(screen.getByText("Jatuh Tempo")).toBeInTheDocument();
-    });
-
-    it("calculates filter counts correctly", () => {
-      render(<InvoicesClient data={mockInvoices} />);
-
-      // All: 3, Unpaid: 1, Partial: 1, Paid: 1, Overdue: 0
-      // Use getAllByText and find one with value 3
-      const threes = screen.getAllByText("3");
-      expect(threes.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe("Filter Functionality", () => {
-    it("defaults to 'unpaid' filter", () => {
-      render(<InvoicesClient data={mockInvoices} />);
-
-      const unpaidButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Belum Bayar")
-      );
-      expect(unpaidButton).toHaveAttribute("aria-pressed", "true");
-    });
-
-    it("filters invoices by unpaid status", () => {
-      render(<InvoicesClient data={mockInvoices} />);
-
-      // Should show only SENT (unpaid) invoices
-      // Use getAllByText since invoice numbers appear in multiple places
-      expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
-      expect(screen.queryByText("INV-2024-002")).not.toBeInTheDocument();
-      expect(screen.queryByText("INV-2024-003")).not.toBeInTheDocument();
-    });
-
-    it("changes filter when chip is clicked", async () => {
-      const user = userEvent.setup();
-      render(<InvoicesClient data={mockInvoices} />);
-
-      const paidButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Lunas")
-      );
-      expect(paidButton).toBeDefined();
-
-      if (paidButton) {
-        await user.click(paidButton);
-
-        // Should show only PAID invoices
-        // Use queryAllByText to check presence/absence
-        const inv001 = screen.queryAllByText("INV-2024-001");
-        const inv002 = screen.queryAllByText("INV-2024-002");
-        const inv003 = screen.queryAllByText("INV-2024-003");
-
-        expect(inv001.length).toBe(0);
-        expect(inv002.length).toBe(0);
-        expect(inv003.length).toBeGreaterThan(0);
-      }
-    });
-
-    it("shows all invoices when 'all' filter is selected", async () => {
-      const user = userEvent.setup();
-      render(<InvoicesClient data={mockInvoices} />);
-
-      const allButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Semua")
-      );
-      expect(allButton).toBeDefined();
-
-      if (allButton) {
-        await user.click(allButton);
-
-        await waitFor(() => {
-          expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
-          expect(screen.getAllByText("INV-2024-002").length).toBeGreaterThan(0);
-          expect(screen.getAllByText("INV-2024-003").length).toBeGreaterThan(0);
-        });
-      }
-    });
-
-    it("filters partially paid invoices correctly", async () => {
-      const user = userEvent.setup();
-      render(<InvoicesClient data={mockInvoices} />);
-
-      const partialButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Dibayar Sebagian")
-      );
-      expect(partialButton).toBeDefined();
-
-      if (partialButton) {
-        await user.click(partialButton);
-
-        await waitFor(() => {
-          expect(screen.queryByText("INV-2024-001")).not.toBeInTheDocument();
-          expect(screen.getAllByText("INV-2024-002").length).toBeGreaterThan(0);
-          expect(screen.queryByText("INV-2024-003")).not.toBeInTheDocument();
-        });
-      }
-    });
-  });
-
-  describe("Mobile View - Invoice Cards", () => {
-    beforeEach(() => {
-      // Mock mobile viewport
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
-    });
-
-    it("renders invoice cards on mobile", () => {
-      render(<InvoicesClient data={mockInvoices} />);
-
-      expect(screen.getAllByText("Agustus 2024").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
-    });
-
-    it("shows invoice details in cards", () => {
-      render(<InvoicesClient data={mockInvoices} />);
-
-      // Verify invoice data is rendered (default filter is "unpaid" → shows SENT invoices)
-      expect(screen.getAllByText("Agustus 2024").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("Belum Dibayar").length).toBeGreaterThan(0);
-    });
-
-    it("does not render DataTable on mobile", () => {
-      const { container } = render(<InvoicesClient data={mockInvoices} />);
-
-      // DataTable should be hidden on mobile
-      const dataTable = container.querySelector('[data-testid="data-table"]');
-      expect(dataTable).not.toBeInTheDocument();
-    });
-  });
-
-  describe("Invoice Detail Sheet", () => {
-    it("opens detail sheet when row 'Lihat' button is clicked", async () => {
-      const user = userEvent.setup();
-      render(<InvoicesClient data={mockInvoices} />);
-
-      // DataTableRowActions renders a "Lihat" button with Eye icon
-      const viewButtons = screen.getAllByRole("button").filter(btn =>
-        btn.textContent?.includes("Lihat")
-      );
-
-      expect(viewButtons.length).toBeGreaterThan(0);
-
-      // Verify clicking doesn't throw an error
-      await user.click(viewButtons[0]);
-
-      // Test passes if no error was thrown
-      expect(true).toBe(true);
-    });
-
-    it("displays invoice data in table row", async () => {
-      render(<InvoicesClient data={mockInvoices} />);
-
-      // The invoice number should appear in the DataTable
-      expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
-    });
-
-    it("closes detail sheet when close button is clicked", async () => {
-      const user = userEvent.setup();
-      render(<InvoicesClient data={mockInvoices} />);
-
-      const viewButtons = screen.getAllByRole("button").filter(btn =>
-        btn.textContent?.includes("Lihat")
-      );
-
-      await user.click(viewButtons[0]);
-
-      await waitFor(() => {
-        const closeButton = screen.queryByText("Close");
-        return closeButton !== null;
-      });
-
-      const closeButton = screen.queryByText("Close");
-      if (closeButton) {
-        await user.click(closeButton);
-      }
-
-      // Test passes if no error was thrown during open/close
-      expect(true).toBe(true);
-    });
-  });
-
-  describe("Empty State per Filter", () => {
-    it("shows empty message when no invoices match filter", async () => {
-      const user = userEvent.setup();
-      render(<InvoicesClient data={mockInvoices} />);
-
-      // Click on overdue filter (has 0 invoices)
-      const overdueButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Jatuh Tempo")
-      );
-      expect(overdueButton).toBeDefined();
-
-      if (overdueButton) {
-        await user.click(overdueButton);
-        // Check for partial match since text might be split
-        const emptyState = screen.queryByText("Jatuh Tempo");
-        expect(emptyState).toBeInTheDocument();
-      }
-    });
-  });
-
-  describe("Layout Structure", () => {
-    it("renders page title", () => {
-      render(<InvoicesClient data={mockInvoices} />);
-
-      expect(screen.getByText("Tagihan Saya")).toBeInTheDocument();
-    });
-
-    it("has correct component hierarchy", () => {
-      const { container } = render(<InvoicesClient data={mockInvoices} />);
-
-      // Page title should be present
-      expect(screen.getByText("Tagihan Saya")).toBeInTheDocument();
-      // InvoiceFilter should be present
-      expect(screen.getByText("Semua")).toBeInTheDocument();
-    });
-  });
-
-  describe("Edge Cases", () => {
-    it("handles single invoice correctly", () => {
-      const singleInvoice = [mockInvoices[0]];
-      const { container } = render(<InvoicesClient data={singleInvoice} />);
-
-      // Use getAllByText since the invoice number appears multiple times
-      const invoiceNumbers = screen.getAllByText("INV-2024-001");
-      expect(invoiceNumbers.length).toBeGreaterThan(0);
-
-      // Find the count using querySelector to avoid multiple matches
-      const countElements = container.querySelectorAll(".font-currency");
-      const countElement = Array.from(countElements).find(el => el.textContent?.trim() === "1/1");
-
-      // If countElement is found, check it. If not, that's also acceptable since
-      // the single invoice might not match the paid count display logic
-      if (countElement) {
-        expect(countElement).toBeInTheDocument();
-      } else {
-        // At least verify the invoice rendered
-        expect(invoiceNumbers.length).toBeGreaterThan(0);
-      }
-    });
-
-    it("handles invoices with zero amounts", () => {
-      const zeroInvoice = [
-        {
-          ...mockInvoices[0],
-          totalDue: 0,
-          totalPaid: 0,
-        },
-      ];
-
-      const { container } = render(<InvoicesClient data={zeroInvoice} />);
-
-      const amounts = container.querySelectorAll(".font-currency");
-      const zeroAmount = Array.from(amounts).find(el => el.textContent === "Rp 0");
-      expect(zeroAmount).toBeInTheDocument();
-    });
-
-    it("handles all invoices paid", async () => {
-      const user = userEvent.setup();
+  describe("All-paid state — Frame 5", () => {
+    it("renders Lunas semua celebration when no outstanding", () => {
       const allPaid = mockInvoices.map((inv) => ({
         ...inv,
         status: "PAID",
         totalPaid: inv.totalDue,
       }));
-
       render(<InvoicesClient data={allPaid} />);
-
-      // Default filter is "unpaid" — no SENT invoices, so empty state shown
-      expect(screen.getByText("Belum ada tagihan")).toBeInTheDocument();
-
-      // Switch to "Lunas" filter to see all paid invoices
-      const paidButton = screen.getAllByRole("button").find(btn =>
-        btn.getAttribute("aria-label")?.includes("Lunas")
-      );
-      if (paidButton) {
-        await user.click(paidButton);
-        await waitFor(() => {
-          expect(screen.getAllByText("INV-2024-001").length).toBeGreaterThan(0);
-        });
-      }
+      expect(screen.getByText("Lunas semua")).toBeInTheDocument();
+      expect(screen.getByText(/Jazakumullahu khairan/)).toBeInTheDocument();
     });
 
-    it("handles overdue status correctly", () => {
-      const overdueInvoices = [
-        {
-          ...mockInvoices[0],
-          status: "OVERDUE",
-        },
-      ];
+    it("still shows Riwayat pembayaran with paid rows", () => {
+      const allPaid = mockInvoices.map((inv) => ({
+        ...inv,
+        status: "PAID",
+        totalPaid: inv.totalDue,
+      }));
+      render(<InvoicesClient data={allPaid} />);
+      expect(screen.getByText("Riwayat pembayaran")).toBeInTheDocument();
+    });
+  });
 
-      render(<InvoicesClient data={overdueInvoices} />);
+  describe("Empty state", () => {
+    it("shows neutral 'Belum ada tagihan' when no invoices ever issued", () => {
+      // Spec: data === [] is the no-invoice case, not the all-paid case.
+      render(<InvoicesClient data={[]} />);
+      expect(screen.getByText("Belum ada tagihan")).toBeInTheDocument();
+      expect(screen.queryByText("Lunas semua")).not.toBeInTheDocument();
+    });
+  });
 
-      const overdueButton = screen.getByRole("button", { name: /Filter Jatuh Tempo:/ });
-      expect(overdueButton).toBeInTheDocument();
+  describe("Row click opens sheet", () => {
+    it("opens detail sheet when an invoice row is clicked", async () => {
+      const user = userEvent.setup();
+      render(<InvoicesClient data={mockInvoices} />);
+      const row = screen.getByRole("button", { name: /Agustus 2024/ });
+      await user.click(row);
+      expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
+    });
+  });
+
+  describe("Xendit return-URL handler", () => {
+    it("opens detail sheet, fires success toast, and clears params on ?invoice=&xenditStatus=paid", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&xenditStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Alhamdulillah"),
+      );
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Agustus 2024"),
+      );
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+      expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
+    });
+
+    it("fires neutral cancel toast on ?invoice=&xenditStatus=cancel", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&xenditStatus=cancel");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn).toHaveBeenCalledWith(
+        expect.stringContaining("Pembayaran belum selesai"),
+      );
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+    });
+
+    it("does nothing when invoice id is foreign / not in data", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-foreign&xenditStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(toastFn).not.toHaveBeenCalled();
+      expect(replaceFn).not.toHaveBeenCalled();
+      expect(screen.queryByText(/Sheet open:/)).not.toBeInTheDocument();
+    });
+
+    it("does nothing when xenditStatus is missing", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(replaceFn).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when invoice param is missing", () => {
+      mockSearchParams = new URLSearchParams("xenditStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(replaceFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Webhook → list freshness poll", () => {
+    it("polls router.refresh every 30s when an invoice has an active xendit session", () => {
+      vi.useFakeTimers();
+      const inFlight = mockInvoices.map((inv) =>
+        inv.id === "inv-1"
+          ? { ...inv, xenditPaymentUrl: "https://checkout.xendit.co/abc" }
+          : inv,
+      );
+      render(<InvoicesClient data={inFlight} />);
+      expect(refreshFn).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(30_000);
+      expect(refreshFn).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(30_000);
+      expect(refreshFn).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
+    });
+
+    it("does not poll when no invoice has an active xendit session", () => {
+      vi.useFakeTimers();
+      render(<InvoicesClient data={mockInvoices} />);
+      vi.advanceTimersByTime(60_000);
+      expect(refreshFn).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+  });
+
+  describe("Status flip → PAID emits one-shot toast", () => {
+    it("fires success toast when an invoice transitions from non-PAID to PAID", () => {
+      const { rerender } = render(<InvoicesClient data={mockInvoices} />);
+      // First render: no flip, no toast (prevDataRef seeds with current data)
+      expect(toastFn.success).not.toHaveBeenCalled();
+      // Second render: inv-1 (SENT) flips to PAID
+      const flipped = mockInvoices.map((inv) =>
+        inv.id === "inv-1"
+          ? { ...inv, status: "PAID", totalPaid: inv.totalDue, paidAt: "2024-09-01" }
+          : inv,
+      );
+      rerender(<InvoicesClient data={flipped} />);
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("baru saja terbayar"),
+      );
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Agustus 2024"),
+      );
+    });
+
+    it("does not fire toast on initial mount even if data has PAID rows", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      // mockInvoices includes inv-3 PAID — no toast since there's no prior render
+      // showing it as non-PAID.
+      expect(toastFn.success).not.toHaveBeenCalled();
     });
   });
 });

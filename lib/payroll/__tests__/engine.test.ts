@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateEmployeePayroll, calculatePayroll, SalaryComponent, AttendanceVariables } from "../engine";
+import { assertGajiPokokSortOrder, calculateEmployeePayroll, calculatePayroll, SalaryComponent, AttendanceVariables, PayrollItemResult } from "../engine";
 
 // Real salary components matching An Nisaa' structure
 const components: SalaryComponent[] = [
@@ -163,6 +163,191 @@ describe("calculateEmployeePayroll", () => {
         -1
       )
     ).toThrow("actualWorkingDays must be > 0");
+  });
+
+  describe("F-15 — gaji_pokok sortOrder guard", () => {
+    it("throws when a PCT_OF_BASE component appears before gaji_pokok", () => {
+      // Malordered: pct_bonus has sortOrder=1, gaji_pokok has sortOrder=2.
+      // Engine would silently compute pct against gajiPokokAmount=0.
+      const malordered: SalaryComponent[] = [
+        { id: "p1", code: "pct_bonus", label: "PCT Bonus", category: "INCOME", calcType: "PCT_OF_BASE", isProRated: false, sortOrder: 1 },
+        { id: "g1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: true, sortOrder: 2 },
+      ];
+
+      expect(() => assertGajiPokokSortOrder(malordered)).toThrow(
+        "gaji_pokok must precede all PCT_OF_BASE components in sortOrder"
+      );
+
+      // calculatePayroll should also throw (it invokes the assertion).
+      expect(() =>
+        calculatePayroll(
+          [{ id: "e1", salaryValues: [], attendanceRecords: [], variables: defaultVars }],
+          malordered,
+          22
+        )
+      ).toThrow("gaji_pokok must precede all PCT_OF_BASE components in sortOrder");
+    });
+
+    it("throws when PCT_OF_BASE shares sortOrder with gaji_pokok", () => {
+      // Same sortOrder is also unsafe — sort is not stable on equal keys.
+      const tied: SalaryComponent[] = [
+        { id: "g1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: true, sortOrder: 1 },
+        { id: "p1", code: "pct_bonus", label: "PCT Bonus", category: "INCOME", calcType: "PCT_OF_BASE", isProRated: false, sortOrder: 1 },
+      ];
+      expect(() => assertGajiPokokSortOrder(tied)).toThrow(
+        "gaji_pokok must precede all PCT_OF_BASE components in sortOrder"
+      );
+    });
+
+    it("passes when every PCT_OF_BASE has higher sortOrder than gaji_pokok", () => {
+      const correct: SalaryComponent[] = [
+        { id: "g1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: true, sortOrder: 1 },
+        { id: "p1", code: "pct_bonus", label: "PCT Bonus", category: "INCOME", calcType: "PCT_OF_BASE", isProRated: false, sortOrder: 2 },
+      ];
+      expect(() => assertGajiPokokSortOrder(correct)).not.toThrow();
+    });
+
+    it("does nothing when gaji_pokok is absent", () => {
+      // Tenants that don't use gaji_pokok shouldn't trip the guard.
+      const noBase: SalaryComponent[] = [
+        { id: "p1", code: "pct_bonus", label: "PCT Bonus", category: "INCOME", calcType: "PCT_OF_BASE", isProRated: false, sortOrder: 1 },
+      ];
+      expect(() => assertGajiPokokSortOrder(noBase)).not.toThrow();
+    });
+  });
+
+  describe("F-14 — lembur compliance feature flag", () => {
+    // Minimal component set for overtime testing — gaji_pokok keeps
+    // `assertGajiPokokSortOrder` happy; lembur is the unit under test.
+    const lemburComponents: SalaryComponent[] = [
+      { id: "g1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: true, sortOrder: 1 },
+      { id: "l1", code: "lembur", label: "Lembur", category: "INCOME", calcType: "ATTENDANCE_BASED", isProRated: false, sortOrder: 2 },
+    ];
+    const lemburSalaryValues = [
+      { componentDefId: "g1", value: 0 },
+      { componentDefId: "l1", value: 10000 }, // Rp 10 000 per overtime hour
+    ];
+
+    function lemburAmount(result: PayrollItemResult): number {
+      return result.lines.find((l) => l.labelSnapshot === "Lembur")!.calculatedAmount;
+    }
+
+    it("flat path (lemburCompliant=false): 2 hours × 10 000 = 20 000", () => {
+      const vars: AttendanceVariables = {
+        overtimeHours: 2,
+        outdoorDays: 0,
+        holidayWorkedDays: 0,
+        dcDays: 0,
+        lemburCompliant: false,
+      };
+      const result = calculateEmployeePayroll(lemburComponents, lemburSalaryValues, 22, 0, 22, vars);
+      expect(lemburAmount(result)).toBe(20000);
+    });
+
+    it("tiered path (lemburCompliant=true): 2 hours = 1.5×10 000 + 1×2×10 000 = 35 000", () => {
+      const vars: AttendanceVariables = {
+        overtimeHours: 2,
+        outdoorDays: 0,
+        holidayWorkedDays: 0,
+        dcDays: 0,
+        lemburCompliant: true,
+      };
+      const result = calculateEmployeePayroll(lemburComponents, lemburSalaryValues, 22, 0, 22, vars);
+      // 1 × 10000 × 1.5 = 15000  +  1 × 10000 × 2 = 20000  =>  35000
+      expect(lemburAmount(result)).toBe(35000);
+    });
+
+    it("0 overtime hours returns 0 in both branches", () => {
+      const baseVars: AttendanceVariables = {
+        overtimeHours: 0,
+        outdoorDays: 0,
+        holidayWorkedDays: 0,
+        dcDays: 0,
+      };
+      const flat = calculateEmployeePayroll(lemburComponents, lemburSalaryValues, 22, 0, 22, { ...baseVars, lemburCompliant: false });
+      const tiered = calculateEmployeePayroll(lemburComponents, lemburSalaryValues, 22, 0, 22, { ...baseVars, lemburCompliant: true });
+      expect(lemburAmount(flat)).toBe(0);
+      expect(lemburAmount(tiered)).toBe(0);
+    });
+
+    it("0.5 hours in tiered path = 0.5 × 10 000 × 1.5 = 7 500 (no second-tier portion)", () => {
+      const vars: AttendanceVariables = {
+        overtimeHours: 0.5,
+        outdoorDays: 0,
+        holidayWorkedDays: 0,
+        dcDays: 0,
+        lemburCompliant: true,
+      };
+      const result = calculateEmployeePayroll(lemburComponents, lemburSalaryValues, 22, 0, 22, vars);
+      expect(lemburAmount(result)).toBe(7500);
+    });
+
+    it("1 hour exactly in tiered path = 1 × 10 000 × 1.5 = 15 000 (first-tier boundary)", () => {
+      const vars: AttendanceVariables = {
+        overtimeHours: 1,
+        outdoorDays: 0,
+        holidayWorkedDays: 0,
+        dcDays: 0,
+        lemburCompliant: true,
+      };
+      const result = calculateEmployeePayroll(lemburComponents, lemburSalaryValues, 22, 0, 22, vars);
+      expect(lemburAmount(result)).toBe(15000);
+    });
+
+    it("1.5 hours in tiered path = 1×1.5×10 000 + 0.5×2×10 000 = 25 000 (mid-tier boundary)", () => {
+      const vars: AttendanceVariables = {
+        overtimeHours: 1.5,
+        outdoorDays: 0,
+        holidayWorkedDays: 0,
+        dcDays: 0,
+        lemburCompliant: true,
+      };
+      const result = calculateEmployeePayroll(lemburComponents, lemburSalaryValues, 22, 0, 22, vars);
+      expect(lemburAmount(result)).toBe(25000);
+    });
+
+    it("calculatePayroll propagates options.lemburCompliant to every employee by default", () => {
+      const results = calculatePayroll(
+        [
+          {
+            id: "e1",
+            salaryValues: lemburSalaryValues,
+            attendanceRecords: Array(22).fill({ status: "PRESENT" }),
+            // No per-employee variables: org-level flag should fill in.
+            variables: { overtimeHours: 3, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 },
+          },
+        ],
+        lemburComponents,
+        22,
+        { lemburCompliant: true }
+      );
+      // 1 × 10000 × 1.5 = 15000  +  2 × 10000 × 2 = 40000  =>  55000
+      expect(lemburAmount(results.get("e1")!)).toBe(55000);
+    });
+
+    it("per-employee lemburCompliant overrides options.lemburCompliant", () => {
+      const results = calculatePayroll(
+        [
+          {
+            id: "e1",
+            salaryValues: lemburSalaryValues,
+            attendanceRecords: Array(22).fill({ status: "PRESENT" }),
+            variables: {
+              overtimeHours: 2,
+              outdoorDays: 0,
+              holidayWorkedDays: 0,
+              dcDays: 0,
+              lemburCompliant: false, // explicit override wins over org default
+            },
+          },
+        ],
+        lemburComponents,
+        22,
+        { lemburCompliant: true }
+      );
+      // Falls back to flat: 2 × 10000 = 20000
+      expect(lemburAmount(results.get("e1")!)).toBe(20000);
+    });
   });
 
   it("counts leave days for pro-rating", () => {

@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.tenantId || !canViewSalary(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("payroll.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "periodStart", "desc");
+  const sort = parseSort(searchParams, {
+    allow: ["periodStart", "periodEnd", "createdAt", "status"],
+    default: "periodStart",
+    defaultOrder: "desc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const status = searchParams.get("status");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

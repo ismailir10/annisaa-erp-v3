@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -46,13 +46,23 @@ export default function FeesPage() {
   const [structureSaving, setStructureSaving] = useState(false);
 
   async function fetchAll() {
-    const [c, p, y] = await Promise.all([
-      fetch("/api/fee-components").then(r => r.json()),
-      fetch("/api/programs").then(r => r.json()),
-      fetch("/api/academic-years").then(r => r.json()),
-    ]);
-    setComponents(c); setPrograms(p); setYears(y);
-    setLoading(false);
+    try {
+      const [cRes, pRes, yRes] = await Promise.all([
+        fetch("/api/fee-components"),
+        fetch("/api/programs"),
+        fetch("/api/academic-years"),
+      ]);
+      if (!cRes.ok || !pRes.ok || !yRes.ok) {
+        toast.error("Gagal memuat data biaya");
+        return;
+      }
+      const [c, p, y] = await Promise.all([cRes.json(), pRes.json(), yRes.json()]);
+      setComponents(c); setPrograms(p); setYears(y);
+    } catch {
+      toast.error("Gagal memuat data biaya");
+    } finally {
+      setLoading(false);
+    }
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -69,20 +79,28 @@ export default function FeesPage() {
   }
 
   async function toggleComponent(c: FeeComponent) {
-    await fetch(`/api/fee-components/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isEnabled: !c.isEnabled }) });
+    const res = await fetch(`/api/fee-components/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isEnabled: !c.isEnabled }) });
+    if (!res.ok) { toast.error("Gagal mengubah status komponen"); return; }
     fetchAll();
   }
 
   async function fetchStructure() {
     if (!selectedProgram || !selectedYear) return;
     setStructureLoading(true);
-    const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
-    const data: FeeStructure[] = await res.json();
-    setStructures(data);
-    const amounts: Record<string, number> = {};
-    for (const s of data) amounts[s.feeComponentId] = s.amount;
-    setStructureAmounts(amounts);
-    setStructureLoading(false);
+    try {
+      const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
+      if (!res.ok) { toast.error("Gagal memuat struktur biaya"); return; }
+      const data: FeeStructure[] = await res.json();
+      setStructures(data);
+      const amounts: Record<string, number> = {};
+      // API returns Prisma Decimal serialized as string — coerce on ingest.
+      for (const s of data) amounts[s.feeComponentId] = Number(s.amount) || 0;
+      setStructureAmounts(amounts);
+    } catch {
+      toast.error("Gagal memuat struktur biaya");
+    } finally {
+      setStructureLoading(false);
+    }
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
@@ -114,9 +132,9 @@ export default function FeesPage() {
           <div className={!c.isEnabled ? "opacity-50" : ""}>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{c.label}</span>
-              <Badge variant="outline" className="text-[10px] font-currency">{c.code}</Badge>
+              <Badge variant="outline" className="text-xs font-currency">{c.code}</Badge>
             </div>
-            <span className="text-[10px] text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</span>
+            <span className="text-xs text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</span>
           </div>
         );
       },
@@ -124,7 +142,7 @@ export default function FeesPage() {
     {
       accessorKey: "category",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Kategori" />,
-      cell: ({ row }) => <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABELS[row.original.category] ?? row.original.category}</Badge>,
+      cell: ({ row }) => <Badge variant="secondary" className="text-xs">{CATEGORY_LABELS[row.original.category] ?? row.original.category}</Badge>,
     },
     {
       id: "enabled",
@@ -153,14 +171,14 @@ export default function FeesPage() {
     <>
       <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
 
-      <Tabs defaultValue="components">
-        <TabsList>
-          <TabsTrigger value="components">Komponen Biaya</TabsTrigger>
-          <TabsTrigger value="structure">Struktur per Program</TabsTrigger>
-        </TabsList>
+      <AdminTabs defaultValue="components">
+        <AdminTabsList>
+          <AdminTabsTrigger value="components">Komponen Biaya</AdminTabsTrigger>
+          <AdminTabsTrigger value="structure">Struktur per Program</AdminTabsTrigger>
+        </AdminTabsList>
 
         {/* Fee Components */}
-        <TabsContent value="components">
+        <AdminTabsContent value="components">
           <div className="flex justify-end mb-4 mt-4">
             <Button size="sm" onClick={() => { setEditingFee(null); setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) }); setComponentDialog(true); }}>
               <Plus size={14} className="mr-1.5" /> Tambah Komponen
@@ -173,33 +191,33 @@ export default function FeesPage() {
             emptyTitle="Belum ada komponen biaya"
             emptyDescription="Tambahkan komponen seperti SPP, Uang Pangkal, Seragam"
           />
-        </TabsContent>
+        </AdminTabsContent>
 
         {/* Fee Structure per Program */}
-        <TabsContent value="structure">
+        <AdminTabsContent value="structure">
           <div className="flex gap-3 mt-4 mb-4">
-            <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)}>
+            <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)} items={programs.map(p => ({ label: p.name, value: p.id }))}>
               <SelectTrigger className="w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
               <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)}>
+            <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)} items={years.map(y => ({ label: y.name, value: y.id }))}>
               <SelectTrigger className="w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
               <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
 
           {!selectedProgram || !selectedYear ? (
-            <Card className="p-8 text-center text-muted-foreground"><p className="text-sm">Pilih program dan tahun ajaran untuk mengatur biaya.</p></Card>
+            <Card className="p-card text-center text-muted-foreground"><p className="text-sm">Pilih program dan tahun ajaran untuk mengatur biaya.</p></Card>
           ) : structureLoading ? (
             <Skeleton className="h-40 rounded-xl" />
           ) : (
-            <Card className="p-6">
+            <Card className="p-card">
               <div className="space-y-3">
                 {components.filter(c => c.isEnabled).map(c => (
                   <div key={c.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                     <div>
                       <p className="text-sm font-medium">{c.label}</p>
-                      <p className="text-[10px] text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</p>
+                      <p className="text-xs text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</p>
                     </div>
                     <div className="w-40">
                       <Input
@@ -214,28 +232,28 @@ export default function FeesPage() {
                 ))}
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                <p className="text-sm font-semibold">Total Bulanan: <span className="font-currency text-primary">{formatRupiah(Object.values(structureAmounts).reduce((s, v) => s + v, 0))}</span></p>
+                <p className="text-sm font-semibold">Total Komponen: <span className="font-currency text-primary">{formatRupiah(Object.values(structureAmounts).reduce<number>((s, v) => s + (Number(v) || 0), 0))}</span></p>
                 <Button onClick={saveStructure} disabled={structureSaving}>
                   <Save size={14} className="mr-1.5" /> {structureSaving ? "Menyimpan..." : "Simpan Struktur"}
                 </Button>
               </div>
             </Card>
           )}
-        </TabsContent>
-      </Tabs>
+        </AdminTabsContent>
+      </AdminTabs>
 
       {/* Add Component Dialog */}
       <Dialog open={componentDialog} onOpenChange={setComponentDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>{editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">
               <Field><FieldLabel>Kode *</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
               <Field><FieldLabel>Label *</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
             </div>
             <Field>
               <FieldLabel>Kategori</FieldLabel>
-              <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })}>
+              <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })} items={CATEGORY_LABELS}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="TUITION">SPP</SelectItem>
@@ -250,7 +268,7 @@ export default function FeesPage() {
               <Field><FieldLabel>Urutan</FieldLabel><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
               <Field>
                 <FieldLabel>Tipe</FieldLabel>
-                <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })}>
+                <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })} items={{ "true": "Bulanan (berulang)", "false": "Sekali bayar" }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="true">Bulanan (berulang)</SelectItem>

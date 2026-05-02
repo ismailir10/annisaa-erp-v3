@@ -1,4 +1,4 @@
-import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/admin/sidebar";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
@@ -15,21 +15,21 @@ export default async function AdminLayout({
 
   return (
     <SidebarProvider>
-      <AppSidebar canSeeSalary={canViewSalary(session.role)} />
+      <AppSidebar permissions={session.permissions} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 !h-4" />
           <AdminBreadcrumb />
           <div className="ml-auto flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-full bg-primary/10">
+            <div className="flex size-7 items-center justify-center rounded-full bg-muted">
               <span className="text-xs font-bold text-primary">
                 {session.name?.[0] ?? "A"}
               </span>
             </div>
           </div>
         </header>
-        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="px-page-x py-page-y">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

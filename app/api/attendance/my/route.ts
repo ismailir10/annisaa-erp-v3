@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -8,8 +9,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Role check: Only TEACHER can access their attendance records
-  if (session.role !== "TEACHER") {
+  // Permission gate (replaces legacy `session.role !== "TEACHER"` string check):
+  // any caller with a linked Employee row AND `attendance.view` may read their
+  // OWN attendance. Reading-self is implied by employeeId presence + the
+  // attendance read permission. F-09 expansion — see cycle doc.
+  if (!hasPermission(session, "attendance.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest) {
   const records = await prisma.attendanceRecord.findMany({
     where: {
       employeeId: session.employeeId,
-      // Tenant isolation: Ensure records belong to the teacher's tenant via employee
+      // Tenant isolation: Ensure records belong to the caller's tenant via employee
       employee: {
         tenantId: session.tenantId,
       },

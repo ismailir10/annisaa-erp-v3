@@ -39,7 +39,7 @@ export function StatCard({
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {label}
           </p>
-          <p className="font-currency text-3xl font-bold mt-1.5 tracking-tight">
+          <p className="font-currency text-display font-bold mt-1.5 tracking-tight">
             {value}
           </p>
           {sublabel && (

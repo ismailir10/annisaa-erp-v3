@@ -6,7 +6,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Eye } from "lucide-react";
 import Link from "next/link";
 import { formatRupiah } from "@/lib/format";
 
@@ -37,7 +37,7 @@ export function UnpaidInvoicesTable({ data, childId }: { data: UnpaidInvoiceItem
       cell: ({ row }) => (
         <div>
           <span className="text-sm font-medium">{row.original.periodLabel}</span>
-          <p className="text-[10px] text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
+          <p className="text-xs text-muted-foreground font-currency">{row.original.invoiceNumber}</p>
         </div>
       ),
     },
@@ -75,20 +75,22 @@ export function UnpaidInvoicesTable({ data, childId }: { data: UnpaidInvoiceItem
               rel="noopener noreferrer"
               className="inline-block"
             >
-              <Button size="sm">
-                <ExternalLink size={12} className="mr-1" /> Bayar
+              <Button size="icon" variant="default" aria-label="Bayar tagihan">
+                <ExternalLink size={16} />
               </Button>
             </a>
           );
         }
 
-        // Otherwise, show link to invoices page, preserving child selection
+        // Otherwise, show ghost icon link to invoices page, preserving child selection
         return (
           <Link
             href={childId ? `/parent/invoices?child=${childId}` : "/parent/invoices"}
-            className="text-primary hover:underline flex items-center gap-1 text-xs"
+            className="inline-block"
           >
-            Lihat <ExternalLink size={12} />
+            <Button size="icon" variant="ghost" aria-label="Lihat tagihan">
+              <Eye size={16} />
+            </Button>
           </Link>
         );
       },
@@ -100,8 +102,8 @@ export function UnpaidInvoicesTable({ data, childId }: { data: UnpaidInvoiceItem
       columns={columns}
       data={data}
       defaultSort={{ field: "periodLabel", order: "desc" }}
-      emptyTitle="Tidak ada tagihan tertunda"
-      emptyDescription="Semua tagihan telah lunas."
+      emptyTitle="Belum ada tagihan bulan ini"
+      emptyDescription="Alhamdulillah, semua lunas."
     />
   );
 }

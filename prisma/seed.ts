@@ -1,20 +1,42 @@
 import { PrismaClient } from "../lib/generated/prisma/client";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { JournalStatus } from "../lib/generated/prisma/enums";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
 import { holidays } from "./data/holidays";
 import { students } from "./data/students";
 
-const adapter = new PrismaLibSql({ url: "file:dev.db" });
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not configured");
+
+const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // Clear existing data
+  // Clear existing data — order matters: children before parents to respect FK constraints.
+  await prisma.studentJournalAudit.deleteMany();
+  await prisma.studentJournalNote.deleteMany();
+  await prisma.studentJournalEntry.deleteMany();
+  await prisma.studentJournalIndicator.deleteMany();
+  await prisma.studentJournalCategory.deleteMany();
+  await prisma.studentJournalTemplate.deleteMany();
+  await prisma.payment.deleteMany();
+  await prisma.invoiceLine.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.programFeeStructure.deleteMany();
+  await prisma.feeComponentDef.deleteMany();
+  await prisma.admission.deleteMany();
+  await prisma.studentAssessmentScore.deleteMany();
+  await prisma.studentAssessment.deleteMany();
+  await prisma.assessmentIndicator.deleteMany();
+  await prisma.assessmentCategory.deleteMany();
+  await prisma.assessmentTemplate.deleteMany();
   await prisma.studentAttendance.deleteMany();
   await prisma.teachingAssignment.deleteMany();
+  await prisma.leaveRequest.deleteMany();
   await prisma.studentEnrollment.deleteMany();
   await prisma.studentGuardian.deleteMany();
   await prisma.parent.deleteMany();
@@ -31,6 +53,7 @@ async function main() {
   await prisma.salaryComponentDef.deleteMany();
   await prisma.holiday.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.role.deleteMany();
   await prisma.employee.deleteMany();
   await prisma.orgConfig.deleteMany();
   await prisma.campus.deleteMany();
@@ -134,6 +157,58 @@ async function main() {
   });
   console.log(`✅ School admin user: schooladmin@annisaa.sch.id`);
 
+  // Owner — SUPER_ADMIN (real owner email, always seeded)
+  await prisma.user.create({
+    data: {
+      id: "u_owner",
+      tenantId: tenant.id,
+      email: "ismailir10@gmail.com",
+      role: "SUPER_ADMIN",
+      name: "Ismail Rabbani",
+    },
+  });
+  console.log(`✅ Owner user: ismailir10@gmail.com`);
+
+  // Additional SCHOOL_ADMIN tester (opaque cuid — not referenced by e2e)
+  await prisma.user.create({
+    data: {
+      tenantId: tenant.id,
+      email: "commandprompt.adhan@gmail.com",
+      role: "SCHOOL_ADMIN",
+      name: "Adhan (Tester)",
+    },
+  });
+  console.log(`✅ School admin tester: commandprompt.adhan@gmail.com`);
+
+  // Demo-mode users for Playwright + manual demo coverage of the
+  // permission-based HR fence. Idempotent upsert by email so re-seeding
+  // a populated DB stays safe.
+  await prisma.user.upsert({
+    where: { tenantId_email: { tenantId: tenant.id, email: "superadmin@demo.local" } },
+    update: { role: "SUPER_ADMIN", name: "Super Admin (Demo)" },
+    create: {
+      id: "u_demo_super_admin",
+      tenantId: tenant.id,
+      email: "superadmin@demo.local",
+      role: "SUPER_ADMIN",
+      name: "Super Admin (Demo)",
+    },
+  });
+  console.log(`✅ Demo super admin: superadmin@demo.local`);
+
+  await prisma.user.upsert({
+    where: { tenantId_email: { tenantId: tenant.id, email: "admin@demo.local" } },
+    update: { role: "SCHOOL_ADMIN", name: "School Admin (Demo)" },
+    create: {
+      id: "u_demo_school_admin",
+      tenantId: tenant.id,
+      email: "admin@demo.local",
+      role: "SCHOOL_ADMIN",
+      name: "School Admin (Demo)",
+    },
+  });
+  console.log(`✅ Demo school admin: admin@demo.local`);
+
   // 7. Employees + Teacher users + Salary values
   const employeeIds: Record<string, string> = {};
   let empCount = 0;
@@ -158,8 +233,11 @@ async function main() {
     });
     employeeIds[emp.kode] = created.id;
 
+    // First teacher (E003, Guru Tiga) gets explicit ID for E2E demo auth
+    const teacherUserId = emp.kode === "E003" ? "u_teacher" : undefined;
     await prisma.user.create({
       data: {
+        ...(teacherUserId ? { id: teacherUserId } : {}),
         tenantId: tenant.id,
         email: emp.email,
         role: "TEACHER",
@@ -294,15 +372,96 @@ async function main() {
   }
   console.log(`✅ Students: ${studentCount} (with guardians & enrollments)`);
 
+  // ── 7b-5. STUDENT JOURNAL (Buku Penghubung) — idempotent defaults ──
+  const tmpl = await prisma.studentJournalTemplate.upsert({
+    where: { tenantId: tenant.id },
+    update: {},
+    create: { tenantId: tenant.id, status: JournalStatus.ACTIVE },
+  });
+
+  const journalDefaults: Array<{ scope: "SCHOOL" | "HOME"; name: string; indicators: string[] }> = [
+    { scope: "SCHOOL", name: "Ibadah", indicators: [
+      "Tahfizul Qur'an", "Qiro'atul Qur'an", "Membawa Infaq", "Praktek Sholat Subuh Berjama'ah",
+    ]},
+    { scope: "SCHOOL", name: "Perilaku", indicators: [
+      "Datang di Sekolah tepat waktu",
+      "Berpakaian lengkap dan rapih",
+      "Patuh dan santun pada guru",
+      "Salam dan jabat tangan dengan guru",
+      "Membuang sampah pada tempatnya",
+      "Bersikap baik kepada teman",
+      "Berkata baik dan jujur",
+      "Tertib pada saat belajar",
+      "Membawa Buku Penghubung",
+    ]},
+    { scope: "SCHOOL", name: "Akademis", indicators: [
+      "Semangat mengikuti pelajaran", "Menyelesaikan tugas", "Merapihkan alat tulis",
+    ]},
+    { scope: "HOME", name: "Ibadah Rumah", indicators: [
+      "Sholat 5 waktu", "Mengaji / tilawah", "Doa harian",
+    ]},
+    { scope: "HOME", name: "Akhlak Rumah", indicators: [
+      "Membantu orang tua", "Berkata baik", "Merapihkan kamar", "Tidur tepat waktu",
+    ]},
+  ];
+
+  let journalCatCount = 0;
+  let journalIndCount = 0;
+  for (const [ci, cat] of journalDefaults.entries()) {
+    const existing = await prisma.studentJournalCategory.findFirst({
+      where: { templateId: tmpl.id, scope: cat.scope, name: cat.name },
+    });
+    const category = existing ?? await prisma.studentJournalCategory.create({
+      data: { templateId: tmpl.id, scope: cat.scope, name: cat.name, order: ci },
+    });
+    if (!existing) journalCatCount++;
+    for (const [ii, label] of cat.indicators.entries()) {
+      const existingInd = await prisma.studentJournalIndicator.findFirst({
+        where: { categoryId: category.id, label },
+      });
+      if (!existingInd) {
+        await prisma.studentJournalIndicator.create({
+          data: { categoryId: category.id, label, order: ii },
+        });
+        journalIndCount++;
+      }
+    }
+  }
+  console.log(`✅ Student journal template: ${journalCatCount} categories + ${journalIndCount} indicators upserted`);
+
+  // ── 7b-6. Parent user for E2E demo auth (first student's primary guardian)
+  const firstParent = await prisma.parent.findFirst({
+    where: { tenantId: tenant.id },
+    orderBy: { createdAt: "asc" },
+  });
+  if (firstParent) {
+    const existingParentUser = await prisma.user.findFirst({
+      where: { parentId: firstParent.id },
+    });
+    if (!existingParentUser) {
+      await prisma.user.create({
+        data: {
+          id: "u_rightjet",
+          tenantId: tenant.id,
+          email: "rightjet.hq@gmail.com",
+          role: "GUARDIAN",
+          name: firstParent.name,
+          parentId: firstParent.id,
+        },
+      });
+      console.log(`✅ Parent user: rightjet.hq@gmail.com (linked to ${firstParent.name})`);
+    }
+  }
+
   // ── 7c. TEACHING ASSIGNMENTS (link teachers to classes) ────
-  // Map teachers by jabatan to classes
+  // Map teachers by jabatan to classes (using synthetic employee codes)
   const teacherClassMap: { empKode: string; classKey: string; role: string }[] = [
-    { empKode: "NNF6", classKey: "TKIT_A", role: "HOMEROOM" },   // redacted - Class A1
-    { empKode: "YN7", classKey: "TKIT_B", role: "HOMEROOM" },    // Yohana - Class A2
-    { empKode: "NK20", classKey: "KB_ASTER", role: "HOMEROOM" },  // Redacted Employee - Ka Paud
-    { empKode: "EH21", classKey: "KB_METLAND", role: "HOMEROOM" },// Elvriani - Pj Dcare Metland
-    { empKode: "SNF17", classKey: "DCARE", role: "HOMEROOM" },    // Redacted Employee - Class Dcare
-    { empKode: "HH3", classKey: "POPUP", role: "HOMEROOM" },      // Redacted Employee - Ka Dcare
+    { empKode: "E003", classKey: "TKIT_A", role: "HOMEROOM" },
+    { empKode: "E004", classKey: "TKIT_B", role: "HOMEROOM" },
+    { empKode: "E005", classKey: "KB_ASTER", role: "HOMEROOM" },
+    { empKode: "E006", classKey: "KB_METLAND", role: "HOMEROOM" },
+    { empKode: "E001", classKey: "DCARE", role: "HOMEROOM" },
+    { empKode: "E002", classKey: "POPUP", role: "HOMEROOM" },
   ];
 
   let assignmentCount = 0;
@@ -524,6 +683,7 @@ async function main() {
     // Create email log for salary slip
     await prisma.emailLog.create({
       data: {
+        tenantId: tenant.id,
         to: emp.email,
         subject: `Slip Gaji ${periodStart} - ${periodEnd}`,
         template: "salary_slip",
@@ -604,6 +764,649 @@ async function main() {
       draftCount++;
     }
     console.log(`✅ Draft payroll: ${currentPeriodStart} → ${currentPeriodEnd} (${draftCount} items, DRAFT)`);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // 11. SCENARIO FIXTURES — module coverage for dev + demos
+  // ══════════════════════════════════════════════════════════════
+
+  // Re-fetch canonical references (some created in earlier blocks, some needed here).
+  const rightjetParent = await prisma.parent.findFirst({
+    where: { tenantId: tenant.id },
+    orderBy: { createdAt: "asc" },
+  });
+  const studentsAll = await prisma.student.findMany({
+    where: { tenantId: tenant.id },
+    orderBy: { createdAt: "asc" },
+    include: { guardians: true, enrollments: { where: { status: "ACTIVE" } } },
+  });
+  const rightjetPrimaryChild = studentsAll.find((s) =>
+    s.guardians.some((g) => g.parentId === rightjetParent?.id)
+  );
+
+  // 11a. Multi-child: link rightjet parent to a second student (first non-linked student),
+  // then create a brand-new third child wholly owned by rightjetParent for full household coverage.
+  let secondChildId: string | null = null;
+  let thirdChildId: string | null = null;
+  if (rightjetParent && rightjetPrimaryChild) {
+    const secondChild = studentsAll.find(
+      (s) => s.id !== rightjetPrimaryChild.id && !s.guardians.some((g) => g.parentId === rightjetParent.id)
+    );
+    if (secondChild) {
+      await prisma.studentGuardian.create({
+        data: {
+          studentId: secondChild.id,
+          parentId: rightjetParent.id,
+          relationship: "AYAH",
+          isPrimary: false,
+          childOrder: 2,
+        },
+      });
+      secondChildId = secondChild.id;
+      console.log(`✅ Multi-child link: ${rightjetParent.name} → ${secondChild.name}`);
+    }
+
+    // Third child — new Student + Enrollment + StudentGuardian for rightjetParent.
+    const thirdChild = await prisma.student.create({
+      data: {
+        tenantId: tenant.id,
+        name: "Fatimah Az-Zahra Hidayat",
+        nickname: "Fatimah",
+        dateOfBirth: "2020-08-17",
+        gender: "P",
+        address: "Perum Taman Aster Blok B2/8, Bekasi",
+        status: "ACTIVE",
+        enrollments: {
+          create: {
+            classSectionId: classSectionMap["TKIT_B"],
+            enrollDate: "2025-07-14",
+            status: "ACTIVE",
+          },
+        },
+      },
+    });
+    await prisma.studentGuardian.create({
+      data: {
+        studentId: thirdChild.id,
+        parentId: rightjetParent.id,
+        relationship: "AYAH",
+        isPrimary: false,
+        childOrder: 3,
+      },
+    });
+    thirdChildId = thirdChild.id;
+    console.log(`✅ Multi-child link: ${rightjetParent.name} → ${thirdChild.name}`);
+
+    const rightjetChildCount = await prisma.studentGuardian.count({
+      where: { parentId: rightjetParent.id },
+    });
+    console.log(`✅ Multi-child: rightjetParent has ${rightjetChildCount} kids`);
+  }
+
+  // 11b. Mark one non-rightjet student as WITHDRAWN (lifecycle coverage).
+  const withdrawTarget = studentsAll.find(
+    (s) =>
+      s.id !== rightjetPrimaryChild?.id &&
+      s.id !== secondChildId &&
+      s.id !== thirdChildId &&
+      !s.guardians.some((g) => g.parentId === rightjetParent?.id)
+  );
+  if (withdrawTarget) {
+    await prisma.student.update({
+      where: { id: withdrawTarget.id },
+      data: {
+        status: "WITHDRAWN",
+        withdrawalDate: new Date().toISOString().split("T")[0],
+        withdrawalReason: "Pindah domisili (demo fixture)",
+      },
+    });
+    console.log(`✅ Student WITHDRAWN: ${withdrawTarget.name}`);
+  }
+
+  // 11c. FEES — 3 components + ProgramFeeStructure per program.
+  const feeDefs = [
+    { code: "spp", label: "SPP Bulanan", category: "TUITION", isRecurring: true, sortOrder: 1 },
+    { code: "daftar_ulang", label: "Daftar Ulang", category: "REGISTRATION", isRecurring: false, sortOrder: 2 },
+    { code: "seragam", label: "Seragam", category: "MATERIAL", isRecurring: false, sortOrder: 3 },
+  ];
+  const feeMap: Record<string, string> = {};
+  for (const f of feeDefs) {
+    const created = await prisma.feeComponentDef.create({
+      data: {
+        tenantId: tenant.id,
+        code: f.code,
+        label: f.label,
+        category: f.category,
+        isRecurring: f.isRecurring,
+        sortOrder: f.sortOrder,
+      },
+    });
+    feeMap[f.code] = created.id;
+  }
+
+  const feeAmounts: Record<string, Record<string, number>> = {
+    TKIT: { spp: 850_000, daftar_ulang: 2_500_000, seragam: 650_000 },
+    KB:   { spp: 750_000, daftar_ulang: 2_000_000, seragam: 550_000 },
+    DCARE:{ spp: 1_500_000, daftar_ulang: 3_000_000, seragam: 450_000 },
+    POPUP:{ spp: 300_000, daftar_ulang: 500_000,   seragam: 300_000 },
+  };
+  let feeStructureCount = 0;
+  for (const [pCode, amounts] of Object.entries(feeAmounts)) {
+    if (!programMap[pCode]) continue;
+    for (const [fCode, amount] of Object.entries(amounts)) {
+      await prisma.programFeeStructure.create({
+        data: {
+          tenantId: tenant.id,
+          programId: programMap[pCode],
+          academicYearId: academicYear.id,
+          feeComponentId: feeMap[fCode],
+          amount,
+        },
+      });
+      feeStructureCount++;
+    }
+  }
+  console.log(`✅ Fees: ${feeDefs.length} components + ${feeStructureCount} program fee structures`);
+
+  // 11d. INVOICES — 5 scenarios on rightjet primary child.
+  let invoiceCount = 0;
+  let paymentCount = 0;
+  if (rightjetPrimaryChild && rightjetParent) {
+    const todayISO = new Date();
+    const yyyyMMdd = (d: Date) => d.toISOString().split("T")[0];
+    const addDays = (d: Date, n: number) => {
+      const r = new Date(d);
+      r.setDate(r.getDate() + n);
+      return r;
+    };
+    const sppId = feeMap["spp"];
+    const sppAmount = 850_000;
+
+    const invoiceScenarios: Array<{
+      number: string;
+      periodLabel: string;
+      dueDate: string;
+      status: string;
+      sentAt: Date | null;
+      paidAt: Date | null;
+      totalPaid: number;
+      xenditUrl?: string | null;
+      payments: Array<{ amount: number; method: string; reference?: string; paidAt: Date }>;
+    }> = [
+      {
+        number: "INV-2026-0001",
+        periodLabel: "Januari 2026",
+        dueDate: yyyyMMdd(addDays(todayISO, -75)),
+        status: "PAID",
+        sentAt: addDays(todayISO, -85),
+        paidAt: addDays(todayISO, -70),
+        totalPaid: sppAmount,
+        payments: [{ amount: sppAmount, method: "CASH", reference: "TT-Jan-2026", paidAt: addDays(todayISO, -70) }],
+      },
+      {
+        number: "INV-2026-0002",
+        periodLabel: "Februari 2026",
+        dueDate: yyyyMMdd(addDays(todayISO, -45)),
+        status: "PARTIALLY_PAID",
+        sentAt: addDays(todayISO, -55),
+        paidAt: null,
+        totalPaid: 400_000,
+        payments: [{ amount: 400_000, method: "CASH", reference: "Cicilan-1", paidAt: addDays(todayISO, -40) }],
+      },
+      {
+        number: "INV-2026-0003",
+        periodLabel: "Maret 2026",
+        dueDate: yyyyMMdd(addDays(todayISO, -10)),
+        status: "OVERDUE",
+        sentAt: addDays(todayISO, -25),
+        paidAt: null,
+        totalPaid: 0,
+        payments: [],
+      },
+      {
+        number: "INV-2026-0004",
+        periodLabel: "April 2026",
+        dueDate: yyyyMMdd(addDays(todayISO, 10)),
+        status: "SENT",
+        sentAt: addDays(todayISO, -3),
+        paidAt: null,
+        totalPaid: 0,
+        payments: [],
+      },
+      {
+        number: "INV-2026-0005",
+        periodLabel: "Mei 2026",
+        dueDate: yyyyMMdd(addDays(todayISO, 25)),
+        status: "SENT",
+        sentAt: addDays(todayISO, -1),
+        paidAt: null,
+        totalPaid: 0,
+        xenditUrl: "https://checkout.xendit.co/v2/demo-session-annisaa-inv-0005",
+        payments: [],
+      },
+    ];
+
+    for (const sc of invoiceScenarios) {
+      const invoice = await prisma.invoice.create({
+        data: {
+          tenantId: tenant.id,
+          studentId: rightjetPrimaryChild.id,
+          invoiceNumber: sc.number,
+          periodLabel: sc.periodLabel,
+          dueDate: sc.dueDate,
+          totalDue: sppAmount,
+          totalPaid: sc.totalPaid,
+          status: sc.status,
+          createdBy: adminUser.id,
+          sentAt: sc.sentAt,
+          paidAt: sc.paidAt,
+          parentId: rightjetParent.id,
+          xenditPaymentUrl: sc.xenditUrl ?? null,
+          xenditSessionId: sc.xenditUrl ? `xendit-demo-${sc.number}` : null,
+          lines: {
+            create: [{
+              feeComponentId: sppId,
+              labelSnapshot: "SPP Bulanan",
+              amount: sppAmount,
+              finalAmount: sppAmount,
+            }],
+          },
+        },
+      });
+      for (const p of sc.payments) {
+        await prisma.payment.create({
+          data: {
+            invoiceId: invoice.id,
+            amount: p.amount,
+            method: p.method,
+            reference: p.reference ?? null,
+            status: "APPROVED",
+            createdBy: adminUser.id,
+            paidAt: p.paidAt,
+          },
+        });
+        paymentCount++;
+      }
+      invoiceCount++;
+    }
+
+    // Extra XENDIT payment against the PAID invoice history — gives parent portal a XENDIT method example.
+    const paidInv = await prisma.invoice.findFirst({
+      where: { tenantId: tenant.id, invoiceNumber: "INV-2026-0001" },
+    });
+    if (paidInv) {
+      // Convert that paid invoice's payment to a XENDIT payment by adding a second record
+      // (keeps the partial scenario separate and guarantees ≥1 XENDIT method).
+      await prisma.payment.create({
+        data: {
+          invoiceId: paidInv.id,
+          amount: 0,
+          method: "XENDIT",
+          reference: "XENDIT-DEMO-RECON",
+          notes: "Demo reconciliation entry (XENDIT method coverage)",
+          status: "APPROVED",
+          createdBy: adminUser.id,
+          xenditPaymentId: "xendit-demo-pay-0001",
+          paidAt: new Date(),
+        },
+      });
+      paymentCount++;
+    }
+
+    // Extra coverage: every rightjet sibling (second + third child) gets 1 paid + 1 unpaid invoice.
+    const siblingInvoices: Array<{ studentId: string; prefix: string }> = [];
+    if (secondChildId) siblingInvoices.push({ studentId: secondChildId, prefix: "INV-2026-1" });
+    if (thirdChildId) siblingInvoices.push({ studentId: thirdChildId, prefix: "INV-2026-2" });
+    for (const sib of siblingInvoices) {
+      // Paid invoice
+      const paidSib = await prisma.invoice.create({
+        data: {
+          tenantId: tenant.id,
+          studentId: sib.studentId,
+          invoiceNumber: `${sib.prefix}001`,
+          periodLabel: "Februari 2026",
+          dueDate: yyyyMMdd(addDays(todayISO, -45)),
+          totalDue: sppAmount,
+          totalPaid: sppAmount,
+          status: "PAID",
+          createdBy: adminUser.id,
+          sentAt: addDays(todayISO, -55),
+          paidAt: addDays(todayISO, -40),
+          parentId: rightjetParent.id,
+          lines: {
+            create: [{
+              feeComponentId: sppId,
+              labelSnapshot: "SPP Bulanan",
+              amount: sppAmount,
+              finalAmount: sppAmount,
+            }],
+          },
+        },
+      });
+      await prisma.payment.create({
+        data: {
+          invoiceId: paidSib.id,
+          amount: sppAmount,
+          method: "CASH",
+          reference: `TT-Feb-${sib.prefix}`,
+          status: "APPROVED",
+          createdBy: adminUser.id,
+          paidAt: addDays(todayISO, -40),
+        },
+      });
+      invoiceCount++;
+      paymentCount++;
+
+      // Unpaid (SENT) invoice
+      await prisma.invoice.create({
+        data: {
+          tenantId: tenant.id,
+          studentId: sib.studentId,
+          invoiceNumber: `${sib.prefix}002`,
+          periodLabel: "April 2026",
+          dueDate: yyyyMMdd(addDays(todayISO, 10)),
+          totalDue: sppAmount,
+          totalPaid: 0,
+          status: "SENT",
+          createdBy: adminUser.id,
+          sentAt: addDays(todayISO, -3),
+          paidAt: null,
+          parentId: rightjetParent.id,
+          lines: {
+            create: [{
+              feeComponentId: sppId,
+              labelSnapshot: "SPP Bulanan",
+              amount: sppAmount,
+              finalAmount: sppAmount,
+            }],
+          },
+        },
+      });
+      invoiceCount++;
+    }
+  }
+  console.log(`✅ Invoices: ${invoiceCount} (paid/partial/overdue/sent/xendit) + ${paymentCount} payments`);
+
+  // 11e. ADMISSIONS — INQUIRY + REGISTERED linked to converted student.
+  const convertedStudent = studentsAll.find((s) => s.status === "ACTIVE");
+  await prisma.admission.create({
+    data: {
+      tenantId: tenant.id,
+      childName: "Ananda Demo Inquiry",
+      childAge: "4 tahun",
+      childGender: "L",
+      dateOfBirth: "2022-03-11",
+      parentName: "Bapak Calon Wali",
+      parentPhone: "081200000001",
+      parentEmail: "calon.wali@example.test",
+      programId: programMap["TKIT"],
+      source: "WHATSAPP",
+      status: "INQUIRY",
+      notes: "Menanyakan jadwal open house.",
+    },
+  });
+  if (convertedStudent) {
+    await prisma.admission.create({
+      data: {
+        tenantId: tenant.id,
+        childName: convertedStudent.name,
+        childAge: "5 tahun",
+        childGender: convertedStudent.gender ?? "P",
+        dateOfBirth: convertedStudent.dateOfBirth ?? "2021-05-20",
+        parentName: "Ibu Demo Converted",
+        parentPhone: "081200000002",
+        programId: programMap["TKIT"],
+        source: "WALK_IN",
+        status: "REGISTERED",
+        studentId: convertedStudent.id,
+      },
+    });
+  }
+  console.log(`✅ Admissions: 1 INQUIRY + 1 REGISTERED`);
+
+  // 11f. LEAVE REQUESTS — 3 statuses across 3 employees.
+  const empForLeave = Object.values(employeeIds).slice(0, 3);
+  if (empForLeave.length >= 3) {
+    const todayLv = new Date();
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+    const future = (n: number) => { const d = new Date(todayLv); d.setDate(d.getDate() + n); return d; };
+    const past = (n: number) => { const d = new Date(todayLv); d.setDate(d.getDate() - n); return d; };
+
+    await prisma.leaveRequest.create({
+      data: {
+        employeeId: empForLeave[0],
+        leaveType: "ANNUAL",
+        startDate: fmt(future(5)),
+        endDate: fmt(future(6)),
+        days: 2,
+        reason: "Urusan keluarga.",
+        status: "PENDING",
+      },
+    });
+    await prisma.leaveRequest.create({
+      data: {
+        employeeId: empForLeave[1],
+        leaveType: "SICK",
+        startDate: fmt(past(10)),
+        endDate: fmt(past(9)),
+        days: 2,
+        reason: "Demam tinggi, surat dokter terlampir.",
+        status: "APPROVED",
+        reviewedBy: adminUser.id,
+        reviewedAt: past(8),
+        reviewNote: "Disetujui.",
+      },
+    });
+    await prisma.leaveRequest.create({
+      data: {
+        employeeId: empForLeave[2],
+        leaveType: "PERMISSION",
+        startDate: fmt(past(20)),
+        endDate: fmt(past(20)),
+        days: 1,
+        reason: "Izin tanpa alasan rinci.",
+        status: "REJECTED",
+        reviewedBy: adminUser.id,
+        reviewedAt: past(19),
+        reviewNote: "Tidak memenuhi syarat.",
+      },
+    });
+    console.log(`✅ Leave requests: 3 (PENDING/APPROVED/REJECTED)`);
+  }
+
+  // 11g. ASSESSMENTS — 1 template (2 cat × 2 ind) + 1 PUBLISHED StudentAssessment w/ 4 scores.
+  const assessmentTemplate = await prisma.assessmentTemplate.create({
+    data: {
+      tenantId: tenant.id,
+      programId: programMap["TKIT"],
+      name: "Laporan Perkembangan Semester 1 (Demo)",
+      type: "SEMESTER",
+      categories: {
+        create: [
+          {
+            name: "Perkembangan Motorik Halus",
+            sortOrder: 0,
+            indicators: {
+              create: [
+                { description: "Dapat memegang pensil dengan benar", sortOrder: 0 },
+                { description: "Mampu menggunting mengikuti pola", sortOrder: 1 },
+              ],
+            },
+          },
+          {
+            name: "Perkembangan Bahasa",
+            sortOrder: 1,
+            indicators: {
+              create: [
+                { description: "Mampu menceritakan pengalaman sederhana", sortOrder: 0 },
+                { description: "Mengenal huruf A-Z", sortOrder: 1 },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    include: { categories: { include: { indicators: true } } },
+  });
+  const allIndicators = assessmentTemplate.categories.flatMap((c) => c.indicators);
+  if (rightjetPrimaryChild && allIndicators.length === 4) {
+    const scoreSamples = ["BSH", "BSB", "MB", "BSH"];
+    await prisma.studentAssessment.create({
+      data: {
+        studentId: rightjetPrimaryChild.id,
+        templateId: assessmentTemplate.id,
+        period: "Semester 1 2025/2026",
+        status: "PUBLISHED",
+        createdBy: adminUser.id,
+        publishedAt: new Date(),
+        scores: {
+          create: allIndicators.map((ind, i) => ({
+            indicatorId: ind.id,
+            score: scoreSamples[i],
+            notes: i === 0 ? "Perkembangan baik, terus dimotivasi." : null,
+          })),
+        },
+      },
+    });
+    // Sibling coverage — second + third rightjet kids each get ≥1 score entry.
+    const siblingForScores: Array<{ id: string; samples: string[] }> = [];
+    if (secondChildId) siblingForScores.push({ id: secondChildId, samples: ["BSH", "MB", "BSH", "BB"] });
+    if (thirdChildId) siblingForScores.push({ id: thirdChildId, samples: ["BSB", "BSH", "BSH", "MB"] });
+    for (const sib of siblingForScores) {
+      await prisma.studentAssessment.create({
+        data: {
+          studentId: sib.id,
+          templateId: assessmentTemplate.id,
+          period: "Semester 1 2025/2026",
+          status: "PUBLISHED",
+          createdBy: adminUser.id,
+          publishedAt: new Date(),
+          scores: {
+            create: allIndicators.map((ind, i) => ({
+              indicatorId: ind.id,
+              score: sib.samples[i],
+            })),
+          },
+        },
+      });
+    }
+    console.log(`✅ Assessment: template + ${1 + siblingForScores.length} PUBLISHED student assessments`);
+  } else {
+    console.log(`✅ Assessment template created (no student assessment — missing child)`);
+  }
+
+  // 11h. STUDENT JOURNAL ENTRIES + NOTES — 3 students × last 3 weekdays × scope mix.
+  const teacherUser = await prisma.user.findUnique({ where: { id: "u_teacher" } });
+  const journalCategories = await prisma.studentJournalCategory.findMany({
+    where: { templateId: tmpl.id },
+    include: { indicators: true },
+  });
+  const schoolInd = journalCategories.filter((c) => c.scope === "SCHOOL").flatMap((c) => c.indicators);
+  const homeInd = journalCategories.filter((c) => c.scope === "HOME").flatMap((c) => c.indicators);
+  const journalStudents = studentsAll.filter((s) => s.status === "ACTIVE").slice(0, 3);
+  let journalEntryCount = 0;
+  if (teacherUser && schoolInd.length && homeInd.length && journalStudents.length) {
+    const todayJ = new Date();
+    for (let dayOffset = 3; dayOffset >= 1; dayOffset--) {
+      const d = new Date(todayJ);
+      d.setDate(d.getDate() - dayOffset);
+      if (d.getDay() === 0 || d.getDay() === 6) continue;
+      const dateStr = d.toISOString().split("T")[0];
+      for (const student of journalStudents) {
+        const classSectionId = student.enrollments[0]?.classSectionId ?? null;
+        // SCHOOL scope — first 4 indicators
+        for (const ind of schoolInd.slice(0, 4)) {
+          await prisma.studentJournalEntry.create({
+            data: {
+              tenantId: tenant.id,
+              studentId: student.id,
+              classSectionId,
+              indicatorId: ind.id,
+              date: dateStr,
+              scope: "SCHOOL",
+              checked: Math.random() > 0.2,
+              recordedByUserId: teacherUser.id,
+            },
+          });
+          journalEntryCount++;
+        }
+        // HOME scope — first 3 indicators (recorded by parent if available, else teacher)
+        const homeRecorder = student.guardians.some((g) => g.parentId === rightjetParent?.id)
+          ? "u_rightjet"
+          : teacherUser.id;
+        for (const ind of homeInd.slice(0, 3)) {
+          await prisma.studentJournalEntry.create({
+            data: {
+              tenantId: tenant.id,
+              studentId: student.id,
+              classSectionId,
+              indicatorId: ind.id,
+              date: dateStr,
+              scope: "HOME",
+              checked: Math.random() > 0.3,
+              recordedByUserId: homeRecorder,
+            },
+          });
+          journalEntryCount++;
+        }
+      }
+    }
+    // Notes — one teacher note + one parent note on rightjet primary child
+    if (rightjetPrimaryChild) {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const yStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+      await prisma.studentJournalNote.create({
+        data: {
+          tenantId: tenant.id,
+          studentId: rightjetPrimaryChild.id,
+          date: yStr,
+          authorUserId: teacherUser.id,
+          authorRole: "TEACHER",
+          body: "Hari ini sangat aktif di kelas, menyelesaikan tugas dengan baik.",
+        },
+      });
+      await prisma.studentJournalNote.create({
+        data: {
+          tenantId: tenant.id,
+          studentId: rightjetPrimaryChild.id,
+          date: todayStr,
+          authorUserId: "u_rightjet",
+          authorRole: "GUARDIAN",
+          body: "Terima kasih Ustadzah, di rumah sudah sholat subuh berjama'ah.",
+        },
+      });
+    }
+    console.log(`✅ Journal: ${journalEntryCount} entries + 2 notes`);
+  }
+
+  // Sync InvoiceNumberSequence to the highest seeded invoice number per
+  // (tenant, year). Without this, the atomic allocator in
+  // lib/finance/invoice-numbers.ts would start a fresh tenant at lastNumber=1
+  // and collide with the seeded INV-YYYY-0001 row, producing P2002 unique
+  // constraint failures on the first POST /api/invoices in CI. The seed
+  // creates Invoice rows directly with explicit invoiceNumber values, so the
+  // sequence table never gets bumped through the normal allocator path.
+  for (const t of await prisma.tenant.findMany({ select: { id: true } })) {
+    const invoices = await prisma.invoice.findMany({
+      where: { tenantId: t.id },
+      select: { invoiceNumber: true },
+    });
+    const maxByYear = new Map<number, number>();
+    for (const { invoiceNumber } of invoices) {
+      const m = invoiceNumber.match(/^INV-(\d{4})-(\d+)$/);
+      if (!m) continue;
+      const year = Number(m[1]);
+      const n = Number(m[2]);
+      const prev = maxByYear.get(year) ?? 0;
+      if (n > prev) maxByYear.set(year, n);
+    }
+    for (const [year, lastNumber] of maxByYear) {
+      await prisma.invoiceNumberSequence.upsert({
+        where: { tenantId_year: { tenantId: t.id, year } },
+        update: { lastNumber },
+        create: { tenantId: t.id, year, lastNumber },
+      });
+    }
   }
 
   console.log("\n🎉 Seed complete!");

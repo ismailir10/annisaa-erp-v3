@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
@@ -9,14 +10,19 @@ import { createEmployeeSchema } from "@/lib/validations/employee";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.tenantId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requirePermission("hr.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "nama", "asc");
+  const sort = parseSort(searchParams, {
+    allow: ["nama", "kode", "email", "jabatan", "hireDate", "createdAt", "status"],
+    default: "nama",
+    defaultOrder: "asc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const search = searchParams.get("search") ?? "";
   const campusId = searchParams.get("campusId");
   const status = searchParams.get("status");
@@ -44,7 +50,10 @@ export async function GET(req: NextRequest) {
     prisma.employee.count({ where }),
   ]);
 
-  const canSeeSalary = canViewSalary(session.role);
+  // Salary fields visibility keyed to payroll.view. SUPER_ADMIN passes via
+  // the short-circuit; a custom role with payroll.view also gets bank/BPJS
+  // fields; SCHOOL_ADMIN default set excludes hr.*, so shape is stripped.
+  const canSeeSalary = hasPermission(session, "payroll.view");
   const safeEmployees = canSeeSalary
     ? employees
     : employees.map((e) => {
@@ -59,20 +68,41 @@ export async function POST(req: NextRequest) {
   const { success } = rateLimit(`create-employee:${getClientIp(req)}`, 10, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("employees.create");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const result = await validateBody(createEmployeeSchema, await req.json());
   if (result.error) return result.error;
   const body = result.data;
   const tenantId = session.tenantId;
 
+  // Block writes targeting INACTIVE/cross-tenant campus — without this,
+  // a soft-deleted campus could still grow new employee dependents and
+  // undermine the employee-attached guard on Campus DELETE.
+  if (body.campusId) {
+    const activeCampus = await prisma.campus.findFirst({
+      where: { id: body.campusId, tenantId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!activeCampus) {
+      return NextResponse.json(
+        { error: "Kampus tidak ditemukan atau nonaktif." },
+        { status: 400 },
+      );
+    }
+  }
+
   // Auto-generate employee code: initials + sequence number (atomic)
   const employee = await prisma.$transaction(async (tx) => {
-    // Advisory lock per tenant to serialize employee code generation
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(12345, ${tenantId}::bigint)`;
+    // F-25: advisory lock per tenant to serialize employee code generation.
+    // Use single-arg `pg_advisory_xact_lock(hashtext(...))` for parity with
+    // invoice/webhook locks (`hashtext(invoiceId)`); namespacing by string
+    // prevents collision with the bare numeric `12345` previously used —
+    // any future caller that picks the same arbitrary integer would deadlock
+    // employee creation. `hashtext` returns int4; Postgres implicitly widens
+    // it to int8 for the `pg_advisory_xact_lock(bigint)` overload.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"employee_create_" + tenantId}))`;
 
     const initials = body.nama
       .trim()
@@ -108,12 +138,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Create teacher user account
+    // F-26: role now comes from validated body (defaults to TEACHER for
+    // back-compat with seed/legacy callers that omit the field).
     await tx.user.create({
       data: {
         tenantId,
         email: body.email.trim(),
-        role: "TEACHER",
+        role: body.role,
         name: body.nama.trim(),
         employeeId: emp.id,
       },

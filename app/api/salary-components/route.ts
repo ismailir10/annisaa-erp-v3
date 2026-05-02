@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Cache salary components for 1 hour (static data)
 export const revalidate = 3600;
 
 export async function GET() {
-  const session = await getSession();
-  if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  const auth = await requirePermission("payroll.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const components = await prisma.salaryComponentDef.findMany({
     where: { tenantId: session.tenantId },
@@ -18,10 +20,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.tenantId || !canViewSalary(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const { success } = rateLimit(`salary-component-create:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
+  const auth = await requirePermission("payroll.create");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const body = await req.json();
   const { code, label, category, calcType, isProRated, sortOrder } = body;

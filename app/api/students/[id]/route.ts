@@ -10,10 +10,13 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json(null, { status: 401 });
+  if (!isAdminRole(session.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id } = await params;
-  const student = await prisma.student.findUnique({
-    where: { id },
+  const student = await prisma.student.findFirst({
+    where: { id, tenantId: session.tenantId },
     include: {
       guardians: { orderBy: { isPrimary: "desc" }, include: { parent: true } },
       enrollments: {
@@ -31,7 +34,7 @@ export async function GET(
     },
   });
 
-  if (!student || student.tenantId !== session.tenantId) {
+  if (!student) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -57,7 +60,7 @@ export async function PUT(
   if (result.error) return result.error;
   const body = result.data;
 
-  // Cascade: withdraw enrollments + cancel draft/sent invoices when student is deactivated
+  // Cascade: withdraw enrollments + cancel draft/sent invoices when student is deactivated or withdrawn
   if (body.status === "INACTIVE" || body.status === "WITHDRAWN") {
     await prisma.$transaction(async (tx) => {
       await tx.studentEnrollment.updateMany({
@@ -65,7 +68,7 @@ export async function PUT(
         data: { status: "WITHDRAWN" },
       });
       await tx.invoice.updateMany({
-        where: { studentId: id, status: { in: ["DRAFT", "SENT"] } },
+        where: { studentId: id, status: { in: ["DRAFT", "SENT", "PENDING_PAYMENT_LINK"] } },
         data: { status: "CANCELLED" },
       });
     });

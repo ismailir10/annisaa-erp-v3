@@ -10,10 +10,19 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdminRole(session.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const { orderBy } = parseSort(searchParams, "name", "asc");
+  const sort = parseSort(searchParams, {
+    allow: ["name", "nickname", "nis", "createdAt", "status", "dateOfBirth"],
+    default: "name",
+    defaultOrder: "asc",
+  });
+  if (sort instanceof Response) return sort;
+  const { orderBy } = sort;
   const search = searchParams.get("search") ?? "";
   const status = searchParams.get("status");
 
@@ -33,7 +42,12 @@ export async function GET(req: NextRequest) {
       skip,
       take,
       include: {
-        guardians: { where: { isPrimary: true }, take: 1, include: { parent: true } },
+        guardians: {
+          where: { isPrimary: true },
+          take: 1,
+          // phone exposed intentionally: admin-only route (isAdminRole guard above), used for quick-contact in student list.
+          include: { parent: { select: { name: true, phone: true } } },
+        },
         enrollments: {
           where: { status: "ACTIVE" },
           include: { classSection: { select: { name: true, program: { select: { name: true } } } } },
@@ -81,29 +95,33 @@ export async function POST(req: NextRequest) {
   });
 
   if (body.guardians?.length) {
-    for (const g of body.guardians) {
-      const email = g.email?.trim() || null;
-      let parent;
-      if (email) {
-        parent = await prisma.parent.upsert({
-          where: { tenantId_email: { tenantId: session.tenantId, email } },
-          create: { tenantId: session.tenantId, name: g.name, email, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
-          update: { name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+    const tenantId = session.tenantId;
+    // Resolve every parent row in parallel — upsert when email present so we
+    // dedupe against existing parents, plain create when no email is supplied.
+    const parents = await Promise.all(
+      body.guardians.map((g) => {
+        const email = g.email?.trim() || null;
+        if (email) {
+          return prisma.parent.upsert({
+            where: { tenantId_email: { tenantId, email } },
+            create: { tenantId, name: g.name, email, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+            update: { name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+          });
+        }
+        return prisma.parent.create({
+          data: { tenantId, name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
         });
-      } else {
-        parent = await prisma.parent.create({
-          data: { tenantId: session.tenantId, name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
-        });
-      }
-      await prisma.studentGuardian.create({
-        data: {
-          studentId: student.id,
-          parentId: parent.id,
-          relationship: g.relationship,
-          isPrimary: g.isPrimary,
-        },
-      });
-    }
+      }),
+    );
+    // Insert all StudentGuardian links in a single round-trip.
+    await prisma.studentGuardian.createMany({
+      data: body.guardians.map((g, i) => ({
+        studentId: student.id,
+        parentId: parents[i].id,
+        relationship: g.relationship,
+        isPrimary: g.isPrimary,
+      })),
+    });
   }
 
   return NextResponse.json(student, { status: 201 });

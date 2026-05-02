@@ -59,6 +59,7 @@ export async function PUT(req: NextRequest) {
       },
       update: { amount: fee.amount, notes: fee.notes ?? null },
       create: {
+        tenantId: session.tenantId,
         programId: body.programId,
         academicYearId: body.academicYearId,
         feeComponentId: fee.feeComponentId,

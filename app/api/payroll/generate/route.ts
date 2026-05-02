@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, canViewSalary } from "@/lib/auth";
-import { calculateWorkingDays } from "@/lib/payroll/working-days";
+import { requirePermission } from "@/lib/auth-guards";
+import { calculateWorkingDays, parseWorkingDays } from "@/lib/payroll/working-days";
 import { calculatePayroll, SalaryComponent } from "@/lib/payroll/engine";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
+import { generatePayrollSchema } from "@/lib/validations/payroll";
 
 export async function POST(req: NextRequest) {
   // Rate limit: 2 payroll generations per minute
@@ -12,45 +14,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
   }
 
-  const session = await getSession();
-  if (!session?.tenantId || !canViewSalary(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await requirePermission("payroll.create");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
+
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
 
-  const body = await req.json();
-  const { periodStart, periodEnd } = body;
-
-  if (!periodStart || !periodEnd) {
-    return NextResponse.json({ error: "Period start and end required" }, { status: 400 });
-  }
-
-  // Prevent duplicate or overlapping payroll runs
-  const existingRun = await prisma.payrollRun.findFirst({
-    where: { tenantId: session.tenantId, periodStart, periodEnd },
-  });
-  if (existingRun) {
-    return NextResponse.json(
-      { error: "Penggajian untuk periode ini sudah ada", id: existingRun.id },
-      { status: 409 }
-    );
-  }
-
-  const overlapping = await prisma.payrollRun.findFirst({
-    where: {
-      tenantId: session.tenantId,
-      status: { not: "CANCELLED" },
-      periodStart: { lte: periodEnd },
-      periodEnd: { gte: periodStart },
-    },
-  });
-  if (overlapping) {
-    return NextResponse.json(
-      { error: `Periode tumpang tindih dengan penggajian ${overlapping.periodStart} - ${overlapping.periodEnd}` },
-      { status: 400 }
-    );
-  }
+  const result = await validateBody(generatePayrollSchema, rawBody);
+  if (result.error) return result.error;
+  const { periodStart, periodEnd } = result.data;
 
   // Parallelise the 4 independent setup queries — none depend on each other
+  // (overlap + duplicate check happen atomically inside the $transaction below)
   const [orgConfig, holidays, componentDefs, employees] = await Promise.all([
     prisma.orgConfig.findUnique({ where: { tenantId: session.tenantId } }),
     prisma.holiday.findMany({
@@ -80,7 +60,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Org config not set" }, { status: 400 });
   }
 
-  const workingDays = JSON.parse(orgConfig.workingDays) as string[];
+  const workingDays = parseWorkingDays(orgConfig.workingDays);
   const actualWorkDays = calculateWorkingDays(periodStart, periodEnd, workingDays, holidays);
 
   const components: SalaryComponent[] = componentDefs.map((c) => ({
@@ -93,7 +73,9 @@ export async function POST(req: NextRequest) {
     sortOrder: c.sortOrder,
   }));
 
-  // Calculate payroll
+  // Calculate payroll. F-14: propagate the org-level lemburCompliant flag so
+  // tenants that opt in get UU 13/2003 §78(4) tiered overtime rates; everyone
+  // else stays on the historical flat formula.
   const results = calculatePayroll(
     employees.map((e) => ({
       id: e.id,
@@ -104,7 +86,8 @@ export async function POST(req: NextRequest) {
       attendanceRecords: e.attendanceRecords.map((r) => ({ status: r.status })),
     })),
     components,
-    actualWorkDays
+    actualWorkDays,
+    { lemburCompliant: orgConfig.lemburCompliant }
   );
 
   // Pre-generate item IDs so PayrollItemLines can reference them without an
@@ -136,26 +119,69 @@ export async function POST(req: NextRequest) {
     }));
   });
 
-  const payrollRun = await prisma.$transaction(async (tx) => {
-    const run = await tx.payrollRun.create({
-      data: {
-        tenantId: session.tenantId!, // non-null confirmed by auth check at line 16
-        periodStart,
-        periodEnd,
-        actualWorkDays,
-        createdBy: session.id,
+  // Serializable: duplicate/overlap check + create commit atomically. Prevents
+  // two concurrent POSTs from both passing the guard and inserting duplicate runs.
+  let payrollRun: { id: string };
+  try {
+    payrollRun = await prisma.$transaction(
+      async (tx) => {
+        const existingRun = await tx.payrollRun.findFirst({
+          where: { tenantId: session.tenantId!, periodStart, periodEnd },
+          select: { id: true },
+        });
+        if (existingRun) {
+          throw Object.assign(new Error("DUPLICATE"), { existingId: existingRun.id });
+        }
+
+        const overlapping = await tx.payrollRun.findFirst({
+          where: {
+            tenantId: session.tenantId!,
+            status: { not: "CANCELLED" },
+            periodStart: { lte: periodEnd },
+            periodEnd: { gte: periodStart },
+          },
+          select: { periodStart: true, periodEnd: true },
+        });
+        if (overlapping) {
+          throw Object.assign(new Error("OVERLAP"), {
+            msg: `Periode tumpang tindih dengan penggajian ${overlapping.periodStart} - ${overlapping.periodEnd}`,
+          });
+        }
+
+        const run = await tx.payrollRun.create({
+          data: {
+            tenantId: session.tenantId!, // non-null confirmed by auth check at line 16
+            periodStart,
+            periodEnd,
+            actualWorkDays,
+            createdBy: session.id,
+          },
+          select: { id: true },
+        });
+
+        await tx.payrollItem.createMany({
+          data: itemData.map((item) => ({ ...item, payrollRunId: run.id })),
+        });
+
+        await tx.payrollItemLine.createMany({ data: lineData });
+
+        return run;
       },
-      select: { id: true },
-    });
-
-    await tx.payrollItem.createMany({
-      data: itemData.map((item) => ({ ...item, payrollRunId: run.id })),
-    });
-
-    await tx.payrollItemLine.createMany({ data: lineData });
-
-    return run;
-  });
+      { isolationLevel: "Serializable" }
+    );
+  } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === "DUPLICATE") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return NextResponse.json({ error: "Penggajian untuk periode ini sudah ada", id: (e as any).existingId }, { status: 409 });
+      }
+      if (e.message === "OVERLAP") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return NextResponse.json({ error: (e as any).msg }, { status: 400 });
+      }
+    }
+    throw e;
+  }
 
   return NextResponse.json({ id: payrollRun.id }, { status: 201 });
 }

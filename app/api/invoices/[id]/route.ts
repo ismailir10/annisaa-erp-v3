@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { updateInvoiceSchema } from "@/lib/validations/invoice";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -28,7 +29,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const existing = await prisma.invoice.findUnique({ where: { id } });
   if (!existing || existing.tenantId !== session.tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const body = await req.json();
+  const parsed = updateInvoiceSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
+  }
+  const body = parsed.data;
+
+  // State-machine guard: only DRAFT -> SENT is valid via PUT. Xendit session
+  // creation lives on the dedicated POST endpoints (manual create, batch,
+  // retry-payment-links); this guard preserves status-machine purity so a
+  // stale admin tab can't jump straight to SENT and bypass those paths.
+  if (body.status === "SENT" && existing.status !== "DRAFT" && existing.status !== "SENT") {
+    return NextResponse.json(
+      { error: `Tagihan dengan status ${existing.status} tidak bisa diubah ke SENT` },
+      { status: 409 }
+    );
+  }
+
   const invoice = await prisma.invoice.update({
     where: { id },
     data: {
@@ -36,5 +53,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       sentAt: body.status === "SENT" ? new Date() : existing.sentAt,
     },
   });
+
   return NextResponse.json(invoice);
 }

@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
+import { validateBody } from "@/lib/api/validate";
+import { updateEmployeeSchema } from "@/lib/validations/employee";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId) return NextResponse.json(null, { status: 401 });
+  const auth = await requirePermission("hr.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id } = await params;
   const employee = await prisma.employee.findUnique({
@@ -20,7 +23,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (!canViewSalary(session.role)) {
+  if (!hasPermission(session, "payroll.view")) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { bankAccountNo, bankName, bpjsEnrolled, ...rest } = employee;
     return NextResponse.json(rest);
@@ -32,10 +35,9 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("employees.edit");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id } = await params;
 
@@ -45,16 +47,34 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  // F-13 fix: PUT no longer accepts `status` writes. The previous shortcut
+  // here let `{status:"INACTIVE"}` skip validation, but the bigger bug was
+  // that `updateEmployeeSchema` extended `status` so `{status:"ACTIVE"}`
+  // would silently re-activate a deactivated employee. Both paths are gone
+  // — status transitions go through POST /deactivate and POST /restore.
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
+  }
 
-  // Deactivate
-  if ("status" in body && body.status === "INACTIVE") {
-    const employee = await prisma.employee.update({
-      where: { id },
-      data: { status: "INACTIVE" },
+  const result = await validateBody(updateEmployeeSchema, rawBody);
+  if (result.error) return result.error;
+  const body = result.data;
+
+  // Block re-assignment to INACTIVE/cross-tenant campus — see POST guard.
+  if (body.campusId) {
+    const activeCampus = await prisma.campus.findFirst({
+      where: { id: body.campusId, tenantId: session.tenantId, status: "ACTIVE" },
+      select: { id: true },
     });
-    revalidateTag("employees-count", {});
-    return NextResponse.json(employee);
+    if (!activeCampus) {
+      return NextResponse.json(
+        { error: "Kampus tidak ditemukan atau nonaktif." },
+        { status: 400 },
+      );
+    }
   }
 
   const employee = await prisma.employee.update({

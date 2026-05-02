@@ -18,14 +18,15 @@ import {
 } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, GraduationCap, BookOpen, Users, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
-type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; isActive: boolean; _count: { classSections: number } };
-type ClassSection = { id: string; name: string; capacity: number; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
+type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; status: string; _count: { classSections: number } };
+type ClassSection = { id: string; name: string; capacity: number; status: string; programId: string; academicYearId: string; campusId: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number } };
 type Campus = { id: string; name: string };
 type Employee = { id: string; nama: string; kode: string; jabatan: string };
 type Assignment = { id: string; role: string; employee: { nama: string; kode: string; jabatan: string } };
@@ -55,6 +56,9 @@ export default function AcademicPage() {
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [editingSection, setEditingSection] = useState<ClassSection | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
+  const [programStatusFilter, setProgramStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
+  const [sectionStatusFilter, setSectionStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
 
   // Teacher assignment
   const [assignDialog, setAssignDialog] = useState(false);
@@ -130,7 +134,10 @@ export default function AcademicPage() {
     setSaving(true);
     const url = editingSection ? `/api/class-sections/${editingSection.id}` : "/api/class-sections";
     const method = editingSection ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...sectionForm, capacity: parseInt(sectionForm.capacity) }) });
+    const body = editingSection
+      ? { name: sectionForm.name, capacity: parseInt(sectionForm.capacity), campusId: sectionForm.campusId }
+      : { ...sectionForm, capacity: parseInt(sectionForm.capacity) };
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (res.ok) { toast.success(editingSection ? "Kelas diperbarui" : "Kelas ditambahkan"); setSectionDialog(false); setEditingSection(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
     setSaving(false);
@@ -148,7 +155,23 @@ export default function AcademicPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "INACTIVE" }),
     });
-    if (res.ok) { toast.success("Berhasil dinonaktifkan"); setDeactivateTarget(null); fetchAll(); }
+    if (res.ok) { toast.success("Dinonaktifkan"); setDeactivateTarget(null); fetchAll(); }
+    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
+  }
+
+  async function handleReactivate() {
+    if (!reactivateTarget) return;
+    const urlMap: Record<string, string> = {
+      year: `/api/academic-years/${reactivateTarget.id}`,
+      program: `/api/programs/${reactivateTarget.id}`,
+      section: `/api/class-sections/${reactivateTarget.id}`,
+    };
+    const res = await fetch(urlMap[reactivateTarget.type], {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ACTIVE" }),
+    });
+    if (res.ok) { toast.success("Diaktifkan"); setReactivateTarget(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
   }
 
@@ -164,7 +187,7 @@ export default function AcademicPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{p.name}</span>
-              <Badge variant="outline" className="text-[10px] font-currency">{p.code}</Badge>
+              <Badge variant="outline" className="text-xs font-currency">{p.code}</Badge>
             </div>
             {p.description && <p className="text-xs text-muted-foreground mt-0.5">{p.description}</p>}
           </div>
@@ -192,6 +215,11 @@ export default function AcademicPage() {
       cell: ({ row }) => <span className="font-currency text-sm">{row.original._count.classSections}</span>,
     },
     {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
       id: "actions",
       cell: ({ row }) => (
         <DataTableRowActions
@@ -202,11 +230,20 @@ export default function AcademicPage() {
             setProgramDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "program", id: row.original.id, name: row.original.name })}
-          isActive={row.original.isActive}
+          onActivate={() => setReactivateTarget({ type: "program", id: row.original.id, name: row.original.name })}
+          isActive={row.original.status === "ACTIVE"}
         />
       ),
     },
   ];
+
+  const filteredPrograms = programStatusFilter === "all"
+    ? programs
+    : programs.filter(p => p.status === programStatusFilter);
+
+  const filteredSections = sectionStatusFilter === "all"
+    ? sections
+    : sections.filter(s => s.status === sectionStatusFilter);
 
   const yearColumns: ColumnDef<AcademicYear>[] = [
     {
@@ -276,7 +313,7 @@ export default function AcademicPage() {
       id: "program",
       accessorFn: (row) => row.program.name,
       header: ({ column }) => <DataTableColumnHeader column={column} title="Program" />,
-      cell: ({ row }) => <Badge variant="outline" className="text-[10px]">{row.original.program.name}</Badge>,
+      cell: ({ row }) => <Badge variant="outline" className="text-xs">{row.original.program.name}</Badge>,
     },
     {
       id: "academicYear",
@@ -293,16 +330,23 @@ export default function AcademicPage() {
       ),
     },
     {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
       id: "actions",
       cell: ({ row }) => (
         <DataTableRowActions
           onEdit={() => {
             const s = row.original;
             setEditingSection(s);
-            setSectionForm({ name: s.name, programId: "", academicYearId: "", campusId: "", capacity: String(s.capacity) });
+            setSectionForm({ name: s.name, programId: s.programId, academicYearId: s.academicYearId, campusId: s.campusId, capacity: String(s.capacity) });
             setSectionDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
+          onActivate={() => setReactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
+          isActive={row.original.status === "ACTIVE"}
           extraActions={[{
             label: "Guru Pengajar",
             icon: <Users size={14} />,
@@ -332,18 +376,30 @@ export default function AcademicPage() {
       {/* Programs Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Program</h2>
-          <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
-            <Plus size={14} className="mr-1.5" /> Tambah Program
-          </Button>
+          <h2 className="text-h2 font-semibold">Program</h2>
+          <div className="flex items-center gap-2">
+            <Select value={programStatusFilter} onValueChange={(v) => v && setProgramStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")} items={{ all: "Semua Status", ACTIVE: "Aktif", INACTIVE: "Tidak Aktif" }}>
+              <SelectTrigger className="h-8 w-[160px]" data-testid="program-status-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="ACTIVE">Aktif</SelectItem>
+                <SelectItem value="INACTIVE">Tidak Aktif</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Program
+            </Button>
+          </div>
         </div>
-        <DataTable columns={programColumns} data={programs} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada program" emptyDescription="Tambahkan program pendidikan" />
+        <DataTable columns={programColumns} data={filteredPrograms} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada program" emptyDescription="Tambahkan program pendidikan" />
       </div>
 
       {/* Academic Years Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Tahun Ajaran</h2>
+          <h2 className="text-h2 font-semibold">Tahun Ajaran</h2>
           <Button size="sm" onClick={() => { setEditingYear(null); setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
             <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
           </Button>
@@ -354,19 +410,31 @@ export default function AcademicPage() {
       {/* Class Sections Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Kelas</h2>
-          <Button size="sm" onClick={() => { setEditingSection(null); setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
-            <Plus size={14} className="mr-1.5" /> Tambah Kelas
-          </Button>
+          <h2 className="text-h2 font-semibold">Kelas</h2>
+          <div className="flex items-center gap-2">
+            <Select value={sectionStatusFilter} onValueChange={(v) => v && setSectionStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")} items={{ all: "Semua Status", ACTIVE: "Aktif", INACTIVE: "Tidak Aktif" }}>
+              <SelectTrigger className="h-8 w-[160px]" data-testid="section-status-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="ACTIVE">Aktif</SelectItem>
+                <SelectItem value="INACTIVE">Tidak Aktif</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => { setEditingSection(null); setSectionForm({ name: "", programId: "", academicYearId: "", campusId: "", capacity: "20" }); setSectionDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Kelas
+            </Button>
+          </div>
         </div>
-        <DataTable columns={classColumns} data={sections} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada kelas" emptyDescription="Tambahkan kelas untuk program" />
+        <DataTable columns={classColumns} data={filteredSections} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada kelas" emptyDescription="Tambahkan kelas untuk program" />
       </div>
 
       {/* Add Year Dialog */}
       <Dialog open={yearDialog} onOpenChange={setYearDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>{editingYear ? "Edit Tahun Ajaran" : "Tambah Tahun Ajaran"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field><FieldLabel>Nama *</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field><FieldLabel>Mulai</FieldLabel><Input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
@@ -382,9 +450,9 @@ export default function AcademicPage() {
 
       {/* Add Program Dialog */}
       <Dialog open={programDialog} onOpenChange={setProgramDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>{editingProgram ? "Edit Program" : "Tambah Program"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div className="grid grid-cols-2 gap-3">
               <Field><FieldLabel>Kode *</FieldLabel><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
               <Field><FieldLabel>Nama *</FieldLabel><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
@@ -392,7 +460,7 @@ export default function AcademicPage() {
             <Field><FieldLabel>Deskripsi</FieldLabel><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
             <Field>
               <FieldLabel>Tipe</FieldLabel>
-              <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })}>
+              <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })} items={{ SEMESTER: "Semester", YEAR_ROUND: "Sepanjang Tahun", SESSION: "Per Sesi" }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="SEMESTER">Semester</SelectItem>
@@ -415,27 +483,35 @@ export default function AcademicPage() {
 
       {/* Add Section Dialog */}
       <Dialog open={sectionDialog} onOpenChange={setSectionDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>{editingSection ? "Edit Kelas" : "Tambah Kelas"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field><FieldLabel>Nama Kelas *</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
             <Field>
               <FieldLabel>Program *</FieldLabel>
-              <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })}>
-                <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
-                <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-              </Select>
+              {editingSection ? (
+                <div className="text-sm text-muted-foreground py-2">{editingSection.program.name}</div>
+              ) : (
+                <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })} items={programs.map(p => ({ label: p.name, value: p.id }))}>
+                  <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
+                  <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </Field>
             <Field>
               <FieldLabel>Tahun Ajaran *</FieldLabel>
-              <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })}>
-                <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
-                <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
-              </Select>
+              {editingSection ? (
+                <div className="text-sm text-muted-foreground py-2">{editingSection.academicYear.name}</div>
+              ) : (
+                <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })} items={years.map(y => ({ label: y.name, value: y.id }))}>
+                  <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+                  <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </Field>
             <Field>
               <FieldLabel>Kampus *</FieldLabel>
-              <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })}>
+              <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
                 <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
                 <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -451,9 +527,9 @@ export default function AcademicPage() {
 
       {/* Assign Teacher Dialog */}
       <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader><DialogTitle>Guru Pengajar — {assignForm.className}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             {classAssignments.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Guru Saat Ini</p>
@@ -461,7 +537,7 @@ export default function AcademicPage() {
                   <div key={a.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
                     <div>
                       <p className="text-sm font-medium">{a.employee.nama}</p>
-                      <p className="text-[10px] text-muted-foreground">{a.employee.jabatan} · {a.role === "HOMEROOM" ? "Wali Kelas" : "Pendamping"}</p>
+                      <p className="text-xs text-muted-foreground">{a.employee.jabatan} · {a.role === "HOMEROOM" ? "Wali Kelas" : "Pendamping"}</p>
                     </div>
                     <Button size="sm" variant="ghost" className="text-destructive h-7" onClick={() => handleRemoveAssignment(a.id)}>Hapus</Button>
                   </div>
@@ -472,7 +548,7 @@ export default function AcademicPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tambah Guru</p>
               <Field>
                 <FieldLabel>Pilih Guru</FieldLabel>
-                <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })}>
+                <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })} items={employees.filter(e => !classAssignments.some(a => a.employee.kode === e.kode)).map(e => ({ label: `${e.nama} (${e.jabatan})`, value: e.id }))}>
                   <SelectTrigger><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
                   <SelectContent>
                     {employees
@@ -493,13 +569,21 @@ export default function AcademicPage() {
       </Dialog>
 
       {/* Deactivate Confirm */}
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
-        title="Nonaktifkan"
-        description={`Nonaktifkan "${deactivateTarget?.name}"? Data tidak akan dihapus.`}
+        entityName={deactivateTarget?.name ?? ""}
         onConfirm={handleDeactivate}
-        confirmLabel="Nonaktifkan"
+      />
+
+      {/* Reactivate Confirm */}
+      <ConfirmDialog
+        open={!!reactivateTarget}
+        onOpenChange={(o) => !o && setReactivateTarget(null)}
+        title="Aktifkan"
+        description={`Aktifkan kembali "${reactivateTarget?.name}"?`}
+        onConfirm={handleReactivate}
+        confirmLabel="Aktifkan"
       />
     </>
   );

@@ -98,6 +98,22 @@ model=unknown
 EOF
 echo "setup-worktree: wrote .claude/session-role (AI will overwrite model on first turn)"
 
+# ── Smoke check: env symlinks are actually readable ─────────────────────────
+
+echo "setup-worktree: smoke-checking .env symlinks ..."
+if [ ! -r "$WORKTREE_PATH/.env" ]; then
+  echo "setup-worktree: FAIL — $WORKTREE_PATH/.env is missing or unreadable." >&2
+  echo "  The worktree will not be able to run npm run dev / build / prisma." >&2
+  echo "  Recover with: (cd $WORKTREE_PATH && bash scripts/bootstrap-env-symlinks.sh)" >&2
+  exit 1
+fi
+if [ -f "$ROOT/.env.local" ] && [ ! -r "$WORKTREE_PATH/.env.local" ]; then
+  echo "setup-worktree: FAIL — .env.local present in main but unreadable in worktree." >&2
+  echo "  Recover with: (cd $WORKTREE_PATH && bash scripts/bootstrap-env-symlinks.sh)" >&2
+  exit 1
+fi
+echo "  .env ok"
+
 # ── Done ─────────────────────────────────────────────────────────────────────
 
 echo ""

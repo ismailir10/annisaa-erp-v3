@@ -1,69 +1,119 @@
-import { isAdminRole } from "@/lib/auth";
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+import { assertSingleTenant, isAdminRole } from "@/lib/auth";
+import { resolveCallbackOrigin } from "@/lib/auth-callback";
 
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+type PendingCookie = {
+  name: string;
+  value: string;
+  options: Parameters<
+    ReturnType<typeof NextResponse.next>["cookies"]["set"]
+  >[2];
+};
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const base = resolveCallbackOrigin(request);
 
-  if (code) {
-    try {
-      const supabase = await createClient();
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+  // Cookies written by `exchangeCodeForSession` are captured here and applied
+  // to the final redirect response. Returning `NextResponse.redirect(...)`
+  // directly from a route handler does NOT inherit ambient `cookies().set()`
+  // writes — the Set-Cookie headers are lost and the browser has no session
+  // on the next request, producing the /auth/callback → /admin → / loop.
+  const pending: PendingCookie[] = [];
 
-      if (error) {
-        console.error("Exchange code error:", error.message);
-        return NextResponse.redirect(`${origin}/?error=exchange_failed`);
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user?.email) {
-        console.error("No user email after exchange");
-        return NextResponse.redirect(`${origin}/?error=no_email`);
-      }
-
-      // Try to determine role from DB, but don't crash if DB fails
-      try {
-        const { prisma } = await import("@/lib/db");
-        const prismaUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-
-        if (isAdminRole(prismaUser?.role ?? "")) {
-          return NextResponse.redirect(`${origin}/admin`);
-        } else if (prismaUser?.role === "TEACHER") {
-          return NextResponse.redirect(`${origin}/teacher`);
-        } else if (prismaUser?.role === "GUARDIAN") {
-          return NextResponse.redirect(`${origin}/parent`);
-        }
-
-        // Check if employee exists (first-time teacher login)
-        const employee = await prisma.employee.findFirst({
-          where: { email: user.email },
-        });
-        if (employee) {
-          return NextResponse.redirect(`${origin}/teacher`);
-        }
-
-        // Check if parent exists (first-time parent login)
-        const parent = await prisma.parent.findFirst({
-          where: { email: user.email },
-        });
-        if (parent) {
-          return NextResponse.redirect(`${origin}/parent`);
-        }
-      } catch (dbError) {
-        console.error("DB lookup in callback failed:", dbError);
-      }
-
-      // Email not provisioned — no matching Employee, Parent, or User
-      return NextResponse.redirect(`${origin}/?error=access_denied`);
-    } catch (e) {
-      console.error("Auth callback error:", e);
-      return NextResponse.redirect(`${origin}/?error=callback_error`);
+  const respond = (path: string) => {
+    const res = NextResponse.redirect(`${base}${path}`);
+    for (const { name, value, options } of pending) {
+      res.cookies.set(name, value, options);
     }
-  }
+    // Reset idle-timeout cookie on fresh login. Without this, a stale
+    // `school-erp-last-active` from a previous session (e.g. demo mode)
+    // makes proxy.ts's enforceIdleTimeout redirect /admin → / immediately
+    // after the OAuth callback succeeds, producing the login loop.
+    if (path === "/admin" || path === "/teacher" || path === "/parent") {
+      res.cookies.set("school-erp-last-active", String(Date.now()), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24,
+      });
+    }
+    return res;
+  };
 
-  return NextResponse.redirect(`${origin}/?error=no_code`);
+  if (!code) return respond("/?error=no_code");
+
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            for (const c of cookiesToSet) {
+              pending.push({ name: c.name, value: c.value, options: c.options });
+            }
+          },
+        },
+      }
+    );
+
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      console.error("[auth/callback] exchange_failed:", error.message);
+      return respond("/?error=exchange_failed");
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) {
+      console.error("[auth/callback] no_email after exchange");
+      return respond("/?error=no_email");
+    }
+
+    try {
+      const { prisma } = await import("@/lib/db");
+      // Multi-tenant safety rail — see lib/auth.ts#assertSingleTenant.
+      // This callback also keys on email alone and must fail-loud the
+      // moment a second tenant is seeded.
+      await assertSingleTenant();
+      // email is unique per-tenant (`@@unique([tenantId, email])`) so use
+      // findFirst — single-tenant MVP returns the only match. Filter
+      // status: "ACTIVE" to block deactivated accounts from logging in
+      // via Supabase OAuth, matching _getSession's filter.
+      const prismaUser = await prisma.user.findFirst({
+        where: { email: user.email, status: "ACTIVE" },
+      });
+
+      if (isAdminRole(prismaUser?.role ?? "")) return respond("/admin");
+      if (prismaUser?.role === "TEACHER") return respond("/teacher");
+      if (prismaUser?.role === "GUARDIAN") return respond("/parent");
+
+      // Auto-provisioning fallback. Employee-first precedence matches
+      // lib/auth.ts#_getSession auto-create path — an email matching
+      // both Employee and Parent becomes TEACHER. Override by
+      // pre-creating a GUARDIAN User row before first login.
+      const employee = await prisma.employee.findFirst({
+        where: { email: user.email },
+      });
+      if (employee) return respond("/teacher");
+
+      const parent = await prisma.parent.findFirst({
+        where: { email: user.email },
+      });
+      if (parent) return respond("/parent");
+    } catch (dbError) {
+      console.error("[auth/callback] db_lookup_failed:", dbError);
+    }
+
+    return respond("/?error=access_denied");
+  } catch (e) {
+    console.error("[auth/callback] unhandled:", e);
+    return respond("/?error=callback_error");
+  }
 }

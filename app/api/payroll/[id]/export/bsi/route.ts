@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 import { generateBsiCsv, sanitizeFilename } from "@/lib/payroll/bsi-export";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId || !canViewSalary(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("payroll.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id } = await params;
 
@@ -30,8 +29,11 @@ export async function GET(
   if (!payroll || payroll.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (payroll.status === "DRAFT") {
-    return NextResponse.json({ error: "Payroll belum disetujui" }, { status: 400 });
+  if (payroll.status !== "APPROVED") {
+    return NextResponse.json(
+      { error: "Hanya penggajian berstatus APPROVED yang bisa diekspor" },
+      { status: 409 }
+    );
   }
 
   // Filter employees with bank accounts
@@ -47,11 +49,19 @@ export async function GET(
   const csv = generateBsiCsv(rows);
   const filename = sanitizeFilename(`payroll_${payroll.periodStart}_${payroll.periodEnd}_bsi.csv`);
 
-  // Mark as exported
-  await prisma.payrollRun.update({
-    where: { id },
+  // Compare-and-swap: only write EXPORTED if run is still APPROVED. Two
+  // concurrent BSI export clicks cannot both pass the status guard and both
+  // write — the second arrival gets count=0 and bails with 409.
+  const swap = await prisma.payrollRun.updateMany({
+    where: { id, status: "APPROVED" },
     data: { status: "EXPORTED", exportedAt: new Date() },
   });
+  if (swap.count === 0) {
+    return NextResponse.json(
+      { error: "Penggajian sudah diekspor atau statusnya berubah" },
+      { status: 409 }
+    );
+  }
 
   return new NextResponse(csv, {
     headers: {

@@ -1,0 +1,158 @@
+# Assessment Bug Fix — Uniqueness, 409, Teacher Nilai UI
+
+## Context
+
+PR [#71 "CRUD Standard Completion — Phase 2"](https://github.com/ismailir10/annisaa-erp-v3/pull/71) shipped an admin assessment UI on 2026-04-19 (`/admin/assessments/page.tsx`, `/admin/assessments/templates/page.tsx`, `/admin/assessments/scores/page.tsx`), but it left the **actual bug** live on staging:
+
+1. **`AssessmentTemplate` has no `@@unique([tenantId, programId, name, type])`** — verified against `origin/staging:prisma/schema.prisma` (only `@@index([tenantId])`).
+2. **`POST /api/assessments/templates` does not reject duplicates** — staging's handler parses Zod, checks the program exists, then calls `prisma.assessmentTemplate.create` with no `findFirst` uniqueness guard. Any double-submit or reseed creates N copies.
+3. **No teacher-side nilai entry UI** — `app/teacher/` has no `assessments/` directory on staging; teachers cannot reach `PUT /api/assessments/student/[id]`.
+4. **Teacher authz on the student PUT is program-level, not class-level** — staging's `app/api/assessments/student/[id]/route.ts` only checks that the teacher has *some* `TeachingAssignment` in the same program, not that they are assigned to the specific class the student is enrolled in. No class-boundary enforcement, no Zod on body, no rate limit.
+
+This cycle narrows the original Phase 2 work ([docs/cycles/2026-04-20-crud-completion-phase2.md](2026-04-20-crud-completion-phase2.md) on `claude/zen-pare-06c941`) to **just the bug-fix-relevant tasks** (A2, A3, B3, B4). B1 + B2 (admin assessment UI) are dropped because PR #71 covered that ground with a different structure. Phase C (CRUD gap closure), Phase D (vitest sweep), and Phase E (README + ADR repair) are deferred to [docs/cycles/2026-04-20-crud-phase-cde.md](2026-04-20-crud-phase-cde.md).
+
+**Reuse strategy (to avoid conflicts on staging):**
+
+- **Keep staging's `lib/validations/assessment-template.ts`** — do not reintroduce our parallel `lib/validations/assessment.ts`. Extend the existing file with `studentAssessmentSaveSchema` (score enum `BB|MB|BSH|BSB`).
+- **Rebuild A2 migration on top of staging's schema** — staging has had several schema changes since `c1eb079` (program status rename, guardian status, student-attendance voided, FK indexes, etc.). Do not cherry-pick the zen-pare migration file; regenerate.
+- **Cherry-pick B3 verbatim** — pure add, zero conflict surface (`lib/academic-period.ts`, `app/api/teacher/assessments/route.ts`, `app/teacher/assessments/page.tsx`, bottom-nav change).
+- **Rebuild B4 on top of staging's `/student/[id]` route** — staging already has program-level authz + status field; we tighten to class-level authz, add Zod + rate limit, and bring in the page + client + `category-indicator-editor`-less inline form.
+
+## Spec
+
+Cycle ships successfully when:
+
+- [ ] `AssessmentTemplate` has `@@unique([tenantId, programId, name, type])` on staging DB. Migration de-dupes any existing duplicates first (reparent `StudentAssessment.templateId` and `AssessmentCategory.templateId`, then delete orphans, then add the unique index).
+- [ ] `POST /api/assessments/templates` returns **409** with `{ error: "Template dengan nama dan tipe yang sama sudah ada untuk program ini." }` when a duplicate is submitted. Rate limit preserved. Existing admin UI (PR #71) continues to work (happy path unchanged).
+- [ ] `PUT /api/assessments/student/[id]` validates body with Zod (`studentAssessmentSaveSchema`), enforces **class-level** authz for teachers (assignment must match a class the student is actively enrolled in **and** the template's program), and is rate-limited 30/min per user. Admin bypass preserved.
+- [ ] `POST /api/assessments/student` has the same class-level authz + rate limit + template-tenant existence check.
+- [ ] `app/teacher/assessments/page.tsx` lists teacher's active classes with per-template `{studentsTotal, studentsDraft, studentsPublished, studentsPending}` counts for the current period. Mobile-first `max-w-md`. Links to `[classSectionId]/[templateId]/[period]`.
+- [ ] `GET /api/teacher/assessments` returns the aggregation with tenant scope + TEACHER/admin role gate, single aggregated query shape (no per-pair N+1).
+- [ ] `app/teacher/assessments/[classSectionId]/[templateId]/[period]/page.tsx` renders a per-student Accordion with 4-way BB/MB/BSH/BSB toggle per indicator + optional notes + draft autosave (1.2s debounce) + sticky "Publikasikan rapor" button.
+- [ ] Teacher bottom nav gains a 5th tab "Nilai" (`ClipboardCheck`), layout switched to `flex-1 px-2` to fit.
+- [ ] Vitest coverage: `lib/__tests__/academic-period.test.ts` (3 boundary cases), extended `lib/__tests__/assessment-template.test.ts` (409 guard), new `app/api/__tests__/assessment-student-authz.test.ts` (teacher cross-class 403, own-class 200, admin bypass, Zod invalid-score 400).
+- [ ] Playwright: teacher assessments smoke — open Nilai tab → pick a class → enter a score → draft autosave → publish. Extends `e2e/teacher.spec.ts`.
+- [ ] `npm run build && npx vitest run && npx playwright test` all green.
+
+### Non-goals
+
+- **No admin UI changes.** Keep staging's PR #71 pages as-is. If that UI has gaps (view/edit toggle detail page, shared category-indicator editor component), they belong to a follow-up cycle — not this one.
+- **No CRUD-matrix work on other entities.** Deferred to Phase C/D/E cycle.
+- **No README repairs.** Deferred to Phase E cycle.
+- **No PR #70 or PR #71 reverts.**
+
+### Assumptions
+
+1. Staging's admin assessment UI from PR #71 is acceptable as-is for this cycle. Any inadequacies are triaged separately.
+2. The four task outputs from `claude/zen-pare-06c941` (commits `7dc96c6`, `675a028`, `cba1e6a`, `d0c31df`) are sound reference material but will be **rebuilt** on top of `origin/staging` rather than cherry-picked — conflicts (especially on `schema.prisma`, `app/api/assessments/templates/route.ts`, and `app/api/assessments/student/[id]/route.ts`) are substantial enough that a rebuild is cleaner than conflict reconciliation.
+3. The `/build` commit series uses the same shape as the reference commits but messages are fresh, signed with opus-4-7 trailer via the `prepare-commit-msg` hook.
+4. Staging's DB has no live duplicate `AssessmentTemplate` rows (or very few). The dedupe migration is defensive — staging's seed may not have seeded duplicates yet. Migration is idempotent either way.
+5. Per current `CLAUDE.md`, **all roles use PR-based `/ship`** — cto included. We push `feat/assessment-bug-fix` and open a PR against `staging` with the `needs-cto-review` label. Direct pushes to `staging` are blocked by `pre-push`. (`.claude/skills/ship/SKILL.md` is stale on this point; Phase E3 fix is tracked in the Phase C/D/E cycle stub.)
+
+## Tasks
+
+Ordered, atomic, one commit per task. Each task passes `npm run build && npx vitest run` before commit. Final task runs the end-of-cycle gate.
+
+### T1 — AssessmentTemplate uniqueness + dedupe migration (rebuilt for staging)
+
+**Files:**
+- Modify: `prisma/schema.prisma` — add `@@unique([tenantId, programId, name, type])` to `AssessmentTemplate`, keeping the existing `@@index([tenantId])`.
+- Create: `prisma/migrations/20260420000000_assessment_template_unique/migration.sql`.
+
+Migration SQL (in order):
+1. **Survivor picker** (CTE): for each `(tenantId, programId, name, type)` group, pick the row with the highest `assessments` count, tiebreak on oldest `createdAt`.
+2. **Reparent `StudentAssessment.templateId`** from duplicates to survivor. Merge scores on conflict: if survivor already has a row for the same `(studentId, period)`, keep survivor's row (drop duplicate's scores via `StudentAssessmentScore` cascade).
+3. **Reparent `AssessmentCategory.templateId`** from duplicates to survivor. If name collision (survivor already has a category with the same name), drop the duplicate's category (cascading indicators + scores).
+4. Delete orphan duplicate `AssessmentTemplate` rows.
+5. Add the unique index.
+
+- [ ] Write migration SQL.
+- [ ] `npx prisma migrate dev` against local SQLite; verify no row loss on clean seed.
+- [ ] `npm run build && npx vitest run`. Expected: pass.
+- [ ] Commit: `fix(assessment): de-duplicate templates + enforce (tenant,program,name,type) unique`.
+
+### T2 — POST templates 409 + extended validator
+
+**Files:**
+- Modify: `lib/validations/assessment-template.ts` — add `studentAssessmentSaveSchema` (`scores: [{ indicatorId: string, score: enum('BB'|'MB'|'BSH'|'BSB'), notes?: string.max(500) }]`, `publish?: boolean`).
+- Modify: `app/api/assessments/templates/route.ts` — after Zod parse + program existence, add `findFirst` on `(tenantId, programId, name, type)`. Return 409 with `{ error, existingId }`. Keep existing rate limit + revalidatePath.
+- Modify (or extend): `lib/__tests__/assessment-template.test.ts` — add cases for 409 on duplicate, happy-path create returns 201, Zod rejects invalid type. If the test file does not yet exist on staging, create it.
+
+- [ ] Update validator.
+- [ ] Update POST handler.
+- [ ] Write vitest. Run `npx vitest run lib/__tests__/assessment-template.test.ts`. Expected: fail first, then pass after handler change.
+- [ ] `npm run build && npx vitest run`. Expected: pass.
+- [ ] Commit: `feat(assessment): 409 on duplicate template POST + studentAssessmentSaveSchema`.
+
+### T3 — Teacher nilai landing page + aggregation API (B3 rebuild)
+
+**Files:**
+- Create: `lib/academic-period.ts` — `getCurrentPeriod(now?)` returns `"Semester 1 YYYY/YYYY+1"` for Jul–Dec, `"Semester 2 YYYY-1/YYYY"` for Jan–Jun.
+- Create: `lib/__tests__/academic-period.test.ts` — 3 boundary cases (Jul 1, Dec 31, Jan 1).
+- Create: `app/api/teacher/assessments/route.ts` — tenant + role gate, single aggregated query, response shape as in spec above.
+- Create: `app/teacher/assessments/page.tsx` — server component, mobile-first `max-w-md`, per-class card with template rows + progress chip.
+- Modify: `components/teacher/bottom-nav.tsx` — add 5th "Nilai" tab (`ClipboardCheck`), switch from `px-4` to `flex-1 px-2`.
+
+- [ ] Build lib + tests. Run vitest on new file. Expected: pass.
+- [ ] Build API + page + nav.
+- [ ] `npm run build && npx vitest run`. Expected: pass.
+- [ ] Commit: `feat(teacher): assessments landing page + per-class aggregation API`.
+
+### T4 — Teacher per-student nilai entry + class-level authz tightening (B4 rebuild)
+
+**Files:**
+- Create: `app/teacher/assessments/[classSectionId]/[templateId]/[period]/page.tsx` — server component; verifies ClassSection ACTIVE + tenant, template `isActive` + `programId === classSection.programId`, and for TEACHER sessions requires a `TeachingAssignment` matching the **specific** `classSectionId`. Prefetches active enrollments + existing `StudentAssessment` rows with scores.
+- Create: `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx` — Accordion per student, 4-way BB/MB/BSH/BSB toggle per indicator, optional Textarea notes, per-student 1200ms debounced draft autosave, sticky "Publikasikan rapor" button flushes timers then sequentially PUTs `{ publish:true }`.
+- Modify: `app/api/assessments/student/[id]/route.ts` — replace program-level authz with class-level: teacher must have a `TeachingAssignment` whose `classSectionId` is one of the student's active enrollment class-sections AND whose `classSection.programId === template.programId`. Add Zod parse of body via `studentAssessmentSaveSchema` (400 with `details` on fail). Add `rateLimit(student-assessment-save:<userId>, 30, 60_000)`.
+- Modify: `app/api/assessments/student/route.ts` — same class-level authz guard + 30/min rate limit + template-tenant existence check.
+- Create: `app/api/__tests__/assessment-student-authz.test.ts` — 7 cases: 401 unauth, teacher cross-class 403 on PUT, teacher own-class 200 on PUT, admin bypass 200, Zod invalid-score 400 on PUT, teacher cross-class 403 on POST, teacher own-class 200 on POST.
+
+- [ ] Write tests first. Run vitest. Expected: fail (handlers not yet tightened).
+- [ ] Tighten handlers.
+- [ ] Build page + client.
+- [ ] Re-run vitest. Expected: pass.
+- [ ] **End-of-cycle gate:** `npm run build && npx vitest run && npx playwright test`. Extend `e2e/teacher.spec.ts` with a Nilai-tab smoke (open → pick class → enter a score → draft autosave indicator → publish). Expected: all green.
+- [ ] Commit: `feat(teacher): per-student nilai entry form + class-level authz + Zod + rate limit`.
+
+## Implementation
+
+- **T1 — schema uniqueness + dedupe migration.** `prisma/schema.prisma` now has `@@unique([tenantId, programId, name, type])` on `AssessmentTemplate`; existing `@@index([tenantId])` preserved. New migration `20260420000000_assessment_template_unique` does a defensive dedupe pass (picks survivor per group by `StudentAssessment` count desc, `id` asc; reparents or drops colliding StudentAssessment + scores + AssessmentCategory + indicators + scores) before adding the unique index. Rest of the schema diff is pure `prisma format` whitespace. Gate: `npm run build` ✓, `npx vitest run` 130/130 ✓. Commit: `20b1869`.
+- **T2 — POST 409 guard + extended validator.** `app/api/assessments/templates/route.ts` POST now trims the name, checks `findFirst` on `(tenantId, programId, name, type)`, and returns `409 { error, existingId }` on duplicate. Rate limit + `isAdminRole` + Zod + `revalidatePath` preserved. `lib/validations/assessment-template.ts` gained `assessmentScoreEnum` (`BB|MB|BSH|BSB`) and `studentAssessmentSaveSchema` (optional scores batch + optional `publish` flag) for the T4 teacher entry flow. New tests: `app/api/__tests__/assessment-templates.test.ts` (6 cases — 403 non-admin, 400 Zod, 404 program missing, 409 + `existingId` on dup, trim-before-check, 201 happy path), `lib/__tests__/assessment-template.test.ts` (11 cases). Gate: `npm run build` ✓, `npx vitest run` 147/147 ✓. Commit: `af5d6fd`.
+- **T3 — teacher landing page + aggregation API + bottom nav.** New `lib/academic-period.ts#getCurrentPeriod` returns the seed's period format (`Semester 1 YYYY/YYYY+1` Jul–Dec, `Semester 2 YYYY-1/YYYY` Jan–Jun). `lib/__tests__/academic-period.test.ts` covers the three boundary cases (Jul, Dec, Jan). New `GET /api/teacher/assessments` is tenant-scoped + role-gated (TEACHER or admin), collects class sections via `TeachingAssignment`s (dedup by classSection.id), then runs three aggregated queries (templates by `programId in`, active enrollments by `classSectionId in`, `StudentAssessment` by `(templateId in, period, studentId in)`) — no per-pair N+1 — and assembles `{ period, classes: [{ classSection, templates: [{ template, studentsTotal, studentsDraft, studentsPublished, studentsPending }] }] }`. New server component `app/teacher/assessments/page.tsx` reuses the same Prisma aggregation directly (mobile-first `max-w-md` via teacher layout), renders one `Card` per class with per-template links to `/teacher/assessments/{classSectionId}/{templateId}/{encodeURIComponent(period)}` colored by progress (`text-status-present` when complete, `text-primary` in progress, muted when zero). Routes that don't yet exist (T4's deep link) 404 until T4 lands. `components/teacher/bottom-nav.tsx` gained a 5th tab "Nilai" (`ClipboardCheck`) and switched the per-tab layout from `px-4` to `flex-1 px-2` to fit five items on a 375–430px screen. Gate: `npm run build` ✓, `npx vitest run` 150/150 ✓. Commit: `e9d3808`.
+- **T4 — teacher per-student nilai entry + class-level authz.** `app/api/assessments/student/[id]/route.ts` PUT now parses body via `studentAssessmentSaveSchema` (returns `400` with `details` on invalid), rate-limits `assessment-save:<userId>` at 30/min, and enforces class-level teacher authz: the teacher must have a `TeachingAssignment` whose `classSectionId` is one of the student's active enrollment class-sections AND whose `classSection.programId === template.programId` AND `classSection.status === "ACTIVE"`. `publish: true` wins; otherwise explicit `status` (legacy admin UI from PR #71) is honoured. Atomic transaction: `deleteMany + createMany` scores, then optional status update with `publishedAt` set on transition to `PUBLISHED`. `app/api/assessments/student/route.ts` POST got the same class-level authz guard + 30/min rate limit + template-tenant existence check. New `app/teacher/assessments/[classSectionId]/[templateId]/[period]/page.tsx` server component verifies class section ACTIVE + tenant, template `isActive` + `programId === classSection.programId`, teacher assignment to the **specific** `classSectionId` (not just the program), prefetches active enrollments + existing `StudentAssessment` rows with scores in a single findMany, and renders `EmptyState` branches for missing class, missing template, not-assigned, and no-students cases. Client component uses Shadcn `Accordion` per student with a 4-button BB/MB/BSH/BSB toggle per indicator (primary-fill when selected, tap again to clear) + optional `Textarea` notes, 1200ms per-student debounced draft autosave (cleared on unmount), sticky "Publikasikan rapor" button at `bottom-16` that flushes pending autosaves then sequentially PUTs `{ publish: true }` per student (toasts per-student failures, summarizes successes). New `app/api/__tests__/assessment-student-authz.test.ts` covers 7 cases: teacher cross-class PUT 403, teacher own-class PUT 200, admin bypass 200, Zod invalid-score 400, null session 401, teacher cross-class POST 403, teacher own-class POST 200. Gate: `npm run build` ✓, `npx vitest run` 157/157 ✓, `npx playwright test` 26/26 ✓ (end-of-cycle). Commit: `17adc55`.
+
+## Verification
+
+- [x] **T1 gate** — `npm run build` ✓, `npx vitest run` 130/130 ✓. Commit `20b1869`.
+- [x] **T2 gate** — `npm run build` ✓, `npx vitest run` 147/147 ✓. Commit `af5d6fd`. New tests: `app/api/__tests__/assessment-templates.test.ts` (6 cases), `lib/__tests__/assessment-template.test.ts` (11 cases).
+- [x] **T3 gate** — `npm run build` ✓, `npx vitest run` 150/150 ✓. New tests: `lib/__tests__/academic-period.test.ts` (3 boundary cases: Jul, Dec, Jan).
+- [x] **T4 gate** — `npm run build` ✓, `npx vitest run` 157/157 ✓. Commit `17adc55`. New tests: `app/api/__tests__/assessment-student-authz.test.ts` (7 cases — teacher cross-class PUT 403, teacher own-class PUT 200, admin bypass, Zod invalid-score 400, null session 401, teacher cross-class POST 403, teacher own-class POST 200).
+- [x] **End-of-cycle gate** — `npm run build && npx vitest run && npx playwright test` all green:
+  - vitest: 18 files, 157/157 tests passed (~8.5s).
+  - playwright: 26/26 tests passed (~31s), including new `e2e/teacher.spec.ts` Nilai-tab smoke (`assessments landing page loads from Nilai tab`).
+- [ ] **Manual smoke — admin POST duplicate returns 409.** Deferred to ship-time sanity against staging DB. Handler behaviour is covered by vitest case "rejects duplicate (tenantId, programId, name, type)" but an in-browser confirm on staging before merge is worthwhile.
+- [ ] **Manual smoke — teacher Nilai flow.** Demo DB has no seeded assessment templates, so the Nilai tab shows the empty state (verified in Playwright). End-to-end publish + parent rapor verification deferred to staging where real data exists.
+
+## Ship Notes
+
+- **Branch:** `feat/assessment-bug-fix` (cut from `origin/staging` at `c1eb079`). 4 commits:
+  - `20b1869` fix(assessment): de-duplicate templates + enforce (tenant,program,name,type) unique
+  - `af5d6fd` feat(assessment): 409 on duplicate template POST + studentAssessmentSaveSchema
+  - `e9d3808` feat(teacher): assessments landing page + per-class aggregation API
+  - `17adc55` feat(teacher): per-student nilai entry form + class-level authz + Zod + rate limit
+- **Migration:** `20260420000000_assessment_template_unique` — defensive dedupe (survivor per `(tenantId, programId, name, type)` group picked by `StudentAssessment` count desc tiebreak on `id` asc; reparents `StudentAssessment.templateId` merging scores by `(studentId, period)` uniqueness, drops collisions; reparents `AssessmentCategory.templateId` merging by name, cascades indicator + score cleanup; deletes orphan duplicate templates; adds `AssessmentTemplate_tenantId_programId_name_type_key`). **Idempotent.** Run on staging before PR merge. Staging's production DB likely has zero true duplicates — the dedupe is defensive. Review the migration SQL explicitly before approving.
+- **New env vars:** none.
+- **New routes:**
+  - `GET /api/teacher/assessments` (aggregation)
+  - `POST /api/assessments/student` + `PUT /api/assessments/student/[id]` — behaviour change: now enforce **class-level** authz instead of program-level, validate via Zod, and rate-limit 30/min per user. Admin UI from PR #71 (`/admin/assessments/scores`) continues to work because the PUT accepts `status: "PUBLISHED"` for backcompat.
+  - `/teacher/assessments` (server component landing)
+  - `/teacher/assessments/[classSectionId]/[templateId]/[period]` (server + client nilai entry)
+- **Rollback plan:** revert the four commits + the migration directory. `prisma migrate resolve --rolled-back 20260420000000_assessment_template_unique`. Existing admin UI (PR #71) continues to function without the unique constraint (pre-cycle behaviour). No data loss — dedupe merge-then-delete only affects orphan templates that had no survivors.
+- **PR:** open against `staging` with label `needs-cto-review`.
+- **CI gates expected green:** build, typecheck, vitest (157), playwright (26).
+
+### Follow-ups deferred
+
+- Admin assessment UI gaps from PR #71 (view/edit toggle on detail page, shared category-indicator editor component) — Phase C/D/E cycle stub at [`docs/cycles/2026-04-20-crud-phase-cde.md`](2026-04-20-crud-phase-cde.md).
+- Staging E2E with seeded assessment data — tracked in the Phase C/D/E cycle.
+- `.claude/skills/ship/SKILL.md` stale on PR-based `/ship` flow — Phase E3 in carry-forward cycle.

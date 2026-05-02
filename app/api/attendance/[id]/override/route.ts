@@ -1,34 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
+import { validateBody } from "@/lib/api/validate";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import {
+  ATTENDANCE_STATUSES,
+  attendanceOverrideSchema,
+} from "@/lib/validations/attendance";
+
+// PUT updates an existing record by id; date is immutable.
+// Allow datetimes with or without timezone offset — legacy callers send
+// `2026-04-15T07:00:00` (no Z) and `2026-04-15T07:00:00.000Z` interchangeably.
+const updateOverrideSchema = z.object({
+  status: z.enum(ATTENDANCE_STATUSES),
+  checkInTime: z.string().datetime({ local: true }).optional(),
+  checkOutTime: z.string().datetime({ local: true }).optional(),
+  reason: z
+    .string()
+    .trim()
+    .min(1, "Alasan wajib diisi")
+    .max(500, "Alasan maksimal 500 karakter"),
+});
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { success } = rateLimit(`attendance-override-put:${getClientIp(req)}`, 30, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
   }
+
+  const auth = await requirePermission("attendance.override");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id } = await params;
 
-  // #4 fix: verify tenant ownership
   if (!(await verifyTenantOwnership("attendanceRecord", id, session.tenantId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
-  const { status, checkInTime, checkOutTime, reason } = body;
-
-  if (!status || !reason?.trim()) {
-    return NextResponse.json({ error: "Status dan alasan wajib diisi" }, { status: 400 });
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
+
+  const result = await validateBody(updateOverrideSchema, rawBody);
+  if (result.error) return result.error;
+  const { status, checkInTime, checkOutTime, reason } = result.data;
 
   const existing = await prisma.attendanceRecord.findUnique({ where: { id } });
   if (existing?.isLocked) {
-    return NextResponse.json({ error: "Record terkunci (payroll sudah disetujui)" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Record terkunci (payroll sudah disetujui)" },
+      { status: 400 }
+    );
   }
 
   const record = await prisma.attendanceRecord.update({
@@ -38,7 +69,7 @@ export async function PUT(
       checkInTime: checkInTime ? new Date(checkInTime) : undefined,
       checkOutTime: checkOutTime ? new Date(checkOutTime) : undefined,
       isManualOverride: true,
-      overrideReason: reason.trim(),
+      overrideReason: reason,
       overriddenBy: session.id,
       overriddenAt: new Date(),
     },
@@ -52,31 +83,38 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { success } = rateLimit(`attendance-override-post:${getClientIp(req)}`, 30, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
   }
+
+  const auth = await requirePermission("attendance.override");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id: employeeId } = await params;
 
-  // Verify employee belongs to tenant
   if (!(await verifyTenantOwnership("employee", employeeId, session.tenantId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
-  const { date, status, reason } = body;
-
-  if (!date || !status || !reason?.trim()) {
-    return NextResponse.json({ error: "Tanggal, status, dan alasan wajib diisi" }, { status: 400 });
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
+
+  const result = await validateBody(attendanceOverrideSchema, rawBody);
+  if (result.error) return result.error;
+  const { date, status, reason } = result.data;
 
   const record = await prisma.attendanceRecord.upsert({
     where: { employeeId_date: { employeeId, date } },
     update: {
       status,
       isManualOverride: true,
-      overrideReason: reason.trim(),
+      overrideReason: reason,
       overriddenBy: session.id,
       overriddenAt: new Date(),
     },
@@ -85,7 +123,7 @@ export async function POST(
       date,
       status,
       isManualOverride: true,
-      overrideReason: reason.trim(),
+      overrideReason: reason,
       overriddenBy: session.id,
       overriddenAt: new Date(),
     },

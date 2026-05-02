@@ -9,9 +9,12 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { STUDENT_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,10 +32,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ------------------------------------------------------------------
 // Types
@@ -72,6 +82,99 @@ const EMPTY_CREATE_FORM = {
   notes: "",
 };
 
+type StudentFormValues = typeof EMPTY_CREATE_FORM;
+
+// ------------------------------------------------------------------
+// Shared form body — reused by Dialog (desktop) + Sheet (mobile)
+// for both Create and Edit
+// ------------------------------------------------------------------
+
+function StudentFormBody({
+  form,
+  setForm,
+}: {
+  form: StudentFormValues;
+  setForm: (v: StudentFormValues) => void;
+}) {
+  return (
+    <div className="space-y-field">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
+        <Field>
+          <FieldLabel>Nama Lengkap *</FieldLabel>
+          <Input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Aisyah Putri"
+            autoFocus
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Nama Panggilan</FieldLabel>
+          <Input
+            value={form.nickname}
+            onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+            placeholder="Aisyah"
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
+        <Field>
+          <FieldLabel>Jenis Kelamin</FieldLabel>
+          <Select
+            value={form.gender}
+            onValueChange={(v) => v && setForm({ ...form, gender: v })}
+          >
+            <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="L">Laki-laki</SelectItem>
+              <SelectItem value="P">Perempuan</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Tanggal Lahir</FieldLabel>
+          <Input
+            type="date"
+            value={form.dateOfBirth}
+            onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+            max={new Date().toISOString().split("T")[0]}
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
+        <Field>
+          <FieldLabel>NIS</FieldLabel>
+          <Input
+            value={form.nis}
+            onChange={(e) => setForm({ ...form, nis: e.target.value })}
+            placeholder="Nomor Induk Siswa"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>NISN</FieldLabel>
+          <Input
+            value={form.nisn}
+            onChange={(e) => setForm({ ...form, nisn: e.target.value })}
+            placeholder="Nomor Induk Siswa Nasional"
+          />
+        </Field>
+      </div>
+
+      <Field>
+        <FieldLabel>Catatan</FieldLabel>
+        <Textarea
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="Alergi, kebutuhan khusus, dll."
+          rows={2}
+        />
+      </Field>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------
 // Columns definition
 // ------------------------------------------------------------------
@@ -89,7 +192,7 @@ const columns: ColumnDef<Student>[] = [
           href={`/admin/students/${s.id}`}
           className="flex items-center gap-3 group"
         >
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
             <span className="text-primary text-xs font-bold">
               {s.name[0]}
             </span>
@@ -172,6 +275,7 @@ const columns: ColumnDef<Student>[] = [
 
 export default function StudentsPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<Student[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -184,7 +288,7 @@ export default function StudentsPage() {
   const [status, setStatus] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [stats, setStats] = useState({ total: 0, active: 0, enrolled: 0, graduated: 0 });
+  const [stats, setStats] = useState({ total: 0, active: 0, graduated: 0 });
 
   // Create dialog state
   const [createOpen, setCreateOpen] = useState(false);
@@ -199,18 +303,22 @@ export default function StudentsPage() {
   const [editForm, setEditForm] = useState(EMPTY_CREATE_FORM);
   const [editing, setEditing] = useState(false);
 
-  // Stats fetch once
+  // Stats fetch once — single groupBy endpoint, not three pageSize=1 list calls
   useEffect(() => {
-    Promise.all([
-      fetch("/api/students?pageSize=1&status=ACTIVE").then(r => r.json()),
-      fetch("/api/students?pageSize=1&status=ENROLLED").then(r => r.json()),
-      fetch("/api/students?pageSize=1&status=GRADUATED").then(r => r.json()),
-    ]).then(([active, enrolled, graduated]) => {
-      const a = active.pagination?.total ?? 0;
-      const e = enrolled.pagination?.total ?? 0;
-      const g = graduated.pagination?.total ?? 0;
-      setStats({ total: a + e + g, active: a, enrolled: e, graduated: g });
-    }).catch(() => { /* stats are non-critical */ });
+    (async () => {
+      try {
+        const res = await fetch("/api/students/stats");
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          total: number;
+          active: number;
+          graduated: number;
+        };
+        setStats(data);
+      } catch (err) {
+        console.error("[students] stats fetch failed", err);
+      }
+    })();
   }, []);
 
   const fetchStudents = useCallback(async () => {
@@ -262,21 +370,22 @@ export default function StudentsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  async function handleDeactivate(student: Student) {
-    const newStatus = student.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
-    const res = await fetch(`/api/students/${student.id}`, {
+  async function handleStatusToggle() {
+    if (!deactivateTarget) return;
+    const newStatus = deactivateTarget.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+    const res = await fetch(`/api/students/${deactivateTarget.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
-    if (res.ok) {
-      toast.success(newStatus === "INACTIVE" ? "Siswa dinonaktifkan" : "Siswa diaktifkan kembali");
-      fetchStudents();
-    } else {
+    if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       toast.error(err.error || "Gagal mengubah status siswa");
+      return;
     }
+    toast.success(newStatus === "ACTIVE" ? "Siswa diaktifkan kembali" : "Siswa dinonaktifkan");
     setDeactivateTarget(null);
+    fetchStudents();
   }
 
   function openEdit(student: Student) {
@@ -309,13 +418,13 @@ export default function StudentsPage() {
         notes: editForm.notes.trim() || null,
       }),
     });
-    if (res.ok) {
-      toast.success("Data siswa berhasil diperbarui");
-      setEditTarget(null);
-      fetchStudents();
-    } else {
+    if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       toast.error(err.error || "Gagal memperbarui data siswa");
+    } else {
+      toast.success("Data siswa diperbarui");
+      setEditTarget(null);
+      fetchStudents();
     }
     setEditing(false);
   }
@@ -340,15 +449,15 @@ export default function StudentsPage() {
       }),
     });
 
-    if (res.ok) {
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal menambahkan siswa");
+    } else {
       const student = await res.json();
-      toast.success("Siswa berhasil ditambahkan");
+      toast.success("Siswa ditambahkan");
       setCreateOpen(false);
       setCreateForm(EMPTY_CREATE_FORM);
       router.push(`/admin/students/${student.id}`);
-    } else {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal menambahkan siswa");
     }
     setCreating(false);
   }
@@ -359,14 +468,19 @@ export default function StudentsPage() {
       {
         id: "actions",
         header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/students/${row.original.id}`)}
-            onEdit={() => openEdit(row.original)}
-            onDeactivate={() => setDeactivateTarget(row.original)}
-            isActive={row.original.status !== "INACTIVE"}
-          />
-        ),
+        cell: ({ row }) => {
+          const s = row.original;
+          const isActive = s.status !== "INACTIVE";
+          return (
+            <DataTableRowActions
+              onView={() => router.push(`/admin/students/${s.id}`)}
+              onEdit={() => openEdit(s)}
+              onDeactivate={isActive ? () => setDeactivateTarget(s) : undefined}
+              onActivate={!isActive ? () => setDeactivateTarget(s) : undefined}
+              isActive={isActive}
+            />
+          );
+        },
       },
     ],
     [router],
@@ -384,12 +498,11 @@ export default function StudentsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <StatsCardsRow>
         <StatCard label="Total Siswa" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
-        <StatCard label="Terdaftar Kelas" value={stats.enrolled} icon={GraduationCap} color="primary" index={2} />
-        <StatCard label="Lulus" value={stats.graduated} icon={GraduationCap} color="warning" index={3} />
-      </div>
+        <StatCard label="Lulus" value={stats.graduated} icon={GraduationCap} color="warning" index={2} />
+      </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama siswa..."
@@ -400,14 +513,7 @@ export default function StudentsPage() {
             label: "Status",
             value: status,
             onChange: handleStatusChange,
-            options: [
-              { value: "all", label: "Semua Status" },
-              { value: "ACTIVE", label: "Aktif" },
-              { value: "ENROLLED", label: "Terdaftar di Kelas" },
-              { value: "GRADUATED", label: "Lulus" },
-              { value: "WITHDRAWN", label: "Keluar" },
-              { value: "INACTIVE", label: "Tidak Aktif" },
-            ],
+            options: STUDENT_STATUS_OPTIONS,
           },
         ]}
       />
@@ -428,201 +534,109 @@ export default function StudentsPage() {
       {/* Deactivate / Activate ConfirmDialog */}
       <ConfirmDialog
         open={!!deactivateTarget}
-        onOpenChange={(open) => { if (!open) setDeactivateTarget(null); }}
+        onOpenChange={(o) => !o && setDeactivateTarget(null)}
         title={deactivateTarget?.status === "INACTIVE" ? `Aktifkan ${deactivateTarget?.name}?` : `Nonaktifkan ${deactivateTarget?.name}?`}
         description={deactivateTarget?.status === "INACTIVE" ? "Siswa akan dikembalikan ke status aktif." : "Siswa akan dinonaktifkan. Pendaftaran kelas aktif akan dicabut dan tagihan DRAFT/SENT akan dibatalkan."}
         confirmLabel={deactivateTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
+        onConfirm={handleStatusToggle}
         destructive={deactivateTarget?.status !== "INACTIVE"}
-        onConfirm={async () => { if (deactivateTarget) await handleDeactivate(deactivateTarget); }}
       />
 
-      {/* Edit Student Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit Siswa</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Nama Lengkap *</FieldLabel>
-                <Input
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="Aisyah Putri"
-                  autoFocus
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Nama Panggilan</FieldLabel>
-                <Input
-                  value={editForm.nickname}
-                  onChange={(e) => setEditForm({ ...editForm, nickname: e.target.value })}
-                  placeholder="Aisyah"
-                />
-              </Field>
+      {/* Edit Student — side="bottom" on mobile (narrow 2-col form, quick in-and-out) */}
+      {isMobile ? (
+        <Sheet open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
+          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Edit Siswa</SheetTitle>
+            </SheetHeader>
+            <div className="p-card">
+              <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Jenis Kelamin</FieldLabel>
-                <Select
-                  value={editForm.gender}
-                  onValueChange={(v) => v && setEditForm({ ...editForm, gender: v })}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="L">Laki-laki</SelectItem>
-                    <SelectItem value="P">Perempuan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Tanggal Lahir</FieldLabel>
-                <Input
-                  type="date"
-                  value={editForm.dateOfBirth}
-                  onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
-                  max={new Date().toISOString().split("T")[0]}
-                />
-              </Field>
+            <SheetFooter>
+              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+                Batal
+              </Button>
+              <Button onClick={handleEdit} disabled={editing}>
+                {editing ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Siswa</DialogTitle>
+            </DialogHeader>
+            <div className="p-card">
+              <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+                Batal
+              </Button>
+              <Button onClick={handleEdit} disabled={editing}>
+                {editing ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>NIS</FieldLabel>
-                <Input
-                  value={editForm.nis}
-                  onChange={(e) => setEditForm({ ...editForm, nis: e.target.value })}
-                  placeholder="Nomor Induk Siswa"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>NISN</FieldLabel>
-                <Input
-                  value={editForm.nisn}
-                  onChange={(e) => setEditForm({ ...editForm, nisn: e.target.value })}
-                  placeholder="Nomor Induk Siswa Nasional"
-                />
-              </Field>
+      {/* Create Student — side="bottom" on mobile (same form as edit) */}
+      {isMobile ? (
+        <Sheet
+          open={createOpen}
+          onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
+        >
+          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Tambah Siswa</SheetTitle>
+            </SheetHeader>
+            <div className="p-card">
+              <StudentFormBody form={createForm} setForm={setCreateForm} />
             </div>
-
-            <Field>
-              <FieldLabel>Catatan</FieldLabel>
-              <Textarea
-                value={editForm.notes}
-                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                placeholder="Alergi, kebutuhan khusus, dll."
-                rows={2}
-              />
-            </Field>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
-              Batal
-            </Button>
-            <Button onClick={handleEdit} disabled={editing}>
-              {editing ? "Menyimpan..." : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Student Dialog */}
-      <Dialog open={createOpen} onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Tambah Siswa</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Nama Lengkap *</FieldLabel>
-                <Input
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                  placeholder="Aisyah Putri"
-                  autoFocus
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Nama Panggilan</FieldLabel>
-                <Input
-                  value={createForm.nickname}
-                  onChange={(e) => setCreateForm({ ...createForm, nickname: e.target.value })}
-                  placeholder="Aisyah"
-                />
-              </Field>
+            <SheetFooter>
+              <Button
+                variant="outline"
+                onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
+                disabled={creating}
+              >
+                Batal
+              </Button>
+              <Button onClick={handleCreate} disabled={creating}>
+                {creating ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog
+          open={createOpen}
+          onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Tambah Siswa</DialogTitle>
+            </DialogHeader>
+            <div className="p-card">
+              <StudentFormBody form={createForm} setForm={setCreateForm} />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>Jenis Kelamin</FieldLabel>
-                <Select
-                  value={createForm.gender}
-                  onValueChange={(v) => v && setCreateForm({ ...createForm, gender: v })}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="L">Laki-laki</SelectItem>
-                    <SelectItem value="P">Perempuan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Tanggal Lahir</FieldLabel>
-                <Input
-                  type="date"
-                  value={createForm.dateOfBirth}
-                  onChange={(e) => setCreateForm({ ...createForm, dateOfBirth: e.target.value })}
-                  max={new Date().toISOString().split("T")[0]}
-                />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>NIS</FieldLabel>
-                <Input
-                  value={createForm.nis}
-                  onChange={(e) => setCreateForm({ ...createForm, nis: e.target.value })}
-                  placeholder="Nomor Induk Siswa"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>NISN</FieldLabel>
-                <Input
-                  value={createForm.nisn}
-                  onChange={(e) => setCreateForm({ ...createForm, nisn: e.target.value })}
-                  placeholder="Nomor Induk Siswa Nasional"
-                />
-              </Field>
-            </div>
-
-            <Field>
-              <FieldLabel>Catatan</FieldLabel>
-              <Textarea
-                value={createForm.notes}
-                onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                placeholder="Alergi, kebutuhan khusus, dll."
-                rows={2}
-              />
-            </Field>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }} disabled={creating}>
-              Batal
-            </Button>
-            <Button onClick={handleCreate} disabled={creating}>
-              {creating ? "Menyimpan..." : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
+                disabled={creating}
+              >
+                Batal
+              </Button>
+              <Button onClick={handleCreate} disabled={creating}>
+                {creating ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

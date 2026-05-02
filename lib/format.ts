@@ -41,6 +41,26 @@ export function formatMonthLabel(year: number, month: number): string {
 }
 
 /**
+ * Format an ISO timestamp as a relative-time phrase in Indonesian
+ * (e.g. "baru saja", "5 menit lalu", "2 jam lalu", "3 hari lalu").
+ * Falls back to absolute short date for ages > 30 days.
+ */
+export function formatRelativeTime(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso);
+  const diffMs = now.getTime() - then.getTime();
+  if (Number.isNaN(diffMs)) return "";
+  const diffSec = Math.round(diffMs / 1000);
+  if (diffSec < 45) return "baru saja";
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} menit lalu`;
+  const diffHour = Math.round(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} jam lalu`;
+  const diffDay = Math.round(diffHour / 24);
+  if (diffDay < 30) return `${diffDay} hari lalu`;
+  return formatDateShort(then.toISOString());
+}
+
+/**
  * Format time from ISO datetime string.
  */
 export function formatTime(iso: string | null): string {

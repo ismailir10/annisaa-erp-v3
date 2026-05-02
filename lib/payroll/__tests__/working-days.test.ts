@@ -1,5 +1,56 @@
 import { describe, it, expect } from "vitest";
-import { calculateWorkingDays, countAttendanceDays } from "../working-days";
+import { calculateWorkingDays, countAttendanceDays, parseWorkingDays } from "../working-days";
+
+describe("parseWorkingDays", () => {
+  it("parses JSON-encoded array", () => {
+    expect(parseWorkingDays('["MON","TUE","WED","THU","FRI"]')).toEqual([
+      "MON",
+      "TUE",
+      "WED",
+      "THU",
+      "FRI",
+    ]);
+  });
+
+  it("parses legacy CSV form", () => {
+    expect(parseWorkingDays("MON,TUE,WED,THU,FRI")).toEqual([
+      "MON",
+      "TUE",
+      "WED",
+      "THU",
+      "FRI",
+    ]);
+  });
+
+  it("handles whitespace and lowercase in CSV", () => {
+    expect(parseWorkingDays(" mon , tue , wed ")).toEqual(["MON", "TUE", "WED"]);
+  });
+
+  it("filters unknown day codes", () => {
+    expect(parseWorkingDays('["MON","XYZ","TUE"]')).toEqual(["MON", "TUE"]);
+    expect(parseWorkingDays("MON,XYZ,TUE")).toEqual(["MON", "TUE"]);
+  });
+
+  it("dedupes repeated codes", () => {
+    expect(parseWorkingDays("MON,MON,TUE")).toEqual(["MON", "TUE"]);
+  });
+
+  it("returns empty array for null, undefined, or empty input", () => {
+    expect(parseWorkingDays(null)).toEqual([]);
+    expect(parseWorkingDays(undefined)).toEqual([]);
+    expect(parseWorkingDays("")).toEqual([]);
+    expect(parseWorkingDays("   ")).toEqual([]);
+  });
+
+  it("returns empty array for malformed JSON that does not look like CSV", () => {
+    expect(parseWorkingDays("[")).toEqual([]);
+    expect(parseWorkingDays("[}}")).toEqual([]);
+  });
+
+  it("returns empty array when JSON is not an array", () => {
+    expect(parseWorkingDays('{"a":"b"}')).toEqual([]);
+  });
+});
 
 describe("calculateWorkingDays", () => {
   const monFri = ["MON", "TUE", "WED", "THU", "FRI"];

@@ -15,7 +15,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -100,7 +100,7 @@ export default function HolidaysPage() {
         <DataTableColumnHeader column={column} title="Tanggal" />
       ),
       cell: ({ row }) => (
-        <span className="text-sm font-currency">
+        <span className="text-sm">
           {formatDateShort(row.original.date)}
         </span>
       ),
@@ -113,7 +113,7 @@ export default function HolidaysPage() {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{row.original.name}</span>
-          {row.original.isHalfDay && <Badge variant="outline" className="text-[10px]">½ Hari</Badge>}
+          {row.original.isHalfDay && <Badge variant="outline" className="text-xs">½ Hari</Badge>}
         </div>
       ),
     },
@@ -170,23 +170,22 @@ export default function HolidaysPage() {
       />
 
       {/* Delete confirm */}
-      <ConfirmDialog
+      <DeactivateConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Hapus Hari Libur"
-        description={`Hapus "${deleteTarget?.name}"? Ini akan mempengaruhi perhitungan hari kerja.`}
+        entityName={deleteTarget?.name ?? ""}
+        action="delete"
         onConfirm={handleDelete}
-        confirmLabel="Hapus"
       />
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Hari Libur" : "Tambah Hari Libur"}</DialogTitle>
             <DialogDescription>Hari libur mempengaruhi perhitungan hari kerja</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Tanggal *</FieldLabel>
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
@@ -197,7 +196,7 @@ export default function HolidaysPage() {
             </Field>
             <Field>
               <FieldLabel>Tipe</FieldLabel>
-              <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })}>
+              <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })} items={{ NATIONAL: "Nasional", ISLAMIC: "Islam", SCHOOL_CLOSURE: "Penutupan Sekolah" }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="NATIONAL">Nasional</SelectItem>

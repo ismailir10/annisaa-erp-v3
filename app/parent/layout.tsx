@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ParentHeader } from "@/components/parent/header";
@@ -10,8 +11,13 @@ export default async function ParentLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen bg-background pb-20">
       <ParentHeader userName={session.name ?? "Orang Tua"} />
-      <main className="max-w-md mx-auto px-5 py-6">{children}</main>
-      <ParentBottomNav />
+      <main className="max-w-md mx-auto px-page-x py-6">{children}</main>
+      {/* Suspense boundary required — ParentBottomNav calls useSearchParams()
+          which opts the whole tree out of static rendering on Next 16
+          without this wrapper. */}
+      <Suspense fallback={null}>
+        <ParentBottomNav />
+      </Suspense>
     </div>
   );
 }

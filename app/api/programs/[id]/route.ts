@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { updateProgramSchema } from "@/lib/validations/program";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { success } = rateLimit(`update-program:${getClientIp(req)}`, 20, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
 
-  // Verify tenant ownership
   const existing = await prisma.program.findFirst({ where: { id, tenantId: session.tenantId } });
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-  const body = await req.json();
+  const parsed = updateProgramSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
+  }
+  const body = parsed.data;
+
   const program = await prisma.program.update({
     where: { id },
     data: {
@@ -22,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       type: body.type,
       ageMin: body.ageMin,
       ageMax: body.ageMax,
-      isActive: body.isActive,
+      status: body.status,
     },
   });
   return NextResponse.json(program);

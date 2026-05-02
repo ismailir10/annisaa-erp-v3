@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -29,15 +30,6 @@ export const metadata: Metadata = {
   },
 };
 
-function StagingBanner() {
-  if (process.env.VERCEL_ENV !== "preview") return null;
-  return (
-    <div className="bg-yellow-400 text-sidebar text-center text-xs font-semibold py-1 px-4 fixed top-0 left-0 right-0 z-[100]">
-      ⚠ STAGING — Emails dikirim ke test address, bukan guru asli
-    </div>
-  );
-}
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -49,12 +41,12 @@ export default function RootLayout({
       className={`${plusJakarta.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <StagingBanner />
         <TooltipProvider>
           {children}
         </TooltipProvider>
         <Toaster />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

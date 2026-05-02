@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-
-// Cache GET responses for 2 hours — class sections change ~once per semester
-export const revalidate = 7200;
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { createClassSectionSchema } from "@/lib/validations/class-section";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -37,14 +36,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
+  const { success } = rateLimit(`create-class-section:${getClientIp(req)}`, 20, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+  }
+
+  const parsed = createClassSectionSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Input tidak valid" },
+      { status: 400 },
+    );
+  }
+  const body = parsed.data;
+
+  // Block writes targeting INACTIVE/cross-tenant campus — see Campus DELETE guard.
+  const activeCampus = await prisma.campus.findFirst({
+    where: { id: body.campusId, tenantId: session.tenantId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!activeCampus) {
+    return NextResponse.json(
+      { error: "Kampus tidak ditemukan atau nonaktif." },
+      { status: 400 },
+    );
+  }
+
   const section = await prisma.classSection.create({
     data: {
       tenantId: session.tenantId,
       programId: body.programId,
       academicYearId: body.academicYearId,
-      name: body.name?.trim(),
-      capacity: body.capacity ?? 20,
+      name: body.name.trim(),
+      capacity: body.capacity,
       campusId: body.campusId,
     },
   });

@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { PortalTabs, type PortalTab } from "@/components/portal/portal-tabs";
 
 type ChildInfo = {
   studentId: string;
@@ -13,46 +12,50 @@ type ChildInfo = {
 export function ChildSelectorTabs({
   items,
   selectedChildId,
+  sticky = false,
 }: {
   items: ChildInfo[];
   selectedChildId: string;
+  /**
+   * When true, pins the child switcher below `PortalHeader` so it stays
+   * visible while inner-tab content scrolls. Use on child-detail routes
+   * (invoices, attendance, reports) per design-system.html §14 Option C.
+   */
+  sticky?: boolean;
 }) {
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   if (items.length <= 1) return null;
 
-  return (
-    <div className="flex gap-2 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
-      {items.map((child) => {
-        const isSelected = child.studentId === selectedChildId;
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("child", child.studentId);
+  const tabs: PortalTab[] = items.map((child) => {
+    // Pill label = first name only. Frame 4/8/11 of cycle-4 prototype.
+    // Full name + class would overflow at 375px and the class chip rendered
+    // in a contrasting tone breaks the active-pill (teal-on-teal) palette.
+    const firstName = child.studentName.trim().split(/\s+/)[0] ?? child.studentName;
+    return {
+      id: child.studentId,
+      label: firstName,
+    };
+  });
 
-        return (
-          <Link
-            key={child.studentId}
-            href={`${pathname}?${params.toString()}`}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap transition-colors shrink-0",
-              isSelected
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "bg-card border-border text-muted-foreground hover:border-primary/20"
-            )}
-          >
-            <span className={cn(
-              "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-              isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-            )}>
-              {child.studentName[0]}
-            </span>
-            <span>{child.studentName}</span>
-            {child.className && (
-              <span className="text-[10px] text-muted-foreground">({child.className})</span>
-            )}
-          </Link>
-        );
-      })}
+  const handleSelect = (id: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("child", id);
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  return (
+    <div className={sticky ? "mb-4" : "mb-4 -mx-1 px-1"}>
+      <PortalTabs
+        items={tabs}
+        activeId={selectedChildId}
+        onSelect={handleSelect}
+        variant="pills"
+        ariaLabel="Pilih anak"
+        sticky={sticky}
+      />
     </div>
   );
 }

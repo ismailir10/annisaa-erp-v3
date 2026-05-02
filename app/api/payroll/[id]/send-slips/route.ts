@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, canViewSalary } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import { sendSalarySlipEmail } from "@/lib/email/send-slip";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { formatRupiah } from "@/lib/format";
 import React from "react";
-
-function formatRupiah(n: number): string {
-  return "Rp " + Math.round(n).toLocaleString("id-ID");
-}
 
 export async function POST(
   _req: NextRequest,
@@ -21,10 +18,9 @@ export async function POST(
     return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
   }
 
-  const session = await getSession();
-  if (!session?.tenantId || !canViewSalary(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("payroll.send_slips");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { id } = await params;
 
@@ -44,18 +40,29 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (payroll.status === "DRAFT") {
-    return NextResponse.json({ error: "Penggajian belum disetujui" }, { status: 400 });
+  if (payroll.status !== "APPROVED") {
+    return NextResponse.json(
+      { error: "Hanya penggajian berstatus APPROVED yang bisa dikirim slip-nya" },
+      { status: 409 }
+    );
   }
 
   const tenant = await prisma.tenant.findUnique({ where: { id: payroll.tenantId } });
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   const errors: string[] = [];
 
   for (let idx = 0; idx < payroll.items.length; idx++) {
     const item = payroll.items[idx];
+
+    // Skip items already emailed — idempotency guard so retried runs after a
+    // serverless timeout don't re-email the same employees.
+    if (item.emailSent) {
+      skipped++;
+      continue;
+    }
 
     // Throttle: 600ms between emails to stay under Resend's 2 req/sec limit
     if (idx > 0) {
@@ -103,13 +110,13 @@ export async function POST(
         to: item.employee.email,
         employeeName: item.employee.nama,
         period: `${payroll.periodStart} s/d ${payroll.periodEnd}`,
-        netPay: formatRupiah(Number(item.netAmount)),
         pdfBuffer: new Uint8Array(pdfBuffer),
         pdfFilename: `slip-gaji-${item.employee.kode}-${payroll.periodStart}.pdf`,
       });
 
       await prisma.emailLog.create({
         data: {
+          tenantId: payroll.tenantId,
           to: item.employee.email,
           subject: `Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}`,
           template: "salary_slip",
@@ -117,6 +124,14 @@ export async function POST(
           error: result.error ?? null,
         },
       });
+
+      // Mark per-item emailSent so a retry skips this employee.
+      if (result.sent) {
+        await prisma.payrollItem.update({
+          where: { id: item.id },
+          data: { emailSent: true },
+        });
+      }
 
       sent++;
     } catch (e) {
@@ -126,6 +141,7 @@ export async function POST(
 
       await prisma.emailLog.create({
         data: {
+          tenantId: payroll.tenantId,
           to: item.employee.email,
           subject: `Slip Gaji ${payroll.periodStart}`,
           template: "salary_slip",
@@ -136,13 +152,31 @@ export async function POST(
     }
   }
 
-  // Only mark as SLIPS_SENT if at least one email succeeded
-  if (sent > 0) {
-    await prisma.payrollRun.update({
-      where: { id },
+  // Compare-and-swap: only promote status if still APPROVED. Prevents two
+  // concurrent send-slips invocations from both writing SLIPS_SENT on top of
+  // each other, and prevents promotion if run was cancelled mid-send.
+  //
+  // Promotion condition: run is fully accounted for with no failures — either
+  // at least one slip was sent this call (first run OR partial-retry finishes
+  // the remaining items), or every item was already marked emailSent on a
+  // prior partial run (complete retry — sent=0, skipped=all, failed=0).
+  const allAccounted = sent + skipped === payroll.items.length && failed === 0;
+  if (allAccounted && (sent > 0 || skipped > 0)) {
+    const swap = await prisma.payrollRun.updateMany({
+      where: { id, status: "APPROVED" },
       data: { status: "SLIPS_SENT", slipsSentAt: new Date() },
     });
+    if (swap.count === 0) {
+      return NextResponse.json({
+        sent,
+        failed,
+        skipped,
+        total: payroll.items.length,
+        errors: errors.length > 0 ? errors : undefined,
+        warning: "Status penggajian sudah diperbarui oleh proses lain",
+      });
+    }
   }
 
-  return NextResponse.json({ sent, failed, total: payroll.items.length, errors: errors.length > 0 ? errors : undefined });
+  return NextResponse.json({ sent, failed, skipped, total: payroll.items.length, errors: errors.length > 0 ? errors : undefined });
 }

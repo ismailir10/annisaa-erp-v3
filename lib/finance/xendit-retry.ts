@@ -1,0 +1,151 @@
+import { prisma } from "@/lib/db";
+import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
+import { limit } from "@/lib/finance/concurrency-limit";
+
+export type RetryResultRow =
+  | {
+      invoiceId: string;
+      invoiceNumber: string;
+      studentId: string;
+      studentName: string;
+      status: "SENT";
+      paymentUrl: string;
+    }
+  | {
+      invoiceId: string;
+      invoiceNumber: string;
+      studentId: string;
+      studentName: string;
+      status: "PENDING_PAYMENT_LINK";
+      error: string;
+    };
+
+export type RetryOutcome = {
+  retried: number;
+  succeeded: number;
+  stillFailed: number;
+  results: RetryResultRow[];
+};
+
+/**
+ * Retry Xendit Checkout Session creation for invoices in PENDING_PAYMENT_LINK.
+ *
+ * If `invoiceIds` is null: retries ALL PENDING_PAYMENT_LINK invoices for the
+ * tenant (capped at 25 per call — client iterates if more are needed).
+ * Otherwise: retries only the specified ids (also capped at 25).
+ *
+ * Concurrency: all candidates fire in parallel via Promise.allSettled.
+ * At 25 invoices × ~1.5s Xendit latency = ~1.5s wall time, well under the
+ * Vercel 60s function ceiling.
+ * Per-outcome write-back: on success → status=SENT + sentAt + paymentLinkError=null
+ * (the helper already wrote `xenditSessionId` + `xenditPaymentUrl`); on failure
+ * → paymentLinkError=<message> (status stays PENDING_PAYMENT_LINK).
+ *
+ * Shared by:
+ *   - POST /api/invoices/retry-payment-links (admin retry endpoint)
+ *   - POST /api/invoices (manual single-invoice creation, Task 13 inline retry)
+ */
+export async function retryPaymentLinks(
+  tenantId: string,
+  invoiceIds: string[] | null,
+  requestOrigin?: string,
+): Promise<RetryOutcome> {
+  const where = {
+    tenantId,
+    status: "PENDING_PAYMENT_LINK",
+    ...(invoiceIds && invoiceIds.length > 0 ? { id: { in: invoiceIds } } : {}),
+  };
+
+  const candidates = await prisma.invoice.findMany({
+    where,
+    select: {
+      id: true,
+      invoiceNumber: true,
+      studentId: true,
+      student: { select: { name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 25, // hard cap matches batch endpoint shape
+  });
+
+  if (candidates.length === 0) {
+    return { retried: 0, succeeded: 0, stillFailed: 0, results: [] };
+  }
+
+  // Cap Xendit fan-out at 2 concurrent calls per cycle 2026-04-28 (was 5 from
+  // cycle 2026-04-26 B3). Lowered to keep sustained outbound rate inside Xendit
+  // sandbox quota (~30-60 req/min). See
+  // docs/cycles/2026-04-28-finance-bulk-throttle.md for the throttle math.
+  const runLimit = limit(2);
+
+  const settled = await Promise.allSettled(
+    candidates.map((c) =>
+      runLimit(() =>
+        createXenditSessionForInvoice(c.id, tenantId, requestOrigin).then((res) => ({ row: c, result: res })),
+      ),
+    ),
+  );
+
+  const results: RetryResultRow[] = [];
+  let succeeded = 0;
+  let stillFailed = 0;
+
+  for (let i = 0; i < settled.length; i++) {
+    const outcome = settled[i];
+    const row = candidates[i];
+
+    if (outcome.status === "fulfilled" && outcome.value.result) {
+      // Helper already wrote xenditSessionId + xenditPaymentUrl. Flip status +
+      // clear paymentLinkError. Wrap in try/catch so a transient DB hiccup at
+      // this step doesn't drop the result row.
+      try {
+        await prisma.invoice.update({
+          where: { id: row.id },
+          data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
+        });
+      } catch {
+        // best-effort write-back; result row still surfaces success below.
+      }
+      results.push({
+        invoiceId: row.id,
+        invoiceNumber: row.invoiceNumber,
+        studentId: row.studentId,
+        studentName: row.student?.name ?? "",
+        status: "SENT",
+        paymentUrl: outcome.value.result.paymentUrl,
+      });
+      succeeded++;
+    } else {
+      // Two failure shapes:
+      //   - rejected: helper threw (Xendit 4xx/5xx, network error, etc.)
+      //   - fulfilled with null: TOCTOU guard tripped (PAID/CANCELLED mid-flight,
+      //     or remaining went to 0). Surface a diagnostic so admin can retry.
+      // Both are prefix-tagged via formatPaymentLinkError so the breakdown
+      // endpoint can aggregate by Xendit error category.
+      const msg =
+        outcome.status === "rejected"
+          ? formatPaymentLinkError(outcome.reason)
+          : formatPaymentLinkError(new Error("Gagal membuat sesi pembayaran"));
+      try {
+        await prisma.invoice.update({
+          where: { id: row.id },
+          data: { paymentLinkError: msg },
+        });
+      } catch {
+        // best-effort write-back; result row still surfaces failure below.
+      }
+      results.push({
+        invoiceId: row.id,
+        invoiceNumber: row.invoiceNumber,
+        studentId: row.studentId,
+        studentName: row.student?.name ?? "",
+        status: "PENDING_PAYMENT_LINK",
+        error: msg,
+      });
+      stillFailed++;
+    }
+  }
+
+  return { retried: candidates.length, succeeded, stillFailed, results };
+}

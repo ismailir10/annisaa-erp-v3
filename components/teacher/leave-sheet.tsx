@@ -91,11 +91,6 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
   });
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    fetchData();
-  }, [open]);
-
   async function fetchData() {
     setLoading(true);
     try {
@@ -104,21 +99,27 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
         fetch("/api/leave/my"),
       ]);
       if (!balRes.ok || !reqRes.ok) {
-        toast.error("Gagal memuat data cuti");
+        toast.error("Data cuti tidak bisa dimuat. Coba lagi sebentar ya.");
         setLoading(false);
         return;
       }
       setBalance(await balRes.json());
       setRequests(await reqRes.json());
     } catch {
-      toast.error("Gagal memuat data cuti");
+      toast.error("Data cuti tidak bisa dimuat. Coba lagi sebentar ya.");
     }
     setLoading(false);
   }
 
+  useEffect(() => {
+    if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, [open]);
+
   async function handleSubmit() {
     if (!form.startDate || !form.endDate || !form.reason.trim()) {
-      toast.error("Mohon lengkapi tanggal dan alasan");
+      toast.error("Lengkapi tanggal dan alasan dulu ya.");
       return;
     }
     setSaving(true);
@@ -128,13 +129,13 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
       body: JSON.stringify(form),
     });
     if (res.ok) {
-      toast.success("Pengajuan cuti berhasil dikirim");
+      toast.success("Pengajuan cuti terkirim");
       setDialogOpen(false);
       setForm({ leaveType: "ANNUAL", startDate: "", endDate: "", reason: "" });
       fetchData();
     } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal mengajukan cuti");
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Pengajuan tidak terkirim. Coba lagi sebentar ya.");
     }
     setSaving(false);
   }
@@ -148,7 +149,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
       toast.success("Pengajuan dibatalkan");
       fetchData();
     } else {
-      toast.error("Gagal membatalkan");
+      toast.error("Pembatalan tidak tersimpan. Coba lagi ya.");
     }
     setCancelTarget(null);
   }
@@ -158,7 +159,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="h-[85vh] max-w-md mx-auto rounded-t-2xl px-5 pb-6 pt-2 overflow-y-auto">
+        <SheetContent side="bottom" className="h-[85vh] max-w-md mx-auto rounded-t-2xl px-page-x pb-card pt-2 overflow-y-auto">
           <SheetHeader className="px-0 pt-2">
             <SheetTitle>Cuti &amp; Izin</SheetTitle>
             <SheetDescription>Kelola pengajuan cuti dan izin Anda</SheetDescription>
@@ -168,11 +169,11 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
           {balance && (
             <div className="grid grid-cols-2 gap-3 mb-4">
               <Card className="p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cuti Tahunan</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Cuti Tahunan</p>
                 <p className="font-currency text-2xl font-bold mt-1 text-primary">
                   {balance.annual.remaining}
                 </p>
-                <p className="text-[10px] text-muted-foreground">dari {balance.annual.total} hari</p>
+                <p className="text-xs text-muted-foreground">dari {balance.annual.total} hari</p>
                 <div className="w-full h-1.5 bg-muted rounded-full mt-2">
                   <div
                     className="h-full bg-primary rounded-full"
@@ -181,11 +182,11 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
                 </div>
               </Card>
               <Card className="p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cuti Sakit</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Cuti Sakit</p>
                 <p className="font-currency text-2xl font-bold mt-1 text-status-leave">
                   {balance.sick.remaining}
                 </p>
-                <p className="text-[10px] text-muted-foreground">dari {balance.sick.total} hari</p>
+                <p className="text-xs text-muted-foreground">dari {balance.sick.total} hari</p>
                 <div className="w-full h-1.5 bg-muted rounded-full mt-2">
                   <div
                     className="h-full bg-status-leave rounded-full"
@@ -276,7 +277,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
               Pengajuan akan dikirim ke admin untuk persetujuan
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field">
             <Field>
               <FieldLabel>Jenis Cuti</FieldLabel>
               <Select
@@ -338,7 +339,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
           </div>
           <DialogFooter>
             <DialogClose>
-              <Button variant="outline">Batal</Button>
+              <Button variant="ghost">Batal</Button>
             </DialogClose>
             <Button onClick={handleSubmit} disabled={saving}>
               {saving ? "Mengirim..." : "Ajukan"}

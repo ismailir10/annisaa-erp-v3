@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -90,12 +91,12 @@ export default function CampusesPage() {
     if (!deleteTarget) return;
     const res = await fetch(`/api/config/campuses/${deleteTarget.id}`, { method: "DELETE" });
     if (res.ok) {
-      toast.success("Kampus dihapus");
+      toast.success("Kampus dinonaktifkan");
       setDeleteTarget(null);
       fetchCampuses();
     } else {
       const data = await res.json();
-      toast.error(data.error || "Gagal menghapus");
+      toast.error(data.error || "Gagal menonaktifkan");
     }
   }
 
@@ -132,6 +133,14 @@ export default function CampusesPage() {
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
+      ) : campuses.length === 0 ? (
+        <EmptyState
+          icon={Building2}
+          title="Belum ada kampus"
+          description="Tambahkan lokasi kampus/cabang untuk mulai mengelola karyawan per kampus."
+          actionLabel="Tambah Kampus"
+          onAction={openNew}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {campuses.map((c, i) => (
@@ -141,10 +150,10 @@ export default function CampusesPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
             >
-              <Card className="p-5 hover:shadow-md transition-shadow">
+              <Card className="p-card hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
                       <Building2 size={18} className="text-primary" />
                     </div>
                     <div>
@@ -160,10 +169,10 @@ export default function CampusesPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                    <button onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => setDeleteTarget(c)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                    <button onClick={() => setDeleteTarget(c)} aria-label={`Nonaktifkan ${c.name}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -176,14 +185,14 @@ export default function CampusesPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Kampus" : "Tambah Kampus"}</DialogTitle>
             <DialogDescription>
               {editing ? "Perbarui informasi kampus" : "Tambahkan lokasi kampus baru"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Nama *</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" />
@@ -220,10 +229,11 @@ export default function CampusesPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Hapus Kampus"
-        description={`Hapus "${deleteTarget?.name}"? Kampus yang memiliki karyawan tidak bisa dihapus.`}
+        title="Nonaktifkan Kampus"
+        description={`Nonaktifkan "${deleteTarget?.name}"? Kampus akan disembunyikan dari daftar tetapi data historis tetap utuh. Kampus dengan karyawan aktif tidak bisa dinonaktifkan.`}
         onConfirm={handleDelete}
-        confirmLabel="Hapus"
+        confirmLabel="Nonaktifkan"
+        destructive
       />
     </>
   );

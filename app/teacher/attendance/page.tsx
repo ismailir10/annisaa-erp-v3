@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { CalendarDays } from "lucide-react";
 import { LeaveSheet } from "@/components/teacher/leave-sheet";
+import { PageHeader } from "@/components/portal/page-header";
+import { toast } from "sonner";
 
 type AttendanceRecord = {
   id: string;
@@ -26,7 +28,11 @@ export default function TeacherAttendancePage() {
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/attendance/my?month=${month}&year=${year}`);
-    if (!res.ok) { setLoading(false); return; }
+    if (!res.ok) {
+      toast.error("Gagal memuat kehadiran. Coba lagi sebentar ya.");
+      setLoading(false);
+      return;
+    }
     setRecords(await res.json());
     setLoading(false);
   }, [month, year]);
@@ -40,12 +46,12 @@ export default function TeacherAttendancePage() {
   }
 
   return (
-    <div className="px-5 pt-6 pb-4">
-      <h1 className="text-lg font-bold mb-4">Kehadiran Saya</h1>
+    <div>
+      <PageHeader title="Kehadiran Saya" />
 
       {/* Cuti action card — opens Sheet instead of navigating */}
       <Card
-        className="p-4 mb-4 cursor-pointer hover:border-primary/30 transition-colors"
+        className="p-card mb-4 cursor-pointer hover:border-primary/30 transition-colors"
         onClick={() => setLeaveSheetOpen(true)}
       >
         <div className="flex items-center gap-3">

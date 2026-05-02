@@ -108,7 +108,7 @@ export default function SalaryComponentsPage() {
         <DataTableColumnHeader column={column} title="#" />
       ),
       cell: ({ row }) => (
-        <span className="font-currency text-xs text-muted-foreground">{row.original.sortOrder}</span>
+        <span className="text-xs text-muted-foreground">{row.original.sortOrder}</span>
       ),
     },
     {
@@ -122,11 +122,11 @@ export default function SalaryComponentsPage() {
           <div className={!c.isEnabled ? "opacity-50" : ""}>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{c.label}</span>
-              <Badge variant="outline" className="text-[10px] font-currency">{c.code}</Badge>
+              <Badge variant="outline" className="text-xs font-currency">{c.code}</Badge>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[10px] text-muted-foreground">{CALC_LABELS[c.calcType]}</span>
-              {c.isProRated && <span className="text-[10px] text-muted-foreground">· Pro-rata</span>}
+              <span className="text-xs text-muted-foreground">{CALC_LABELS[c.calcType]}</span>
+              {c.isProRated && <span className="text-xs text-muted-foreground">· Pro-rata</span>}
             </div>
           </div>
         );
@@ -183,12 +183,12 @@ export default function SalaryComponentsPage() {
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Komponen" : "Tambah Komponen"}</DialogTitle>
             <DialogDescription>Komponen gaji menentukan struktur penggajian</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             {!editing && (
               <Field>
                 <FieldLabel>Kode *</FieldLabel>
@@ -202,7 +202,7 @@ export default function SalaryComponentsPage() {
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>Kategori</FieldLabel>
-                <Select value={form.category} onValueChange={(v) => v && setForm({ ...form, category: v })}>
+                <Select value={form.category} onValueChange={(v) => v && setForm({ ...form, category: v })} items={{ INCOME: "Pendapatan", DEDUCTION: "Potongan" }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="INCOME">Pendapatan</SelectItem>
@@ -212,7 +212,7 @@ export default function SalaryComponentsPage() {
               </Field>
               <Field>
                 <FieldLabel>Tipe Kalkulasi</FieldLabel>
-                <Select value={form.calcType} onValueChange={(v) => v && setForm({ ...form, calcType: v })}>
+                <Select value={form.calcType} onValueChange={(v) => v && setForm({ ...form, calcType: v })} items={{ FIXED: "Tetap", PCT_OF_BASE: "% Gaji Pokok", ATTENDANCE_BASED: "Berbasis Kehadiran" }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FIXED">Tetap</SelectItem>

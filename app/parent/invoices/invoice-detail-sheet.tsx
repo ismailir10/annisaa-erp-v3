@@ -2,17 +2,20 @@
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { ExternalLink, Info, CheckCircle, AlertCircle, Calendar } from "lucide-react";
-import { formatRupiah, formatDateShort } from "@/lib/format";
-
-const PARENT_INVOICE_LABELS: Record<string, string> = {
-  SENT: "Belum Dibayar",
-  PARTIALLY_PAID: "Dibayar Sebagian",
-  PAID: "Lunas",
-  OVERDUE: "Jatuh Tempo",
-  CANCELLED: "Dibatalkan",
-};
+import {
+  Banknote,
+  Building2,
+  Download,
+  ExternalLink,
+  FileText,
+  Info,
+  Landmark,
+  type LucideIcon,
+} from "lucide-react";
+import { formatRupiah, formatDate } from "@/lib/format";
+import { useState } from "react";
+import { toast } from "sonner";
+import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 
 type InvoiceLine = {
   id: string;
@@ -49,9 +52,7 @@ type InvoiceDetail = {
     nickname: string | null;
     classSection: {
       name: string;
-      program: {
-        name: string;
-      };
+      program: { name: string };
     } | null;
   };
 };
@@ -59,206 +60,279 @@ type InvoiceDetail = {
 const METHOD_LABELS: Record<string, string> = {
   CASH: "Tunai",
   BANK_TRANSFER: "Transfer Bank",
-  XENDIT: "Xendit",
+  XENDIT: "Virtual Account",
   OTHER: "Lainnya",
 };
 
-const VARIANT_STYLES: Record<string, string> = {
-  success: "bg-status-present/10 border-status-present/20",
-  muted: "bg-muted/50 border-border",
-  destructive: "bg-destructive/10 border-destructive/20",
-  warning: "bg-warning/10 border-warning/20",
+const METHOD_ICONS: Record<string, LucideIcon> = {
+  CASH: Banknote,
+  BANK_TRANSFER: Landmark,
+  XENDIT: Building2,
+  OTHER: Building2,
 };
 
 export function InvoiceDetailSheet({
   open,
   onOpenChange,
-  invoice,
+  invoiceId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  invoice: InvoiceDetail | null;
+  invoiceId: string | null;
 }) {
-  if (!invoice) return null;
+  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [prevInvoiceId, setPrevInvoiceId] = useState<string | null>(null);
+
+  if (open && invoiceId && invoiceId !== prevInvoiceId) {
+    setPrevInvoiceId(invoiceId);
+    setLoading(true);
+    setInvoice(null);
+
+    fetch(`/api/guardian/invoices/${invoiceId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load invoice");
+        return res.json();
+      })
+      .then((data) => {
+        setInvoice(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        toast.error("Tagihan belum bisa dimuat. Coba lagi sebentar ya.");
+        setLoading(false);
+      });
+  }
+
+  if (!open && prevInvoiceId !== null) {
+    setPrevInvoiceId(null);
+    setInvoice(null);
+    setLoading(false);
+  }
+
+  if (!invoiceId) return null;
+
+  if (loading || !invoice) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <div className="p-card">
+            <InvoiceDetailSkeleton />
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   const remaining = invoice.totalDue - invoice.totalPaid;
-  const isPayable = remaining > 0 && invoice.status !== "CANCELLED" && invoice.status !== "PAID";
+  const isPaid = invoice.status === "PAID";
+  const isCancelled = invoice.status === "CANCELLED";
+  const isPayable = remaining > 0 && !isCancelled && !isPaid;
   const hasPaymentLink = !!invoice.xenditPaymentUrl;
-
-  const getStatusMessage = () => {
-    if (invoice.status === "PAID") {
-      return {
-        icon: <CheckCircle size={16} className="text-success" />,
-        message: `Lunas pada ${formatDateShort(invoice.paidAt!)}`,
-        variant: "success" as const,
-      };
-    }
-    if (invoice.status === "CANCELLED") {
-      return {
-        icon: <AlertCircle size={16} className="text-muted-foreground" />,
-        message: "Tagihan ini dibatalkan",
-        variant: "muted" as const,
-      };
-    }
-    if (invoice.status === "OVERDUE") {
-      return {
-        icon: <AlertCircle size={16} className="text-destructive" />,
-        message: "Tagihan ini telah jatuh tempo",
-        variant: "destructive" as const,
-      };
-    }
-    if (invoice.status === "PARTIALLY_PAID") {
-      return {
-        icon: <Info size={16} className="text-warning" />,
-        message: `Dibayar sebagian, sisa ${formatRupiah(remaining)}`,
-        variant: "warning" as const,
-      };
-    }
-    if (hasPaymentLink) {
-      return {
-        icon: <CheckCircle size={16} className="text-success" />,
-        message: "Siap dibayar",
-        variant: "success" as const,
-      };
-    }
-    return {
-      icon: <Info size={16} className="text-muted-foreground" />,
-      message: "Link pembayaran belum tersedia. Hubungi admin untuk membuat link pembayaran.",
-      variant: "muted" as const,
-    };
-  };
-
-  const statusMsg = getStatusMessage();
+  const focalAmount = isPaid ? invoice.totalDue : remaining;
+  const childName = invoice.student.nickname ?? invoice.student.name.split(" ")[0];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <div className="flex items-center justify-between">
-            <SheetTitle>{invoice.invoiceNumber}</SheetTitle>
-            <StatusBadge status={invoice.status} label={PARENT_INVOICE_LABELS[invoice.status]} />
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            {invoice.student.name} · {invoice.periodLabel}
-          </p>
-          {invoice.student.classSection && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {invoice.student.classSection.name} · {invoice.student.classSection.program.name}
-            </p>
-          )}
+        {/* Frame 6/7 spec C1 — drag-handle bar centered at top */}
+        <div className="flex justify-center pt-2">
+          <div className="h-1 w-9 rounded-full bg-muted-foreground/30" aria-hidden="true" />
+        </div>
+        <SheetHeader className="border-b border-border pb-3">
+          <SheetTitle className="text-sm font-medium text-foreground">
+            Tagihan {invoice.periodLabel}
+            <span className="ml-1 text-muted-foreground">· {childName}</span>
+          </SheetTitle>
+          <p className="text-xs text-muted-foreground">{invoice.invoiceNumber}</p>
         </SheetHeader>
 
-        {/* Status Message */}
-        <div className={`mt-4 p-3 rounded-lg flex items-start gap-3 ${VARIANT_STYLES[statusMsg.variant]}`}>
-          {statusMsg.icon}
-          <p className="text-xs flex-1">{statusMsg.message}</p>
-        </div>
-
-        {/* Invoice Details */}
-        <div className="mt-6 space-y-4">
-          {/* Dates */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar size={12} />
-              <span>Jatuh Tempo: {formatDateShort(invoice.dueDate)}</span>
-            </div>
-            {invoice.sentAt && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar size={12} />
-                <span>Dikirim: {formatDateShort(invoice.sentAt)}</span>
-              </div>
-            )}
+        <div className="px-card pb-card pt-4 space-y-6">
+          {/* Focal amount card */}
+          <div className="rounded-xl border border-border bg-card p-4 md:p-6">
+            <p
+              className={`font-currency text-2xl sm:text-display font-bold leading-none tracking-tight ${isPaid ? "text-status-present-text" : "text-status-absent-text"}`}
+            >
+              {formatRupiah(focalAmount)}
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {isPaid ? (
+                <>
+                  <span className="text-xs font-bold uppercase tracking-wider text-status-present-text">
+                    Lunas
+                  </span>
+                  {invoice.paidAt ? (
+                    <> · dibayar {formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}</>
+                  ) : null}
+                </>
+              ) : isCancelled ? (
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Dibatalkan
+                </span>
+              ) : (
+                <>
+                  <span className="text-xs font-bold uppercase tracking-wider text-status-absent-text">
+                    Belum Dibayar
+                  </span>
+                  {" · jatuh tempo "}
+                  <b className="text-foreground">
+                    {formatDate(invoice.dueDate, { day: "numeric", month: "long", year: "numeric" })}
+                  </b>
+                </>
+              )}
+            </p>
           </div>
 
-          {/* Line Items */}
-          <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rincian Tagihan</h3>
-            <div className="space-y-2">
+          {/* Rincian */}
+          <section>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Rincian
+            </p>
+            <ul>
               {invoice.lines.map((line) => (
-                <div key={line.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{line.labelSnapshot}</p>
-                    {line.adjustmentAmount !== 0 && (
-                      <p className="text-[10px] text-muted-foreground">
+                <li
+                  key={line.id}
+                  className="flex items-center justify-between gap-3 border-b border-border/50 py-3 last:border-0"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-foreground">{line.labelSnapshot}</p>
+                    {line.adjustmentAmount !== 0 ? (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         Penyesuaian: {formatRupiah(line.adjustmentAmount)}
-                        {line.adjustmentNote && ` (${line.adjustmentNote})`}
+                        {line.adjustmentNote ? ` (${line.adjustmentNote})` : ""}
                       </p>
-                    )}
+                    ) : null}
                   </div>
-                  <span className="font-currency text-sm font-bold">{formatRupiah(line.finalAmount)}</span>
-                </div>
+                  <span className="font-currency text-sm font-medium tabular-nums text-foreground">
+                    {formatRupiah(line.finalAmount)}
+                  </span>
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </section>
 
-          {/* Summary */}
-          <div className="border-t border-border pt-3 space-y-1">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Total Tagihan</span>
-              <span className="font-currency font-bold">{formatRupiah(invoice.totalDue)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Dibayar</span>
-              <span className="font-currency font-bold text-success">{formatRupiah(invoice.totalPaid)}</span>
-            </div>
-            {remaining > 0 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Sisa</span>
-                <span className="font-currency font-bold text-destructive">{formatRupiah(remaining)}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Payment History */}
-          {invoice.payments.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Riwayat Pembayaran</h3>
-              <div className="space-y-2">
-                {invoice.payments.map((p) => (
-                  <div key={p.id} className="border-b border-border/50 last:border-0 pb-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-muted-foreground">{METHOD_LABELS[p.method] || p.method}</span>
-                      <span className="font-currency text-sm font-bold text-success">{formatRupiah(p.amount)}</span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {formatDateShort(p.paidAt)}
-                      {p.reference && ` · Ref: ${p.reference}`}
+          {/* Cara bayar — unpaid only, single Xendit card */}
+          {isPayable ? (
+            <section>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Cara bayar
+              </p>
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <Building2 size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">Transfer bank (Virtual Account)</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      BRI · BNI · Mandiri · BCA · Permata
                     </p>
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            </section>
+          ) : null}
 
-        {/* Payment Action */}
-        {isPayable && (
-          <div className="mt-6 pt-4 border-t border-border">
-            {hasPaymentLink ? (
+          {/* Bukti pembayaran — paid only */}
+          {isPaid ? (
+            <section>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Bukti pembayaran
+              </p>
               <a
-                href={invoice.xenditPaymentUrl!}
+                href={`/api/guardian/invoices/${invoice.id}/pdf`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block w-full"
+                className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30"
               >
-                <Button className="w-full" size="lg">
-                  <ExternalLink size={16} className="mr-2" />
-                  Bayar Sekarang
-                </Button>
+                <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <FileText size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">Kuitansi.pdf</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {invoice.paidAt
+                      ? `Diterbitkan ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}`
+                      : "Diterbitkan"}
+                  </p>
+                </div>
+                <Download size={16} className="shrink-0 text-muted-foreground" />
               </a>
-            ) : (
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-3">
-                  Link pembayaran belum tersedia. Hubungi admin untuk membuat link pembayaran.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+            </section>
+          ) : null}
 
-        <SheetClose
-          render={<Button variant="outline" className="w-full mt-4">Tutup</Button>}
-        />
+          {/* Payment history (paid invoices with multiple payment events) */}
+          {invoice.payments.length > 0 ? (
+            <section>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Riwayat pembayaran
+              </p>
+              <ul className="space-y-2">
+                {invoice.payments.map((p) => {
+                  const Icon = METHOD_ICONS[p.method] ?? Building2;
+                  return (
+                    <li
+                      key={p.id}
+                      className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"
+                    >
+                      <div className="grid size-10 place-items-center rounded-lg bg-status-present-subtle text-status-present-text">
+                        <Icon size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {METHOD_LABELS[p.method] ?? p.method}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatDate(p.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}
+                          {p.reference ? ` · ${p.reference}` : ""}
+                        </p>
+                      </div>
+                      <span className="font-currency text-sm font-bold tabular-nums text-status-present-text">
+                        {formatRupiah(p.amount)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+
+          {/* Bayar sekarang CTA — always rendered when invoice is payable.
+              Disabled when xenditPaymentUrl is still being provisioned, with
+              a helper line below explaining the wait state. Spec C3. */}
+          {isPayable ? (
+            <div className="space-y-2">
+              {hasPaymentLink ? (
+                <a
+                  href={invoice.xenditPaymentUrl!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  <Button className="w-full" size="lg">
+                    <ExternalLink size={16} className="mr-2" />
+                    Bayar sekarang
+                  </Button>
+                </a>
+              ) : (
+                <Button className="w-full" size="lg" disabled>
+                  <ExternalLink size={16} className="mr-2" />
+                  Bayar sekarang
+                </Button>
+              )}
+              {!hasPaymentLink ? (
+                <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                  <Info size={14} className="mt-0.5 shrink-0" />
+                  <span>
+                    Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <SheetClose render={<Button variant="outline" className="w-full">Tutup</Button>} />
+        </div>
       </SheetContent>
     </Sheet>
   );

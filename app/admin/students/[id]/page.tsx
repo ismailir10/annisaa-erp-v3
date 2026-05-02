@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -11,11 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +34,16 @@ type Student = {
   nik: string | null; kkNumber: string | null; livingWith: string | null;
   guardians: Guardian[]; enrollments: Enrollment[];
 };
+function parseStudentMetadata(raw: string | null | undefined): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 type ClassSection = { id: string; name: string; program: { name: string }; academicYear: { name: string }; campus: { name: string }; _count: { enrollments: number }; capacity: number };
 type AttendanceRecord = { id: string; date: string; status: string; notes: string | null; classSection: { name: string } };
 type AttendanceSummary = { present: number; absent: number; sick: number; permission: number; total: number };
@@ -38,6 +52,7 @@ const REL_LABELS: Record<string, string> = { AYAH: "Ayah", IBU: "Ibu", WALI: "Wa
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const isMobile = useIsMobile();
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -187,13 +202,24 @@ export default function StudentDetailPage() {
   async function handleEnroll() {
     if (!selectedSection) { toast.error("Pilih kelas"); return; }
     setEnrolling(true);
-    const res = await fetch(`/api/students/${id}/enroll`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classSectionId: selectedSection }),
-    });
-    if (res.ok) { toast.success("Siswa berhasil didaftarkan ke kelas"); setEnrollDialog(false); fetchStudent(); }
-    else { const d = await res.json(); toast.error(d.error || "Gagal mendaftarkan"); }
-    setEnrolling(false);
+    try {
+      const res = await fetch(`/api/students/${id}/enroll`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classSectionId: selectedSection }),
+      });
+      if (res.ok) {
+        toast.success("Didaftarkan ke kelas");
+        setEnrollDialog(false);
+        fetchStudent();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Gagal mendaftarkan");
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setEnrolling(false);
+    }
   }
 
   // --- Promote (Naik Kelas) ---
@@ -216,7 +242,7 @@ export default function StudentDetailPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetClassSectionId: promoteTarget, notes: promoteNotes }),
       });
-      if (res.ok) { toast.success("Siswa berhasil naik kelas"); setPromoteDialog(false); fetchStudent(); }
+      if (res.ok) { toast.success("Naik kelas"); setPromoteDialog(false); fetchStudent(); }
       else { const d = await res.json(); toast.error(d.error || "Gagal naik kelas"); }
     } catch { toast.error("Terjadi kesalahan"); }
     setPromoting(false);
@@ -230,7 +256,7 @@ export default function StudentDetailPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (res.ok) { toast.success("Siswa berhasil diluluskan"); setGraduateOpen(false); fetchStudent(); }
+      if (res.ok) { toast.success("Diluluskan"); setGraduateOpen(false); fetchStudent(); }
       else { const d = await res.json(); toast.error(d.error || "Gagal meluluskan"); }
     } catch { toast.error("Terjadi kesalahan"); }
     setGraduating(false);
@@ -250,7 +276,7 @@ export default function StudentDetailPage() {
         if (data.unpaidInvoices > 0) {
           toast.success(`Siswa dikeluarkan. Perhatian: ${data.unpaidInvoices} tagihan belum lunas.`);
         } else {
-          toast.success("Siswa berhasil dikeluarkan");
+          toast.success("Dikeluarkan");
         }
         setWithdrawDialog(false);
         setWithdrawReason("");
@@ -263,33 +289,22 @@ export default function StudentDetailPage() {
     setWithdrawing(false);
   }
 
-  if (loading) return (
-    <div className="space-y-4">
-      <Skeleton className="h-4 w-48" />
-      <Skeleton className="h-8 w-72" />
-      <Skeleton className="h-64" />
-      <Skeleton className="h-48" />
-    </div>
-  );
+  if (loading) return <DetailPageSkeleton />;
   if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
 
   const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
-  const metadata = student.metadata ? JSON.parse(student.metadata) : null;
+  const metadata = parseStudentMetadata(student.metadata);
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/students" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft size={14} /> Kembali ke Daftar Siswa
-        </Link>
-      </div>
-
-      <PageHeader
+      <DetailPageHeader
+        backHref="/admin/students"
+        backLabel="Kembali ke Daftar Siswa"
         title={student.name}
         description={activeEnrollment ? `${activeEnrollment.classSection.program.name} · ${activeEnrollment.classSection.name}` : "Belum terdaftar di kelas"}
+        badge={<StatusBadge status={student.status} />}
         actions={
-          <div className="flex gap-2">
-            <StatusBadge status={student.status} />
+          <>
             {!isEditing && (
               <Button size="sm" variant="outline" onClick={startEditing}>
                 <Pencil size={14} className="mr-1" /> Edit
@@ -313,12 +328,12 @@ export default function StudentDetailPage() {
                 Keluarkan
               </Button>
             )}
-          </div>
+          </>
         }
       />
 
       {/* Summary Card — View/Edit toggle */}
-      <Card className="p-5 mb-4">
+      <Card className="p-card mb-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data Anak</h3>
           {isEditing && (
@@ -340,7 +355,7 @@ export default function StudentDetailPage() {
             <Field><FieldLabel>Tanggal Lahir</FieldLabel><Input type="date" value={editForm.dateOfBirth} onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })} /></Field>
             <Field>
               <FieldLabel>Jenis Kelamin</FieldLabel>
-              <Select value={editForm.gender || undefined} onValueChange={v => v && setEditForm({ ...editForm, gender: v })}>
+              <Select value={editForm.gender || undefined} onValueChange={v => v && setEditForm({ ...editForm, gender: v })} items={{ L: "Laki-laki", P: "Perempuan" }}>
                 <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="L">Laki-laki</SelectItem>
@@ -359,7 +374,7 @@ export default function StudentDetailPage() {
             <Field><FieldLabel>No. KK</FieldLabel><Input value={editForm.kkNumber} onChange={e => setEditForm({ ...editForm, kkNumber: e.target.value })} placeholder="Nomor Kartu Keluarga" /></Field>
             <Field>
               <FieldLabel>Tinggal Dengan</FieldLabel>
-              <Select value={editForm.livingWith || undefined} onValueChange={v => v && setEditForm({ ...editForm, livingWith: v })}>
+              <Select value={editForm.livingWith || undefined} onValueChange={v => v && setEditForm({ ...editForm, livingWith: v })} items={{ ORANG_TUA: "Orang Tua", WALI: "Wali", LAINNYA: "Lainnya" }}>
                 <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ORANG_TUA">Orang Tua</SelectItem>
@@ -373,41 +388,41 @@ export default function StudentDetailPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-3">
               <User size={16} className="text-muted-foreground shrink-0" />
-              <div><p className="text-[10px] text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{student.name}</p></div>
+              <div><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{student.name}</p></div>
             </div>
-            {student.nickname && <div><p className="text-[10px] text-muted-foreground">Nama Panggilan</p><p className="text-sm font-medium">{student.nickname}</p></div>}
-            {student.dateOfBirth && <div><p className="text-[10px] text-muted-foreground">Tanggal Lahir</p><p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}</p></div>}
-            {student.gender && <div><p className="text-[10px] text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : "Perempuan"}</p></div>}
+            {student.nickname && <div><p className="text-xs text-muted-foreground">Nama Panggilan</p><p className="text-sm font-medium">{student.nickname}</p></div>}
+            {student.dateOfBirth && <div><p className="text-xs text-muted-foreground">Tanggal Lahir</p><p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}</p></div>}
+            {student.gender && <div><p className="text-xs text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : "Perempuan"}</p></div>}
             {student.address && (
               <div className="col-span-2 flex items-start gap-3">
                 <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-                <div><p className="text-[10px] text-muted-foreground">Alamat</p><p className="text-sm">{student.address}</p></div>
+                <div><p className="text-xs text-muted-foreground">Alamat</p><p className="text-sm">{student.address}</p></div>
               </div>
             )}
-            {student.notes && <div className="col-span-2"><p className="text-[10px] text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
+            {student.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
           </div>
         )}
 
         {!isEditing && (student.nis || student.nisn || student.nik || student.birthPlace) && (
           <>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Identitas Resmi</h3>
+            <div className="mt-6"><SectionHeading label="Identitas Resmi" /></div>
             <div className="grid grid-cols-2 gap-4">
-              {student.nis && <div><p className="text-[10px] text-muted-foreground">NIS</p><p className="text-sm font-medium font-currency">{student.nis}</p></div>}
-              {student.nisn && <div><p className="text-[10px] text-muted-foreground">NISN</p><p className="text-sm font-medium font-currency">{student.nisn}</p></div>}
-              {student.birthPlace && <div><p className="text-[10px] text-muted-foreground">Tempat Lahir</p><p className="text-sm">{student.birthPlace}</p></div>}
-              {student.nik && <div><p className="text-[10px] text-muted-foreground">NIK</p><p className="text-sm font-currency">{student.nik}</p></div>}
-              {student.kkNumber && <div><p className="text-[10px] text-muted-foreground">No. KK</p><p className="text-sm font-currency">{student.kkNumber}</p></div>}
-              {student.livingWith && <div><p className="text-[10px] text-muted-foreground">Tinggal Dengan</p><p className="text-sm">{student.livingWith === "ORANG_TUA" ? "Orang Tua" : student.livingWith === "WALI" ? "Wali" : "Lainnya"}</p></div>}
+              {student.nis && <div><p className="text-xs text-muted-foreground">NIS</p><p className="text-sm font-medium font-currency">{student.nis}</p></div>}
+              {student.nisn && <div><p className="text-xs text-muted-foreground">NISN</p><p className="text-sm font-medium font-currency">{student.nisn}</p></div>}
+              {student.birthPlace && <div><p className="text-xs text-muted-foreground">Tempat Lahir</p><p className="text-sm">{student.birthPlace}</p></div>}
+              {student.nik && <div><p className="text-xs text-muted-foreground">NIK</p><p className="text-sm font-currency">{student.nik}</p></div>}
+              {student.kkNumber && <div><p className="text-xs text-muted-foreground">No. KK</p><p className="text-sm font-currency">{student.kkNumber}</p></div>}
+              {student.livingWith && <div><p className="text-xs text-muted-foreground">Tinggal Dengan</p><p className="text-sm">{student.livingWith === "ORANG_TUA" ? "Orang Tua" : student.livingWith === "WALI" ? "Wali" : "Lainnya"}</p></div>}
             </div>
           </>
         )}
 
         {!isEditing && metadata && Object.keys(metadata).length > 0 && (
           <>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-6 mb-3">Informasi Tambahan</h3>
+            <div className="mt-6"><SectionHeading label="Informasi Tambahan" /></div>
             <div className="grid grid-cols-2 gap-3">
               {Object.entries(metadata).map(([key, value]) => (
-                <div key={key}><p className="text-[10px] text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p><p className="text-sm">{String(value)}</p></div>
+                <div key={key}><p className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p><p className="text-sm">{String(value)}</p></div>
               ))}
             </div>
           </>
@@ -415,19 +430,19 @@ export default function StudentDetailPage() {
       </Card>
 
       {/* Tabs for related data */}
-      <Tabs defaultValue="guardians" onValueChange={(v) => { if (v === "attendance") fetchAttendance(attendanceMonth); }}>
-        <TabsList>
-          <TabsTrigger value="guardians">Orang Tua / Wali</TabsTrigger>
-          <TabsTrigger value="enrollments">Riwayat Kelas</TabsTrigger>
-          <TabsTrigger value="attendance"><CalendarDays size={13} className="mr-1" />Kehadiran</TabsTrigger>
-        </TabsList>
+      <AdminTabs defaultValue="guardians" onValueChange={(v) => { if (v === "attendance") fetchAttendance(attendanceMonth); }}>
+        <AdminTabsList>
+          <AdminTabsTrigger value="guardians">Orang Tua / Wali</AdminTabsTrigger>
+          <AdminTabsTrigger value="enrollments">Riwayat Kelas</AdminTabsTrigger>
+          <AdminTabsTrigger value="attendance"><CalendarDays size={13} className="mr-1" />Kehadiran</AdminTabsTrigger>
+        </AdminTabsList>
 
-        <TabsContent value="guardians">
-          <Card className="p-5 mt-2">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Orang Tua / Wali</h3>
-              <Button size="sm" variant="ghost" onClick={openAddGuardian}><Plus size={12} className="mr-1" /> Tambah</Button>
-            </div>
+        <AdminTabsContent value="guardians">
+          <Card className="p-card mt-2">
+            <SectionHeading
+              label="Orang Tua / Wali"
+              actions={<Button size="sm" variant="ghost" onClick={openAddGuardian}><Plus size={12} className="mr-1" /> Tambah</Button>}
+            />
             {student.guardians.filter(g => g.status !== "INACTIVE").length === 0 ? (
               <EmptyState title="Belum ada data wali" description="Tambahkan orang tua atau wali siswa." />
             ) : (
@@ -437,13 +452,13 @@ export default function StudentDetailPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">{g.parent.name}</p>
-                        <Badge variant="outline" className="text-[10px]">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
-                        {g.isPrimary && <Badge className="bg-primary/10 text-primary text-[10px]">Utama</Badge>}
-                        {g.childOrder && <Badge variant="outline" className="text-[10px]">Anak ke-{g.childOrder}</Badge>}
+                        <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
+                        {g.isPrimary && <Badge className="bg-primary/10 text-primary text-xs">Utama</Badge>}
+                        {g.childOrder && <Badge variant="outline" className="text-xs">Anak ke-{g.childOrder}</Badge>}
                       </div>
                       <div className="flex gap-1">
-                        <button onClick={() => openEditGuardian(g)} className="p-1 rounded hover:bg-accent text-muted-foreground"><Pencil size={12} /></button>
-                        <button onClick={() => setDeleteGuardianTarget(g)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></button>
+                        <button onClick={() => openEditGuardian(g)} aria-label={`Edit wali ${g.parent.name}`} className="p-1 rounded hover:bg-accent text-muted-foreground"><Pencil size={12} /></button>
+                        <button onClick={() => setDeleteGuardianTarget(g)} aria-label={`Nonaktifkan wali ${g.parent.name}`} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></button>
                       </div>
                     </div>
                     <div className="mt-1 space-y-0.5">
@@ -453,9 +468,9 @@ export default function StudentDetailPage() {
                     </div>
                     {(g.parent.education || g.parent.occupation || g.parent.incomeRange) && (
                       <div className="mt-1.5 flex flex-wrap gap-2">
-                        {g.parent.education && <Badge variant="outline" className="text-[10px]">{g.parent.education}</Badge>}
-                        {g.parent.occupation && <Badge variant="outline" className="text-[10px]">{g.parent.occupation}</Badge>}
-                        {g.parent.incomeRange && <Badge variant="outline" className="text-[10px]">{g.parent.incomeRange}</Badge>}
+                        {g.parent.education && <Badge variant="outline" className="text-xs">{g.parent.education}</Badge>}
+                        {g.parent.occupation && <Badge variant="outline" className="text-xs">{g.parent.occupation}</Badge>}
+                        {g.parent.incomeRange && <Badge variant="outline" className="text-xs">{g.parent.incomeRange}</Badge>}
                       </div>
                     )}
                   </div>
@@ -463,11 +478,11 @@ export default function StudentDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
+        </AdminTabsContent>
 
-        <TabsContent value="enrollments">
-          <Card className="p-5 mt-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Riwayat Kelas</h3>
+        <AdminTabsContent value="enrollments">
+          <Card className="p-card mt-2">
+            <SectionHeading label="Riwayat Kelas" />
             {student.enrollments.length === 0 ? (
               <EmptyState title="Belum terdaftar di kelas" description="Daftarkan siswa ke kelas melalui tombol di atas." />
             ) : (
@@ -476,7 +491,7 @@ export default function StudentDetailPage() {
                   <div key={e.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                     <div>
                       <div className="flex items-center gap-2"><GraduationCap size={14} className="text-primary" /><span className="text-sm font-medium">{e.classSection.name}</span></div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{e.classSection.program.name} · {e.classSection.academicYear.name} · {e.classSection.campus.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{e.classSection.program.name} · {e.classSection.academicYear.name} · {e.classSection.campus.name}</p>
                     </div>
                     <StatusBadge status={e.status} />
                   </div>
@@ -484,13 +499,13 @@ export default function StudentDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
+        </AdminTabsContent>
 
-        <TabsContent value="attendance">
-          <Card className="p-5 mt-2">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Riwayat Kehadiran</h3>
-              <Input
+        <AdminTabsContent value="attendance">
+          <Card className="p-card mt-2">
+            <SectionHeading
+              label="Riwayat Kehadiran"
+              actions={<Input
                 type="month"
                 className="w-40 h-8 text-xs"
                 value={attendanceMonth}
@@ -498,26 +513,26 @@ export default function StudentDetailPage() {
                   setAttendanceMonth(e.target.value);
                   if (e.target.value) fetchAttendance(e.target.value);
                 }}
-              />
-            </div>
+              />}
+            />
 
             {attendanceSummary && (
               <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="rounded-lg border p-2.5 text-center">
                   <p className="text-lg font-bold text-status-present">{attendanceSummary.present}</p>
-                  <p className="text-[10px] text-muted-foreground">Hadir</p>
+                  <p className="text-xs text-muted-foreground">Hadir</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
-                  <p className="text-lg font-bold text-destructive">{attendanceSummary.absent}</p>
-                  <p className="text-[10px] text-muted-foreground">Tidak Hadir</p>
+                  <p className="text-lg font-bold text-status-absent">{attendanceSummary.absent}</p>
+                  <p className="text-xs text-muted-foreground">Tidak Hadir</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
                   <p className="text-lg font-bold text-status-leave">{attendanceSummary.sick}</p>
-                  <p className="text-[10px] text-muted-foreground">Sakit</p>
+                  <p className="text-xs text-muted-foreground">Sakit</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
-                  <p className="text-lg font-bold text-warning">{attendanceSummary.permission}</p>
-                  <p className="text-[10px] text-muted-foreground">Izin</p>
+                  <p className="text-lg font-bold text-status-leave">{attendanceSummary.permission}</p>
+                  <p className="text-xs text-muted-foreground">Izin</p>
                 </div>
               </div>
             )}
@@ -542,19 +557,18 @@ export default function StudentDetailPage() {
               </div>
             )}
           </Card>
-        </TabsContent>
-      </Tabs>
+        </AdminTabsContent>
+      </AdminTabs>
 
-      {/* Guardian Dialog */}
-      <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editingGuardian ? "Edit Wali" : "Tambah Wali"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
+      {/* ---------- Guardian form body (shared) ---------- */}
+      {(() => {
+        const guardianBody = (
+          <div className="space-y-field">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field><FieldLabel>Nama *</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
               <Field>
                 <FieldLabel>Hubungan</FieldLabel>
-                <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })}>
+                <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })} items={{ AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="AYAH">Ayah</SelectItem><SelectItem value="IBU">Ibu</SelectItem>
@@ -563,14 +577,14 @@ export default function StudentDetailPage() {
                 </Select>
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field><FieldLabel>No. HP</FieldLabel><Input value={guardianForm.phone} onChange={e => setGuardianForm({ ...guardianForm, phone: e.target.value })} placeholder="081234567890" /></Field>
               <Field><FieldLabel>WhatsApp</FieldLabel><Input value={guardianForm.whatsapp} onChange={e => setGuardianForm({ ...guardianForm, whatsapp: e.target.value })} placeholder="081234567890" /></Field>
             </div>
             <Field><FieldLabel>Email</FieldLabel><Input type="email" value={guardianForm.email} onChange={e => setGuardianForm({ ...guardianForm, email: e.target.value })} placeholder="email@example.com" /></Field>
 
             <div className="pt-2 border-t"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Pekerjaan</p></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>Pendidikan</FieldLabel>
                 <Select value={guardianForm.education || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, education: v })}>
@@ -602,7 +616,7 @@ export default function StudentDetailPage() {
                 </Select>
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>Penghasilan</FieldLabel>
                 <Select value={guardianForm.incomeRange || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, incomeRange: v })}>
@@ -621,43 +635,80 @@ export default function StudentDetailPage() {
             </div>
             <Field><FieldLabel>Tempat Kerja</FieldLabel><Input value={guardianForm.employer} onChange={e => setGuardianForm({ ...guardianForm, employer: e.target.value })} placeholder="Nama perusahaan / instansi" /></Field>
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        );
+        const guardianTitle = editingGuardian ? "Edit Wali" : "Tambah Wali";
+        // side="right" on mobile: multi-section form (name/contact + pekerjaan subsection, 9 fields)
+        // benefits from full-height surface; bottom sheet would only show ~30% before scroll.
+        return isMobile ? (
+          <Sheet open={guardianDialog} onOpenChange={setGuardianDialog}>
+            <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+              <SheetHeader><SheetTitle>{guardianTitle}</SheetTitle></SheetHeader>
+              <div className="px-4 pb-4">{guardianBody}</div>
+              <SheetFooter>
+                <Button variant="ghost" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
+                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
+            <DialogContent>
+              <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
+              <div>{guardianBody}</div>
+              <DialogFooter>
+                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
-      {/* Enroll Dialog */}
-      <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
-          <div className="py-2">
-            <Field>
-              <FieldLabel>Pilih Kelas *</FieldLabel>
-              <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)}>
-                <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
-                <SelectContent>
-                  {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ---------- Enroll (1 field) — side="bottom" on mobile ---------- */}
+      {(() => {
+        const enrollBody = (
+          <Field>
+            <FieldLabel>Pilih Kelas *</FieldLabel>
+            <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
+              <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
+              <SelectContent>
+                {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+        );
+        return isMobile ? (
+          <Sheet open={enrollDialog} onOpenChange={setEnrollDialog}>
+            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+              <SheetHeader><SheetTitle>Daftarkan ke Kelas</SheetTitle></SheetHeader>
+              <div className="px-4 pb-4">{enrollBody}</div>
+              <SheetFooter>
+                <Button variant="ghost" onClick={() => setEnrollDialog(false)} disabled={enrolling}>Batal</Button>
+                <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
+              <div>{enrollBody}</div>
+              <DialogFooter>
+                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+                <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
-      {/* Promote Dialog */}
-      <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      {/* ---------- Promote (2 fields) — side="bottom" on mobile ---------- */}
+      {(() => {
+        const promoteBody = (
+          <div className="space-y-field">
             <Field>
               <FieldLabel>Kelas Tujuan *</FieldLabel>
-              <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)}>
+              <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
                 <SelectTrigger><SelectValue placeholder="Pilih kelas tujuan..." /></SelectTrigger>
                 <SelectContent>
                   {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
@@ -669,21 +720,39 @@ export default function StudentDetailPage() {
               <Textarea value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
             </Field>
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        );
+        return isMobile ? (
+          <Sheet open={promoteDialog} onOpenChange={setPromoteDialog}>
+            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+              <SheetHeader><SheetTitle>Naik Kelas</SheetTitle></SheetHeader>
+              <div className="px-4 pb-4">{promoteBody}</div>
+              <SheetFooter>
+                <Button variant="ghost" onClick={() => setPromoteDialog(false)} disabled={promoting}>Batal</Button>
+                <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
+              <div>{promoteBody}</div>
+              <DialogFooter>
+                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+                <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Graduate Confirm */}
       <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi GRADUATED dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
 
-      {/* Withdraw Dialog */}
-      <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+      {/* ---------- Withdraw (description + 1 field) — side="bottom" on mobile ---------- */}
+      {(() => {
+        const withdrawBody = (
+          <div className="space-y-field">
             <p className="text-sm text-muted-foreground">
               Mengeluarkan <strong>{student.name}</strong> dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.
             </p>
@@ -692,12 +761,31 @@ export default function StudentDetailPage() {
               <Textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} placeholder="Masukkan alasan pengeluaran siswa..." rows={3} />
             </Field>
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        );
+        return isMobile ? (
+          <Sheet open={withdrawDialog} onOpenChange={setWithdrawDialog}>
+            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+              <SheetHeader><SheetTitle>Keluarkan Siswa</SheetTitle></SheetHeader>
+              <div className="px-4 pb-4">{withdrawBody}</div>
+              <SheetFooter>
+                <Button variant="ghost" onClick={() => setWithdrawDialog(false)} disabled={withdrawing}>Batal</Button>
+                <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
+              <div>{withdrawBody}</div>
+              <DialogFooter>
+                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+                <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       <ConfirmDialog
         open={!!deleteGuardianTarget}

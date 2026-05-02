@@ -1,5 +1,6 @@
 import React from "react";
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
+import { formatRupiah } from "@/lib/format";
 
 const TEAL = "#5DB4B8";
 const DARK = "#1A2E2F";
@@ -222,10 +223,6 @@ const s = StyleSheet.create({
   },
 });
 
-function fmtRp(amount: number): string {
-  return "Rp " + Math.round(amount).toLocaleString("id-ID");
-}
-
 export type SlipData = {
   schoolName: string;
   logoUrl?: string;
@@ -309,12 +306,12 @@ export function SalarySlipPdf({ data }: { data: SlipData }) {
             <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
               <Text style={s.tableNo}>{i + 1}</Text>
               <Text style={s.tableLabel}>{line.label}</Text>
-              <Text style={s.tableAmount}>{fmtRp(line.amount)}</Text>
+              <Text style={s.tableAmount}>{formatRupiah(line.amount)}</Text>
             </View>
           ))}
           <View style={s.subtotalRow}>
             <Text style={[s.subtotalLabel, { paddingLeft: 25 }]}>Total Pendapatan</Text>
-            <Text style={s.subtotalAmount}>{fmtRp(data.totalIncome)}</Text>
+            <Text style={s.subtotalAmount}>{formatRupiah(data.totalIncome)}</Text>
           </View>
 
           {/* Deductions table */}
@@ -330,12 +327,12 @@ export function SalarySlipPdf({ data }: { data: SlipData }) {
                 <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={s.tableNo}>{i + 1}</Text>
                   <Text style={s.tableLabel}>{line.label}</Text>
-                  <Text style={s.tableAmount}>{fmtRp(line.amount)}</Text>
+                  <Text style={s.tableAmount}>{formatRupiah(line.amount)}</Text>
                 </View>
               ))}
               <View style={s.subtotalRow}>
                 <Text style={[s.subtotalLabel, { paddingLeft: 25 }]}>Total Potongan</Text>
-                <Text style={s.subtotalAmount}>{fmtRp(data.totalDeductions)}</Text>
+                <Text style={s.subtotalAmount}>{formatRupiah(data.totalDeductions)}</Text>
               </View>
             </>
           )}
@@ -343,7 +340,7 @@ export function SalarySlipPdf({ data }: { data: SlipData }) {
           {/* Net pay */}
           <View style={s.netBox}>
             <Text style={s.netLabel}>Gaji Bersih</Text>
-            <Text style={s.netAmount}>{fmtRp(data.netPay)}</Text>
+            <Text style={s.netAmount}>{formatRupiah(data.netPay)}</Text>
           </View>
 
           {/* Bank info */}

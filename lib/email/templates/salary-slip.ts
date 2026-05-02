@@ -1,7 +1,14 @@
+import { escapeHtml } from "../escape";
+
+// NOTE: appUrl must remain env-controlled (NEXT_PUBLIC_APP_URL); never pass DB-sourced URLs here without escaping.
+
 /**
  * Branded HTML email template for salary slip delivery.
  * Uses An Nisaa' brand colors: teal #5DB4B8, dark #1A2E2F
  * Inline styles for email client compatibility.
+ *
+ * User-controlled strings (employeeName, period) are HTML-escaped to
+ * prevent script/markup injection from DB-stored values.
  */
 export function salarySlipEmailHtml({
   employeeName,
@@ -10,9 +17,10 @@ export function salarySlipEmailHtml({
 }: {
   employeeName: string;
   period: string;
-  netPay?: string; // kept for backward compat, no longer displayed
   appUrl: string;
 }): string {
+  const safeName = escapeHtml(employeeName);
+  const safePeriod = escapeHtml(period);
   return `
 <!DOCTYPE html>
 <html lang="id">
@@ -35,11 +43,11 @@ export function salarySlipEmailHtml({
       <div style="background:#FFFFFF;padding:28px;border:1px solid #E5E2DE;border-top:none;border-radius:0 0 12px 12px;">
 
         <p style="margin:0 0 20px;color:#1A2E2F;font-size:15px;">
-          Assalamu'alaikum, <strong>${employeeName}</strong>
+          Assalamu'alaikum, <strong>${safeName}</strong>
         </p>
 
         <p style="margin:0 0 20px;color:#57534E;font-size:14px;line-height:1.6;">
-          Slip gaji Anda untuk periode <strong>${period}</strong> telah tersedia. Silakan unduh slip gaji dalam format PDF melalui tautan di bawah ini.
+          Slip gaji Anda untuk periode <strong>${safePeriod}</strong> telah tersedia. Silakan unduh slip gaji dalam format PDF melalui tautan di bawah ini.
         </p>
 
         <!-- CTA Button -->

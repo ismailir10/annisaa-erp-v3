@@ -9,6 +9,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
+import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -91,7 +92,7 @@ function buildColumns(
         const u = row.original;
         return (
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">
                 {(u.name ?? u.email)[0].toUpperCase()}
               </span>
@@ -193,7 +194,7 @@ export default function UsersPage() {
     fetch("/api/roles")
       .then((r) => r.json())
       .then((json) => setRoles(json.data ?? []))
-      .catch(() => { /* non-critical */ });
+      .catch((err) => console.error("[users] roles fetch failed", err));
   }, []);
 
   // Stats fetch
@@ -223,7 +224,7 @@ export default function UsersPage() {
           inactive: i,
         });
       })
-      .catch(() => { /* non-critical */ });
+      .catch((err) => console.error("[users] stats fetch failed", err));
   }, []);
 
   const fetchUsers = useCallback(async () => {
@@ -338,7 +339,7 @@ export default function UsersPage() {
         toast.error(err.error || "Gagal menyimpan");
         return;
       }
-      toast.success("Pengguna berhasil diperbarui");
+      toast.success("Pengguna diperbarui");
       setEditTarget(null);
       fetchUsers();
     } catch {
@@ -419,11 +420,7 @@ export default function UsersPage() {
             label: "Status",
             value: status,
             onChange: handleStatusChange,
-            options: [
-              { value: "all", label: "Semua Status" },
-              { value: "ACTIVE", label: "Aktif" },
-              { value: "INACTIVE", label: "Tidak Aktif" },
-            ],
+            options: ACTIVE_STATUS_OPTIONS,
           },
         ]}
       />
@@ -446,12 +443,12 @@ export default function UsersPage() {
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
       >
-        <DialogContent>
+        <DialogContent className="p-card">
           <DialogHeader>
             <DialogTitle>Edit Pengguna</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <div>
               <p className="text-sm font-medium">{editTarget?.name ?? "—"}</p>
               <p className="text-xs text-muted-foreground">
@@ -461,7 +458,7 @@ export default function UsersPage() {
 
             <Field>
               <FieldLabel>Peran Kustom</FieldLabel>
-              <Select value={editRoleId} onValueChange={(v) => v && setEditRoleId(v)}>
+              <Select value={editRoleId} onValueChange={(v) => v && setEditRoleId(v)} items={[{ label: "Tanpa peran kustom", value: "none" }, ...roles.map((r) => ({ label: r.name, value: r.id }))]}>
                 <SelectTrigger>
                   <SelectValue placeholder="Pilih peran" />
                 </SelectTrigger>

@@ -15,6 +15,19 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh`.
 4. **Current cycle doc?** Find the most recent `docs/cycles/*.md`. If its Tasks section is empty or missing, tell the user to run `/spec` first.
 5. **Working tree clean?** If not, ask whether to commit existing work, stash it, or abort. Never silently inherit someone else's dirty state.
+6. **Base branch fresh?** Run `git fetch origin staging` and `git rev-list --count $(git merge-base HEAD origin/staging)..origin/staging`. If the count is >5, stop and tell the user: *"This cycle branch is behind origin/staging by <N> commits. Rebase before building: `git fetch origin staging && git rebase origin/staging`."* Do not proceed until the user resolves. This prevents shipping a PR built on a stale base that will conflict at merge time.
+
+## Planning — subagent dispatch decision
+
+Before entering the loop, invoke **`superpowers:subagent-driven-development`** to classify the cycle's tasks:
+
+- **Independent tasks** (no shared files, no sequential deps) → dispatch in parallel via subagents.
+- **Sequential tasks** (shared state, ordering matters) → execute inline in the loop below.
+
+Record the classification as a bullet in the cycle doc's `## Implementation` section before starting:
+`- Subagent plan: tasks [N,M] dispatched in parallel; tasks [X,Y,Z] sequential.`
+
+If all tasks are sequential, note that and proceed.
 
 ## The task loop
 
@@ -22,6 +35,19 @@ For each unchecked task in the cycle doc's `## Tasks` section, in order:
 
 ### 1. Load context
 Apply **`agent-skills:context-engineering`**. Read only the files this task needs. Check prior cycles in `docs/cycles/` if the area was recently touched.
+
+**Domain standards — load on demand.** For each task, identify which `.claude/standards/*.md` files the task's file list matches and read them before implementing. Load the **union** of matches — not the most specific — and re-check on every task (a previous task's loads do not carry forward).
+
+| Staged file glob | Load |
+|---|---|
+| `components/**`, `app/*/page.tsx`, `lib/format.ts` | `.claude/standards/ui.md` |
+| `app/api/**`, `lib/validations/**`, `middleware.ts` | `.claude/standards/api.md` + `.claude/standards/security.md` |
+| `app/admin/**` **and** file contains `<Dialog` / `FormField` / `<Field` / a create-or-edit form pattern | **+** `.claude/standards/crud.md` |
+| `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` | **+** `.claude/standards/portal.md` |
+| `app/globals.css`, `tailwind.config.*`, className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`) | **+** `.claude/standards/colors.md` |
+| `lib/auth*`, `middleware.ts` | **+** `.claude/standards/security.md` |
+
+If a task touches files in multiple categories, load all matching standards files (e.g. an admin CRUD form that posts to an API route loads `ui.md` + `crud.md` + `api.md` + `security.md`).
 
 ### 2. Verify against official docs (when relevant)
 If the task uses a framework, library, or API whose current behavior you're not 100% sure of, apply **`agent-skills:source-driven-development`**:
@@ -53,9 +79,16 @@ If either fails, apply **`agent-skills:debugging-and-error-recovery`**:
 
 Do **not** move to the next task until this task's gates pass.
 
-### 6. Review and simplify
-- **`agent-skills:code-review-and-quality`** on the task's diff — correctness, readability, architecture, security, performance.
-- **`agent-skills:code-simplification`** — reduce complexity without changing behavior.
+### 6. Review and simplify (mandatory agent pass)
+
+Before committing, dispatch the **`feature-dev:code-reviewer`** agent on the task's staged diff. Prompt must include: task title, files touched, cycle doc path. Agent returns high-confidence issues only.
+
+- **Blocker / high-confidence bug or security issue** → fix in this task, re-run gates, re-review. Do not commit until clean.
+- **Low-confidence or style nits** → note in the cycle doc's Implementation bullet; do not block the commit.
+
+Then apply **`agent-skills:code-simplification`** inline — reduce complexity without changing behavior.
+
+For security-sensitive diffs (`app/api/**`, `lib/auth*`, `middleware.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
 
 ### 7. Update the cycle doc
 Edit the cycle doc:
@@ -68,7 +101,7 @@ Do not create any other markdown file.
 **JTBD library maintenance:** If this task added, removed, or materially changed a user-facing capability in admin/teacher/parent portal, update the relevant `docs/uat/jobs/<portal>.md`. Add, remove, or edit affected JTBD entries. Bump the "Last audited" date. This is manual discipline — no hook enforces it, but stale jobs make `/uat` produce stale reports.
 
 ### 8. Commit
-Create **one commit for this task**. Subject starts with the task title. Body is brief — the cycle doc has the details. The `prepare-commit-msg` hook auto-appends `Model-Trailer` and `Role`, but include them explicitly when building the HEREDOC as a belt-and-suspenders measure:
+Create **one commit for this task**. Subject starts with the task title. Body is brief — the cycle doc has the details. The `prepare-commit-msg` hook auto-appends `Model-Trailer`, `Role`, and `Co-Authored-By` — do NOT include them in the HEREDOC; duplicating them creates doubled trailers in the final commit:
 
 ```bash
 git add <files-touched> docs/cycles/<current-cycle>.md
@@ -102,3 +135,4 @@ Then move to the next task.
 - **Cycle doc is the only markdown you touch.** If you feel the urge to create `NOTES.md`, resist — the pre-commit hook will reject it anyway.
 - **Scope discipline.** Touch only what the tasks require. Don't refactor adjacent code.
 - **If the spec is wrong, stop.** Don't silently adjust the spec — ask the user or update `/spec`'s output.
+- **No commit without a code-reviewer pass.** Every task commit must be preceded by a `feature-dev:code-reviewer` agent pass on the staged diff. Security-sensitive diffs require `superpowers:code-reviewer` too. Unreviewed commits violate the workflow and must be amended.

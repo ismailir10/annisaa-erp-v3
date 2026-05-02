@@ -33,6 +33,12 @@ jobs:
       - name: Unit tests
         run: npx vitest run
 
+      - name: RLS coverage guard
+        run: bash scripts/verify-rls-coverage.sh
+
+      - name: API auth coverage guard
+        run: bash scripts/verify-api-auth.sh
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -93,8 +99,13 @@ jobs:
         env:
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
 
-      - name: Run migrations
-        run: npx prisma migrate deploy
+      # db push --force-reset is safe here: the Postgres above is a
+      # disposable CI service container (dropped at job end). NEVER
+      # use --force-reset against staging or prod — it DROPs and
+      # recreates every table. Production migrations run through
+      # `prisma migrate deploy` via scripts/vercel-build.sh.
+      - name: Push schema to CI database
+        run: npx prisma db push --force-reset
         env:
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
 
@@ -119,6 +130,11 @@ jobs:
           DEMO_MODE: "true"
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
           NEXTAUTH_SECRET: "ci-e2e-dummy-secret"
+          # Xendit sandbox key — `xnd_development_*` prefix. Without this
+          # the admin tagihan tests (admin.spec.ts:429-706) fail with
+          # INVALID_API_KEY because lib/xendit/client.ts hits the live
+          # Xendit API even on test data. Repo secret, not env-scoped.
+          XENDIT_SECRET_KEY: ${{ secrets.XENDIT_SECRET_KEY }}
 
       - name: Upload Playwright report on failure
         if: failure()

@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
-# pre-commit — enforce one-file-per-cycle + doc sync
+# pre-commit — enforce one-file-per-cycle + doc sync + seed drift + frontend gate + portal text-size floor + ADR cell length
 #
-# Two rules:
+# Six rules:
 #  1. Markdown allowlist: any staged .md file must be in the allowlist below.
 #     The allowlist is: README.md, CLAUDE.md, LICENSE.md at repo root;
 #     anything under docs/, .github/, .claude/, .agent-skills/.
 #  2. Doc sync: if any staged file touches app/, components/, lib/, prisma/,
 #     app/api/ — then the commit must also stage README.md, CLAUDE.md, or a
 #     docs/cycles/*.md file.
+#  3. Seed drift: if prisma/seed.ts is staged, lib/db.ts must also be staged.
+#     This forces authors to keep the seed's Prisma adapter in sync with lib/db.ts.
+#  4. Frontend gate: if a staged file is frontend (app/**/*.{tsx,css},
+#     components/**/*.tsx, tailwind.config.*), the staged cycle doc MUST
+#     contain the literal token "design-system" somewhere. Forces authors
+#     to cross-check .claude/standards/design-system.html — the canonical
+#     visual reference — and cite it in the cycle doc Verification section.
+#  5. Portal text-size floor: added lines in app/parent/**, components/parent/**,
+#     or components/portal/** must not introduce text-[9px|10px|11px]. The
+#     portal.md §68-72 floor is text-xs (12 px). Codified 2026-04-24 in
+#     cycle parent-portal-text-size-sweep after comprehensive review flagged
+#     35+ regressions that breached the standard.
+#  6. ADR cell length: when README.md is staged, every cell in the
+#     ## Architecture Decisions table must be ≤ 400 chars. Forces ADRs to
+#     stay terse — long narrative belongs in the linked cycle doc.
 #
 # Bypass: git commit --no-verify (discouraged; GitHub branch protection on
 # staging/main is the real enforcement layer).
@@ -82,6 +97,166 @@ if [ "$TOUCHES_CODE" = "1" ] && [ "$TOUCHES_DOC" = "0" ]; then
   echo "  This is enforced so docs stay in sync with code. The /build and /ship" >&2
   echo "  slash commands update the cycle doc automatically — use them." >&2
   exit 1
+fi
+
+# ---------- Rule 3: Seed drift prevention ----------
+# If prisma/seed.ts is staged, lib/db.ts must also be staged.
+# The seed and lib/db.ts must use the same Prisma adapter — a drift causes CI failures.
+SEED_TOUCHED=0
+DB_TOUCHED=0
+while IFS= read -r f; do
+  case "$f" in
+    prisma/seed.ts) SEED_TOUCHED=1 ;;
+    lib/db.ts) DB_TOUCHED=1 ;;
+  esac
+done <<EOF
+$STAGED
+EOF
+
+if [ "$SEED_TOUCHED" = "1" ] && [ "$DB_TOUCHED" = "0" ]; then
+  echo "pre-commit: prisma/seed.ts is staged but lib/db.ts is not." >&2
+  echo "" >&2
+  echo "  These two files MUST use the same Prisma adapter. If you change the" >&2
+  echo "  seed, you must also stage lib/db.ts (even if unchanged) to confirm" >&2
+  echo "  you've verified adapter parity." >&2
+  echo "" >&2
+  echo "  Fix: git add lib/db.ts" >&2
+  exit 1
+fi
+
+# ---------- Rule 4: Frontend gate ----------
+# If a staged file is frontend, the staged cycle doc(s) MUST mention
+# "design-system" somewhere. This forces authors to cross-check
+# .claude/standards/design-system.html before shipping frontend changes.
+TOUCHES_FRONTEND=0
+STAGED_CYCLE_DOCS=""
+while IFS= read -r f; do
+  case "$f" in
+    app/*.tsx|app/**/*.tsx) TOUCHES_FRONTEND=1 ;;
+    app/*.css|app/**/*.css) TOUCHES_FRONTEND=1 ;;
+    components/*.tsx|components/**/*.tsx) TOUCHES_FRONTEND=1 ;;
+    tailwind.config.ts|tailwind.config.js|tailwind.config.mjs|tailwind.config.cjs) TOUCHES_FRONTEND=1 ;;
+  esac
+  case "$f" in
+    docs/cycles/*.md) STAGED_CYCLE_DOCS="$STAGED_CYCLE_DOCS $f" ;;
+  esac
+done <<EOF
+$STAGED
+EOF
+
+if [ "$TOUCHES_FRONTEND" = "1" ]; then
+  # Scan the contents of every staged cycle doc for the token. We read the
+  # working-tree version (not the staged blob) — authors typically write the
+  # cycle doc and stage it whole, so disk ≈ staged. If someone partial-stages
+  # a doc without the token, --no-verify is the escape hatch.
+  FOUND=0
+  if [ -n "$STAGED_CYCLE_DOCS" ]; then
+    for doc in $STAGED_CYCLE_DOCS; do
+      if [ -f "$doc" ] && grep -q -i 'design-system' "$doc"; then
+        FOUND=1
+        break
+      fi
+    done
+  fi
+
+  if [ "$FOUND" = "0" ]; then
+    echo "pre-commit: frontend change missing design-system cross-check." >&2
+    echo "" >&2
+    echo "  Staged frontend files (app/**/*.tsx, components/**/*.tsx, app/**/*.css," >&2
+    echo "  tailwind.config.*) must be cross-checked against the canonical visual" >&2
+    echo "  reference at .claude/standards/design-system.html." >&2
+    echo "" >&2
+    echo "  Fix: add a one-line bullet to the cycle doc's Verification section:" >&2
+    echo "" >&2
+    echo "    - [x] Cross-checked design-system.html §<section> for <concern>." >&2
+    echo "" >&2
+    echo "  Any mention of the literal token 'design-system' in a staged cycle doc" >&2
+    echo "  satisfies the gate. See CLAUDE.md § Frontend gate for rationale." >&2
+    echo "" >&2
+    echo "  Bypass: git commit --no-verify (expect PR review pushback)." >&2
+    exit 1
+  fi
+fi
+
+# ---------- Rule 5: Portal text-size floor ----------
+# Added lines in app/parent/**, components/parent/**, components/portal/**
+# must not introduce text-[9px], text-[10px], or text-[11px]. Minimum
+# portal text size per .claude/standards/portal.md §68-72 is text-xs (12 px).
+BAD_TEXT_SIZES=""
+while IFS= read -r f; do
+  case "$f" in
+    app/parent/*|components/parent/*|components/portal/*) ;;
+    *) continue ;;
+  esac
+  # Inspect added lines only (leading '+' but not '+++' diff headers).
+  hits=$(git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | grep -E 'text-\[(9|10|11)px\]' || true)
+  if [ -n "$hits" ]; then
+    BAD_TEXT_SIZES="${BAD_TEXT_SIZES}
+  $f:
+$(printf '%s' "$hits" | sed 's/^/    /')"
+  fi
+done <<EOF
+$STAGED
+EOF
+
+if [ -n "$BAD_TEXT_SIZES" ]; then
+  echo "pre-commit: banned below-floor text sizes in parent/portal scope." >&2
+  printf '%s\n' "$BAD_TEXT_SIZES" >&2
+  echo "" >&2
+  echo "  text-[9px], text-[10px], and text-[11px] are banned under:" >&2
+  echo "    app/parent/**, components/parent/**, components/portal/**" >&2
+  echo "" >&2
+  echo "  Floor is text-xs (12 px). Rationale: .claude/standards/portal.md" >&2
+  echo "  §68-75 (target PAUD/TKIT parent personas on mid-range Android +" >&2
+  echo "  WCAG AA on muted-foreground at small sizes)." >&2
+  echo "" >&2
+  echo "  Fix: replace with text-xs. Loosen surrounding layout if 12 px feels" >&2
+  echo "  too dense — don't shrink text below the floor." >&2
+  exit 1
+fi
+
+# ---------- Rule 6: ADR cell length ----------
+# When README.md is staged, scan its ## Architecture Decisions table and
+# reject if any data cell exceeds 400 chars. Forces ADR brevity — long
+# narrative belongs in the linked cycle doc, not the row.
+README_STAGED=0
+while IFS= read -r f; do
+  [ "$f" = "README.md" ] && README_STAGED=1
+done <<EOF
+$STAGED
+EOF
+
+if [ "$README_STAGED" = "1" ] && [ -f README.md ]; then
+  ADR_VIOLATIONS=$(awk '
+    /^## Architecture Decisions/ { in_adr = 1; next }
+    /^## / && in_adr { in_adr = 0 }
+    in_adr && /^\|/ {
+      # Skip header row and separator row
+      if ($0 ~ /^\| ?Date ?\|/) next
+      if ($0 ~ /^\|[[:space:]]*-/) next
+      n = split($0, cells, "|")
+      for (i = 2; i < n; i++) {
+        cell = cells[i]
+        gsub(/^[[:space:]]+/, "", cell); gsub(/[[:space:]]+$/, "", cell)
+        if (length(cell) > 400) {
+          datetag = cells[2]
+          gsub(/^[[:space:]]+/, "", datetag); gsub(/[[:space:]]+$/, "", datetag)
+          print "    row " datetag ": cell " (i-1) " is " length(cell) " chars"
+        }
+      }
+    }
+  ' README.md)
+
+  if [ -n "$ADR_VIOLATIONS" ]; then
+    echo "pre-commit: ADR table cell exceeds 400 chars." >&2
+    printf '%s\n' "$ADR_VIOLATIONS" >&2
+    echo "" >&2
+    echo "  Each ADR cell must be ≤ 2 sentences + cycle link. Long narrative" >&2
+    echo "  belongs in the linked cycle doc — not the ADR row." >&2
+    echo "" >&2
+    echo "  Fix: trim the cell and link the cycle doc for detail." >&2
+    exit 1
+  fi
 fi
 
 exit 0

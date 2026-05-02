@@ -1,3 +1,4 @@
+// @public — no session required; clears Supabase + demo cookies.
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";

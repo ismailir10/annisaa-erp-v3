@@ -3,6 +3,7 @@
 import { StatCard } from "@/components/admin/stat-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Users, UserCheck, Clock, UserX, CalendarOff, Banknote, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -32,7 +33,7 @@ export function DashboardClient({
   const maxTrendValue = Math.max(...weeklyTrend.map((d) => d.present + d.late + d.absent), 1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-section">
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Total Karyawan" value={totalEmployees} sublabel="aktif" icon={Users} color="primary" index={0} />
@@ -50,7 +51,7 @@ export function DashboardClient({
           transition={{ delay: 0.3 }}
           className="lg:col-span-2"
         >
-          <Card className="p-5">
+          <Card className="p-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold">Tren Kehadiran (7 Hari Terakhir)</h3>
               <Link href="/admin/attendance" className="text-xs text-primary hover:underline flex items-center gap-1">
@@ -90,12 +91,12 @@ export function DashboardClient({
                         title={`Hadir: ${day.present}`}
                       />
                     </div>
-                    <span className="text-[9px] text-muted-foreground">{dayLabel}</span>
+                    <span className="text-caption text-muted-foreground">{dayLabel}</span>
                   </div>
                 );
               })}
             </div>
-            <div className="flex items-center gap-4 mt-3 text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-present" /> Hadir</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-late/60" /> Terlambat</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-status-absent/40" /> Tidak Hadir</span>
@@ -109,7 +110,7 @@ export function DashboardClient({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
-          <Card className="p-5 h-full flex flex-col">
+          <Card className="p-card h-full flex flex-col">
             <h3 className="text-sm font-semibold mb-4">Perlu Tindakan</h3>
             <div className="flex-1 space-y-3">
               {/* Pending leave */}
@@ -120,13 +121,13 @@ export function DashboardClient({
                   </div>
                   <div>
                     <p className="text-xs font-medium">Pengajuan Cuti</p>
-                    <p className="text-[10px] text-muted-foreground">Menunggu persetujuan</p>
+                    <p className="text-xs text-muted-foreground">Menunggu persetujuan</p>
                   </div>
                 </div>
                 {pendingLeave > 0 ? (
-                  <Badge className="bg-warning text-white text-[10px]">{pendingLeave}</Badge>
+                  <Badge className="bg-warning text-white text-xs">{pendingLeave}</Badge>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground">0</span>
+                  <span className="text-xs text-muted-foreground">0</span>
                 )}
               </Link>
 
@@ -134,19 +135,17 @@ export function DashboardClient({
               {canSeeSalary && (
               <Link href="/admin/payroll" className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
                     <Banknote size={16} className="text-primary" />
                   </div>
                   <div>
                     <p className="text-xs font-medium">Penggajian Terakhir</p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {lastPayroll ? lastPayroll.period : "Belum ada"}
                     </p>
                   </div>
                 </div>
-                {lastPayroll && (
-                  <Badge variant="secondary" className="text-[10px]">{lastPayroll.status}</Badge>
-                )}
+                {lastPayroll && <StatusBadge status={lastPayroll.status} />}
               </Link>
               )}
             </div>
@@ -161,10 +160,10 @@ export function DashboardClient({
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {[
-            ...(canSeeSalary ? [{ label: "Jalankan Penggajian", href: "/admin/payroll/new", emoji: "💰" }] : []),
+            ...(canSeeSalary ? [{ label: "Jalankan Penggajian", href: "/admin/payroll?create=1", emoji: "💰" }] : []),
             { label: "Lihat Kehadiran", href: "/admin/attendance", emoji: "📋" },
             { label: "Pengajuan Cuti", href: "/admin/leave", emoji: "📝" },
-            { label: "Tambah Karyawan", href: "/admin/employees/new", emoji: "👤" },
+            { label: "Tambah Karyawan", href: "/admin/employees?create=1", emoji: "👤" },
           ].map((action, i) => (
             <motion.div
               key={action.href}

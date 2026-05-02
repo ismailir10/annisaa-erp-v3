@@ -31,7 +31,7 @@ import {
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Shield, ShieldCheck, Lock } from "lucide-react";
-import { PERMISSION_GROUPS, getSystemRolePermissions } from "@/lib/permissions";
+import { PERMISSION_GROUPS, getSystemRolePermissions, ALL_PERMISSIONS } from "@/lib/permissions";
 import { toast } from "sonner";
 
 // ------------------------------------------------------------------
@@ -54,9 +54,16 @@ type RoleRow = {
 
 const SYSTEM_ROLES = [
   {
+    role: "SUPER_ADMIN",
+    name: "Super Admin",
+    description: "Akses penuh termasuk SDM, gaji, dan data karyawan",
+    icon: ShieldCheck,
+    color: "text-primary" as const,
+  },
+  {
     role: "SCHOOL_ADMIN",
     name: "Admin Sekolah",
-    description: "Akses penuh ke semua fitur sistem",
+    description: "Akses penuh kecuali modul SDM (karyawan, gaji, cuti, kehadiran)",
     icon: ShieldCheck,
     color: "text-primary" as const,
   },
@@ -78,7 +85,7 @@ const SYSTEM_ROLES = [
 
 function SystemRoleCards() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
       {SYSTEM_ROLES.map((sr) => {
         const perms = getSystemRolePermissions(sr.role);
         return (
@@ -93,7 +100,7 @@ function SystemRoleCards() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold">{sr.name}</h3>
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-xs">
                     <Lock size={10} className="mr-1" />
                     Bawaan
                   </Badge>
@@ -104,7 +111,7 @@ function SystemRoleCards() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              {perms.length === Object.values(PERMISSION_GROUPS).flatMap((g) => Object.keys(g.permissions)).length
+              {perms.length === ALL_PERMISSIONS.length
                 ? "Semua izin"
                 : `${perms.length} izin`}
             </p>
@@ -354,7 +361,7 @@ export default function RolesPage() {
         toast.error(err.error || "Gagal menyimpan");
         return;
       }
-      toast.success(editTarget ? "Peran berhasil diperbarui" : "Peran berhasil dibuat");
+      toast.success(editTarget ? "Peran diperbarui" : "Peran dibuat");
       setDialogOpen(false);
       fetchRoles();
     } catch {
@@ -377,7 +384,7 @@ export default function RolesPage() {
         toast.error(err.error || "Gagal menghapus");
         return;
       }
-      toast.success("Peran berhasil dihapus");
+      toast.success("Peran dihapus");
       setDeleteTarget(null);
       fetchRoles();
     } catch {
@@ -440,14 +447,14 @@ export default function RolesPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="p-card max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editTarget ? "Edit Peran" : "Tambah Peran"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-field py-2">
             <Field>
               <FieldLabel>Nama Peran</FieldLabel>
               <Input
