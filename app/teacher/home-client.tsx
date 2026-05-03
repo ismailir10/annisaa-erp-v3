@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, BookHeart } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/portal/page-header";
 import { formatDate, formatTime } from "@/lib/format";
@@ -15,6 +14,28 @@ type TodayRecord = {
   checkInTime: string | null;
   checkOutTime: string | null;
 };
+
+/** Pure helper: derive optimistic next state for the status card.
+ *  Exported for unit testing — no React, no fetch, no side effects.
+ */
+export function nextStateAfterAction(
+  record: TodayRecord | null,
+  action: "check-in" | "check-out"
+): TodayRecord {
+  const now = new Date().toISOString();
+  if (action === "check-in") {
+    return {
+      status: "PRESENT",
+      checkInTime: record?.checkInTime ?? now,
+      checkOutTime: record?.checkOutTime ?? null,
+    };
+  }
+  return {
+    status: record?.status ?? "PRESENT",
+    checkInTime: record?.checkInTime ?? now,
+    checkOutTime: record?.checkOutTime ?? now,
+  };
+}
 
 export function TeacherHomeClient({
   userName,
@@ -28,6 +49,7 @@ export function TeacherHomeClient({
   const [time, setTime] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [gpsStatus, setGpsStatus] = useState<string>("Menunggu...");
 
   // Live clock
@@ -35,6 +57,13 @@ export function TeacherHomeClient({
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-clear inline error after 5 s
+  useEffect(() => {
+    if (!actionError) return;
+    const t = setTimeout(() => setActionError(null), 5000);
+    return () => clearTimeout(t);
+  }, [actionError]);
 
   const getGPS = useCallback((): Promise<{ lat: number; lng: number } | null> => {
     return new Promise((resolve) => {
@@ -62,9 +91,20 @@ export function TeacherHomeClient({
   const hasCheckedOut = !!record?.checkOutTime;
 
   async function handleAction() {
+    if (loading) return;
     setLoading(true);
+    setActionError(null);
+
+    // Determine action before any await so the optimistic state is correct
+    const action: "check-in" | "check-out" = hasCheckedIn ? "check-out" : "check-in";
+    const endpoint = action === "check-out" ? "/api/attendance/check-out" : "/api/attendance/check-in";
+
+    // --- OPTIMISTIC FLIP --- flip the card BEFORE GPS capture + network
+    const previousRecord = record;
+    setRecord(nextStateAfterAction(record, action));
+
+    // GPS capture (may be denied → undefined coords; POST still fires — unchanged)
     const gps = await getGPS();
-    const endpoint = hasCheckedIn ? "/api/attendance/check-out" : "/api/attendance/check-in";
 
     const res = await fetch(endpoint, {
       method: "POST",
@@ -74,18 +114,19 @@ export function TeacherHomeClient({
 
     if (res.ok) {
       const data = await res.json();
+      // Confirm with server-authoritative values
       setRecord({
         status: data.status,
         checkInTime: data.checkInTime,
         checkOutTime: data.checkOutTime,
       });
-      setSuccess(hasCheckedIn ? "Pulang tercatat" : "Clock-in tersimpan");
+      setSuccess(action === "check-out" ? "Pulang tercatat" : "Clock-in tersimpan");
       setTimeout(() => setSuccess(null), 2000);
       router.refresh();
     } else {
-      const data = await res.json().catch(() => ({}));
-      setSuccess(null);
-      toast.error(data.error || "Absensi tidak tersimpan. Coba ketuk ulang ya.");
+      // Revert optimistic state on failure
+      setRecord(previousRecord);
+      setActionError("Gagal mencatat absensi. Coba lagi sebentar.");
     }
     setLoading(false);
   }
@@ -180,6 +221,22 @@ export function TeacherHomeClient({
             ? "Ketuk untuk mencatat kepulangan"
             : "Ketuk untuk mulai absensi"}
         </p>
+
+        {/* Inline error (voice.md: supportive, non-blame) */}
+        <AnimatePresence>
+          {actionError && (
+            <motion.p
+              key="action-error"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mt-3 text-xs text-status-late-text text-center px-4"
+              role="alert"
+            >
+              {actionError}
+            </motion.p>
+          )}
+        </AnimatePresence>
 
         {/* GPS info */}
         <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
