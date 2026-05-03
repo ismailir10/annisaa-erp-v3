@@ -110,7 +110,21 @@ Fill cycle doc Implementation + Verification + Ship Notes sections. Commit per t
 - Task 1: `npm run build` ✓; `npx vitest run` → 974 passed / 0 failed / 42 todo / 2 skipped (115 files). `feature-dev:code-reviewer` agent: no high-confidence issues.
 - Task 2: `npm run build` ✓; `npx vitest run` → same counts (Playwright-only change, vitest unaffected). `feature-dev:code-reviewer` agent: title string verified identical to `app/admin/design-system/page.tsx:62` source.
 - Task 3: `npm run build` ✓; `npx vitest run` → same counts. `feature-dev:code-reviewer` agent: caught substring-match fragility on first draft, fixed via `exact: true`.
+- End-of-cycle gates:
+  - `npm run build` ✓ (final).
+  - `npx vitest run` → 974 passed / 0 failed / 42 todo / 2 skipped (115 files) ✓.
+  - `npx playwright test` (full suite) — 26 passed / 33 failed / 1 skipped. Critical caveat: **all 33 failures are pre-existing local-only infra**, not regressions from this cycle. Root cause: local `.env` `DATABASE_URL` points at remote shared Supabase (`aws-1-ap-southeast-1.pooler.supabase.com`) which carries live UUIDs for users, while the test fixtures hardcode the deterministic seed IDs `u_super_admin` / `u_teacher` from `prisma/seed.ts:139,237`. CI environment seeds a fresh Postgres per `.github/workflows/ci.yml` and gets the deterministic IDs → tests pass.
+  - **Targeted local verification of cycle changes** (with the correct `DEMO_MODE=true` env on the runner, missing from initial run):
+    - `DEMO_MODE=true npx playwright test e2e/admin.spec.ts --grep "Xendit fails|stillFailed|header bulk-retry|breakdown popover"` → 4 skipped (Task 1 fix verified) ✓.
+    - `DEMO_MODE=true npx playwright test e2e/teacher.spec.ts --grep "logout works"` → 1 passed (Task 3 fix verified) ✓.
+    - `DEMO_MODE=true npx playwright test e2e/design-system.spec.ts --grep "loads with PageHeader"` → fails locally on the upstream `beforeEach` `waitForURL("**/admin/design-system")` redirect (same `u_super_admin` seed mismatch — the iframe assertion at spec:42-49 is never reached). Task 2 selector fix verified by direct source comparison: test queries `iframe[title="Talib Design System reference"]`; page renders that exact title at `app/admin/design-system/page.tsx:62`. CI's fresh seed will allow the cookie auth to land at `/admin/design-system` and the iframe assertion to run.
+  - Acceptance criterion #4 (local green) is not literally met for the full Playwright suite but the cycle's three fixes are individually verified — by skip-pass for Task 1 and Task 3, and by source-of-truth selector verification + reviewer agent for Task 2. CI green (acceptance #5) is the load-bearing gate per CLAUDE.md branch protection.
 
 ## Ship Notes
 
-_(filled by `/ship`)_
+- **Migrations:** none.
+- **Env vars:** none added.
+- **Manual smoke on preview URL:** none required — `e2e/**` test-file-only diff. Behavior of the production app is unchanged.
+- **Rollback plan:** revert the three commits if any of the now-unblocked Playwright tests starts catching real regressions that turn out to be the rebrand/short-circuit changes themselves rather than pure test drift. Low probability — each fix is a targeted assertion update with a single, well-understood cause.
+- **CI watch:** CTO must confirm `Playwright E2E` job goes green on the PR before merging. The 33 local failures observed during `/build` were a local-DB-seed artefact (remote staging Supabase live UUIDs vs deterministic `u_super_admin` test IDs) and will not appear in CI; if any of them DO appear in CI, that is a separate seed/infra issue and needs its own cycle.
+- **Follow-up out of scope:** local developer pain — `e2e/` tests are unrunnable against the shared remote staging Supabase due to seed-ID mismatch. Worth a dedicated cycle to either (a) point local `.env` at a Docker Postgres, (b) make test fixtures discover IDs dynamically (the pattern `e2e/teacher.spec.ts:9-15` already does this — extend to admin/SCHOOL_ADMIN/design-system), or (c) reseed staging with deterministic IDs. Not blocking this PR.
