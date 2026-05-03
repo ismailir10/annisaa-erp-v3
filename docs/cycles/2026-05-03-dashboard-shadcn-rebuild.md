@@ -101,6 +101,10 @@ Code review fixed four issues post-merge:
 - **UTC timezone bug** carried over from the deleted client: `today.toISOString().split("T")[0]` returns UTC, so a server in UTC saw the previous calendar day during 00:00–07:00 WIB, blanking the dashboard. Replaced with `Date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" })` for both `todayStr` and the weekday cursor.
 - **`PayrollRowWithCount` type alias** hoisted from mid-function-body to module scope for readability.
 
+### Task 4 — `revalidateTag` in `lib/audit.ts` ✅
+
+Added `import { revalidateTag } from "next/cache"` to `lib/audit.ts` and a single `revalidateTag("activity-feed", { expire: 0 })` call inside the `try` block immediately after `client.auditLog.create(...)` succeeds. The call runs for both the standalone path and the transactional (`tx`) path because both share the same `try` body. No invalidation occurs on the error path — the `catch` block is unchanged (standalone path swallows the error; transactional path re-throws). Also added a global `next/cache` mock to `vitest.setup.ts` (no-op stubs for `revalidateTag`, `revalidatePath`, `unstable_cache`) so that route-level tests exercising `recordAudit` don't throw "static generation store missing" outside Next.js request context. Two new test cases added to `lib/__tests__/audit.test.ts`: one confirms `revalidateTag` is called with `("activity-feed", { expire: 0 })` on success; one confirms it is not called when the standalone create fails. Total test count: 984 (982 before + 2 new).
+
 ## Verification
 
 (populated end-of-cycle once `npm run build && npx vitest run && npx playwright test` all green; will explicitly cross-check against `design-system` reference)

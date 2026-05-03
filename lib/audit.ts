@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
@@ -43,6 +44,7 @@ export async function recordAudit(
         after: entry.after,
       },
     });
+    revalidateTag("activity-feed", { expire: 0 });
   } catch (err) {
     if (tx) throw err;
     console.error("[audit] failed to record entry", { entry, err });

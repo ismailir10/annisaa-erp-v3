@@ -8,8 +8,13 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("next/cache", () => ({
+  revalidateTag: vi.fn(),
+}));
+
 import { recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
+import { revalidateTag } from "next/cache";
 
 describe("recordAudit", () => {
   beforeEach(() => {
@@ -102,5 +107,31 @@ describe("recordAudit", () => {
         txClient
       )
     ).rejects.toThrow("FK violation");
+  });
+
+  it("invalidates the activity-feed cache tag after a successful create", async () => {
+    (prisma.auditLog.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    await recordAudit({
+      tenantId: "t1",
+      actorId: "u1",
+      entity: "Invoice",
+      entityId: "inv1",
+      action: "create",
+    });
+    expect(revalidateTag).toHaveBeenCalledWith("activity-feed", { expire: 0 });
+  });
+
+  it("does not invalidate the cache tag when the standalone create fails", async () => {
+    (prisma.auditLog.create as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("db down")
+    );
+    await recordAudit({
+      tenantId: "t1",
+      actorId: "u1",
+      entity: "Invoice",
+      entityId: "inv1",
+      action: "create",
+    });
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 });
