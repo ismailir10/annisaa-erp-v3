@@ -102,16 +102,21 @@ export async function PUT(
   try {
     await prisma.$transaction(
       async (tx) => {
-        if (scores?.length) {
+        // `scores: undefined` → caller is only updating status; leave rows alone.
+        // `scores: []` → caller has cleared every indicator; delete only.
+        // `scores: [...]` → replace existing set with the new payload.
+        if (scores) {
           await tx.studentAssessmentScore.deleteMany({ where: { assessmentId: id } });
-          await tx.studentAssessmentScore.createMany({
-            data: scores.map((s) => ({
-              assessmentId: id,
-              indicatorId: s.indicatorId,
-              score: s.score,
-              notes: s.notes ?? null,
-            })),
-          });
+          if (scores.length) {
+            await tx.studentAssessmentScore.createMany({
+              data: scores.map((s) => ({
+                assessmentId: id,
+                indicatorId: s.indicatorId,
+                score: s.score,
+                notes: s.notes ?? null,
+              })),
+            });
+          }
         }
 
         if (newStatus) {
