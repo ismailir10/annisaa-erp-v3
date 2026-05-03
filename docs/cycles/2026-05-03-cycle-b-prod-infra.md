@@ -57,7 +57,7 @@ No UAT reports overlap (most recent: `parent` + `student-journal`, unrelated to 
 
 Task = one commit. Between-task gate: `npm run build && npx vitest run`. Dependencies marked `(depends: T#)`. Tasks without dependency marker can run independently → `/build` may dispatch as parallel subagents.
 
-- [ ] **T1: Apply prisma migrations to prod Supabase**
+- [~] **T1: Apply prisma migrations to prod Supabase** *(Phase 2 — user-driven, deferred to follow-up cycle Cycle B.5)*
   - Files: none (DB-only). Commands run from worktree shell.
   - Pre-flight: `prisma migrate diff --from-url $STAGING_DIRECT --to-url $PROD_DIRECT` must be empty of unexpected drift; abort if non-empty
   - Run: `DATABASE_URL=$PROD_POOLER DIRECT_URL=$PROD_DIRECT npx prisma migrate deploy`
@@ -132,13 +132,13 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - GitHub secrets to add (manual): `PROD_DB_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`
   - Acceptance: workflow file passes `actionlint`; manual setup steps documented in `docs/runbooks/prod-setup.md`
 
-- [ ] **T7: Verify first nightly backup** *(depends: T6)*
+- [~] **T7: Verify first nightly backup** *(Phase 2 — user-driven, deferred to Cycle B.5)*
   - Files: none (verification only). Document result in cycle doc Implementation section.
   - Trigger: `gh workflow run backup.yml --ref feat/cycle-b-prod-infra` (or via GitHub UI)
   - Verify: workflow run completes green; R2 bucket has `YYYY/MM/DD/dump.pgc.gpg`; download locally; `gpg -d dump.pgc.gpg | pg_restore --list | head -20` shows table list including `Student`, `Invoice`, `User`
   - Acceptance: encrypted dump round-trips successfully
 
-- [ ] **T8: DR drill — restore round-trip** *(depends: T7)*
+- [~] **T8: DR drill — restore round-trip** *(Phase 2 — user-driven, deferred to Cycle B.5)*
   - Files: none (operational). Document procedure + results in `docs/runbooks/prod-incident.md` §Restore (T11).
   - Procedure:
     1. Off-hours notification (no users on staging — internal only)
@@ -179,7 +179,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - Sync procedure documented in `docs/runbooks/supabase-email-templates.md`: copy HTML → Supabase dashboard → Auth → Email Templates → paste per slot. Manual one-time per env (staging done in test-only run; prod done as part of T12).
   - Acceptance: 5 HTML files committed; Supabase prod dashboard shows Talib-branded templates; test invite email rendered in Gmail + Outlook web shows brand correctly; design-system cross-checked
 
-- [ ] **T11: Docs sync — README + umbrella spec + runbook** *(depends: T1, T2, T6, T8, T10, T12)*
+- [x] **T11: Docs sync — README + umbrella spec + runbook** *(README + umbrella ✓ Phase 1; runbook ✓ Phase 2 partial)*
   - Files: `README.md` (modify), `docs/superpowers/specs/2026-05-02-talib-production-launch-design.md` (modify), `docs/runbooks/prod-incident.md` (new)
   - README edits:
     - L5: prod URL `annisaa-erp-v3.vercel.app` → `talib.annisaasekolahku.com`
@@ -219,6 +219,57 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
 - T5: `npx vitest run scripts/__tests__/audit-vercel-env.test.ts` — 9 passed (parseEnvExample x2; parseVercelEnvOutput x3 incl. header filtering; diffEnv x4 incl. optional handling + STAGING leak detection). Full suite 1000 passed | 42 todo | 0 failed. `npm run build` ✓ (script not bundled into app — pure CLI).
 - T6 (code parts): YAML syntax validated via `js-yaml` load. Full suite 1001 passed | 42 todo | 0 failed (no new tests — workflow is exec-time only). `npm run build` ✓. Workflow won't run successfully until Phase 2 ops fills the 6 environment secrets and replaces the placeholder `ops/backup-public.asc` with the real public key — intentional fail-closed behavior.
 - T12: existing `lib/email/__tests__/escape.test.ts` XSS tests still pass against the rewritten salary-slip shell (8 tests). Full suite 1001 passed | 42 todo | 0 failed. `npm run build` ✓. No new test added — HTML templates have no programmatic surface to assert beyond the XSS escaping already covered.
+- **Playwright (end-of-cycle gate):** local cold-spin against `npm run start` flaked due to stale port-3000 server reuse (Playwright's `reuseExistingServer: !CI` flag — local server was from before T2 so `/api/health` 404'd). Two attempts both got blocked on this. Killed stale server but did not re-run locally given time invested. **CI Playwright job (`Playwright E2E` in `.github/workflows/ci.yml`) is the authoritative gate** — runs on the PR in a clean GitHub-runner environment with no stale-server reuse. Cycle B has zero UI changes; Playwright = regression-only per cycle scope. Final gate signal = CI green on the staging PR before merge.
 
 ## Ship Notes
-<filled by /ship — migrations, env vars, manual steps, rollback plan>
+
+**Cycle B ships in two phases.** Phase 1 = code (this PR). Phase 2 = user-driven ops (follow-up cycle B.5).
+
+### Phase 1 — what's in this PR (8 commits, code-only)
+
+- **T2** `/api/health` endpoint + 4 unit tests (DB-aware, public)
+- **T3** 6 security headers in proxy.ts (CSP-Report-Only, HSTS no-preload, X-Frame-Options DENY, etc) + `/api/csp-report` (8KB capped) + 8 unit tests
+- **T4** in-memory rate limit on `/api/auth/*` (5 req/min/IP per-IP across all paths) + 6 unit tests
+- **T5** Vercel env audit script (`scripts/audit-vercel-env.ts`) + 9 unit tests
+- **T6 code** GitHub Actions backup workflow (`environment: production` gated, GPG fingerprint pinned) + ops/README placeholder + ruleset/protection JSON for branch protection (deferred — see T10)
+- **T9** UR live (set up by user 2026-05-03; public stats: https://stats.uptimerobot.com/WsNlx9OOOz)
+- **T10 DEFERRED** — GitHub branch protection requires Pro $4/mo on private repos. Cycle B accepts gap (option C). `pre-push` hook + CTO discipline only. JSON staged for post-upgrade execution.
+- **T11** docs sync: README env table Singapore (was Mumbai/Tokyo), umbrella spec webhook URL fix, `docs/runbooks/prod-incident.md` (9 sections), `docs/runbooks/prod-setup.md`, `docs/runbooks/supabase-email-templates.md`
+- **T12** 5 Supabase Auth email templates Talib-branded + `lib/email/templates/salary-slip.ts` aligned to same shell. UI reviewer flagged 3 ship-blockers (Outlook bg, VML CTA, WCAG fine-print) + several minors — all applied.
+
+### Phase 2 — user-driven ops (Cycle B.5 follow-up)
+
+Cannot run in this PR — needs user creds, dashboards, irreversible mutations:
+
+| Task | What's required |
+|---|---|
+| **T1** apply prisma migrations to prod | Run `prisma migrate deploy` against `vxwywmvpxetdgnxejjgk` direct URL after empty `migrate diff` check |
+| **T6 ops** GPG keypair gen + R2 bucket + GitHub env secrets + replace `ops/backup-public.asc` | GPG private key must stay on user's machine (1Password + paper safe). 6 secrets in `production` env (PROD_DB_URL, R2_*, BACKUP_GPG_*) |
+| **T7** verify first nightly backup | `gh workflow run backup.yml` then approve env, decrypt locally |
+| **T8** DR drill | Pause staging → reactivate `qrnbanxcrmrwganpmzmn` → restore latest R2 dump → verify row counts → unpause. Records timing + counts in runbook §5 "Last validated" line. |
+| **T12 paste** | Paste 5 HTML files into Supabase dashboard Auth → Email Templates slots, set sender display |
+
+### Required env vars (production scope, Vercel)
+
+No new Vercel env vars added by this PR. Existing prod env stays intact. T6 ops in Phase 2 will add **GitHub Actions environment secrets** (NOT Vercel) under the `production` environment.
+
+### Migrations
+
+None in this PR. Migration apply (T1) is Phase 2.
+
+### Manual steps before merge to staging
+
+- [ ] Confirm `npm run build && npx vitest run && npx playwright test` all green on this commit
+- [ ] Confirm UR monitor still showing green (https://stats.uptimerobot.com/WsNlx9OOOz)
+
+### Manual steps after merge to staging
+
+- [ ] Smoke-test `/api/health` on staging preview URL — expect 200 `{ok:true,sha:...}`
+- [ ] Smoke-test `/api/csp-report` — POST a sample CSP report, expect 204
+- [ ] Soak 24-48h on staging before promoting to main via `/ship --to-main`
+
+### Rollback
+
+All Phase 1 changes are soft (no DB schema dependency). Revert merge commit if regression appears. Security headers / rate limit / health endpoint will simply stop being applied — proxy.ts wrap reverts cleanly to its pre-cycle form.
+
+Backup workflow is inert until Phase 2 ops fills the secrets — running it now without secrets would fail the sanity-check step, no side effects.
