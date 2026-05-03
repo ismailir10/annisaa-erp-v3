@@ -64,7 +64,7 @@ export function AttendanceTrendChart({
           Data kehadiran belum tersedia
         </div>
       ) : (
-        <ChartContainer config={chartConfig} className="h-32 w-full">
+        <ChartContainer config={chartConfig} className="aspect-auto h-32 w-full">
           <BarChart data={chartData}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} />

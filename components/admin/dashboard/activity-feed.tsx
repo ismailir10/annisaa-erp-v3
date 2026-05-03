@@ -8,7 +8,7 @@ import type { ActivityEvent } from "@/lib/dashboard/activity-feed";
 
 export function ActivityFeed({ events }: { events: ActivityEvent[] }) {
   return (
-    <Card className="p-card h-full flex flex-col">
+    <Card className="p-card flex flex-col">
       <h3 className="text-sm font-semibold mb-4">Aktivitas Terbaru</h3>
       {events.length === 0 ? (
         <EmptyState

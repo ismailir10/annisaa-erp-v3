@@ -86,13 +86,11 @@ test.describe("admin dashboard rebuild — SCHOOL_ADMIN gating", () => {
     await expect(pendingCard.getByText("Pengajuan Cuti")).toHaveCount(0);
   });
 
-  test("hides Jalankan Penggajian quick action", async ({ page }) => {
-    // Scope to quick-actions section
-    const quickActionsSection = page.getByTestId("quick-actions");
-    await expect(quickActionsSection.getByText("Aksi Cepat")).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Jalankan Penggajian/ })).toHaveCount(0);
-    // Other actions still present
-    await expect(quickActionsSection.getByRole("link", { name: /Lihat Kehadiran/ })).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Tambah Karyawan/ })).toBeVisible();
+  test("hides the Aksi Cepat section entirely", async ({ page }) => {
+    // SCHOOL_ADMIN lacks `hr.view`, so all four HR-anchored quick actions
+    // (Jalankan Penggajian + Lihat Kehadiran + Pengajuan Cuti + Tambah
+    // Karyawan) gate out and the whole `<QuickActions>` returns null.
+    await expect(page.getByTestId("quick-actions")).toHaveCount(0);
+    await expect(page.getByText("Aksi Cepat")).toHaveCount(0);
   });
 });

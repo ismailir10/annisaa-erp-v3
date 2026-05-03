@@ -99,6 +99,12 @@ export async function POST(req: NextRequest) {
   const { studentId, periodLabel, dueDate, lines } = parsed.data;
   const tenantId = session.tenantId;
 
+  // Outer try/catch is the only thing that turns an unexpected DB/Xendit/
+  // serialisation throw into a structured 500. Without it the user sees the
+  // generic "Gagal membuat tagihan" toast with no server-side breadcrumb,
+  // which masked a P2002-from-FK incident on staging in 2026-05.
+  try {
+
   // Verify the student is enrolled and active in *this* tenant. We use the
   // enrollment row as the source of truth because it carries tenant scoping
   // via `classSection.tenantId` — the Student row's tenantId is denormalized
@@ -279,4 +285,17 @@ export async function POST(req: NextRequest) {
     },
     { status: 201 }
   );
+  } catch (e) {
+    // Drop studentId from the breadcrumb — it is a student-linked identifier
+    // and Prisma error messages can echo query parameters. tenantId alone is
+    // enough scope for triage.
+    console.error("[POST /api/invoices] unhandled", {
+      tenantId,
+      err: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : e,
+    });
+    return NextResponse.json(
+      { error: "Gagal membuat tagihan" },
+      { status: 500 }
+    );
+  }
 }
