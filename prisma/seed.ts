@@ -1376,7 +1376,49 @@ async function main() {
         },
       });
     }
-    console.log(`✅ Journal: ${journalEntryCount} entries + 2 notes`);
+    // D4 UAT precondition — parent note authored by the actual guardian of a
+    // KB-Aster student so JTBD-TEACHER-JOURNAL-03 has real data. We resolve
+    // the student's first guardian → Parent row, then upsert a User with
+    // role GUARDIAN linked to that Parent to use as authorUserId. authorRole
+    // "GUARDIAN" drives the "Orang Tua" badge in NoteThread. Date = yesterday
+    // to land in the current visible week.
+    const kbAsterStudent = studentsAll.find(
+      (s) => s.status === "ACTIVE" && s.enrollments[0]?.classSectionId === classSectionMap["KB_ASTER"]
+    );
+    if (kbAsterStudent) {
+      const kbAsterGuardian = kbAsterStudent.guardians[0];
+      if (kbAsterGuardian) {
+        const kbAsterParent = await prisma.parent.findUnique({
+          where: { id: kbAsterGuardian.parentId },
+        });
+        if (kbAsterParent) {
+          const kbAsterParentUser = await prisma.user.upsert({
+            where: { id: "u_kbaster_parent_d4" },
+            update: {},
+            create: {
+              id: "u_kbaster_parent_d4",
+              tenantId: tenant.id,
+              email: `${kbAsterParent.id}@parent.seed.local`,
+              role: "GUARDIAN",
+              name: kbAsterParent.name,
+              parentId: kbAsterParent.id,
+            },
+          });
+          const d4DateStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
+          await prisma.studentJournalNote.create({
+            data: {
+              tenantId: tenant.id,
+              studentId: kbAsterStudent.id,
+              date: d4DateStr,
+              authorUserId: kbAsterParentUser.id,
+              authorRole: "GUARDIAN",
+              body: `${kbAsterStudent.name.split(" ")[0]} tadi pagi tidak sarapan banyak, mohon dipantau ketika makan siang ya Ustadzah. Jazakillah khayran.`,
+            },
+          });
+        }
+      }
+    }
+    console.log(`✅ Journal: ${journalEntryCount} entries + 2 notes + 1 KB-Aster parent note (D4)`);
   }
 
   // Sync InvoiceNumberSequence to the highest seeded invoice number per
