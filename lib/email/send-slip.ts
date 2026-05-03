@@ -32,7 +32,7 @@ export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
   const subject = `Slip Gaji ${params.period} — Talib`;
 
   if (!resend) {
-    console.log(`[EMAIL SIMULATED] To: ${params.to} | Subject: ${subject}`);
+    console.info(`[EMAIL SIMULATED] To: ${params.to} | Subject: ${subject}`);
     return { sent: false };
   }
 

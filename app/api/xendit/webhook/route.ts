@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       err instanceof Prisma.PrismaClientKnownRequestError &&
       err.code === "P2002"
     ) {
-      console.log(
+      console.info(
         `[XENDIT WEBHOOK] Duplicate eventId=${eventId} event=${event} — 200 noop`,
       );
       return NextResponse.json({ ok: true, duplicate: true });
@@ -304,7 +304,7 @@ async function handleSessionCompleted(
   // dataKeys exposes the live Xendit payload field names (the captured
   // fixture omits return-url fields; this surfaces what Xendit actually
   // sends). Drop dataKeys in a follow-up once field naming confirmed.
-  console.log("[XENDIT WEBHOOK] PROCESSED", {
+  console.info("[XENDIT WEBHOOK] PROCESSED", {
     invoiceNumber: invoice.invoiceNumber,
     newStatus,
     eventId,
@@ -412,7 +412,7 @@ async function handleSessionExpired(
     return { ok: true, status: result.type, eventId, invoiceId };
   }
   await markProcessed(eventId, invoiceId);
-  console.log(
+  console.info(
     `[XENDIT WEBHOOK] Invoice ${result.invoiceNumber} → PENDING_PAYMENT_LINK (session expired, soft-revert) eventId=${eventId}`,
   );
   return { ok: true, status: "REVERTED", eventId, invoiceId };

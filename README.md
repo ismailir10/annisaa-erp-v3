@@ -60,27 +60,31 @@ All four portals share the same brand chrome — An Nisaa' logo + "Talib" wordma
 
 ## Architecture Decisions
 
-Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + cycle link; pre-commit rejects > 400 chars. Pre-2026 baseline + process-meta ADRs live in [`docs/adrs/archive.md`](docs/adrs/archive.md).
+Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + cycle link; pre-commit rejects > 400 chars. Pre-2026 baseline + process-meta ADRs live in [`docs/adrs/archive.md`](docs/adrs/archive.md). Pre-May-2026 cycle docs live in [`docs/cycles/archive/`](docs/cycles/archive/) — see the 2026-05-03 tech-debt sweep cycle for archival rationale.
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-03 | Supabase SSR auth + tenant filter via app layer; RLS for SELECT only | Service-role writes need explicit `tenantId` filter; SSR side-steps PKCE cookie issues — see [ADR](docs/adrs/2026-05-03-supabase-ssr-auth.md) |
+| 2026-05-03 | Role split `SUPER_ADMIN` vs `SCHOOL_ADMIN`; permission-based RBAC for HR | `hasPermission()` replaces role-string checks; salary/payroll gated by `hr.*` — see [ADR](docs/adrs/2026-05-03-role-split-super-admin-school-admin.md) |
+| 2026-05-03 | Query optimization Phase 6: mandatory `select:`, default `take:`, two-query budget on detail pages | Eliminate N+1, fat rows, unbounded fetches — see [ADR](docs/adrs/2026-05-03-query-optimization-phase-6.md) |
+| 2026-05-03 | Pin `resend@6.10.x`, defer `svix→uuid<14` CVE chain | Vulnerable surface not reachable; `audit fix --force` would breaking-downgrade to 6.1.3 — see [ADR](docs/adrs/2026-05-03-resend-cve-deferred.md) |
 | 2026-04 | Xendit over Midtrans for parent payments | Cleaner Checkout Session API + webhook semantics |
-| 2025-04 | Bundle perf phase 2: analyzer + dynamic imports | Initial bundle was >400KB — see [cycle](docs/cycles/2025-04-15-performance-optimization-phase2.md) |
-| 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) | One admin page + shared `<WeekGrid>`; one audit table — see [cycle](docs/cycles/2026-04-21-student-journal.md) |
-| 2026-04-24 | Teachers use `/api/teacher/students?classId=…`, not admin `/api/students` | Closes PII enumeration leak — see [cycle](docs/cycles/2026-04-24-critical-money-and-auth-hotfix.md) |
-| 2026-04-24 | `ConfirmDialog` rebuilt on AlertDialog (Base UI), stays open on `onConfirm` reject | Caller toasts and user retries — see [cycle](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
-| 2026-04-24 | Date helpers use `getYmdInTimezone(d, "Asia/Jakarta")` not `toISOString()` | UTC fallback returned yesterday's data 00:00–06:59 WIB on Vercel — see [cycle](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
+| 2025-04 | Bundle perf phase 2: analyzer + dynamic imports | Initial bundle was >400KB — see [cycle](docs/cycles/archive/2025-04-15-performance-optimization-phase2.md) |
+| 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) | One admin page + shared `<WeekGrid>`; one audit table — see [cycle](docs/cycles/archive/2026-04-21-student-journal.md) |
+| 2026-04-24 | Teachers use `/api/teacher/students?classId=…`, not admin `/api/students` | Closes PII enumeration leak — see [cycle](docs/cycles/archive/2026-04-24-critical-money-and-auth-hotfix.md) |
+| 2026-04-24 | `ConfirmDialog` rebuilt on AlertDialog (Base UI), stays open on `onConfirm` reject | Caller toasts and user retries — see [cycle](docs/cycles/archive/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
+| 2026-04-24 | Date helpers use `getYmdInTimezone(d, "Asia/Jakarta")` not `toISOString()` | UTC fallback returned yesterday's data 00:00–06:59 WIB on Vercel — see [cycle](docs/cycles/archive/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
 | 2026-04-24 | Capacity check inside `$transaction` with `SELECT … FOR UPDATE OF cs` | Closes over-enrollment race on concurrent promote |
-| 2026-04-24 | Prisma: `@@unique([tenantId, email])`, explicit `onDelete` everywhere | Schema matches multi-tenant intent — see [cycle](docs/cycles/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
-| 2026-04-24 | RLS = tenant-scoped SELECT only; writes via `service_role` | App-layer `tenantId` filter is real write isolation; CI guard `verify-rls-coverage.sh` — see [cycle](docs/cycles/2026-04-24-stress-review-followups.md) |
+| 2026-04-24 | Prisma: `@@unique([tenantId, email])`, explicit `onDelete` everywhere | Schema matches multi-tenant intent — see [cycle](docs/cycles/archive/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
+| 2026-04-24 | RLS = tenant-scoped SELECT only; writes via `service_role` | App-layer `tenantId` filter is real write isolation; CI guard `verify-rls-coverage.sh` — see [cycle](docs/cycles/archive/2026-04-24-stress-review-followups.md) |
 | 2026-04-24 | Accept prefix collision on `20260424000000_*` migrations | Already applied; rename would break Prisma `_migrations` state. Future migrations must avoid `YYYYMMDD000000` when one exists |
-| 2026-04-24 | `Content-Security-Policy-Report-Only` added; `@libsql/*` removed | Logs without blocking — graduate after console clean — see [cycle](docs/cycles/2026-04-24-outstanding-findings-audit.md) |
-| 2026-04-25 | Parent kuitansi PDF route `GET /api/guardian/invoices/[id]/pdf` | Detail-sheet link previously 404'd — see [cycle](docs/cycles/2026-04-25-parent-portal-design-fixes.md) |
-| 2026-04-25 | Permission-based RBAC for HR replaces role-string checks | `hasPermission()` from `session.permissions`; `SCHOOL_ADMIN` excludes `hr.*` — see [cycle](docs/cycles/2026-04-25-super-admin-rbac-sidebar-fix.md) |
-| 2026-04-25 | Tagihan async pipeline: `PENDING_PAYMENT_LINK` status, chunked bulk-gen, retry endpoint, manual single-student create | Vercel free 60s ceiling forces ≤25-row chunks + `pLimit(5)`; durable failure state — see [cycle](docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md) |
-| 2026-04-26 | Finance Robustness: `InvoiceNumberSequence` allocator, two-phase webhook, bulk retry orchestrator, parent allow-list | Eliminates P2002 race on `POST /api/invoices`; new `CRON_SECRET` env — see [cycle](docs/cycles/2026-04-26-finance-robustness-a-b-c.md) + [follow-ups](docs/cycles/2026-04-26-finance-followup-fixes.md) |
-| 2026-04-27 | Invoice creation auto-retry: typed `XenditApiError` + `withXenditRetry` (3 attempts, honors `Retry-After`) | Transient 5xx/408/429/network retried inline before persisting failure — see [cycle](docs/cycles/2026-04-27-invoice-create-auto-retry.md) |
-| 2026-04-28 | Bulk fan-out throttled: concurrency=2, 1s inter-chunk pacing, 2-attempt 429 budget | Rate-limit storm fits 60s function ceiling — see [cycle](docs/cycles/2026-04-28-finance-bulk-throttle.md) |
+| 2026-04-24 | `Content-Security-Policy-Report-Only` added; `@libsql/*` removed | Logs without blocking — graduate after console clean — see [cycle](docs/cycles/archive/2026-04-24-outstanding-findings-audit.md) |
+| 2026-04-25 | Parent kuitansi PDF route `GET /api/guardian/invoices/[id]/pdf` | Detail-sheet link previously 404'd — see [cycle](docs/cycles/archive/2026-04-25-parent-portal-design-fixes.md) |
+| 2026-04-25 | Permission-based RBAC for HR replaces role-string checks | `hasPermission()` from `session.permissions`; `SCHOOL_ADMIN` excludes `hr.*` — see [cycle](docs/cycles/archive/2026-04-25-super-admin-rbac-sidebar-fix.md) |
+| 2026-04-25 | Tagihan async pipeline: `PENDING_PAYMENT_LINK` status, chunked bulk-gen, retry endpoint, manual single-student create | Vercel free 60s ceiling forces ≤25-row chunks + `pLimit(5)`; durable failure state — see [cycle](docs/cycles/archive/2026-04-25-tagihan-fixes-async-bulk-manual-create.md) |
+| 2026-04-26 | Finance Robustness: `InvoiceNumberSequence` allocator, two-phase webhook, bulk retry orchestrator, parent allow-list | Eliminates P2002 race on `POST /api/invoices`; new `CRON_SECRET` env — see [cycle](docs/cycles/archive/2026-04-26-finance-robustness-a-b-c.md) + [follow-ups](docs/cycles/archive/2026-04-26-finance-followup-fixes.md) |
+| 2026-04-27 | Invoice creation auto-retry: typed `XenditApiError` + `withXenditRetry` (3 attempts, honors `Retry-After`) | Transient 5xx/408/429/network retried inline before persisting failure — see [cycle](docs/cycles/archive/2026-04-27-invoice-create-auto-retry.md) |
+| 2026-04-28 | Bulk fan-out throttled: concurrency=2, 1s inter-chunk pacing, 2-attempt 429 budget | Rate-limit storm fits 60s function ceiling — see [cycle](docs/cycles/archive/2026-04-28-finance-bulk-throttle.md) |
 | 2026-05-02 | `AuditLog` table for sensitive mutations (salary, payroll approve/cancel, employee status) | Append-only history with before/after JSON; tenant-scoped + RLS; tx-mode re-throws for atomic audit — see [cycle](docs/cycles/2026-05-02-hr-module-bugs-and-gaps.md) |
 | 2026-05-02 | `OrgConfig.lemburCompliant` flag for UU 13/2003 §78(4) tiered overtime | Default off (flat); flag on switches to 1.5× first hour / 2× thereafter. Holiday OT (§85) deferred — see [cycle](docs/cycles/2026-05-02-hr-module-bugs-and-gaps.md) |
 | 2026-05-02 | Migration `20260421000002_rls_fk_indexes` renamed to `20260421160000_*` | Index referenced `ProgramFeeStructure.tenantId` added by sibling whose timestamp sorted later — see [cycle](docs/cycles/2026-05-02-migration-ordering-fix.md) + [runbook](docs/runbooks/fresh-db-bootstrap.md) |
@@ -98,7 +102,7 @@ npx prisma generate && npx prisma db push && npx prisma db seed
 npm run dev                          # http://localhost:3000 — demo mode, no Supabase
 ```
 
-Tests: `npm run build && npx vitest run` (mandated gate before every commit), `npx playwright test`, `npm run lint`.
+Tests: `npm run build && npx vitest run` (mandated gate before every commit), `npx playwright test`, `npm run lint`. Type-check on demand: `npm run typecheck` (runs `prisma generate` + `tsc --noEmit`).
 
 ### Environment variables
 
