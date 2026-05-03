@@ -79,7 +79,9 @@ test.describe("Teacher flows", () => {
   test("logout works", async ({ page }) => {
     await page.click("[aria-label='Keluar']");
     await page.waitForURL("/", { timeout: 10_000 });
-    await expect(page.locator("text=An Nisaa")).toBeVisible();
+    // Post-rebrand landing wordmark = TalibWordmark → renders <span>Talib</span>.
+    // exact:true avoids substring match on footer "Talib by An Nisaa' Sekolahku".
+    await expect(page.getByText("Talib", { exact: true }).first()).toBeVisible();
   });
 
   test("teacher can open Buku Penghubung picker and entry page", async ({ page }) => {
