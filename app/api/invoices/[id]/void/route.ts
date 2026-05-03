@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 
@@ -54,5 +55,9 @@ export async function POST(
     throw e;
   }
 
+  // Void flips status to CANCELLED — bust caches so the parent stops seeing
+  // it under outstanding (UAT-2026-05-03 INV-01 vector).
+  revalidateTag("parent-invoice-list", { expire: 0 });
+  revalidateTag("student-invoices", { expire: 0 });
   return NextResponse.json({ ok: true });
 }

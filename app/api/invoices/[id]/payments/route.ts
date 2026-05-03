@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
@@ -82,6 +83,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return p;
     });
 
+    // Manual payment writes Invoice.status + Invoice.totalPaid; bust the
+    // parent-portal Tagihan + per-student caches so /parent and /parent/invoices
+    // pick up the new state immediately (UAT-2026-05-03 INV-01 vector).
+    revalidateTag("parent-invoice-list", { expire: 0 });
+    revalidateTag("student-invoices", { expire: 0 });
     return NextResponse.json(payment, { status: 201 });
   } catch (e) {
     if (e instanceof Error) {
