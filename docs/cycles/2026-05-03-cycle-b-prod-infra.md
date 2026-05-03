@@ -85,7 +85,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - `/api/csp-report` route: `POST` handler reads JSON body, `console.log("[csp-report]", body)`, returns 204. No DB write. Mark `// @public` (no auth).
   - Acceptance: `curl -I https://localhost:3000/` shows all 6 headers; CSP violations log to Vercel stdout
 
-- [ ] **T4: In-memory rate limit on `/api/auth/*`** *(depends: T3)*
+- [x] **T4: In-memory rate limit on `/api/auth/*`** *(depends: T3)*
   - Files: `lib/security/rate-limit.ts` (new), `lib/security/__tests__/rate-limit.test.ts` (new), `proxy.ts` (modify)
   - `rate-limit.ts` exports `rateLimit(key: string, max: number, windowMs: number) → {ok: boolean, retryAfter?: number}`
   - Token bucket with lazy GC (drop expired buckets when `buckets.size > 10_000`)
@@ -202,11 +202,13 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
 - T4 reuses existing `lib/rate-limit.ts` instead of creating `lib/security/rate-limit.ts` (DRY — existing `rateLimit(key, limit, windowMs) → {success, remaining}` covers the need; cycle doc adjusted at commit time).
 - Task 2: `/api/health` — `app/api/health/route.ts` + `app/api/__tests__/health.test.ts` — public DB-aware liveness via `SELECT 1`; 200 with git SHA on success; 503 `{error:"db_unreachable"}` + server-side `console.error` log on DB throw. Reviewers (feature-dev:code-reviewer + superpowers:code-reviewer) cleared with 2 inline fixes applied (env-stub semantics + error log).
 - Task 3: Security headers — `lib/security/headers.ts` (`applySecurityHeaders` helper) + `lib/security/__tests__/headers.test.ts` + `app/api/csp-report/route.ts` (public, 204, 8KB body cap, log to stdout) + `app/api/__tests__/csp-report.test.ts` + `proxy.ts` (wrapped existing logic in `proxyImpl`; outer `proxy` applies headers to every return; skip on `/api/csp-report`). Reviewers cleared with 5 inline fixes: added `wss://*.supabase.co` for Realtime, added `https://vitals.vercel-insights.com` for Analytics, dropped HSTS `preload` (deferred to post-launch +30d — irreversible), added 8KB body cap on csp-report (log-flooding mitigation). `unsafe-inline` script-src/style-src + nonce strategy = post-launch follow-up.
+- Task 4: Auth rate limit — `lib/security/auth-rate-limit.ts` (`enforceAuthRateLimit(request) → NextResponse | null`) + `lib/security/__tests__/auth-rate-limit.test.ts` + `proxy.ts` (calls helper at top of proxyImpl) + `lib/rate-limit.ts` (added `__resetRateLimitForTest`). 5 req/min/IP across all `/api/auth/*` paths; 429 + `Retry-After: 60` on cap. Reviewers cleared with 3 critical fixes: (a) drop pathname from key — was `auth:${ip}:${pathname}` letting attackers rotate sub-paths to multiply cap; now `auth:${ip}` total, (b) skip rate limit when IP is unidentifiable (`"anonymous"` fallback) — sharing one bucket across all anon callers was a global DoS vector; only triggers in dev since Vercel always sets XFF, (c) replaced fragile module-mock test pattern with real lib + `__resetRateLimitForTest` helper.
 
 ## Verification
 
 - T2: `npx vitest run app/api/__tests__/health.test.ts` — 4 passed (200 path, sha env present, sha env absent via `delete process.env.*`, 503 path with error log assertion). Full suite 978 passed | 42 todo | 0 failed. `npm run build` ✓ — `/api/health` route present in build output.
 - T3: `npx vitest run lib/security app/api/__tests__/csp-report.test.ts` — 8 passed (CSP directive content × 2, HSTS no-preload, clickjacking/content-type/referrer/permissions, in-place mutation; csp-report 204 valid + 204 malformed + 413 oversize). Full suite 986 passed | 42 todo | 0 failed. `npm run build` ✓ — `/api/csp-report` route present.
+- T4: `npx vitest run lib/security/__tests__/auth-rate-limit.test.ts` — 6 passed (non-auth bypass; 5-allow-then-429; Retry-After 60 + body; per-IP scoping; cross-path bucket-share; anonymous-IP skip). Full suite 992 passed | 42 todo | 0 failed. `npm run build` ✓.
 
 ## Ship Notes
 <filled by /ship — migrations, env vars, manual steps, rollback plan>
