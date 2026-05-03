@@ -22,10 +22,20 @@ const getEmployeeCount = unstable_cache(
   { revalidate: 1800, tags: ["employees-count"] }
 );
 
+type PayrollRowWithCount = Awaited<ReturnType<typeof prisma.payrollRun.findFirst<{
+  include: { _count: { select: { items: true } } };
+}>>>;
+
 function settled<T>(result: PromiseSettledResult<T>, fallback: T, key: string): T {
   if (result.status === "fulfilled") return result.value;
   console.error("[dashboard] query failed", { key, err: result.reason });
   return fallback;
+}
+
+// School ERP runs in Indonesian schools — use Asia/Jakarta (WIB, UTC+7) for the
+// current date, otherwise the dashboard shows zeroes during 00:00–07:00 local.
+function jakartaDateStr(date: Date): string {
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
 }
 
 export default async function AdminDashboard() {
@@ -34,19 +44,19 @@ export default async function AdminDashboard() {
   if (!session.tenantId) redirect("/");
 
   const tenantId = session.tenantId;
-  const today = new Date();
-  const todayStr = today.toISOString().split("T")[0];
+  const todayStr = jakartaDateStr(new Date());
 
   const last7Weekdays: string[] = [];
-  const d = new Date(today);
+  const cursor = new Date(`${todayStr}T00:00:00+07:00`);
   while (last7Weekdays.length < 7) {
-    d.setDate(d.getDate() - 1);
-    if (d.getDay() === 0 || d.getDay() === 6) continue;
-    last7Weekdays.unshift(d.toISOString().split("T")[0]);
+    cursor.setDate(cursor.getDate() - 1);
+    if (cursor.getDay() === 0 || cursor.getDay() === 6) continue;
+    last7Weekdays.unshift(jakartaDateStr(cursor));
   }
 
   const canSeePayroll = hasPermission(session, "payroll.view");
   const canSeeAdmissions = hasPermission(session, "admissions.view");
+  const canSeeLeave = hasPermission(session, "leave.view");
   const canSeeActivity = hasPermission(session, "hr.view");
 
   const results = await Promise.allSettled([
@@ -56,9 +66,11 @@ export default async function AdminDashboard() {
       where: { employee: { tenantId }, date: todayStr },
       _count: true,
     }),
-    prisma.leaveRequest.count({
-      where: { employee: { tenantId }, status: "PENDING" },
-    }),
+    canSeeLeave
+      ? prisma.leaveRequest.count({
+          where: { employee: { tenantId }, status: "PENDING" },
+        })
+      : Promise.resolve(0),
     canSeePayroll
       ? prisma.payrollRun.findFirst({
           where: { tenantId },
@@ -86,9 +98,6 @@ export default async function AdminDashboard() {
     "today-attendance"
   );
   const pendingLeave = settled(results[2], 0, "pending-leave");
-  type PayrollRowWithCount = Awaited<ReturnType<typeof prisma.payrollRun.findFirst<{
-    include: { _count: { select: { items: true } } };
-  }>>>;
   const lastPayrollRow = settled(
     results[3],
     null as PayrollRowWithCount,
@@ -117,16 +126,21 @@ export default async function AdminDashboard() {
     };
   });
 
+  // Stat grid uses the same present/late split as the chart: late is its own
+  // status, not folded into present. This keeps both surfaces telling the same
+  // story about a single day.
   const statusCounts: Record<string, number> = {};
   for (const row of todayAttendance) statusCounts[row.status] = row._count;
   const present =
-    (statusCounts["PRESENT"] ?? 0) +
-    (statusCounts["LATE"] ?? 0) +
-    (statusCounts["PRESENT_NO_CHECKOUT"] ?? 0);
+    (statusCounts["PRESENT"] ?? 0) + (statusCounts["PRESENT_NO_CHECKOUT"] ?? 0);
   const late = statusCounts["LATE"] ?? 0;
   const absent = Math.max(
     0,
-    totalEmployees - present - (statusCounts["LEAVE"] ?? 0) - (statusCounts["HOLIDAY"] ?? 0)
+    totalEmployees -
+      present -
+      late -
+      (statusCounts["LEAVE"] ?? 0) -
+      (statusCounts["HOLIDAY"] ?? 0)
   );
 
   const lastPayroll = lastPayrollRow
@@ -164,6 +178,7 @@ export default async function AdminDashboard() {
               lastPayroll={lastPayroll}
               canSeePayroll={canSeePayroll}
               canSeeAdmissions={canSeeAdmissions}
+              canSeeLeave={canSeeLeave}
             />
             <ActivityFeed events={recentActivity} />
           </div>

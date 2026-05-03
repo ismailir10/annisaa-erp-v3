@@ -10,36 +10,40 @@ export function PendingActions({
   lastPayroll,
   canSeePayroll,
   canSeeAdmissions,
+  canSeeLeave,
 }: {
   pendingLeave: number;
   pendingAdmissions: number;
   lastPayroll: { period: string; status: string; employeeCount: number } | null;
   canSeePayroll: boolean;
   canSeeAdmissions: boolean;
+  canSeeLeave: boolean;
 }) {
   return (
     <Card className="p-card h-full flex flex-col">
       <h3 className="text-sm font-semibold mb-4">Perlu Tindakan</h3>
       <div className="flex-1 space-y-3">
-        <Link
-          href="/admin/leave"
-          className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
-              <CalendarOff size={16} className="text-warning" />
+        {canSeeLeave && (
+          <Link
+            href="/admin/leave"
+            className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
+                <CalendarOff size={16} className="text-warning" />
+              </div>
+              <div>
+                <p className="text-xs font-medium">Pengajuan Cuti</p>
+                <p className="text-xs text-muted-foreground">Menunggu persetujuan</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium">Pengajuan Cuti</p>
-              <p className="text-xs text-muted-foreground">Menunggu persetujuan</p>
-            </div>
-          </div>
-          {pendingLeave > 0 ? (
-            <Badge className="bg-warning text-primary-foreground text-xs">{pendingLeave}</Badge>
-          ) : (
-            <span className="text-xs text-muted-foreground">0</span>
-          )}
-        </Link>
+            {pendingLeave > 0 ? (
+              <Badge className="bg-warning text-primary-foreground text-xs">{pendingLeave}</Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground">0</span>
+            )}
+          </Link>
+        )}
 
         {canSeeAdmissions && (
           <Link

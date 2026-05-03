@@ -95,6 +95,12 @@ Cross-checked design-system.html §cards + §charts for token + spacing alignmen
 
 Between-task gate: `npm run build` compiled in 19.6s (TypeScript + 123 routes); `npx vitest run` — 982/982 tests passed.
 
+Code review fixed four issues post-merge:
+- **Missing `canSeeLeave` perm gate**: leave-request count + Pengajuan Cuti row in PendingActions now gated by `hasPermission(session, "leave.view")`, mirroring the admissions/payroll pattern. SCHOOL_ADMIN's default permission set excludes `leave.view`, so the row stays hidden for them.
+- **Stat-grid vs chart `present` semantics divergence**: stat grid previously folded LATE into present (`PRESENT + LATE + PRESENT_NO_CHECKOUT`) while the chart kept LATE separate, producing inconsistent numbers across the same day. Stat grid now matches the chart: `present = PRESENT + PRESENT_NO_CHECKOUT`, late is its own status.
+- **UTC timezone bug** carried over from the deleted client: `today.toISOString().split("T")[0]` returns UTC, so a server in UTC saw the previous calendar day during 00:00–07:00 WIB, blanking the dashboard. Replaced with `Date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" })` for both `todayStr` and the weekday cursor.
+- **`PayrollRowWithCount` type alias** hoisted from mid-function-body to module scope for readability.
+
 ## Verification
 
 (populated end-of-cycle once `npm run build && npx vitest run && npx playwright test` all green; will explicitly cross-check against `design-system` reference)
