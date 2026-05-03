@@ -471,6 +471,10 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
   });
 
   test("manual create surfaces alert card on detail page when Xendit fails", async ({ page }) => {
+    test.skip(
+      process.env.DEMO_MODE === "true",
+      "DEMO_MODE short-circuit returns synthetic SENT — failure-path coverage validated manually on staging. See lib/xendit/client.ts:167.",
+    );
     // Resolve a student + fee component via API so the test doesn't depend
     // on seed name ordering for the Select picker.
     const studentsRes = await page.request.get("/api/students?status=ACTIVE&pageSize=1");
@@ -518,6 +522,10 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
   });
 
   test("bulk failure leaves PENDING_PAYMENT_LINK rows + per-row retry endpoint reports stillFailed", async ({ page }) => {
+    test.skip(
+      process.env.DEMO_MODE === "true",
+      "DEMO_MODE short-circuit returns synthetic SENT — failure-path coverage validated manually on staging. See lib/xendit/client.ts:167.",
+    );
     // Drive batch endpoint directly with a tiny student set so the test is
     // fast and deterministic. The orchestrator UI is covered by the first
     // test; this one focuses on the data-state contract.
@@ -565,6 +573,10 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
   });
 
   test("header bulk-retry button visible when stats.pendingPaymentLink > 0 and confirms", async ({ page }) => {
+    test.skip(
+      process.env.DEMO_MODE === "true",
+      "DEMO_MODE short-circuit returns synthetic SENT — no PENDING_PAYMENT_LINK rows render the header trigger. Failure-path validated manually on staging. See lib/xendit/client.ts:167.",
+    );
     // Pre-condition: ensure at least one PENDING_PAYMENT_LINK invoice for the
     // tenant. Real Xendit fails with the fake key, so any batch creates
     // PENDING rows. Use a fresh periodLabel to avoid skippedAlreadyInvoiced.
@@ -614,6 +626,10 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
   });
 
   test("pending-payment-link breakdown popover renders bucket counts when count > 0", async ({ page }) => {
+    test.skip(
+      process.env.DEMO_MODE === "true",
+      "DEMO_MODE short-circuit returns synthetic SENT — no PENDING_PAYMENT_LINK rows render the popover trigger. Failure-path validated manually on staging. See lib/xendit/client.ts:167.",
+    );
     // Mock the diagnostic endpoint with a deterministic payload — browser-side
     // GET from app/admin/invoices/page.tsx is interceptable via page.route().
     // Stats endpoint we cannot mock (server-side), so we ensure pendingPaymentLink
