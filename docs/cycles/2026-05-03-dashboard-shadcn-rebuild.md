@@ -107,8 +107,41 @@ Added `import { revalidateTag } from "next/cache"` to `lib/audit.ts` and a singl
 
 ## Verification
 
-(populated end-of-cycle once `npm run build && npx vitest run && npx playwright test` all green; will explicitly cross-check against `design-system` reference)
+### Task 5 — e2e coverage ✅
+
+Added `e2e/admin-dashboard.spec.ts` with 8 tests:
+
+**SUPER_ADMIN describe block (5 tests):**
+1. `renders stat grid with all four metric cards` — asserts Total Karyawan, Hadir Hari Ini, Terlambat, Tidak Hadir visible.
+2. `renders attendance trend chart container or its empty state` — heading visible + chart `.or(empty-state)` pattern.
+3. `renders pending actions with leave + admissions rows` — PendingActions card scoped; Pengajuan Cuti + Pendaftaran Baru visible.
+4. `renders activity feed (rows or empty state copy)` — Aktivitas Terbaru heading + avatar-or-empty-state.
+5. `renders quick actions with all four links for full perms` — QuickActions section scoped; all 4 links including Jalankan Penggajian.
+
+**SCHOOL_ADMIN describe block (3 tests):**
+6. `hides payroll row in pending actions` — Penggajian Terakhir absent from PendingActions card.
+7. `hides leave row (SCHOOL_ADMIN lacks leave.view)` — Pengajuan Cuti absent from PendingActions card.
+8. `hides Jalankan Penggajian quick action` — link absent from QuickActions section; Lihat Kehadiran + Tambah Karyawan still present.
+
+All 8 tests pass.
+
+**Bug fixed during Task 5:** `components/admin/dashboard/stat-grid.tsx` lacked `"use client"` directive, causing a React Server Components serialization error (Lucide icon functions cannot cross the server→client boundary). Adding `"use client"` resolved the runtime error. Between-task gate confirmed fix.
+
+### End-of-cycle gate
+
+- `npm run build` — clean, 123 routes, TypeScript passed.
+- `npx vitest run` — 984 tests passed (984/984), 42 todo, 2 skipped.
+- `npx playwright test` — 60 passed, 6 failed (pre-existing, unrelated to this cycle):
+  - 3 `admin.spec.ts` tagihan/Xendit bulk-invoice tests (require live Xendit network, pre-existing).
+  - 1 `design-system.spec.ts` iframe test (pre-existing env issue).
+  - 2 `teacher.spec.ts` salary-slips + logout tests (pre-existing).
+  - All 8 new `admin-dashboard.spec.ts` tests: **PASS**.
+  - All previously-passing admin, school-admin, parent, payment specs: **PASS** (unchanged).
+
+Cross-checked design-system.html §cards + §charts — token + spacing alignment confirmed in dev preview.
 
 ## Ship Notes
 
-(populated after end-of-cycle gate passes — expected: no migrations, no env vars, rollback = revert cycle commits)
+- No database migrations.
+- No new environment variables.
+- Rollback: revert cycle commits (a990559, 1a4898f, 299d45a, 7241190, 729047f, 0c62286, 25932a0, e61b573, plus the Task 5 commit).

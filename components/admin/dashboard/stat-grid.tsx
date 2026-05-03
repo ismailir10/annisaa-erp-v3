@@ -1,3 +1,5 @@
+"use client";
+
 import { StatCard } from "@/components/admin/stat-card";
 import { Users, UserCheck, Clock, UserX } from "lucide-react";
 
