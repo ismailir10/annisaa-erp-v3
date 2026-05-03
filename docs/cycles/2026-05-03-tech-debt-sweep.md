@@ -63,8 +63,8 @@ A repo-wide tech-debt audit on 2026-05-03 surfaced 16 items across 6 categories.
 - [x] **T7 [par, can run alongside T6]** — `docs(adrs): refresh active ADR registry with 3 load-bearing decisions`. Created 3 MADR-lite ADRs (Supabase SSR auth, role split + permission RBAC, query optimization Phase 6) + updated README ADR table with 4 new rows (3 from T7 + 1 from T5's resend CVE). Side-fix: T4's archive move broke 15 cycle-doc links in the existing ADR table — updated all to point at `docs/cycles/archive/`. Reviewer caught one factual error (`lib/auth/permissions.ts` → `lib/permissions.ts`); fixed.
   *Acceptance:* `ls docs/adrs/*.md` shows 5 files (4 new + existing `archive.md`) ✓. README ADR table lists 4 active rows for 2026-05-03 ✓. All ADRs < 100 lines. Pre-commit ADR-cell-length rule satisfied (max cell 245 chars, well under 400 limit).
 
-- [ ] **T8 [seq, last]** — `chore: end-of-cycle gate + ship notes`. Run `npm run build && npm run typecheck && npx vitest run`. Skip Playwright (record skip in Verification with reason: pure-infra, no UI). Fill `## Implementation`, `## Verification`, `## Ship Notes` in this cycle doc. Single commit `chore(cycle): close 2026-05-03-tech-debt-sweep`.
-  *Acceptance:* All three gates pass. Cycle doc Ship Notes lists: tasks completed, tasks deferred (worktree cleanup), and before/after numbers (untracked docs: 7→0, cycle-doc count: 127→≤25, audit moderate vulns: documented, API test count: 53→≥61).
+- [x] **T8 [seq, last]** — `chore: end-of-cycle gate + ship notes`. All three gates green: `npm run typecheck` exit 0, `npm run build` exit 0, `npx vitest run` 1050 passing / 126 files / 2 skipped / 42 todo. Playwright skipped explicitly (pure-infra cycle, no UI surface touched).
+  *Acceptance:* All three gates pass ✓. Ship Notes filled below.
 
 ## Implementation
 
@@ -80,7 +80,50 @@ A repo-wide tech-debt audit on 2026-05-03 surfaced 16 items across 6 categories.
 - Task 5: gate green — `npm run build` ✓, `npx vitest run` ✓ (1002 passing), `npm audit --audit-level=high` exit 0 ✓. Files: `package.json` (resend caret → exact `6.10.x`), `package-lock.json` (lockfile refresh, 3-line delta), `docs/adrs/2026-05-03-resend-cve-deferred.md` (49-line MADR-lite ADR).
 - Task 6: gate green — `npx vitest run` ✓ (1050 passing, +48), test files 126 (+8), API test count 63 (+10 incl. existing dir reorg). Files: 8 new specs under `app/api/__tests__/`. Reviewer raised 2 issues — one false positive (`Payment.paidAt` is non-null per schema, no bug), one real (missing REJECTED→re-reject edge in leave-reject); the real one fixed in this commit.
 - Task 7: gate green — `npm run build` ✓, `npx vitest run` ✓ (1050 passing). Files: 3 new ADRs (`docs/adrs/2026-05-03-{supabase-ssr-auth,role-split-super-admin-school-admin,query-optimization-phase-6}.md`), `README.md` (4 new ADR rows + 15 archive-path fixes for cycle links broken by T4). Reviewer found 1 factual error (`lib/auth/permissions.ts` → `lib/permissions.ts`) — fixed before commit.
+- Task 8: end-of-cycle gate green — `npm run typecheck` ✓, `npm run build` ✓, `npx vitest run` ✓ (1050 passing / 126 files / 2 skipped / 42 todo). Playwright skipped (pure-infra, no UI surface). Ship Notes filled. This commit closes the cycle.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+**Tasks completed: 8 / 8.**
+
+| # | Task | Commit |
+|---|------|--------|
+| 1 | chore: commit untracked .gitignore + 6 UAT reports | `d0c4fff` |
+| 2 | chore: add npm run typecheck script + simplify CI | `5f5a27b` |
+| 3 | chore: replace 7 stray console.log with semantic severity | `f58d441` |
+| 4 | docs: archive April-2026 + earlier cycle docs (115 files) | `f05f9a3` |
+| 5 | chore(deps): pin resend to 6.10.x; defer svix→uuid CVE | `88d6d04` |
+| 6 | test(api): add 8 specs for untested revenue routes | `de14b40` |
+| 7 | docs(adrs): refresh active ADR registry — 3 ADRs | `1ad3d96` |
+| 8 | chore(cycle): close 2026-05-03-tech-debt-sweep | (this commit) |
+
+**Tasks deferred:**
+- Worktree cleanup (originally Phase 0 #2) — parallel sessions still active on `feat/cycle-b-prod-infra`, `feat/dashboard-shadcn-rebuild`, `feat/legal-pages-public-fix`, `feat/rebrand-talib`, `feat/docs-readme-claude-simplify`. Re-evaluate when those branches merge or are confirmed abandoned.
+
+**Before / after baseline:**
+
+| Metric | Before | After |
+|---|---|---|
+| Untracked docs in working tree | 7 | 0 |
+| Active cycle docs (`docs/cycles/*.md`) | 132 | 17 |
+| Archived cycle docs (`docs/cycles/archive/*.md`) | 0 | 115 |
+| Active ADRs (`docs/adrs/*.md` excl. archive.md) | 0 | 4 |
+| `npm run typecheck` script | missing | added |
+| `console.log` calls in non-test source | 7 | 0 |
+| `npm audit --audit-level=high` | exit 0 (8 moderates undocumented) | exit 0 (8 moderates documented in ADR) |
+| `resend` version | `^6.10.0` (caret, silent forward bumps) | `6.10.x` (pinned) |
+| API test files (`app/api/__tests__/*.test.ts`) | 53 | 63 |
+| Total vitest tests | ~1002 | 1050 |
+| Total vitest test files | 118 | 126 |
+
+**Migrations:** none. No `prisma/schema.prisma` edits.
+
+**New env vars:** none.
+
+**Manual smoke-test on preview URL:** N/A — no UI changes. CI's three required checks (`Lint, Typecheck & Test`, `Build`, `Playwright E2E`) cover the surface that changed.
+
+**Rollback plan:** revert PR; the cycle is 8 logically-independent commits and any single one can be reverted in isolation if a regression surfaces. The highest-risk commit is `5f5a27b` (CI workflow rewrite); if it breaks branch-protection signaling, revert with `git revert 5f5a27b` and re-add the inline `npx tsc --noEmit` step manually.
+
+**Follow-ups (not in this cycle):**
+- When upstream `svix` patches the `uuid<14` chain, open a `chore(deps): bump resend after svix patch` cycle (see [ADR](../adrs/2026-05-03-resend-cve-deferred.md)).
+- Phase 2 tech-debt items from the 2026-05-03 audit remain pending: `any`-decay (154 hits), page-split policy (10 files >500 LOC), seed unification (`scripts/reseed/*` vs `prisma/seed.ts`), DAL repo extraction (134 direct `import prisma` outside `lib/`), eslint-disable audit (75 directives). These are ratchet-in-flight, not a single cycle.
