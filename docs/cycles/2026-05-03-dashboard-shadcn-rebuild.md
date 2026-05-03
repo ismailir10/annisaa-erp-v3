@@ -60,6 +60,20 @@ Code review fixed two correctness issues:
 
 Deferred to a follow-up: tighter per-entity-type isolation via `Promise.allSettled` inside the helper. Spec design relies on the page-level `Promise.allSettled` + per-section empty-state degradation (Task 3); the tighter inner isolation is nice-to-have, not load-bearing.
 
+### Task 2 — `components/admin/dashboard/*` splits ✅
+
+Five focused server components plus one client component added under `components/admin/dashboard/`, exported via a barrel `index.ts`.
+
+Files added:
+- `components/admin/dashboard/stat-grid.tsx` — server component; renders 2-col (sm) / 4-col (lg) grid of four `StatCard` primitives (total, hadir, terlambat, tidak hadir).
+- `components/admin/dashboard/attendance-trend-chart.tsx` — `"use client"`; adopts shadcn `ChartContainer` (wraps `ResponsiveContainer` internally) with stacked recharts `BarChart` using `--chart-1/2/3` tokens. Outer `ResponsiveContainer` dropped vs. plan — `chart.tsx` already wraps it internally (confirmed by inspection of `components/ui/chart.tsx` lines 74–78); plan's gate note correctly predicted this deviation.
+- `components/admin/dashboard/pending-actions.tsx` — server component; leave row always shown; admissions row gated by `canSeeAdmissions`; payroll row gated by `canSeePayroll`. Adopts `Card`, `Badge`, `StatusBadge`.
+- `components/admin/dashboard/activity-feed.tsx` — server component; renders up to N `ActivityEvent` rows with `Avatar`/`AvatarFallback` (size sm) and `formatRelativeTime`; falls back to `EmptyState` when `events.length === 0`.
+- `components/admin/dashboard/quick-actions.tsx` — server component; payroll quick-action gated by `canSeePayroll`; three unconditional actions (kehadiran, cuti, tambah karyawan).
+- `components/admin/dashboard/index.ts` — barrel re-exports all five components + `WeeklyTrend` type.
+
+Between-task gate: `npm run build && npx vitest run` — build compiled in 32.4s, 982/982 tests passed.
+
 ## Verification
 
 (populated end-of-cycle once `npm run build && npx vitest run && npx playwright test` all green; will explicitly cross-check against `design-system` reference)
