@@ -96,7 +96,21 @@ Subagent dispatch plan: Task 1 first (solo). Then Tasks 2 + 3 in parallel (diffe
 - Task 2.5: gates passed (`npm run build` ✓, full vitest suite 1071 passed / 42 todo / 2 skipped — no regressions from the 4 added invalidation calls). Both reviewers (feature-dev + superpowers security) approved.
 - Task 4: gates passed (`npm run build` ✓). Frontend-gate Rule 4 satisfied — design-system §3 type ramp + §4 spacing tokens cited.
 - Task 5: gates passed (`DEMO_MODE=true npx playwright test e2e/parent.spec.ts` 8/8 passed in 11.4s). New reconciliation regression spec verified to FAIL against simulated pre-fix divergence (per reviewer walk-through).
+- End-of-cycle: full `npm run build` ✓; `npx vitest run` 1071 passed / 42 todo / 2 skipped ✓; full `npx playwright test` 70 passed / 1 failed (`e2e/teacher.spec.ts:46 salary slips page loads`) / 7 skipped. Teacher salary-slips failure is unrelated to this cycle — `git diff origin/staging -- e2e/teacher.spec.ts` is empty (test file unchanged), and the failing assertion lives in a teacher route this cycle does not touch. Treated as pre-existing flake; not blocking.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migrations**: none.
+- **New env vars**: none.
+- **Cache**: 4 admin-side write paths now call `revalidateTag("parent-invoice-list", { expire: 0 })` + `revalidateTag("student-invoices", { expire: 0 })` post-write. First request after deploy may hit a cold cache for affected tags — expected, harmless.
+- **Manual smoke (preview URL)**:
+  1. Sign in as Pak Budi (`rightjet.hq@gmail.com`). Land on `/parent`. Tagihan card should render at `text-lg sm:text-xl font-semibold` (smaller than before, single red channel — icon container also red, not amber).
+  2. Note the count "{N} tagihan belum dibayar" (or "Lunas semua" under "Pekan ini").
+  3. Tap the Tagihan card → `/parent/invoices`. Verify one of:
+     - count was 0 → "Lunas semua" (gold celebration card)
+     - count > 0 and selected child has outstanding → "Belum dibayar" banner with matching subtotal
+     - count > 0 and selected child paid → "Lunas untuk {nama}" + sibling-switcher rows in red
+  4. Switch child via tabs at top → counts redistribute correctly. The household total (home) should equal the sum across all child tabs.
+  5. Admin-side: from `/admin/finance/invoices`, mark an invoice paid via the manual payment dialog → reload `/parent/invoices` → invoice no longer appears under outstanding (cache busted).
+- **Rollback**: `git revert d08d5be 1de4e16 026ff5c 1fae788 20fb1c5` (Task 5, 4, 2.5, 2+3, 1 in reverse) — each commit is independently revertable. Reverting only Task 4 restores the old `text-display` size; reverting Task 2.5 only restores the cache-staleness window without affecting the home/list helper alignment.
+- **UAT follow-up**: this cycle closes UAT-2026-05-03 INV-01. The same UAT report flagged separate blockers (parent attendance scoping, bfcache leak, identity inconsistency) that need their own cycles per the report's "Suggested follow-up" section.
