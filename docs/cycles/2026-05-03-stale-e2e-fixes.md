@@ -102,10 +102,12 @@ Fill cycle doc Implementation + Verification + Ship Notes sections. Commit per t
 
 - Subagent plan: 4 tasks executed sequentially inline (each diff <12 lines; dispatch overhead > sequential cost).
 - Task 1: Skip Xendit-failure tests in DEMO_MODE — `e2e/admin.spec.ts` (+16 lines, 4 `test.skip()` blocks at the four originally-failing test bodies). Each skip cites `lib/xendit/client.ts:167` + manual-staging-validation rationale.
+- Task 2: Update design-system iframe selector — `e2e/design-system.spec.ts:43` (1-line change). Title string `An Nisaa' ERP Design System reference` → `Talib Design System reference` to match rebranded `app/admin/design-system/page.tsx:62`.
 
 ## Verification
 
 - Task 1: `npm run build` ✓; `npx vitest run` → 974 passed / 0 failed / 42 todo / 2 skipped (115 files). `feature-dev:code-reviewer` agent: no high-confidence issues.
+- Task 2: `npm run build` ✓; `npx vitest run` → same counts (Playwright-only change, vitest unaffected). `feature-dev:code-reviewer` agent: title string verified identical to `app/admin/design-system/page.tsx:62` source.
 
 ## Ship Notes
 

@@ -40,7 +40,7 @@ test.describe("Design System reference page", () => {
     // happen in the second test which GETs the static HTML directly —
     // avoids flaky cross-origin-sandbox frame timing in the iframe path.
     const iframe = page.locator(
-      'iframe[title="An Nisaa\' ERP Design System reference"]',
+      'iframe[title="Talib Design System reference"]',
     );
     await expect(iframe).toBeVisible();
     await expect(iframe).toHaveAttribute(
