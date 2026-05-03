@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 
 export type ActivityEvent = {
   id: string;
@@ -42,7 +43,7 @@ const ENTITY_NAME_FIELD: Record<WhitelistedEntity, string> = {
   Employee: "nama",
   LeaveRequest: "id",
   PayrollRun: "periodStart",
-  Invoice: "number",
+  Invoice: "invoiceNumber",
   Admission: "childName",
   StudentEnrollment: "id",
 };
@@ -100,15 +101,19 @@ async function fetchRecentActivityImpl(
     const ent = row.entity as WhitelistedEntity;
     const targetName = entityMaps.get(ent)?.get(row.entityId);
     if (!targetName) continue;
+    const displayName =
+      ent === "PayrollRun"
+        ? formatDate(targetName, { month: "long", year: "numeric" })
+        : targetName;
     const user = userMap.get(row.actorId);
     const actorName = user?.name?.trim() || user?.email?.split("@")[0] || "Pengguna";
-    const { verb, href } = builder(targetName);
+    const { verb, href } = builder(displayName);
     events.push({
       id: row.id,
       actorName,
       actorInitials: initialsFor(actorName),
       verb,
-      target: targetName,
+      target: displayName,
       href,
       timestamp: row.createdAt.toISOString(),
     });

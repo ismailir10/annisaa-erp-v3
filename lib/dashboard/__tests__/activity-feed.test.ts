@@ -128,7 +128,7 @@ describe("getRecentActivity", () => {
     ]);
     mockUser.mockResolvedValue([{ id: "u1", name: null, email: "kepala@school.id" }]);
     (prisma.invoice.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { id: "inv1", number: "INV-001" },
+      { id: "inv1", invoiceNumber: "INV-001" },
     ]);
 
     const events = await getRecentActivity("tenant-1");
@@ -172,5 +172,30 @@ describe("getRecentActivity", () => {
     expect(events[0].actorName).toBe("Pengguna");
     expect(events[0].actorInitials).toBe("P");
     expect(events[0].verb).toBe("pendaftaran baru: Aisyah");
+  });
+
+  it("formats PayrollRun.periodStart (YYYY-MM-DD) into Indonesian month-year for display", async () => {
+    mockAudit.mockResolvedValue([
+      {
+        id: "a1",
+        tenantId: "tenant-1",
+        actorId: "u1",
+        entity: "PayrollRun",
+        entityId: "pr1",
+        action: "create",
+        before: null,
+        after: null,
+        createdAt: new Date(),
+      },
+    ]);
+    mockUser.mockResolvedValue([{ id: "u1", name: "Bu Sari", email: "sari@school.id" }]);
+    (prisma.payrollRun.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "pr1", periodStart: "2026-04-01" },
+    ]);
+
+    const events = await getRecentActivity("tenant-1");
+    expect(events).toHaveLength(1);
+    expect(events[0].verb).toBe("membuat penggajian April 2026");
+    expect(events[0].target).toBe("April 2026");
   });
 });

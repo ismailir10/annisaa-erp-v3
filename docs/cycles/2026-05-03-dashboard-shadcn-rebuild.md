@@ -48,7 +48,17 @@ Tasks 1 and 2 are independent. Task 3 depends on both. Tasks 4–5 sequential.
 
 ## Implementation
 
-(populated per task by `/build` flow — currently in progress)
+### Task 1 — `lib/dashboard/activity-feed.ts` ✅ (chore: a990559, fix: pending)
+
+`getRecentActivity(tenantId, limit = 8)` queries `AuditLog`, batch-resolves entity display names per whitelisted entity in a single `Promise.all` (no N+1), maps each row through `VERB_MAP` to humanise actor/verb/target into Indonesian, and returns `ActivityEvent[]`. Wrapped in `unstable_cache(60s, tag "activity-feed")` for Task 4 invalidation.
+
+Files: `lib/dashboard/activity-feed.ts`, `lib/dashboard/__tests__/activity-feed.test.ts` (8 tests).
+
+Code review fixed two correctness issues:
+- `Invoice` display field was `"number"` — Prisma schema actually exposes `invoiceNumber`. Wrong field would throw `PrismaClientValidationError` at runtime; the test mock used the wrong field too so the bug was masked. Fixed in source + test.
+- `PayrollRun.periodStart` is `YYYY-MM-DD`; now formatted via `formatDate(..., { month: "long", year: "numeric" })` so the verb renders as "membuat penggajian April 2026" rather than "...2026-04-01". Locked in by a dedicated test.
+
+Deferred to a follow-up: tighter per-entity-type isolation via `Promise.allSettled` inside the helper. Spec design relies on the page-level `Promise.allSettled` + per-section empty-state degradation (Task 3); the tighter inner isolation is nice-to-have, not load-bearing.
 
 ## Verification
 
