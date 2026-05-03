@@ -81,6 +81,20 @@ Code review fixed four issues post-merge:
 - `pending-actions.tsx` — `<Badge className="...text-white">` violated ui.md's no-hardcoded-colors rule; switched to `text-primary-foreground` token.
 - `quick-actions.tsx` — emoji glyphs replaced with Lucide icons (`Banknote`, `ClipboardList`, `CalendarOff`, `UserPlus`) per ui.md Shadcn-FIRST rule; icons now sit in a `bg-primary/10` chip mirroring the `PendingActions` row pattern.
 
+### Task 3 — Rewrite `app/admin/page.tsx` + delete `dashboard-client.tsx` ✅
+
+`app/admin/page.tsx` now composes the five focused components from the `components/admin/dashboard/` barrel (StatGrid, AttendanceTrendChart, PendingActions, ActivityFeed, QuickActions) in Layout C: full-width stat grid, 3-column middle row (chart `lg:col-span-2` + right rail with PendingActions/ActivityFeed stacked), full-width QuickActions below.
+
+Key changes:
+- **`Promise.allSettled` + `settled()` helper**: each of the 7 query slots is individually extracted with a typed fallback (`0`, `[]`, `null`) and a `console.error` on failure. A single bad query degrades only its own section; the rest render normally.
+- **Two new perm-gated queries**: `prisma.admission.count({ status: "INQUIRY" })` behind `admissions.view`; `getRecentActivity(tenantId, 8)` behind `hr.view`. Both fall back to safe-empty values when the permission is absent.
+- **TypeScript**: `PayrollRowWithCount` local type alias resolves the `_count.items` narrowing issue (Prisma infers the `include` shape only when the generic is propagated explicitly).
+- **Deleted `app/admin/dashboard-client.tsx`**: removed via `git rm`; verified no remaining imports across `app/`, `components/`, `lib/`.
+
+Cross-checked design-system.html §cards + §charts for token + spacing alignment.
+
+Between-task gate: `npm run build` compiled in 19.6s (TypeScript + 123 routes); `npx vitest run` — 982/982 tests passed.
+
 ## Verification
 
 (populated end-of-cycle once `npm run build && npx vitest run && npx playwright test` all green; will explicitly cross-check against `design-system` reference)
