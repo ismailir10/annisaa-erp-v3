@@ -98,7 +98,7 @@ npx prisma generate && npx prisma db push && npx prisma db seed
 npm run dev                          # http://localhost:3000 — demo mode, no Supabase
 ```
 
-Tests: `npm run build && npx vitest run` (mandated gate before every commit), `npx playwright test`, `npm run lint`.
+Tests: `npm run build && npx vitest run` (mandated gate before every commit), `npx playwright test`, `npm run lint`. Type-check on demand: `npm run typecheck` (runs `prisma generate` + `tsc --noEmit`).
 
 ### Environment variables
 

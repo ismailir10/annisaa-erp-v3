@@ -45,7 +45,7 @@ A repo-wide tech-debt audit on 2026-05-03 surfaced 16 items across 6 categories.
 - [x] **T1 [par]** — `chore: commit untracked .gitignore + 6 UAT reports`. Stage `.gitignore` (adds `.vercel`) + 6 UAT reports. One commit, `chore:` prefix. (The talib spec listed in the original audit was already in `origin/staging` PR #169; main-checkout was stale.)
   *Acceptance:* `git status` clean. Files visible in `git log -1 --stat`.
 
-- [ ] **T2 [par]** — `chore: add npm run typecheck script`. Edit `package.json` `scripts`: add `"typecheck": "prisma generate && tsc --noEmit"`. Edit `.github/workflows/ci.yml`: replace the inline `npx tsc --noEmit` step with `npm run typecheck` (drop the now-redundant explicit `prisma generate` step in `lint-typecheck-test` job since typecheck already runs it). Edit README.md to mention the script in the scripts/standards row.
+- [x] **T2 [par]** — `chore: add npm run typecheck script`. Edit `package.json` `scripts`: add `"typecheck": "prisma generate && tsc --noEmit"`. Edit `.github/workflows/ci.yml`: replace the inline `npx tsc --noEmit` step with `npm run typecheck` (drop the now-redundant explicit `prisma generate` step in `lint-typecheck-test` job since typecheck already runs it). Edit README.md to mention the script in the scripts/standards row.
   *Acceptance:* `npm run typecheck` exits 0 locally. CI workflow diff shown. README diff shown.
 
 - [ ] **T3 [par]** — `chore: remove stray console.log calls`. Grep: `grep -rn --include='*.ts' --include='*.tsx' 'console\.log' app components lib | grep -v generated | grep -v test`. For each of the 7 hits: read context, classify as (a) accidental debug → delete, (b) deliberate operational signal → convert to `console.warn`/`console.error` with reasoning comment.
@@ -74,6 +74,7 @@ A repo-wide tech-debt audit on 2026-05-03 surfaced 16 items across 6 categories.
 ## Verification
 
 - Task 1: gate green — `npm run build` ✓, `npx vitest run` ✓ (1002 tests / 118 files passing, 2 skipped, 42 todo). 8 files / 766 insertions staged.
+- Task 2: gate green — `npm run typecheck` ✓ (exit 0, zero TS errors), `npm run build` ✓, `npx vitest run` ✓ (1002 passing). Files: `package.json` (+1 typecheck script), `.github/workflows/ci.yml` (collapsed redundant `prisma generate` steps in both `lint-typecheck-test` and `build` jobs since `npm run typecheck` and `npm run build` both run `prisma generate` internally), `README.md` (+1 sentence under Tests). Reviewer flagged a pre-existing standalone `prisma generate` in the Build job — fixed inline since the same simplification rationale applies.
 
 ## Ship Notes
 
