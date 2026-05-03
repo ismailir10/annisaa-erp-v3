@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { enforceAuthRateLimit } from "../auth-rate-limit";
 import { __resetRateLimitForTest } from "@/lib/rate-limit";
@@ -60,5 +60,17 @@ describe("enforceAuthRateLimit", () => {
     for (let i = 0; i < 20; i++) {
       expect(enforceAuthRateLimit(makeReq("/api/auth/login", null))).toBeNull();
     }
+  });
+
+  it("skips rate limit when DEMO_MODE=true", () => {
+    // Demo mode is dev/staging/e2e — those environments hit /api/auth/users
+    // and friends repeatedly during test setup. Rate-limiting them breaks
+    // test fixtures (response body becomes {error:"rate_limited"} object
+    // instead of the expected array, and `users.find` throws).
+    vi.stubEnv("DEMO_MODE", "true");
+    for (let i = 0; i < 20; i++) {
+      expect(enforceAuthRateLimit(makeReq("/api/auth/login"))).toBeNull();
+    }
+    vi.unstubAllEnvs();
   });
 });
