@@ -1,0 +1,206 @@
+# Cycle B — Talib Production Infrastructure
+
+## Context
+
+Cycle A (rebrand → Talib) is shipping to main. Cycle B stands up the production environment so `talib.annisaasekolahku.com` can serve real users on Cycle C launch day. Pure infrastructure hardening: prod database migrations, nightly encrypted backups, uptime monitoring, security headers (CSP Report-Only fresh-add), in-memory rate limit, GitHub branch protection, and a runbook. No user-facing UI changes.
+
+Source design: [`docs/superpowers/specs/2026-05-03-talib-cycle-b-prod-infra-design.md`](../superpowers/specs/2026-05-03-talib-cycle-b-prod-infra-design.md). Brainstorm resolved 9 decisions including reuse of existing prod Supabase project `vxwywmvpxetdgnxejjgk` (no new project), webhook URL fix from umbrella spec (`/api/webhooks/xendit` → `/api/xendit/webhook`, already corrected in Xendit dashboard 2026-05-03), in-memory rate limit (accept N-instance leakage), email-only UR alerts Day 1, and pause-staging DR drill against inactive `qrnbanxcrmrwganpmzmn`.
+
+No UAT reports overlap (most recent: `parent` + `student-journal`, unrelated to infra). design-system token NOT required — frontend-gate doesn't fire (zero `app/**/*.{tsx,css}` or `components/**/*.tsx` diffs expected).
+
+## Spec
+
+### Acceptance criteria
+- [ ] Prod Supabase `vxwywmvpxetdgnxejjgk` has all migrations from `prisma/migrations/` applied; `_prisma_migrations` row count matches staging
+- [ ] `prisma migrate diff --from-url $STAGING_DIRECT --to-url $PROD_DIRECT` is empty post-migration (schema parity)
+- [ ] `verify-rls-coverage.ts` exits 0 against prod direct URL
+- [ ] `GET /api/health` returns 200 `{ok:true,sha:...}` when DB reachable; 503 `{ok:false,error:"db_unreachable"}` on DB throw
+- [ ] Unit test for `/api/health` covers both 200 + 503 paths
+- [ ] proxy.ts emits CSP-Report-Only, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy headers on every response
+- [ ] `/api/csp-report` endpoint logs CSP violations to stdout (no DB write)
+- [ ] In-memory rate limit on `/api/auth/*` returns 429 + Retry-After after 5 req/min/IP
+- [ ] `scripts/audit-vercel-env.ts` exits 0 when prod scope env keys match `.env.example`
+- [ ] `.github/workflows/backup.yml` runs nightly cron `0 17 * * *` UTC; uploads GPG-encrypted dump to R2 bucket `talib-backups`
+- [ ] R2 bucket has 30-day lifecycle rule; first `workflow_dispatch` run produces `YYYY/MM/DD/dump.pgc.gpg`
+- [ ] DR drill executed: pause staging → reactivate `qrnbanxcrmrwganpmzmn` → restore latest R2 dump → verify row counts match staging pre-pause → pause back → unpause staging
+- [ ] UptimeRobot monitor configured: `/api/health`, 5min interval, email alert
+- [ ] GitHub branch protection on `main` + `staging`: require PR + 3 CI checks (`Lint, Typecheck & Test`, `Build`, `Playwright E2E`); `enforce_admins=true`; no force-push; no deletions
+- [ ] `docs/runbooks/prod-incident.md` documents: Vercel rollback, R2 restore steps, Xendit webhook re-point, branch protection toggle for hotfixes
+- [ ] README env table reads "Singapore" not "Mumbai/Tokyo"; prod URL = `talib.annisaasekolahku.com`
+- [ ] Umbrella spec webhook URL corrected to `/api/xendit/webhook`
+- [ ] Supabase Auth email templates (invite, magic-link, recovery, confirm-signup, change-email) Talib-branded; sender display = `Talib by An Nisaa' Sekolahku`; cross-checked against `design-system.html`; HTML mirrored in `lib/supabase/email-templates/`
+
+### Non-goals
+- Sentry / Datadog / external error tracking
+- Upstash Redis or any global rate-limit backend
+- Twilio / WhatsApp Business API integration
+- Per-PR Supabase Preview DB branches
+- Repo rename `annisaa-erp-v3` → `talib`
+- New Playwright e2e specs (regression-only run)
+- Any user-facing UI changes
+- CSP enforcement (stays Report-Only this cycle; promote post-launch +1wk)
+
+### Assumptions
+1. Prod Supabase `vxwywmvpxetdgnxejjgk` is empty (no manual schema work since 2026-04-21 provision). `prisma migrate diff staging→prod` is expected to show all migrations missing pre-T1.
+2. Vercel CLI logged in with access to project; can read prod-scope env vars for T5 audit.
+3. R2 account exists or will be created; user has Cloudflare dashboard access.
+4. 1Password vault exists for GPG private key storage.
+5. UptimeRobot account will be created during T9 (free tier, no payment).
+6. GitHub repo `ismailir10/annisaa-erp-v3` is private (branch protection free since Feb 2023).
+7. No backfill of historical data — prod stays empty until Cycle C `seed-prod.ts` run.
+8. Staging downtime ~30min during T8 DR drill is acceptable (off-hours, internal users only).
+9. Resend SMTP credentials are or will be wired into Supabase Auth → SMTP settings on the prod project (T12 depends on this; sender domain `talib.annisaasekolahku.com` SPF/DKIM already authenticated per Cycle A risk-mitigation).
+
+→ Correct any of these now or `/build` will proceed with them.
+
+## Tasks
+
+Task = one commit. Between-task gate: `npm run build && npx vitest run`. Dependencies marked `(depends: T#)`. Tasks without dependency marker can run independently → `/build` may dispatch as parallel subagents.
+
+- [ ] **T1: Apply prisma migrations to prod Supabase**
+  - Files: none (DB-only). Commands run from worktree shell.
+  - Pre-flight: `prisma migrate diff --from-url $STAGING_DIRECT --to-url $PROD_DIRECT` must be empty of unexpected drift; abort if non-empty
+  - Run: `DATABASE_URL=$PROD_POOLER DIRECT_URL=$PROD_DIRECT npx prisma migrate deploy`
+  - Verify: `_prisma_migrations` row count = `ls prisma/migrations/ | wc -l`; `npx tsx scripts/verify-rls-coverage.ts` exits 0
+  - Commit message: `chore(db): apply migrations to talib prod supabase` (no repo diff — empty commit with `--allow-empty` to anchor cycle progress)
+  - Acceptance: prod schema matches staging; RLS coverage check passes
+
+- [ ] **T2: `/api/health` endpoint + unit test**
+  - Files: `app/api/health/route.ts` (new), `app/api/__tests__/health.test.ts` (new)
+  - Reuse: `prisma` from `@/lib/db`
+  - Behavior: `GET` → `prisma.$queryRaw\`SELECT 1\``; success → 200 `{ok:true,sha:VERCEL_GIT_COMMIT_SHA ?? "local"}`; throw → 503 `{ok:false,error:"db_unreachable"}`
+  - Test: mock `prisma.$queryRaw`; assert status code + JSON body for both paths
+  - Acceptance: vitest passes; `curl localhost:3000/api/health` → 200 in dev
+
+- [ ] **T3: Security headers in proxy.ts** *(depends: T2)*
+  - Files: `lib/security/headers.ts` (new), `proxy.ts` (modify), `app/api/csp-report/route.ts` (new)
+  - `lib/security/headers.ts` exports `applySecurityHeaders(response: NextResponse)`. Sets:
+    - `Content-Security-Policy-Report-Only`: `default-src 'self'; script-src 'self' 'unsafe-inline' https://js.xendit.co https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://api.xendit.co https://api.resend.com; frame-ancestors 'none'; report-uri /api/csp-report`
+    - `Strict-Transport-Security`: `max-age=63072000; includeSubDomains; preload`
+    - `X-Frame-Options`: `DENY`
+    - `X-Content-Type-Options`: `nosniff`
+    - `Referrer-Policy`: `strict-origin-when-cross-origin`
+    - `Permissions-Policy`: `camera=(), microphone=(), geolocation=()`
+  - proxy.ts: call `applySecurityHeaders(response)` before every `return response` path. Skip on `/api/csp-report` (avoid loops).
+  - `/api/csp-report` route: `POST` handler reads JSON body, `console.log("[csp-report]", body)`, returns 204. No DB write. Mark `// @public` (no auth).
+  - Acceptance: `curl -I https://localhost:3000/` shows all 6 headers; CSP violations log to Vercel stdout
+
+- [ ] **T4: In-memory rate limit on `/api/auth/*`** *(depends: T3)*
+  - Files: `lib/security/rate-limit.ts` (new), `lib/security/__tests__/rate-limit.test.ts` (new), `proxy.ts` (modify)
+  - `rate-limit.ts` exports `rateLimit(key: string, max: number, windowMs: number) → {ok: boolean, retryAfter?: number}`
+  - Token bucket with lazy GC (drop expired buckets when `buckets.size > 10_000`)
+  - proxy.ts: at top of handler, if `pathname.startsWith("/api/auth/")`, derive `ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"`; call `rateLimit(\`${ip}:${pathname}\`, 5, 60_000)`; on `!ok` return `NextResponse.json({error:"rate_limited"}, {status:429, headers:{"Retry-After": String(retryAfter)}})`
+  - Test: 5 sequential calls pass; 6th + 7th return 429 with Retry-After
+  - Acceptance: vitest passes; manual `for i in 1..7; curl -i .../api/auth/test` shows 429 on 6th+
+
+- [ ] **T5: Vercel env audit script**
+  - Files: `scripts/audit-vercel-env.ts` (new)
+  - Behavior: shell out to `vercel env ls production` (or use `@vercel/sdk`), parse keys, diff vs `.env.example` (extract VAR names from leftmost `^[A-Z_]+=`), exit 1 with diff on mismatch, exit 0 otherwise
+  - Special case: warn (not fail) on `STAGING_*` keys in production scope
+  - Reuse: existing `process` argv parsing pattern from `scripts/verify-rls-coverage.ts`
+  - Acceptance: `npx tsx scripts/audit-vercel-env.ts` exits 0 once prod scope is locked
+
+- [ ] **T6: GPG keypair + R2 bucket + GitHub Actions backup workflow** *(depends: T5)*
+  - Files: `.github/workflows/backup.yml` (new), `ops/backup-public.asc` (new), `ops/README.md` (new — keypair gen + key recovery procedure)
+  - GPG keypair gen (manual, one-time, run by user): `gpg --quick-generate-key "Talib Backup <backup@talib.local>" ed25519 sign,encr never`. Export public: `gpg --armor --export backup@talib.local > ops/backup-public.asc`. Private key stored in 1Password vault `Talib Backups` + paper safe.
+  - Workflow:
+    ```yaml
+    name: Nightly Backup
+    on:
+      schedule:
+        - cron: '0 17 * * *'
+      workflow_dispatch:
+    jobs:
+      backup:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - run: gpg --import ops/backup-public.asc
+          - env:
+              DB_URL: ${{ secrets.PROD_DB_URL }}
+            run: pg_dump "$DB_URL" --format=custom --no-owner --no-acl > dump.pgc
+          - run: gpg --batch --yes --trust-model always --encrypt --recipient backup@talib.local --output dump.pgc.gpg dump.pgc
+          - env:
+              AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+              AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+              AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+            run: |
+              DATE=$(date -u +%Y/%m/%d)
+              aws s3 cp dump.pgc.gpg "s3://talib-backups/$DATE/dump.pgc.gpg"
+    ```
+  - R2 bucket creation (manual): create `talib-backups`, attach 30-day lifecycle rule (delete after 30 days). Generate API token with read+write on this bucket only.
+  - GitHub secrets to add (manual): `PROD_DB_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`
+  - Acceptance: workflow file passes `actionlint`; manual setup steps documented in `ops/README.md`
+
+- [ ] **T7: Verify first nightly backup** *(depends: T6)*
+  - Files: none (verification only). Document result in cycle doc Implementation section.
+  - Trigger: `gh workflow run backup.yml --ref feat/cycle-b-prod-infra` (or via GitHub UI)
+  - Verify: workflow run completes green; R2 bucket has `YYYY/MM/DD/dump.pgc.gpg`; download locally; `gpg -d dump.pgc.gpg | pg_restore --list | head -20` shows table list including `Student`, `Invoice`, `User`
+  - Acceptance: encrypted dump round-trips successfully
+
+- [ ] **T8: DR drill — restore round-trip** *(depends: T7)*
+  - Files: none (operational). Document procedure + results in `docs/runbooks/prod-incident.md` §Restore (T11).
+  - Procedure:
+    1. Off-hours notification (no users on staging — internal only)
+    2. Capture pre-pause row counts: `SELECT COUNT(*) FROM "Student"`, `"Invoice"`, `"User"` against staging direct URL
+    3. Pause staging via Supabase MCP `pause_project udbivhchbizpxoryejgz`
+    4. Reactivate `qrnbanxcrmrwganpmzmn` via Supabase dashboard (manual UI step)
+    5. Pull latest R2 backup → `gpg -d dump.pgc.gpg > dump.pgc` → `pg_restore -d $SCRATCH_DIRECT_URL dump.pgc`
+    6. Verify restored row counts match pre-pause counts; spot-check 1 invoice via `SELECT`
+    7. Pause `qrnbanxcrmrwganpmzmn`
+    8. Unpause staging via Supabase MCP
+    9. Record timing + commands + counts in runbook
+  - Acceptance: drill log committed in T11 runbook; row counts matched
+
+- [ ] **T9: UptimeRobot monitor** *(depends: T2)* (does not depend on T8 — can run as soon as `/api/health` is live in prod)
+  - Files: none (external config). Document URL + monitor settings in cycle doc Implementation.
+  - Monitor: HTTP(s), URL `https://talib.annisaasekolahku.com/api/health`, interval 5min, alert contact = email
+  - Note: monitor stays paused until Cycle B merges to main and `/api/health` is live on prod
+  - Acceptance: UR dashboard shows monitor green for ≥24h before Cycle C kickoff
+
+- [ ] **T10: GitHub branch protection** *(depends: T9)* (T9 is "live monitoring before locking workflows" — protection requires CI checks be currently passing on staging)
+  - Files: none (GitHub UI / `gh api`). Document command set in `ops/README.md`.
+  - Use `gh api -X PUT repos/ismailir10/annisaa-erp-v3/branches/main/protection` with body: `required_status_checks: {strict: true, contexts: ["Lint, Typecheck & Test", "Build", "Playwright E2E"]}, enforce_admins: true, required_pull_request_reviews: null, restrictions: null, allow_force_pushes: false, allow_deletions: false`
+  - Repeat for `staging`
+  - Verify: `gh api repos/.../branches/main/protection` shows expected JSON; force-push attempt rejected
+  - Acceptance: protection active on both branches; runbook documents toggle procedure for hotfix incidents
+
+- [ ] **T12: Supabase Auth email templates — Talib brand** *(depends: T1)*
+  - Files: `lib/supabase/email-templates/{invite,magic-link,recovery,confirm-signup,change-email}.html` (new — version-controlled mirror), `lib/supabase/email-templates/README.md` (new — sync procedure)
+  - Templates: 5 standard Supabase Auth emails. HTML inline-styled for email client compat (no external CSS). Cross-check `.claude/standards/design-system.html` for Talib brand colors (primary, neutral palette), typography (system stack — emails can't load custom fonts), and Talib wordmark + "by An Nisaa' Sekolahku" sub-label in header.
+  - Sender display: `Talib by An Nisaa' Sekolahku <noreply@talib.annisaasekolahku.com>` (configured in Supabase Auth → SMTP settings — Resend SMTP per umbrella spec §3)
+  - Subject lines (Indonesian, Bu Sari voice — see `.claude/standards/voice.md`):
+    - Invite: `Anda diundang ke Talib`
+    - Magic link: `Tautan masuk Talib Anda`
+    - Recovery: `Reset kata sandi Talib`
+    - Confirm signup: `Konfirmasi email Talib`
+    - Change email: `Konfirmasi perubahan email`
+  - Body content per template: Talib wordmark header, single primary CTA button (brand color, 44px min tap target per design-system), magic-link URL fallback as plain text, footer with "An Nisaa' Sekolahku" + support email
+  - Sync procedure documented in `lib/supabase/email-templates/README.md`: copy HTML → Supabase dashboard → Auth → Email Templates → paste per slot. Manual one-time per env (staging done in test-only run; prod done as part of T12).
+  - Acceptance: 5 HTML files committed; Supabase prod dashboard shows Talib-branded templates; test invite email rendered in Gmail + Outlook web shows brand correctly; design-system cross-checked
+
+- [ ] **T11: Docs sync — README + umbrella spec + runbook** *(depends: T1, T2, T6, T8, T10, T12)*
+  - Files: `README.md` (modify), `docs/superpowers/specs/2026-05-02-talib-production-launch-design.md` (modify), `docs/runbooks/prod-incident.md` (new)
+  - README edits:
+    - L5: prod URL `annisaa-erp-v3.vercel.app` → `talib.annisaasekolahku.com`
+    - L14: "prod Mumbai, staging Tokyo" → "prod + staging Singapore (ap-southeast-1)"
+    - L105-106: pooler/direct rows say "Mumbai" + "Tokyo" → "Singapore" both
+    - L111: `NEXT_PUBLIC_APP_URL` prod = `https://talib.annisaasekolahku.com`
+    - L124-125: env table rows "Mumbai" + "Tokyo" → "Singapore"; prod URL same fix
+  - Umbrella spec: `/api/webhooks/xendit` → `/api/xendit/webhook` (3 occurrences in §3 + §8.1)
+  - Runbook contents:
+    - **§Vercel rollback:** `vercel rollback` command + dashboard fallback
+    - **§R2 restore:** decrypt `dump.pgc.gpg` → `pg_restore` against prod direct URL; commands from T8 drill
+    - **§Xendit webhook re-point:** dashboard URL field, sandbox test procedure, prod test (Rp 10k self-payment)
+    - **§Branch protection toggle:** `gh api -X PUT .../branches/main/protection` with `required_status_checks: null` for emergency disable; re-enable after; audit log via GitHub Settings → Audit Log
+    - **§Supabase auto-pause recovery:** if UR detects DB unreachable + Vercel deploys are healthy → likely Supabase pause; reactivate via dashboard; investigate UR keepalive failure
+  - Acceptance: README env table accurate; umbrella spec webhook URL accurate; runbook has 5 sections each with copy-pasteable commands
+
+## Implementation
+<filled by /build — per-task bullet of files touched + one-line summary>
+
+## Verification
+<filled by /build — gate output, test names, manual smoke notes>
+
+## Ship Notes
+<filled by /ship — migrations, env vars, manual steps, rollback plan>
