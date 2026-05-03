@@ -65,7 +65,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - Commit message: `chore(db): apply migrations to talib prod supabase` (no repo diff — empty commit with `--allow-empty` to anchor cycle progress)
   - Acceptance: prod schema matches staging; RLS coverage check passes
 
-- [ ] **T2: `/api/health` endpoint + unit test**
+- [x] **T2: `/api/health` endpoint + unit test**
   - Files: `app/api/health/route.ts` (new), `app/api/__tests__/health.test.ts` (new)
   - Reuse: `prisma` from `@/lib/db`
   - Behavior: `GET` → `prisma.$queryRaw\`SELECT 1\``; success → 200 `{ok:true,sha:VERCEL_GIT_COMMIT_SHA ?? "local"}`; throw → 503 `{ok:false,error:"db_unreachable"}`
@@ -197,10 +197,14 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - Acceptance: README env table accurate; umbrella spec webhook URL accurate; runbook has 5 sections each with copy-pasteable commands
 
 ## Implementation
-<filled by /build — per-task bullet of files touched + one-line summary>
+
+- Subagent plan: T2/T3/T4/T5/T11-partial/T12 sequential per-commit (shared file edits to proxy.ts in T3+T4 + cycle-doc churn make parallel dispatch unsafe). T1, T6 ops, T7-T10, T11 runbook = Phase 2 user-driven ops with assistant coaching.
+- T4 reuses existing `lib/rate-limit.ts` instead of creating `lib/security/rate-limit.ts` (DRY — existing `rateLimit(key, limit, windowMs) → {success, remaining}` covers the need; cycle doc adjusted at commit time).
+- Task 2: `/api/health` — `app/api/health/route.ts` + `app/api/__tests__/health.test.ts` — public DB-aware liveness via `SELECT 1`; 200 with git SHA on success; 503 `{error:"db_unreachable"}` + server-side `console.error` log on DB throw. Reviewers (feature-dev:code-reviewer + superpowers:code-reviewer) cleared with 2 inline fixes applied (env-stub semantics + error log).
 
 ## Verification
-<filled by /build — gate output, test names, manual smoke notes>
+
+- T2: `npx vitest run app/api/__tests__/health.test.ts` — 4 passed (200 path, sha env present, sha env absent via `delete process.env.*`, 503 path with error log assertion). Full suite 978 passed | 42 todo | 0 failed. `npm run build` ✓ — `/api/health` route present in build output.
 
 ## Ship Notes
 <filled by /ship — migrations, env vars, manual steps, rollback plan>
