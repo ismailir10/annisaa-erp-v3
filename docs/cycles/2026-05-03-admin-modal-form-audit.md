@@ -134,7 +134,21 @@ These are all **drift** issues — no API changes, no schema work, no business-l
 - Task 5: `npm run build` ✅ + `npx vitest run` ✅ (1015 pass / 42 todo / 2 skipped, 17.9s). Pure mechanical text replacement; no code review needed.
 - Task 6: `npx playwright test e2e/admin-dialogs.spec.ts` ✅ (8 pass / 0 fail, 13.7s). 7 screenshots committed under `e2e/__snapshots__/admin-dialogs/`. Initial first-iteration found `guardians-create` had no list-level trigger (guardians are edited only) → dropped from set. Second iteration found `getByRole("button", name: "Batal")` failed on settings dialogs because of the `<DialogClose><Button>` wrapper structure → switched to `locator('button:has-text("Batal")')` which works regardless of wrapper.
 - Task 7: Docs-only — no gates beyond pre-commit hook (which requires `design-system` token in cycle doc Verification — present here).
+- Width-pin follow-up (post code review) — frontend reviewer flagged 10+ standalone Dialog sites still on default `sm:max-w-sm` (~24rem, visibly cramped). Pinned: `admissions` (2xl), `guardians`, `enrollments`, `(hr)/leave` (2xl, multi-row review form), `(hr)/payroll/[id]` 4 dialogs (vars=2xl, others lg), `student-journal` 2 dialogs, `invoices` + `invoices/[id]` payment dialogs, `students/[id]` 4 dialogs (guardian / enroll / promote / withdraw), `students` (`max-w-lg` → `sm:max-w-lg` for breakpoint correctness). All admin form Dialogs now have explicit width.
+- End-of-cycle gate: `npm run build` ✅ + `npx vitest run` ✅ (1015 pass) + `npx playwright test` 70 pass / 4 pre-existing fails (3 Xendit-fake-key flakes in admin.spec.ts tagihan flow + 1 teacher slips — diff confirms invoice files only changed cosmetic labels + destructive flag, no logic touched).
 
 ## Ship Notes
 
-<!-- Filled by /ship — migrations, env vars, rollback plan -->
+- **No DB migrations.** Pure frontend + standards docs.
+- **No new env vars.**
+- **No risky API surface.** `app/admin/invoices/{[id],}/page.tsx` only changed: button labels, destructive flag on ConfirmDialog, FieldLabel asterisk migration, DialogContent width. No invoice creation logic touched. The 3 pre-existing Playwright failures in admin.spec.ts tagihan flow expect Xendit fake-key to fail with `PENDING_PAYMENT_LINK` but receive `SENT` — this is a test-infra concern (Xendit fake-key behavior depends on real api.xendit.co), not a code regression. Confirm the failure mode on staging post-merge to rule out cycle attribution.
+- **Manual smoke on preview URL:**
+  - Open `/admin/students` on desktop → click "Tambah Siswa" → Dialog (≥768px). Submit reads "Tambah Siswa", Cancel reads "Batal" (ghost variant).
+  - Resize to <768px → close + reopen "Tambah Siswa" → renders as Sheet from bottom. (Note: ResponsiveFormDialog freezes the choice while open — viewport flips mid-edit no longer reset the form.)
+  - Open `/admin/invoices/<id>` → "Batalkan Tagihan" → ConfirmDialog action button is RED (destructive variant). Was blue before this cycle.
+  - Open any admin form Dialog → required fields (e.g. "Nama Lengkap *") render the asterisk in `text-destructive` red.
+- **Rollback plan:** `git revert <merge-sha>` is safe — no data migration involved. Revert reintroduces the inline asterisk pattern, drift labels, and missing destructive flags but does not break any user flow.
+- **Known follow-ups (out of scope):**
+  - `<Input>`/`<Select>` controls don't carry `required`/`aria-required` at the control level. `<FieldLabel required>` only marks the label. Document in a follow-up a11y sweep.
+  - Assessments / Rapor module Create-Edit still flagged `audit-drift` (was `audit-gap`) — needs a dedicated cycle to refactor categories/indicators into proper sub-dialogs or a >6-fields → page split.
+  - 3 admin Tagihan e2e tests are pre-existing flakes — investigate Xendit test fixture in a separate ticket.

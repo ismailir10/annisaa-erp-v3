@@ -564,7 +564,7 @@ export default function StudentsPage() {
         </Sheet>
       ) : (
         <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Edit Siswa</DialogTitle>
             </DialogHeader>
@@ -615,7 +615,7 @@ export default function StudentsPage() {
           open={createOpen}
           onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
         >
-          <DialogContent className="max-w-lg">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Tambah Siswa</DialogTitle>
             </DialogHeader>

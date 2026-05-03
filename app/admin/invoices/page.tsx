@@ -863,7 +863,7 @@ export default function InvoicesPage() {
         </Sheet>
       ) : (
         <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Buat Tagihan Bulanan</DialogTitle>
               <DialogDescription>

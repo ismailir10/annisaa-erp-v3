@@ -483,7 +483,7 @@ export default function PayrollDetailPage() {
 
       {/* Variables Modal */}
       <Dialog open={!!varsModal} onOpenChange={(o) => !o && setVarsModal(null)}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Variabel Kehadiran</DialogTitle>
             <DialogDescription>{varsModal?.employee.nama}</DialogDescription>
@@ -503,7 +503,7 @@ export default function PayrollDetailPage() {
 
       {/* Line Adjustment Modal */}
       <Dialog open={!!lineModal} onOpenChange={(o) => !o && setLineModal(null)}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Penyesuaian</DialogTitle>
             <DialogDescription>{lineModal?.line.labelSnapshot} — {lineModal?.item.employee.nama}</DialogDescription>
@@ -523,7 +523,7 @@ export default function PayrollDetailPage() {
 
       {/* Approve Modal */}
       <Dialog open={approveModal} onOpenChange={setApproveModal}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Setujui Penggajian</DialogTitle>
             <DialogDescription>Setelah disetujui, kehadiran akan dikunci dan tidak bisa diubah.</DialogDescription>
@@ -543,7 +543,7 @@ export default function PayrollDetailPage() {
 
       {/* Send Slips Modal */}
       <Dialog open={sendModal} onOpenChange={setSendModal}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Kirim Slip Gaji</DialogTitle>
             <DialogDescription>Slip gaji PDF akan dikirim ke email setiap karyawan.</DialogDescription>

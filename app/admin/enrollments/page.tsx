@@ -321,7 +321,7 @@ export default function EnrollmentsPage() {
         </Sheet>
       ) : (
         <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-          <DialogContent className="p-card">
+          <DialogContent className="p-card sm:max-w-lg">
             <DialogHeader><DialogTitle>Edit Penempatan</DialogTitle></DialogHeader>
             <div className="p-card space-y-field">
               <EnrollmentEditFormBody editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} classSections={classSections} />

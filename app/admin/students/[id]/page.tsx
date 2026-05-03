@@ -652,7 +652,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
               <div>{guardianBody}</div>
               <DialogFooter>
@@ -690,7 +690,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
               <div>{enrollBody}</div>
               <DialogFooter>
@@ -734,7 +734,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
               <div>{promoteBody}</div>
               <DialogFooter>
@@ -775,7 +775,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
               <div>{withdrawBody}</div>
               <DialogFooter>
