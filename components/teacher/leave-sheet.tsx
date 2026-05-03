@@ -218,7 +218,7 @@ export function LeaveSheet({
                 <div className="w-full h-1.5 bg-muted rounded-full mt-2">
                   <div
                     className="h-full bg-primary rounded-full"
-                    style={{ width: `${(balance.annual.remaining / balance.annual.total) * 100}%` }}
+                    style={{ width: `${balance.annual.total > 0 ? (balance.annual.remaining / balance.annual.total) * 100 : 0}%` }}
                   />
                 </div>
               </Card>
@@ -231,7 +231,7 @@ export function LeaveSheet({
                 <div className="w-full h-1.5 bg-muted rounded-full mt-2">
                   <div
                     className="h-full bg-status-leave rounded-full"
-                    style={{ width: `${(balance.sick.remaining / balance.sick.total) * 100}%` }}
+                    style={{ width: `${balance.sick.total > 0 ? (balance.sick.remaining / balance.sick.total) * 100 : 0}%` }}
                   />
                 </div>
               </Card>
