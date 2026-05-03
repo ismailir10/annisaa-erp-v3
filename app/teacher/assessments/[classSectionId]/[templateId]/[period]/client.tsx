@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, Send } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -65,6 +65,19 @@ function SaveIndicator({ state }: { state: SaveStatus }) {
     return <span className="text-xs text-destructive">Gagal simpan</span>;
   }
   return null;
+}
+
+/**
+ * Count students who have fewer scored indicators than the total indicator count.
+ * A student is "complete" when their scored count equals totalIndicators.
+ * Exported for unit testing.
+ */
+export function countIncompleteStudents(
+  studentScores: Array<{ scoredCount: number }>,
+  totalIndicators: number
+): number {
+  if (totalIndicators <= 0) return 0;
+  return studentScores.filter((s) => s.scoredCount < totalIndicators).length;
 }
 
 export function AssessmentEntryClient({
@@ -306,6 +319,13 @@ export function AssessmentEntryClient({
   const totalStudents = students.length;
   const publishedCount = Object.values(state).filter((s) => s.status === "PUBLISHED").length;
 
+  const incompleteCount = countIncompleteStudents(
+    students.map((s) => ({
+      scoredCount: Object.values(state[s.id]?.scores ?? {}).filter((v) => v.score != null).length,
+    })),
+    indicatorIds.length
+  );
+
   return (
     <div className="pb-24">
       <Link
@@ -412,7 +432,15 @@ export function AssessmentEntryClient({
         })}
       </Accordion>
 
-      <div className="fixed bottom-16 left-0 right-0 mx-auto max-w-md px-page-x">
+      <div className="fixed bottom-16 left-0 right-0 mx-auto max-w-md px-page-x space-y-2">
+        <div aria-live="polite" aria-atomic="true">
+          {incompleteCount > 0 && (
+            <div role="status" className="flex items-center gap-2 rounded-lg border border-status-late bg-status-late-subtle px-3 py-2 text-sm text-status-late-text">
+              <AlertTriangle size={15} className="shrink-0 text-status-late" aria-hidden="true" />
+              <span>{incompleteCount} siswa belum memiliki nilai lengkap</span>
+            </div>
+          )}
+        </div>
         <Button
           onClick={publishAll}
           disabled={publishing}
