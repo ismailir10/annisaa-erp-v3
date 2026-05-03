@@ -53,11 +53,10 @@ export function ResponsiveFormDialog({
   // Freeze the breakpoint choice while the dialog is open so a viewport
   // change (orientation, devtools toggle) doesn't unmount the active tree
   // and reset form state. Re-evaluate only when closed.
-  const frozenIsMobile = React.useRef(isMobile);
+  const [renderMobile, setRenderMobile] = React.useState(isMobile);
   React.useEffect(() => {
-    if (!open) frozenIsMobile.current = isMobile;
+    if (!open) setRenderMobile(isMobile);
   }, [open, isMobile]);
-  const renderMobile = open ? frozenIsMobile.current : isMobile;
 
   if (renderMobile) {
     return (

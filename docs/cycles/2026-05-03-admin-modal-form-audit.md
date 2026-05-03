@@ -136,6 +136,7 @@ These are all **drift** issues — no API changes, no schema work, no business-l
 - Task 7: Docs-only — no gates beyond pre-commit hook (which requires `design-system` token in cycle doc Verification — present here).
 - Width-pin follow-up (post code review) — frontend reviewer flagged 10+ standalone Dialog sites still on default `sm:max-w-sm` (~24rem, visibly cramped). Pinned: `admissions` (2xl), `guardians`, `enrollments`, `(hr)/leave` (2xl, multi-row review form), `(hr)/payroll/[id]` 4 dialogs (vars=2xl, others lg), `student-journal` 2 dialogs, `invoices` + `invoices/[id]` payment dialogs, `students/[id]` 4 dialogs (guardian / enroll / promote / withdraw), `students` (`max-w-lg` → `sm:max-w-lg` for breakpoint correctness). All admin form Dialogs now have explicit width.
 - End-of-cycle gate: `npm run build` ✅ + `npx vitest run` ✅ (1015 pass) + `npx playwright test` 70 pass / 4 pre-existing fails (3 Xendit-fake-key flakes in admin.spec.ts tagihan flow + 1 teacher slips — diff confirms invoice files only changed cosmetic labels + destructive flag, no logic touched).
+- CI lint follow-up: PR #174 first run failed `react-hooks/refs` rule on `ResponsiveFormDialog` (`Cannot access refs during render` for `frozenIsMobile.current`). Refactored to `useState` seeded from `useIsMobile`, synced via `useEffect` when `open=false`. Same freeze-while-open behavior; render-time access now goes through state, not a ref.
 
 ## Ship Notes
 
