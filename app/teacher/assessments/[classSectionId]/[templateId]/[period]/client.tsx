@@ -112,9 +112,20 @@ export function AssessmentEntryClient({
   // Queue of create-in-flight per student to avoid race conditions
   const creatingRef = useRef<Record<string, Promise<string | null> | null>>({});
 
+  // saveStudent runs from a setTimeout fired 1.2 s after the click that
+  // scheduled it. With `state` in the useCallback deps, the timer captured a
+  // pre-click closure (setState in setScore is queued, the render that
+  // produces the new saveStudent hasn't run yet) and persisted stale scores.
+  // Mirror state into a ref so deferred work reads the latest committed
+  // state. The 1.2 s debounce easily outlasts the effect commit cycle.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   const ensureAssessment = useCallback(
     async (studentId: string): Promise<string | null> => {
-      const cur = state[studentId];
+      const cur = stateRef.current[studentId];
       if (cur?.assessmentId) return cur.assessmentId;
 
       const existing = creatingRef.current[studentId];
@@ -144,12 +155,12 @@ export function AssessmentEntryClient({
       creatingRef.current[studentId] = null;
       return id;
     },
-    [state, template.id, period]
+    [template.id, period]
   );
 
   const saveStudent = useCallback(
     async (studentId: string, opts: { publish?: boolean } = {}): Promise<boolean> => {
-      const cur = state[studentId];
+      const cur = stateRef.current[studentId];
       if (!cur) return false;
 
       // Build scores payload — only indicators with a value
@@ -161,8 +172,11 @@ export function AssessmentEntryClient({
           notes: v.notes?.trim() ? v.notes.trim() : null,
         }));
 
-      if (scorePayload.length === 0 && !opts.publish) {
-        // Nothing to save yet and not publishing — skip without creating assessment
+      // Skip the round-trip only if there's nothing to save AND no row exists.
+      // If an assessment row already exists, an empty payload means the
+      // teacher cleared every indicator — server must persist the clear,
+      // otherwise refresh resurrects the old scores.
+      if (scorePayload.length === 0 && !opts.publish && !cur.assessmentId) {
         return true;
       }
 
@@ -205,7 +219,7 @@ export function AssessmentEntryClient({
       }));
       return true;
     },
-    [state, ensureAssessment]
+    [ensureAssessment]
   );
 
   const scheduleAutosave = useCallback(
