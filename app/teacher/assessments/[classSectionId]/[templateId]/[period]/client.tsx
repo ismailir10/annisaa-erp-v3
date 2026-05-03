@@ -120,6 +120,11 @@ export function AssessmentEntryClient({
 
   const [publishing, setPublishing] = useState(false);
 
+  // C5: Track which student accordion items are expanded so rubric DOM is
+  // lazy-mounted — collapsed items render an empty <AccordionContent />, reducing
+  // initial DOM from (17 students × N rubric rows) to zero until first expand.
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+
   // Track in-flight timers per-student so debounces don't stack across students
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   // Queue of create-in-flight per student to avoid race conditions
@@ -343,7 +348,12 @@ export function AssessmentEntryClient({
         {publishedCount}/{totalStudents} siswa sudah dipublikasikan
       </p>
 
-      <Accordion multiple className="space-y-2">
+      <Accordion
+        multiple
+        value={expandedIds}
+        onValueChange={(v) => setExpandedIds(v as string[])}
+        className="space-y-2"
+      >
         {students.map((s) => {
           const st = state[s.id];
           const filled = Object.values(st.scores).filter((v) => v.score != null).length;
@@ -379,53 +389,57 @@ export function AssessmentEntryClient({
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-3 pb-3">
-                <div className="flex justify-end mb-2 min-h-[14px]">
-                  <SaveIndicator state={st.saveState} />
-                </div>
-                <div className="space-y-4">
-                  {template.categories.map((cat) => (
-                    <div key={cat.id}>
-                      <p className="text-xs font-semibold text-foreground mb-2">{cat.name}</p>
-                      <div className="space-y-3">
-                        {cat.indicators.map((ind) => {
-                          const sv = st.scores[ind.id];
-                          return (
-                            <div key={ind.id} className="border border-border/50 rounded-md p-2.5">
-                              <p className="text-xs text-foreground mb-2">{ind.description}</p>
-                              <div className="grid grid-cols-4 gap-1 mb-2">
-                                {SCORES.map((sc) => {
-                                  const selected = sv?.score === sc;
-                                  return (
-                                    <button
-                                      key={sc}
-                                      type="button"
-                                      onClick={() => setScore(s.id, ind.id, sc)}
-                                      aria-label={`${sc} — ${SCORE_LABEL[sc]}`}
-                                      className={`py-1.5 rounded text-xs font-semibold border transition-colors ${
-                                        selected
-                                          ? "bg-primary text-primary-foreground border-primary"
-                                          : "bg-background text-muted-foreground border-border hover:border-primary/40"
-                                      }`}
-                                    >
-                                      {sc}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              <Textarea
-                                value={sv?.notes ?? ""}
-                                onChange={(e) => setNotes(s.id, ind.id, e.target.value)}
-                                placeholder="Catatan (opsional)"
-                                rows={2}
-                                className="text-xs"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
+                {expandedIds.includes(s.id) && (
+                  <>
+                    <div className="flex justify-end mb-2 min-h-[14px]">
+                      <SaveIndicator state={st.saveState} />
                     </div>
-                  ))}
-                </div>
+                    <div className="space-y-4">
+                      {template.categories.map((cat) => (
+                        <div key={cat.id}>
+                          <p className="text-xs font-semibold text-foreground mb-2">{cat.name}</p>
+                          <div className="space-y-3">
+                            {cat.indicators.map((ind) => {
+                              const sv = st.scores[ind.id];
+                              return (
+                                <div key={ind.id} className="border border-border/50 rounded-md p-2.5">
+                                  <p className="text-xs text-foreground mb-2">{ind.description}</p>
+                                  <div className="grid grid-cols-4 gap-1 mb-2">
+                                    {SCORES.map((sc) => {
+                                      const selected = sv?.score === sc;
+                                      return (
+                                        <button
+                                          key={sc}
+                                          type="button"
+                                          onClick={() => setScore(s.id, ind.id, sc)}
+                                          aria-label={`${sc} — ${SCORE_LABEL[sc]}`}
+                                          className={`py-1.5 rounded text-xs font-semibold border transition-colors ${
+                                            selected
+                                              ? "bg-primary text-primary-foreground border-primary"
+                                              : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                                          }`}
+                                        >
+                                          {sc}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <Textarea
+                                    value={sv?.notes ?? ""}
+                                    onChange={(e) => setNotes(s.id, ind.id, e.target.value)}
+                                    placeholder="Catatan (opsional)"
+                                    rows={2}
+                                    className="text-xs"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </AccordionContent>
             </AccordionItem>
           );
