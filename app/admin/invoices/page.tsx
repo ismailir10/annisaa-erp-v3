@@ -833,6 +833,7 @@ export default function InvoicesPage() {
         description={`Tagihan ${voidTarget?.invoiceNumber} (${voidTarget?.student.name}) tidak bisa dibayar lagi. Riwayat tetap tersimpan.`}
         onConfirm={handleVoidInvoice}
         confirmLabel="Ya, Batalkan"
+        destructive
       />
 
       {/* Manual single-invoice creation — own component handles Dialog/Sheet

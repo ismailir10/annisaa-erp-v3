@@ -335,7 +335,7 @@ export default function EmployeeDetailPage() {
         <AdminTabsContent value="attendance"><EmployeeAttendanceTab employeeId={id} /></AdminTabsContent>
       </AdminTabs>
 
-      <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Karyawan" description={`Nonaktifkan ${employee.nama}? Karyawan tidak bisa login dan tidak masuk penggajian berikutnya.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" />
+      <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Karyawan" description={`Nonaktifkan ${employee.nama}? Karyawan tidak bisa login dan tidak masuk penggajian berikutnya.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" destructive />
 
       {/* F-18: restore confirm — non-destructive, mirrors deactivate copy. */}
       <ConfirmDialog

@@ -233,6 +233,7 @@ export default function InvoiceDetailPage() {
         description={`Tagihan ${invoice.invoiceNumber} (${invoice.student.name}) tidak bisa dibayar lagi. Riwayat tetap tersimpan.`}
         onConfirm={handleVoidInvoice}
         confirmLabel={voiding ? "Membatalkan..." : "Ya, Batalkan"}
+        destructive
       />
 
       {invoice.paymentLinkError && (
