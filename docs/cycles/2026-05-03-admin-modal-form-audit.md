@@ -69,7 +69,7 @@ These are all **drift** issues — no API changes, no schema work, no business-l
   - Add a `required?: boolean` prop to `<FieldLabel>` (`components/ui/field.tsx`) that appends a `<span aria-hidden className="ml-1 text-destructive">*</span>` and sets `aria-required` on the wrapping `Field`. Existing inline `Nama *` strings become `<FieldLabel required>Nama</FieldLabel>`.
   - Acceptance: a unit/typecheck-only task — `npm run build` passes, no consumer migrated yet.
 
-- [ ] **T2 — Submit / cancel button labels + variants across all admin Dialogs** [parallel after T1]
+- [x] **T2 — Submit / cancel button labels + variants across all admin Dialogs** [parallel after T1]
   - Sweep every `<DialogFooter>` in `app/admin/**` and `components/admin/**`. Apply the canonical button-label table from Spec.
   - Edit dialogs: `Simpan` → `Simpan Perubahan`. Cancel `variant="outline"` → `variant="ghost"`.
   - Update `.claude/standards/ui.md` with the canonical button-label table (cross-link from `.claude/standards/voice.md`).
@@ -118,10 +118,12 @@ These are all **drift** issues — no API changes, no schema work, no business-l
 
 - Subagent plan: T1 inline (foundation). T2/T3/T4/T5 sequential within `/build` because each touches the same admin pages — file-level conflicts kill parallel value. T6 + T7 inline at the end. Cross-checked design-system.html §13 (Overlays) + §07 (Forms) for the new `<ResponsiveFormDialog>` API surface and the `<FieldLabel required>` asterisk pattern.
 - Task 1: Foundation — `components/ui/responsive-form-dialog.tsx` (new, ~85 LOC) + `components/ui/field.tsx` (added optional `required` prop on `FieldLabel`). `ResponsiveFormDialog` freezes the breakpoint choice via a ref while open (prevents unmount + state loss when viewport flips mid-edit, e.g. orientation change). `FieldLabel required` renders an `aria-hidden` red asterisk and sets `aria-required` on the underlying label; callers must still set `required` on the form control for screen-reader announcement of required state.
+- Task 2: Button labels + variants — 18 admin pages touched (`app/admin/{academic,admissions,assessments,enrollments,fees,guardians,settings/*,student-attendance,student-journal,students,students/[id],teaching-assignments}` + `(hr)/{leave,payroll,employees}`). Submit `"Simpan"` → entity-aware label per the canonical table (`Simpan Perubahan` for edit, `Tambah <Entity>` for create, ternary on edit/create-toggling dialogs). Cancel `variant="outline"` → `variant="ghost"` inside DialogFooter / SheetFooter / DialogClose-render slots (excluded standalone in-row Cancels and PageHeader edit-toggle Cancels). Domain-action labels (`Simpan Override`, `Simpan & Hitung Ulang`, `Simpan Profil`, `Simpan Konfigurasi`, `Simpan Struktur`, `Simpan Semua Nilai`, `Setujui`, `Catat Pembayaran`, `Buat Tagihan Bulanan`, `Daftarkan`, `Naik Kelas`, `Kirim Semua`) untouched. Fixed admissions create-label to match its trigger ("Catat Inquiry"). Cross-checked design-system.html §17 button-label drift item.
 
 ## Verification
 
 - Task 1: `npm run build` ✅ + `npx vitest run` ✅ (1015 pass / 42 todo / 2 skipped, 17.9s). Cross-checked `.claude/standards/design-system.html` §07 form anatomy + §13 overlays for asterisk + Sheet/Dialog breakpoint fidelity. Code review (`feature-dev:code-reviewer`) flagged two blockers — both fixed: (a) breakpoint-flip unmount bug — frozen via ref while open; (b) missing `aria-required` on label — added.
+- Task 2: `npm run build` ✅ + `npx vitest run` ✅ (1015 pass / 42 todo / 2 skipped, 17.8s). Code review flagged two follow-ups in admissions + academic — both fixed (admissions Dialog branch had stale `"Tambah Pendaftaran"` label that didn't match its `"Catat Inquiry Baru"` title; academic assign-teacher dialog Cancel was still `outline`).
 
 ## Ship Notes
 

@@ -393,7 +393,7 @@ export default function StudentAttendancePage() {
           </div>
           <DialogFooter>
             <DialogClose>
-              <Button variant="outline" disabled={overriding}>Batal</Button>
+              <Button variant="ghost" disabled={overriding}>Batal</Button>
             </DialogClose>
             <Button onClick={handleOverride} disabled={overriding}>
               {overriding ? "Menyimpan..." : "Simpan Override"}

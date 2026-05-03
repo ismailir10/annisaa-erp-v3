@@ -241,11 +241,11 @@ export default function TeachingAssignmentsPage() {
             </Select>
           </Field>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editSaving}>
+            <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editSaving}>
               Batal
             </Button>
             <Button onClick={handleEditSave} disabled={editSaving || editRole === editTarget?.role}>
-              {editSaving ? "Menyimpan..." : "Simpan"}
+              {editSaving ? "Menyimpan..." : "Simpan Perubahan"}
             </Button>
           </DialogFooter>
         </DialogContent>

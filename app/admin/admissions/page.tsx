@@ -695,9 +695,9 @@ export default function AdmissionsPage() {
               <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
               <div className="flex flex-col-reverse gap-2 pt-2">
                 <Button onClick={handleSubmit} disabled={saving}>
-                  {saving ? "Menyimpan..." : "Simpan"}
+                  {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Inquiry"}
                 </Button>
-                <SheetClose render={<Button variant="outline">Batal</Button>} />
+                <SheetClose render={<Button variant="ghost">Batal</Button>} />
               </div>
             </div>
           </SheetContent>
@@ -713,10 +713,10 @@ export default function AdmissionsPage() {
             </div>
             <DialogFooter>
               <DialogClose>
-                <Button variant="outline">Batal</Button>
+                <Button variant="ghost">Batal</Button>
               </DialogClose>
               <Button onClick={handleSubmit} disabled={saving}>
-                {saving ? "Menyimpan..." : "Simpan"}
+                {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Inquiry"}
               </Button>
             </DialogFooter>
           </DialogContent>

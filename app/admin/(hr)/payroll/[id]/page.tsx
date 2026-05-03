@@ -341,7 +341,7 @@ export default function PayrollDetailPage() {
                 <X size={14} className="mr-1.5" /> Batal
               </Button>
               <Button size="sm" onClick={saveEdit} disabled={editSaving} data-testid="payroll-edit-save">
-                {editSaving ? "Menyimpan..." : "Simpan"}
+                {editSaving ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
           )}
@@ -495,7 +495,7 @@ export default function PayrollDetailPage() {
             <Field><FieldLabel>Hari DC</FieldLabel><Input type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
             <Button onClick={saveVars} disabled={varsSaving}>{varsSaving ? "Menyimpan..." : "Simpan & Hitung Ulang"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -515,8 +515,8 @@ export default function PayrollDetailPage() {
             <p className="text-sm">Final: <span className="font-currency font-bold text-primary">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={saveLineAdj} disabled={adjSaving}>{adjSaving ? "Menyimpan..." : "Simpan"}</Button>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <Button onClick={saveLineAdj} disabled={adjSaving}>{adjSaving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -535,7 +535,7 @@ export default function PayrollDetailPage() {
             {noBank.length > 0 && <p className="text-destructive">{noBank.length} karyawan tanpa rekening bank</p>}
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
             <Button onClick={handleApprove} disabled={approving}>{approving ? "Menyetujui..." : "Setujui"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -552,7 +552,7 @@ export default function PayrollDetailPage() {
             <p>{data.items.length} slip akan dikirim</p>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
             <Button onClick={handleSendSlips} disabled={sending}>{sending ? "Mengirim..." : "Kirim Semua"}</Button>
           </DialogFooter>
         </DialogContent>

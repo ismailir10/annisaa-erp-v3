@@ -267,7 +267,7 @@ export default function GuardiansPage() {
             </div>
             <SheetFooter>
               <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
-              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
@@ -280,7 +280,7 @@ export default function GuardiansPage() {
             </div>
             <DialogFooter>
               <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

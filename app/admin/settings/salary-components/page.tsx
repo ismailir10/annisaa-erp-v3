@@ -232,8 +232,8 @@ export default function SalaryComponentsPage() {
             </label>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Komponen"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

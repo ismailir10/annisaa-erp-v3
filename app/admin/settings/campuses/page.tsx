@@ -217,10 +217,10 @@ export default function CampusesPage() {
           </div>
           <DialogFooter>
             <DialogClose>
-              <Button variant="outline">Batal</Button>
+              <Button variant="ghost">Batal</Button>
             </DialogClose>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kampus"}
             </Button>
           </DialogFooter>
         </DialogContent>

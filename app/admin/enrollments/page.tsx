@@ -314,8 +314,8 @@ export default function EnrollmentsPage() {
               <EnrollmentEditFormBody editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} classSections={classSections} />
             </div>
             <SheetFooter>
-              <SheetClose><Button variant="outline">Batal</Button></SheetClose>
-              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
@@ -327,8 +327,8 @@ export default function EnrollmentsPage() {
               <EnrollmentEditFormBody editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} classSections={classSections} />
             </div>
             <DialogFooter>
-              <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

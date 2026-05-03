@@ -417,7 +417,7 @@ export default function AssessmentTemplatesPage() {
             </div>
           </ScrollArea>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
             <Button onClick={handleCreate} disabled={saving}>{saving ? "Menyimpan..." : "Buat Template"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -448,8 +448,8 @@ export default function AssessmentTemplatesPage() {
             )}
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

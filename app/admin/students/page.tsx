@@ -553,11 +553,11 @@ export default function StudentsPage() {
               <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
             <SheetFooter>
-              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+              <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
                 Batal
               </Button>
               <Button onClick={handleEdit} disabled={editing}>
-                {editing ? "Menyimpan..." : "Simpan"}
+                {editing ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </SheetFooter>
           </SheetContent>
@@ -572,11 +572,11 @@ export default function StudentsPage() {
               <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+              <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
                 Batal
               </Button>
               <Button onClick={handleEdit} disabled={editing}>
-                {editing ? "Menyimpan..." : "Simpan"}
+                {editing ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -598,14 +598,14 @@ export default function StudentsPage() {
             </div>
             <SheetFooter>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
                 disabled={creating}
               >
                 Batal
               </Button>
               <Button onClick={handleCreate} disabled={creating}>
-                {creating ? "Menyimpan..." : "Simpan"}
+                {creating ? "Menyimpan..." : "Tambah Siswa"}
               </Button>
             </SheetFooter>
           </SheetContent>
@@ -624,14 +624,14 @@ export default function StudentsPage() {
             </div>
             <DialogFooter>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
                 disabled={creating}
               >
                 Batal
               </Button>
               <Button onClick={handleCreate} disabled={creating}>
-                {creating ? "Menyimpan..." : "Simpan"}
+                {creating ? "Menyimpan..." : "Tambah Siswa"}
               </Button>
             </DialogFooter>
           </DialogContent>

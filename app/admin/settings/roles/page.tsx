@@ -497,11 +497,11 @@ export default function RolesPage() {
           </div>
 
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
+            <DialogClose render={<Button variant="ghost" />}>
               Batal
             </DialogClose>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : editTarget ? "Simpan Perubahan" : "Tambah Peran"}
             </Button>
           </DialogFooter>
         </DialogContent>

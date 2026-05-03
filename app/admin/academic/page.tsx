@@ -442,8 +442,8 @@ export default function AcademicPage() {
             </div>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={saveYear} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <Button onClick={saveYear} disabled={saving}>{saving ? "Menyimpan..." : editingYear ? "Simpan Perubahan" : "Tambah Tahun Ajaran"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -475,8 +475,8 @@ export default function AcademicPage() {
             </div>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={saveProgram} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <Button onClick={saveProgram} disabled={saving}>{saving ? "Menyimpan..." : editingProgram ? "Simpan Perubahan" : "Tambah Program"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -519,8 +519,8 @@ export default function AcademicPage() {
             <Field><FieldLabel>Kapasitas</FieldLabel><Input type="number" value={sectionForm.capacity} onChange={e => setSectionForm({ ...sectionForm, capacity: e.target.value })} /></Field>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={saveSection} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <Button onClick={saveSection} disabled={saving}>{saving ? "Menyimpan..." : editingSection ? "Simpan Perubahan" : "Tambah Kelas"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -563,7 +563,7 @@ export default function AcademicPage() {
             </div>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Tutup</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Tutup</Button></DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>

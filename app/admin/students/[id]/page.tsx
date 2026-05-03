@@ -342,7 +342,7 @@ export default function StudentDetailPage() {
                 <X size={14} className="mr-1" /> Batal
               </Button>
               <Button size="sm" onClick={saveStudent} disabled={savingStudent}>
-                <Save size={14} className="mr-1" /> {savingStudent ? "Menyimpan..." : "Simpan"}
+                <Save size={14} className="mr-1" /> {savingStudent ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
           )}
@@ -646,7 +646,7 @@ export default function StudentDetailPage() {
               <div className="px-4 pb-4">{guardianBody}</div>
               <SheetFooter>
                 <Button variant="ghost" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
-                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
+                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}</Button>
               </SheetFooter>
             </SheetContent>
           </Sheet>
@@ -657,7 +657,7 @@ export default function StudentDetailPage() {
               <div>{guardianBody}</div>
               <DialogFooter>
                 <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
+                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

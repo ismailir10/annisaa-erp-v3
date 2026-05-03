@@ -481,7 +481,7 @@ export default function AdminLeavePage() {
                   )}
                   <SheetClose
                     render={
-                      <Button variant="outline">{viewOnly ? "Tutup" : "Batal"}</Button>
+                      <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
                     }
                   />
                 </div>
@@ -512,7 +512,7 @@ export default function AdminLeavePage() {
               </div>
               <DialogFooter>
                 <DialogClose>
-                  <Button variant="outline">{viewOnly ? "Tutup" : "Batal"}</Button>
+                  <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
                 </DialogClose>
                 {!viewOnly && (
                   <Button
