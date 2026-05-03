@@ -20,9 +20,9 @@ type TodayRecord = {
  */
 export function nextStateAfterAction(
   record: TodayRecord | null,
-  action: "check-in" | "check-out"
+  action: "check-in" | "check-out",
+  now: string = new Date().toISOString()
 ): TodayRecord {
-  const now = new Date().toISOString();
   if (action === "check-in") {
     return {
       status: "PRESENT",
