@@ -191,12 +191,12 @@ export default function SalaryComponentsPage() {
           <div className="space-y-field py-2">
             {!editing && (
               <Field>
-                <FieldLabel>Kode *</FieldLabel>
+                <FieldLabel required>Kode</FieldLabel>
                 <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="tunjangan_baru" />
               </Field>
             )}
             <Field>
-              <FieldLabel>Label *</FieldLabel>
+              <FieldLabel required>Label</FieldLabel>
               <Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Tunjangan Baru" />
             </Field>
             <div className="grid grid-cols-2 gap-3">

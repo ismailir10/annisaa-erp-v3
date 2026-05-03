@@ -194,7 +194,7 @@ export default function CampusesPage() {
           </DialogHeader>
           <div className="space-y-field py-2">
             <Field>
-              <FieldLabel>Nama *</FieldLabel>
+              <FieldLabel required>Nama</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" />
             </Field>
             <Field>

@@ -52,7 +52,7 @@ function PaymentFormBody({
   return (
     <>
       <Field>
-        <FieldLabel>Jumlah *</FieldLabel>
+        <FieldLabel required>Jumlah</FieldLabel>
         <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
         <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
       </Field>

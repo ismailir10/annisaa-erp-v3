@@ -376,10 +376,10 @@ export default function AssessmentTemplatesPage() {
       >
         <ScrollArea className="max-h-[60vh] pr-2">
           <div className="space-y-field">
-            <Field><FieldLabel>Nama Template *</FieldLabel><Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
+            <Field><FieldLabel required>Nama Template</FieldLabel><Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field>
-                <FieldLabel>Program *</FieldLabel>
+                <FieldLabel required>Program</FieldLabel>
                 <Select value={createForm.programId} onValueChange={(v) => v && setCreateForm({ ...createForm, programId: v })} items={programs.map((p) => ({ label: p.name, value: p.id }))}>
                   <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
                   <SelectContent>{programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
@@ -440,7 +440,7 @@ export default function AssessmentTemplatesPage() {
           </>
         }
       >
-        <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
+        <Field><FieldLabel required>Nama</FieldLabel><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
         <Field>
           <FieldLabel>Tipe</FieldLabel>
           <Select value={editForm.type} onValueChange={(v) => v && setEditForm({ ...editForm, type: v })} items={{ SEMESTER: "Semester", QUARTERLY: "Kuartal", MONTHLY: "Bulanan" }}>

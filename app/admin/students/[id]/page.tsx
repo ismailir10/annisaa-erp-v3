@@ -565,7 +565,7 @@ export default function StudentDetailPage() {
         const guardianBody = (
           <div className="space-y-field">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field><FieldLabel>Nama *</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
+              <Field><FieldLabel required>Nama</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
               <Field>
                 <FieldLabel>Hubungan</FieldLabel>
                 <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })} items={{ AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" }}>
@@ -668,7 +668,7 @@ export default function StudentDetailPage() {
       {(() => {
         const enrollBody = (
           <Field>
-            <FieldLabel>Pilih Kelas *</FieldLabel>
+            <FieldLabel required>Pilih Kelas</FieldLabel>
             <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
               <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
               <SelectContent>
@@ -707,7 +707,7 @@ export default function StudentDetailPage() {
         const promoteBody = (
           <div className="space-y-field">
             <Field>
-              <FieldLabel>Kelas Tujuan *</FieldLabel>
+              <FieldLabel required>Kelas Tujuan</FieldLabel>
               <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
                 <SelectTrigger><SelectValue placeholder="Pilih kelas tujuan..." /></SelectTrigger>
                 <SelectContent>
@@ -757,7 +757,7 @@ export default function StudentDetailPage() {
               Mengeluarkan <strong>{student.name}</strong> dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.
             </p>
             <Field>
-              <FieldLabel>Alasan Keluar *</FieldLabel>
+              <FieldLabel required>Alasan Keluar</FieldLabel>
               <Textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} placeholder="Masukkan alasan pengeluaran siswa..." rows={3} />
             </Field>
           </div>

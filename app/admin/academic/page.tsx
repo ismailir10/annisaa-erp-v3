@@ -441,7 +441,7 @@ export default function AcademicPage() {
           </>
         }
       >
-        <Field><FieldLabel>Nama *</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
+        <Field><FieldLabel required>Nama</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field><FieldLabel>Mulai</FieldLabel><Input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
           <Field><FieldLabel>Selesai</FieldLabel><Input type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
@@ -462,8 +462,8 @@ export default function AcademicPage() {
         }
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel>Kode *</FieldLabel><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
-          <Field><FieldLabel>Nama *</FieldLabel><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
+          <Field><FieldLabel required>Kode</FieldLabel><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
+          <Field><FieldLabel required>Nama</FieldLabel><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
         </div>
         <Field><FieldLabel>Deskripsi</FieldLabel><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
         <Field>
@@ -496,9 +496,9 @@ export default function AcademicPage() {
           </>
         }
       >
-        <Field><FieldLabel>Nama Kelas *</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
+        <Field><FieldLabel required>Nama Kelas</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
         <Field>
-          <FieldLabel>Program *</FieldLabel>
+          <FieldLabel required>Program</FieldLabel>
           {editingSection ? (
             <div className="text-sm text-muted-foreground py-2">{editingSection.program.name}</div>
           ) : (
@@ -509,7 +509,7 @@ export default function AcademicPage() {
           )}
         </Field>
         <Field>
-          <FieldLabel>Tahun Ajaran *</FieldLabel>
+          <FieldLabel required>Tahun Ajaran</FieldLabel>
           {editingSection ? (
             <div className="text-sm text-muted-foreground py-2">{editingSection.academicYear.name}</div>
           ) : (
@@ -520,7 +520,7 @@ export default function AcademicPage() {
           )}
         </Field>
         <Field>
-          <FieldLabel>Kampus *</FieldLabel>
+          <FieldLabel required>Kampus</FieldLabel>
           <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
             <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
             <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>

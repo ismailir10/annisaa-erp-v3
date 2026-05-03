@@ -122,7 +122,7 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
     <>
       <div className="grid grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Nama Anak *</FieldLabel>
+          <FieldLabel required>Nama Anak</FieldLabel>
           <Input
             value={form.childName}
             onChange={(e) => setForm({ ...form, childName: e.target.value })}
@@ -156,7 +156,7 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Nama Orang Tua *</FieldLabel>
+          <FieldLabel required>Nama Orang Tua</FieldLabel>
           <Input
             value={form.parentName}
             onChange={(e) => setForm({ ...form, parentName: e.target.value })}

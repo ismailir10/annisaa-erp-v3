@@ -100,7 +100,7 @@ function StudentFormBody({
     <div className="space-y-field">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Nama Lengkap *</FieldLabel>
+          <FieldLabel required>Nama Lengkap</FieldLabel>
           <Input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}

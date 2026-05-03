@@ -256,8 +256,8 @@ export default function FeesPage() {
         }
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel>Kode *</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
-          <Field><FieldLabel>Label *</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
+          <Field><FieldLabel required>Kode</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
+          <Field><FieldLabel required>Label</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
         </div>
         <Field>
           <FieldLabel>Kategori</FieldLabel>

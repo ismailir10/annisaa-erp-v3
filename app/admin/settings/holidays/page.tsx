@@ -187,11 +187,11 @@ export default function HolidaysPage() {
           </DialogHeader>
           <div className="space-y-field py-2">
             <Field>
-              <FieldLabel>Tanggal *</FieldLabel>
+              <FieldLabel required>Tanggal</FieldLabel>
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
             </Field>
             <Field>
-              <FieldLabel>Nama *</FieldLabel>
+              <FieldLabel required>Nama</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Hari Raya Idul Fitri" />
             </Field>
             <Field>

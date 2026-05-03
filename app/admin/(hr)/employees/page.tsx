@@ -511,16 +511,16 @@ function CreateEmployeeFormBody({
   return (
     <>
       <div className="grid grid-cols-2 gap-field">
-        <Field className="col-span-2 sm:col-span-1"><FieldLabel>Nama *</FieldLabel><Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></Field>
+        <Field className="col-span-2 sm:col-span-1"><FieldLabel required>Nama</FieldLabel><Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></Field>
         <Field className="col-span-2 sm:col-span-1"><FieldLabel>Nama Formal</FieldLabel><Input value={form.formalName} onChange={(e) => setForm({ ...form, formalName: e.target.value })} /></Field>
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field><FieldLabel>Email *</FieldLabel><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+        <Field><FieldLabel required>Email</FieldLabel><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
         <Field><FieldLabel>No. HP</FieldLabel><Input value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} placeholder="081234567890" /></Field>
       </div>
       <div className="grid grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Jabatan *</FieldLabel>
+          <FieldLabel required>Jabatan</FieldLabel>
           {customPosition ? (
             <div className="flex gap-2">
               <Input value={form.jabatan} onChange={(e) => setForm({ ...form, jabatan: e.target.value })} placeholder="Jabatan baru..." autoFocus />
@@ -540,7 +540,7 @@ function CreateEmployeeFormBody({
           )}
         </Field>
         <Field>
-          <FieldLabel>Kampus *</FieldLabel>
+          <FieldLabel required>Kampus</FieldLabel>
           <Select value={form.campusId} onValueChange={(v) => v && setForm({ ...form, campusId: v })} items={campuses.map((c) => ({ label: c.name, value: c.id }))}>
             <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
             <SelectContent>
@@ -550,9 +550,9 @@ function CreateEmployeeFormBody({
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field><FieldLabel>Tanggal Masuk *</FieldLabel><Input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+        <Field><FieldLabel required>Tanggal Masuk</FieldLabel><Input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
         <Field>
-          <FieldLabel>Peran Akun *</FieldLabel>
+          <FieldLabel required>Peran Akun</FieldLabel>
           <Select
             value={form.role}
             onValueChange={(v) => v && setForm({ ...form, role: v as "TEACHER" | "SCHOOL_ADMIN" })}

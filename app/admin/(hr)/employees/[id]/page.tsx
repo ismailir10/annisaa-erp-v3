@@ -168,7 +168,7 @@ export default function EmployeeDetailPage() {
                   <SectionHeading label="Identitas" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field><FieldLabel>Kode</FieldLabel><Input value={e.kode} disabled /></Field>
-                    <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
+                    <Field><FieldLabel required>Nama</FieldLabel><Input value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
                   </div>
                   <div className="mt-3">
                     <Field><FieldLabel>Nama Formal</FieldLabel><Input value={editForm.formalName} onChange={ev => setEditForm({ ...editForm, formalName: ev.target.value })} /></Field>
@@ -178,7 +178,7 @@ export default function EmployeeDetailPage() {
                 <div>
                   <SectionHeading label="Kontak" />
                   <div className="grid grid-cols-2 gap-4">
-                    <Field><FieldLabel>Email *</FieldLabel><Input value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
+                    <Field><FieldLabel required>Email</FieldLabel><Input value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
                     <Field><FieldLabel>No. HP</FieldLabel><Input value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
                   </div>
                 </div>
@@ -187,7 +187,7 @@ export default function EmployeeDetailPage() {
                   <SectionHeading label="Kepegawaian" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
-                      <FieldLabel>Jabatan *</FieldLabel>
+                      <FieldLabel required>Jabatan</FieldLabel>
                       <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })} items={{ ...Object.fromEntries(positions.map(p => [p, p])), ...(!positions.includes(editForm.jabatan) && editForm.jabatan ? { [editForm.jabatan]: editForm.jabatan } : {}) }}>
                         <SelectTrigger><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
                         <SelectContent>
@@ -199,7 +199,7 @@ export default function EmployeeDetailPage() {
                       </Select>
                     </Field>
                     <Field>
-                      <FieldLabel>Kampus *</FieldLabel>
+                      <FieldLabel required>Kampus</FieldLabel>
                       <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
