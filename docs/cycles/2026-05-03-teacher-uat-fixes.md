@@ -1,0 +1,92 @@
+# Teacher UAT 2026-05-03 — slip detail, perf sweep, doc reconcile, 503 triage
+
+## Context
+
+UAT report `docs/uat/reports/2026-05-03-teacher.md` (Bu Sari, 13 JTBDs, ~25 min) surfaced 4 blockers, 5 majors, and 4 minors against the staging teacher portal. This cycle absorbs everything except `JTBD-TEACHER-PROFILE-01` (profile photo upload) — that gap is parked for a separate decision (ship self-serve upload vs. retire JTBD as admin-managed). The remaining findings cluster into four buckets: **doc/jobs reconciliation** (job descriptions diverged from shipped reality), **salary-slip mobile fit** (PDF is A4-landscape so cannot be screenshotted on a 375 px portrait viewport — breaking Bu Sari's monthly "send to husband" ritual; rows are not tappable so there is no in-app breakdown), **portal perceived-perf** (PULANG flip 3556 ms, attendance date-change 4036 ms, leave-sheet open 3131 ms, assessments accordion expand 3104 ms — pattern is missing optimistic UI / skeleton states / prefetch), and **backend triage** (RSC prefetch GETs to `/teacher/assessments` returned 4× HTTP 503 during the run while first-class navigations succeeded). Why this matters: teacher portal is the highest-frequency surface in the product (every weekday for every teacher), and these are the kind of paper-cuts that erode trust faster than a feature gap. Intended outcome: every blocker and major from the 2026-05-03 report either fixed in code, fixed in docs, or explicitly deferred with a written reason.
+
+## Spec
+
+**Acceptance criteria:**
+- [ ] `/teacher/slips/[id]` route exists and renders a mobile-fit (375–414 px portrait) HTML detail page showing gross / per-line earnings / per-line deductions / net — no PDF download required to read the breakdown.
+- [ ] `/teacher/slips` rows are tappable and link to the detail page; the existing per-row PDF button is preserved (some users prefer the file).
+- [ ] `/teacher/slips` shows an empty placeholder for the most-recent missing period (e.g. "Slip April 2026 akan tersedia setelah tanggal X") when the prior calendar month has no published slip.
+- [ ] `lib/pdf/salary-slip.tsx` produces a portrait variant that fits a single 375–414 px screenshot without horizontal scroll. Existing landscape behavior may be retained as a fallback or replaced — implementation choice, but the new default served by `/api/slips/[payrollItemId]/pdf` must be portrait.
+- [ ] `/teacher` PULANG (and MASUK) tap flips the status card optimistically; network round-trip resolves the badge in the background; on error the optimistic flip reverts with an inline message.
+- [ ] `/teacher/class-attendance` date-picker change shows a skeleton on the student list during the reload (no frozen previous list).
+- [ ] `/teacher/attendance` leave sheet (`+ Cuti & Izin`) opens with content within 500 ms of tap — either by prefetching balance + my-requests on tab activation, or by rendering the sheet shell + skeleton instantly while data streams in.
+- [ ] `/teacher/attendance` calendar prev/next-month tap shows the new month within 1 s — prefetch adjacent months OR render instant skeleton on month change.
+- [ ] `/teacher/assessments/[classSectionId]/[templateId]/[period]` per-student accordion expands within 1 s. Expand is verified to be pure client-side (no network on toggle) and the rubric render is measured + reduced if needed.
+- [ ] `/teacher/student-journal/students/[id]` "+ Tambah Catatan" dialog Tanggal field defaults to the last weekday of the currently visible week (not today, when today is outside the visible week).
+- [ ] `/teacher/assessments/[classSectionId]/[templateId]/[period]` shows a pre-publish warning above the "Publikasikan rapor" CTA when one or more students have incomplete scores (e.g. "3 siswa belum memiliki nilai lengkap").
+- [ ] `docs/uat/jobs/teacher.md` updated for: ATT-01 autosave (no Simpan button), JOURNAL-01 roster + drill-down (not cell grid on entry page), JOURNAL-03 seed dependency, ASSESS-02 pre-publish warning behavior. The jobs file no longer claims capabilities the product does not have.
+- [ ] At least one parent-note seeded into Bu Sari's class so JTBD-TEACHER-JOURNAL-03 has data to grade against on future UAT runs (extend `prisma/seed.ts` or add a `teacher-parent-notes` scenario to `/api/admin/uat-prep`).
+- [ ] RSC prefetch 503 on `/teacher/assessments*` triaged — root cause documented, fix shipped if local; if it requires Vercel-side investigation, the cycle doc records the finding + next step instead of leaving it silent.
+- [ ] All frontend changes cross-checked against `.claude/standards/design-system.html` (token literal `design-system` present in Verification per pre-commit Rule 4).
+- [ ] End-of-cycle gate: `npm run build && npx vitest run && npx playwright test` all green.
+
+**Non-goals:**
+- `JTBD-TEACHER-PROFILE-01` (profile photo upload) — explicitly deferred to a separate cycle; not touched here.
+- New leave-balance / payroll mutations — read-side only on slip + leave surfaces.
+- Redesign of teacher home tile layout — only the PULANG/MASUK interaction model changes.
+- Indonesian-school-week awareness in the date picker (Saturday returning empty) — minor styling note, not in scope.
+- New persona seeding beyond the parent-note ask — out of scope.
+- Admin / parent portal changes — teacher only.
+
+**Assumptions:**
+1. Portrait PDF replacing landscape as the default served by `/api/slips/[payrollItemId]/pdf` is acceptable (no contractual requirement to keep landscape); if the school operationally prints A4-landscape, we add a `?layout=landscape` query param fallback rather than refactoring.
+2. The accordion expand 3104 ms breach is a render-cost issue (rubric items are pre-loaded server-side per Explore), not a network call. If profiling reveals it IS a hidden network fetch, the fix shifts but stays inside this task's scope.
+3. The RSC 503s are intermittent / load-related (4 of 8 captured prefetches during a single run); we triage with Vercel function logs but accept that the fix may be infrastructural and out of this cycle's reach — in which case we document and link.
+4. Leave-sheet prefetch-on-tab-activation is preferable to instant-skeleton because the sheet body is small JSON; we prefetch unless prefetch wiring forces a deeper Sheet/Tabs refactor, in which case we fall back to skeleton.
+5. `prisma/seed.ts` is the right home for the parent-note seed (per CLAUDE.md the `seed.ts` ↔ `lib/db.ts` drift rule already gates this); we use the existing seed primitives rather than introducing a new uat-prep scenario.
+6. Frontend gate (`design-system` token) will be satisfied via Verification bullet listing the cross-checks per affected component group, not a sprawling rewrite.
+
+## Tasks
+
+Ordered. Each task is independently committable; between-task gate is `npm run build && npx vitest run`. End-of-cycle gate adds Playwright. Letters in parentheses map to the four scope buckets in Context.
+
+### D — Doc + quick UI reconciliation
+
+- [ ] **D1.** Update `docs/uat/jobs/teacher.md` for autosave + roster-vs-grid + seed-dep + pre-publish-warning. *Acceptance:* the four mismatches called out in the 2026-05-03 report (ATT-01 step 4, JOURNAL-01 entry shape, JOURNAL-03 seed precondition, ASSESS-02 missing-score gate) are corrected verbatim or rewritten; `Last audited` date bumped to 2026-05-03.
+- [ ] **D2.** Fix Tanggal default in `app/teacher/student-journal/students/[id]/page.tsx` "+ Tambah Catatan" dialog. *Acceptance:* dialog opens with Tanggal = last weekday of the currently visible week (or today if today is in the visible week + is a weekday); `max={today}` constraint preserved.
+- [ ] **D3.** Add pre-publish "missing scores" warning above `Publikasikan rapor` CTA in `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx`. *Acceptance:* when ≥1 student has fewer than the full count of scored indicators, render a single warning row above the sticky CTA with copy "X siswa belum memiliki nilai lengkap"; CTA remains enabled (not blocking, just informative).
+- [ ] **D4.** Seed at least one parent note into Bu Sari's KB-Aster class in `prisma/seed.ts`. *Acceptance:* re-running `prisma/seed.ts` against a fresh DB produces a parent-authored note with `Orang Tua` badge visible on `/teacher/student-journal/students/[id]?week=...`. Reuses existing student-journal-note primitives; no schema change expected. Per pre-commit Rule 3 (seed-drift), the same commit MUST stage `lib/db.ts` — touch it (e.g. add a no-op comment ack-ing the seed change) so the hook passes.
+
+### A — Slip mobile-fit + in-app detail
+
+- [ ] **A1.** Create `app/teacher/slips/[id]/page.tsx` (server) + `client.tsx` (if needed) — mobile-fit HTML detail page. *Acceptance:* route renders for the authenticated teacher's own slip only (auth check parity with `/api/slips/[payrollItemId]/pdf`); shows period header, employee info, earnings list, deductions list, net pay highlight, all stacked single-column readable on 375 px viewport; Shadcn-FIRST per `ui.md`.
+- [ ] **A2.** Make `/teacher/slips` rows tappable in `app/teacher/slips/page.tsx`. *Acceptance:* row body is a `next/link` to `/teacher/slips/[id]`; existing per-row PDF button preserved + does not trigger row-link (stop propagation); keyboard focus order works.
+- [ ] **A3.** Add empty-period placeholder on `/teacher/slips`. *Acceptance:* when the prior calendar month is not in the slip list, render a single placeholder row above the list with copy "Slip [Bulan Tahun] akan tersedia setelah tanggal 5"; rule: `placeholder shown if today.day >= 1 AND prior_month not in list` (always show placeholder for missing prior month, regardless of current day-of-month — Bu Sari opens early in the month expecting the slip per the report); copy follows `voice.md`.
+- [ ] **A4.** Portrait-fit PDF variant in `lib/pdf/salary-slip.tsx`. *Acceptance:* default served by `/api/slips/[payrollItemId]/pdf` is portrait `<Page size="A4" orientation="portrait">` (or narrower custom size, e.g. `[414, 736]`) fit-to-mobile-screenshot — one page, no horizontal scroll on a 414 px viewport when rendered; before the change, grep `lib/pdf/salary-slip` + `app/api/slips` for any explicit landscape consumer — if none found, replace landscape outright; if found, gate via `?layout=landscape` query param (default = portrait). Existing field layout (employee info, earnings/deductions tables, net-pay box, footer) preserved; only spacing/columns adapted.
+
+### C — Perceived-perf sweep
+
+- [ ] **C1.** Optimistic check-in/check-out flip in `app/teacher/home-client.tsx`. *Acceptance:* PULANG and MASUK taps flip the status card immediately; the existing await/setState/router.refresh path runs in the background; on fetch error the card reverts + shows inline error copy per `voice.md`. No regression on GPS-denial path (POST still fires with undefined coords).
+- [ ] **C2.** Skeleton-on-date-change in `app/teacher/class-attendance/page.tsx`. *Acceptance:* changing the date input renders a list-row skeleton (count = last-loaded student count, fallback to 10) immediately while the new date's roster fetch resolves; existing tap-optimistic behavior on rendered rows unchanged.
+- [ ] **C3.** Leave-sheet prefetch in `app/teacher/attendance/page.tsx` + `components/teacher/leave-sheet.tsx`. *Acceptance:* balance + my-requests fetched on tab/page activation (or rendered with instant skeleton if prefetch wiring requires Sheet refactor); sheet body visible within 500 ms of `+ Cuti & Izin` tap on warm cache; cold-load behaviour matches today.
+- [ ] **C4.** Calendar adjacent-month prefetch in `app/teacher/attendance/page.tsx`. *Acceptance:* on initial load, the prior + next month's records are fetched alongside the current month; prev/next-month tap renders within 1 s; prefetch is best-effort (no error UI on prefetch failure).
+- [ ] **C5.** Assessments accordion expand fix in `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx`. *Acceptance:* expand interaction settles within 1 s on a 17-student class on production build (`DEMO_MODE=true npm run start`); measurement via `performance.now()` instrumentation around the click→content-visible window OR Chrome DevTools Performance recording (whichever fits faster). Likely root cause (per Explore): all rubric items rendered eagerly inside collapsed accordion items — fix by lazy-mounting rubric content inside `<AccordionContent>` so collapsed students contribute zero rubric DOM. Preserve autosave + SaveIndicator behavior on the per-student timer-ref pattern. Verification records before/after timing.
+
+### E — Backend triage
+
+- [ ] **E1.** Triage RSC 503 on `/teacher/assessments*` prefetch path. *Acceptance:* pull Vercel function logs spanning the 2026-05-03 UAT window via `mcp__2037f9b7…__get_runtime_logs` (or `vercel logs` CLI); identify whether 503s originate from the route handler (server component throw, missing env, bad import), the middleware (`proxy.ts`), or the platform (cold-start, function memory). Record cause in this cycle doc's Implementation. If fixable in code, ship the fix in this task; if infrastructural, write the finding into a new `docs/runbooks/teacher-assessments-503.md` (allowlisted) with reproduction notes + monitoring suggestion + open-question list — never silent.
+
+---
+
+**Dependency map:**
+- D1 / D2 / D3 / D4 — independent of each other and of A/C/E.
+- A1 → A2 (route must exist before list rows can link to it).
+- A3 — independent of A1/A2.
+- A4 — independent of A1–A3 (PDF endpoint is a separate code path).
+- C1 / C2 / C3 / C4 / C5 — independent of each other and of D/A.
+- E1 — independent. Order it last so it does not block UI work if Vercel-log access takes time.
+
+`/build` may dispatch independent tasks in parallel via subagents per `.claude/skills/build/SKILL.md`. A1 must complete before A2 starts.
+
+## Implementation
+<!-- filled by /build -->
+
+## Verification
+<!-- filled by /build -->
+
+## Ship Notes
+<!-- filled by /ship -->
