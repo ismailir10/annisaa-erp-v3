@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -54,27 +55,34 @@ export default function TeacherSlipsPage() {
         />
       ) : (
         <div className="space-y-3">
-          {slips.map((slip) => (
-            <Card key={slip.id} className="p-card">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    {formatDateShort(slip.payrollRun.periodStart)} — {formatDateShort(slip.payrollRun.periodEnd)}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <StatusBadge status="APPROVED" label="Tersedia" />
-                  </div>
+          {slips.map((slip) => {
+            const periodLabel = `${formatDateShort(slip.payrollRun.periodStart)} — ${formatDateShort(slip.payrollRun.periodEnd)}`;
+            return (
+              <Card key={slip.id} className="p-card transition-colors hover:bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/teacher/slips/${slip.id}`}
+                    prefetch={false}
+                    className="flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+                    aria-label={`Lihat slip ${periodLabel}`}
+                  >
+                    <p className="text-sm font-medium">{periodLabel}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <StatusBadge status="APPROVED" label="Tersedia" />
+                    </div>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(`/api/slips/${slip.id}/pdf`, "_blank")}
+                    aria-label={`Unduh PDF slip ${periodLabel}`}
+                  >
+                    <Download size={14} className="mr-1" /> PDF
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open(`/api/slips/${slip.id}/pdf`, "_blank")}
-                >
-                  <Download size={14} className="mr-1" /> PDF
-                </Button>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
