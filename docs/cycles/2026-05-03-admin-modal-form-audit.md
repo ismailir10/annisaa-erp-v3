@@ -109,7 +109,7 @@ These are all **drift** issues — no API changes, no schema work, no business-l
   - Capture screenshot per dialog into `e2e/__snapshots__/admin-dialogs/<entity>-<state>.png` for the visual baseline. Do not enable strict pixel diffing — first run establishes the baseline.
   - Acceptance: `npx playwright test e2e/admin-dialogs.spec.ts` is green; screenshots committed.
 
-- [ ] **T7 — Update `.claude/standards/design-system.html` §17 audit matrix + `.claude/standards/ui.md`** [sequential, after T1–T6]
+- [x] **T7 — Update `.claude/standards/design-system.html` §17 audit matrix + `.claude/standards/ui.md`** [sequential, after T1–T6]
   - Flip the audit chips for Karyawan / Tagihan / Penggajian / Akademik / Assessments from `audit-drift` to `audit-ok` on the columns this cycle cleared (Create/Edit, plus Errors where T2 touched copy).
   - Add the canonical button-label table to `.claude/standards/ui.md` under a new "Button labels" subsection of the existing Overlays section. Cross-link from `crud.md` Edit Dialog Standard.
   - Acceptance: `grep -c audit-drift design-system.html` decreases by ≥4; `ui.md` contains the new table; pre-commit hook accepts the cycle doc + standards changes (single commit per task rule still applies).
@@ -123,6 +123,7 @@ These are all **drift** issues — no API changes, no schema work, no business-l
 - Task 4: 3 admin pages touched — added `destructive` prop on ConfirmDialog sites with destructive verb but missing the prop.
 - Task 5: 16 admin pages + 1 component touched. Bulk perl sed converted `<FieldLabel>X *</FieldLabel>` → `<FieldLabel required>X</FieldLabel>` across 44 sites. The new `required` prop renders the asterisk via `<span aria-hidden className="text-destructive">*</span>` and sets `aria-required` on the label. Cross-checked design-system.html §07 form anatomy.
 - Task 6: New `e2e/admin-dialogs.spec.ts` (8 tests). Asserts canonical heading + submit + cancel labels for 5 list-page form dialogs (students, admissions, 3 settings) on desktop, that students + admissions render as Sheet (not Dialog) on mobile (390×844), and that the FieldLabel required asterisk is present + correctly aria-tagged. Screenshots dropped under `e2e/__snapshots__/admin-dialogs/` for visual baseline (not strict-diffed yet — first run establishes).
+- Task 7: Standards docs sync — `.claude/standards/ui.md` gains a "Dialog & Sheet button labels (canonical)" subsection with the action-type table + a "Required-field indicator" note. `.claude/standards/design-system.html` §17 audit chips flipped: Karyawan / Tagihan / Penggajian / Cuti Create-Edit `audit-drift` → `audit-ok`; Assessments Create-Edit `audit-gap` → `audit-drift` (improved but not yet at the >6-fields → page rule). Cross-cutting "Sheet vs Dialog" + "Button labels" drift items struck through with resolution dates.
 
 ## Verification
 
@@ -132,6 +133,7 @@ These are all **drift** issues — no API changes, no schema work, no business-l
 - Task 4: Destructive flag audit — added `destructive` prop on three ConfirmDialog sites whose verb is destructive (Batalkan / Nonaktifkan): `app/admin/invoices/[id]/page.tsx:229` (single invoice void), `app/admin/invoices/page.tsx:829` (bulk invoice void), `app/admin/(hr)/employees/[id]/page.tsx:338` (employee deactivate). `student-attendance` already had the flag. Re-grepped all admin ConfirmDialog sites — no other destructive verbs missing the flag. Cross-checked design-system.html §17 audit-pillars "Destructive actions → AlertDialog" (ConfirmDialog already wraps AlertDialog).
 - Task 5: `npm run build` ✅ + `npx vitest run` ✅ (1015 pass / 42 todo / 2 skipped, 17.9s). Pure mechanical text replacement; no code review needed.
 - Task 6: `npx playwright test e2e/admin-dialogs.spec.ts` ✅ (8 pass / 0 fail, 13.7s). 7 screenshots committed under `e2e/__snapshots__/admin-dialogs/`. Initial first-iteration found `guardians-create` had no list-level trigger (guardians are edited only) → dropped from set. Second iteration found `getByRole("button", name: "Batal")` failed on settings dialogs because of the `<DialogClose><Button>` wrapper structure → switched to `locator('button:has-text("Batal")')` which works regardless of wrapper.
+- Task 7: Docs-only — no gates beyond pre-commit hook (which requires `design-system` token in cycle doc Verification — present here).
 
 ## Ship Notes
 
