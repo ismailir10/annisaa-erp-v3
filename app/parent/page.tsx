@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Sparkles, Receipt, AlertCircle, ChevronRight } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { KidCard, type KidCardDay, type KidCardFoot } from "@/components/parent/kid-card";
-import { getParentWithChildren } from "@/lib/parent-helpers";
+import { getParentOutstandingForStudents, getParentWithChildren } from "@/lib/parent-helpers";
 import { prisma } from "@/lib/db";
 import { formatRupiah, formatDate } from "@/lib/format";
 import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
@@ -86,7 +86,7 @@ function buildKidFoot(
 
 export default async function ParentDashboard() {
   const session = await getSession();
-  if (!session || session.role !== "GUARDIAN") redirect("/");
+  if (!session || session.role !== "GUARDIAN" || !session.tenantId) redirect("/");
 
   const { parent, children } = await getParentWithChildren(session);
 
@@ -107,38 +107,26 @@ export default async function ParentDashboard() {
   const week = thisWeekDates(now);
   const kidIds = children.map((c) => c.studentId);
 
-  const [weekAttendance, latestNotes, unpaidInvoices] = await Promise.all([
+  const [weekAttendance, latestNotes, outstanding] = await Promise.all([
     prisma.studentAttendance.findMany({
       where: {
         studentId: { in: kidIds },
         date: { in: week },
         isVoided: false,
-        student: session.tenantId ? { tenantId: session.tenantId } : undefined,
+        student: { tenantId: session.tenantId },
       },
       select: { studentId: true, date: true, status: true },
     }),
-    session.tenantId
-      ? prisma.studentJournalNote.findMany({
-          where: {
-            tenantId: session.tenantId,
-            studentId: { in: kidIds },
-            status: "ACTIVE",
-          },
-          orderBy: { createdAt: "desc" },
-          select: { studentId: true, body: true, createdAt: true },
-        })
-      : Promise.resolve([] as { studentId: string; body: string; createdAt: Date }[]),
-    prisma.invoice.findMany({
+    prisma.studentJournalNote.findMany({
       where: {
-        // Defense-in-depth: tenantId filter mirrors getStudentInvoices +
-        // getParentInvoiceList. Conditional include matches the studentAttendance
-        // pattern above for the non-null-asserting ternary on session.tenantId.
-        ...(session.tenantId ? { tenantId: session.tenantId } : {}),
+        tenantId: session.tenantId,
         studentId: { in: kidIds },
-        status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+        status: "ACTIVE",
       },
-      select: { studentId: true, dueDate: true, totalDue: true, totalPaid: true },
+      orderBy: { createdAt: "desc" },
+      select: { studentId: true, body: true, createdAt: true },
     }),
+    getParentOutstandingForStudents(kidIds, session.tenantId),
   ]);
 
   // Index attendance: studentId → (date → status)
@@ -157,20 +145,7 @@ export default async function ParentDashboard() {
     }
   }
 
-  // Outstanding totals across the household
-  let unpaidTotal = 0;
-  let unpaidCount = 0;
-  let nearestDue: string | null = null;
-  for (const inv of unpaidInvoices) {
-    const due = Number(inv.totalDue);
-    const paid = Number(inv.totalPaid);
-    const remaining = Math.max(0, due - paid);
-    if (remaining > 0) {
-      unpaidTotal += remaining;
-      unpaidCount += 1;
-      if (!nearestDue || inv.dueDate < nearestDue) nearestDue = inv.dueDate;
-    }
-  }
+  const { count: unpaidCount, total: unpaidTotal, nearestDue } = outstanding;
 
   const greetingFirst = parent.name.split(" ")[0] ?? parent.name;
   // Derive Bu/Pak from the guardian relationship label on the first child link.
