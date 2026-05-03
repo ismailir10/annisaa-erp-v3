@@ -5,7 +5,7 @@ import { AttendanceCalendar } from "@/components/attendance/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { CalendarDays } from "lucide-react";
-import { LeaveSheet } from "@/components/teacher/leave-sheet";
+import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "@/components/teacher/leave-sheet";
 import { PageHeader } from "@/components/portal/page-header";
 import { toast } from "sonner";
 
@@ -25,6 +25,29 @@ export default function TeacherAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [leaveSheetOpen, setLeaveSheetOpen] = useState(false);
 
+  // Prefetch leave data on page mount so the sheet opens with instant content.
+  const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[] | null>(null);
+  const [leaveLoading, setLeaveLoading] = useState(true);
+
+  const fetchLeaveData = useCallback(async () => {
+    setLeaveLoading(true);
+    try {
+      const [balRes, reqRes] = await Promise.all([
+        fetch("/api/leave/balance"),
+        fetch("/api/leave/my"),
+      ]);
+      if (balRes.ok && reqRes.ok) {
+        setLeaveBalance(await balRes.json());
+        setLeaveRequests(await reqRes.json());
+      }
+      // On error: leave state null so the sheet falls back to its own fetch.
+    } catch {
+      // Silent — sheet will handle its own error path on open.
+    }
+    setLeaveLoading(false);
+  }, []);
+
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/attendance/my?month=${month}&year=${year}`);
@@ -39,6 +62,10 @@ export default function TeacherAttendancePage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
+
+  // Fire leave prefetch once on mount, independent of attendance fetch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchLeaveData(); }, [fetchLeaveData]);
 
   function handleMonthChange(m: number, y: number) {
     setMonth(m);
@@ -80,7 +107,14 @@ export default function TeacherAttendancePage() {
         />
       )}
 
-      <LeaveSheet open={leaveSheetOpen} onOpenChange={setLeaveSheetOpen} />
+      <LeaveSheet
+        open={leaveSheetOpen}
+        onOpenChange={setLeaveSheetOpen}
+        prefetchedBalance={leaveBalance}
+        prefetchedRequests={leaveRequests}
+        prefetchLoading={leaveLoading}
+        onRefetch={fetchLeaveData}
+      />
     </div>
   );
 }
