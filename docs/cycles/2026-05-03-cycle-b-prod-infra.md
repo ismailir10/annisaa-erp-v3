@@ -100,8 +100,8 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - Reuse: existing `process` argv parsing pattern from `scripts/verify-rls-coverage.ts`
   - Acceptance: `npx tsx scripts/audit-vercel-env.ts` exits 0 once prod scope is locked
 
-- [ ] **T6: GPG keypair + R2 bucket + GitHub Actions backup workflow** *(depends: T5)*
-  - Files: `.github/workflows/backup.yml` (new), `ops/backup-public.asc` (new), `ops/README.md` (new — keypair gen + key recovery procedure)
+- [x] **T6 (code parts): GPG keypair + R2 + GitHub Actions backup workflow** *(depends: T5)*  · ops portion of T6 = Phase 2 user-driven
+  - Files: `.github/workflows/backup.yml` (new), `ops/backup-public.asc` (new), `docs/runbooks/prod-setup.md` (new — keypair gen + key recovery procedure)
   - GPG keypair gen (manual, one-time, run by user): `gpg --quick-generate-key "Talib Backup <backup@talib.local>" ed25519 sign,encr never`. Export public: `gpg --armor --export backup@talib.local > ops/backup-public.asc`. Private key stored in 1Password vault `Talib Backups` + paper safe.
   - Workflow:
     ```yaml
@@ -130,7 +130,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
     ```
   - R2 bucket creation (manual): create `talib-backups`, attach 30-day lifecycle rule (delete after 30 days). Generate API token with read+write on this bucket only.
   - GitHub secrets to add (manual): `PROD_DB_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`
-  - Acceptance: workflow file passes `actionlint`; manual setup steps documented in `ops/README.md`
+  - Acceptance: workflow file passes `actionlint`; manual setup steps documented in `docs/runbooks/prod-setup.md`
 
 - [ ] **T7: Verify first nightly backup** *(depends: T6)*
   - Files: none (verification only). Document result in cycle doc Implementation section.
@@ -159,7 +159,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - Acceptance: UR dashboard shows monitor green for ≥24h before Cycle C kickoff
 
 - [ ] **T10: GitHub branch protection** *(depends: T9)* (T9 is "live monitoring before locking workflows" — protection requires CI checks be currently passing on staging)
-  - Files: none (GitHub UI / `gh api`). Document command set in `ops/README.md`.
+  - Files: none (GitHub UI / `gh api`). Document command set in `docs/runbooks/prod-setup.md`.
   - Use `gh api -X PUT repos/ismailir10/annisaa-erp-v3/branches/main/protection` with body: `required_status_checks: {strict: true, contexts: ["Lint, Typecheck & Test", "Build", "Playwright E2E"]}, enforce_admins: true, required_pull_request_reviews: null, restrictions: null, allow_force_pushes: false, allow_deletions: false`
   - Repeat for `staging`
   - Verify: `gh api repos/.../branches/main/protection` shows expected JSON; force-push attempt rejected
@@ -204,6 +204,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
 - Task 3: Security headers — `lib/security/headers.ts` (`applySecurityHeaders` helper) + `lib/security/__tests__/headers.test.ts` + `app/api/csp-report/route.ts` (public, 204, 8KB body cap, log to stdout) + `app/api/__tests__/csp-report.test.ts` + `proxy.ts` (wrapped existing logic in `proxyImpl`; outer `proxy` applies headers to every return; skip on `/api/csp-report`). Reviewers cleared with 5 inline fixes: added `wss://*.supabase.co` for Realtime, added `https://vitals.vercel-insights.com` for Analytics, dropped HSTS `preload` (deferred to post-launch +30d — irreversible), added 8KB body cap on csp-report (log-flooding mitigation). `unsafe-inline` script-src/style-src + nonce strategy = post-launch follow-up.
 - Task 4: Auth rate limit — `lib/security/auth-rate-limit.ts` (`enforceAuthRateLimit(request) → NextResponse | null`) + `lib/security/__tests__/auth-rate-limit.test.ts` + `proxy.ts` (calls helper at top of proxyImpl) + `lib/rate-limit.ts` (added `__resetRateLimitForTest`). 5 req/min/IP across all `/api/auth/*` paths; 429 + `Retry-After: 60` on cap. Reviewers cleared with 3 critical fixes: (a) drop pathname from key — was `auth:${ip}:${pathname}` letting attackers rotate sub-paths to multiply cap; now `auth:${ip}` total, (b) skip rate limit when IP is unidentifiable (`"anonymous"` fallback) — sharing one bucket across all anon callers was a global DoS vector; only triggers in dev since Vercel always sets XFF, (c) replaced fragile module-mock test pattern with real lib + `__resetRateLimitForTest` helper.
 - Task 5: Vercel env audit — `scripts/audit-vercel-env.ts` (read-only `vercel env ls production` shell-out + diff vs `.env.example`) + `scripts/__tests__/audit-vercel-env.test.ts` (9 unit tests on pure functions). Exits 0 clean / 1 missing required / 2 CLI failure. STAGING_* leaks warn (printed) but do not fail per cycle-doc spec. Reviewer cleared with 3 inline fixes: removed dead-code header-skip block (lowercase headers don't match the uppercase regex anyway), aligned exit code with spec ("warn not fail" on STAGING_*), added test for header-row filtering.
+- Task 6 (code parts): Backup workflow — `.github/workflows/backup.yml` (nightly cron `0 17 * * *` UTC + workflow_dispatch; pg_dump → GPG encrypt → R2 upload), `docs/runbooks/prod-setup.md` (manual ops procedures: keypair gen, R2 setup, GitHub secrets, branch protection commands, UR setup), `ops/backup-public.asc` (placeholder; real ED25519 public key replaces during Phase 2 ops). Reviewers cleared with 4 hardenings: (a) added `environment: production` job-level gate — required-reviewer approval before secrets unlock, blocks unauthorized exfiltration via tampered branches, (b) added GPG fingerprint pin via `BACKUP_GPG_FINGERPRINT` secret — workflow refuses to encrypt against a swapped public key, (c) dropped redundant `--endpoint-url` flag on aws s3 ls (env var already covers it), (d) clarified ops/README that GnuPG creates ED25519 sign primary + CV25519 encrypt subkey (not single-algorithm). 6 secrets total: PROD_DB_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT, BACKUP_GPG_RECIPIENT, BACKUP_GPG_FINGERPRINT.
 
 ## Verification
 
@@ -211,6 +212,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
 - T3: `npx vitest run lib/security app/api/__tests__/csp-report.test.ts` — 8 passed (CSP directive content × 2, HSTS no-preload, clickjacking/content-type/referrer/permissions, in-place mutation; csp-report 204 valid + 204 malformed + 413 oversize). Full suite 986 passed | 42 todo | 0 failed. `npm run build` ✓ — `/api/csp-report` route present.
 - T4: `npx vitest run lib/security/__tests__/auth-rate-limit.test.ts` — 6 passed (non-auth bypass; 5-allow-then-429; Retry-After 60 + body; per-IP scoping; cross-path bucket-share; anonymous-IP skip). Full suite 992 passed | 42 todo | 0 failed. `npm run build` ✓.
 - T5: `npx vitest run scripts/__tests__/audit-vercel-env.test.ts` — 9 passed (parseEnvExample x2; parseVercelEnvOutput x3 incl. header filtering; diffEnv x4 incl. optional handling + STAGING leak detection). Full suite 1000 passed | 42 todo | 0 failed. `npm run build` ✓ (script not bundled into app — pure CLI).
+- T6 (code parts): YAML syntax validated via `js-yaml` load. Full suite 1001 passed | 42 todo | 0 failed (no new tests — workflow is exec-time only). `npm run build` ✓. Workflow won't run successfully until Phase 2 ops fills the 6 environment secrets and replaces the placeholder `ops/backup-public.asc` with the real public key — intentional fail-closed behavior.
 
 ## Ship Notes
 <filled by /ship — migrations, env vars, manual steps, rollback plan>
