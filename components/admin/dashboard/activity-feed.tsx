@@ -13,8 +13,8 @@ export function ActivityFeed({ events }: { events: ActivityEvent[] }) {
       {events.length === 0 ? (
         <EmptyState
           icon={Activity}
-          title="Belum ada aktivitas terbaru"
-          description="Aktivitas tim akan muncul di sini saat tindakan dilakukan."
+          title="Belum ada aktivitas hari ini"
+          description="Tindakan seperti persetujuan cuti, penggajian, dan pendaftaran baru akan muncul di sini."
         />
       ) : (
         <ul className="flex-1 space-y-3">
@@ -32,7 +32,7 @@ export function ActivityFeed({ events }: { events: ActivityEvent[] }) {
                     <span className="font-medium">{event.actorName}</span>{" "}
                     <span className="text-muted-foreground">{event.verb}</span>
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {formatRelativeTime(event.timestamp)}
                   </p>
                 </div>

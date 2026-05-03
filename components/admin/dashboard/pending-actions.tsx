@@ -35,7 +35,7 @@ export function PendingActions({
             </div>
           </div>
           {pendingLeave > 0 ? (
-            <Badge className="bg-warning text-white text-xs">{pendingLeave}</Badge>
+            <Badge className="bg-warning text-primary-foreground text-xs">{pendingLeave}</Badge>
           ) : (
             <span className="text-xs text-muted-foreground">0</span>
           )}
@@ -56,7 +56,7 @@ export function PendingActions({
               </div>
             </div>
             {pendingAdmissions > 0 ? (
-              <Badge className="bg-primary text-white text-xs">{pendingAdmissions}</Badge>
+              <Badge className="bg-primary text-primary-foreground text-xs">{pendingAdmissions}</Badge>
             ) : (
               <span className="text-xs text-muted-foreground">0</span>
             )}

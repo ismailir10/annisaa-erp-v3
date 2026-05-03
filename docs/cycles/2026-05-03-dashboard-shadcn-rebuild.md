@@ -74,6 +74,13 @@ Files added:
 
 Between-task gate: `npm run build && npx vitest run` — build compiled in 32.4s, 982/982 tests passed.
 
+Code review fixed four issues post-merge:
+- `attendance-trend-chart.tsx` — stacked bar `radius` was conditional (bottom-only on present, top-only on absent); when middle stack `late === 0` the rounded corners visually inverted. Switched to uniform `radius={[4, 4, 4, 4]}` across all three bars.
+- `activity-feed.tsx` — relative-timestamp `text-[10px]` violated portal.md's banned-size rule (WCAG AA contrast at muted-foreground); raised to `text-xs`.
+- `activity-feed.tsx` — empty-state copy strengthened to name the kinds of actions that produce entries (per voice.md "say WHY and WHAT" rule).
+- `pending-actions.tsx` — `<Badge className="...text-white">` violated ui.md's no-hardcoded-colors rule; switched to `text-primary-foreground` token.
+- `quick-actions.tsx` — emoji glyphs replaced with Lucide icons (`Banknote`, `ClipboardList`, `CalendarOff`, `UserPlus`) per ui.md Shadcn-FIRST rule; icons now sit in a `bg-primary/10` chip mirroring the `PendingActions` row pattern.
+
 ## Verification
 
 (populated end-of-cycle once `npm run build && npx vitest run && npx playwright test` all green; will explicitly cross-check against `design-system` reference)

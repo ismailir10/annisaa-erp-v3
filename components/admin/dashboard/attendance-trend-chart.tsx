@@ -70,9 +70,9 @@ export function AttendanceTrendChart({
             <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} />
             <YAxis hide />
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-            <Bar dataKey="present" stackId="a" fill="var(--color-present)" radius={[0, 0, 4, 4]} />
-            <Bar dataKey="late" stackId="a" fill="var(--color-late)" />
-            <Bar dataKey="absent" stackId="a" fill="var(--color-absent)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="present" stackId="a" fill="var(--color-present)" radius={[4, 4, 4, 4]} />
+            <Bar dataKey="late" stackId="a" fill="var(--color-late)" radius={[4, 4, 4, 4]} />
+            <Bar dataKey="absent" stackId="a" fill="var(--color-absent)" radius={[4, 4, 4, 4]} />
           </BarChart>
         </ChartContainer>
       )}
