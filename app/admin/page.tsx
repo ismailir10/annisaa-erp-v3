@@ -57,7 +57,8 @@ export default async function AdminDashboard() {
   const canSeePayroll = hasPermission(session, "payroll.view");
   const canSeeAdmissions = hasPermission(session, "admissions.view");
   const canSeeLeave = hasPermission(session, "leave.view");
-  const canSeeActivity = hasPermission(session, "hr.view");
+  const canSeeHr = hasPermission(session, "hr.view");
+  const canSeeActivity = canSeeHr;
 
   const results = await Promise.allSettled([
     getEmployeeCount(tenantId),
@@ -169,9 +170,9 @@ export default async function AdminDashboard() {
           late={late}
           absent={absent}
         />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:items-start">
           <AttendanceTrendChart data={weeklyTrend} className="lg:col-span-2" />
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <PendingActions
               pendingLeave={pendingLeave}
               pendingAdmissions={pendingAdmissions}
@@ -183,7 +184,7 @@ export default async function AdminDashboard() {
             <ActivityFeed events={recentActivity} />
           </div>
         </div>
-        <QuickActions canSeePayroll={canSeePayroll} />
+        <QuickActions canSeePayroll={canSeePayroll} canSeeHr={canSeeHr} />
       </div>
     </>
   );
