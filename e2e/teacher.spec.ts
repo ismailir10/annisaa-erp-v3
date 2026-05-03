@@ -47,9 +47,14 @@ test.describe("Teacher flows", () => {
     await page.goto("/teacher/slips");
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
     await expect(page.locator("text=Slip Gaji")).toBeVisible({ timeout: 10_000 });
-    // Page fetches data async — wait up to 10s for either state to appear
+    // Page fetches data async — wait up to 10s for either state to appear.
+    // .first() — seed renders one "Tersedia" badge per slip; strict mode
+    // would fail without scoping to the first match.
     await expect(
-      page.locator("text=Tersedia").or(page.locator("text=Belum ada slip gaji"))
+      page
+        .locator("text=Tersedia")
+        .or(page.locator("text=Belum ada slip gaji"))
+        .first()
     ).toBeVisible({ timeout: 10_000 });
   });
 
