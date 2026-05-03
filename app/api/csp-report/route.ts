@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       return new NextResponse(null, { status: 413 });
     }
     const body = JSON.parse(text);
-    console.log("[csp-report]", JSON.stringify(body));
+    console.warn("[csp-report]", JSON.stringify(body));
   } catch {
     // CSP reports may have unusual content-type or malformed JSON; ignore.
   }

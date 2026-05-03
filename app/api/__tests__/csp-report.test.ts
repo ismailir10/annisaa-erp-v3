@@ -7,7 +7,7 @@ describe("POST /api/csp-report", () => {
   });
 
   it("returns 204 and logs body on valid JSON", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const req = new Request("http://localhost/api/csp-report", {
       method: "POST",
       body: JSON.stringify({
@@ -26,7 +26,7 @@ describe("POST /api/csp-report", () => {
   });
 
   it("returns 204 silently on malformed body", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const req = new Request("http://localhost/api/csp-report", {
       method: "POST",
       body: "not json",
@@ -39,7 +39,7 @@ describe("POST /api/csp-report", () => {
   });
 
   it("returns 413 when content-length exceeds 8KB cap", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const big = "x".repeat(8 * 1024 + 1);
     const req = new Request("http://localhost/api/csp-report", {
       method: "POST",
