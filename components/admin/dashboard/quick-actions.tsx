@@ -14,7 +14,7 @@ export function QuickActions({ canSeePayroll }: { canSeePayroll: boolean }) {
   ];
 
   return (
-    <div>
+    <div data-testid="quick-actions">
       <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
         Aksi Cepat
       </h2>

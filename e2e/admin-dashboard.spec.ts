@@ -40,7 +40,7 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
 
   test("renders pending actions with leave + admissions rows", async ({ page }) => {
     // Scope to the PendingActions card to avoid sidebar nav matches
-    const pendingCard = page.locator("h3", { hasText: "Perlu Tindakan" }).locator("..");
+    const pendingCard = page.getByTestId("pending-actions");
     await expect(pendingCard.getByText("Pengajuan Cuti")).toBeVisible(); // SUPER_ADMIN has leave.view
     await expect(pendingCard.getByText("Pendaftaran Baru")).toBeVisible(); // SUPER_ADMIN has admissions.view
   });
@@ -56,7 +56,7 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
 
   test("renders quick actions with all four links for full perms", async ({ page }) => {
     // Scope to quick-actions section (h2 with "Aksi Cepat" + sibling grid)
-    const quickActionsSection = page.locator("h2", { hasText: "Aksi Cepat" }).locator("..");
+    const quickActionsSection = page.getByTestId("quick-actions");
     await expect(quickActionsSection.getByText("Aksi Cepat")).toBeVisible();
     await expect(quickActionsSection.getByRole("link", { name: /Jalankan Penggajian/ })).toBeVisible();
     await expect(quickActionsSection.getByRole("link", { name: /Lihat Kehadiran/ })).toBeVisible();
@@ -74,21 +74,21 @@ test.describe("admin dashboard rebuild — SCHOOL_ADMIN gating", () => {
 
   test("hides payroll row in pending actions", async ({ page }) => {
     // Scope to the PendingActions card
-    const pendingCard = page.locator("h3", { hasText: "Perlu Tindakan" }).locator("..");
+    const pendingCard = page.getByTestId("pending-actions");
     await expect(pendingCard).toBeVisible();
     await expect(pendingCard.getByText("Penggajian Terakhir")).toHaveCount(0);
   });
 
   test("hides leave row (SCHOOL_ADMIN lacks leave.view)", async ({ page }) => {
     // Scope to the PendingActions card — sidebar nav may still have "Pengajuan Cuti"
-    const pendingCard = page.locator("h3", { hasText: "Perlu Tindakan" }).locator("..");
+    const pendingCard = page.getByTestId("pending-actions");
     await expect(pendingCard).toBeVisible();
     await expect(pendingCard.getByText("Pengajuan Cuti")).toHaveCount(0);
   });
 
   test("hides Jalankan Penggajian quick action", async ({ page }) => {
     // Scope to quick-actions section
-    const quickActionsSection = page.locator("h2", { hasText: "Aksi Cepat" }).locator("..");
+    const quickActionsSection = page.getByTestId("quick-actions");
     await expect(quickActionsSection.getByText("Aksi Cepat")).toBeVisible();
     await expect(quickActionsSection.getByRole("link", { name: /Jalankan Penggajian/ })).toHaveCount(0);
     // Other actions still present

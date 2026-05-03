@@ -20,7 +20,7 @@ export function PendingActions({
   canSeeLeave: boolean;
 }) {
   return (
-    <Card className="p-card h-full flex flex-col">
+    <Card data-testid="pending-actions" className="p-card h-full flex flex-col">
       <h3 className="text-sm font-semibold mb-4">Perlu Tindakan</h3>
       <div className="flex-1 space-y-3">
         {canSeeLeave && (

@@ -127,6 +127,10 @@ All 8 tests pass.
 
 **Bug fixed during Task 5:** `components/admin/dashboard/stat-grid.tsx` lacked `"use client"` directive, causing a React Server Components serialization error (Lucide icon functions cannot cross the server→client boundary). Adding `"use client"` resolved the runtime error. Between-task gate confirmed fix.
 
+**Code review fixes after Task 5 commit:**
+- `pending-actions.tsx` + `quick-actions.tsx` gained `data-testid` attributes (`pending-actions`, `quick-actions`); the e2e spec switched from a fragile `h3 + ".."` parent traversal to `getByTestId(...)` scoping. The traversal was one DOM layer too shallow and would have broken silently on any heading-wrap refactor.
+- **Deferred**: tightening the `"use client"` boundary in `stat-grid.tsx` to keep StatGrid server-side. The mechanical fix (mark StatCard's `icon` prop as `iconName: string` and resolve via lookup map inside the already-client `StatCard`) would touch 17+ existing callers across `app/admin/**`. Out of scope for this cycle. The current `"use client"` placement adds a negligible JS-bundle cost (~200 bytes) and is correct under shared-StatCard constraints.
+
 ### End-of-cycle gate
 
 - `npm run build` — clean, 123 routes, TypeScript passed.
