@@ -126,4 +126,31 @@ Ordered. Each task is independently committable; between-task gate is `npm run b
 - Task C5: `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx` — Pattern A (controlled Accordion + expandedIds state). Added `expandedIds: string[]` state (initially empty). `<Accordion>` now receives `value={expandedIds}` + `onValueChange={(v) => setExpandedIds(v as string[])}` making it controlled. Inside each `<AccordionContent>`, rubric body (SaveIndicator + categories + indicators + score buttons + Textarea) is wrapped in `{expandedIds.includes(s.id) && <> … </>}` — collapsed items contribute zero rubric DOM. Before: 17 students × N indicators all eagerly rendered on page load (UAT measured 3104 ms). After: initial DOM is 17 × 1 empty `<AccordionContent />` wrapper; only the tapped student mounts its rubric on first expand. Autosave + SaveIndicator: per-student `state` (scores, saveState, assessmentId) + `timersRef` + `creatingRef` live at the parent level — unchanged by this patch; `stateRef` mirror pattern for timer closures also unchanged. The conditional render is pure `{expandedIds.includes(s.id) && …}` inside the existing `<AccordionContent>` wrapper — the Accordion API and library are not changed.
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Migrations:** none. No `prisma/schema.prisma` change. D4 adds rows (one new `User` row + one `StudentJournalNote`) at seed-time only — production DB is unaffected by code merge alone.
+
+**Env vars:** none added or changed.
+
+**Reseed required (staging only):** to populate the new D4 parent-note row in staging's seed snapshot, run `bash scripts/reseed-staging.sh` after merge. Production data is real, not seeded.
+
+**Manual smoke on preview URL:**
+1. **Slip detail (A1/A2)** — log in as a teacher with at least one published slip; tap a row on `/teacher/slips`; verify the detail page renders with breakdown + masked bank account. Tap the row's PDF button → verify portrait A4 PDF (A4) loads + fits a 414 px viewport without horizontal scroll.
+2. **Slip placeholder (A3)** — confirm a placeholder row "Slip [prior month] akan tersedia setelah tanggal 5" appears above the list when the prior calendar month has no slip; for a teacher with zero history, confirm "Belum ada riwayat slip sebelumnya." sub-line shows beneath the placeholder.
+3. **Optimistic check-in (C1)** — tap MASUK / PULANG; verify the status card flips immediately (well under 1 s perceived); on artificial network failure, verify revert + inline error copy.
+4. **Class attendance skeleton (C2)** — change the date input on `/teacher/class-attendance`; verify skeleton rows appear during reload (no list freeze).
+5. **Leave-sheet prefetch (C3)** — open `/teacher/attendance`, then tap `+ Cuti & Izin` — verify content appears within 500 ms on warm load.
+6. **Calendar prefetch (C4)** — on `/teacher/attendance`, tap prev/next-month chevrons — verify <1 s render after initial load (warm cache).
+7. **Assessments accordion (C5)** — open `/teacher/assessments/[…]`; verify initial render is fast even with 17-student class; expand a student — verify rubric mounts within 1 s. Confirm D3 pre-publish warning row still appears above the CTA when scores incomplete.
+8. **Journal default date (D2)** — open a per-student week page with `?week=` in the past; tap `+ Tambah Catatan` — verify Tanggal defaults to that visible week's Friday, not today.
+9. **Parent note seeded (D4)** — after reseeding staging, navigate to the seeded KB-Aster student's week page; verify the parent-authored note shows the "Orang Tua" badge.
+
+**Rollback plan:**
+- Code rollback: `git revert` the merge commit on staging. All changes are additive — no destructive migrations.
+- Seed rollback: D4's seeded `u_kbaster_parent_d4` User row is harmless to leave in place if a partial revert is needed (idempotent via `upsert`). The seeded note is harmless data.
+- The portrait PDF (A4) drops landscape rendering. If a downstream consumer (none found in repo, but possible operationally) depends on landscape, revert just `lib/pdf/salary-slip.tsx`.
+
+**Known follow-ups (not blockers):**
+- E1 RSC 503 root cause is inconclusive pending Vercel log drain — see `docs/runbooks/teacher-assessments-503.md`. Set up the log drain before the next teacher UAT run.
+- C3 reviewer flagged two non-blocker concerns (silent refetch flag + `useCallback` wrap of `fetchData`) — left as-is.
+- 3 pre-existing admin-tagihan E2E failures persist on staging and main; out of cycle scope. Reproduces on origin/staging baseline 6d24570.
+- `JTBD-TEACHER-PROFILE-01` (profile photo upload) explicitly deferred to separate cycle.
