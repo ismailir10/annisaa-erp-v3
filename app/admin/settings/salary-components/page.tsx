@@ -183,7 +183,7 @@ export default function SalaryComponentsPage() {
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Komponen" : "Tambah Komponen"}</DialogTitle>
             <DialogDescription>Komponen gaji menentukan struktur penggajian</DialogDescription>

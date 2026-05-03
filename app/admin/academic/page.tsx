@@ -10,9 +10,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
@@ -431,142 +429,148 @@ export default function AcademicPage() {
       </div>
 
       {/* Add Year Dialog */}
-      <Dialog open={yearDialog} onOpenChange={setYearDialog}>
-        <DialogContent className="p-card">
-          <DialogHeader><DialogTitle>{editingYear ? "Edit Tahun Ajaran" : "Tambah Tahun Ajaran"}</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <Field><FieldLabel>Nama *</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field><FieldLabel>Mulai</FieldLabel><Input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
-              <Field><FieldLabel>Selesai</FieldLabel><Input type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+      <ResponsiveFormDialog
+        open={yearDialog}
+        onOpenChange={setYearDialog}
+        title={editingYear ? "Edit Tahun Ajaran" : "Tambah Tahun Ajaran"}
+        size="xl"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setYearDialog(false)} disabled={saving}>Batal</Button>
             <Button onClick={saveYear} disabled={saving}>{saving ? "Menyimpan..." : editingYear ? "Simpan Perubahan" : "Tambah Tahun Ajaran"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <Field><FieldLabel>Nama *</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field><FieldLabel>Mulai</FieldLabel><Input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
+          <Field><FieldLabel>Selesai</FieldLabel><Input type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
+        </div>
+      </ResponsiveFormDialog>
 
       {/* Add Program Dialog */}
-      <Dialog open={programDialog} onOpenChange={setProgramDialog}>
-        <DialogContent className="p-card">
-          <DialogHeader><DialogTitle>{editingProgram ? "Edit Program" : "Tambah Program"}</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <Field><FieldLabel>Kode *</FieldLabel><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
-              <Field><FieldLabel>Nama *</FieldLabel><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
-            </div>
-            <Field><FieldLabel>Deskripsi</FieldLabel><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
-            <Field>
-              <FieldLabel>Tipe</FieldLabel>
-              <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })} items={{ SEMESTER: "Semester", YEAR_ROUND: "Sepanjang Tahun", SESSION: "Per Sesi" }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SEMESTER">Semester</SelectItem>
-                  <SelectItem value="YEAR_ROUND">Sepanjang Tahun</SelectItem>
-                  <SelectItem value="SESSION">Per Sesi</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field><FieldLabel>Usia Min (bulan)</FieldLabel><Input type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></Field>
-              <Field><FieldLabel>Usia Max (bulan)</FieldLabel><Input type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></Field>
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+      <ResponsiveFormDialog
+        open={programDialog}
+        onOpenChange={setProgramDialog}
+        title={editingProgram ? "Edit Program" : "Tambah Program"}
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setProgramDialog(false)} disabled={saving}>Batal</Button>
             <Button onClick={saveProgram} disabled={saving}>{saving ? "Menyimpan..." : editingProgram ? "Simpan Perubahan" : "Tambah Program"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Field><FieldLabel>Kode *</FieldLabel><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
+          <Field><FieldLabel>Nama *</FieldLabel><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
+        </div>
+        <Field><FieldLabel>Deskripsi</FieldLabel><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
+        <Field>
+          <FieldLabel>Tipe</FieldLabel>
+          <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })} items={{ SEMESTER: "Semester", YEAR_ROUND: "Sepanjang Tahun", SESSION: "Per Sesi" }}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SEMESTER">Semester</SelectItem>
+              <SelectItem value="YEAR_ROUND">Sepanjang Tahun</SelectItem>
+              <SelectItem value="SESSION">Per Sesi</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field><FieldLabel>Usia Min (bulan)</FieldLabel><Input type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></Field>
+          <Field><FieldLabel>Usia Max (bulan)</FieldLabel><Input type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></Field>
+        </div>
+      </ResponsiveFormDialog>
 
       {/* Add Section Dialog */}
-      <Dialog open={sectionDialog} onOpenChange={setSectionDialog}>
-        <DialogContent className="p-card">
-          <DialogHeader><DialogTitle>{editingSection ? "Edit Kelas" : "Tambah Kelas"}</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <Field><FieldLabel>Nama Kelas *</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
-            <Field>
-              <FieldLabel>Program *</FieldLabel>
-              {editingSection ? (
-                <div className="text-sm text-muted-foreground py-2">{editingSection.program.name}</div>
-              ) : (
-                <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })} items={programs.map(p => ({ label: p.name, value: p.id }))}>
-                  <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
-                  <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                </Select>
-              )}
-            </Field>
-            <Field>
-              <FieldLabel>Tahun Ajaran *</FieldLabel>
-              {editingSection ? (
-                <div className="text-sm text-muted-foreground py-2">{editingSection.academicYear.name}</div>
-              ) : (
-                <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })} items={years.map(y => ({ label: y.name, value: y.id }))}>
-                  <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
-                  <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
-                </Select>
-              )}
-            </Field>
-            <Field>
-              <FieldLabel>Kampus *</FieldLabel>
-              <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
-                <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
-                <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
-            <Field><FieldLabel>Kapasitas</FieldLabel><Input type="number" value={sectionForm.capacity} onChange={e => setSectionForm({ ...sectionForm, capacity: e.target.value })} /></Field>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+      <ResponsiveFormDialog
+        open={sectionDialog}
+        onOpenChange={setSectionDialog}
+        title={editingSection ? "Edit Kelas" : "Tambah Kelas"}
+        size="xl"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setSectionDialog(false)} disabled={saving}>Batal</Button>
             <Button onClick={saveSection} disabled={saving}>{saving ? "Menyimpan..." : editingSection ? "Simpan Perubahan" : "Tambah Kelas"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <Field><FieldLabel>Nama Kelas *</FieldLabel><Input value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="TKIT A" /></Field>
+        <Field>
+          <FieldLabel>Program *</FieldLabel>
+          {editingSection ? (
+            <div className="text-sm text-muted-foreground py-2">{editingSection.program.name}</div>
+          ) : (
+            <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })} items={programs.map(p => ({ label: p.name, value: p.id }))}>
+              <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
+              <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+        </Field>
+        <Field>
+          <FieldLabel>Tahun Ajaran *</FieldLabel>
+          {editingSection ? (
+            <div className="text-sm text-muted-foreground py-2">{editingSection.academicYear.name}</div>
+          ) : (
+            <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })} items={years.map(y => ({ label: y.name, value: y.id }))}>
+              <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+              <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+        </Field>
+        <Field>
+          <FieldLabel>Kampus *</FieldLabel>
+          <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
+            <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
+            <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </Field>
+        <Field><FieldLabel>Kapasitas</FieldLabel><Input type="number" value={sectionForm.capacity} onChange={e => setSectionForm({ ...sectionForm, capacity: e.target.value })} /></Field>
+      </ResponsiveFormDialog>
 
       {/* Assign Teacher Dialog */}
-      <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
-        <DialogContent className="p-card">
-          <DialogHeader><DialogTitle>Guru Pengajar — {assignForm.className}</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            {classAssignments.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Guru Saat Ini</p>
-                {classAssignments.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium">{a.employee.nama}</p>
-                      <p className="text-xs text-muted-foreground">{a.employee.jabatan} · {a.role === "HOMEROOM" ? "Wali Kelas" : "Pendamping"}</p>
-                    </div>
-                    <Button size="sm" variant="ghost" className="text-destructive h-7" onClick={() => handleRemoveAssignment(a.id)}>Hapus</Button>
-                  </div>
-                ))}
+      <ResponsiveFormDialog
+        open={assignDialog}
+        onOpenChange={setAssignDialog}
+        title={`Guru Pengajar — ${assignForm.className}`}
+        size="lg"
+        footer={
+          <Button variant="ghost" onClick={() => setAssignDialog(false)}>Tutup</Button>
+        }
+      >
+        {classAssignments.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Guru Saat Ini</p>
+            {classAssignments.map((a) => (
+              <div key={a.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium">{a.employee.nama}</p>
+                  <p className="text-xs text-muted-foreground">{a.employee.jabatan} · {a.role === "HOMEROOM" ? "Wali Kelas" : "Pendamping"}</p>
+                </div>
+                <Button size="sm" variant="ghost" className="text-destructive h-7" onClick={() => handleRemoveAssignment(a.id)}>Hapus</Button>
               </div>
-            )}
-            <div className="pt-2 border-t border-border">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tambah Guru</p>
-              <Field>
-                <FieldLabel>Pilih Guru</FieldLabel>
-                <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })} items={employees.filter(e => !classAssignments.some(a => a.employee.kode === e.kode)).map(e => ({ label: `${e.nama} (${e.jabatan})`, value: e.id }))}>
-                  <SelectTrigger><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
-                  <SelectContent>
-                    {employees
-                      .filter(e => !classAssignments.some(a => a.employee.kode === e.kode))
-                      .map(e => <SelectItem key={e.id} value={e.id}>{e.nama} ({e.jabatan})</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Button size="sm" className="mt-2" onClick={handleAssignTeacher} disabled={assignSaving}>
-                {assignSaving ? "Menugaskan..." : "Tugaskan Guru"}
-              </Button>
-            </div>
+            ))}
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Tutup</Button></DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+        <div className="pt-2 border-t border-border">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tambah Guru</p>
+          <Field>
+            <FieldLabel>Pilih Guru</FieldLabel>
+            <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })} items={employees.filter(e => !classAssignments.some(a => a.employee.kode === e.kode)).map(e => ({ label: `${e.nama} (${e.jabatan})`, value: e.id }))}>
+              <SelectTrigger><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
+              <SelectContent>
+                {employees
+                  .filter(e => !classAssignments.some(a => a.employee.kode === e.kode))
+                  .map(e => <SelectItem key={e.id} value={e.id}>{e.nama} ({e.jabatan})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Button size="sm" className="mt-2" onClick={handleAssignTeacher} disabled={assignSaving}>
+            {assignSaving ? "Menugaskan..." : "Tugaskan Guru"}
+          </Button>
+        </div>
+      </ResponsiveFormDialog>
 
       {/* Deactivate Confirm */}
       <DeactivateConfirmDialog

@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
@@ -243,47 +243,49 @@ export default function FeesPage() {
       </AdminTabs>
 
       {/* Add Component Dialog */}
-      <Dialog open={componentDialog} onOpenChange={setComponentDialog}>
-        <DialogContent className="p-card">
-          <DialogHeader><DialogTitle>{editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <Field><FieldLabel>Kode *</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
-              <Field><FieldLabel>Label *</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
-            </div>
-            <Field>
-              <FieldLabel>Kategori</FieldLabel>
-              <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })} items={CATEGORY_LABELS}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TUITION">SPP</SelectItem>
-                  <SelectItem value="REGISTRATION">Pendaftaran</SelectItem>
-                  <SelectItem value="ACTIVITY">Kegiatan</SelectItem>
-                  <SelectItem value="MATERIAL">Bahan</SelectItem>
-                  <SelectItem value="OTHER">Lainnya</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field><FieldLabel>Urutan</FieldLabel><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
-              <Field>
-                <FieldLabel>Tipe</FieldLabel>
-                <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })} items={{ "true": "Bulanan (berulang)", "false": "Sekali bayar" }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Bulanan (berulang)</SelectItem>
-                    <SelectItem value="false">Sekali bayar</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+      <ResponsiveFormDialog
+        open={componentDialog}
+        onOpenChange={setComponentDialog}
+        title={editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setComponentDialog(false)} disabled={saving}>Batal</Button>
             <Button onClick={saveComponent} disabled={saving}>{saving ? "Menyimpan..." : editingFee ? "Simpan Perubahan" : "Tambah Komponen Biaya"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Field><FieldLabel>Kode *</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
+          <Field><FieldLabel>Label *</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
+        </div>
+        <Field>
+          <FieldLabel>Kategori</FieldLabel>
+          <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })} items={CATEGORY_LABELS}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TUITION">SPP</SelectItem>
+              <SelectItem value="REGISTRATION">Pendaftaran</SelectItem>
+              <SelectItem value="ACTIVITY">Kegiatan</SelectItem>
+              <SelectItem value="MATERIAL">Bahan</SelectItem>
+              <SelectItem value="OTHER">Lainnya</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field><FieldLabel>Urutan</FieldLabel><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
+          <Field>
+            <FieldLabel>Tipe</FieldLabel>
+            <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })} items={{ "true": "Bulanan (berulang)", "false": "Sekali bayar" }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Bulanan (berulang)</SelectItem>
+                <SelectItem value="false">Sekali bayar</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </ResponsiveFormDialog>
     </>
   );
 }

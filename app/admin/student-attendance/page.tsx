@@ -12,15 +12,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -355,52 +347,48 @@ export default function StudentAttendancePage() {
       />
 
       {/* ── Override dialog (Category C — event-log override) ─── */}
-      <Dialog open={!!overrideTarget} onOpenChange={(o) => { if (!overriding && !o) setOverrideTarget(null); }}>
-        <DialogContent className="p-card">
-          <DialogHeader>
-            <DialogTitle>Override Kehadiran</DialogTitle>
-            <DialogDescription>
-              {overrideTarget?.student.name} — {overrideTarget?.date}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-field py-2">
-            <Field>
-              <FieldLabel>Status Kehadiran</FieldLabel>
-              <Select
-                value={overrideForm.status}
-                onValueChange={(v) => setOverrideForm((f) => ({ ...f, status: v ?? f.status }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PRESENT">Hadir</SelectItem>
-                  <SelectItem value="ABSENT">Tidak Hadir</SelectItem>
-                  <SelectItem value="SICK">Sakit</SelectItem>
-                  <SelectItem value="PERMISSION">Izin</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Catatan (opsional)</FieldLabel>
-              <Textarea
-                value={overrideForm.notes}
-                onChange={(e) => setOverrideForm((f) => ({ ...f, notes: e.target.value }))}
-                placeholder="Catatan tambahan..."
-                rows={2}
-              />
-            </Field>
-          </div>
-          <DialogFooter>
-            <DialogClose>
-              <Button variant="ghost" disabled={overriding}>Batal</Button>
-            </DialogClose>
+      <ResponsiveFormDialog
+        open={!!overrideTarget}
+        onOpenChange={(o) => { if (!overriding && !o) setOverrideTarget(null); }}
+        title="Override Kehadiran"
+        description={overrideTarget ? `${overrideTarget.student.name} — ${overrideTarget.date}` : undefined}
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setOverrideTarget(null)} disabled={overriding}>Batal</Button>
             <Button onClick={handleOverride} disabled={overriding}>
               {overriding ? "Menyimpan..." : "Simpan Override"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <Field>
+          <FieldLabel>Status Kehadiran</FieldLabel>
+          <Select
+            value={overrideForm.status}
+            onValueChange={(v) => setOverrideForm((f) => ({ ...f, status: v ?? f.status }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PRESENT">Hadir</SelectItem>
+              <SelectItem value="ABSENT">Tidak Hadir</SelectItem>
+              <SelectItem value="SICK">Sakit</SelectItem>
+              <SelectItem value="PERMISSION">Izin</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Catatan (opsional)</FieldLabel>
+          <Textarea
+            value={overrideForm.notes}
+            onChange={(e) => setOverrideForm((f) => ({ ...f, notes: e.target.value }))}
+            placeholder="Catatan tambahan..."
+            rows={2}
+          />
+        </Field>
+      </ResponsiveFormDialog>
 
       {/* ── Void confirm ────────────────────────────────────────── */}
       <ConfirmDialog

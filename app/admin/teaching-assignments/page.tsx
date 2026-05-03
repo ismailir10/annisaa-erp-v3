@@ -10,14 +10,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -213,43 +206,43 @@ export default function TeachingAssignmentsPage() {
         onConfirm={handleDelete}
       />
 
-      <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-        <DialogContent className="p-card">
-          <DialogHeader>
-            <DialogTitle>Edit Penugasan</DialogTitle>
-            <DialogDescription>
-              {editTarget
-                ? `${editTarget.employee.nama} · ${editTarget.classSection.program.name} · ${editTarget.classSection.name}`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <Field>
-            <FieldLabel>Peran</FieldLabel>
-            <Select
-              value={editRole}
-              onValueChange={(v) => v && setEditRole(v)}
-              items={Object.fromEntries(ROLE_OPTIONS.map((o) => [o.value, o.label]))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <DialogFooter>
+      <ResponsiveFormDialog
+        open={!!editTarget}
+        onOpenChange={(o) => !o && setEditTarget(null)}
+        title="Edit Penugasan"
+        description={editTarget
+          ? `${editTarget.employee.nama} · ${editTarget.classSection.program.name} · ${editTarget.classSection.name}`
+          : undefined}
+        size="lg"
+        footer={
+          <>
             <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editSaving}>
               Batal
             </Button>
             <Button onClick={handleEditSave} disabled={editSaving || editRole === editTarget?.role}>
               {editSaving ? "Menyimpan..." : "Simpan Perubahan"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <Field>
+          <FieldLabel>Peran</FieldLabel>
+          <Select
+            value={editRole}
+            onValueChange={(v) => v && setEditRole(v)}
+            items={Object.fromEntries(ROLE_OPTIONS.map((o) => [o.value, o.label]))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </ResponsiveFormDialog>
     </>
   );
 }
