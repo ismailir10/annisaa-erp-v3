@@ -72,7 +72,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - Test: mock `prisma.$queryRaw`; assert status code + JSON body for both paths
   - Acceptance: vitest passes; `curl localhost:3000/api/health` → 200 in dev
 
-- [ ] **T3: Security headers in proxy.ts** *(depends: T2)*
+- [x] **T3: Security headers in proxy.ts** *(depends: T2)*
   - Files: `lib/security/headers.ts` (new), `proxy.ts` (modify), `app/api/csp-report/route.ts` (new)
   - `lib/security/headers.ts` exports `applySecurityHeaders(response: NextResponse)`. Sets:
     - `Content-Security-Policy-Report-Only`: `default-src 'self'; script-src 'self' 'unsafe-inline' https://js.xendit.co https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://api.xendit.co https://api.resend.com; frame-ancestors 'none'; report-uri /api/csp-report`
@@ -201,10 +201,12 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
 - Subagent plan: T2/T3/T4/T5/T11-partial/T12 sequential per-commit (shared file edits to proxy.ts in T3+T4 + cycle-doc churn make parallel dispatch unsafe). T1, T6 ops, T7-T10, T11 runbook = Phase 2 user-driven ops with assistant coaching.
 - T4 reuses existing `lib/rate-limit.ts` instead of creating `lib/security/rate-limit.ts` (DRY — existing `rateLimit(key, limit, windowMs) → {success, remaining}` covers the need; cycle doc adjusted at commit time).
 - Task 2: `/api/health` — `app/api/health/route.ts` + `app/api/__tests__/health.test.ts` — public DB-aware liveness via `SELECT 1`; 200 with git SHA on success; 503 `{error:"db_unreachable"}` + server-side `console.error` log on DB throw. Reviewers (feature-dev:code-reviewer + superpowers:code-reviewer) cleared with 2 inline fixes applied (env-stub semantics + error log).
+- Task 3: Security headers — `lib/security/headers.ts` (`applySecurityHeaders` helper) + `lib/security/__tests__/headers.test.ts` + `app/api/csp-report/route.ts` (public, 204, 8KB body cap, log to stdout) + `app/api/__tests__/csp-report.test.ts` + `proxy.ts` (wrapped existing logic in `proxyImpl`; outer `proxy` applies headers to every return; skip on `/api/csp-report`). Reviewers cleared with 5 inline fixes: added `wss://*.supabase.co` for Realtime, added `https://vitals.vercel-insights.com` for Analytics, dropped HSTS `preload` (deferred to post-launch +30d — irreversible), added 8KB body cap on csp-report (log-flooding mitigation). `unsafe-inline` script-src/style-src + nonce strategy = post-launch follow-up.
 
 ## Verification
 
 - T2: `npx vitest run app/api/__tests__/health.test.ts` — 4 passed (200 path, sha env present, sha env absent via `delete process.env.*`, 503 path with error log assertion). Full suite 978 passed | 42 todo | 0 failed. `npm run build` ✓ — `/api/health` route present in build output.
+- T3: `npx vitest run lib/security app/api/__tests__/csp-report.test.ts` — 8 passed (CSP directive content × 2, HSTS no-preload, clickjacking/content-type/referrer/permissions, in-place mutation; csp-report 204 valid + 204 malformed + 413 oversize). Full suite 986 passed | 42 todo | 0 failed. `npm run build` ✓ — `/api/csp-report` route present.
 
 ## Ship Notes
 <filled by /ship — migrations, env vars, manual steps, rollback plan>

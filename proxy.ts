@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { applySecurityHeaders } from "@/lib/security/headers";
 
 const DEMO_COOKIE = "school-erp-session";
 const LAST_ACTIVE_COOKIE = "school-erp-last-active";
@@ -49,6 +50,16 @@ function enforceIdleTimeout(request: NextRequest, response: NextResponse): NextR
 }
 
 export async function proxy(request: NextRequest) {
+  const response = await proxyImpl(request);
+  // /api/csp-report receives the violation reports themselves — applying
+  // CSP headers here would be redundant and could create report loops.
+  if (!request.nextUrl.pathname.startsWith("/api/csp-report")) {
+    applySecurityHeaders(response);
+  }
+  return response;
+}
+
+async function proxyImpl(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   // Fully public routes — NO auth check at all (external webhooks, payment pages)
