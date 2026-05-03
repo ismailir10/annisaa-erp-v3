@@ -13,7 +13,7 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 | Layer | Technology |
 |-------|------------|
 | Framework | Next.js 15 (App Router) + TypeScript strict |
-| Database | Supabase Postgres (prod Mumbai, staging Tokyo) / SQLite (local dev) |
+| Database | Supabase Postgres (prod + staging Singapore `ap-southeast-1`) / SQLite (local dev) |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
 | UI | Shadcn UI + Tailwind + TanStack Table; fonts Plus Jakarta Sans + JetBrains Mono |
@@ -106,13 +106,13 @@ Copy `.env.example` to `.env`. Per-env values:
 
 | Variable | Local | Staging | Production |
 |---|---|---|---|
-| `DATABASE_URL` | `file:./dev.db` | Supabase Tokyo pooler (6543) | Supabase Mumbai pooler (6543) |
-| `DIRECT_URL` | optional | Supabase Tokyo direct (5432) — required¹ | Supabase Mumbai direct (5432) — required¹ |
+| `DATABASE_URL` | `file:./dev.db` | Supabase Singapore pooler (6543) | Supabase Singapore pooler (6543) |
+| `DIRECT_URL` | optional | Supabase Singapore direct (5432) — required¹ | Supabase Singapore direct (5432) — required¹ |
 | `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | — | Staging | Production |
 | `RESEND_API_KEY` (omit → emails simulated) | — | Resend key | Resend key |
 | `STAGING_EMAIL_OVERRIDE` | — | Admin email | — |
 | `XENDIT_SECRET_KEY` / `XENDIT_WEBHOOK_TOKEN` | — | Sandbox | Production |
-| `NEXT_PUBLIC_APP_URL` | — | Staging Vercel preview URL² | `https://annisaa-erp-v3.vercel.app`² |
+| `NEXT_PUBLIC_APP_URL` | — | Staging Vercel preview URL² | `https://talib.annisaasekolahku.com`² |
 | `CRON_SECRET` | — | `openssl rand -hex 32` | `openssl rand -hex 32` |
 
 ¹ **`DIRECT_URL` mandatory on Vercel.** `build` runs `prisma migrate deploy`, which needs port 5432 — pooler 6543 (PgBouncer transaction mode) doesn't support advisory locks.
@@ -125,8 +125,8 @@ Copy `.env.example` to `.env`. Per-env values:
 | Environment | Branch | URL | Database | Purpose |
 |---|---|---|---|---|
 | Local | any | localhost:3000 | SQLite | Demo mode |
-| Staging | `staging` | [preview](https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app/) | Supabase Tokyo | Safe data |
-| Production | `main` | annisaa-erp-v3.vercel.app | Supabase Mumbai | Real users |
+| Staging | `staging` | [preview](https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app/) | Supabase Singapore (staging project) | Safe data |
+| Production | `main` | talib.annisaasekolahku.com | Supabase Singapore (prod project) | Real users |
 
 Vercel builds via [`scripts/vercel-build.sh`](./scripts/vercel-build.sh); `prisma migrate deploy` runs on `staging` + `main`. Preview branches use staging DB and skip migrate deploy. CI runs three required checks per PR: `Lint, Typecheck & Test` (incl. RLS + API-auth coverage guards), `Build`, `Playwright E2E`.
 

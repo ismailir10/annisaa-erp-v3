@@ -169,13 +169,13 @@ Full design deferred to Cycle B's own brainstorm. Locking scope here.
 |---|---|
 | Supabase prod | Create `talib-prod` project, run migrations, verify schema parity, configure auth (allowed redirect URLs for `talib.annisaasekolahku.com`, Supabase Auth invite email template = "you're invited to Talib"), enable RLS coverage check via `scripts/verify-rls-coverage.ts` |
 | Vercel env split | Audit + lock production-scope env vars; verify no preview-scope leaks |
-| Xendit webhook | Re-point dashboard webhook URL → `https://talib.annisaasekolahku.com/api/webhooks/xendit`; test |
+| Xendit webhook | Re-point dashboard webhook URL → `https://talib.annisaasekolahku.com/api/xendit/webhook`; test |
 | Backup pipeline | GitHub Actions cron `0 17 * * *` UTC (00:00 WIB), `pg_dump` → GPG-encrypt → R2 bucket `talib-backups` with 30-day lifecycle |
 | Uptime ping | UptimeRobot account, `/api/health` every 5min, email + WhatsApp alerts |
 | Health endpoint | Add `/api/health` if not present; checks Supabase reachability |
 | Branch protection | GitHub UI: protect `main` + `staging`; require PR; require CI checks (`Lint, Typecheck & Test`, `Build`, `Playwright E2E`); forbid force-push; no owner bypass |
 | Security headers | Audit `proxy.ts` CSP, HSTS, X-Frame-Options, Referrer-Policy; tighten for prod domain |
-| Rate limiting | Audit `/api/auth/*` and `/api/webhooks/xendit`; add minimal middleware if missing |
+| Rate limiting | Audit `/api/auth/*` and `/api/xendit/webhook`; add minimal middleware if missing |
 | DR drill | Manual snapshot of prod Supabase; restore to scratch project; verify schema + sample row; document |
 | Runbook | `docs/runbooks/prod-incident.md` — rollback steps (Vercel + R2 restore), Xendit webhook re-point, status page |
 
