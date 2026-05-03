@@ -62,7 +62,7 @@ Non-goals:
 
 ### T1 — Client `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx`
 
-- Added `stateRef = useRef(state); stateRef.current = state;` synchronously in render — ref always mirrors latest committed state without triggering re-renders.
+- Added `stateRef = useRef(state)` and synced it in `useEffect(() => { stateRef.current = state; }, [state])` — ref mirrors latest committed state. (`react-hooks/refs-during-render` rejects writing refs during render; the 1.2 s autosave debounce outlasts the effect commit window so the deferred timer still reads fresh state.)
 - `ensureAssessment` and `saveStudent` now read `stateRef.current[studentId]` instead of the closure-captured `state[studentId]`.
 - Removed `state` from both `useCallback` deps. Both callbacks become stable across renders, so the `setTimeout` in `scheduleAutosave` always invokes the SAME `saveStudent`, which then reads the freshest state via the ref.
 - Tightened the early-return guard: `if (scorePayload.length === 0 && !opts.publish && !cur.assessmentId) return true;` — only skip when nothing has been persisted yet AND nothing to send. If a row already exists, an empty payload is a meaningful "clear all" and goes to the server.

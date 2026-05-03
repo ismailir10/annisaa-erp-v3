@@ -113,13 +113,15 @@ export function AssessmentEntryClient({
   const creatingRef = useRef<Record<string, Promise<string | null> | null>>({});
 
   // saveStudent runs from a setTimeout fired 1.2 s after the click that
-  // scheduled it. With `state` in the useCallback deps, the timer captures a
+  // scheduled it. With `state` in the useCallback deps, the timer captured a
   // pre-click closure (setState in setScore is queued, the render that
-  // produces the new saveStudent hasn't run yet) and persists stale scores.
-  // Mirror state into a ref synchronously each render so the deferred work
-  // always reads the latest committed state regardless of when it fires.
+  // produces the new saveStudent hasn't run yet) and persisted stale scores.
+  // Mirror state into a ref so deferred work reads the latest committed
+  // state. The 1.2 s debounce easily outlasts the effect commit cycle.
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const ensureAssessment = useCallback(
     async (studentId: string): Promise<string | null> => {
