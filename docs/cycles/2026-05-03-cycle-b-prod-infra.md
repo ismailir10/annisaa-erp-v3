@@ -93,7 +93,7 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
   - Test: 5 sequential calls pass; 6th + 7th return 429 with Retry-After
   - Acceptance: vitest passes; manual `for i in 1..7; curl -i .../api/auth/test` shows 429 on 6th+
 
-- [ ] **T5: Vercel env audit script**
+- [x] **T5: Vercel env audit script**
   - Files: `scripts/audit-vercel-env.ts` (new)
   - Behavior: shell out to `vercel env ls production` (or use `@vercel/sdk`), parse keys, diff vs `.env.example` (extract VAR names from leftmost `^[A-Z_]+=`), exit 1 with diff on mismatch, exit 0 otherwise
   - Special case: warn (not fail) on `STAGING_*` keys in production scope
@@ -203,12 +203,14 @@ Task = one commit. Between-task gate: `npm run build && npx vitest run`. Depende
 - Task 2: `/api/health` — `app/api/health/route.ts` + `app/api/__tests__/health.test.ts` — public DB-aware liveness via `SELECT 1`; 200 with git SHA on success; 503 `{error:"db_unreachable"}` + server-side `console.error` log on DB throw. Reviewers (feature-dev:code-reviewer + superpowers:code-reviewer) cleared with 2 inline fixes applied (env-stub semantics + error log).
 - Task 3: Security headers — `lib/security/headers.ts` (`applySecurityHeaders` helper) + `lib/security/__tests__/headers.test.ts` + `app/api/csp-report/route.ts` (public, 204, 8KB body cap, log to stdout) + `app/api/__tests__/csp-report.test.ts` + `proxy.ts` (wrapped existing logic in `proxyImpl`; outer `proxy` applies headers to every return; skip on `/api/csp-report`). Reviewers cleared with 5 inline fixes: added `wss://*.supabase.co` for Realtime, added `https://vitals.vercel-insights.com` for Analytics, dropped HSTS `preload` (deferred to post-launch +30d — irreversible), added 8KB body cap on csp-report (log-flooding mitigation). `unsafe-inline` script-src/style-src + nonce strategy = post-launch follow-up.
 - Task 4: Auth rate limit — `lib/security/auth-rate-limit.ts` (`enforceAuthRateLimit(request) → NextResponse | null`) + `lib/security/__tests__/auth-rate-limit.test.ts` + `proxy.ts` (calls helper at top of proxyImpl) + `lib/rate-limit.ts` (added `__resetRateLimitForTest`). 5 req/min/IP across all `/api/auth/*` paths; 429 + `Retry-After: 60` on cap. Reviewers cleared with 3 critical fixes: (a) drop pathname from key — was `auth:${ip}:${pathname}` letting attackers rotate sub-paths to multiply cap; now `auth:${ip}` total, (b) skip rate limit when IP is unidentifiable (`"anonymous"` fallback) — sharing one bucket across all anon callers was a global DoS vector; only triggers in dev since Vercel always sets XFF, (c) replaced fragile module-mock test pattern with real lib + `__resetRateLimitForTest` helper.
+- Task 5: Vercel env audit — `scripts/audit-vercel-env.ts` (read-only `vercel env ls production` shell-out + diff vs `.env.example`) + `scripts/__tests__/audit-vercel-env.test.ts` (9 unit tests on pure functions). Exits 0 clean / 1 missing required / 2 CLI failure. STAGING_* leaks warn (printed) but do not fail per cycle-doc spec. Reviewer cleared with 3 inline fixes: removed dead-code header-skip block (lowercase headers don't match the uppercase regex anyway), aligned exit code with spec ("warn not fail" on STAGING_*), added test for header-row filtering.
 
 ## Verification
 
 - T2: `npx vitest run app/api/__tests__/health.test.ts` — 4 passed (200 path, sha env present, sha env absent via `delete process.env.*`, 503 path with error log assertion). Full suite 978 passed | 42 todo | 0 failed. `npm run build` ✓ — `/api/health` route present in build output.
 - T3: `npx vitest run lib/security app/api/__tests__/csp-report.test.ts` — 8 passed (CSP directive content × 2, HSTS no-preload, clickjacking/content-type/referrer/permissions, in-place mutation; csp-report 204 valid + 204 malformed + 413 oversize). Full suite 986 passed | 42 todo | 0 failed. `npm run build` ✓ — `/api/csp-report` route present.
 - T4: `npx vitest run lib/security/__tests__/auth-rate-limit.test.ts` — 6 passed (non-auth bypass; 5-allow-then-429; Retry-After 60 + body; per-IP scoping; cross-path bucket-share; anonymous-IP skip). Full suite 992 passed | 42 todo | 0 failed. `npm run build` ✓.
+- T5: `npx vitest run scripts/__tests__/audit-vercel-env.test.ts` — 9 passed (parseEnvExample x2; parseVercelEnvOutput x3 incl. header filtering; diffEnv x4 incl. optional handling + STAGING leak detection). Full suite 1000 passed | 42 todo | 0 failed. `npm run build` ✓ (script not bundled into app — pure CLI).
 
 ## Ship Notes
 <filled by /ship — migrations, env vars, manual steps, rollback plan>
