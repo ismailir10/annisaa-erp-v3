@@ -237,11 +237,11 @@ export default async function ParentDashboard() {
               className="block rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40 md:p-6"
             >
               <div className="flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-lg bg-status-late-subtle text-status-late-text">
+                <div className="grid size-10 place-items-center rounded-lg bg-status-absent-subtle text-status-absent-text">
                   <Receipt size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-currency text-2xl sm:text-display font-bold leading-none tracking-tight text-status-absent-text">
+                  <p className="font-currency text-lg sm:text-xl font-semibold leading-none tracking-tight text-status-absent-text">
                     {formatRupiah(unpaidTotal)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -249,7 +249,7 @@ export default async function ParentDashboard() {
                     {nearestDue ? (
                       <>
                         {" · jatuh tempo terdekat "}
-                        <b className="text-foreground">{formatDate(nearestDue, { day: "numeric", month: "long" })}</b>
+                        {formatDate(nearestDue, { day: "numeric", month: "long" })}
                       </>
                     ) : null}
                   </p>
