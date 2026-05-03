@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -362,97 +362,103 @@ export default function AssessmentTemplatesPage() {
       />
 
       {/* Create Dialog */}
-      <Dialog open={createDialog} onOpenChange={setCreateDialog}>
-        <DialogContent className="p-card max-w-lg">
-          <DialogHeader><DialogTitle>Buat Template Penilaian</DialogTitle></DialogHeader>
-          <ScrollArea className="max-h-[60vh] pr-2">
-            <div className="space-y-field py-2">
-              <Field><FieldLabel>Nama Template *</FieldLabel><Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field>
-                  <FieldLabel>Program *</FieldLabel>
-                  <Select value={createForm.programId} onValueChange={(v) => v && setCreateForm({ ...createForm, programId: v })} items={programs.map((p) => ({ label: p.name, value: p.id }))}>
-                    <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
-                    <SelectContent>{programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel>Tipe</FieldLabel>
-                  <Select value={createForm.type} onValueChange={(v) => v && setCreateForm({ ...createForm, type: v })} items={{ SEMESTER: "Semester", QUARTERLY: "Kuartal", MONTHLY: "Bulanan" }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SEMESTER">Semester</SelectItem>
-                      <SelectItem value="QUARTERLY">Kuartal</SelectItem>
-                      <SelectItem value="MONTHLY">Bulanan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
+      <ResponsiveFormDialog
+        open={createDialog}
+        onOpenChange={setCreateDialog}
+        title="Buat Template Penilaian"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCreateDialog(false)} disabled={saving}>Batal</Button>
+            <Button onClick={handleCreate} disabled={saving}>{saving ? "Menyimpan..." : "Buat Template"}</Button>
+          </>
+        }
+      >
+        <ScrollArea className="max-h-[60vh] pr-2">
+          <div className="space-y-field">
+            <Field><FieldLabel required>Nama Template</FieldLabel><Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel required>Program</FieldLabel>
+                <Select value={createForm.programId} onValueChange={(v) => v && setCreateForm({ ...createForm, programId: v })} items={programs.map((p) => ({ label: p.name, value: p.id }))}>
+                  <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
+                  <SelectContent>{programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Tipe</FieldLabel>
+                <Select value={createForm.type} onValueChange={(v) => v && setCreateForm({ ...createForm, type: v })} items={{ SEMESTER: "Semester", QUARTERLY: "Kuartal", MONTHLY: "Bulanan" }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SEMESTER">Semester</SelectItem>
+                    <SelectItem value="QUARTERLY">Kuartal</SelectItem>
+                    <SelectItem value="MONTHLY">Bulanan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
 
-              <div className="border-t pt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Kategori & Indikator</span>
-                  <Button size="sm" variant="outline" onClick={addCategory}><Plus size={12} className="mr-1" /> Kategori</Button>
-                </div>
-                {createForm.categories.map((cat, ci) => (
-                  <div key={ci} className="border rounded-lg p-3 mb-3 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Input className="flex-1" placeholder="Nama kategori" value={cat.name} onChange={(e) => updateCategory(ci, e.target.value)} />
-                      {createForm.categories.length > 1 && (
-                        <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => removeCategory(ci)}><Trash2 size={14} /></Button>
+            <div className="border-t pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Kategori & Indikator</span>
+                <Button size="sm" variant="outline" onClick={addCategory}><Plus size={12} className="mr-1" /> Kategori</Button>
+              </div>
+              {createForm.categories.map((cat, ci) => (
+                <div key={ci} className="border rounded-lg p-3 mb-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input className="flex-1" placeholder="Nama kategori" value={cat.name} onChange={(e) => updateCategory(ci, e.target.value)} />
+                    {createForm.categories.length > 1 && (
+                      <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => removeCategory(ci)}><Trash2 size={14} /></Button>
+                    )}
+                  </div>
+                  {cat.indicators.map((ind, ii) => (
+                    <div key={ii} className="flex items-center gap-2 pl-4">
+                      <Input className="flex-1 text-sm" placeholder={`Indikator ${ii + 1}`} value={ind} onChange={(e) => updateIndicator(ci, ii, e.target.value)} />
+                      {cat.indicators.length > 1 && (
+                        <Button size="sm" variant="ghost" className="text-destructive h-7 w-7 p-0" onClick={() => removeIndicator(ci, ii)}><Trash2 size={12} /></Button>
                       )}
                     </div>
-                    {cat.indicators.map((ind, ii) => (
-                      <div key={ii} className="flex items-center gap-2 pl-4">
-                        <Input className="flex-1 text-sm" placeholder={`Indikator ${ii + 1}`} value={ind} onChange={(e) => updateIndicator(ci, ii, e.target.value)} />
-                        {cat.indicators.length > 1 && (
-                          <Button size="sm" variant="ghost" className="text-destructive h-7 w-7 p-0" onClick={() => removeIndicator(ci, ii)}><Trash2 size={12} /></Button>
-                        )}
-                      </div>
-                    ))}
-                    <Button size="sm" variant="ghost" className="ml-4 text-xs" onClick={() => addIndicator(ci)}>+ Indikator</Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                  <Button size="sm" variant="ghost" className="ml-4 text-xs" onClick={() => addIndicator(ci)}>+ Indikator</Button>
+                </div>
+              ))}
             </div>
-          </ScrollArea>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleCreate} disabled={saving}>{saving ? "Menyimpan..." : "Buat Template"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </ScrollArea>
+      </ResponsiveFormDialog>
 
       {/* Edit Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-        <DialogContent className="p-card">
-          <DialogHeader><DialogTitle>Edit Template</DialogTitle></DialogHeader>
-          <div className="space-y-field py-2">
-            <Field><FieldLabel>Nama *</FieldLabel><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
-            <Field>
-              <FieldLabel>Tipe</FieldLabel>
-              <Select value={editForm.type} onValueChange={(v) => v && setEditForm({ ...editForm, type: v })} items={{ SEMESTER: "Semester", QUARTERLY: "Kuartal", MONTHLY: "Bulanan" }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SEMESTER">Semester</SelectItem>
-                  <SelectItem value="QUARTERLY">Kuartal</SelectItem>
-                  <SelectItem value="MONTHLY">Bulanan</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            {editTarget && (
-              <div className="text-xs text-muted-foreground">
-                <p>Program: {editTarget.program.name}</p>
-                <p>{editTarget.categories.length} kategori, {editTarget.categories.reduce((s, c) => s + c.indicators.length, 0)} indikator</p>
-              </div>
-            )}
+      <ResponsiveFormDialog
+        open={!!editTarget}
+        onOpenChange={(o) => !o && setEditTarget(null)}
+        title="Edit Template"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
+            <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
+          </>
+        }
+      >
+        <Field><FieldLabel required>Nama</FieldLabel><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
+        <Field>
+          <FieldLabel>Tipe</FieldLabel>
+          <Select value={editForm.type} onValueChange={(v) => v && setEditForm({ ...editForm, type: v })} items={{ SEMESTER: "Semester", QUARTERLY: "Kuartal", MONTHLY: "Bulanan" }}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SEMESTER">Semester</SelectItem>
+              <SelectItem value="QUARTERLY">Kuartal</SelectItem>
+              <SelectItem value="MONTHLY">Bulanan</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        {editTarget && (
+          <div className="text-xs text-muted-foreground">
+            <p>Program: {editTarget.program.name}</p>
+            <p>{editTarget.categories.length} kategori, {editTarget.categories.reduce((s, c) => s + c.indicators.length, 0)} indikator</p>
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </ResponsiveFormDialog>
 
       {/* Confirm Dialog */}
       <ConfirmDialog

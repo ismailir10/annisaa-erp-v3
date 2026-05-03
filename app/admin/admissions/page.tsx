@@ -122,7 +122,7 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
     <>
       <div className="grid grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Nama Anak *</FieldLabel>
+          <FieldLabel required>Nama Anak</FieldLabel>
           <Input
             value={form.childName}
             onChange={(e) => setForm({ ...form, childName: e.target.value })}
@@ -156,7 +156,7 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Nama Orang Tua *</FieldLabel>
+          <FieldLabel required>Nama Orang Tua</FieldLabel>
           <Input
             value={form.parentName}
             onChange={(e) => setForm({ ...form, parentName: e.target.value })}
@@ -695,16 +695,16 @@ export default function AdmissionsPage() {
               <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
               <div className="flex flex-col-reverse gap-2 pt-2">
                 <Button onClick={handleSubmit} disabled={saving}>
-                  {saving ? "Menyimpan..." : "Simpan"}
+                  {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Inquiry"}
                 </Button>
-                <SheetClose render={<Button variant="outline">Batal</Button>} />
+                <SheetClose render={<Button variant="ghost">Batal</Button>} />
               </div>
             </div>
           </SheetContent>
         </Sheet>
       ) : (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="p-card">
+          <DialogContent className="p-card sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
             </DialogHeader>
@@ -713,10 +713,10 @@ export default function AdmissionsPage() {
             </div>
             <DialogFooter>
               <DialogClose>
-                <Button variant="outline">Batal</Button>
+                <Button variant="ghost">Batal</Button>
               </DialogClose>
               <Button onClick={handleSubmit} disabled={saving}>
-                {saving ? "Menyimpan..." : "Simpan"}
+                {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Inquiry"}
               </Button>
             </DialogFooter>
           </DialogContent>

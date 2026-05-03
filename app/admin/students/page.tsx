@@ -100,7 +100,7 @@ function StudentFormBody({
     <div className="space-y-field">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Nama Lengkap *</FieldLabel>
+          <FieldLabel required>Nama Lengkap</FieldLabel>
           <Input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -553,18 +553,18 @@ export default function StudentsPage() {
               <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
             <SheetFooter>
-              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+              <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
                 Batal
               </Button>
               <Button onClick={handleEdit} disabled={editing}>
-                {editing ? "Menyimpan..." : "Simpan"}
+                {editing ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
       ) : (
         <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Edit Siswa</DialogTitle>
             </DialogHeader>
@@ -572,11 +572,11 @@ export default function StudentsPage() {
               <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editing}>
+              <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
                 Batal
               </Button>
               <Button onClick={handleEdit} disabled={editing}>
-                {editing ? "Menyimpan..." : "Simpan"}
+                {editing ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -598,14 +598,14 @@ export default function StudentsPage() {
             </div>
             <SheetFooter>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
                 disabled={creating}
               >
                 Batal
               </Button>
               <Button onClick={handleCreate} disabled={creating}>
-                {creating ? "Menyimpan..." : "Simpan"}
+                {creating ? "Menyimpan..." : "Tambah Siswa"}
               </Button>
             </SheetFooter>
           </SheetContent>
@@ -615,7 +615,7 @@ export default function StudentsPage() {
           open={createOpen}
           onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
         >
-          <DialogContent className="max-w-lg">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Tambah Siswa</DialogTitle>
             </DialogHeader>
@@ -624,14 +624,14 @@ export default function StudentsPage() {
             </div>
             <DialogFooter>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
                 disabled={creating}
               >
                 Batal
               </Button>
               <Button onClick={handleCreate} disabled={creating}>
-                {creating ? "Menyimpan..." : "Simpan"}
+                {creating ? "Menyimpan..." : "Tambah Siswa"}
               </Button>
             </DialogFooter>
           </DialogContent>

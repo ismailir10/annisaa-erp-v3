@@ -183,7 +183,7 @@ export default function SalaryComponentsPage() {
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Komponen" : "Tambah Komponen"}</DialogTitle>
             <DialogDescription>Komponen gaji menentukan struktur penggajian</DialogDescription>
@@ -191,12 +191,12 @@ export default function SalaryComponentsPage() {
           <div className="space-y-field py-2">
             {!editing && (
               <Field>
-                <FieldLabel>Kode *</FieldLabel>
+                <FieldLabel required>Kode</FieldLabel>
                 <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="tunjangan_baru" />
               </Field>
             )}
             <Field>
-              <FieldLabel>Label *</FieldLabel>
+              <FieldLabel required>Label</FieldLabel>
               <Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Tunjangan Baru" />
             </Field>
             <div className="grid grid-cols-2 gap-3">
@@ -232,8 +232,8 @@ export default function SalaryComponentsPage() {
             </label>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Komponen"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

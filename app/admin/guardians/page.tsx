@@ -102,7 +102,7 @@ function GuardianEditFormBody({
 }) {
   return (
     <div className="space-y-field">
-      <Field><FieldLabel>Nama *</FieldLabel><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+      <Field><FieldLabel required>Nama</FieldLabel><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
       <Field><FieldLabel>Email</FieldLabel><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
       <Field><FieldLabel>Telepon</FieldLabel><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
       <Field><FieldLabel>WhatsApp</FieldLabel><Input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} /></Field>
@@ -267,20 +267,20 @@ export default function GuardiansPage() {
             </div>
             <SheetFooter>
               <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
-              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
       ) : (
         <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader><DialogTitle>Edit Wali</DialogTitle></DialogHeader>
             <div>
               <GuardianEditFormBody form={editForm} setForm={setEditForm} />
             </div>
             <DialogFooter>
               <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

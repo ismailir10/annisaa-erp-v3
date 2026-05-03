@@ -75,6 +75,27 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 <SidebarMenuButton asChild><Link href="/admin">
 ```
 
+## Dialog & Sheet button labels (canonical)
+
+The submit and cancel slots of every admin form Dialog / Sheet use the labels in this table. Cross-link from `crud.md` Edit Dialog Standard. Voice rules (`voice.md`) for body copy still apply — the table only fixes the *button strings*.
+
+| Action type | Submit label | Loading | Cancel | Cancel variant |
+|---|---|---|---|---|
+| Create | `Tambah <Entity>` (e.g. `Tambah Siswa`) — match the trigger button | `Menyimpan...` | `Batal` | `ghost` |
+| Bulk create | `Buat <Plural>` (e.g. `Buat Tagihan Bulanan`) | `Memproses...` | `Batal` | `ghost` |
+| Edit | `Simpan Perubahan` | `Menyimpan...` | `Batal` | `ghost` |
+| Domain mutation (approve, send, void, override, record payment) | Verb-only (`Setujui`, `Kirim`, `Catat Pembayaran`, `Simpan Override`, `Simpan & Hitung Ulang`) | `Memproses...` | `Batal` | `ghost` |
+| Destructive confirm (`<ConfirmDialog destructive>`) | `Ya, <Verb>` (`Ya, Hapus`, `Ya, Batalkan`, `Ya, Nonaktifkan`) | `Memproses...` | `Batal` | (`AlertDialogCancel` — no `variant=` prop) |
+| Reversible confirm (Restore / Activate) | `<Verb>` (`Aktifkan`, `Pulihkan`) | `Memproses...` | `Batal` | (`AlertDialogCancel`) |
+
+For toggled create/edit dialogs, the submit slot uses a ternary: `editingX ? "Simpan Perubahan" : "Tambah <Entity>"`. Same shape on the dialog title.
+
+The `<ResponsiveFormDialog>` component (`components/ui/responsive-form-dialog.tsx`) wraps Dialog (desktop) + Sheet (mobile) and freezes the breakpoint while open. Use it for new admin forms; legacy inline `useIsMobile()` branches are also fine.
+
+## Required-field indicator
+
+`<FieldLabel required>Nama</FieldLabel>` renders an `aria-hidden` red asterisk and sets `aria-required` on the underlying label. Callers MUST also pass `required` (or `aria-required`) to the form control itself so screen readers announce required state. Inline `Nama *` strings are deprecated.
+
 ## DataTable Standard
 
 Any list >10 items: use `<DataTable>` with server-side pagination, column sorting, search, status filter.

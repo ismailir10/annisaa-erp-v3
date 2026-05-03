@@ -52,7 +52,7 @@ function PaymentFormBody({
   return (
     <>
       <Field>
-        <FieldLabel>Jumlah *</FieldLabel>
+        <FieldLabel required>Jumlah</FieldLabel>
         <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
         <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
       </Field>
@@ -233,6 +233,7 @@ export default function InvoiceDetailPage() {
         description={`Tagihan ${invoice.invoiceNumber} (${invoice.student.name}) tidak bisa dibayar lagi. Riwayat tetap tersimpan.`}
         onConfirm={handleVoidInvoice}
         confirmLabel={voiding ? "Membatalkan..." : "Ya, Batalkan"}
+        destructive
       />
 
       {invoice.paymentLinkError && (
@@ -343,7 +344,7 @@ export default function InvoiceDetailPage() {
         </Sheet>
       ) : (
         <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
             <div className="space-y-field">
               <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />

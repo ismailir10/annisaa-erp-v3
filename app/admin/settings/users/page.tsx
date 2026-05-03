@@ -443,7 +443,7 @@ export default function UsersPage() {
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
       >
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Pengguna</DialogTitle>
           </DialogHeader>
@@ -488,11 +488,11 @@ export default function UsersPage() {
           </div>
 
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
+            <DialogClose render={<Button variant="ghost" />}>
               Batal
             </DialogClose>
             <Button onClick={handleSaveEdit} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : "Simpan Perubahan"}
             </Button>
           </DialogFooter>
         </DialogContent>

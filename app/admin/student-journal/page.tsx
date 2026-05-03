@@ -267,7 +267,7 @@ export default function StudentJournalAdminPage() {
         open={categoryForm !== null}
         onOpenChange={(o) => { if (!o) setCategoryForm(null); }}
       >
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {categoryForm?.mode === "create" ? "Tambah Kategori" : "Edit Kategori"}
@@ -308,14 +308,14 @@ export default function StudentJournalAdminPage() {
           )}
           <DialogFooter>
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => setCategoryForm(null)}
               disabled={saving}
             >
               Batal
             </Button>
             <Button onClick={saveCategory} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : categoryForm?.mode === "create" ? "Tambah Kategori" : "Simpan Perubahan"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -326,7 +326,7 @@ export default function StudentJournalAdminPage() {
         open={indicatorForm !== null}
         onOpenChange={(o) => { if (!o) setIndicatorForm(null); }}
       >
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {indicatorForm?.mode === "create"
@@ -351,14 +351,14 @@ export default function StudentJournalAdminPage() {
           )}
           <DialogFooter>
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => setIndicatorForm(null)}
               disabled={saving}
             >
               Batal
             </Button>
             <Button onClick={saveIndicator} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : indicatorForm?.mode === "create" ? "Tambah Indikator" : "Simpan Perubahan"}
             </Button>
           </DialogFooter>
         </DialogContent>

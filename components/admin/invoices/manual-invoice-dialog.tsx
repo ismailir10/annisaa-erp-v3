@@ -410,7 +410,7 @@ function ManualInvoiceFormBody({
   return (
     <>
       <Field>
-        <FieldLabel>Siswa *</FieldLabel>
+        <FieldLabel required>Siswa</FieldLabel>
         <StudentPicker
           selected={selectedStudent}
           onSelect={(s) => {
@@ -424,7 +424,7 @@ function ManualInvoiceFormBody({
       </Field>
 
       <Field>
-        <FieldLabel>Periode *</FieldLabel>
+        <FieldLabel required>Periode</FieldLabel>
         <Input
           value={form.periodLabel}
           onChange={(e) => setForm({ ...form, periodLabel: e.target.value })}
@@ -435,7 +435,7 @@ function ManualInvoiceFormBody({
       </Field>
 
       <Field>
-        <FieldLabel>Tanggal Jatuh Tempo *</FieldLabel>
+        <FieldLabel required>Tanggal Jatuh Tempo</FieldLabel>
         <Input
           type="date"
           value={form.dueDate}
@@ -444,7 +444,7 @@ function ManualInvoiceFormBody({
       </Field>
 
       <Field>
-        <FieldLabel>Komponen Biaya *</FieldLabel>
+        <FieldLabel required>Komponen Biaya</FieldLabel>
         <div className="flex flex-col gap-2 rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/60 p-3">
           {form.lines.map((line, index) => (
             <div

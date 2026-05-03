@@ -447,7 +447,7 @@ export default function RolesPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card max-w-lg">
+        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editTarget ? "Edit Peran" : "Tambah Peran"}
@@ -497,11 +497,11 @@ export default function RolesPage() {
           </div>
 
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
+            <DialogClose render={<Button variant="ghost" />}>
               Batal
             </DialogClose>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : editTarget ? "Simpan Perubahan" : "Tambah Peran"}
             </Button>
           </DialogFooter>
         </DialogContent>
