@@ -47,7 +47,7 @@ Ordered. Each task is independently committable; between-task gate is `npm run b
 ### D — Doc + quick UI reconciliation
 
 - [x] **D1.** Update `docs/uat/jobs/teacher.md` for autosave + roster-vs-grid + seed-dep + pre-publish-warning. *Acceptance:* the four mismatches called out in the 2026-05-03 report (ATT-01 step 4, JOURNAL-01 entry shape, JOURNAL-03 seed precondition, ASSESS-02 missing-score gate) are corrected verbatim or rewritten; `Last audited` date bumped to 2026-05-03.
-- [ ] **D2.** Fix Tanggal default in `app/teacher/student-journal/students/[id]/page.tsx` "+ Tambah Catatan" dialog. *Acceptance:* dialog opens with Tanggal = last weekday of the currently visible week (or today if today is in the visible week + is a weekday); `max={today}` constraint preserved.
+- [x] **D2.** Fix Tanggal default in `app/teacher/student-journal/students/[id]/page.tsx` "+ Tambah Catatan" dialog. *Acceptance:* dialog opens with Tanggal = last weekday of the currently visible week (or today if today is in the visible week + is a weekday); `max={today}` constraint preserved.
 - [ ] **D3.** Add pre-publish "missing scores" warning above `Publikasikan rapor` CTA in `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx`. *Acceptance:* when ≥1 student has fewer than the full count of scored indicators, render a single warning row above the sticky CTA with copy "X siswa belum memiliki nilai lengkap"; CTA remains enabled (not blocking, just informative).
 - [ ] **D4.** Seed at least one parent note into Bu Sari's KB-Aster class in `prisma/seed.ts`. *Acceptance:* re-running `prisma/seed.ts` against a fresh DB produces a parent-authored note with `Orang Tua` badge visible on `/teacher/student-journal/students/[id]?week=...`. Reuses existing student-journal-note primitives; no schema change expected. Per pre-commit Rule 3 (seed-drift), the same commit MUST stage `lib/db.ts` — touch it (e.g. add a no-op comment ack-ing the seed change) so the hook passes.
 
@@ -86,9 +86,11 @@ Ordered. Each task is independently committable; between-task gate is `npm run b
 
 - Subagent plan: all 14 tasks dispatched sequentially via `superpowers:subagent-driven-development` (red flag: no parallel implementer subagents — risk of file conflicts on shared cycle-doc edits). Logical independence in the dependency map is preserved for per-task review + rollback granularity, not for parallel execution. A1 → A2 ordering enforced by route prerequisite.
 - Task D1: jobs file reconcile — docs/uat/jobs/teacher.md — bumped audit date, rewrote ATT-01 (autosave), JOURNAL-01 (roster + drill-down), JOURNAL-03 (seed-dep precondition), ASSESS-02 (pre-publish warning note).
+- Task D2: Tanggal default — app/teacher/student-journal/students/[id]/page.tsx + new __tests__/computeDefaultNoteDate.test.ts — pure-fn helper picks last weekday of visible week, falls back to today when today is in the visible week. Review fix: save-reset path also uses helper (was raw today).
 
 ## Verification
 - Task D1: docs-only diff; pre-commit markdown allowlist + doc-sync rules pass; no code touched. Cross-checked design-system.html: n/a (no UI diff).
+- Task D2: gates passed (npm run build + npx vitest run); 6 new unit tests cover the date-default helper. Cross-checked design-system.html — no visual changes (input date type unchanged).
 
 ## Ship Notes
 <!-- filled by /ship -->
