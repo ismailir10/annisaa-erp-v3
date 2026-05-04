@@ -5,6 +5,8 @@ import { seedTenant } from "./00-tenant";
 import { seedCampuses } from "./02-campuses";
 import { seedPrograms } from "./03-programs";
 import { seedAcademicYear } from "./04-academic-year";
+import { seedSystemRoles } from "./05-system-roles";
+import { seedPermissions } from "./06-permissions";
 
 async function main(): Promise<void> {
   console.log("→ seed: starting");
@@ -20,6 +22,12 @@ async function main(): Promise<void> {
 
   console.log("→ 04-academic-year");
   await seedAcademicYear(prisma, tenantId);
+
+  console.log("→ 05-system-roles");
+  await seedSystemRoles(prisma, tenantId);
+
+  console.log("→ 06-permissions");
+  await seedPermissions(prisma, tenantId);
 
   console.log("→ seed: complete");
 }

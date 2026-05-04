@@ -64,10 +64,12 @@ if [ "$policy_count" -eq 0 ]; then
   exit 0
 fi
 
-# Once policies exist, expect comprehensive coverage. The < 10 sanity floor
-# guards against truncated schemas / parser regressions in the post-rebuild era.
-if [ "$model_count" -lt 10 ]; then
-  echo "✗ Only $model_count tenant-scoped model(s) detected; expected ~20+. Parser regression?" >&2
+# Once policies exist, expect comprehensive coverage. Mid-rebuild (Phase 1)
+# the model count climbs from 4 (cycle 1) → 9 (cycle 2, identity) → ~20+ by
+# end of phase 1. A floor of 5 catches truncated-schema / parser regressions
+# without false-firing during the rebuild marathon.
+if [ "$model_count" -lt 5 ]; then
+  echo "✗ Only $model_count tenant-scoped model(s) detected; expected ≥ 5 once policies exist. Parser regression?" >&2
   exit 2
 fi
 
