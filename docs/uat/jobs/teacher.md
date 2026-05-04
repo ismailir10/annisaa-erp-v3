@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-04-25 in cycle `enrich-uat-jobs`
+> Last audited: 2026-05-03 in cycle `teacher-uat-fixes`
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -21,8 +21,8 @@ This file is the living catalog of what a teacher user can and should be able to
   1. Open the teacher portal
   2. Navigate to class attendance
   3. Mark today's attendance — default assumption is "everyone present"; she only marks exceptions (absent/sakit/izin/late)
-  4. Save
-- **Done when:** All students have a status for today. The save completes with visible confirmation. Reopening the page shows today's state preserved.
+  4. Each tap fires `POST /api/student-attendance/mark` immediately (autosave-on-tap); there is no Simpan button. A "✓ Tersimpan" indicator appears alongside the tapped student row to confirm persistence.
+- **Done when:** All students have a status for today. Each tap-to-save is confirmed by the "✓ Tersimpan" indicator; no separate save action is required. Reopening the page shows today's state preserved.
 - **Why this job matters:** Bu Sari's #1 daily task. She has 3 minutes before morning circle. Every extra tap is expensive.
 - **Expected perf:** full page load <1.5s; save click-to-confirm <800ms; any slower is noticeable and graded accordingly.
 - **Known friction (from last UAT):** Class selector now displays human-readable class name (fixed in `uat-quick-wins` cycle, previously showed raw DB ID like `cs_kb_aster`)
@@ -131,9 +131,10 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Preconditions:** Same as ASSESS-01 plus every student has ≥1 indicator score filled (mix of "all filled" and "one student empty" to verify the gate)
 - **Steps:**
   1. With all scoring done, scroll to the sticky bottom action
-  2. Tap "Publish" / bulk-publish CTA
-  3. Watch the per-student progress (the implementation iterates `students[]` and calls `saveStudent(id, { publish: true })` per student — see `client.tsx` lines 266–290)
-  4. Read the resulting toasts: success for each published student, error for any student with zero filled scores ("Bu Sari: belum ada nilai yang diisi")
+  2. **Before tapping publish:** inspect the area above the "Publikasikan rapor" CTA — when ≥1 student has incomplete scores the page renders a pre-publish warning "X siswa belum memiliki nilai lengkap" above the button. This warning is informational only; it does NOT block or disable the CTA. Verify the count matches the actual number of students with missing scores.
+  3. Tap "Publikasikan rapor" / bulk-publish CTA
+  4. Watch the per-student progress (the implementation iterates `students[]` and calls `saveStudent(id, { publish: true })` per student — see `client.tsx` lines 266–290)
+  5. Read the resulting toasts: success for each published student, error for any student with zero filled scores ("Bu Sari: belum ada nilai yang diisi")
 - **Done when:** All eligible students transition to `PUBLISHED` status; the header counter `{publishedCount}/{totalStudents}` updates live. Empty-score students are NOT published and produce a clear per-student error toast naming the student. After publish, the parent's `/parent/reports` for that child reflects the new published assessment.
 - **Why this job matters:** Bulk publish is what makes report cards visible to parents. A silent publish failure = parents WhatsApp Bu Sari asking why the report isn't showing. A wrongful publish (empty-score student treated as published) = parents see an empty report.
 - **Expected perf:** publish loop completes in <Nx1s where N=class size (each student ≈1 round-trip). For a 25-student class on 4G, total <30s with progress visible throughout.
@@ -141,7 +142,8 @@ This file is the living catalog of what a teacher user can and should be able to
   - One student has zero scores → toast `<student name>: belum ada nilai yang diisi`, that student stays `DRAFT`, others still publish
   - All students empty → final toast "Tidak ada yang dipublikasikan" (per `client.tsx` line 289)
   - Mid-loop network failure → some students published, some not; no rollback (acceptable but operator must be told to re-tap publish for the failed subset)
-  - Publish gate is per-student inside the loop — there is NO upfront "every student must have ≥1 score" check that blocks the button before iteration. UAT must script around this implementation reality.
+  - The pre-publish warning ("X siswa belum memiliki nilai lengkap") is informational — it does NOT block the button. UAT should assert the warning count is correct when incomplete students exist, then proceed to tap publish and verify per-student error toasts for the empty-score students.
+  - Publish gate is per-student inside the loop — the button is always enabled; the upfront warning only informs the operator of the scope of incomplete students.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -193,7 +195,7 @@ This file is the living catalog of what a teacher user can and should be able to
 
 ## Area: student-journal
 
-### JTBD-TEACHER-JOURNAL-01 — Fill today's class-day journal grid
+### JTBD-TEACHER-JOURNAL-01 — Fill today's class-day journal entries
 - **Persona:** Bu Sari
 - **Role:** TEACHER
 - **Preconditions:**
@@ -202,18 +204,20 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Steps:**
   1. Open the teacher portal → Buku Penghubung
   2. Pick the class + today's date
-  3. Tap "Isi Penghubung" — land on the entry grid (`/teacher/student-journal/entry`)
-  4. For each student × indicator cell, toggle the checkbox to mark observed behavior
-  5. Tap the sticky bottom "Simpan" — `POST /api/student-journal/entries/batch`
-  6. See success toast and updated state on reload
-- **Done when:** Every toggled cell persists across reload. Save is a single batch call, not N per-cell calls. The grid is scrollable horizontally on mobile without losing the sticky student-name column.
-- **Why this job matters:** Bu Sari's daily after-circle ritual — 5 minutes max before parents come in for pickup. If the grid has horizontal-scroll bugs or the save loops per cell, she abandons it for paper.
-- **Expected perf:** grid load <1.5s for a 25-student × 8-indicator class; batch save click-to-confirm <2s; tap-to-toggle latency <100ms (purely client state).
+  3. Tap "Isi Penghubung" — land on the per-student roster list at `/teacher/student-journal/entry?...`; the page renders one row per student showing that student's current completion count (e.g. "Aziz 3/6, Bilal 0/6") with a sticky "Simpan" CTA at the bottom
+  4. Tap a student row to drill into that student's per-indicator week page (`/teacher/student-journal/students/[id]?week=...`) — this is where the cell grid lives
+  5. Toggle indicator checkboxes for that student
+  6. Return to the roster, repeat for the next student
+  7. Tap the sticky "Simpan" on the roster page — `POST /api/student-journal/entries/batch`
+  8. See success toast and updated completion counts on reload
+- **Done when:** Every toggled cell for each drilled-into student persists across reload. The roster shows updated completion counts after save. Save is a single batch call on the roster page, not N per-cell calls. The roster list scrolls vertically on mobile; the per-student cell grid is reached only via drill-down.
+- **Why this job matters:** Bu Sari's daily after-circle ritual — 5 minutes max before parents come in for pickup. The roster + drill-down model means she fills one student at a time; UAT must script the drill-down navigation rather than asserting a flat cell grid on the entry page.
+- **Expected perf:** roster load <1.5s for a 25-student class; per-student drill-down load <1s; batch save click-to-confirm <2s; tap-to-toggle latency <100ms (purely client state).
 - **Error scenarios to verify:**
   - Save without any toggles → empty payload, server accepts (no-op) or rejects with clear message — verify which
   - Network drop mid-save → button returns to ready state, no double-submit on retry
   - Switch class mid-entry → unsaved toggles warn before discard (or auto-save them — verify which)
-- **Known friction (from last UAT):** <filled by /uat reports>
+- **Known friction (from last UAT):** Entry page is a roster list, not a cell grid — UAT must drill into individual students to reach the indicator checkboxes.
 
 ---
 
@@ -242,7 +246,7 @@ This file is the living catalog of what a teacher user can and should be able to
 ### JTBD-TEACHER-JOURNAL-03 — Read a parent note and confirm role badge renders
 - **Persona:** Bu Sari
 - **Role:** TEACHER
-- **Preconditions:** A parent has written ≥1 note on a student in Bu Sari's class within the visible week (seed JTBD-PARENT-JOURNAL-03 dependency)
+- **Preconditions:** A parent has written ≥1 note on a student in Bu Sari's class within the visible week (seed JTBD-PARENT-JOURNAL-03 dependency). **Seed dependency:** `prisma/seed.ts` must seed at least one parent-authored `StudentJournalNote` (authorRole = GUARDIAN) in Bu Sari's KB-Aster class within the current week; without this seed entry the NoteThread is empty and this JTBD cannot be graded. See cycle `teacher-uat-fixes` Task D4 — do not run this JTBD against a DB that has not been re-seeded after D4 lands.
 - **Steps:**
   1. Open the student's week page
   2. Scroll the NoteThread

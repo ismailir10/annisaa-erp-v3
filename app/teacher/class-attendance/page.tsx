@@ -47,6 +47,8 @@ export default function ClassAttendancePage() {
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [loading, setLoading] = useState(true);
+  const [loadingRoster, setLoadingRoster] = useState(false);
+  const [lastLoadedCount, setLastLoadedCount] = useState(10);
 
   // Load teacher's assigned classes
   useEffect(() => {
@@ -74,19 +76,23 @@ export default function ClassAttendancePage() {
   // Load students when class or date changes
   const loadStudents = useCallback(async () => {
     if (!selectedClass) return;
+    setLoadingRoster(true);
     const res = await fetch(`/api/student-attendance?classSectionId=${selectedClass}&date=${date}`);
     if (!res.ok) {
       toast.error("Data siswa tidak bisa dimuat. Coba lagi sebentar ya.");
+      setLoadingRoster(false);
       return;
     }
     const data: StudentRecord[] = await res.json();
     setStudents(data);
+    setLastLoadedCount(data.length || 10);
     // Initialize statuses from existing records — default PRESENT (common case)
     const initial: Record<string, Status> = {};
     for (const s of data) {
       initial[s.student.id] = (s.attendance?.status as Status) ?? "PRESENT";
     }
     setStatuses(initial);
+    setLoadingRoster(false);
   }, [selectedClass, date]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -181,8 +187,21 @@ export default function ClassAttendancePage() {
         <span className="text-status-leave-text">Izin {counts.PERMISSION}</span>
       </div>
 
-      {/* Student list — tap to cycle status (save on every tap) */}
-      {students.length === 0 ? (
+      {/* Student list — skeleton during roster reload, tap to cycle status on rendered rows */}
+      {loadingRoster ? (
+        <div className="space-y-1.5">
+          {Array.from({ length: lastLoadedCount }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 p-3 border border-border rounded-lg">
+              <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3.5 w-36 rounded" />
+                <Skeleton className="h-3 w-20 rounded" />
+              </div>
+              <Skeleton className="h-6 w-16 rounded-full shrink-0" />
+            </div>
+          ))}
+        </div>
+      ) : students.length === 0 ? (
         <EmptyState icon={Users} title="Belum ada siswa di kelas ini" description="Minta admin untuk mendaftarkan siswa ke kelas ini." />
       ) : (
         <div className="space-y-1.5">

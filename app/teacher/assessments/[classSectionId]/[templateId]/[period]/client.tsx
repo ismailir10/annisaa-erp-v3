@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, Send } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -67,6 +67,19 @@ function SaveIndicator({ state }: { state: SaveStatus }) {
   return null;
 }
 
+/**
+ * Count students who have fewer scored indicators than the total indicator count.
+ * A student is "complete" when their scored count equals totalIndicators.
+ * Exported for unit testing.
+ */
+export function countIncompleteStudents(
+  studentScores: Array<{ scoredCount: number }>,
+  totalIndicators: number
+): number {
+  if (totalIndicators <= 0) return 0;
+  return studentScores.filter((s) => s.scoredCount < totalIndicators).length;
+}
+
 export function AssessmentEntryClient({
   classSection,
   template,
@@ -106,6 +119,11 @@ export function AssessmentEntryClient({
   });
 
   const [publishing, setPublishing] = useState(false);
+
+  // C5: Track which student accordion items are expanded so rubric DOM is
+  // lazy-mounted — collapsed items render an empty <AccordionContent />, reducing
+  // initial DOM from (17 students × N rubric rows) to zero until first expand.
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
   // Track in-flight timers per-student so debounces don't stack across students
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
@@ -306,6 +324,13 @@ export function AssessmentEntryClient({
   const totalStudents = students.length;
   const publishedCount = Object.values(state).filter((s) => s.status === "PUBLISHED").length;
 
+  const incompleteCount = countIncompleteStudents(
+    students.map((s) => ({
+      scoredCount: Object.values(state[s.id]?.scores ?? {}).filter((v) => v.score != null).length,
+    })),
+    indicatorIds.length
+  );
+
   return (
     <div className="pb-24">
       <Link
@@ -323,7 +348,12 @@ export function AssessmentEntryClient({
         {publishedCount}/{totalStudents} siswa sudah dipublikasikan
       </p>
 
-      <Accordion multiple className="space-y-2">
+      <Accordion
+        multiple
+        value={expandedIds}
+        onValueChange={(v) => setExpandedIds(v as string[])}
+        className="space-y-2"
+      >
         {students.map((s) => {
           const st = state[s.id];
           const filled = Object.values(st.scores).filter((v) => v.score != null).length;
@@ -359,60 +389,72 @@ export function AssessmentEntryClient({
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-3 pb-3">
-                <div className="flex justify-end mb-2 min-h-[14px]">
-                  <SaveIndicator state={st.saveState} />
-                </div>
-                <div className="space-y-4">
-                  {template.categories.map((cat) => (
-                    <div key={cat.id}>
-                      <p className="text-xs font-semibold text-foreground mb-2">{cat.name}</p>
-                      <div className="space-y-3">
-                        {cat.indicators.map((ind) => {
-                          const sv = st.scores[ind.id];
-                          return (
-                            <div key={ind.id} className="border border-border/50 rounded-md p-2.5">
-                              <p className="text-xs text-foreground mb-2">{ind.description}</p>
-                              <div className="grid grid-cols-4 gap-1 mb-2">
-                                {SCORES.map((sc) => {
-                                  const selected = sv?.score === sc;
-                                  return (
-                                    <button
-                                      key={sc}
-                                      type="button"
-                                      onClick={() => setScore(s.id, ind.id, sc)}
-                                      aria-label={`${sc} — ${SCORE_LABEL[sc]}`}
-                                      className={`py-1.5 rounded text-xs font-semibold border transition-colors ${
-                                        selected
-                                          ? "bg-primary text-primary-foreground border-primary"
-                                          : "bg-background text-muted-foreground border-border hover:border-primary/40"
-                                      }`}
-                                    >
-                                      {sc}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              <Textarea
-                                value={sv?.notes ?? ""}
-                                onChange={(e) => setNotes(s.id, ind.id, e.target.value)}
-                                placeholder="Catatan (opsional)"
-                                rows={2}
-                                className="text-xs"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
+                {expandedIds.includes(s.id) && (
+                  <>
+                    <div className="flex justify-end mb-2 min-h-[14px]">
+                      <SaveIndicator state={st.saveState} />
                     </div>
-                  ))}
-                </div>
+                    <div className="space-y-4">
+                      {template.categories.map((cat) => (
+                        <div key={cat.id}>
+                          <p className="text-xs font-semibold text-foreground mb-2">{cat.name}</p>
+                          <div className="space-y-3">
+                            {cat.indicators.map((ind) => {
+                              const sv = st.scores[ind.id];
+                              return (
+                                <div key={ind.id} className="border border-border/50 rounded-md p-2.5">
+                                  <p className="text-xs text-foreground mb-2">{ind.description}</p>
+                                  <div className="grid grid-cols-4 gap-1 mb-2">
+                                    {SCORES.map((sc) => {
+                                      const selected = sv?.score === sc;
+                                      return (
+                                        <button
+                                          key={sc}
+                                          type="button"
+                                          onClick={() => setScore(s.id, ind.id, sc)}
+                                          aria-label={`${sc} — ${SCORE_LABEL[sc]}`}
+                                          className={`py-1.5 rounded text-xs font-semibold border transition-colors ${
+                                            selected
+                                              ? "bg-primary text-primary-foreground border-primary"
+                                              : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                                          }`}
+                                        >
+                                          {sc}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <Textarea
+                                    value={sv?.notes ?? ""}
+                                    onChange={(e) => setNotes(s.id, ind.id, e.target.value)}
+                                    placeholder="Catatan (opsional)"
+                                    rows={2}
+                                    className="text-xs"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </AccordionContent>
             </AccordionItem>
           );
         })}
       </Accordion>
 
-      <div className="fixed bottom-16 left-0 right-0 mx-auto max-w-md px-page-x">
+      <div className="fixed bottom-16 left-0 right-0 mx-auto max-w-md px-page-x space-y-2">
+        <div aria-live="polite" aria-atomic="true">
+          {incompleteCount > 0 && (
+            <div role="status" className="flex items-center gap-2 rounded-lg border border-status-late bg-status-late-subtle px-3 py-2 text-sm text-status-late-text">
+              <AlertTriangle size={15} className="shrink-0 text-status-late" aria-hidden="true" />
+              <span>{incompleteCount} siswa belum memiliki nilai lengkap</span>
+            </div>
+          )}
+        </div>
         <Button
           onClick={publishAll}
           disabled={publishing}
