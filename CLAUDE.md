@@ -13,6 +13,10 @@
 > **3-step workflow** (`/spec` → `/build` → `/ship`) below remains canonical. Per-cycle adjustments per foundation spec §18.12. Marathon mode: cycles deriving from foundation spec skip full brainstorm; reference spec by section in cycle Context.
 >
 > Standards file additions (post p1): `scaffold.md`, `entity-registry.md`, `permission-scope.md`, `audit-pii.md`, `workflow.md`, `migration.md`. Existing standards remain valid for preserved `lib/` code; UI / patterns standards evolve alongside scaffold engine cycles.
+>
+> **Migration test target** (introduced 2026-05-04 by `p1-extensions-tenancy`): static post-condition asserts live at `prisma/migrations/__tests__/*.test.ts` and run as part of `npx vitest run` (no live DB required — they parse the committed `migration.sql`). Live-DB integrity tests land alongside `p1-identity-rls` once a Postgres service is wired into CI.
+>
+> **RLS coverage guard rebuild window:** `scripts/verify-rls-coverage.sh` auto-detects the rebuild window — while zero `CREATE POLICY` statements exist anywhere in `prisma/migrations/`, the guard prints a warning and exits 0. Strict coverage resumes automatically once `p1-identity-rls` lands and the first policy merges.
 
 > **Read this file completely before making any changes.** Operating manual for AI development sessions on this repo. What this product is — modules, portals, ADRs, setup, environments — lives in [README.md](./README.md). This file is the *how*; README is the *what*.
 

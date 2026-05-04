@@ -1,3 +1,8 @@
+// School ERP — v2 schema (greenfield, post-Phase-0 hard delete).
+// Authority: docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md
+// This file holds only what migrations 00 + 01 introduce; subsequent phase 1 cycles
+// extend it (identity, employees, classes, sessions, audit, files).
+
 generator client {
   provider = "prisma-client"
   output   = "../lib/generated/prisma"
@@ -7,973 +12,116 @@ datasource db {
   provider = "postgresql"
 }
 
-// ── TENANT (single for MVP, prepared for multi-tenant) ──────
-model Tenant {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now())
+// ── Tenant ───────────────────────────────────────────────────
+// Root entity. No tenantId on itself, no soft-delete (tenant termination is operational).
 
-  users                  User[]
-  roles                  Role[]
-  parents                Parent[]
-  campuses               Campus[]
-  employees              Employee[]
-  holidays               Holiday[]
-  orgConfig              OrgConfig?
-  salaryDefs             SalaryComponentDef[]
-  payrollRuns            PayrollRun[]
-  academicYears          AcademicYear[]
-  programs               Program[]
-  classSections          ClassSection[]
-  students               Student[]
-  admissions             Admission[]
-  feeDefs                FeeComponentDef[]
-  feeStructures          ProgramFeeStructure[]
-  invoices               Invoice[]
-  invoiceNumberSequences InvoiceNumberSequence[]
-  emailLogs              EmailLog[]
-  auditLogs              AuditLog[]
+model Tenant {
+  id              String   @id @default(cuid())
+  name            String   @db.VarChar(255)
+  slug            String   @unique @db.VarChar(50)
+  bootstrapStatus String   @default("PENDING") @db.VarChar(20)
+  createdAt       DateTime @default(now()) @db.Timestamptz()
+  updatedAt       DateTime @updatedAt @db.Timestamptz()
+
+  campuses      Campus[]
+  programs      Program[]
+  academicYears AcademicYear[]
+  academicTerms AcademicTerm[]
 }
 
-// ── USER ─────────────────────────────────────────────────────
-// onDelete policy:
-// - tenant   : Restrict — never delete a tenant with active users
-// - employee : SetNull  — keep the user account if the staff record is removed
-// - parent   : SetNull  — keep the user account if the parent record is removed
-// - customRole: SetNull — fall back to the role string if the custom role is deleted
-model User {
+// ── Campus ───────────────────────────────────────────────────
+
+model Campus {
   id          String    @id @default(cuid())
   tenantId    String
-  // email is unique PER TENANT, not globally — see @@unique below.
-  // Two tenants may legitimately have admin@school.com without collision.
-  email       String
-  role        String
-  employeeId  String?   @unique
-  name        String?
-  lastLoginAt DateTime?
-
-  parentId     String?
-  customRoleId String?
-  status       String  @default("ACTIVE") // ACTIVE | INACTIVE
-
-  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  parent     Parent?   @relation(fields: [parentId], references: [id], onDelete: SetNull)
-  customRole Role?     @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
-
-  @@unique([tenantId, email])
-  @@index([tenantId, status])
-}
-
-// ── ROLE (RBAC) ─────────────────────────────────────────────
-model Role {
-  id          String   @id @default(cuid())
-  tenantId    String
-  name        String // "Kepala Sekolah", "Admin Keuangan"
-  code        String // "HEAD", "FINANCE_ADMIN"
-  description String?
-  isSystem    Boolean  @default(false)
-  permissions String // JSON array: ["payroll.approve", "invoice.void"]
-  createdAt   DateTime @default(now())
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  users  User[]
-
-  @@unique([tenantId, code])
-  @@index([tenantId])
-}
-
-// ── CAMPUS ───────────────────────────────────────────────────
-model Campus {
-  id       String   @id @default(cuid())
-  tenantId String
-  name     String
-  address  String?
-  lat      Decimal? @db.Decimal(10, 8)
-  lng      Decimal? @db.Decimal(11, 8)
-  status   String   @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
-
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  employees     Employee[]
-  classSections ClassSection[]
-
-  @@index([tenantId])
-}
-
-// ── ORG CONFIG ───────────────────────────────────────────────
-// Restrict — tenant hard-delete is blocked while OrgConfig exists.
-// Per-tenant working hours / payroll-period config is operationally
-// load-bearing; admin must explicitly remove it before deleting the tenant.
-model OrgConfig {
-  id                    String @id @default(cuid())
-  tenantId              String @unique
-  workingDays           String
-  workStartTime         String @default("07:00")
-  workEndTime           String @default("16:00")
-  gracePeriodMinutes    Int    @default(15)
-  timezone              String @default("Asia/Jakarta")
-  payrollPeriodStartDay Int    @default(21)
-  payrollPeriodEndDay   Int    @default(20)
-  // F-14: When true, overtime (lembur) calculation follows UU 13/2003 §78(4)
-  // tiered rates (1.5× first hour, 2× thereafter). Defaults false to preserve
-  // the historical flat per-hour calculation until tenants explicitly opt in.
-  lemburCompliant       Boolean @default(false)
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-}
-
-// ── HOLIDAY ──────────────────────────────────────────────────
-model Holiday {
-  id        String  @id @default(cuid())
-  tenantId  String
-  date      String
-  name      String
-  type      String
-  isHalfDay Boolean @default(false)
+  code        String    @db.VarChar(50)
+  name        String    @db.VarChar(255)
+  address     String?   @db.VarChar(500)
+  phone       String?   @db.VarChar(20)
+  email       String?   @db.VarChar(255)
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime? @db.Timestamptz()
+  deletedById String?
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@unique([tenantId, date])
   @@index([tenantId])
+  @@index([tenantId, code])
 }
 
-// ── EMPLOYEE ─────────────────────────────────────────────────
-model Employee {
-  id            String   @id @default(cuid())
-  tenantId      String
-  kode          String
-  nama          String
-  formalName    String?
-  email         String
-  noHp          String?
-  jabatan       String
-  campusId      String
-  hireDate      String
-  status        String   @default("ACTIVE")
-  bankAccountNo String?
-  bankName      String?
-  bpjsEnrolled  Boolean  @default(false)
-  createdAt     DateTime @default(now())
+// ── Program ──────────────────────────────────────────────────
 
-  // Leave balances (reset annually)
-  leaveBalanceAnnual Int @default(12)
-  leaveBalanceSick   Int @default(14)
-
-  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  campus              Campus                @relation(fields: [campusId], references: [id], onDelete: Restrict)
-  user                User?
-  salaryValues        EmployeeSalaryValue[]
-  attendanceRecords   AttendanceRecord[]
-  payrollItems        PayrollItem[]
-  leaveRequests       LeaveRequest[]
-  teachingAssignments TeachingAssignment[]
-
-  @@unique([tenantId, kode])
-  @@index([tenantId, status])
-  @@index([campusId])
-}
-
-// ── TEACHING ASSIGNMENT ──────────────────────────────────────
-// Junction; cascade on both sides so removing an employee or class
-// also clears the link.
-model TeachingAssignment {
-  id             String   @id @default(cuid())
-  employeeId     String
-  classSectionId String
-  role           String   @default("HOMEROOM") // HOMEROOM | ASSISTANT
-  createdAt      DateTime @default(now())
-
-  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
-
-  @@unique([employeeId, classSectionId])
-  @@index([classSectionId])
-}
-
-// ── LEAVE ────────────────────────────────────────────────────
-// Cascade — leave requests are tightly bound to the employee.
-model LeaveRequest {
-  id         String    @id @default(cuid())
-  employeeId String
-  leaveType  String // ANNUAL | SICK | PERMISSION | OTHER
-  startDate  String // YYYY-MM-DD
-  endDate    String // YYYY-MM-DD
-  days       Int // Calculated duration
-  reason     String
-  status     String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
-  reviewedBy String?
-  reviewedAt DateTime?
-  reviewNote String?
-  createdAt  DateTime  @default(now())
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([employeeId, status, leaveType])
-}
-
-// ── SALARY COMPONENT ─────────────────────────────────────────
-model SalaryComponentDef {
-  id         String  @id @default(cuid())
-  tenantId   String
-  code       String
-  label      String
-  category   String
-  calcType   String
-  isProRated Boolean @default(false)
-  isEnabled  Boolean @default(true)
-  sortOrder  Int     @default(0)
-
-  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  values       EmployeeSalaryValue[]
-  payrollLines PayrollItemLine[]
-
-  @@unique([tenantId, code])
-  @@index([tenantId])
-  @@index([tenantId, isEnabled])
-}
-
-// Cascade on Employee (values follow the employee); Restrict on
-// componentDef (don't lose value rows just because someone tried to
-// delete a salary component — disable it instead).
-model EmployeeSalaryValue {
-  id             String  @id @default(cuid())
-  employeeId     String
-  componentDefId String
-  value          Decimal @default(0) @db.Decimal(15, 2)
-
-  employee     Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id], onDelete: Restrict)
-
-  @@unique([employeeId, componentDefId])
-  @@index([componentDefId])
-}
-
-// ── ATTENDANCE ───────────────────────────────────────────────
-// Cascade — attendance is a leaf log row.
-model AttendanceRecord {
-  id               String    @id @default(cuid())
-  employeeId       String
-  date             String
-  checkInTime      DateTime?
-  checkOutTime     DateTime?
-  checkInLat       Decimal?  @db.Decimal(10, 8)
-  checkInLng       Decimal?  @db.Decimal(11, 8)
-  checkOutLat      Decimal?  @db.Decimal(10, 8)
-  checkOutLng      Decimal?  @db.Decimal(11, 8)
-  status           String
-  isManualOverride Boolean   @default(false)
-  overrideReason   String?
-  overriddenBy     String?
-  overriddenAt     DateTime?
-  isLocked         Boolean   @default(false)
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@unique([employeeId, date])
-  @@index([employeeId, date])
-  @@index([date])
-  @@index([status])
-}
-
-// ── PAYROLL ──────────────────────────────────────────────────
-// PayrollRun — Restrict on tenant (financial root).
-model PayrollRun {
+model Program {
   id             String    @id @default(cuid())
   tenantId       String
-  periodStart    String
-  periodEnd      String
-  actualWorkDays Int
-  status         String    @default("DRAFT")
-  createdBy      String
-  approvedBy     String?
-  approvedAt     DateTime?
-  exportedAt     DateTime?
-  slipsSentAt    DateTime?
-
-  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  items  PayrollItem[]
-
-  @@unique([tenantId, periodStart, periodEnd])
-  @@index([tenantId, periodStart])
-}
-
-// PayrollItem — Cascade from PayrollRun (items belong to the run).
-// Restrict on Employee — financial audit; never silently drop pay history.
-model PayrollItem {
-  id           String  @id @default(cuid())
-  payrollRunId String
-  employeeId   String
-  grossAmount  Decimal @default(0) @db.Decimal(15, 2)
-  deductions   Decimal @default(0) @db.Decimal(15, 2)
-  netAmount    Decimal @default(0) @db.Decimal(15, 2)
-
-  overtimeHours     Decimal @default(0) @db.Decimal(5, 2)
-  outdoorDays       Int     @default(0)
-  holidayWorkedDays Int     @default(0)
-  dcDays            Int     @default(0)
-
-  // Per-item idempotency for send-slips retry safety — true after a slip
-  // email has been delivered so a retried run skips already-sent items.
-  emailSent Boolean @default(false)
-
-  payrollRun PayrollRun        @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employee   Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  lines      PayrollItemLine[]
-
-  @@index([payrollRunId, employeeId])
-  @@index([employeeId])
-}
-
-// PayrollItemLine — Cascade from PayrollItem (lines follow the item).
-// Restrict on componentDef so a deleted-by-mistake component doesn't
-// silently zero out historical pay slips.
-model PayrollItemLine {
-  id               String  @id @default(cuid())
-  payrollItemId    String
-  componentDefId   String
-  labelSnapshot    String
-  categorySnapshot String
-  calculatedAmount Decimal @default(0) @db.Decimal(15, 2)
-  adjustmentAmount Decimal @default(0) @db.Decimal(15, 2)
-  adjustmentNote   String?
-  finalAmount      Decimal @default(0) @db.Decimal(15, 2)
-
-  payrollItem  PayrollItem        @relation(fields: [payrollItemId], references: [id], onDelete: Cascade)
-  componentDef SalaryComponentDef @relation(fields: [componentDefId], references: [id], onDelete: Restrict)
-
-  @@index([payrollItemId])
-  @@index([componentDefId])
-}
-
-// ── EMAIL LOG ────────────────────────────────────────────────
-// Restrict — tenant hard-delete is blocked while audit rows exist.
-// Email-send history is compliance/audit data; admin must explicitly
-// archive or export before removing the tenant.
-model EmailLog {
-  id       String   @id @default(cuid())
-  tenantId String
-  to       String
-  subject  String
-  template String
-  status   String   @default("PENDING")
-  error    String?
-  sentAt   DateTime @default(now())
+  code           String    @db.VarChar(50)
+  name           String    @db.VarChar(255)
+  ageMonthsMin   Int
+  ageMonthsMax   Int
+  displayOrder   Int       @default(0)
+  headEmployeeId String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz()
+  createdById    String?
+  updatedAt      DateTime  @updatedAt @db.Timestamptz()
+  updatedById    String?
+  deletedAt      DateTime? @db.Timestamptz()
+  deletedById    String?
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
+  @@index([tenantId, code])
+  @@index([headEmployeeId])
 }
 
-// ══════════════════════════════════════════════════════════════
-// PHASE 2: Academic Structure + Student Management
-// ══════════════════════════════════════════════════════════════
+// ── AcademicYear ─────────────────────────────────────────────
 
-// ── ACADEMIC YEAR ────────────────────────────────────────────
 model AcademicYear {
-  id        String @id @default(cuid())
-  tenantId  String
-  name      String // "2025/2026"
-  startDate String // YYYY-MM-DD
-  endDate   String // YYYY-MM-DD
-  status    String @default("PLANNING") // PLANNING | ACTIVE | ARCHIVED
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String    @db.VarChar(50)
+  startDate   DateTime  @db.Date
+  endDate     DateTime  @db.Date
+  isCurrent   Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime? @db.Timestamptz()
+  deletedById String?
 
-  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  classSections ClassSection[]
-  feeStructures ProgramFeeStructure[]
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  terms  AcademicTerm[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
 }
 
-// ── PROGRAM ──────────────────────────────────────────────────
-model Program {
-  id          String  @id @default(cuid())
-  tenantId    String
-  code        String // "DCARE", "KB", "TKIT", "POPUP"
-  name        String // "Day Care", "Kelompok Bermain", etc.
-  description String?
-  type        String // SEMESTER | YEAR_ROUND | SESSION
-  ageMin      Int? // Minimum age in months
-  ageMax      Int? // Maximum age in months
-  status      String  @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
+// ── AcademicTerm ─────────────────────────────────────────────
+// No deletedAt — terms are immutable historical anchors.
 
-  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  classSections       ClassSection[]
-  admissions          Admission[]
-  feeStructures       ProgramFeeStructure[]
-  assessmentTemplates AssessmentTemplate[]
-
-  @@unique([tenantId, code])
-  @@index([tenantId])
-}
-
-// ── CLASS SECTION ────────────────────────────────────────────
-model ClassSection {
-  id             String @id @default(cuid())
-  tenantId       String
-  programId      String
-  academicYearId String
-  name           String // "TKIT A", "KB Aster", "D'Care Metland"
-  capacity       Int    @default(20)
-  campusId       String
-  status         String @default("ACTIVE") // ACTIVE | INACTIVE
-
-  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  program             Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
-  academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  campus              Campus               @relation(fields: [campusId], references: [id], onDelete: Restrict)
-  enrollments         StudentEnrollment[]
-  teachingAssignments TeachingAssignment[]
-  studentAttendances  StudentAttendance[]
-
-  @@unique([tenantId, academicYearId, name])
-  @@index([tenantId])
-}
-
-// ── STUDENT ──────────────────────────────────────────────────
-model Student {
-  id          String   @id @default(cuid())
-  tenantId    String
-  name        String
-  nickname    String?
-  dateOfBirth String? // YYYY-MM-DD
-  gender      String? // L | P
-  address     String?
-  photoUrl    String?
-  notes       String?
-  metadata    String? // JSON for custom fields (hobby, blood type, allergies, etc.)
-  status      String   @default("ACTIVE") // ACTIVE | INACTIVE | GRADUATED | WITHDRAWN
-  createdAt   DateTime @default(now())
-
-  // Government compliance fields
-  nis        String? // Nomor Induk Siswa (school-assigned)
-  nisn       String? // Nomor Induk Siswa Nasional
-  birthPlace String? // Tempat lahir
-  nik        String? // NIK anak (16 digits)
-  kkNumber   String? // No. Kartu Keluarga
-  livingWith String? // ORANG_TUA | WALI | LAINNYA
-
-  // Lifecycle tracking
-  withdrawalReason String?
-  withdrawalDate   String? // YYYY-MM-DD
-  graduationDate   String? // YYYY-MM-DD
-
-  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  guardians          StudentGuardian[]
-  enrollments        StudentEnrollment[]
-  admission          Admission?
-  invoices           Invoice[]
-  studentAttendances StudentAttendance[]
-  assessments        StudentAssessment[]
-
-  @@index([tenantId, status])
-  @@index([nis], map: "Student_nis_idx")
-  @@index([nisn], map: "Student_nisn_idx")
-}
-
-// ── PARENT (the actual person — contact info lives here) ────
-model Parent {
-  id        String   @id @default(cuid())
-  tenantId  String
-  name      String
-  email     String?
-  phone     String?
-  whatsapp  String?
-  address   String?
-  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
-  createdAt DateTime @default(now())
-
-  // Government compliance fields
-  nik             String? // NIK orang tua (16 digits)
-  education       String? // SMA | D1-D3 | S1 | S2 | S3 | Profesi
-  occupation      String? // Karyawan Swasta | ASN | Guru | Wiraswasta | Ibu Rumah Tangga
-  employer        String? // Nama perusahaan
-  employerAddress String? // Alamat kantor
-  employerCity    String? // Kota/Kab
-  incomeRange     String? // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
-  childrenTotal   Int? // Total anak (including non-students at this school)
-
-  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  guardians StudentGuardian[]
-  invoices  Invoice[]
-  users     User[]
-
-  @@unique([tenantId, email])
-  @@index([tenantId, status])
-}
-
-// ── STUDENT ↔ PARENT JUNCTION (relationship + billing) ──────
-// Junction; cascade so removing a student or parent clears the link.
-model StudentGuardian {
-  id           String  @id @default(cuid())
-  studentId    String
-  parentId     String
-  relationship String // AYAH | IBU | WALI | OTHER
-  isPrimary    Boolean @default(false) // Primary billing contact for this student
-  childOrder   Int? // Anak ke- (this student's position in the parent's family)
-  status       String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete)
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
-
-  @@unique([studentId, parentId])
-  @@index([parentId])
-  @@index([studentId, status])
-}
-
-// ── STUDENT ENROLLMENT ───────────────────────────────────────
-// Cascade on Student (enrollments follow the child if hard-deleted);
-// Restrict on ClassSection so the class can't disappear out from under
-// active enrollments.
-model StudentEnrollment {
+model AcademicTerm {
   id             String   @id @default(cuid())
-  studentId      String
-  classSectionId String
-  enrollDate     String // YYYY-MM-DD
-  status         String   @default("ACTIVE") // ACTIVE | GRADUATED | WITHDRAWN
-  notes          String?
-  createdAt      DateTime @default(now())
-
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Restrict)
-
-  @@unique([studentId, classSectionId])
-  @@index([classSectionId, status])
-  @@index([studentId, status])
-}
-
-// ── ADMISSION ────────────────────────────────────────────────
-// Tenant: Restrict (admissions are CRM funnel records — never auto-drop).
-// Optional FKs (program, student) default to SetNull if the linked entity
-// is removed; we make this explicit.
-model Admission {
-  id               String   @id @default(cuid())
-  tenantId         String
-  childName        String
-  childAge         String? // e.g., "4 tahun"
-  childGender      String? // L | P
-  dateOfBirth      String? // YYYY-MM-DD
-  parentName       String
-  parentPhone      String?
-  parentEmail      String?
-  parentWhatsapp   String?
-  parentEducation  String? // SMA | D1-D3 | S1 | S2 | S3
-  parentOccupation String? // Karyawan Swasta | ASN | Guru | Wiraswasta | BUMN | Ibu Rumah Tangga | Lainnya
-  parentIncome     String? // < Rp 1 Juta | Rp 1-2 Juta | Rp 3-5 Juta | Rp 5-10 Juta | > Rp 10 Juta
-  programId        String? // Program of interest
-  campusPreference String? // Campus ID
-  source           String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER
-  status           String   @default("INQUIRY") // INQUIRY | VISIT_SCHEDULED | VISITED | ADMITTED | REGISTERED | CANCELLED
-  notes            String?
-  followUpDate     String? // YYYY-MM-DD
-  studentId        String?  @unique // Linked when converted to student
-  createdAt        DateTime @default(now())
-
-  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  program Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
-  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
-
-  @@index([tenantId, status])
-}
-
-// ══════════════════════════════════════════════════════════════
-// PHASE 3: Fee Structure + Invoicing
-// ══════════════════════════════════════════════════════════════
-
-// ── FEE COMPONENT DEFINITION ─────────────────────────────────
-model FeeComponentDef {
-  id          String  @id @default(cuid())
-  tenantId    String
-  code        String // e.g., "spp", "uang_pangkal", "seragam"
-  label       String // e.g., "SPP Bulanan", "Uang Pangkal"
-  category    String // TUITION | REGISTRATION | ACTIVITY | MATERIAL | OTHER
-  isRecurring Boolean @default(true) // monthly vs one-time
-  isEnabled   Boolean @default(true)
-  sortOrder   Int     @default(0)
-  status      String  @default("ACTIVE") // ACTIVE | INACTIVE (soft delete per CRUD Standard)
-
-  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  feeStructures ProgramFeeStructure[]
-  invoiceLines  InvoiceLine[]
-
-  @@unique([tenantId, code])
-  @@index([tenantId, status])
-}
-
-// ── PROGRAM FEE STRUCTURE ────────────────────────────────────
-// All FKs Restrict — fee structure is configuration, not a leaf row.
-model ProgramFeeStructure {
-  id             String  @id @default(cuid())
   tenantId       String
-  programId      String
   academicYearId String
-  feeComponentId String
-  amount         Decimal @default(0) @db.Decimal(15, 2)
-  notes          String?
-  status         String  @default("ACTIVE") // ACTIVE | INACTIVE
+  code           String   @db.VarChar(20)
+  name           String   @db.VarChar(255)
+  startDate      DateTime @db.Date
+  endDate        DateTime @db.Date
+  raportDueAt    DateTime @db.Date
+  isActive       Boolean  @default(false)
+  createdAt      DateTime @default(now()) @db.Timestamptz()
+  createdById    String?
+  updatedAt      DateTime @updatedAt @db.Timestamptz()
+  updatedById    String?
 
-  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  program      Program         @relation(fields: [programId], references: [id], onDelete: Restrict)
-  academicYear AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
 
-  @@unique([programId, academicYearId, feeComponentId])
-  @@index([tenantId, status])
-}
-
-// ── INVOICE NUMBER SEQUENCE ──────────────────────────────────
-// Per-tenant, per-year allocator backing nextInvoiceNumber().
-// The allocator issues a single atomic INSERT … ON CONFLICT DO UPDATE …
-// RETURNING "lastNumber" inside the invoice-creation transaction, so a
-// rollback returns the sequence number too. Year prefix is computed in
-// Asia/Jakarta (WIB) to avoid producing INV-2025 invoices on Jan 1 mornings.
-model InvoiceNumberSequence {
-  tenantId   String
-  year       Int
-  lastNumber Int    @default(0)
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-
-  @@id([tenantId, year])
-}
-
-// ── INVOICE ──────────────────────────────────────────────────
-// Restrict on tenant + student — financial records, never silently drop.
-// Parent is optional billing contact: SetNull on parent removal.
-model Invoice {
-  id               String    @id @default(cuid())
-  tenantId         String
-  studentId        String
-  invoiceNumber    String // Auto-generated: INV-2026-0001
-  periodLabel      String // "April 2026" or "Semester 1 2025/2026"
-  dueDate          String // YYYY-MM-DD
-  totalDue         Decimal   @default(0) @db.Decimal(15, 2)
-  totalPaid        Decimal   @default(0) @db.Decimal(15, 2)
-  status           String    @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED | PENDING_PAYMENT_LINK
-  createdBy        String
-  sentAt           DateTime?
-  paidAt           DateTime?
-  parentId         String? // Billing contact (Parent)
-  xenditSessionId  String? // Xendit checkout session ID
-  xenditPaymentUrl String? // Xendit hosted checkout URL
-  paymentLinkError String? // Diagnostic msg when Xendit session creation failed (status=PENDING_PAYMENT_LINK)
-  createdAt        DateTime  @default(now())
-
-  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  student  Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  parent   Parent?       @relation(fields: [parentId], references: [id], onDelete: SetNull)
-  lines    InvoiceLine[]
-  payments Payment[]
-
-  @@unique([tenantId, invoiceNumber])
-  @@index([studentId, status])
-  @@index([tenantId, status, dueDate])
-  @@index([dueDate])
-  @@index([status])
-  @@index([parentId])
-}
-
-// ── INVOICE LINE ─────────────────────────────────────────────
-// Cascade from Invoice (lines follow the invoice). Restrict on
-// FeeComponentDef — historical lines must keep their reference.
-model InvoiceLine {
-  id               String  @id @default(cuid())
-  invoiceId        String
-  feeComponentId   String
-  labelSnapshot    String
-  amount           Decimal @default(0) @db.Decimal(15, 2)
-  adjustmentAmount Decimal @default(0) @db.Decimal(15, 2)
-  adjustmentNote   String?
-  finalAmount      Decimal @default(0) @db.Decimal(15, 2)
-
-  invoice      Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  feeComponent FeeComponentDef @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
-
-  @@index([invoiceId])
-  @@index([feeComponentId])
-}
-
-// ── PAYMENT ──────────────────────────────────────────────────
-// Restrict — payments are an audit trail; never cascade-delete.
-model Payment {
-  id              String   @id @default(cuid())
-  invoiceId       String
-  amount          Decimal  @db.Decimal(15, 2)
-  method          String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
-  reference       String? // Bank transfer ref
-  notes           String?
-  status          String   @default("RECORDED") // RECORDED | APPROVED | REVERSED
-  createdBy       String? // User ID who recorded
-  xenditPaymentId String?  @unique // Idempotency key for Xendit webhooks
-  paidAt          DateTime @default(now())
-  createdAt       DateTime @default(now())
-
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-
-  @@index([invoiceId, status])
-  @@index([createdAt])
-}
-
-// ══════════════════════════════════════════════════════════════
-// PHASE 6: Student Attendance
-// ══════════════════════════════════════════════════════════════
-
-// Cascade on Student (logs follow the child); Restrict on ClassSection
-// so a class can't be deleted out from under outstanding attendance.
-model StudentAttendance {
-  id             String    @id @default(cuid())
-  studentId      String
-  classSectionId String
-  date           String // YYYY-MM-DD
-  status         String    @default("PRESENT") // PRESENT | ABSENT | SICK | PERMISSION
-  checkInTime    DateTime?
-  checkOutTime   DateTime?
-  checkedInBy    String? // Employee ID who marked attendance
-  notes          String?
-  isVoided       Boolean   @default(false) // soft-delete; voided = admin marked incorrect
-  createdAt      DateTime  @default(now())
-
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Restrict)
-
-  @@unique([studentId, date])
-  @@index([studentId, date])
-  @@index([classSectionId, date])
-  @@index([date])
-  @@index([isVoided])
-}
-
-// ══════════════════════════════════════════════════════════════
-// PHASE 8: Student Journal (Buku Penghubung)
-// ══════════════════════════════════════════════════════════════
-
-enum JournalStatus {
-  ACTIVE
-  INACTIVE
-}
-
-model StudentJournalTemplate {
-  id             String        @id @default(cuid())
-  tenantId       String        @unique
-  academicYearId String?
-  status         JournalStatus @default(ACTIVE)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  categories StudentJournalCategory[]
-}
-
-// Cascade — categories belong to a single template lifecycle.
-model StudentJournalCategory {
-  id         String        @id @default(cuid())
-  templateId String
-  scope      String // SCHOOL | HOME
-  name       String
-  order      Int           @default(0)
-  status     JournalStatus @default(ACTIVE)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-
-  template   StudentJournalTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  indicators StudentJournalIndicator[]
-
-  @@index([templateId, scope, status])
-}
-
-// Cascade — indicators belong to a category.
-model StudentJournalIndicator {
-  id         String        @id @default(cuid())
-  categoryId String
-  label      String
-  order      Int           @default(0)
-  status     JournalStatus @default(ACTIVE)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-
-  category StudentJournalCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  entries  StudentJournalEntry[]
-
-  @@index([categoryId, status])
-}
-
-// Cascade — entries are audit-log rows tied to the indicator.
-model StudentJournalEntry {
-  id               String   @id @default(cuid())
-  tenantId         String
-  studentId        String
-  classSectionId   String?
-  indicatorId      String
-  date             String
-  scope            String
-  checked          Boolean
-  recordedByUserId String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  indicator StudentJournalIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-
-  @@unique([studentId, indicatorId, date, scope])
-  @@index([tenantId, classSectionId, date])
-  @@index([tenantId, studentId, date])
-}
-
-model StudentJournalNote {
-  id           String        @id @default(cuid())
-  tenantId     String
-  studentId    String
-  date         String
-  authorUserId String
-  authorRole   String
-  body         String        @db.Text
-  status       JournalStatus @default(ACTIVE)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  @@index([tenantId, studentId, date])
-}
-
-model StudentJournalAudit {
-  id              String   @id @default(cuid())
-  tenantId        String
-  entityType      String // ENTRY | NOTE
-  entityId        String
-  action          String // CREATE | UPDATE | DELETE
-  beforeJson      Json?
-  afterJson       Json?
-  changedByUserId String
-  changedAt       DateTime @default(now())
-
-  @@index([tenantId, entityType, entityId])
-  @@index([tenantId, changedAt])
-}
-
-// ══════════════════════════════════════════════════════════════
-// PHASE 7: Report Cards / Assessments
-// ══════════════════════════════════════════════════════════════
-
-// Restrict on Program — templates are configuration; don't drop with the program.
-model AssessmentTemplate {
-  id        String  @id @default(cuid())
-  tenantId  String
-  programId String
-  name      String // "Laporan Perkembangan Semester 1"
-  type      String  @default("SEMESTER") // SEMESTER | QUARTERLY | MONTHLY
-  isActive  Boolean @default(true)
-
-  program     Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
-  categories  AssessmentCategory[]
-  assessments StudentAssessment[]
-
-  @@unique([tenantId, programId, name, type])
+  @@unique([tenantId, academicYearId, code])
   @@index([tenantId])
-}
-
-// Cascade — categories belong to a template.
-model AssessmentCategory {
-  id         String @id @default(cuid())
-  templateId String
-  name       String // "Perkembangan Motorik Halus"
-  sortOrder  Int    @default(0)
-
-  template   AssessmentTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  indicators AssessmentIndicator[]
-}
-
-// Cascade — indicators belong to a category.
-model AssessmentIndicator {
-  id          String @id @default(cuid())
-  categoryId  String
-  description String // "Dapat memegang pensil dengan benar"
-  sortOrder   Int    @default(0)
-
-  category AssessmentCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  scores   StudentAssessmentScore[]
-}
-
-// Restrict on both — academic record; never silently lose a student's
-// rapor by deleting the parent template or student.
-model StudentAssessment {
-  id          String    @id @default(cuid())
-  studentId   String
-  templateId  String
-  period      String // "Semester 1 2025/2026"
-  status      String    @default("DRAFT") // DRAFT | PUBLISHED
-  createdBy   String
-  publishedAt DateTime?
-  createdAt   DateTime  @default(now())
-
-  student  Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  template AssessmentTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  scores   StudentAssessmentScore[]
-
-  @@unique([studentId, templateId, period])
-}
-
-// Cascade — scores belong to an assessment + indicator pair.
-model StudentAssessmentScore {
-  id           String  @id @default(cuid())
-  assessmentId String
-  indicatorId  String
-  score        String? // BB | MB | BSH | BSB
-  notes        String?
-
-  assessment StudentAssessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  indicator  AssessmentIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-
-  @@unique([assessmentId, indicatorId])
-}
-
-// ── AUDIT LOG ────────────────────────────────────────────────
-// Append-only history of mutating actions on sensitive entities.
-// Every row is keyed to a tenant + actor; `before` and `after` capture
-// the JSON shape pre/post mutation so reviewers can reconstruct intent.
-// No update/delete API — rows live forever (or until a retention job).
-// Retention: a periodic cleanup job is a follow-up — not in scope yet.
-model AuditLog {
-  id        String   @id @default(cuid())
-  tenantId  String
-  actorId   String // session.id (User.id) of the actor; not a FK so deleted users keep history
-  entity    String // "Employee" | "EmployeeSalaryValue" | "PayrollRun" | etc.
-  entityId  String
-  action    String // "create" | "update" | "delete" | domain-specific verb
-  before    Json?
-  after     Json?
-  createdAt DateTime @default(now())
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-
-  @@index([tenantId, entity, entityId])
-  @@index([tenantId, createdAt])
-  @@index([tenantId, actorId, createdAt])
-}
-
-// ── WEBHOOK EVENT (audit + dedup) ────────────────────────────
-// Captures every inbound webhook delivery from third-party providers.
-// **Intentionally global (no tenantId)** — webhooks arrive at a
-// tenant-agnostic public endpoint; tenant is resolved post-hoc via the
-// invoice join. Trusting payload-supplied tenantId before auth would be
-// an injection vector.
-// `eventId` is UNIQUE — incoming webhook with the same id is treated as a
-// duplicate at the DB layer (P2002 → 200 noop in the route handler).
-// `payload` keeps the full JSON for replay/audit. **Treat as PII** — never
-// log or echo in error responses; never expose via a user-facing API.
-// ERROR rows retained for admin audit; provider retries deduplicate via
-// eventId @unique (Phase 1 short-circuits on P2002 with 200 noop).
-// Retention: 90-day cleanup job is a follow-up (filed in Ship Notes).
-model WebhookEvent {
-  id           String    @id @default(cuid())
-  provider     String // "xendit"
-  eventId      String    @unique
-  eventType    String
-  payload      Json
-  status       String    @default("RECEIVED") // RECEIVED | PROCESSED | ERROR | IGNORED
-  invoiceId    String?
-  errorMessage String?
-  createdAt    DateTime  @default(now())
-  processedAt  DateTime?
-
-  @@index([provider, createdAt])
-  @@index([invoiceId])
+  @@index([academicYearId])
 }

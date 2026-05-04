@@ -2,7 +2,7 @@
 
 > **🚧 v2 Rebuild In Progress (May–July 2026)**
 >
-> This codebase is undergoing a foundation rebuild. v1 domain code (admin/teacher/parent UI, domain API routes, seeds, validators, e2e specs) was hard-deleted on 2026-05-04. v1 final state preserved at git tag `v1-final-2026-05-04`.
+> This codebase is undergoing a foundation rebuild. v1 domain code (admin/teacher/parent UI, domain API routes, seeds, validators, e2e specs) was hard-deleted on 2026-05-04 (Phase 0). Phase 1 cycle 1 (2026-05-04) reset the Prisma schema to a 5-model tenancy skeleton (Tenant, Campus, Program, AcademicYear, AcademicTerm) — migrations 00 + 01 per foundation spec §6.1. The v1 finance / xendit / payroll / audit / dashboard / parent-helpers libraries that Phase 0 preserved have been removed in Phase 1 cycle 1 because they referenced dropped schema models; they will be re-introduced incrementally per foundation spec §18.1 (Phase 3 finance cycles, Phase 5+ teacher/parent portals). v1 final state preserved at git tag `v1-final-2026-05-04`.
 >
 > **Active design specs:**
 > - [Foundation & MVP Architecture](docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md)
@@ -11,7 +11,7 @@
 > - [Teacher insights](docs/research/2026-05-04-nisaa-teacher-insights.md)
 > - [v1 ERP audit](docs/research/2026-05-04-existing-erp-audit.md)
 >
-> Sections below describe v1 architecture and remain valid for the preserved `lib/` (xendit, payroll, finance, hijri, api, webhook). UI / schema sections may be stale — consult foundation spec for v2 design.
+> Sections below describe v1 architecture and remain historical until per-domain v2 cycles reintroduce each module — consult the foundation spec for the v2 design intent. Currently live in v2: homepage placeholder, `/api/health`, `/api/csp-report`, legal pages, the Supabase + security middleware in `proxy.ts`, the tenancy schema, and the seed orchestrator.
 
 School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in Bekasi, Indonesia. 2 campuses, 40+ teachers, 500+ students. Single-tenant deployment under the brand "Talib by An Nisaa' Sekolahku" (Talib = طالب, "seeker of knowledge"). Multi-tenant requires tenant-from-host resolution in `lib/auth.ts` before onboarding a second tenant (resolver currently keys on email, guarded by `assertSingleTenant()`).
 
@@ -77,6 +77,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-04 | v2 schema reset — drop all v1 migrations + re-author from foundation spec §6.1 starting with `00_extensions` + `01_tenancy` (Tenant, Campus, Program, AcademicYear, AcademicTerm) | Greenfield migration history, modular seed orchestrator (`prisma/seed/index.ts`), partial unique + CHECK constraints via raw SQL — see [cycle](docs/cycles/2026-05-04-p1-extensions-tenancy.md) |
 | 2026-05-03 | Supabase SSR auth + tenant filter via app layer; RLS for SELECT only | Service-role writes need explicit `tenantId` filter; SSR side-steps PKCE cookie issues — see [ADR](docs/adrs/2026-05-03-supabase-ssr-auth.md) |
 | 2026-05-03 | Role split `SUPER_ADMIN` vs `SCHOOL_ADMIN`; permission-based RBAC for HR | `hasPermission()` replaces role-string checks; salary/payroll gated by `hr.*` — see [ADR](docs/adrs/2026-05-03-role-split-super-admin-school-admin.md) |
 | 2026-05-03 | Query optimization Phase 6: mandatory `select:`, default `take:`, two-query budget on detail pages | Eliminate N+1, fat rows, unbounded fetches — see [ADR](docs/adrs/2026-05-03-query-optimization-phase-6.md) |
@@ -111,7 +112,7 @@ git clone https://github.com/ismailir10/annisaa-erp-v3.git
 cd annisaa-erp-v3
 npm install
 ./scripts/install-hooks.sh           # required: pre-commit, prepare-commit-msg, commit-msg, pre-push
-npx prisma generate && npx prisma db push && npx prisma db seed
+npx prisma generate && npx prisma migrate dev && npx prisma db seed
 npm run dev                          # http://localhost:3000 — demo mode, no Supabase
 ```
 
