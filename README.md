@@ -6,6 +6,8 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 
 > Engineering identifier: `school-erp` (npm package + repo name). Product name: Talib. Both refer to the same codebase.
 
+> **Status (May 2026):** v2 rebuild in progress. v1 domain UI (`/admin`, `/teacher`, `/parent`) and domain API routes have been hard-deleted in Phase 0; `/` serves a Bahasa Indonesia placeholder pointing to WhatsApp contact. Auth callback + Xendit webhook + create-session preserved. Module/portal sections below describe the v1 product surface that v2 will rebuild against; treat them as the target spec, not the current runtime.
+
 ---
 
 ## Tech Stack

@@ -28,9 +28,14 @@ Acceptance criteria:
 
 (Filled by /build per task.)
 
+- **Task 8 — rebuild placeholder homepage:** Replaced `app/page.tsx` (268 LOC v1 login/router) with a 32-LOC minimal landing — Bahasa Indonesia copy, WhatsApp contact link, repo link. No client-side React, no Supabase imports, no framer-motion. Cross-checked design-system.html for typography tokens (`text-3xl font-semibold`, `text-muted-foreground`).
+
 ## Verification
 
 (Filled by /build.)
+
+- Task 8 between-task gate: `npm run build` green, `npx vitest run` 633/633 passing.
+- Cross-checked design-system.html §typography for placeholder text scale.
 
 ## Ship Notes
 
