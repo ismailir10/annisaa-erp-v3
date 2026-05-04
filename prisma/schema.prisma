@@ -12,21 +12,47 @@ datasource db {
   provider = "postgresql"
 }
 
+// ── Enums (Postgres-native, engineer-controlled) ─────────────
+// Per spec §4.2 (~34 enums planned). Cycle p1-identity-rls introduces 3.
+
+enum PermissionScope {
+  ALL
+  OWN_CAMPUS
+  OWN_PROGRAM
+  OWN_CLASS
+  OWN_SESSION
+  OWN_STUDENT
+  SELF
+}
+
+enum CatalogSource {
+  SYSTEM
+  ADMIN
+}
+
+enum TenantBootstrapStatus {
+  PENDING
+  COMPLETE
+}
+
 // ── Tenant ───────────────────────────────────────────────────
 // Root entity. No tenantId on itself, no soft-delete (tenant termination is operational).
 
 model Tenant {
-  id              String   @id @default(cuid())
-  name            String   @db.VarChar(255)
-  slug            String   @unique @db.VarChar(50)
-  bootstrapStatus String   @default("PENDING") @db.VarChar(20)
-  createdAt       DateTime @default(now()) @db.Timestamptz()
-  updatedAt       DateTime @updatedAt @db.Timestamptz()
+  id              String                @id @default(cuid())
+  name            String                @db.VarChar(255)
+  slug            String                @unique @db.VarChar(50)
+  bootstrapStatus TenantBootstrapStatus @default(PENDING)
+  createdAt       DateTime              @default(now()) @db.Timestamptz()
+  updatedAt       DateTime              @updatedAt @db.Timestamptz()
 
   campuses      Campus[]
   programs      Program[]
   academicYears AcademicYear[]
   academicTerms AcademicTerm[]
+  users         User[]
+  roles         Role[]
+  permissions   Permission[]
 }
 
 // ── Campus ───────────────────────────────────────────────────
@@ -124,4 +150,119 @@ model AcademicTerm {
   @@unique([tenantId, academicYearId, code])
   @@index([tenantId])
   @@index([academicYearId])
+}
+
+// ── User ─────────────────────────────────────────────────────
+// Identity row. supabaseUserId binds to Supabase Auth post-OAuth callback
+// (p1-auth-google-oauth). googleSubjectId stored for re-linking and audit.
+
+model User {
+  id              String    @id @default(cuid())
+  tenantId        String
+  email           String    @db.VarChar(255)
+  name            String    @db.VarChar(255)
+  googleSubjectId String?   @db.VarChar(255)
+  supabaseUserId  String?   @db.VarChar(255)
+  lastLoginAt     DateTime? @db.Timestamptz()
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @db.Timestamptz()
+  createdById     String?
+  updatedAt       DateTime  @updatedAt @db.Timestamptz()
+  updatedById     String?
+  deletedAt       DateTime? @db.Timestamptz()
+  deletedById     String?
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userRoles UserRole[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, supabaseUserId])
+  @@index([tenantId, googleSubjectId])
+}
+
+// ── Role ─────────────────────────────────────────────────────
+// Catalog table per spec §4.3. SYSTEM rows seed-managed, ADMIN rows mutable
+// in admin UI (post-launch). Soft-delete to preserve audit history when admin
+// retires a role.
+
+model Role {
+  id          String        @id @default(cuid())
+  tenantId    String
+  code        String        @db.VarChar(50)
+  name        String        @db.VarChar(255)
+  source      CatalogSource @default(SYSTEM)
+  createdAt   DateTime      @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime      @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime?     @db.Timestamptz()
+  deletedById String?
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+// ── Permission ───────────────────────────────────────────────
+// (resource, action, scope) tuple. Full per-role matrix lands in
+// p1-scaffold-engine-skeleton when entity registry exists.
+
+model Permission {
+  id          String          @id @default(cuid())
+  tenantId    String
+  resource    String          @db.VarChar(50)
+  action      String          @db.VarChar(50)
+  scope       PermissionScope @default(ALL)
+  createdAt   DateTime        @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime        @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime?       @db.Timestamptz()
+  deletedById String?
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  rolePermissions RolePermission[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+// ── UserRole ─────────────────────────────────────────────────
+// Composite-FK join per spec §6.4 — tenantId aligned with both User and Role.
+// No soft-delete (cascade on User/Role retire is correct).
+
+model UserRole {
+  userId      String
+  roleId      String
+  tenantId    String
+  createdAt   DateTime @default(now()) @db.Timestamptz()
+  createdById String?
+
+  user User @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  role Role @relation(fields: [roleId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([userId, roleId, tenantId])
+  @@index([tenantId])
+  @@index([roleId, tenantId])
+}
+
+// ── RolePermission ───────────────────────────────────────────
+// Composite-FK join per spec §6.4.
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  tenantId     String
+  createdAt    DateTime @default(now()) @db.Timestamptz()
+
+  role       Role       @relation(fields: [roleId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([roleId, permissionId, tenantId])
+  @@index([tenantId])
+  @@index([permissionId, tenantId])
 }

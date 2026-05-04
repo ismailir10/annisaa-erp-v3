@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-const ROOT = path.resolve(__dirname, "..", "..", "..");
+const ROOT = path.resolve(__dirname, "..", "..");
 const MIG_00 = readFileSync(path.join(ROOT, "prisma/migrations/00_extensions/migration.sql"), "utf8");
 const MIG_01 = readFileSync(path.join(ROOT, "prisma/migrations/01_tenancy/migration.sql"), "utf8");
 
