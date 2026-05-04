@@ -33,10 +33,27 @@ Acceptance criteria:
 
 ## Verification
 
-(Filled by /build.)
+End-of-cycle gate (Task 15) — all green:
 
-- Task 8 between-task gate: `npm run build` green, `npx vitest run` 633/633 passing.
-- Cross-checked design-system.html §typography for placeholder text scale.
+- `npm run build` — passed (Next.js production build, 16 routes — only homepage, legal, api/auth, api/cron, api/csp-report, api/health, api/health/xendit, api/xendit/{create-session,webhook}, auth/callback, manifest, opengraph-image).
+- `npx vitest run` — 557/557 tests passed across 57 files.
+- `npx tsc --noEmit` — clean, no TypeScript errors.
+- `npx prisma validate` — schema valid (preserved untouched per phase 0 scope).
+- `npx prisma generate` — Prisma Client 7.6.0 generated.
+
+Dev-server smoke (`npm run dev` on `:3000`):
+
+- `/` (homepage) — 200, renders v2 rebuild placeholder ("Sistem versi 2 sedang dalam pengembangan. Peluncuran direncanakan Juli 2026."), `<title>An Nisaa Sekolahku — v2 Rebuild In Progress</title>`.
+- `/admin` — 307 redirect to `/` (proxy auth-guard; route directory removed, proxy intercepts before resolution).
+- `/teacher` — 307 redirect to `/` (same).
+- `/parent` — 307 redirect to `/` (same).
+- `/api/students` — 404 (domain API removed).
+- `/api/auth/me` — 401 (auth route preserved, returns unauthorized without session).
+- `/api/health/xendit` — 503 (Xendit health probe preserved; 503 expected — no live API key in dev `.env`).
+
+Per-task gates: Tasks 1–14 each ran `npm run build && npx vitest run` between commits per the build skill. Cross-checked design-system.html §typography for placeholder text scale (Task 8).
+
+Playwright suite intentionally absent in this worktree (`e2e/` removed alongside domain code in earlier tasks; specs will be re-introduced in p2–p6 cycles as scaffold engine produces real flows). Pure-rebuild cycle — Playwright skip per CLAUDE.md exception for cycles with no user-facing routes to exercise.
 
 ## Ship Notes
 
