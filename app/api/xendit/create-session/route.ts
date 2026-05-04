@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
 
   let created = 0;
   let failed = 0;
+  let statusChanged = false;
   const errors: string[] = [];
   const results: { studentName: string; invoiceNumber: string; paymentUrl: string }[] = [];
 
@@ -87,6 +89,7 @@ export async function POST(req: NextRequest) {
           where: { id: invoiceId },
           data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
         });
+        if (invoice.status !== "SENT") statusChanged = true;
 
         results.push({
           studentName: invoice.student.name,
@@ -116,6 +119,7 @@ export async function POST(req: NextRequest) {
             paymentLinkError: formatPaymentLinkError(e),
           },
         });
+        if (invoice.status !== "PENDING_PAYMENT_LINK") statusChanged = true;
       } catch {
         // Swallow write-back failure — the original Xendit error is still surfaced
         // to the admin via errors[], counts are still correct.
@@ -123,6 +127,15 @@ export async function POST(req: NextRequest) {
       errors.push(`${invoice.student.name}: ${msg}`);
       failed++;
     }
+  }
+
+  // Bust parent-portal Tagihan caches if any invoice flipped status during
+  // this batch (UAT-2026-05-03 INV-01 vector — without this the parent
+  // doesn't see the new payment link or the PENDING_PAYMENT_LINK state for
+  // up to 120 s after admin clicks "Kirim Tagihan").
+  if (statusChanged) {
+    revalidateTag("parent-invoice-list", { expire: 0 });
+    revalidateTag("student-invoices", { expire: 0 });
   }
 
   return NextResponse.json({

@@ -343,6 +343,66 @@ export const getStudentAttendanceRecent = unstable_cache(
   { revalidate: 120, tags: ["parent-student-attendance-recent"] },
 );
 
+export type ParentOutstandingItem = {
+  studentId: string;
+  dueDate: string;
+  remaining: number;
+};
+
+export type ParentOutstandingSummary = {
+  count: number;
+  total: number;
+  nearestDue: string | null;
+  items: ParentOutstandingItem[];
+};
+
+/**
+ * Single source of truth for "outstanding tagihan" across the parent portal.
+ *
+ * Both `/parent` (home Tagihan tile) and `/parent/invoices` (Lunas-semua banner)
+ * MUST compute outstanding from this helper. Any divergent query risks the
+ * UAT-2026-05-03 INV-01 disagreement (home shows N unpaid, list shows "Lunas
+ * semua") — a trust collapse for the persona whose top priority is on-time SPP.
+ *
+ * Aggregates household-wide across the supplied `studentIds`. Status allow-list
+ * matches today's home: SENT / PARTIALLY_PAID / OVERDUE. Post-filter
+ * `remaining > 0` so a PARTIALLY_PAID invoice with totalPaid === totalDue
+ * (status not yet flipped to PAID) does not count.
+ *
+ * Uncached. Home is the latency-sensitive surface; cached list stays cached
+ * separately. If benchmarks show home regressing > 100ms, add a 30 s cache.
+ */
+export async function getParentOutstandingForStudents(
+  studentIds: string[],
+  tenantId: string,
+): Promise<ParentOutstandingSummary> {
+  if (studentIds.length === 0) {
+    return { count: 0, total: 0, nearestDue: null, items: [] };
+  }
+  const rows = await prisma.invoice.findMany({
+    where: {
+      tenantId,
+      studentId: { in: studentIds },
+      status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+    },
+    select: { studentId: true, dueDate: true, totalDue: true, totalPaid: true },
+  });
+
+  const items: ParentOutstandingItem[] = [];
+  let total = 0;
+  let nearestDue: string | null = null;
+  for (const r of rows) {
+    const due = Number(r.totalDue);
+    const paid = Number(r.totalPaid);
+    const remaining = Math.max(0, due - paid);
+    if (remaining <= 0) continue;
+    items.push({ studentId: r.studentId, dueDate: r.dueDate, remaining });
+    total += remaining;
+    if (!nearestDue || r.dueDate < nearestDue) nearestDue = r.dueDate;
+  }
+  return { count: items.length, total, nearestDue, items };
+}
+
 export type InvoiceListItem = {
   id: string;
   invoiceNumber: string;
