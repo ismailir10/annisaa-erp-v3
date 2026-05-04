@@ -57,4 +57,11 @@ Playwright suite intentionally absent in this worktree (`e2e/` removed alongside
 
 ## Ship Notes
 
-(Filled by /ship.)
+- PR: https://github.com/ismailir10/annisaa-erp-v3/pull/178
+- Migrations: NONE (schema preserved until p1 cycle 1)
+- Env vars: no changes
+- Rollback: `git revert <PR-merge-SHA>` then `prisma migrate reset` if any prisma client churn (none here, but tag `v1-final-2026-05-04` is the canonical fallback)
+- BREAKING: domain UI + APIs unavailable. Communicated upstream — no active v1 users at cutover.
+- Playwright suite empty post-cycle — specs land per p2-p6 cycles. CI workflow (`.github/workflows/ci.yml`) updated to skip seed/build/playwright steps when `e2e/` has no `*.spec.ts` files, restoring the green E2E gate during the rebuild window. Steps re-enable automatically once specs return.
+- Pre-launch checklist run: phase 0 backup checks (pg_dump, git tag, no active sessions, rollback rehearsed) ✅
+- 18 commits squashed on merge (plus this Ship Notes / CI-fix follow-up).

@@ -103,12 +103,28 @@ jobs:
         env:
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
 
+      # During the v2 rebuild window (p0 → p1), prisma/seed.ts and e2e/
+      # specs are intentionally absent. Skip the seed/build/playwright
+      # steps when there are no specs so the E2E job stays green and
+      # the gate is restored automatically once specs land in p2+.
+      - name: Check for e2e specs
+        id: e2e_check
+        run: |
+          if [ -d e2e ] && [ -n "$(find e2e -name '*.spec.ts' -print -quit 2>/dev/null)" ]; then
+            echo "has_specs=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_specs=false" >> $GITHUB_OUTPUT
+            echo "No e2e specs found - skipping seed, build, and Playwright run (rebuild window)."
+          fi
+
       - name: Seed database
+        if: steps.e2e_check.outputs.has_specs == 'true'
         run: npx prisma db seed
         env:
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
 
       - name: Build Next.js
+        if: steps.e2e_check.outputs.has_specs == 'true'
         run: npm run build
         env:
           DEMO_MODE: "true"
@@ -116,9 +132,11 @@ jobs:
           NEXTAUTH_SECRET: "ci-e2e-dummy-secret"
 
       - name: Install Playwright browsers
+        if: steps.e2e_check.outputs.has_specs == 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
+        if: steps.e2e_check.outputs.has_specs == 'true'
         run: npx playwright test
         env:
           DEMO_MODE: "true"
