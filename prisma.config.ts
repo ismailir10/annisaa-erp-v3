@@ -5,7 +5,7 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
-    seed: "npx tsx prisma/seed.ts",
+    seed: "npx tsx prisma/seed/index.ts",
   },
   datasource: {
     // Use DIRECT_URL for migrations/schema push (bypasses pgbouncer)

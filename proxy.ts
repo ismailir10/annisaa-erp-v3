@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { applySecurityHeaders } from "@/lib/security/headers";
-import { enforceAuthRateLimit } from "@/lib/security/auth-rate-limit";
 
 const DEMO_COOKIE = "school-erp-session";
 const LAST_ACTIVE_COOKIE = "school-erp-last-active";
@@ -63,25 +62,11 @@ export async function proxy(request: NextRequest) {
 async function proxyImpl(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
-  // Rate limit /api/auth/* — credential-stuffing defense.
-  // Skip non-auth paths instantly (returns null, near-zero overhead).
-  const limited = enforceAuthRateLimit(request);
-  if (limited) return limited;
-
-  // Fully public routes — NO auth check at all (external webhooks, payment pages)
-  if (
-    pathname.startsWith("/api/xendit/webhook") ||
-    pathname.startsWith("/payment/")
-  ) {
-    return NextResponse.next();
-  }
-
-  // OAuth PKCE callback — bypass updateSession entirely. Running getUser() here
-  // before the route handler exchanges the code risks interfering with the PKCE
-  // code verifier cookie, producing "PKCE code verifier not found in storage".
-  if (pathname === "/auth/callback" && request.nextUrl.searchParams.has("code")) {
-    return NextResponse.next();
-  }
+  // Rebuild window (Phase 1, May–Jul 2026): /api/auth/*, /auth/callback, and
+  // /api/xendit/webhook are not yet present — auth flow lands in
+  // p1-auth-google-oauth, Xendit webhook ports back in p3-xendit-port-and-regen.
+  // Their guards above (rate-limit, public bypass, PKCE callback) re-attach in
+  // those cycles.
 
   // Public routes — allow but still refresh Supabase session if present.
   // Exact segment match on `/auth` + `/api/auth` prevents hypothetical
