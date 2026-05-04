@@ -1,5 +1,18 @@
 # Talib — by An Nisaa' Sekolahku
 
+> **🚧 v2 Rebuild In Progress (May–July 2026)**
+>
+> This codebase is undergoing a foundation rebuild. v1 domain code (admin/teacher/parent UI, domain API routes, seeds, validators, e2e specs) was hard-deleted on 2026-05-04. v1 final state preserved at git tag `v1-final-2026-05-04`.
+>
+> **Active design specs:**
+> - [Foundation & MVP Architecture](docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md)
+>
+> **Field research:**
+> - [Teacher insights](docs/research/2026-05-04-nisaa-teacher-insights.md)
+> - [v1 ERP audit](docs/research/2026-05-04-existing-erp-audit.md)
+>
+> Sections below describe v1 architecture and remain valid for the preserved `lib/` (xendit, payroll, finance, hijri, api, webhook). UI / schema sections may be stale — consult foundation spec for v2 design.
+
 School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in Bekasi, Indonesia. 2 campuses, 40+ teachers, 500+ students. Single-tenant deployment under the brand "Talib by An Nisaa' Sekolahku" (Talib = طالب, "seeker of knowledge"). Multi-tenant requires tenant-from-host resolution in `lib/auth.ts` before onboarding a second tenant (resolver currently keys on email, guarded by `assertSingleTenant()`).
 
 **Production:** [talib.annisaasekolahku.com](https://talib.annisaasekolahku.com) · **Repo:** [github.com/ismailir10/annisaa-erp-v3](https://github.com/ismailir10/annisaa-erp-v3)

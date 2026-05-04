@@ -43,6 +43,9 @@ tsconfig.tsbuildinfo
 
 # Reference material (large xlsx, third-party repos, etc.) — kept locally, never committed
 artifacts/
+# …except research artifact catalogs (markdown descriptions of Drive corpus, photos, rosters)
+!docs/research/artifacts/
+!docs/research/artifacts/**
 
 # Third-party agent skill plugins (loaded from ~/.claude/, not this repo)
 .agents/

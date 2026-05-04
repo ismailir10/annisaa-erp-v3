@@ -1,5 +1,19 @@
 # Talib (engineering id: `school-erp`) — Operating Manual
 
+> **v2 Rebuild Active (May–July 2026)**
+>
+> Foundation rebuild in progress. v1 domain code hard-deleted on 2026-05-04 (commit per phase 0 plan).
+>
+> **Read first** before any work:
+> - [Foundation Design Spec](docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md) — covers schema, scaffold engine, sprint plan, cycle decomposition (~33 cycles / 8 phases / 8 weeks)
+> - [Phase 0 Plan](docs/superpowers/plans/2026-05-04-p0-hard-delete-domain-code.md) — current cycle implementation plan
+> - [Research insights](docs/research/2026-05-04-nisaa-teacher-insights.md)
+> - [v1 audit](docs/research/2026-05-04-existing-erp-audit.md)
+>
+> **3-step workflow** (`/spec` → `/build` → `/ship`) below remains canonical. Per-cycle adjustments per foundation spec §18.12. Marathon mode: cycles deriving from foundation spec skip full brainstorm; reference spec by section in cycle Context.
+>
+> Standards file additions (post p1): `scaffold.md`, `entity-registry.md`, `permission-scope.md`, `audit-pii.md`, `workflow.md`, `migration.md`. Existing standards remain valid for preserved `lib/` code; UI / patterns standards evolve alongside scaffold engine cycles.
+
 > **Read this file completely before making any changes.** Operating manual for AI development sessions on this repo. What this product is — modules, portals, ADRs, setup, environments — lives in [README.md](./README.md). This file is the *how*; README is the *what*.
 
 ---
