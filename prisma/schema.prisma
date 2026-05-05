@@ -594,6 +594,7 @@ model ClassSession {
 
   @@unique([id, tenantId])
   @@index([tenantId])
+  @@index([tenantId, academicTermId])
   @@index([tenantId, sessionDate])
   @@index([tenantId, classSectionId, sessionDate])
   @@index([tenantId, status])
