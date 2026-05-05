@@ -7,7 +7,7 @@ import { ScaffoldListPage, ScaffoldListPageLoading } from "../list-page";
 import { ScaffoldDetailPage, ScaffoldDetailPageLoading } from "../detail-page";
 import { ScaffoldErrorState } from "../error-state";
 import { defineAction } from "../action";
-import type { EntityDef } from "../entity";
+import type { DataFetcher, EntityDef } from "../entity";
 
 type Demo = { id: string; name: string };
 
@@ -86,7 +86,7 @@ describe("ScaffoldListPage — error state", () => {
 
 describe("ScaffoldListPage — pagination params", () => {
   it("forwards page + pageSize to dataFetcher with sane defaults", async () => {
-    const fetcher = vi.fn(async () => ({ rows: [], total: 0 }));
+    const fetcher = vi.fn<DataFetcher<Demo>>(async () => ({ rows: [], total: 0 }));
     await ScaffoldListPage({
       entity: makeEntity({ dataFetcher: fetcher }),
     });
@@ -99,7 +99,7 @@ describe("ScaffoldListPage — pagination params", () => {
   });
 
   it("clamps pageSize to [1, 100]", async () => {
-    const fetcher = vi.fn(async () => ({ rows: [], total: 0 }));
+    const fetcher = vi.fn<DataFetcher<Demo>>(async () => ({ rows: [], total: 0 }));
     await ScaffoldListPage({
       entity: makeEntity({ dataFetcher: fetcher }),
       searchParams: { pageSize: "9999" },
@@ -108,7 +108,7 @@ describe("ScaffoldListPage — pagination params", () => {
   });
 
   it("rejects non-numeric page → defaults to 1", async () => {
-    const fetcher = vi.fn(async () => ({ rows: [], total: 0 }));
+    const fetcher = vi.fn<DataFetcher<Demo>>(async () => ({ rows: [], total: 0 }));
     await ScaffoldListPage({
       entity: makeEntity({ dataFetcher: fetcher }),
       searchParams: { page: "abc" },
