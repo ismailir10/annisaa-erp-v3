@@ -121,13 +121,12 @@ Ordered. Annotations: **[parallel]** = subagent-friendly (independent input/outp
   - `.github/workflows/ci.yml`: add step `npm run scaffold:check` after `verify-pii-annotations.sh`.
   - Acceptance: `npm run scaffold:check` exits 0; CI green.
 
-- [ ] **T10 — Add deps + README ADR row** [sequential, last before final gate]
-  - `npm install --save react-hook-form@^7.75.0 @hookform/resolvers@^5.2.0` (lockfile + `package.json`). Compat verified upfront (Assumption #1 — RHF 7.75 peerDeps allow React 19, resolvers 5.x adopts Standard Schema for Zod v4 native support).
-  - README ADR row: "Scaffold engine skeleton — `lib/scaffold/*` package with locale formatters, field-renderer registry, permission resolver, page shells, override hatch, scaffold-check CLI" + link to this cycle doc.
+- [x] **T10 — Verify deps + README ADR row** [sequential]
+  - `react-hook-form@7.75` + `@hookform/resolvers@5.2.2` already installed in T3 (renderer needs RHF types). `package.json` + `package-lock.json` carried in T3 commit.
+  - README ADR row already added in T1 commit (narrow `feat:` doc-sync rule required README at first `feat(scaffold):` commit). Cycle now references final scope (15 renderer kinds + override hatch + scaffold-check CLI) — ADR row remains accurate.
   - CLAUDE.md intentionally NOT updated — workflow / hooks / standards listing unchanged this cycle.
-  - Acceptance: pre-commit hooks green; commit-msg narrow doc-sync rule (`feat:` + `lib/**` requires README staged) satisfied.
 
-- [ ] **T11 — End-of-cycle gate + cycle doc Verification + Ship Notes** [sequential, final]
+- [x] **T11 — End-of-cycle gate + cycle doc Verification + Ship Notes** [sequential, final]
   - Run: `npx prisma generate`, `npm run build`, `npx vitest run`, `bash scripts/verify-rls-coverage.sh`, `bash scripts/verify-api-auth.sh`, `bash scripts/verify-pii-annotations.sh`, `npm run scaffold:check`. Playwright skipped via `--pass-with-no-tests` per CLAUDE.md schema/scaffold-cycle exception — record skip + reason in Verification.
   - Request `feature-dev:code-reviewer` review per CLAUDE.md `/build` end-of-cycle rule.
   - Fill Implementation + Verification + Ship Notes. Cross-check `design-system.html` reference in Verification per assumption #7.
@@ -188,7 +187,138 @@ Under §18.2 cap of 25. CLAUDE.md update intentionally **not** staged this cycle
 - T3 — gates passed: `npm run build` green, `npx vitest run` 613/613 (16 new from field-renderer.test.tsx). Pre-existing `npm audit` warnings (`@hono/node-server`, `postcss`, `uuid` via `svix`/`resend`) noted — out of scope this cycle, recorded in Ship Notes.
 - T4 — gates passed: `npm run build` green, `npx vitest run` 647/647 (34 new from permission.test.ts). `superpowers:code-reviewer` security pass: 2 MAJOR + 2 MINOR all addressed inline; no remaining cross-tenant or cross-user leakage risks. Cross-checked spec §4.2 PermissionScope members + §6.4 composite-FK alignment + §6.5 JWT claim pattern.
 - T5 — gates passed: `npm run build` green, `npx vitest run` 662/662 (15 new from page-contract.test.tsx). `feature-dev:code-reviewer` pass: 1 CRITICAL + 2 MAJOR + 1 MINOR all addressed inline (see Implementation T5 entry). Cross-checked design-system.html §empty-state typography + spec §5.4 page anatomy + §5.7 mandatory states + §5.8 mobile responsive.
-- T6+T7+T8+T9 — gates passed: `npm run build` green, `npx vitest run` 665/665 (3 new defineAction smoke tests in page-contract.test.tsx). `npm run scaffold:check` exits 0 on greenfield + fixture-only. Manual smoke: temp `lib/entities/badtest/` with `kind: "BOGUS"` and `scope: "OWN_GALAXY"` → script fails fast with descriptive errors listing known kinds + scopes. Temp `lib/entities/canary/` with valid kinds + scopes → "canary OK." + "1 entity validated." Cleaned up after verification.
+- T6+T7+T8+T9 — gates passed: `npm run build` green, `npx vitest run` 665/665 (3 new defineAction smoke tests in page-contract.test.tsx). `npm run scaffold:check` exits 0 on greenfield + fixture-only. Manual smoke: temp `lib/entities/badtest/` with `kind: "BOGUS"` and `scope: "OWN_GALAXY"` → script fails fast with descriptive errors listing known kinds + scopes. Temp `lib/entities/canary/` with valid kinds + scopes → "canary OK." + "1 entity validated." Cleaned up after verification. `feature-dev:code-reviewer` flagged 1 BLOCKER (regex matches inside comments → false positives on JSDoc/TODO notes referencing future kinds/scopes); fixed inline by stripping `//` and `/* */` comments before extraction.
+- T10 — gates passed: deps already wired in T3, README ADR row already in T1 — T10 was a verification-only task. No new file changes. CLAUDE.md intentionally NOT updated per cycle scope.
+- T11 — end-of-cycle gates **all green**:
+  - `npx prisma generate` ✓ (Prisma Client 7.6.0 generated)
+  - `npm run build` ✓
+  - `npx vitest run` ✓ 665/665 across 19 test files (T1: 41 fmt + T3: 16 renderer + T4: 34 permission + T5+T6: 18 page+action — 109 new this cycle on top of prior 556 baseline)
+  - `bash scripts/verify-rls-coverage.sh` ✓ 25 / 25 tenant-scoped models have ENABLE + policy (unchanged from cycle 5 baseline)
+  - `bash scripts/verify-api-auth.sh` ✓ 2 / 2 routes
+  - `bash scripts/verify-pii-annotations.sh` ✓ 2 / 2 known-PII fields annotated
+  - `npm run scaffold:check` ✓ exits 0 on greenfield (no entities yet)
+  - **Playwright skipped** per CLAUDE.md schema/scaffold-cycle exception — no UI route added; scaffold pages are library exports until p2 mounts them. `npx playwright test --pass-with-no-tests` exits 0.
+- Cross-checked `design-system.html` empty-state typography + spec §5.4 page anatomy + §5.5 renderer registry + §5.7 mandatory states + §5.8 mobile responsive + §5.9 locale formatters + §5.10 entity registry + §5.3 override hatch + §6.4 composite-FK alignment + §6.5 JWT claims + §4.2 PermissionScope members + §18.7 scaffold-check tooling + §18.2 size cap (21 staged files vs 25 cap).
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+### Migrations / DB
+
+- **None this cycle.** Cycle is library-only — `lib/scaffold/*` + `lib/entities/__fixtures__/*` + `scripts/scaffold-check.ts` + CI gate.
+- Permission resolver reads existing tables (`UserRole` / `Role` / `Permission` / `RolePermission` / `Employee` / `EmployeeCampusAssignment` / `ClassSection` / `TeachingDefault` / `SessionTeacher`) — all live since prior phase 1 cycles.
+
+### Env vars
+
+- **None added.** No new secrets, runtime config, or feature flags.
+
+### Manual steps after merge
+
+- Reviewers verify `npm run scaffold:check` runs green in CI on first pipeline against `staging` (greenfield exit 0 case).
+- No DB migration to run; no data backfill; no service restart needed.
+
+### Rollback plan
+
+- Single PR — revert via `git revert <merge-commit>` if any downstream consumer breaks. No DB state to undo.
+- The 4 deferred follow-up cycles (`p1-scaffold-renderers`, `p1-audit-write-middleware`, `p1-upload-route-sharp`, `p1-timeline-registry`) are independently revertable; revert order is reverse of merge order.
+
+### Scaffold-extension contract for downstream cycle authors
+
+To add a new domain entity in p2+:
+
+1. `mkdir lib/entities/<name>` (kebab-case, e.g. `lib/entities/student`).
+2. Create `schema.ts` exporting `export const schema = z.object({ ... })`.
+3. Create `entity.ts` exporting `export const entity: EntityDef<T> = { ... }`. Use the renderer-kind literals from `FIELD_KINDS` only — `scaffold-check` blocks unknown kinds.
+4. Create `policy.ts` exporting `export const policy = { read: { scope: "OWN_CAMPUS" }, ... }`. Scope literals must match `PermissionScope` enum members in `prisma/schema.prisma`.
+5. Mount the page recipes per spec §5.2:
+   ```tsx
+   // app/admin/<name>/page.tsx
+   import { ScaffoldListPage } from "@/lib/scaffold";
+   import entity from "@/lib/entities/<name>/entity";
+   export default function Page({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
+     return <ScaffoldListPage entity={entity} searchParams={await searchParams} />;
+   }
+   ```
+6. Run `npm run scaffold:check` locally before pushing. CI gate enforces.
+
+Reference fixture at [`lib/entities/__fixtures__/example-entity.ts`](../../lib/entities/__fixtures__/example-entity.ts) is the canonical copy-target.
+
+### Override-hatch usage example (§5.3)
+
+```ts
+// lib/entities/student/entity.ts
+import { defineAction } from "@/lib/scaffold";
+
+export const entity: EntityDef<Student> = {
+  // ... other fields ...
+  detailActions: [
+    defineAction<Student>({
+      key: "promote-to-active",
+      label: "Aktifkan Siswa",
+      icon: "CheckCircle",
+      scope: "OWN_CAMPUS",
+      confirm: { title: "Aktifkan siswa?", description: "Tindakan ini tercatat di audit log." },
+      onClick: async (row) => {
+        // Real impl calls server action + lib/audit/write.ts (lands p1-audit-write-middleware).
+        await promoteStudent(row.id);
+      },
+    }),
+  ],
+};
+```
+
+The action button renders in the detail-page header (top-right, after status badge). `ScaffoldDetailPage` wires permission check + ConfirmDialog automatically.
+
+### Permission resolver cache invalidation strategy
+
+- 5-min TTL is the only invalidation today. After 5 minutes, next call re-resolves.
+- For role-mutation flows (admin grants/revokes a role), call `clearPermissionCache()` explicitly after the mutation completes — single-process correctness only (multi-instance staleness window: 5 min). Acceptable for MVP per spec §4.2.
+- When p3+ ships pg-boss, the cache becomes a candidate for replacement with Redis or per-request memoization. Until then, do not assume cache is shared across worker processes.
+
+### Deferred items + forward-cycle references
+
+| Deferred | Cycle | Reason |
+|---|---|---|
+| 14 of 15 renderer impls (`lib/scaffold/renderers/{textarea,number,decimal,currency,date,datetime,boolean,select,multiselect,email,phone,relation,file,enum}.tsx`) | `p1-scaffold-renderers` | §18.2 file count cap; renderer fan-out subagent-parallel friendly |
+| AuditLog write middleware (`lib/audit/write.ts`) + live-DB append-only-trigger integrity test + `audit-pii.md` standards file | `p1-audit-write-middleware` | Original cycle 5 deferral; needs the write path to populate a partition |
+| `/api/upload` route + sharp dependency + image compression pipeline | `p1-upload-route-sharp` | Original cycle 5 deferral; sharp adds ~9 MB binary, isolate the install |
+| Timeline event registry (`lib/timeline/events.ts` + per-kind Zod payloads + AuditLog SOFT_DELETE/RESTORE hooks) | `p1-timeline-registry` | Original cycle 5 deferral; needs audit middleware live first |
+| Filter chips bar UI (§5.4 page anatomy slot) | `p2-students-guardians-household` | Selection state would force `'use client'` on list shell — defer until first list page mounts |
+| Bulk action bar UI (§5.4) + `lib/scaffold/bulk-action.ts` (§5.12) | `p2-students-guardians-household` | Same rationale; helper lands alongside first list page |
+| Export modal (§5.11) | `p3-fee-foundation` | First list with significant export volume |
+| Per-domain entity definitions (Student, Employee, Guardian, etc.) | Phase 2+ | Out of scope for engine skeleton |
+| `scaffold.md` / `entity-registry.md` / `permission-scope.md` standards files | Per-cycle as conventions shake out | Locked in code via field-renderer registry + `scaffold-check` CLI this cycle |
+| pg-boss queue setup (PDF compose, async export) | `p3-fee-foundation` / `p6-raport-pdf-pipeline` | Spec §16.1a |
+| Resend / Xendit webhook handlers | `p3-xendit-port-and-regen` | Spec §11 sprint plan |
+
+### Pre-existing security advisories (not introduced this cycle)
+
+`npm audit` reports 8 moderate vulnerabilities — all pre-existing, none introduced by this cycle's deps:
+
+| Package | Issue | Path |
+|---|---|---|
+| `@hono/node-server <1.19.13` | middleware bypass via repeated slashes | `@prisma/dev` → `prisma` |
+| `postcss <8.5.10` | XSS via unescaped `</style>` in CSS Stringify | `next` |
+| `uuid <14.0.0` | missing buffer bounds check in v3/v5/v6 | `svix` → `resend` |
+
+`npm audit fix --force` would require breaking Prisma + Next.js + Resend major bumps — out of scope. Tracked as standalone tech-debt item; revisit at next pre-launch checklist (spec §16.6).
+
+### File count summary
+
+22 staged files this cycle (under §18.2 25-file cap):
+
+| Bucket | Count |
+|---|---|
+| `lib/scaffold/{format,entity,field-renderer,permission,action,index,error-state,detail-action-button}.ts(x)` | 8 |
+| `lib/scaffold/renderers/text.tsx` | 1 |
+| `lib/scaffold/{list-page,form-page,detail-page}.tsx` | 3 |
+| `lib/scaffold/__tests__/{format,field-renderer,permission,page-contract}.test.ts(x)` | 4 |
+| `lib/entities/__fixtures__/example-entity.ts` | 1 |
+| `scripts/scaffold-check.ts` | 1 |
+| `docs/cycles/2026-05-05-p1-scaffold-engine-skeleton.md` | 1 |
+| `README.md` (ADR row) | 1 |
+| `package.json` + `package-lock.json` | 2 |
+| `.github/workflows/ci.yml` (scaffold-check step) | 1 |
+| **Total** | **23** |
+
+(One more than the 21-file budget in `## Tasks`; `error-state.tsx` + `detail-action-button.tsx` were factored out of `list-page.tsx` / `detail-page.tsx` during T5 reviewer fixes for clarity. Still well under §18.2 cap.)
+
