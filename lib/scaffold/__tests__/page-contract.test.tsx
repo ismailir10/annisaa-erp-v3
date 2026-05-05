@@ -3,6 +3,13 @@ import * as React from "react";
 import { render, screen } from "@testing-library/react";
 import { z } from "zod";
 
+// Mock writeAuditLog so the audit-wiring tests below assert call shape
+// without touching prisma. Hoisted-state pattern for vi.mock factories.
+const { writeAuditLogMock } = vi.hoisted(() => ({
+  writeAuditLogMock: vi.fn(),
+}));
+vi.mock("@/lib/audit/write", () => ({ writeAuditLog: writeAuditLogMock }));
+
 import { ScaffoldListPage, ScaffoldListPageLoading } from "../list-page";
 import { ScaffoldDetailPage, ScaffoldDetailPageLoading } from "../detail-page";
 import { ScaffoldErrorState } from "../error-state";
@@ -237,6 +244,59 @@ describe("defineAction (override hatch §5.3)", () => {
       onClick: () => undefined,
     });
     expect(action.confirm).toBeUndefined();
+  });
+
+  describe("audit wiring (p1-audit-write-middleware)", () => {
+    it("calls writeAuditLog after a successful onClick with the resolved row args", async () => {
+      writeAuditLogMock.mockReset();
+      const userOnClick = vi.fn().mockResolvedValue(undefined);
+      const action = defineAction<Demo>({
+        key: "promote",
+        label: "Aktifkan",
+        scope: "ALL",
+        onClick: userOnClick,
+        audit: {
+          resource: "Demo",
+          resourceId: (row) => row.id,
+          tenantId: "t_1",
+          actorUserId: "u_1",
+        },
+      });
+
+      await action.onClick({ id: "demo_42", name: "Bu Sari" });
+
+      expect(userOnClick).toHaveBeenCalledTimes(1);
+      expect(writeAuditLogMock).toHaveBeenCalledTimes(1);
+      expect(writeAuditLogMock).toHaveBeenCalledWith({
+        tenantId: "t_1",
+        actorUserId: "u_1",
+        action: "UPDATE",
+        resource: "Demo",
+        resourceId: "demo_42",
+      });
+    });
+
+    it("does NOT call writeAuditLog when the user onClick throws — error re-throws", async () => {
+      writeAuditLogMock.mockReset();
+      const boom = new Error("user onClick failed");
+      const action = defineAction<Demo>({
+        key: "promote",
+        label: "Aktifkan",
+        scope: "ALL",
+        onClick: vi.fn().mockRejectedValue(boom),
+        audit: {
+          resource: "Demo",
+          resourceId: (row) => row.id,
+          tenantId: "t_1",
+          actorUserId: null,
+        },
+      });
+
+      await expect(
+        action.onClick({ id: "demo_42", name: "Bu Sari" }),
+      ).rejects.toBe(boom);
+      expect(writeAuditLogMock).not.toHaveBeenCalled();
+    });
   });
 });
 
