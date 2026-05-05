@@ -70,7 +70,7 @@ Ordered. Annotations: **[parallel]** = subagent-friendly (independent input/outp
   - Write `lib/scaffold/__tests__/format.test.ts` covering ~30 cases (each formatter golden output, null/undefined input, invalid date, +62/leading-0/spaced phone, IDR currency formatting, large-number grouping, Hijri month name, relative-time within day / weeks / months / years).
   - Acceptance: `npx vitest run lib/scaffold/__tests__/format.test.ts` green.
 
-- [ ] **T2 — `lib/scaffold/entity.ts` types** [sequential, foundational]
+- [x] **T2 — `lib/scaffold/entity.ts` types** [sequential, foundational]
   - Define `EntityDef<T>`, `ListColumnDef<T>`, `FilterDef<T>`, `ViewDef<T>`, `DetailActionDef<T>`, `DataFetcher<T>` types per §5.4 + §5.10.
   - No runtime code; pure type module.
   - Acceptance: `npx tsc --noEmit` green.
@@ -170,10 +170,12 @@ Under §18.2 cap of 25. CLAUDE.md update intentionally **not** staged this cycle
 
 - Subagent plan: all tasks sequential this cycle. Subagent-parallel dispatch deferred to `p1-scaffold-renderers` follow-up where 14 independent renderer files natively fit `superpowers:subagent-driven-development`.
 - T1 — locale formatters — `lib/scaffold/format.ts` + `lib/scaffold/__tests__/format.test.ts` — `fmt.{date,dateTime,currency,number,phone,hijri,relativeTime}` per spec §5.9 with `id-ID` locale + `Asia/Jakarta` tz + IDR currency. NBSP normalization (`U+00A0` + `U+202F`) applied to currency output for ICU-72-stable assertions. Reviewer flagged 2 blockers (`U+202F` missing in normSpace, Hijri "H" suffix mismatch); both refuted by empirical evidence — `xxd` dump showed normSpace already covers both code points; Indonesian Umm al-Qura `Intl.DateTimeFormat` emits "H" suffix natively. 41/41 tests green.
+- T2 — entity registry types — `lib/scaffold/entity.ts` — `EntityDef<T>` + `ListColumnDef<T>` + `FilterDef<T>` + `ViewDef<T>` + `FormSectionDef<T>` + `DetailTabDef<T>` + `DetailActionDef<T>` + `DataFetcher<T>` + `FieldDef` (15-variant discriminated union) + `ScaffoldScope`. Reviewer fixes applied inline: (1) `DetailTabDef.key` widened from student-specific literal union to `string` so non-student entities define their own tab keys; (2) `ListColumnDef.render` upgraded from `FieldKind` to full `FieldDef` so RELATION/SELECT columns retain per-kind metadata; (3) `EntityDef.schema` typed as `ZodType<T>` (Zod v4 / resolvers v5 Standard-Schema-compatible) instead of legacy `ZodSchema<T>`. Pure-types module — no runtime exports. `tsc --noEmit` green.
 
 ## Verification
 
 - T1 — gates passed: `npm run build` green, `npx vitest run` 597/597 (41 new from format.test.ts). Cross-checked `design-system.html` §5.9 token styling note for fallback character ("—" em-dash) consistency with empty-state typography.
+- T2 — gates passed: `npx tsc --noEmit` green, `npm run build` green, `npx vitest run` 597/597 (no new tests; pure types). Cross-referenced spec §5.4 page anatomy + §5.5 renderer kinds + §5.10 filtering / smart views.
 
 ## Ship Notes
 <!-- filled by /ship -->
