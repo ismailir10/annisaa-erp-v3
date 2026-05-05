@@ -30,7 +30,11 @@ import { Label } from "@/components/ui/label";
 
 import type { EntityDef, FieldDef } from "./entity";
 import { ScaffoldErrorState } from "./error-state";
-import { getRenderer, MissingRendererError } from "./field-renderer";
+import {
+  getRenderer,
+  MissingRendererError,
+  type FieldRendererProps,
+} from "./field-renderer";
 
 export type ScaffoldFormPageProps<T extends FieldValues> = {
   entity: EntityDef<T>;
@@ -149,7 +153,7 @@ function ScaffoldFormField<T extends FieldValues>({
   helpText?: string;
   control: ReturnType<typeof useForm<T>>["control"];
 }) {
-  let Renderer: React.ComponentType<{ field: any; def: FieldDef; ariaInvalid?: boolean }>;
+  let Renderer: React.ComponentType<FieldRendererProps>;
   try {
     Renderer = getRenderer(def.kind) as typeof Renderer;
   } catch (e) {
@@ -172,7 +176,11 @@ function ScaffoldFormField<T extends FieldValues>({
         name={fieldKey}
         control={control}
         render={({ field, fieldState }) => (
-          <Renderer field={field} def={def} ariaInvalid={!!fieldState.error} />
+          <Renderer
+            field={field as FieldRendererProps["field"]}
+            def={def}
+            ariaInvalid={!!fieldState.error}
+          />
         )}
       />
       {helpText && <p className="text-xs text-muted-foreground">{helpText}</p>}

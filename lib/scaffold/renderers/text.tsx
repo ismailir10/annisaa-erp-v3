@@ -18,18 +18,21 @@ export function TextRenderer({ field, def, disabled, ariaInvalid }: FieldRendere
     throw new Error(`TextRenderer received non-TEXT FieldDef (kind="${def.kind}")`);
   }
   const t = def as TextDef;
+  // Destructure once to satisfy react-hooks/refs (no `.x` access on
+  // ref-bearing objects during render).
+  const { ref, name, value, onChange, onBlur } = field;
   return (
     <Input
       type="text"
-      name={field.name}
+      name={name}
       placeholder={t.placeholder}
       maxLength={t.maxLength}
       disabled={disabled}
       aria-invalid={ariaInvalid || undefined}
-      ref={field.ref}
-      value={(field.value as string | undefined) ?? ""}
-      onChange={field.onChange}
-      onBlur={field.onBlur}
+      ref={ref}
+      value={(value as string | undefined) ?? ""}
+      onChange={onChange}
+      onBlur={onBlur}
     />
   );
 }
