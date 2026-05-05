@@ -350,14 +350,178 @@ Assumptions:
 - **Pre-build review (cycle doc):** `feature-dev:code-reviewer` flagged 1 Blocker (C1 retentionUntil column contradicts partition-drop retention) + 4 Important (I2 sharp pipeline scope split, I3 TEXT vs VARCHAR(50) on id columns, I4 partition position-ordering test, I1 retentionUntil follows from C1) + 3 Nits (G 14→18 partitions, H Ship Notes RESTRICT caveat, B SECURITY INVOKER vs DEFINER). All findings patched into cycle doc before build started; section "Reviewer flags addressed inline" reaffirmed accordingly.
 - **Task 1 — schema additions.** Added 6 enums (AuditAction 8 members, TimelineVisibility 3, FileKind 5, FileStatus 5, ExportFormat 3, ExportJobStatus 5) after `SessionTeacherRole`. Appended 8 models in spec order: AuditLog (partitioned, composite PK `(id, createdAt)`, no audit-by columns, no retentionUntil), TimelineEvent (full §4.4 audit + soft-delete), FileAsset (full audit + soft-delete + Decimal compressionRatio + `@db.Inet` not used here), ExportJob (audit minus soft-delete), EmailLog (audit minus soft-delete), WebhookEvent (audit minus soft-delete + `@@unique([tenantId, source, idempotencyKey])`), OrgConfig (singleton via `tenantId String @unique`), Holiday (full audit + soft-delete). Added `Employee.phone /// @PII mask:last4` annotation (NIK `redact` already shipped in cycle 4). Cross-row FKs single-col per §6.4 MVP rule (composite reserved for RLS-critical join tables); patched cycle doc + tests to reflect single-col instead of composite (Prisma 7 cannot model column-subset SET NULL on composite FK). `npx prisma format` + `validate` + `generate` ✓ (Prisma Client 7.6.0). `npm run build` ✓ (Next.js 16.2.3, 7 routes). `npx vitest run` ✓ (12 files / 349 tests baseline preserved).
 - **Task 2 — migration `06_audit_timeline/migration.sql`.** Hand-written 211-line SQL. Section order: 2 `CREATE TYPE` → `CREATE TABLE "AuditLog" (...) PARTITION BY RANGE ("createdAt")` with composite PK `(id, "createdAt")` → 18 `CREATE TABLE … PARTITION OF "AuditLog"` statements (2026-05 through 2027-10) → `CREATE TABLE "TimelineEvent"` → composite unique `TimelineEvent_id_tenantId_key` → AuditLog lookup indexes (3) → TimelineEvent lookup indexes (4) → GIN index on TimelineEvent.payload → trigger function `audit_log_block_update_delete()` (`LANGUAGE plpgsql`, `SECURITY INVOKER`, raises P0001 on UPDATE/DELETE) → 2 `CREATE TRIGGER` statements binding the function BEFORE UPDATE / BEFORE DELETE on AuditLog parent (PG 15+ propagates row-level triggers to all partitions automatically) → 3 FK constraints (AuditLog.tenantId Restrict; TimelineEvent.tenantId Restrict; TimelineEvent.actorUserId single-col SET NULL — NO FK on AuditLog.actorUserId per Assumptions) → RLS block on AuditLog parent (ENABLE + REVOKE ALL + GRANT SELECT + 2 policies; no `deletedAt` clause — no soft-delete) → 18 `REVOKE ALL` statements on each partition (block direct PostgREST queries to `/rest/v1/AuditLog_y*`) → RLS block on TimelineEvent (ENABLE + REVOKE ALL + GRANT SELECT + tenant_isolation_select WITH `deletedAt IS NULL` + no_writes_via_postgrest). Header documents: AuditLog audit-column deviation, no retentionUntil rationale, partition pre-create count + ops slack, trigger no-bypass policy + SECURITY INVOKER rationale, REVOKE ALL pattern, no-FORCE design lock. Applied to staging Supabase pooler `aws-1-ap-southeast-1.pooler.supabase.com:5432` cleanly.
+- **Task 4 — audit redactor generator.** Authored 197-line `scripts/generate-audit-redactor.ts`. Reads `prisma/schema.prisma` line-by-line, parses model blocks, captures `/// @PII (redact|mask:last4)` annotations into a sorted `(model → field → policy)` map, emits `lib/audit/redactor.ts` with a frozen `PII_FIELDS` constant + a `redact(modelName, before, after)` helper. Policies: `redact` → `null`; `mask:last4` → `'***' + value.slice(-4)` for strings ≥ 4 chars, `'***'` for shorter. Idempotent: sorted keys + stable formatting + no timestamp in header → re-running yields zero diff (verified via `git diff --exit-code lib/audit/redactor.ts`). Generated file `lib/audit/redactor.ts` committed (deterministic, no CI generation step). `package.json` script `audit:redactor` wires `npx tsx scripts/generate-audit-redactor.ts`. Output for current schema: 1 model (Employee), 2 fields (nik:redact, phone:mask:last4).
+- **Task 5 — redactor unit tests.** Authored 168-line `lib/audit/redactor.test.ts`, **22 cases** across 6 describe blocks: generated PII map structure (4 cases), redact policy (4 cases), mask:last4 policy (5 cases), non-annotated passthrough (2 cases), idempotency (3 cases), null/undefined/unknown-model handling (4 cases). All 22 green. Covers the cycle-doc-specified edge cases: short-value masking → `'***'` (no partial reveal); nested-object preservation (no deep walk); unknown model passthrough; null inputs returned as-is.
+- **Task 6 — migration post-condition tests (2 files).** Authored `prisma/migration-tests/06-audit-timeline.test.ts` (**85 cases**) and `prisma/migration-tests/16-scaffold.test.ts` (**100 cases**) mirroring the `05-sessions.test.ts` + `09-regions.test.ts` static-parse pattern.
+  - **06 coverage**: 2 enums (verbatim 8 + 3 members), AuditLog table + composite PK + column shape (incl. INET ipAddress + negative retentionUntil + negative *ById), 18-partition count + per-month FROM/TO assertions + partition-after-parent indexOf ordering test (per pre-build reviewer I4), append-only trigger function (`SECURITY INVOKER` literal + negative `SECURITY DEFINER` inside fn block + RAISE EXCEPTION body + ERRCODE P0001), 2 trigger declarations (BEFORE UPDATE + BEFORE DELETE), TimelineEvent table with full §4.4 audit + soft-delete + JSONB payload default, composite uniques + 7 lookup indexes + GIN on payload, AuditLog negative-FK assertion (no `actorUserId` FK; non-FK by design), TimelineEvent single-col SET NULL FK on actorUserId, RLS coverage per table (ENABLE + REVOKE ALL + GRANT SELECT + 2 policies; deletedAt asymmetry — TimelineEvent retains, AuditLog omits), 18 partition REVOKE-ALL assertions, schema-side positive guard (both models have `tenantId String` + AuditLog has `@@id([id, createdAt])`), section-ordering sanity (CREATE TYPE → CREATE TABLE → CREATE FUNCTION → CREATE TRIGGER; CREATE TABLE → ALTER TABLE FK + RLS).
+  - **16 coverage**: 4 enums (verbatim members each), 6 CREATE TABLE column-shape assertions (FileAsset + ExportJob + EmailLog + WebhookEvent + OrgConfig + Holiday — incl. column-level `tenantId UNIQUE` on OrgConfig, plain VARCHAR `kind` on Holiday, BIGINT sizeBytes + DECIMAL(5,2) compressionRatio on FileAsset, JSONB defaults), 3 composite uniques on (id, tenantId), 16 lookup-index name assertions, full unique on WebhookEvent (no WHERE clause), partial unique on Holiday (`WHERE deletedAt IS NULL`), all 6 Tenant FKs Restrict + 4 cross-row FKs (FileAsset.uploaderUserId SET NULL; ExportJob.requestedByUserId RESTRICT; ExportJob.resultFileAssetId SET NULL; OrgConfig.currentAcademicYearId SET NULL), negative-composite-FK guard (no composite cross-row FKs declared — single-col per §6.4 MVP rule), RLS coverage per table (ENABLE + REVOKE ALL + GRANT SELECT + 2 policies; deletedAt asymmetry — soft-delete table-set parametric), absence of FORCE RLS on each, schema-side positive guard (6 models carry `tenantId String`; OrgConfig declares `@unique`), section-ordering sanity (CREATE TYPE → CREATE TABLE; FileAsset before ExportJob FK target).
+- **Task 7 — `verify-pii-annotations.sh`.** Authored 96-line bash script mirroring `verify-rls-coverage.sh` + `verify-api-auth.sh` patterns (`set -euo pipefail`). Hardcoded `TRIPLES` list of `(Model, field, policy)` triples — current entries: `Employee:nik:redact` + `Employee:phone:mask:last4`. Per-entry: extract model block via `awk`, grep for the field-line carrying the expected `/// @PII <policy>` annotation. Distinguishes "field not found" vs "policy mismatch" in error output. Negative-tested by temporarily stripping the annotation from schema.prisma → script exits 1 with the expected error → restored → script exits 0. Future cycles extend `TRIPLES` when adding new PII fields.
+- **Task 8 — end-of-cycle gates (all green).**
 - **Task 3 — migration `16_scaffold/migration.sql`.** Hand-written 312-line SQL. Section order: 4 `CREATE TYPE` (FileKind, FileStatus, ExportFormat, ExportJobStatus) → 6 `CREATE TABLE` (FileAsset before ExportJob since ExportJob.resultFileAssetId references FileAsset; OrgConfig with column-level UNIQUE on `tenantId`) → 3 composite uniques on `(id, tenantId)` for FileAsset/ExportJob/OrgConfig (FK-target-friendly) → 16 lookup indexes (per FK column, tenantId-prefixed) → full unique `webhook_event_idempotency_unique` on `(tenantId, source, idempotencyKey)` (no soft-delete on this table) → partial unique `holiday_tenant_date_active_unique` on `(tenantId, date) WHERE deletedAt IS NULL` → 10 FK constraints (all single-col cross-row per §6.4 MVP rule; Tenant Restrict on all 6; FileAsset.uploaderUserId / ExportJob.resultFileAssetId / OrgConfig.currentAcademicYearId SET NULL; ExportJob.requestedByUserId RESTRICT) → 6 RLS blocks (ENABLE + REVOKE ALL + GRANT SELECT + tenant_isolation_select + no_writes_via_postgrest). Soft-delete asymmetry on `tenant_isolation_select` USING clause: `deletedAt IS NULL` only on FileAsset/OrgConfig/Holiday; absent on ExportJob/EmailLog/WebhookEvent. Header documents: REVOKE ALL pattern, no-FORCE design lock, OrgConfig singleton rationale, Holiday partial-unique rationale, ExportJob.requestedByUserId RESTRICT operational caveat. Applied to staging Supabase pooler cleanly. `bash scripts/verify-rls-coverage.sh` reports `25 / 25` strict mode (17 prior + 8 new tenant-scoped models — exactly the spec target).
 
 
 
 ## Verification
 
-<filled by /build: gate output, test names, manual smoke notes>
+End-of-cycle gate chain (all green):
+
+- `npx prisma generate` — Prisma Client 7.6.0 ✓.
+- `npx prisma validate` — `The schema at prisma/schema.prisma is valid 🚀`.
+- `npx prisma migrate deploy` — `9 migrations found in prisma/migrations` / `No pending migrations to apply` (06 + 16 applied during build tasks; staging Supabase pooler `aws-1-ap-southeast-1.pooler.supabase.com:5432`).
+- `npx prisma db seed` × 2 idempotent — both runs produce identical row counts; cold 9.00s, warm 6.79s.
+- `npx tsx scripts/generate-audit-redactor.ts` — `wrote lib/audit/redactor.ts — 1 model(s), 2 field(s)`. Wall-clock ~70ms. `git diff --exit-code lib/audit/redactor.ts` → exit 0 (idempotent generator confirmed).
+- `npm run build` — Next.js 16.2.3, 7 routes (`/`, `/_not-found`, `/api/csp-report`, `/api/health`, `/legal/privacy`, `/legal/terms`, `/manifest.webmanifest`, `/opengraph-image`, `Proxy` middleware). Compiled successfully.
+- `npx vitest run` — **15 test files / 556 tests passed** (was 12/349 baseline; +3 files +207 tests across 06-audit-timeline + 16-scaffold + lib/audit/redactor).
+- `npm run lint` — clean (eslint silent).
+- `bash scripts/verify-rls-coverage.sh` — `✓ RLS coverage OK: 25 / 25 tenant-scoped models have ENABLE + policy.` (strict mode, exit 0). Exactly the spec target — 17 prior + 8 new tenant-scoped tables.
+- `bash scripts/verify-api-auth.sh` — `✓ API auth coverage OK: 2 / 2 routes have session helper or @public sentinel.`
+- `bash scripts/verify-pii-annotations.sh` — `✓ PII annotation coverage OK: 2 / 2 known-PII fields annotated.` Negative-tested: stripped `/// @PII mask:last4` from `Employee.phone` → script exits 1 with `Employee.phone (expected policy 'mask:last4')` → restored → exits 0.
+- `npx playwright test --pass-with-no-tests` — exits 0 per CLAUDE.md schema-cycle exception (no UI added; `e2e/` empty since Phase 0).
+
+Migration test counts:
+
+| File | Cases | Notes |
+|---|---|---|
+| `prisma/migration-tests/06-audit-timeline.test.ts` | 85 | Partitioning + trigger + RLS + section ordering |
+| `prisma/migration-tests/16-scaffold.test.ts` | 100 | 6 tables + soft-delete asymmetry + single-col FK guard |
+| `lib/audit/redactor.test.ts` | 22 | redact + mask:last4 + idempotency + edge cases |
+| **Net new this cycle** | **207** | (12/349 baseline → 15/556 — exactly +3 files +207 tests) |
+
+Counts vs spec:
+
+- 8 new models: AuditLog, TimelineEvent, FileAsset, ExportJob, EmailLog, WebhookEvent, OrgConfig, Holiday ✓
+- 6 new enums: AuditAction (8 members), TimelineVisibility (3), FileKind (5), FileStatus (5), ExportFormat (3), ExportJobStatus (5) ✓
+- 18 monthly partitions inline (2026-05 → 2027-10) ✓
+- 1 append-only trigger function (`audit_log_block_update_delete`) + 2 trigger bindings (BEFORE UPDATE / BEFORE DELETE) ✓
+- 1 partial unique (Holiday `holiday_tenant_date_active_unique`) + 1 full unique (WebhookEvent `webhook_event_idempotency_unique`) ✓
+- 5 cross-row FKs (FileAsset.uploaderUserId, ExportJob.requestedByUserId, ExportJob.resultFileAssetId, TimelineEvent.actorUserId, OrgConfig.currentAcademicYearId) — all single-col per §6.4 MVP rule ✓
+- 1 deliberate non-FK (AuditLog.actorUserId) — partition-table FK avoidance per Assumptions ✓
+
+Cross-check: `design-system.html` not consulted — schema-only cycle, no frontend diff (frontend gate not triggered).
+
+Disk footprint at end of cycle: ~3.4 GiB free (≈200 MiB consumed by `.next/.swc` caches + Prisma Client output + new migration files). Symlinked `node_modules` from main checkout means no per-worktree dep duplication.
 
 ## Ship Notes
 
-<filled by /ship: migrations, env vars, Supabase Storage runbook, manual steps, rollback plan>
+### Migrations applied (alphanumeric apply order)
+
+`00 → 01 → 02 → 03 → 04 → 05 → 06 → 09 → 16` — `06_audit_timeline` and `16_scaffold` both applied cleanly to staging Supabase pooler `aws-1-ap-southeast-1.pooler.supabase.com:5432` during the build. Production deploy is the same `npx prisma migrate deploy` invocation against the production `DATABASE_URL` once the staging → main PR lands.
+
+### Env vars
+
+No new env vars this cycle. Future cycles will add:
+
+- `SUPABASE_STORAGE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — once `p1-scaffold-engine-skeleton` ships the upload route.
+- `RESEND_API_KEY` — once `p3-xendit-port-and-regen` ships the EmailLog write path.
+
+### Supabase Storage runbook (per spec §16.1)
+
+Bucket convention, RLS, TTL, and compression pipeline outline. Ships now as documentation; the **runtime sharp pipeline** lives in `p1-scaffold-engine-skeleton` (see Context: "Sharp compression pipeline scope split").
+
+#### Bucket creation (one bucket per tenant per kind)
+
+Naming: `<tenant-slug>-<kind>` (lowercase). Examples:
+- `an-nisaa-document` — admission scans, raport PDFs, signed letters.
+- `an-nisaa-image` — student photos, gallery uploads.
+- `an-nisaa-archive` — bulk export ZIPs.
+
+Manual provisioning at tenant onboarding (Supabase dashboard → Storage → New bucket). Marked **private** (no public read). Future v1.1+: programmatic provisioning via `supabase-js` admin client during tenant bootstrap.
+
+#### RLS policy on `storage.objects` (tenant-scoped via path prefix)
+
+Path convention: `<tenantId>/<kind>/<cuid>.<ext>` — every uploaded object lives under the tenant's `id` prefix. The `storage.objects` table carries a `name` column (the path); the policy gates on prefix match.
+
+```sql
+-- Read policy: authenticated user can SELECT only objects under their tenant prefix.
+CREATE POLICY "tenant_scoped_storage_select" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    name LIKE (current_setting('request.jwt.claims', true)::json->>'tenant_id') || '/%'
+  );
+
+-- Write policy: blocked at PostgREST layer (uploads go through service-role via /api/upload).
+CREATE POLICY "no_writes_via_postgrest_storage" ON storage.objects
+  FOR ALL TO anon, authenticated
+  USING (false) WITH CHECK (false);
+```
+
+Service-role bypasses RLS for app writes (the upload route runs server-side with `SUPABASE_SERVICE_ROLE_KEY`).
+
+#### Signed URL TTL
+
+24h per spec §16.1. Generated server-side via `supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24)` in the upload-completion handler (`p1-scaffold-engine-skeleton`). Stored in `ExportJob.expiresAt` and emailed to the requester.
+
+#### Sharp compression pipeline (image kinds)
+
+Outline for future implementation in `p1-scaffold-engine-skeleton`:
+
+1. Upload arrives at `/api/upload` (multipart/form-data). Server-side validates: `mimeType`, `sizeBytes ≤ 10 MB`, `kind` matches the route handler's allowlist.
+2. **FileKind=IMAGE only:**
+   - Stream raw bytes to a temp `FileAsset` row with `status = 'PENDING_UPLOAD'`.
+   - Apply sharp pipeline: resize to max 1920px (preserve aspect), strip EXIF, re-encode JPEG @ quality 80%.
+   - Upload compressed bytes to Supabase Storage at `<tenantId>/IMAGE/<cuid>.jpg`.
+   - Update `FileAsset` row: `status = 'COMPRESSED'`, `compressedAt = now()`, `compressionRatio = compressedSizeBytes / originalSizeBytes` (≈ 0.20–0.40 typical).
+3. **Other kinds** (DOCUMENT/VIDEO/AUDIO/ARCHIVE): straight passthrough; `status` jumps `PENDING_UPLOAD` → `UPLOADED` (no `COMPRESSED` transition).
+4. Orphan cleanup: `file_asset.orphan_cleanup` cron (deferred to p3+ per §16.1a) flips `PENDING_UPLOAD` rows older than 24h to `ORPHANED`, then hard-deletes after a 7-day grace.
+
+`sharp` is NOT installed in this cycle — `p1-scaffold-engine-skeleton` adds the dep alongside the upload route.
+
+### AuditLog partitioning cadence
+
+- **Pre-created:** 18 monthly partitions inline (2026-05 → 2027-10). Enough for MVP launch + first ~16 months + 2-month buffer.
+- **Auto-create cron** (`audit.partition_create`) — deferred to `p3+` per §16.1a. Runs monthly on the 28th to ensure the next-next month's partition exists before any insert lands. PL/pgSQL DO block in a Supabase scheduled function. Without it, an insert past the highest pre-created `TO` boundary would fail with `no partition of relation "AuditLog" found for row`.
+- **Retention drop cron** (`audit.retention_cleanup`) — deferred to `p3+` per §16.1a. Runs daily 02:00 UTC; for each partition where the upper boundary date is more than 7 years ago, executes `DROP TABLE "AuditLog_yYYYYmMM"`. O(1) per partition; bypasses the append-only trigger entirely (DROP TABLE is DDL, not DML). The 7-yr horizon is encoded by the partition cadence, not by a per-row column (per pre-build reviewer C1 fix).
+- **Operational risk if p3+ slips:** the 18 partitions exhaust on 2027-11. If the auto-create cron is not landed by then, inserts will start failing. Set a calendar reminder for 2027-09 to (a) check cron landed or (b) hand-add 6 more partitions as a stopgap.
+
+### Design locks reaffirmed
+
+- **REVOKE ALL** in every RLS block on the 8 new tables (matches `02_identity` template + §6.3 canonical form).
+- **No FORCE ROW LEVEL SECURITY** on any new table (service-role seed must bypass; per p1-regions-seed lock).
+- **AuditLog immutability**: enforced by trigger (`SECURITY INVOKER`, raises P0001), not by REVOKE — the REVOKE is the same as other tenant-scoped tables; the trigger is the additional layer that blocks all roles incl. service-role.
+- **Composite-FK pattern §6.4 unchanged**: only RLS-critical join tables get composite FKs. None of the 8 new tables are join tables; cross-row FKs are single-col with tenant alignment via `tenantId` denorm + app-layer guard.
+
+### Operational caveat: ExportJob.requestedByUserId RESTRICT
+
+Per pre-build reviewer Risk-H — RESTRICT means a User with any ExportJob row (including old EXPIRED ones) cannot be hard-deleted. §16.1a does **not** yet list an `export_job.cleanup` cron, so EXPIRED rows accumulate indefinitely until that cron lands in `p3+`. PDP erasure (§4.4) uses redact-not-delete and does NOT trigger this path. The only realistic trigger is admin user purge, currently out of MVP scope. Document for the future user-management cycle: clean up ExportJob rows before any User hard-delete.
+
+### Rollback plan
+
+If the migrations cause a production incident:
+
+1. **Code rollback** — revert the staging → main PR via `git revert` and re-deploy. Schema migrations are NOT auto-rolled-back by code revert.
+2. **Schema rollback (last resort)** — `06` and `16` are additive (no column drops, no column-type changes). Manual rollback DDL (run via `supabase db sql`):
+   ```sql
+   DROP TABLE "Holiday" CASCADE;
+   DROP TABLE "OrgConfig" CASCADE;
+   DROP TABLE "WebhookEvent" CASCADE;
+   DROP TABLE "EmailLog" CASCADE;
+   DROP TABLE "ExportJob" CASCADE;
+   DROP TABLE "FileAsset" CASCADE;
+   DROP TYPE "ExportJobStatus";
+   DROP TYPE "ExportFormat";
+   DROP TYPE "FileStatus";
+   DROP TYPE "FileKind";
+
+   DROP TABLE "TimelineEvent" CASCADE;
+   DROP TRIGGER "audit_log_block_delete" ON "AuditLog";
+   DROP TRIGGER "audit_log_block_update" ON "AuditLog";
+   DROP FUNCTION audit_log_block_update_delete();
+   DROP TABLE "AuditLog" CASCADE;  -- cascades to all 18 partition tables
+   DROP TYPE "TimelineVisibility";
+   DROP TYPE "AuditAction";
+
+   DELETE FROM _prisma_migrations
+     WHERE migration_name IN ('06_audit_timeline', '16_scaffold');
+   ```
+   Then re-deploy the previous Next.js build that doesn't reference the new tables. Future cycles that reference these tables (`p1-scaffold-engine-skeleton` AuditLog write middleware, `p2-students-guardians-household` PII annotation pass) will break until rollback is reverted.
+3. **Data loss risk:** zero in this cycle — no seeds populate the 8 new tables. The retention/cleanup crons that would mutate state are all deferred. Rolling back at any time before `p1-scaffold-engine-skeleton` lands has no data implications.
+
+### Drift notes for future `prisma migrate dev`
+
+If anyone runs `npx prisma migrate dev --create-only` against this schema (we don't — hand-written migrations + `migrate deploy` only), Prisma would generate slightly different SQL:
+
+- **OrgConfig.tenantId** would emit a separate `CREATE UNIQUE INDEX "OrgConfig_tenantId_key" ON "OrgConfig"("tenantId")` instead of the inline `tenantId TEXT NOT NULL UNIQUE` we use. Same effect; different DDL form.
+- **AuditLog partitioning** is invisible to Prisma's introspection — `migrate dev` would generate a non-partitioned CREATE TABLE. Hand-written migration is the source of truth; do not rely on `migrate dev` for this cycle's tables.
+- **Append-only trigger** is invisible to Prisma — `migrate dev` would not regenerate the function or triggers.
+
+If a future cycle needs to alter AuditLog or TimelineEvent shape, the migration MUST be hand-written following the `06_audit_timeline` template, not auto-generated.

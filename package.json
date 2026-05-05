@@ -12,7 +12,8 @@
     "typecheck": "npx prisma generate && tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "reseed:staging": "tsx --env-file-if-exists=.env.staging scripts/reseed-staging.ts"
+    "reseed:staging": "tsx --env-file-if-exists=.env.staging scripts/reseed-staging.ts",
+    "audit:redactor": "tsx scripts/generate-audit-redactor.ts"
   },
   "prisma": {},
   "dependencies": {
