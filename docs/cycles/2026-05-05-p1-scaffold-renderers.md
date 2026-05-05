@@ -10,19 +10,19 @@ Phase 1 follow-up cycle, carved off `p1-scaffold-engine-skeleton` (PR #184) per 
 
 ### Acceptance criteria
 
-- [ ] 14 new renderer files at `lib/scaffold/renderers/{textarea,number,decimal,currency,date,datetime,boolean,select,multiselect,email,phone,relation,file,enum}.tsx`. Each ≤ 60 lines per spec §5.1, **except `date.tsx` + `datetime.tsx` which may run up to 100 lines** (Popover + Calendar + open-state + ISO composition routinely exceeds 60; reviewer-acknowledged exception). Each consumes `FieldRendererProps` from `lib/scaffold/renderers/text.tsx` (re-exported via `field-renderer.ts`). RHF `Controller` already owns the form-page client boundary; renderers themselves are technically client modules whenever they wire `field.onChange`/`onBlur` event handlers — `'use client'` directive present on every interactive renderer (see Assumption 4 for the explicit list).
-- [ ] `FIELD_RENDERERS` registry in `field-renderer.ts` populated with all 15 kinds. `getRenderer(kind)` succeeds for every member of `FIELD_KINDS`. `MissingRendererError` class stays exported + thrown only for future-unknown kinds.
-- [ ] `lib/scaffold/__tests__/field-renderer.test.tsx` updates:
+- [x] 14 new renderer files at `lib/scaffold/renderers/{textarea,number,decimal,currency,date,datetime,boolean,select,multiselect,email,phone,relation,file,enum}.tsx`. Each ≤ 60 lines per spec §5.1, **except `date.tsx` + `datetime.tsx` which may run up to 100 lines** (Popover + Calendar + open-state + ISO composition routinely exceeds 60; reviewer-acknowledged exception). Each consumes `FieldRendererProps` from `lib/scaffold/renderers/text.tsx` (re-exported via `field-renderer.ts`). RHF `Controller` already owns the form-page client boundary; renderers themselves are technically client modules whenever they wire `field.onChange`/`onBlur` event handlers — `'use client'` directive present on every interactive renderer (see Assumption 4 for the explicit list).
+- [x] `FIELD_RENDERERS` registry in `field-renderer.ts` populated with all 15 kinds. `getRenderer(kind)` succeeds for every member of `FIELD_KINDS`. `MissingRendererError` class stays exported + thrown only for future-unknown kinds.
+- [x] `lib/scaffold/__tests__/field-renderer.test.tsx` updates:
   - Registry size assertion: 1 → 15 entries.
   - Remove the existing "leaves the other 14 kinds unimplemented" + "MissingRendererError for unimplemented kinds" + "error message references the follow-up cycle" tests (obsolete once registry is full). Replace with a "MissingRendererError still thrown for unknown kinds" guard via `getRenderer('BOGUS' as FieldKind)`.
   - +14 smoke tests (one per new renderer): minimal `FieldDef` variant + RHF-shaped `field` prop; assert no throw + expected primitive/component in DOM.
   - +2 round-trip format-on-blur tests for `currency.tsx` + `phone.tsx`. **Form-state contract: raw value, not formatted display.** `currency.tsx`: types `"1.500.000"` (or `"1500000"`) → blur → strip non-digits → `field.onChange("1500000")` (raw digit string); display layer renders `fmt.currency(Number("1500000"))` = `"Rp 1.500.000"` from a separate display state. `phone.tsx`: types `"08123456789"` → blur → strip-and-canonicalize via `fmt.phone`-style normalization → `field.onChange("+628123456789")` (canonical E.164-ish form, no spacing); display layer renders `fmt.phone(value)` = `"+62 812-3456-789"`. Test assertions check `field.onChange` was called with the **raw stored form** (digits-only for currency, `+62`-prefix-no-spaces for phone) — NOT the formatted display string. Prevents the destructive re-format loop.
-- [ ] `npm run scaffold:check` still exits 0 (no entities yet — fixture-only).
-- [ ] All gates green: `npx prisma generate`, `npm run build`, `npx vitest run`, `bash scripts/verify-rls-coverage.sh` (25/25), `bash scripts/verify-api-auth.sh` (2/2), `bash scripts/verify-pii-annotations.sh` (2/2), `npm run scaffold:check`.
-- [ ] Playwright skipped via `--pass-with-no-tests` (no UI route mounted; library-only). Same scaffold-cycle exception per CLAUDE.md.
-- [ ] Total scaffold test count ≥ 124 (cycle 6 baseline 109 + ~15 new this cycle).
-- [ ] Cycle doc all 6 sections filled. README ADR row updated noting "14 renderer impls filled; registry complete" (or new ADR row if §18.2 cap-aware).
-- [ ] Ship Notes record subagent dispatch results (batch composition + per-batch outcomes), per-renderer reviewer fixes, and remaining-deferral cycle status (`p1-audit-write-middleware`, `p1-upload-route-sharp`, `p1-timeline-registry`).
+- [x] `npm run scaffold:check` still exits 0 (no entities yet — fixture-only).
+- [x] All gates green: `npx prisma generate`, `npm run build`, `npx vitest run`, `bash scripts/verify-rls-coverage.sh` (25/25), `bash scripts/verify-api-auth.sh` (2/2), `bash scripts/verify-pii-annotations.sh` (2/2), `npm run scaffold:check`.
+- [x] Playwright skipped via `--pass-with-no-tests` (no UI route mounted; library-only). Same scaffold-cycle exception per CLAUDE.md.
+- [x] Total scaffold test count ≥ 124 (cycle 6 baseline 109 + ~15 new this cycle).
+- [x] Cycle doc all 6 sections filled. README ADR row updated noting "14 renderer impls filled; registry complete" (or new ADR row if §18.2 cap-aware).
+- [x] Ship Notes record subagent dispatch results (batch composition + per-batch outcomes), per-renderer reviewer fixes, and remaining-deferral cycle status (`p1-audit-write-middleware`, `p1-upload-route-sharp`, `p1-timeline-registry`).
 
 ### Non-goals
 
@@ -54,49 +54,49 @@ Phase 1 follow-up cycle, carved off `p1-scaffold-engine-skeleton` (PR #184) per 
 
 Annotations: **[parallel]** = subagent-friendly (independent input/output); **[sequential]** = depends on prior task output.
 
-- [ ] **T1 — Renderer batch A: text-like (3 renderers, parallel subagent dispatch)** [parallel]
+- [x] **T1 — Renderer batch A: text-like (3 renderers, parallel subagent dispatch)** [parallel]
   - `textarea.tsx` — Shadcn `Textarea`; honors `def.rows` + `def.maxLength` + `def.placeholder`.
   - `email.tsx` — `<Input type="email" inputMode="email">`.
   - `phone.tsx` — `<Input type="tel" inputMode="tel">`. Carries `'use client'`. Internal display state separate from `field.value`. On blur: strip non-digits, normalize to `+62`-prefixed digit-only canonical form (`"+628123456789"`), call `field.onChange(canonical)`. Display via `fmt.phone(value)` = `"+62 812-3456-789"`. Form state stores canonical, not formatted.
   - Acceptance: each file ≤ 60 lines; renders without throw against minimal `FieldDef`; smoke tests in T9.
 
-- [ ] **T2 — Renderer batch B: numeric (3 renderers, parallel subagent dispatch)** [parallel]
+- [x] **T2 — Renderer batch B: numeric (3 renderers, parallel subagent dispatch)** [parallel]
   - `number.tsx` — `<Input type="number" step="1">`; honors `def.min` / `def.max` / `def.step`. Stores as number on `onChange`.
   - `decimal.tsx` — `<Input type="number">` with `step={10 ** -(def.precision ?? 2)}`; honors `def.min` / `def.max` / `def.precision` (default 2).
   - `currency.tsx` — `<Input type="text" inputMode="numeric">` with prefix `Rp`. Carries `'use client'`. Internal display state separate from `field.value`. On focus: display = raw digits (e.g. `"1500000"`). On blur: strip non-digits, call `field.onChange(rawDigits)`, render display = `fmt.currency(Number(rawDigits), { showCents: def.showCents })`. Form state always digits-only string. Honors `def.showCents`.
   - Acceptance: each file ≤ 60 lines; smoke + round-trip blur tests in T9.
 
-- [ ] **T3 — Renderer batch C: date/time (2 renderers, parallel subagent dispatch)** [parallel]
+- [x] **T3 — Renderer batch C: date/time (2 renderers, parallel subagent dispatch)** [parallel]
   - `date.tsx` — Shadcn `Popover` + `Calendar`; outputs ISO date string (YYYY-MM-DD) on selection; uses `fmt.date` for displayed value. `'use client'`.
   - `datetime.tsx` — Same Popover + Calendar plus a time grid (hour `<Select>` + minute `<Select>`, 5-min step); outputs ISO datetime string; uses `fmt.dateTime`; Asia/Jakarta. `'use client'`.
   - **60-line cap relaxed to 100 for these two files** — Calendar (222 lines) + Popover composition + open state + ISO compose routinely exceeds 60. Reviewer-acknowledged exception, documented in Verification.
   - Acceptance: each file ≤ 100 lines; smoke tests in T9. Calendar primitive + format helpers reused, no new deps.
 
-- [ ] **T4 — Renderer batch D: option-list (3 renderers, parallel subagent dispatch)** [parallel]
+- [x] **T4 — Renderer batch D: option-list (3 renderers, parallel subagent dispatch)** [parallel]
   - `select.tsx` — Shadcn `Select`; `def.options` static; single-value string output.
   - `multiselect.tsx` — Shadcn `Combobox` + `Badge` chips; `def.options` static; outputs `string[]`. `'use client'`.
   - `enum.tsx` — Shadcn `Select` reading `def.enumName` + `def.options`; semantically distinct from `SELECT` to allow per-enum styling later (still uses Select primitive for now).
   - Acceptance: each file ≤ 60 lines; smoke tests in T9.
 
-- [ ] **T5 — Renderer: boolean** [parallel with T1-T4]
+- [x] **T5 — Renderer: boolean** [parallel with T1-T4]
   - `boolean.tsx` — Shadcn `Switch`; `def.trueLabel` / `def.falseLabel` (defaults "Aktif" / "Tidak aktif"). Stateless — value comes from `field.value`.
   - Acceptance: ≤ 60 lines; smoke test in T9.
 
-- [ ] **T6 — Renderer: relation (heavier, stand-alone)** [parallel with T1-T5]
+- [x] **T6 — Renderer: relation (heavier, stand-alone)** [parallel with T1-T5]
   - `relation.tsx` — async-load `Combobox` (from `components/ui/combobox.tsx`, 297-line custom Base-UI impl); `def.resource` + `def.labelField` drive search. Calls `/api/<resource>?q=…&limit=20` (best-effort fetch; renderer is unaware of consumer's API contract beyond `{ id, [labelField] }` shape). Outputs single ID string. `'use client'`.
   - Loading state ("Memuat …"), empty state ("Tidak ada hasil"), error state ("Gagal memuat") in Indonesian per voice.md.
   - Test skeleton (T9): `vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ items: [] }) }))` BEFORE render. Assert combobox trigger renders; do NOT `await` async effects (smoke only). Restore via `vi.unstubAllGlobals()` in afterEach.
   - Acceptance: ≤ 60 lines; smoke test passes per skeleton. Real consumer-API contract validated when first consumer mounts in p2.
 
-- [ ] **T7 — Renderer: file** [parallel with T1-T6]
+- [x] **T7 — Renderer: file** [parallel with T1-T6]
   - `file.tsx` — `<Input type="file">`; honors `def.accept` (passes to `accept` attribute) + `def.maxBytes` (client-side check on `onChange`). On overflow: drop the file (`field.onChange(null)`) AND surface an inline Indonesian error ("Berkas terlalu besar") via local error state rendered as `<p className="text-sm text-destructive">` below the input. No `console.warn` (not user-visible). Captures `File` object only this cycle — actual upload wiring deferred to `p1-upload-route-sharp`. `'use client'`.
   - Acceptance: ≤ 60 lines; smoke test renders input + simulates file selection within `maxBytes` (onChange called with File) and over-cap (onChange called with null + error message visible).
 
-- [ ] **T8 — Registry update + `MissingRendererError` retention** [sequential — depends T1-T7]
+- [x] **T8 — Registry update + `MissingRendererError` retention** [sequential — depends T1-T7]
   - Edit `lib/scaffold/field-renderer.ts`: import all 14 new renderers; populate `FIELD_RENDERERS` to include all 15 keys. `getRenderer` no longer throws for any registered kind. `MissingRendererError` stays exported (tested for future-unknown kinds).
   - Acceptance: TS compiles; `getRenderer(k)` returns a component for every `k` in `FIELD_KINDS`.
 
-- [ ] **T9 — Test sweep + 2 format-on-blur round-trip tests** [sequential — depends T8]
+- [x] **T9 — Test sweep + 2 format-on-blur round-trip tests** [sequential — depends T8]
   - Edit `lib/scaffold/__tests__/field-renderer.test.tsx`:
     - Bump registry size assertion 1 → 15.
     - Remove obsolete tests: "leaves the other 14 kinds unimplemented", "MissingRendererError for unimplemented kinds (NUMBER + RELATION)", "error message references the follow-up cycle".
@@ -107,7 +107,7 @@ Annotations: **[parallel]** = subagent-friendly (independent input/output); **[s
     - Update `hasRenderer` test cases: every `FIELD_KINDS` member now true; "BOGUS" still false.
   - Acceptance: `npx vitest run lib/scaffold/__tests__/field-renderer.test.tsx` green; total file ≥ 30 cases (was 16).
 
-- [ ] **T10 — End-of-cycle gate + cycle doc fill + README ADR row** [sequential, final]
+- [x] **T10 — End-of-cycle gate + cycle doc fill + README ADR row** [sequential, final]
   - Run gates: `npx prisma generate`, `npm run build`, `npx vitest run`, `bash scripts/verify-rls-coverage.sh`, `bash scripts/verify-api-auth.sh`, `bash scripts/verify-pii-annotations.sh`, `npm run scaffold:check`. Playwright skipped via `--pass-with-no-tests`.
   - Request `feature-dev:code-reviewer` review per CLAUDE.md `/build` end-of-cycle rule. Apply fixes inline.
   - Fill Implementation + Verification (record `design-system` cross-checks) + Ship Notes (subagent batch outcomes, per-batch reviewer fixes, deferred cycle status).
