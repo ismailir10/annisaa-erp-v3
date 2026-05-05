@@ -35,6 +35,12 @@ enum TenantBootstrapStatus {
   COMPLETE
 }
 
+// Cycle p1-regions-seed introduces RegencyType.
+enum RegencyType {
+  KABUPATEN
+  KOTA
+}
+
 // ── Tenant ───────────────────────────────────────────────────
 // Root entity. No tenantId on itself, no soft-delete (tenant termination is operational).
 
@@ -265,4 +271,60 @@ model RolePermission {
   @@id([roleId, permissionId, tenantId])
   @@index([tenantId])
   @@index([permissionId, tenantId])
+}
+
+// ── Regions (Indonesian administrative reference data) ───────
+// Per spec §4.1 row "Regions" + §4.2 enum RegencyType. Source: idn-area-data v4.0.1.
+// Non-tenant-scoped global reference data (no tenantId, no soft-delete, no audit-by).
+// BPS-code primary keys (deterministic). District uses CHAR(6) — idn-area-data ships
+// the older PPRRDD form, not Permendagri-137 PPRRDDD; padding to 7 would break the
+// Village(10) ⊃ District prefix chain. Documented in cycle 2026-05-05-p1-regions-seed.
+// RLS: public-read (authenticated + anon SELECT) — admission form /daftar lands p2.
+
+model Province {
+  id        String   @id @db.Char(2)
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamptz()
+  updatedAt DateTime @updatedAt @db.Timestamptz()
+
+  regencies Regency[]
+}
+
+model Regency {
+  id         String      @id @db.Char(4)
+  provinceId String      @db.Char(2)
+  name       String      @db.VarChar(255)
+  type       RegencyType
+  createdAt  DateTime    @default(now()) @db.Timestamptz()
+  updatedAt  DateTime    @updatedAt @db.Timestamptz()
+
+  province  Province   @relation(fields: [provinceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  districts District[]
+
+  @@index([provinceId])
+}
+
+model District {
+  id        String   @id @db.Char(6)
+  regencyId String   @db.Char(4)
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamptz()
+  updatedAt DateTime @updatedAt @db.Timestamptz()
+
+  regency  Regency   @relation(fields: [regencyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  villages Village[]
+
+  @@index([regencyId])
+}
+
+model Village {
+  id         String   @id @db.Char(10)
+  districtId String   @db.Char(6)
+  name       String   @db.VarChar(255)
+  createdAt  DateTime @default(now()) @db.Timestamptz()
+  updatedAt  DateTime @updatedAt @db.Timestamptz()
+
+  district District @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([districtId])
 }
