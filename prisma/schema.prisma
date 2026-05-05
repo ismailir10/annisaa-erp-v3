@@ -41,6 +41,22 @@ enum RegencyType {
   KOTA
 }
 
+// Cycle p1-employees-classes-sentra introduces SessionStatus + SessionTeacherRole
+// per spec §4.2 + §4.5 critical pattern (PRIMARY/SUBSTITUTE/SENTRA/ASSISTANT).
+enum SessionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum SessionTeacherRole {
+  PRIMARY
+  SUBSTITUTE
+  SENTRA
+  ASSISTANT
+}
+
 // ── Tenant ───────────────────────────────────────────────────
 // Root entity. No tenantId on itself, no soft-delete (tenant termination is operational).
 
@@ -59,6 +75,10 @@ model Tenant {
   users         User[]
   roles         Role[]
   permissions   Permission[]
+  employees     Employee[]
+  classSections ClassSection[]
+  sentras       Sentra[]
+  classSessions ClassSession[]
 }
 
 // ── Campus ───────────────────────────────────────────────────
@@ -78,8 +98,13 @@ model Campus {
   deletedAt   DateTime? @db.Timestamptz()
   deletedById String?
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant              Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeAssignments EmployeeCampusAssignment[]
+  classSections       ClassSection[]
 
+  // Composite unique on (id, tenantId) backfilled in 03_employees migration.
+  // Required as FK target for EmployeeCampusAssignment composite-FK chain (§6.4).
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@index([tenantId, code])
 }
@@ -102,8 +127,13 @@ model Program {
   deletedAt      DateTime? @db.Timestamptz()
   deletedById    String?
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  headEmployee  Employee?      @relation("ProgramHead", fields: [headEmployeeId], references: [id], onDelete: SetNull)
+  classSections ClassSection[]
 
+  // Composite unique on (id, tenantId) backfilled in 04_classes migration.
+  // Required as FK target for ClassSection composite-FK chain (§6.4).
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@index([tenantId, code])
   @@index([headEmployeeId])
@@ -125,9 +155,13 @@ model AcademicYear {
   deletedAt   DateTime? @db.Timestamptz()
   deletedById String?
 
-  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  terms  AcademicTerm[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  terms         AcademicTerm[]
+  classSections ClassSection[]
 
+  // Composite unique on (id, tenantId) backfilled in 04_classes migration.
+  // Required as FK target for ClassSection composite-FK chain (§6.4).
+  @@unique([id, tenantId])
   @@unique([tenantId, name])
   @@index([tenantId])
 }
@@ -150,9 +184,15 @@ model AcademicTerm {
   updatedAt      DateTime @updatedAt @db.Timestamptz()
   updatedById    String?
 
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYear     AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  teachingDefaults TeachingDefault[]
+  sentraRotations  SentraRotation[]
+  classSessions    ClassSession[]
 
+  // Composite unique on (id, tenantId) backfilled in 04_classes migration.
+  // Required as FK target for TeachingDefault / SentraRotation / ClassSession composite-FK chains (§6.4).
+  @@unique([id, tenantId])
   @@unique([tenantId, academicYearId, code])
   @@index([tenantId])
   @@index([academicYearId])
@@ -327,4 +367,258 @@ model Village {
   district District @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([districtId])
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Cycle p1-employees-classes-sentra (foundation spec §6.1 mig 03+04+05)
+// ════════════════════════════════════════════════════════════════════════
+
+// ── Employee ─────────────────────────────────────────────────
+// Staff record. supabaseUserId / googleSubjectId mirror User for OAuth bind
+// post-`p1-auth-google-oauth`. NIK = Indonesian national ID (PII, hashable;
+// 16-digit format). jobTitle inline VARCHAR(50) — JobTitle catalog deferred
+// per spec §4.3 catalog list (MVP excludes JobTitle).
+
+model Employee {
+  id              String    @id @default(cuid())
+  tenantId        String
+  email           String    @db.VarChar(255)
+  name            String    @db.VarChar(255)
+  nik             String?   @db.VarChar(16) /// @PII redact
+  phone           String?   @db.VarChar(20)
+  jobTitle        String?   @db.VarChar(50)
+  supabaseUserId  String?   @db.VarChar(255)
+  googleSubjectId String?   @db.VarChar(255)
+  isActive        Boolean   @default(true)
+  hiredAt         DateTime? @db.Date
+  terminatedAt    DateTime? @db.Date
+  version         Int       @default(0)
+  createdAt       DateTime  @default(now()) @db.Timestamptz()
+  createdById     String?
+  updatedAt       DateTime  @updatedAt @db.Timestamptz()
+  updatedById     String?
+  deletedAt       DateTime? @db.Timestamptz()
+  deletedById     String?
+
+  tenant               Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusAssignments    EmployeeCampusAssignment[]
+  walasOfClassSections ClassSection[]             @relation("ClassSectionWalas")
+  teachingDefaults     TeachingDefault[]
+  sessionTeachers      SessionTeacher[]
+  headOfPrograms       Program[]                  @relation("ProgramHead")
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, supabaseUserId])
+  @@index([tenantId, googleSubjectId])
+  @@index([tenantId, isActive])
+}
+
+// ── EmployeeCampusAssignment ─────────────────────────────────
+// Composite-FK join per §6.4. Tracks which campus(es) an employee works at +
+// optional campus-level role. Cascade on Employee/Campus delete (assignment
+// has no meaning without parent). No soft-delete — historical assignments
+// captured via endDate, hard-delete is a data correction.
+
+model EmployeeCampusAssignment {
+  employeeId  String
+  campusId    String
+  tenantId    String
+  role        String?   @db.VarChar(50)
+  isPrimary   Boolean   @default(true)
+  startDate   DateTime  @db.Date
+  endDate     DateTime? @db.Date
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+
+  employee Employee @relation(fields: [employeeId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  campus   Campus   @relation(fields: [campusId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([employeeId, campusId, tenantId])
+  @@index([tenantId])
+  @@index([campusId, tenantId])
+}
+
+// ── ClassSection ─────────────────────────────────────────────
+// A class within a Program for a given AcademicYear at a given Campus.
+// walasEmployeeId is single-col FK SET NULL (column FK, not join table —
+// composite reserved for join tables per §6.4). Tenant alignment enforced
+// app-layer via ClassSection.tenantId denorm.
+// `version Int` shipped now ahead of `17_version_triggers` migration per §4.4.
+
+model ClassSection {
+  id              String    @id @default(cuid())
+  tenantId        String
+  programId       String
+  academicYearId  String
+  campusId        String
+  walasEmployeeId String?
+  code            String    @db.VarChar(50)
+  name            String    @db.VarChar(255)
+  displayOrder    Int       @default(0)
+  capacity        Int?
+  version         Int       @default(0)
+  createdAt       DateTime  @default(now()) @db.Timestamptz()
+  createdById     String?
+  updatedAt       DateTime  @updatedAt @db.Timestamptz()
+  updatedById     String?
+  deletedAt       DateTime? @db.Timestamptz()
+  deletedById     String?
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  program          Program           @relation(fields: [programId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  academicYear     AcademicYear      @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  campus           Campus            @relation(fields: [campusId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  walas            Employee?         @relation("ClassSectionWalas", fields: [walasEmployeeId], references: [id], onDelete: SetNull)
+  teachingDefaults TeachingDefault[]
+  sentraRotations  SentraRotation[]
+  classSessions    ClassSession[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, programId])
+  @@index([tenantId, academicYearId])
+  @@index([tenantId, campusId])
+  @@index([walasEmployeeId])
+}
+
+// ── Sentra ───────────────────────────────────────────────────
+// Catalog table per spec §4.3 (PAUD learning-center category — Persiapan,
+// Balok, Bahan Alam, Main Peran, Seni, Imtaq, Memasak, Olah Tubuh).
+// SYSTEM-seeded; admin can extend in v1.1+.
+
+model Sentra {
+  id           String        @id @default(cuid())
+  tenantId     String
+  code         String        @db.VarChar(50)
+  name         String        @db.VarChar(255)
+  source       CatalogSource @default(SYSTEM)
+  displayOrder Int           @default(0)
+  createdAt    DateTime      @default(now()) @db.Timestamptz()
+  createdById  String?
+  updatedAt    DateTime      @updatedAt @db.Timestamptz()
+  updatedById  String?
+  deletedAt    DateTime?     @db.Timestamptz()
+  deletedById  String?
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  teachingDefaults TeachingDefault[]
+  sentraRotations  SentraRotation[]
+  classSessions    ClassSession[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+}
+
+// ── TeachingDefault ──────────────────────────────────────────
+// Composite-FK join per §6.4. Default sentra-teacher mapping per (class ×
+// sentra × term). Overwritten per term — no soft-delete. Cascade on parent
+// delete invalidates the mapping.
+
+model TeachingDefault {
+  classSectionId String
+  academicTermId String
+  sentraId       String
+  employeeId     String
+  tenantId       String
+  createdAt      DateTime @default(now()) @db.Timestamptz()
+  createdById    String?
+
+  classSection ClassSection @relation(fields: [classSectionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  academicTerm AcademicTerm @relation(fields: [academicTermId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  sentra       Sentra       @relation(fields: [sentraId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([classSectionId, academicTermId, sentraId, tenantId])
+  @@index([tenantId])
+  @@index([employeeId, tenantId])
+  @@index([sentraId, tenantId])
+  @@index([academicTermId, tenantId])
+}
+
+// ── SentraRotation ───────────────────────────────────────────
+// Composite-FK join per §6.4. Week-grid mapping (class × dayOfWeek × term →
+// sentra). dayOfWeek ISO 8601 (Mon=1 … Sun=7). No soft-delete — overwritten
+// per term.
+
+model SentraRotation {
+  classSectionId String
+  dayOfWeek      Int
+  academicTermId String
+  sentraId       String
+  tenantId       String
+  createdAt      DateTime @default(now()) @db.Timestamptz()
+  createdById    String?
+
+  classSection ClassSection @relation(fields: [classSectionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  academicTerm AcademicTerm @relation(fields: [academicTermId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  sentra       Sentra       @relation(fields: [sentraId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([classSectionId, dayOfWeek, academicTermId, tenantId])
+  @@index([tenantId])
+  @@index([sentraId, tenantId])
+  @@index([academicTermId, tenantId])
+}
+
+// ── ClassSession ─────────────────────────────────────────────
+// One per class-day per AcademicTerm. status enum tracks operational
+// lifecycle. sentraId is denorm of effective sentra (derived from
+// SentraRotation but stored for query efficiency + override). No soft-delete
+// (operational record). Restrict on ClassSection delete — admin must archive
+// section before sessions can be removed.
+// `version Int` shipped now ahead of `17_version_triggers` per §4.4.
+
+model ClassSession {
+  id             String        @id @default(cuid())
+  tenantId       String
+  classSectionId String
+  academicTermId String
+  sessionDate    DateTime      @db.Date
+  dayOfWeek      Int
+  sentraId       String?
+  status         SessionStatus @default(PLANNED)
+  startedAt      DateTime?     @db.Timestamptz()
+  completedAt    DateTime?     @db.Timestamptz()
+  notes          String?       @db.VarChar(2000)
+  version        Int           @default(0)
+  createdAt      DateTime      @default(now()) @db.Timestamptz()
+  createdById    String?
+  updatedAt      DateTime      @updatedAt @db.Timestamptz()
+  updatedById    String?
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  classSection    ClassSection     @relation(fields: [classSectionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  academicTerm    AcademicTerm     @relation(fields: [academicTermId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  sentra          Sentra?          @relation(fields: [sentraId], references: [id], onDelete: SetNull)
+  sessionTeachers SessionTeacher[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, sessionDate])
+  @@index([tenantId, classSectionId, sessionDate])
+  @@index([tenantId, status])
+  @@index([sentraId, tenantId])
+}
+
+// ── SessionTeacher ───────────────────────────────────────────
+// Composite-FK join per §6.4. Cascade on session/employee delete per §4.4
+// "Cascade for owned children (SessionTeacher, UserRole)". role enum
+// PRIMARY/SUBSTITUTE/SENTRA/ASSISTANT per spec §4.5. Single-PRIMARY-per-
+// session enforced via partial unique index in 05_sessions migration
+// (DSL doesn't express partial uniques).
+
+model SessionTeacher {
+  sessionId   String
+  employeeId  String
+  role        SessionTeacherRole
+  tenantId    String
+  assignedAt  DateTime           @default(now()) @db.Timestamptz()
+  createdById String?
+
+  session  ClassSession @relation(fields: [sessionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  employee Employee     @relation(fields: [employeeId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([sessionId, employeeId, role, tenantId])
+  @@index([tenantId])
+  @@index([employeeId, tenantId])
 }

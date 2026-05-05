@@ -1,0 +1,180 @@
+# Phase 1 Cycle 4 — Employees + Classes + Sentra + Sessions
+
+**Type:** schema
+**Phase:** p1
+**Parent spec:** [foundation-design](../superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md) §6.1 migrations 03+04+05 + §6.2 seed 07-sentra + §4.1 Org/Classes/Sessions/Sentra rows + §4.2 SessionStatus + SessionTeacherRole enums + §4.5 ClassSession critical pattern + §6.3 RLS strategy + §6.4 composite-FK pattern + §18.1 phase 1 cycle 4
+
+## Context
+
+Implements the staff + class + session foundation per foundation spec §18.1 phase 1 cycle 4 — three migrations (`03_employees`, `04_classes`, `05_sessions`) + one seed (`07-sentra.ts`). Lands the 8 models that the per-actor journey scaffolding (Phase 2+) needs as RLS-protected building blocks: `Employee`, `EmployeeCampusAssignment`, `ClassSection`, `TeachingDefault`, `Sentra`, `SentraRotation`, `ClassSession`, `SessionTeacher`. Builds on `p1-regions-seed` (PR #181, staging tip d507662). Migrations 00 + 01 + 02 + 09 live; seeds 00-06 + 01-regions live; RLS strict guard at 9/9; JWT hook function committed; 4 region tables on public-read RLS. Marathon mode per spec §18.12 — full brainstorm skipped, plan derived from spec sections inline. Cross-checked design-system.html: N/A (schema-only cycle, no frontend diff). UAT reports: N/A (pre-launch rebuild). Disk monitored — `cleanup-merged.sh --yes` removed merged `feat/p1-regions-seed` worktree before start (the only safe candidate per startup hook); ~1.3Gi free at start, all gates expected to fit comfortably.
+
+**§18.2 single-migration cap override:** This cycle ships **3 migrations** (03 + 04 + 05) — permitted by §18.1's explicit pre-allocation of those numbered slots to this cycle, overriding §18.2's general one-migration-per-cycle cap. The three are tightly coupled (Employee → ClassSection → ClassSession FK chain) and splitting would create awkward intermediate states.
+
+**Migration-numbering decision:** foundation spec §6.1 reserves slots `03_employees`, `04_classes`, `05_sessions` in numeric order. `09_regions` already landed ahead of slot order in the previous cycle (split out of original `09_addresses` per `p1-regions-seed` ship notes). This cycle keeps the spec numbering — Prisma applies migrations alphabetically by directory name, and `03` < `04` < `05` < `09` so the on-top-of-09 application is unambiguous. No further numbering reconciliation needed.
+
+## Spec
+
+Acceptance criteria:
+
+- [ ] `prisma/schema.prisma` adds **8 new models** + **2 new Postgres enums**:
+  - Models: `Employee`, `EmployeeCampusAssignment`, `ClassSection`, `TeachingDefault`, `Sentra`, `SentraRotation`, `ClassSession`, `SessionTeacher`.
+  - Enums: `SessionStatus` (`PLANNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`) + `SessionTeacherRole` (`PRIMARY`, `SUBSTITUTE`, `SENTRA`, `ASSISTANT`) — `SessionTeacherRole` members lifted verbatim from spec §4.5 critical pattern "Class Session co-teacher: ClassSession + SessionTeacher junction (PRIMARY/SUBSTITUTE/SENTRA/ASSISTANT)".
+
+- [ ] **Migration `03_employees/migration.sql`** (hand-written, ≤200 lines) — applies on top of `02_identity` + `09_regions`:
+  - 2 `CREATE TABLE`: `Employee` + `EmployeeCampusAssignment`.
+  - `Employee` shape (tenant-scoped, soft-delete, audit columns per §4.4): `id @default(cuid())`, `tenantId`, `email VARCHAR(255)`, `name VARCHAR(255)`, `nik VARCHAR(16)?` (NIK = Indonesian national ID, hashable PII), `phone VARCHAR(20)?`, `jobTitle VARCHAR(50)?` **(plain VARCHAR — no JobTitle catalog this cycle, see Assumptions)**, `supabaseUserId VARCHAR(255)?` + `googleSubjectId VARCHAR(255)?` (mirrors `User` for OAuth binding via `p1-auth-google-oauth`), `isActive BOOLEAN DEFAULT true`, `hiredAt @db.Date?`, `terminatedAt @db.Date?`, full audit (`createdAt`/`createdById`/`updatedAt`/`updatedById`/`deletedAt`/`deletedById`).
+  - `EmployeeCampusAssignment` shape (composite-FK join per §6.4, no soft-delete): `(employeeId, campusId, tenantId)` composite PK; `role VARCHAR(50)?` (campus-level role like "kepala_sekolah" / "wakil"); `isPrimary BOOLEAN DEFAULT true`; `startDate @db.Date`; `endDate @db.Date?`; `createdAt` + `createdById` only.
+  - Composite uniques on `(id, tenantId)` for `Employee` (FK target — required because `EmployeeCampusAssignment` joins on `(employeeId, tenantId)`, and future `SessionTeacher` joins on `(employeeId, tenantId)`).
+  - Lookup indexes: `Employee_tenantId_idx`, `Employee_tenantId_supabaseUserId_idx`, `Employee_tenantId_googleSubjectId_idx`, `Employee_tenantId_isActive_idx`, `EmployeeCampusAssignment_tenantId_idx`, `EmployeeCampusAssignment_campusId_tenantId_idx`.
+  - Partial uniques (`WHERE deletedAt IS NULL` per §4.4): `employee_email_active_unique` ON `Employee(tenantId, email)`, `employee_nik_active_unique` ON `Employee(tenantId, nik) WHERE deletedAt IS NULL AND nik IS NOT NULL`.
+  - FKs: `Employee.tenantId → Tenant(id) ON DELETE RESTRICT`; **composite** `EmployeeCampusAssignment.(employeeId, tenantId) → Employee(id, tenantId) ON DELETE CASCADE`; **composite** `EmployeeCampusAssignment.(campusId, tenantId) → Campus(id, tenantId) ON DELETE CASCADE`.
+  - **Composite unique on `Campus(id, tenantId)` ALSO landed in this migration** as a backfill — `01_tenancy` shipped Campus before the §6.4 composite-FK pattern was active (cycle 2 added it for User/Role/Permission only). Adding `CREATE UNIQUE INDEX "Campus_id_tenantId_key"` here lets `EmployeeCampusAssignment` reference Campus via composite FK without rewriting `01_tenancy`. Same justification noted in the migration header.
+  - **`Program.headEmployeeId` FK wired up** — `01_tenancy` declared `Program.headEmployeeId String?` without an FK constraint (Employee table didn't exist yet). This migration adds `ALTER TABLE "Program" ADD CONSTRAINT "Program_headEmployeeId_fkey" FOREIGN KEY ("headEmployeeId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE CASCADE`. Single-col FK (not composite — `headEmployeeId` is a column on Program, not a join row); tenant alignment enforced app-layer.
+
+- [ ] **Migration `04_classes/migration.sql`** (hand-written, ≤220 lines) — applies on top of `03_employees`:
+  - 4 `CREATE TABLE`: `ClassSection`, `TeachingDefault`, `Sentra`, `SentraRotation`.
+  - `ClassSection` shape (tenant-scoped, soft-delete, audit per §4.4, **versioned per §4.4** — `version Int DEFAULT 0`): `tenantId`, `programId`, `academicYearId`, `campusId`, `walasEmployeeId String?` (single-col FK), `code VARCHAR(50)`, `name VARCHAR(255)`, `displayOrder INT DEFAULT 0`, `capacity INT?`. Composite unique `(id, tenantId)` for FK targets (TeachingDefault/SentraRotation/ClassSession all join on `(classSectionId, tenantId)`).
+  - `Sentra` shape (catalog table per §4.3, tenant-scoped, soft-delete): `tenantId`, `code VARCHAR(50)`, `name VARCHAR(255)`, `source CatalogSource DEFAULT SYSTEM`, `displayOrder INT DEFAULT 0`. Composite unique `(id, tenantId)` for FK target. (`CatalogSource` enum already exists from `02_identity` — no new enum needed.)
+  - `TeachingDefault` shape (composite-FK join per §6.4, **no soft-delete** — overwrite per term): `(classSectionId, academicTermId, sentraId, tenantId)` composite PK; `employeeId String` (assigned sentra teacher); `createdAt` + `createdById` only. Composite FK chain to ClassSection / AcademicTerm / Sentra / Employee on `(*, tenantId)`. Cascade on parent delete.
+  - `SentraRotation` shape (composite-FK join per §6.4, no soft-delete): `(classSectionId, dayOfWeek, academicTermId, tenantId)` composite PK; `sentraId String`; `createdAt` + `createdById`. `dayOfWeek INT NOT NULL CHECK (dayOfWeek BETWEEN 1 AND 7)` (ISO 8601 week — Mon=1, Sun=7). Composite FKs to ClassSection / AcademicTerm / Sentra on `(*, tenantId)`. Cascade on parent delete.
+  - **`AcademicTerm` composite unique backfill** — `(id, tenantId)` index added in this migration (same justification as Campus in `03_employees`: `02_identity` retroactively RLS'd AcademicTerm but didn't add the composite unique because UserRole/RolePermission didn't reference it).
+  - Composite unique on `Program(id, tenantId)` and `AcademicYear(id, tenantId)` ALSO added — `ClassSection` references both. `Program` already has `@@index([tenantId])` from `01_tenancy` but no `(id, tenantId)` unique.
+  - Partial uniques: `class_section_code_active_unique` ON `ClassSection(tenantId, academicYearId, code) WHERE deletedAt IS NULL`; `sentra_code_active_unique` ON `Sentra(tenantId, code) WHERE deletedAt IS NULL`.
+  - Lookup indexes per child FK column (tenantId-prefixed for RLS-friendly seek): `ClassSection_tenantId_idx`, `ClassSection_tenantId_programId_idx`, `ClassSection_tenantId_academicYearId_idx`, `ClassSection_tenantId_campusId_idx`, `ClassSection_walasEmployeeId_idx`, `Sentra_tenantId_idx`, `TeachingDefault_tenantId_idx`, `TeachingDefault_employeeId_tenantId_idx`, `TeachingDefault_sentraId_tenantId_idx`, `SentraRotation_tenantId_idx`, `SentraRotation_sentraId_tenantId_idx`.
+  - FKs: composite `(classSectionId, tenantId) → ClassSection(id, tenantId) ON DELETE CASCADE` on all 3 join tables. Composite `(academicTermId, tenantId) → AcademicTerm(id, tenantId) ON DELETE CASCADE` on TeachingDefault + SentraRotation. Composite `(sentraId, tenantId) → Sentra(id, tenantId) ON DELETE CASCADE` on TeachingDefault + SentraRotation. Composite `(employeeId, tenantId) → Employee(id, tenantId) ON DELETE CASCADE` on TeachingDefault. ClassSection FKs: `(programId, tenantId) → Program(id, tenantId)` Restrict; `(academicYearId, tenantId) → AcademicYear(id, tenantId)` Restrict; `(campusId, tenantId) → Campus(id, tenantId)` Restrict; `walasEmployeeId → Employee(id) ON DELETE SET NULL` (single-col, no tenantId in FK because the column is single-col; tenant alignment enforced app-layer + ClassSection.tenantId denorm).
+
+- [ ] **Migration `05_sessions/migration.sql`** (hand-written, ≤120 lines) — applies on top of `04_classes`:
+  - 1 `CREATE TYPE`: `SessionStatus` enum (`PLANNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`).
+  - 1 `CREATE TYPE`: `SessionTeacherRole` enum (`PRIMARY`, `SUBSTITUTE`, `SENTRA`, `ASSISTANT`).
+  - 2 `CREATE TABLE`: `ClassSession` + `SessionTeacher`.
+  - `ClassSession` shape (tenant-scoped, no soft-delete — sessions are operational instances, not catalog; **versioned per §4.4** — `version Int DEFAULT 0`): `tenantId`, `classSectionId`, `academicTermId`, `sessionDate @db.Date`, `dayOfWeek INT CHECK (dayOfWeek BETWEEN 1 AND 7)`, `sentraId String?` (denorm of effective sentra for this session — derived from SentraRotation but stored for query efficiency + override), `status SessionStatus DEFAULT 'PLANNED'`, `startedAt TIMESTAMPTZ?`, `completedAt TIMESTAMPTZ?`, `notes VARCHAR(2000)?`. Composite unique `(id, tenantId)` for FK target (SessionTeacher joins on `(sessionId, tenantId)`).
+  - `SessionTeacher` shape (composite-FK join per §6.4, no soft-delete — cascade on session delete per §4.4): `(sessionId, employeeId, role, tenantId)` composite PK; `assignedAt TIMESTAMPTZ DEFAULT now()`; `createdById String?`. Composite FKs to ClassSession + Employee on `(*, tenantId)`, both Cascade.
+  - Partial unique: `class_session_class_date_active_unique` ON `ClassSession(tenantId, classSectionId, sessionDate)` — one session per class per day (no `WHERE` clause needed since ClassSession has no soft-delete).
+  - Partial unique: `session_teacher_primary_unique` ON `SessionTeacher(sessionId, tenantId) WHERE role = 'PRIMARY'` — at most one PRIMARY teacher per session. Operationally important; protects against future cron bug (p5 materializer) silently creating duplicates.
+  - Lookup indexes: `ClassSession_tenantId_idx`, `ClassSession_tenantId_sessionDate_idx`, `ClassSession_tenantId_classSectionId_sessionDate_idx`, `ClassSession_tenantId_status_idx`, `ClassSession_sentraId_tenantId_idx`, `SessionTeacher_tenantId_idx`, `SessionTeacher_employeeId_tenantId_idx`.
+  - FKs: composite `(classSectionId, tenantId) → ClassSection(id, tenantId)` Restrict (don't cascade-delete sessions when class is soft-deleted; force admin to handle); composite `(academicTermId, tenantId) → AcademicTerm(id, tenantId)` Restrict; `sentraId → Sentra(id) ON DELETE SET NULL` (single-col FK — denorm column, tenant alignment app-layer); composite `SessionTeacher.(sessionId, tenantId) → ClassSession(id, tenantId)` Cascade; composite `SessionTeacher.(employeeId, tenantId) → Employee(id, tenantId)` Cascade.
+
+- [ ] **RLS policies** on every new tenant-scoped table per §6.3 + the **defense-in-depth REVOKE** pattern locked in by `p1-regions-seed`'s reviewer fix:
+  - Tables to RLS: `Employee`, `EmployeeCampusAssignment`, `ClassSection`, `TeachingDefault`, `Sentra`, `SentraRotation`, `ClassSession`, `SessionTeacher` (8 new tenant-scoped tables).
+  - Per table: `ALTER TABLE "X" ENABLE ROW LEVEL SECURITY` + `REVOKE ALL ON "X" FROM anon, authenticated` + `GRANT SELECT ON "X" TO authenticated` + `tenant_isolation_select` policy + `no_writes_via_postgrest` policy. **`REVOKE ALL` (not `REVOKE INSERT, UPDATE, DELETE, TRUNCATE`)** — matches `02_identity` template + §6.3 canonical form. The narrower form was used in `09_regions` for its public-read deviation only; tenant-scoped tables use `REVOKE ALL`. Test regex matches `REVOKE ALL ON "X" FROM anon, authenticated`.
+  - `tenant_isolation_select` USING clause includes `AND "deletedAt" IS NULL` only on tables that carry `deletedAt`: Employee, ClassSection, Sentra. **Omit** on join tables without soft-delete: EmployeeCampusAssignment, TeachingDefault, SentraRotation, ClassSession (no soft-delete by design — operational instance), SessionTeacher.
+  - **No `FORCE ROW LEVEL SECURITY`** on any table — design lock from `p1-regions-seed` (service-role seed must bypass). Migration headers reaffirm.
+
+- [ ] **Seed `prisma/seed/07-sentra.ts`** — 8 Sentra catalog rows, idempotent. Standard Indonesian PAUD sentra: `PERSIAPAN` / `BALOK` / `BAHAN_ALAM` / `MAIN_PERAN` / `SENI` / `IMTAQ` / `MEMASAK` / `OLAH_TUBUH` (codes UPPERCASE_SNAKE per §4.4 + Indonesian display names). `source=SYSTEM`. Upsert keyed on `(tenantId, code, deletedAt: null)` via findFirst-then-update / create (mirrors `03-programs.ts` since the unique is partial). Wired into `prisma/seed/index.ts` after `06-permissions`.
+
+- [ ] **Migration post-condition tests** at `prisma/migration-tests/{03-employees,04-classes,05-sessions}.test.ts` — static parse pattern matching `09-regions.test.ts`. Each file asserts per its migration:
+  - Enum creation (where applicable — `05_sessions` only).
+  - Table creation per spec.
+  - Required columns + types (NIK VarChar(16), VarChar widths per §4.4).
+  - Composite unique indexes on `(id, tenantId)` for FK-target tables.
+  - Composite-FK declarations on join tables: column count + reference + `ON DELETE`.
+  - Partial unique indexes per spec.
+  - Lookup indexes per spec.
+  - RLS coverage: ENABLE + REVOKE + GRANT SELECT + 2 policies per tenant-scoped table.
+  - **Absence of `FORCE ROW LEVEL SECURITY`** (design-lock test per `p1-regions-seed` precedent).
+  - **Schema-side guard:** parse `prisma/schema.prisma` and assert each new model **HAS** a `tenantId String` field (positive guard — these tables MUST be tenant-scoped, complement to `09-regions.test.ts`'s negative guard).
+  - `Program.headEmployeeId` FK presence test in `03-employees.test.ts` (`Program_headEmployeeId_fkey` REFERENCES Employee, ON DELETE SET NULL).
+  - Backfill composite-unique tests in `03-employees.test.ts` (Campus_id_tenantId_key) and `04-classes.test.ts` (Program / AcademicYear / AcademicTerm composite uniques).
+
+- [ ] **All gates green:**
+  - `npx prisma generate` + `npx prisma validate` clean.
+  - `npx prisma migrate deploy` applies 03 + 04 + 05 cleanly on top of 00 + 01 + 02 + 09 (alphabetical apply order = 00 → 01 → 02 → 03 → 04 → 05 → 09 ✓).
+  - `npx prisma db seed` × 2 idempotent — same row counts on second pass; `sentra: 8` post-seed.
+  - `npm run build` ✓.
+  - `npx vitest run` ✓ — adds ~3 new test files, target ~80-120 new cases total across the trio.
+  - `bash scripts/verify-rls-coverage.sh` exits 0 in **strict** mode at **17 / 17** (9 prior + 8 new tenant-scoped models). Strict-floor sanity guard (currently 5) unchanged.
+  - `bash scripts/verify-api-auth.sh` still 2/2.
+  - Playwright **skipped** per CLAUDE.md schema-cycle exception (`e2e/` empty, no UI). `/ship` invokes `npx playwright test --pass-with-no-tests` to satisfy the gate.
+
+- [ ] **Doc sync:** README ADR row "v2 employees + classes + sentra + sessions" added at top of active ADR table; minimal CLAUDE.md migration-list update for `03_employees`, `04_classes`, `05_sessions` + seed `07-sentra` per narrow doc-sync rule.
+
+- [ ] **Reviewer flags addressed inline:**
+  - Defense-in-depth `REVOKE ALL` in every RLS block (matches `02_identity` template + §6.3 canonical form; `09_regions` used the narrower `REVOKE INSERT, UPDATE, DELETE, TRUNCATE` form for its public-read deviation only — tenant-scoped tables use `REVOKE ALL`).
+  - No `FORCE ROW LEVEL SECURITY` anywhere (design lock from `p1-regions-seed`).
+  - Composite-FK pattern audit completed: composite FKs on EmployeeCampusAssignment / TeachingDefault / SentraRotation / SessionTeacher (RLS-critical join tables per §6.4 MVP rule). ClassSection.walasEmployeeId stays single-col (column FK, not join).
+  - **Single-PRIMARY-teacher-per-session DB constraint** (per pre-build reviewer IMPORTANT 2): `CREATE UNIQUE INDEX "session_teacher_primary_unique" ON "SessionTeacher" ("sessionId", "tenantId") WHERE "role" = 'PRIMARY'` in `05_sessions`. Test asserts presence in `05-sessions.test.ts`. Rationale: "primary teacher" semantically singular per session; without DB guard, `p5-class-session-materializer` cron bug could silently create duplicates.
+  - **Soft-delete/cascade gotcha documented for downstream consumers** (per pre-build reviewer IMPORTANT 3): `TeachingDefault.(employeeId, tenantId) → Employee` CASCADE fires only on hard-delete. After Employee soft-delete, TeachingDefault rows remain pointing to the soft-deleted employee. `p2-classes-management` + `p5-class-session-materializer` MUST JOIN Employee with `WHERE e.deletedAt IS NULL`. Same applies to `SentraRotation → Sentra`, `ClassSection.walasEmployeeId → Employee`. Not enforced at DB level by design — soft-delete is a logical state, not a referential one.
+
+Non-goals (deferred per spec §18.1):
+
+- `JobTitle` catalog table → spec §4.3 catalog list does NOT include JobTitle for MVP (only `Sentra, Role, Program, ScoringScale, CurriculumIndicator, HafalanItem, RaportSectionTemplate, FeeComponentDef`); inline `VARCHAR(50)` for now. v1.1+ admin-extensibility cycle may promote.
+- Auth callback / Google OAuth wiring → `p1-auth-google-oauth`. `Employee.supabaseUserId` + `googleSubjectId` columns ship NULL until that cycle binds them.
+- Classroom/teacher/admin UI for any of these models → Phase 2 `p2-classes-management` + Phase 5 teacher portal cycles.
+- Live-DB integrity tests in CI (Postgres service for the test job).
+- `SessionTeacher` rotation cron / substitute-assignment workflow → operational-journey cycle later.
+- Weekly `class_session.materialize` cron generating ClassSession rows from `TeachingDefault` + `SentraRotation` → Phase 5 `p5-class-session-materializer`.
+- Optimistic-concurrency `bump_version` triggers for ClassSection + ClassSession → `17_version_triggers` migration per spec §6.1.
+
+Assumptions:
+
+- **JobTitle:** plain `VARCHAR(50)` on Employee this cycle. Spec §4.3 catalog list omits JobTitle for MVP; §4.4 names it as a catalog example but no §6.1 migration slot or §6.2 seed allocates one. Promoting to catalog later requires (a) a `JobTitle` table migration and (b) a one-step `ALTER TABLE Employee` to convert the column to a FK — straightforward when needed. Cheaper to defer than to ship a half-empty catalog now.
+- **`SessionTeacherRole` members:** `PRIMARY` / `SUBSTITUTE` / `SENTRA` / `ASSISTANT` per spec §4.5 critical pattern verbatim. The user-prompt's draft `PRIMARY/ASSIST/SUBSTITUTE` is overridden by the spec.
+- **`SessionStatus` members:** `PLANNED` / `IN_PROGRESS` / `COMPLETED` / `CANCELLED` per user prompt + standard ERP enum hygiene. Spec §4.2 lists `SessionStatus` by name only — no exhaustive members. These 4 cover the operational lifecycle; future members (e.g. `RESCHEDULED`) can be added via additive `ALTER TYPE ... ADD VALUE`.
+- **8 Sentra catalog rows:** standard Indonesian PAUD sentra inferred from PAUD curriculum norms (no v1 reference data exists post-Phase-0 hard delete): `PERSIAPAN, BALOK, BAHAN_ALAM, MAIN_PERAN, SENI, IMTAQ, MEMASAK, OLAH_TUBUH`. If An Nisaa uses a different sentra naming convention, admin can soft-delete + add via `Sentra` admin UI when it lands (Phase 2). Codes locked UPPERCASE_SNAKE per §4.4 convention.
+- **`ClassSection.walasEmployeeId` is single-col FK with `ON DELETE SET NULL`:** walas (homeroom teacher) is a single column on ClassSection, not a join row. Composite FK is reserved for RLS-critical join tables per §6.4. Tenant alignment enforced by `ClassSection.tenantId` denorm + app-layer guard. Hard-delete of an Employee is rare (Employee uses soft-delete) but `SET NULL` keeps the class alive in audit history.
+- **`ClassSession.sentraId` is single-col FK with `ON DELETE SET NULL`:** denorm of effective sentra for query efficiency. Composite FK overkill (sentra rarely deleted; session is operational not RLS-load-bearing path). Sentra hard-delete clears the denorm; the session row stays.
+- **Composite FK backfill for Campus / Program / AcademicYear / AcademicTerm:** `01_tenancy` shipped these tables before the §6.4 composite-FK pattern was active. Adding the `(id, tenantId)` composite unique here (in 03 + 04) is a one-line `CREATE UNIQUE INDEX` per table — zero data movement, allows the new join tables to reference them without rewriting `01_tenancy`. No back-incompatible change. Documented in migration headers.
+- **`Program.headEmployeeId` FK wired up in `03_employees`:** `01_tenancy` declared the column without a constraint (Employee didn't exist). Wiring up now is correct ordering; no data exists yet (Program seed places `headEmployeeId = null` already).
+- **Cascade-delete semantics on join tables:** `EmployeeCampusAssignment` cascades on Employee/Campus delete (assignment is meaningless without parent). `TeachingDefault` + `SentraRotation` cascade on ClassSection / AcademicTerm / Sentra / Employee delete (default mappings invalidated). `SessionTeacher` cascades on ClassSession + Employee delete per §4.4. `ClassSession` itself is **Restrict** on ClassSection delete — operational record, force admin to handle by archiving the section first (it's soft-delete anyway).
+- **Soft-delete vs CASCADE asymmetry — downstream contract:** All `ON DELETE CASCADE` FKs (TeachingDefault → Employee, SentraRotation → Sentra, EmployeeCampusAssignment → Employee/Campus, SessionTeacher → Employee, etc.) fire ONLY on hard-delete. Employee/Sentra/ClassSection use soft-delete (`deletedAt`). After soft-delete, child rows remain pointing to the soft-deleted parent. **Downstream consumers MUST JOIN soft-deletable parents and filter `WHERE parent.deletedAt IS NULL`**; this contract is owed by `p2-classes-management`, `p5-class-session-materializer`, any admin reporting cycle. Not enforced at DB level by design — soft-delete is a logical state, not a referential one. Documented here once for the entire cycle's FK surface.
+- **`SentraRotation.dayOfWeek` uses ISO 8601 (Mon=1 … Sun=7):** matches `Date.prototype.getDay()` after the standard `+ 6) % 7 + 1` shift, but more importantly matches Postgres `extract(isodow from ...)`. CHECK constraint added at the table level.
+- **`ClassSession.dayOfWeek` is denorm of `extract(isodow from sessionDate)`:** stored for query efficiency (filter "all Monday classes for term"). App-layer must keep it consistent with sessionDate; future `bump_version` trigger can add a CHECK.
+- **`ClassSection.version` + `ClassSession.version` are present from day one:** spec §4.4 lists both as "versioned via Postgres trigger" entities. The `bump_version` trigger lands in `17_version_triggers` per §6.1, but the column must exist now or the trigger migration will need a back-edit. Cheap to add (`Int DEFAULT 0`).
+- **Subagent dispatch:** schema additions to `prisma/schema.prisma` happen first (single file, sequential). After schema lands clean, the 3 migrations + 3 test files could be authored in parallel via `superpowers:subagent-driven-development` (independent files). Practical call: keep sequential — three migrations + tests is small enough that parallel coordination overhead exceeds the saving, and a sequential pass lets `prisma migrate deploy` run after each migration to catch ordering bugs early. **Decision: sequential build, no subagent dispatch.**
+
+## Tasks
+
+1. **[x] Schema additions.**
+   Add 2 enums (`SessionStatus`, `SessionTeacherRole`) after `RegencyType`. Append 8 models in spec order: `Employee`, `EmployeeCampusAssignment`, `ClassSection`, `TeachingDefault`, `Sentra`, `SentraRotation`, `ClassSession`, `SessionTeacher`. Each model carries §4.4 conventions (audit columns where applicable, soft-delete via `deletedAt` only where applicable, composite uniques on `(id, tenantId)` for FK-target tables, version field on ClassSection + ClassSession). Add back-relations on `Tenant` (`employees`, `classSections`, `sentras`, `classSessions`), `Campus` (`employeeAssignments`, `classSections`), `Program` (`classSections` + `headEmployee` Employee? FK), `AcademicYear` (`classSections`), `AcademicTerm` (`classSessions`, `teachingDefaults`, `sentraRotations`), `Employee` (`campusAssignments`, `walasOfClassSections`, `teachingDefaults`, `sessionTeachers`, `headOfPrograms`), `ClassSection` (`teachingDefaults`, `sentraRotations`, `classSessions`, `walas Employee?`), `Sentra` (`teachingDefaults`, `sentraRotations`, `sessions`).
+   *Acceptance:* `npx prisma format` + `npx prisma validate` clean.
+
+2. **Author migration `03_employees/migration.sql`.**
+   Hand-written SQL following `02_identity` template (preserves Prisma index/constraint naming for non-drift on future `migrate dev --create-only`). Section order: 2 `CREATE TABLE` (Employee + EmployeeCampusAssignment), composite unique `(id, tenantId)` on Employee, **Campus composite-unique backfill** (`Campus_id_tenantId_key`), lookup indexes, partial uniques on Employee.email + Employee.nik (each `WHERE deletedAt IS NULL [AND nik IS NOT NULL]`), FK constraints (Tenant Restrict on Employee; composite Cascade on EmployeeCampusAssignment; **Program.headEmployeeId FK wired up** with SET NULL), RLS block per table (×2): ENABLE + REVOKE + GRANT SELECT + tenant_isolation_select policy (with `deletedAt IS NULL` only on Employee) + no_writes_via_postgrest policy. Header documents: defense-in-depth REVOKE rationale, no-FORCE design lock, JobTitle inline rationale, Campus backfill rationale, Program FK wire-up rationale.
+   *Acceptance:* `npx prisma migrate deploy` applies cleanly on top of `02_identity` + `09_regions`.
+
+3. **Author migration `04_classes/migration.sql`.**
+   Hand-written SQL following the same template. Section order: 4 `CREATE TABLE` (ClassSection, Sentra, TeachingDefault, SentraRotation — order matters: ClassSection + Sentra before the join tables that reference them), composite uniques on `(id, tenantId)` for ClassSection + Sentra + **Program / AcademicYear / AcademicTerm backfill**, lookup indexes, partial uniques on ClassSection.code + Sentra.code (`WHERE deletedAt IS NULL`), `dayOfWeek BETWEEN 1 AND 7` CHECK on SentraRotation, FK constraints (composite chain per §6.4: TeachingDefault/SentraRotation Cascade to all parents; ClassSection composite FKs to Program/AcademicYear/Campus Restrict; ClassSection.walasEmployeeId single-col SET NULL), RLS block per table (×4) with `deletedAt IS NULL` only on ClassSection + Sentra. Header documents Program/AcademicYear/AcademicTerm composite-unique backfill rationale.
+   *Acceptance:* `npx prisma migrate deploy` applies cleanly on top of `03_employees`.
+
+4. **Author migration `05_sessions/migration.sql`.**
+   Hand-written SQL. Section order: 2 `CREATE TYPE` (SessionStatus, SessionTeacherRole), 2 `CREATE TABLE` (ClassSession + SessionTeacher), composite unique `(id, tenantId)` on ClassSession, lookup indexes, partial unique `class_session_class_date_active_unique` on (tenantId, classSectionId, sessionDate), `dayOfWeek BETWEEN 1 AND 7` CHECK on ClassSession, FK constraints (ClassSession composite to ClassSection/AcademicTerm Restrict; ClassSession.sentraId single-col SET NULL; SessionTeacher composite to ClassSession/Employee Cascade), RLS block per table (×2) with no `deletedAt IS NULL` clause (neither table has soft-delete).
+   *Acceptance:* `npx prisma migrate deploy` applies cleanly on top of `04_classes`.
+
+5. **Seed `07-sentra.ts` + wire orchestrator.**
+   `prisma/seed/07-sentra.ts` exports `SYSTEM_SENTRA` const (8 entries) + `seedSentra(prisma, tenantId)` using findFirst-then-update / create against `(tenantId, code, deletedAt: null)` (mirrors `05-system-roles.ts`). Each row: `code` (UPPERCASE_SNAKE), `name` (Indonesian display — "Sentra Persiapan" etc.), `source: 'SYSTEM'`, `displayOrder` 10/20/.../80. Wire into `prisma/seed/index.ts` after `06-permissions`.
+   *Acceptance:* `npx prisma db seed` runs twice; second pass identical row counts; `prisma.sentra.count() === 8`.
+
+6. **Migration post-condition tests (3 files).**
+   Three test files mirroring `09-regions.test.ts` static-parse pattern:
+   - `prisma/migration-tests/03-employees.test.ts`: enum N/A (none in 03), 2 `CREATE TABLE`, Employee column shape (NIK VARCHAR(16), supabaseUserId/googleSubjectId VARCHAR(255), audit columns), composite unique on Employee `(id, tenantId)`, **Campus composite-unique backfill**, partial uniques on email + nik, FK rules (Employee Tenant Restrict, EmployeeCampusAssignment composite Cascade), **Program.headEmployeeId FK SET NULL**, RLS coverage (×2: ENABLE + `REVOKE ALL` + GRANT + 2 policies; deletedAt clause on Employee only), absence of FORCE RLS (×2), schema-side positive guard (Employee + EmployeeCampusAssignment carry `tenantId String`), **section-ordering sanity** (CREATE TABLE before any ALTER TABLE; backfill `Campus_id_tenantId_key` index appears before EmployeeCampusAssignment composite FK to Campus; RLS block appears after FK section).
+   - `prisma/migration-tests/04-classes.test.ts`: 4 `CREATE TABLE`, column shape per spec, composite uniques on ClassSection + Sentra (id, tenantId), **Program/AcademicYear/AcademicTerm composite-unique backfills**, partial uniques on code, dayOfWeek CHECK constraint, composite-FK rules (×3 join tables Cascade per parent), RLS coverage (×4 — `REVOKE ALL`), absence of FORCE RLS (×4), schema-side positive guard (4 models carry tenantId), **section-ordering sanity** (CREATE TABLE before any ALTER TABLE; backfill `Program_id_tenantId_key` / `AcademicYear_id_tenantId_key` / `AcademicTerm_id_tenantId_key` indexes appear before ClassSection composite FKs that reference them; RLS block appears after FK section).
+   - `prisma/migration-tests/05-sessions.test.ts`: 2 `CREATE TYPE` (SessionStatus, SessionTeacherRole — exact members), 2 `CREATE TABLE`, composite unique on ClassSession, partial unique class_section_date, **partial unique `session_teacher_primary_unique` (one PRIMARY teacher per session)**, dayOfWeek CHECK, FK rules (ClassSession Restrict; SessionTeacher Cascade; sentraId SET NULL), RLS coverage (×2 — `REVOKE ALL`, no deletedAt clause), absence of FORCE RLS (×2), schema-side positive guard (2 models carry tenantId), **section-ordering sanity** (CREATE TYPE before CREATE TABLE; CREATE TABLE before ALTER TABLE FK + RLS).
+   *Acceptance:* `npx vitest run prisma/migration-tests` green; existing 01/02/09 tests not regressed.
+
+7. **End-of-cycle gates.**
+   Run `npx prisma generate && npx prisma validate && npx prisma migrate deploy && npx prisma db seed && npx prisma db seed && npm run build && npx vitest run && bash scripts/verify-rls-coverage.sh && bash scripts/verify-api-auth.sh`. Capture `verify-rls-coverage.sh` output (target: `17 / 17` strict mode) + Sentra row count + seed wall-clock in Verification.
+   *Acceptance:* all gates green; `verify-rls-coverage.sh` reports `17 / 17` (strict); `prisma.sentra.count() === 8`.
+
+8. **Doc sync.**
+   - README ADR row "v2 employees + classes + sentra + sessions" added at top of active ADR table.
+   - CLAUDE.md migration-list updated with one line per new migration (03/04/05) + seed 07.
+   - Cycle doc Implementation + Verification + Ship Notes filled.
+   *Acceptance:* `pre-commit` accepts staged diff (broad doc-sync rule + narrow rule both satisfied).
+
+9. **Ship.**
+   `/ship` opens PR `feat/p1-employees-classes-sentra` → `staging`. CI must pass (Lint/Typecheck/Test, Build; Playwright auto-skip via `--pass-with-no-tests`). Manual squash-merge on green.
+
+## Implementation
+
+- **Subagent plan:** all 8 build tasks sequential (shared schema/migration files, ordered deps) — executed inline. Decision documented in Spec Assumptions.
+- **Pre-build review (cycle doc):** `feature-dev:code-reviewer` flagged 1 Blocker + 3 Important + 1 Nit; spec patched accordingly. (1) Aligned RLS REVOKE form to `REVOKE ALL` matching `02_identity` template. (2) Added section-ordering tests to all 3 test files. (3) Added partial unique `session_teacher_primary_unique` for one-PRIMARY-per-session DB guard. (4) Documented soft-delete vs CASCADE asymmetry as downstream contract for p2/p5 consumers. (5) Documented §18.2 single-migration cap override.
+- **Task 1 — schema additions.** Added 2 enums (`SessionStatus`, `SessionTeacherRole`) after `RegencyType`. Added composite-unique backfills `@@unique([id, tenantId])` to `Campus`, `Program`, `AcademicYear`, `AcademicTerm` (required as FK targets for new join tables). Wired `Program.headEmployee` relation (was dangling String? since 01_tenancy). Added back-relations to `Tenant` (employees / classSections / sentras / classSessions), `Campus` (employeeAssignments / classSections), `Program` (classSections + headEmployee), `AcademicYear` (classSections), `AcademicTerm` (teachingDefaults / sentraRotations / classSessions). Appended 8 new models in spec order: `Employee`, `EmployeeCampusAssignment`, `ClassSection`, `Sentra`, `TeachingDefault`, `SentraRotation`, `ClassSession`, `SessionTeacher`. NIK annotated `/// @PII redact` per spec §5.13. `version Int @default(0)` columns on **Employee** + ClassSection + ClassSession (all three are in spec §4.4's versioned-entity set; pre-shipped ahead of `17_version_triggers` to avoid back-edits). Composite FKs on all 4 RLS-critical join tables per §6.4. Single-col SET NULL on ClassSection.walasEmployeeId + ClassSession.sentraId (column FK semantics). `npx prisma format` + `npx prisma validate` clean; `npx prisma generate` regenerated client.
+- **Task 1 reviewer pass — Important fix applied inline.** `feature-dev:code-reviewer` flagged Employee missing `version Int` (spec §4.4 lists Employee in the versioned-entity set alongside ClassSection + ClassSession; initial schema added version on the latter two but not Employee). Added `version Int @default(0)` to Employee model after `terminatedAt`. Re-ran `npx prisma format` + `validate` + `generate` + `npm run build` + `npx vitest run` — all clean, 9/201 baseline preserved.
+
+## Verification
+
+- **Task 1:** `npx prisma format` ✓, `npx prisma validate` ✓ (`The schema at prisma/schema.prisma is valid 🚀`), `npx prisma generate` ✓ (Prisma Client 7.6.0), `npm run build` ✓ (Next.js 16.2.3, 7 routes), `npx vitest run` ✓ (9 files / 201 tests — baseline preserved).
+
+## Ship Notes
+
+<filled by /ship>
