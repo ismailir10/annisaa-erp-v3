@@ -6,6 +6,7 @@ import { z } from "zod";
 import { ScaffoldListPage, ScaffoldListPageLoading } from "../list-page";
 import { ScaffoldDetailPage, ScaffoldDetailPageLoading } from "../detail-page";
 import { ScaffoldErrorState } from "../error-state";
+import { defineAction } from "../action";
 import type { EntityDef } from "../entity";
 
 type Demo = { id: string; name: string };
@@ -190,6 +191,52 @@ describe("ScaffoldDetailPage — loading skeleton", () => {
     const { container } = render(<ScaffoldDetailPageLoading />);
     expect(container.querySelector('[data-slot="scaffold-detail-page-loading"]'))
       .not.toBeNull();
+  });
+});
+
+describe("defineAction (override hatch §5.3)", () => {
+  it("returns DetailActionDef shape with all input fields", () => {
+    const onClick = vi.fn();
+    const action = defineAction<Demo>({
+      key: "promote",
+      label: "Aktifkan",
+      icon: "CheckCircle",
+      scope: "OWN_CAMPUS",
+      variant: "default",
+      confirm: { title: "Aktifkan?", description: "Konfirmasi tindakan." },
+      onClick,
+    });
+    expect(action.key).toBe("promote");
+    expect(action.label).toBe("Aktifkan");
+    expect(action.icon).toBe("CheckCircle");
+    expect(action.scope).toBe("OWN_CAMPUS");
+    expect(action.variant).toBe("default");
+    expect(action.confirm?.title).toBe("Aktifkan?");
+    expect(action.onClick).toBe(onClick);
+  });
+
+  it("preserves type parameter T through the factory", async () => {
+    const captured: Array<Demo> = [];
+    const action = defineAction<Demo>({
+      key: "x",
+      label: "X",
+      scope: "ALL",
+      onClick: (row) => {
+        captured.push(row);
+      },
+    });
+    await action.onClick({ id: "1", name: "Bu Sari" });
+    expect(captured).toEqual([{ id: "1", name: "Bu Sari" }]);
+  });
+
+  it("supports actions without confirm (immediate click)", () => {
+    const action = defineAction<Demo>({
+      key: "x",
+      label: "X",
+      scope: "ALL",
+      onClick: () => undefined,
+    });
+    expect(action.confirm).toBeUndefined();
   });
 });
 
