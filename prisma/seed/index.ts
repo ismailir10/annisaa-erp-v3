@@ -9,6 +9,7 @@ import { seedPrograms } from "./03-programs";
 import { seedAcademicYear } from "./04-academic-year";
 import { seedSystemRoles } from "./05-system-roles";
 import { seedPermissions } from "./06-permissions";
+import { seedSentra } from "./07-sentra";
 
 async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
   const t0 = Date.now();
@@ -38,6 +39,7 @@ async function main(): Promise<void> {
   await timed("04-academic-year", () => seedAcademicYear(prisma, tenantId));
   await timed("05-system-roles", () => seedSystemRoles(prisma, tenantId));
   await timed("06-permissions", () => seedPermissions(prisma, tenantId));
+  await timed("07-sentra", () => seedSentra(prisma, tenantId));
 
   console.log(`→ seed: complete (${((Date.now() - t0) / 1000).toFixed(2)}s total)`);
 }
