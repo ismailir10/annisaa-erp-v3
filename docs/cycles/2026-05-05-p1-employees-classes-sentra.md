@@ -151,11 +151,11 @@ Assumptions:
    - `prisma/migration-tests/05-sessions.test.ts`: 2 `CREATE TYPE` (SessionStatus, SessionTeacherRole — exact members), 2 `CREATE TABLE`, composite unique on ClassSession, partial unique class_section_date, **partial unique `session_teacher_primary_unique` (one PRIMARY teacher per session)**, dayOfWeek CHECK, FK rules (ClassSession Restrict; SessionTeacher Cascade; sentraId SET NULL), RLS coverage (×2 — `REVOKE ALL`, no deletedAt clause), absence of FORCE RLS (×2), schema-side positive guard (2 models carry tenantId), **section-ordering sanity** (CREATE TYPE before CREATE TABLE; CREATE TABLE before ALTER TABLE FK + RLS).
    *Acceptance:* `npx vitest run prisma/migration-tests` green; existing 01/02/09 tests not regressed.
 
-7. **End-of-cycle gates.**
+7. **[x] End-of-cycle gates.**
    Run `npx prisma generate && npx prisma validate && npx prisma migrate deploy && npx prisma db seed && npx prisma db seed && npm run build && npx vitest run && bash scripts/verify-rls-coverage.sh && bash scripts/verify-api-auth.sh`. Capture `verify-rls-coverage.sh` output (target: `17 / 17` strict mode) + Sentra row count + seed wall-clock in Verification.
    *Acceptance:* all gates green; `verify-rls-coverage.sh` reports `17 / 17` (strict); `prisma.sentra.count() === 8`.
 
-8. **Doc sync.**
+8. **[x] Doc sync.**
    - README ADR row "v2 employees + classes + sentra + sessions" added at top of active ADR table.
    - CLAUDE.md migration-list updated with one line per new migration (03/04/05) + seed 07.
    - Cycle doc Implementation + Verification + Ship Notes filled.
@@ -189,7 +189,92 @@ Assumptions:
 - **Task 4:** `npx prisma migrate deploy` → `Applying migration 05_sessions ... All migrations have been successfully applied.` (staging pooler). Post-reviewer fix: dropped + redeployed cleanly with `ClassSession_tenantId_academicTermId_idx` added. `npx prisma format` + `validate` + `generate` ✓ (Prisma Client 7.6.0). `npm run build` ✓ (Next.js 16.2.3, 7 routes), `npx vitest run` ✓ (9/201 baseline preserved).
 - **Task 5:** `npx prisma db seed` × 2 — both runs idempotent, identical row counts on second pass. **Run 1 (cold) wall-clock: 8.96s.** **Run 2 (warm) wall-clock: 6.14s.** `prisma.sentra.count() === 8` confirmed via temp script (PERSIAPAN, BALOK, BAHAN_ALAM, MAIN_PERAN, SENI, IMTAQ, MEMASAK, OLAH_TUBUH). `npm run build` ✓, `npx vitest run` ✓ (9/201 baseline preserved).
 - **Task 6:** `npx vitest run prisma/migration-tests` → **6 files / 317 tests passed** (existing 01/02/09 tests not regressed; 3 new files contribute +148 tests across 03/04/05). Full suite: `npm run build` ✓ (Next.js 16.2.3, 7 routes), `npx vitest run` ✓ (**12 files / 349 tests** — was 9/201 baseline; +3 files +148 tests after fix; +2 over pre-fix from the added Tenant-FK assertions in 04-classes).
+- **Task 7 — full end-of-cycle gate (all green):**
+  - `npx prisma generate` — Prisma Client 7.6.0 ✓.
+  - `npx prisma validate` — schema valid ✓.
+  - `npx prisma migrate deploy` — 7 migrations found; `No pending migrations to apply` (03/04/05 all applied during build tasks).
+  - `npx prisma db seed` × 2 idempotent — second pass identical row counts. Cold 7.94s; warm 8.64s (network jitter on the staging pooler — both well under any threshold).
+  - `npm run build` — Next.js 16.2.3 production build, 7 routes (`/`, `/_not-found`, `/api/csp-report`, `/api/health`, `/legal/privacy`, `/legal/terms`, `/manifest.webmanifest`, `/opengraph-image`, `Proxy` middleware). Compiled successfully.
+  - `npx vitest run` — **12 test files / 349 tests passed** (201 carried from prior cycles + 148 net new across 03/04/05).
+  - `npm run lint` — clean (eslint silent).
+  - `bash scripts/verify-rls-coverage.sh` — `✓ RLS coverage OK: 17 / 17 tenant-scoped models have ENABLE + policy.` (strict mode, exit 0). Exactly the spec target — 9 prior + 8 new tenant-scoped tables.
+  - `bash scripts/verify-api-auth.sh` — `✓ API auth coverage OK: 2 / 2 routes have session helper or @public sentinel.`
+  - Playwright **skipped** per CLAUDE.md schema-cycle exception — no UI added; `e2e/` empty since Phase 0. `/ship` will invoke `npx playwright test --pass-with-no-tests` to satisfy the gate.
+
+Sanity counts post-seed (via `tmp-counts.ts`, then deleted):
+
+```
+{tenants:1, campuses:2, programs:6, years:1, terms:4,
+ users:0, roles:8, perms:8, userRoles:0, rolePerms:8,
+ sentras:8, employees:0, classSections:0, classSessions:0,
+ sessionTeachers:0, teachingDefaults:0, sentraRotations:0,
+ employeeCampusAssignments:0, provinces:38, villages:83762}
+```
+
+Cross-check: `design-system.html` not consulted — schema-only cycle, no frontend diff (frontend gate not triggered).
+
+Counts vs. spec:
+
+- 8 new models: Employee, EmployeeCampusAssignment, ClassSection, Sentra, TeachingDefault, SentraRotation, ClassSession, SessionTeacher ✓
+- 2 new enums: SessionStatus (PLANNED/IN_PROGRESS/COMPLETED/CANCELLED), SessionTeacherRole (PRIMARY/SUBSTITUTE/SENTRA/ASSISTANT) ✓
+- 3 migrations applied cleanly on top of 00 + 01 + 02 + 09 ✓
+- Composite-FK pattern §6.4 on 4 RLS-critical join tables ✓
+- 4 backfill composite uniques (Campus + Program + AcademicYear + AcademicTerm `(id, tenantId)`) ✓
+- Program.headEmployeeId FK wired up SET NULL ✓
+- RLS coverage: 17 / 17 tenant-scoped tables (strict mode) — 8 new tables added 9 → 17 ✓
+- 8 Sentra catalog rows seeded idempotent ✓
+- 148 new post-condition tests + schema-side positive tenantId guard ✓
+- Single-PRIMARY-per-session DB guard via partial unique ✓
+- ClassSession_tenantId_academicTermId_idx added per inline reviewer fix ✓
+- NO FORCE ROW LEVEL SECURITY anywhere (design-lock reaffirmed for all 8 new tables) ✓
 
 ## Ship Notes
 
-<filled by /ship>
+**Database migrations to run:** `npx prisma migrate deploy` applies `03_employees`, `04_classes`, `05_sessions` in alphanumeric order on top of `00_extensions` + `01_tenancy` + `02_identity` + `09_regions`. Already applied to staging Supabase pooler (`aws-1-ap-southeast-1.pooler.supabase.com:5432`) during this cycle's `/build`. Production = first-time run (greenfield rebuild — DB is reset on the staging→main promotion cadence per CLAUDE.md). Combined the three migrations add: 2 enums + 8 tables + 4 backfill composite uniques (Campus/Program/AcademicYear/AcademicTerm) + Program.headEmployeeId FK wire-up + 26 lookup indexes + 5 partial uniques (Employee.email/Employee.nik/ClassSection.code/Sentra.code/SessionTeacher PRIMARY) + 1 full unique (ClassSession class+date) + 22 FK constraints + 16 RLS policies (8 tables × 2 each) + 8 REVOKE+GRANT blocks. Runs in well under a second on an empty DB.
+
+**Seed:** `npx prisma db seed` runs `prisma/seed/07-sentra.ts` after `06-permissions`. 8 PAUD catalog rows: PERSIAPAN, BALOK, BAHAN_ALAM, MAIN_PERAN, SENI, IMTAQ, MEMASAK, OLAH_TUBUH. Idempotent via findFirst-then-update / create against `(tenantId, code, deletedAt: null)`. Wall-clock ~0.4s for the sentra step alone; full seed ~7-9s on the staging pooler.
+
+**No env vars added.**
+
+**Forward-compat locks for downstream cycles (p2 + p5):**
+
+- **Soft-delete vs CASCADE asymmetry — DOWNSTREAM CONTRACT.** Every `ON DELETE CASCADE` FK in this cycle (TeachingDefault → Employee/Sentra; SentraRotation → Sentra; EmployeeCampusAssignment → Employee/Campus; SessionTeacher → Employee; ClassSession owned children) fires only on **hard-delete**. Employee, Sentra, ClassSection use soft-delete (`deletedAt`). Child rows remain pointing to soft-deleted parents. **`p2-classes-management` + `p5-class-session-materializer` MUST JOIN soft-deletable parents and filter `WHERE parent.deletedAt IS NULL`.** Not enforced at DB level by design — soft-delete is logical state, not referential.
+- **`Program.headEmployeeId`** column was declared in `01_tenancy` without an FK; this cycle wired it up as `ON DELETE SET NULL` to Employee. p2 admin-extensible Program management should treat program head reassignment as a normal field edit, not a structural change.
+- **`p1-auth-google-oauth`** must populate `Employee.supabaseUserId` + `googleSubjectId` post-OAuth callback (mirrors User binding). Both columns are NULL until that cycle.
+- **`17_version_triggers`** must install `bump_version` triggers on Employee + ClassSection + ClassSession — `version Int` columns already exist on all three (added this cycle to avoid the back-edit footgun).
+- **`p2-classes-management`** UI must render the SessionTeacher PRIMARY-cardinality constraint as a UX guarantee, not a runtime check — DB enforces single PRIMARY via partial unique `session_teacher_primary_unique`.
+
+**No-FORCE design lock reaffirmed for these tables.** All 8 new tenant-scoped tables ship with `ENABLE ROW LEVEL SECURITY`, never `FORCE`. Service-role seed must keep bypassing RLS — adding FORCE in a future migration would break `prisma db seed`. Mechanically guarded by `prisma/migration-tests/{03-employees,04-classes,05-sessions}.test.ts` "does NOT FORCE ROW LEVEL SECURITY" assertions per table.
+
+**Defense-in-depth `REVOKE ALL` reaffirmed.** All 8 new tables use `REVOKE ALL ON "X" FROM anon, authenticated` (matches `02_identity` template + §6.3 canonical form). The narrower `REVOKE INSERT, UPDATE, DELETE, TRUNCATE` form is reserved for `09_regions`'s public-read deviation only.
+
+**Sentra catalog regenerate runbook:** the 8 SYSTEM Sentra rows are seeded via `prisma/seed/07-sentra.ts` (idempotent upsert). To replace the catalog list (e.g. switch to a different Indonesian PAUD curriculum's sentra naming), edit the `SYSTEM_SENTRA` const in that file + commit + re-seed. Admin-edited rows (`source = ADMIN`) are not touched by the seed — only rows with matching `(tenantId, code)` get updated. Hard-delete + reseed required for a clean reset.
+
+**Rollback plan (if 03/04/05 needs to be reverted post-merge):** drop the 8 tables + 2 enums + the 3 `_prisma_migrations` rows. SQL (run in reverse FK-dependency order):
+
+```sql
+DROP TABLE IF EXISTS "SessionTeacher" CASCADE;
+DROP TABLE IF EXISTS "ClassSession" CASCADE;
+DROP TABLE IF EXISTS "SentraRotation" CASCADE;
+DROP TABLE IF EXISTS "TeachingDefault" CASCADE;
+DROP TABLE IF EXISTS "ClassSection" CASCADE;
+DROP TABLE IF EXISTS "Sentra" CASCADE;
+DROP TABLE IF EXISTS "EmployeeCampusAssignment" CASCADE;
+ALTER TABLE "Program" DROP CONSTRAINT IF EXISTS "Program_headEmployeeId_fkey";
+DROP TABLE IF EXISTS "Employee" CASCADE;
+DROP TYPE IF EXISTS "SessionTeacherRole";
+DROP TYPE IF EXISTS "SessionStatus";
+-- Optional: drop the backfill composite uniques (only safe if no downstream
+-- migration relies on them yet; p2 cycles WILL rely on them, so leave alone).
+DROP INDEX IF EXISTS "AcademicTerm_id_tenantId_key";
+DROP INDEX IF EXISTS "AcademicYear_id_tenantId_key";
+DROP INDEX IF EXISTS "Program_id_tenantId_key";
+DROP INDEX IF EXISTS "Campus_id_tenantId_key";
+DELETE FROM _prisma_migrations WHERE migration_name IN ('03_employees', '04_classes', '05_sessions');
+```
+
+Safe because no downstream Phase 1 migration references the new tables; p2 cycles haven't landed yet.
+
+**Manual smoke (post-merge, against staging):** none — schema-only cycle, no UI. Optional confirmation: `SELECT count(*) FROM "Sentra";` returns 8; `SELECT * FROM pg_policies WHERE tablename = ANY (ARRAY['Employee','EmployeeCampusAssignment','ClassSection','Sentra','TeachingDefault','SentraRotation','ClassSession','SessionTeacher']);` lists `tenant_isolation_select` + `no_writes_via_postgrest` per table (16 rows total).
+
+**PR URL:** filled by `/ship`.
