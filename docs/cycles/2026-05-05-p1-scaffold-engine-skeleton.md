@@ -75,7 +75,7 @@ Ordered. Annotations: **[parallel]** = subagent-friendly (independent input/outp
   - No runtime code; pure type module.
   - Acceptance: `npx tsc --noEmit` green.
 
-- [ ] **T3 — `lib/scaffold/field-renderer.ts` registry + 1 placeholder TEXT renderer** [sequential]
+- [x] **T3 — `lib/scaffold/field-renderer.ts` registry + 1 placeholder TEXT renderer** [sequential]
   - Define discriminated-union `FieldDef` (15 kinds: TEXT, TEXTAREA, NUMBER, DECIMAL, CURRENCY, DATE, DATETIME, BOOLEAN, SELECT, MULTISELECT, EMAIL, PHONE, RELATION, FILE, ENUM) + `FieldRendererRegistry` mapping kind → component (Partial — full population happens in `p1-scaffold-renderers`).
   - Implement `lib/scaffold/renderers/text.tsx` ≤ 60 lines. Server-component-first; Shadcn `Input` from `components/ui/input.tsx`. RHF prop integration: accepts `{ field: ControllerRenderProps, def: FieldDef & { kind: 'TEXT' } }`.
   - Registry getter: `getRenderer(kind)` returns the renderer or throws `MissingRendererError` (caught by page shells + scaffold-check).
@@ -171,11 +171,13 @@ Under §18.2 cap of 25. CLAUDE.md update intentionally **not** staged this cycle
 - Subagent plan: all tasks sequential this cycle. Subagent-parallel dispatch deferred to `p1-scaffold-renderers` follow-up where 14 independent renderer files natively fit `superpowers:subagent-driven-development`.
 - T1 — locale formatters — `lib/scaffold/format.ts` + `lib/scaffold/__tests__/format.test.ts` — `fmt.{date,dateTime,currency,number,phone,hijri,relativeTime}` per spec §5.9 with `id-ID` locale + `Asia/Jakarta` tz + IDR currency. NBSP normalization (`U+00A0` + `U+202F`) applied to currency output for ICU-72-stable assertions. Reviewer flagged 2 blockers (`U+202F` missing in normSpace, Hijri "H" suffix mismatch); both refuted by empirical evidence — `xxd` dump showed normSpace already covers both code points; Indonesian Umm al-Qura `Intl.DateTimeFormat` emits "H" suffix natively. 41/41 tests green.
 - T2 — entity registry types — `lib/scaffold/entity.ts` — `EntityDef<T>` + `ListColumnDef<T>` + `FilterDef<T>` + `ViewDef<T>` + `FormSectionDef<T>` + `DetailTabDef<T>` + `DetailActionDef<T>` + `DataFetcher<T>` + `FieldDef` (15-variant discriminated union) + `ScaffoldScope`. Reviewer fixes applied inline: (1) `DetailTabDef.key` widened from student-specific literal union to `string` so non-student entities define their own tab keys; (2) `ListColumnDef.render` upgraded from `FieldKind` to full `FieldDef` so RELATION/SELECT columns retain per-kind metadata; (3) `EntityDef.schema` typed as `ZodType<T>` (Zod v4 / resolvers v5 Standard-Schema-compatible) instead of legacy `ZodSchema<T>`. Pure-types module — no runtime exports. `tsc --noEmit` green.
+- T3 — renderer registry + TEXT placeholder — `lib/scaffold/field-renderer.ts` + `lib/scaffold/renderers/text.tsx` + `lib/scaffold/__tests__/field-renderer.test.tsx`. `FIELD_KINDS` const tuple locks 15 kinds with bidirectional exhaustiveness (`as const satisfies readonly FieldKind[]` + `Exclude<FieldKind, …>` guard). `FIELD_RENDERERS` frozen registry maps kind → component (TEXT only this cycle; 14 deferred to `p1-scaffold-renderers` per cycle doc Context). `getRenderer` throws `MissingRendererError` referencing the follow-up cycle for unimplemented kinds. `hasRenderer` narrows. Renderer ≤ 60 lines per §5.1. Reviewer fix applied: removed `'use client'` directive from `text.tsx` since the renderer carries no client-only APIs (RHF `Controller` owns the client boundary in the form-page shell). Added deps `react-hook-form@^7.75` + `@hookform/resolvers@^5.2`. 16/16 tests green.
 
 ## Verification
 
 - T1 — gates passed: `npm run build` green, `npx vitest run` 597/597 (41 new from format.test.ts). Cross-checked `design-system.html` §5.9 token styling note for fallback character ("—" em-dash) consistency with empty-state typography.
 - T2 — gates passed: `npx tsc --noEmit` green, `npm run build` green, `npx vitest run` 597/597 (no new tests; pure types). Cross-referenced spec §5.4 page anatomy + §5.5 renderer kinds + §5.10 filtering / smart views.
+- T3 — gates passed: `npm run build` green, `npx vitest run` 613/613 (16 new from field-renderer.test.tsx). Pre-existing `npm audit` warnings (`@hono/node-server`, `postcss`, `uuid` via `svix`/`resend`) noted — out of scope this cycle, recorded in Ship Notes.
 
 ## Ship Notes
 <!-- filled by /ship -->
