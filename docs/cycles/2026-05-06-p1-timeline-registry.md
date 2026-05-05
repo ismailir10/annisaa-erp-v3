@@ -176,7 +176,7 @@ Annotations: **[sequential]** — depends on prior task output; **[independent]*
   - Create `lib/timeline/__tests__/events.test.ts` — 7 cases per Acceptance §2 (test count is 7; covers 8 registry entries via the `forEach` shape tests).
   - Acceptance: file ≤ 100 lines (events.ts — added one entry over original estimate); 7/7 tests pass; typechecks; build passes.
 
-- [ ] **T2 — `lib/timeline/emit.ts` + `lib/timeline/__tests__/emit.test.ts`** [sequential — depends on T1] (commit subject: `chore:`)
+- [x] **T2 — `lib/timeline/emit.ts` + `lib/timeline/__tests__/emit.test.ts`** [sequential — depends on T1] (commit subject: `chore:`)
   - Create `lib/timeline/emit.ts`:
     - Header comment documenting server-only-via-prisma boundary.
     - Imports: `prisma` from `@/lib/db`; `Prisma`, `TimelineVisibility` from `@/lib/generated/prisma/client`; `TIMELINE_EVENTS, TimelineEventKind, TimelineEventPayload` from `./events`.
@@ -248,10 +248,12 @@ Annotations: **[sequential]** — depends on prior task output; **[independent]*
 
 - Subagent plan: all tasks sequential (T1→T2→T3→T4→T5); no parallel dispatch (T4 independent but small).
 - **T1 — `lib/timeline/events.ts` (104 lines) + `lib/timeline/__tests__/events.test.ts` (10 tests).** `_TIMELINE_EVENTS_RAW as const satisfies Record<...>` preserves per-entry `payloadSchema` types; `Object.freeze` wraps for runtime immutability. 8 seed kinds (student × 4, employee × 3, note.added). `RESOURCE_TO_SOFT_DELETE_KIND` typed as `Partial<Record<"SOFT_DELETE" | "RESTORE", TimelineEventKind>>` allows Employee to omit RESTORE. Reviewer (`feature-dev:code-reviewer`) confirmed `z.infer` flows through correctly; flagged 2 missing tests (sentinel + min-1 constraint) — added before commit. Final test count 10 (spec'd 7, plus seed-count assertion + sentinel + min-1 = +3).
+- **T2 — `lib/timeline/emit.ts` (113 lines) + `lib/timeline/__tests__/emit.test.ts` (16 tests).** `emitTimelineEvent<K>(input, tx?)` generic over kind. Validates required fields, looks up registry, parses payload via Zod (re-thrown raw), resolves subjectKind (registry value for non-polymorphic; mismatch throws explicit; `"*"` sentinel demands input.subjectKind), defaults visibility from registry, JSON-normalizes payload (`JSON.parse(JSON.stringify(...))`) for parity with `writeAuditLog`, INSERTs via `(tx ?? prisma).timelineEvent.create`. `Prisma.TimelineEventUncheckedCreateInput` accepts FK scalars directly. Reviewer (`feature-dev:code-reviewer`) flagged: MAJOR missing JSON-normalize step (asymmetry with `writeAuditLog`) — added; IMPORTANT missing `student.soft-deleted` strict-empty test (load-bearing for T3) — added. Final test count 16 (spec'd 13, plus strict-empty + match-passthrough = +2 over spec, plus parametrized split).
 
 ## Verification
 
 - T1: `npx vitest run lib/timeline/__tests__/events.test.ts` → 10/10 pass; `npm run build` → PASS; full `npx vitest run` → 702 passed / 4 skipped (4 expected live-DB skips from `append-only-trigger.test.ts`). Frontend gate inactive (no `app/**` or `components/**` paths staged). Voice gate inactive.
+- T2: `npx vitest run lib/timeline/__tests__/emit.test.ts` → 16/16 pass; `npm run build` → PASS; full `npx vitest run` → 720 passed / 4 skipped.
 
 ## Ship Notes
 <filled by /ship — migrations, env vars, manual steps, rollback plan>
