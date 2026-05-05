@@ -97,11 +97,11 @@ Assumptions:
    - **Schema guard:** parse `prisma/schema.prisma` and assert each region model contains no `tenantId` field — guards against silent strict-mode failure of `verify-rls-coverage.sh`.
    *Acceptance:* `npx vitest run prisma/migration-tests` green; existing `01-tenancy.test.ts` + `02-identity.test.ts` not regressed.
 
-6. **End-of-cycle gates.**
+6. **[x] End-of-cycle gates.**
    Run `npx prisma generate && npx prisma validate && npx prisma migrate deploy && npx prisma db seed && npm run build && npx vitest run && bash scripts/verify-rls-coverage.sh && bash scripts/verify-api-auth.sh`. Playwright skipped per CLAUDE.md schema-cycle exception (no UI). Capture row counts via `npx tsx --env-file=.env -e ...` and seed wall-clock seconds in Verification.
    *Acceptance:* all gates green; `verify-rls-coverage.sh` reports `9 / 9` (strict mode); region row counts within spec ranges; seed ≤ 10s.
 
-7. **Doc sync.**
+7. **[x] Doc sync.**
    - README ADR row "v2 regions reference data + public-read RLS" added at top of active ADR table.
    - CLAUDE.md migration-list note appended for `09_regions` (one-line entry).
    - Ship Notes records the regenerate runbook (`npx tsx scripts/generate-regions-sql.ts && git add prisma/seed/01-regions.sql && commit`).
@@ -135,7 +135,66 @@ Assumptions:
 - **Task 3:** `npx prisma migrate deploy` → `Applying migration 09_regions ... All migrations have been successfully applied.` (against staging Supabase pooler `aws-1-ap-southeast-1.pooler.supabase.com:5432`). `npx prisma generate` ✓, `npm run build` ✓ (Next.js 16.2.3, 7 routes), `npx vitest run` ✓ (8/149). Post-reviewer fix: dropped + redeployed cleanly with REVOKE statements added.
 - **Task 4:** `npx prisma db seed` × 2 — both runs idempotent, identical row counts on second pass. **Run 1 wall-clock: 8.09s total (regions 5.56s)**. **Run 2 wall-clock: 6.93s total (regions 4.99s)** — well under 10s target. Region row counts via `prisma.<model>.count()`: `{provinces: 38, regencies: 514, districts: 7285, villages: 83762, kota: 98, kabupaten: 416}` — matches spec sanity counts exactly. `npm run build` ✓, `npx vitest run` ✓ (8/149).
 - **Task 5:** `npx vitest run prisma/migration-tests/09-regions.test.ts` → **52 tests** passing (enum / table creation x4 / PK width x4 / FK column-types / region-only audit columns / no-postalCode / 3 lookup indexes / trigram GIN / 3 FK Restrict+Cascade / RLS ENABLE x4 / REVOKE x4 / GRANT x4 / public_read policy x4 / no_writes_via_postgrest policy x4 / no tenant_isolation_select / **no FORCE ROW LEVEL SECURITY x4** (design lock per service-role seed bypass intent) / schema-side no-tenantId guard x4 / section-ordering sanity x2). Full suite: `npm run build` ✓, `npx vitest run` ✓ (**9 files / 201 tests**, +1 file +52 tests).
+- **Task 6 — full end-of-cycle gate (all green):**
+  - `npx prisma generate` — Prisma Client 7.6.0 ✓.
+  - `npx prisma validate` — schema valid ✓.
+  - `npx prisma migrate deploy` — `09_regions` applied to staging Supabase pooler `aws-1-ap-southeast-1.pooler.supabase.com:5432` ✓ (covered in Task 3).
+  - `npx prisma db seed` × 2 idempotent — same row counts (Province 38, Regency 514, District 7,285, Village 83,762; 98 KOTA + 416 KABUPATEN); wall-clock 8.09s cold / 6.93s warm (covered in Task 4).
+  - `npm run build` — Next.js 16.2.3 production build, 7 routes (`/`, `/_not-found`, `/api/csp-report`, `/api/health`, `/legal/privacy`, `/legal/terms`, `/manifest.webmanifest`, `/opengraph-image`, `Proxy` middleware). Compiled successfully.
+  - `npx vitest run` — **9 test files / 201 tests passed** (149 carried from prior cycles + 52 new in `09-regions.test.ts`).
+  - `npm run lint` — clean (eslint silent).
+  - `bash scripts/verify-rls-coverage.sh` — `✓ RLS coverage OK: 9 / 9 tenant-scoped models have ENABLE + policy.` (strict mode, exit 0). Region tables correctly excluded by parser (no `tenantId String` field).
+  - `bash scripts/verify-api-auth.sh` — `✓ API auth coverage OK: 2 / 2 routes have session helper or @public sentinel.`
+  - Playwright **skipped** per CLAUDE.md schema-cycle exception — no UI added; `e2e/` empty since Phase 0.
+
+Cross-check: `design-system.html` not consulted — schema-only cycle, no frontend diff (frontend gate not triggered).
+
+Counts vs. spec:
+
+- 4 new region models: Province, Regency, District, Village ✓
+- 1 new enum: RegencyType (KABUPATEN, KOTA) ✓
+- BPS-code PKs: CHAR(2) / CHAR(4) / CHAR(6) / CHAR(10) ✓ (District at CHAR(6) per source-data shape; documented deviation from foundation spec's CHAR(7))
+- Trigram GIN on `Village.name` (uses `gin_trgm_ops` from `00_extensions`) ✓
+- Public-read RLS on all 4 tables (intentional deviation from `tenant_isolation_select`, documented inline + in test design-lock) ✓
+- Seed counts: 38 + 514 + 7,285 + 83,762 = 91,599 rows (within 91,500-91,700 spec range) ✓
+- Seed wall-clock 8.09s cold / 6.93s warm (target ≤ 10s) ✓
+- 52 post-condition tests + schema-guard against accidental tenant-scoping ✓
 
 ## Ship Notes
 
-(Filled by /ship — PR URL, regenerate runbook, env vars, rollback.)
+**Database migration to run:** `npx prisma migrate deploy` applies `09_regions/migration.sql`. Already applied to staging Supabase pooler during this cycle's `/build`. Production = first-time run (greenfield rebuild — DB is reset on the staging-→-main promotion cadence per CLAUDE.md). Migration adds 4 tables + 1 enum + 1 trigram GIN + 4 RLS policies × 2 per table; runs in well under a second on an empty DB.
+
+**Seed:** `npx prisma db seed` runs `prisma/seed/01-regions.sql` between `00-tenant` and `02-campuses`. ~5s region apply on staging pooler; idempotent via `ON CONFLICT (id) DO UPDATE`.
+
+**No env vars added.**
+
+**Migration-numbering decision:** foundation spec §6.1 originally reserved slot `09_addresses` for "regions + Address chain". This cycle splits that into `09_regions` (here) + `10_addresses` (or next free slot) when `p2-addresses-idn-chain` lands. `p1-scaffold-engine-skeleton` doc-sync should reconcile §6.1 numbering downstream.
+
+**Forward-compat lock for `p2-addresses-idn-chain`:** when Address tables land, declare FK columns matching parent PK widths exactly:
+- `Address.provinceId @db.Char(2)`
+- `Address.regencyId @db.Char(4)`
+- `Address.districtId @db.Char(6)` (NOT 7 — see schema deviation note)
+- `Address.villageId @db.Char(10)`
+Per `superpowers:code-reviewer` flag (Task 3 review): mixing `CHAR(N)` parent with `VARCHAR(N)` child triggers implicit casts in FK comparisons + can defeat index usage at scale. Always declare child FK as `@db.Char(N)` matching parent.
+
+**Regenerate runbook (when v1.1 Kemendagri refresh ships):**
+1. `npx tsx scripts/generate-regions-sql.ts` — fetches CSVs from `raw.githubusercontent.com/fityannugroho/idn-area-data/<sha>/data/*.csv` (no npm install needed, no devDep).
+2. To pin a newer `idn-area-data` snapshot, edit `SOURCE_SHA` + `SOURCE_VERSION` constants at the top of `scripts/generate-regions-sql.ts`.
+3. Diff `prisma/seed/01-regions.sql` against committed snapshot; if any rows were deleted (region merger), investigate manually before committing — `ON CONFLICT … DO UPDATE` does not delete missing rows.
+4. `git add prisma/seed/01-regions.sql scripts/generate-regions-sql.ts && git commit`.
+5. `npx prisma db seed` to apply (`ON CONFLICT (id) DO UPDATE` refreshes names + Regency types + `updatedAt` on the SHA-changed rows).
+
+**Rollback plan (if `09_regions` needs to be reverted post-merge):** drop the 4 tables + RegencyType enum + the `_prisma_migrations` row. SQL:
+```sql
+DROP TABLE IF EXISTS "Village" CASCADE;
+DROP TABLE IF EXISTS "District" CASCADE;
+DROP TABLE IF EXISTS "Regency" CASCADE;
+DROP TABLE IF EXISTS "Province" CASCADE;
+DROP TYPE IF EXISTS "RegencyType";
+DELETE FROM _prisma_migrations WHERE migration_name = '09_regions';
+```
+Safe because no other Phase 1 migration references region tables; p2 Address chain hasn't landed yet.
+
+**Manual smoke (post-merge, against staging):** none — schema-only cycle, no UI. Confirm `SELECT count(*) FROM "Village";` returns ~83,762 + `SELECT * FROM pg_policies WHERE tablename = ANY (ARRAY['Province','Regency','District','Village']);` lists `public_read` + `no_writes_via_postgrest` per table.
+
+**PR URL:** filled by `/ship`.
