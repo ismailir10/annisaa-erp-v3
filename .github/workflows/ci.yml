@@ -36,6 +36,9 @@ jobs:
       - name: API auth coverage guard
         run: bash scripts/verify-api-auth.sh
 
+      - name: Scaffold engine entity registry guard
+        run: npm run scaffold:check
+
   build:
     name: Build
     runs-on: ubuntu-latest
