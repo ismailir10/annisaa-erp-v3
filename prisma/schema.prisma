@@ -57,6 +57,61 @@ enum SessionTeacherRole {
   ASSISTANT
 }
 
+// Cycle p1-audit-timeline-files introduces 6 enums per spec §4.2:
+// AuditAction (CRUD + soft-delete + read + import + export tracking),
+// TimelineVisibility (PRIVATE/INTERNAL/PARENT_VISIBLE — admin/teacher/parent visibility tiers),
+// FileKind (DOCUMENT/IMAGE/VIDEO/AUDIO/ARCHIVE),
+// FileStatus (lifecycle for §16.1a file_asset.orphan_cleanup cron),
+// ExportFormat (per §5.11 async export),
+// ExportJobStatus (state machine per §5.11).
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  SOFT_DELETE
+  RESTORE
+  READ
+  IMPORT
+  EXPORT
+}
+
+enum TimelineVisibility {
+  PRIVATE
+  INTERNAL
+  PARENT_VISIBLE
+}
+
+enum FileKind {
+  DOCUMENT
+  IMAGE
+  VIDEO
+  AUDIO
+  ARCHIVE
+}
+
+enum FileStatus {
+  PENDING_UPLOAD
+  UPLOADED
+  COMPRESSED
+  FAILED
+  ORPHANED
+}
+
+enum ExportFormat {
+  CSV
+  XLSX
+  PDF
+}
+
+enum ExportJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
 // ── Tenant ───────────────────────────────────────────────────
 // Root entity. No tenantId on itself, no soft-delete (tenant termination is operational).
 
@@ -68,17 +123,25 @@ model Tenant {
   createdAt       DateTime              @default(now()) @db.Timestamptz()
   updatedAt       DateTime              @updatedAt @db.Timestamptz()
 
-  campuses      Campus[]
-  programs      Program[]
-  academicYears AcademicYear[]
-  academicTerms AcademicTerm[]
-  users         User[]
-  roles         Role[]
-  permissions   Permission[]
-  employees     Employee[]
-  classSections ClassSection[]
-  sentras       Sentra[]
-  classSessions ClassSession[]
+  campuses       Campus[]
+  programs       Program[]
+  academicYears  AcademicYear[]
+  academicTerms  AcademicTerm[]
+  users          User[]
+  roles          Role[]
+  permissions    Permission[]
+  employees      Employee[]
+  classSections  ClassSection[]
+  sentras        Sentra[]
+  classSessions  ClassSession[]
+  auditLogs      AuditLog[]
+  timelineEvents TimelineEvent[]
+  fileAssets     FileAsset[]
+  exportJobs     ExportJob[]
+  emailLogs      EmailLog[]
+  webhookEvents  WebhookEvent[]
+  orgConfig      OrgConfig?
+  holidays       Holiday[]
 }
 
 // ── Campus ───────────────────────────────────────────────────
@@ -155,12 +218,14 @@ model AcademicYear {
   deletedAt   DateTime? @db.Timestamptz()
   deletedById String?
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  terms         AcademicTerm[]
-  classSections ClassSection[]
+  tenant               Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  terms                AcademicTerm[]
+  classSections        ClassSection[]
+  currentForOrgConfigs OrgConfig[]    @relation("OrgConfigCurrentYear")
 
   // Composite unique on (id, tenantId) backfilled in 04_classes migration.
-  // Required as FK target for ClassSection composite-FK chain (§6.4).
+  // Required as FK target for ClassSection composite-FK chain (§6.4) +
+  // OrgConfig.currentAcademicYearId composite FK (§4.1 Foundation row, this cycle).
   @@unique([id, tenantId])
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -218,8 +283,11 @@ model User {
   deletedAt       DateTime? @db.Timestamptz()
   deletedById     String?
 
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  userRoles UserRole[]
+  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userRoles          UserRole[]
+  timelineEvents     TimelineEvent[] @relation("TimelineEventActor")
+  uploadedFileAssets FileAsset[]     @relation("FileAssetUploader")
+  exportJobs         ExportJob[]     @relation("ExportJobRequester")
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -385,7 +453,7 @@ model Employee {
   email           String    @db.VarChar(255)
   name            String    @db.VarChar(255)
   nik             String?   @db.VarChar(16) /// @PII redact
-  phone           String?   @db.VarChar(20)
+  phone           String?   @db.VarChar(20) /// @PII mask:last4
   jobTitle        String?   @db.VarChar(50)
   supabaseUserId  String?   @db.VarChar(255)
   googleSubjectId String?   @db.VarChar(255)
@@ -622,4 +690,281 @@ model SessionTeacher {
   @@id([sessionId, employeeId, role, tenantId])
   @@index([tenantId])
   @@index([employeeId, tenantId])
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Cycle p1-audit-timeline-files (foundation spec §6.1 mig 06 + 16)
+// ════════════════════════════════════════════════════════════════════════
+
+// ── AuditLog ─────────────────────────────────────────────────
+// Immutable append-only log per spec §4.5. Partitioned by month from day 1
+// (declarative inline `PARTITION BY RANGE ("createdAt")` in 06_audit_timeline
+// migration; Prisma cannot express partitioning so the schema is a logical
+// representation only — `migrate dev` would generate non-partitioned DDL,
+// hence we use hand-written migrations + `migrate deploy` only).
+//
+// Append-only enforced by Postgres trigger `audit_log_block_update_delete()`
+// (raises P0001 on UPDATE/DELETE for all roles; service-role does not bypass).
+// Retention via partition-drop cron (deferred to p3+) — no per-row
+// retentionUntil column.
+//
+// Composite PK `(id, createdAt)` required by partitioned-table semantics
+// (Postgres requires the partition key in any UNIQUE / PK).
+//
+// `actorUserId` is non-FK by design (per Assumptions) — partition-table FK
+// maintenance burden + soft-delete semantics mismatch.
+//
+// `before` / `after` JSONB are redacted via `lib/audit/redactor.ts` (generated
+// from `/// @PII` schema annotations) before INSERT.
+//
+// Audit-column deviation: AuditLog has only `createdAt` + `actorUserId`
+// (no updatedAt / deletedAt / *ById columns) — spec §4.4 audit-column
+// convention is for *operational* entities, not the audit log itself.
+
+model AuditLog {
+  id          String      @default(cuid())
+  tenantId    String
+  actorUserId String?
+  action      AuditAction
+  resource    String      @db.VarChar(50)
+  resourceId  String
+  before      Json?
+  after       Json?
+  ipAddress   String?     @db.Inet
+  userAgent   String?     @db.VarChar(500)
+  createdAt   DateTime    @default(now()) @db.Timestamptz()
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  // Composite PK includes partition key (createdAt) — required by Postgres
+  // declarative partitioning. Postgres rejects an `id`-only PK on partitioned
+  // tables.
+  @@id([id, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, resource, resourceId])
+  @@index([tenantId, actorUserId, createdAt])
+}
+
+// ── TimelineEvent ────────────────────────────────────────────
+// Per-subject activity feed per spec §4.1 Foundation row. Polymorphic
+// (subjectKind/subjectId reference any model). `kind` is a string code from
+// the timeline-event registry (`lib/timeline/events.ts` deferred to
+// p1-scaffold-engine-skeleton). `payload` is Zod-validated app-side per
+// registered kind.
+//
+// Soft-delete YES — typo correction parity with v1 buku-penghubung. AuditLog
+// records SOFT_DELETE / RESTORE actions for regulatory traceability.
+//
+// `actorUserId` is single-col FK SET NULL (column FK not join, per §6.4 MVP
+// rule that reserves composite FK for RLS-critical join tables). Tenant
+// alignment via tenantId denorm + app-layer guard.
+
+model TimelineEvent {
+  id          String             @id @default(cuid())
+  tenantId    String
+  actorUserId String?
+  subjectKind String             @db.VarChar(50)
+  subjectId   String
+  kind        String             @db.VarChar(50)
+  visibility  TimelineVisibility @default(INTERNAL)
+  payload     Json               @default("{}")
+  occurredAt  DateTime           @default(now()) @db.Timestamptz()
+  createdAt   DateTime           @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime           @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime?          @db.Timestamptz()
+  deletedById String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  actor  User?  @relation("TimelineEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  // GIN index on payload added in 06_audit_timeline migration (Prisma 7 lacks DSL for GIN).
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, subjectKind, subjectId, occurredAt])
+  @@index([tenantId, actorUserId, occurredAt])
+  @@index([tenantId, kind, occurredAt])
+}
+
+// ── FileAsset ────────────────────────────────────────────────
+// Per spec §4.1 Foundation row. Supabase Storage metadata anchor. Storage
+// path convention `<tenant-id>/<kind>/<cuid>.<ext>` documented in Ship Notes
+// §16.1 runbook. Compression fields populated by sharp pipeline (deferred to
+// p1-scaffold-engine-skeleton).
+
+model FileAsset {
+  id               String     @id @default(cuid())
+  tenantId         String
+  storagePath      String     @db.VarChar(500)
+  originalName     String     @db.VarChar(255)
+  mimeType         String     @db.VarChar(100)
+  sizeBytes        BigInt
+  kind             FileKind
+  status           FileStatus @default(PENDING_UPLOAD)
+  uploaderUserId   String?
+  compressedAt     DateTime?  @db.Timestamptz()
+  compressionRatio Decimal?   @db.Decimal(5, 2)
+  createdAt        DateTime   @default(now()) @db.Timestamptz()
+  createdById      String?
+  updatedAt        DateTime   @updatedAt @db.Timestamptz()
+  updatedById      String?
+  deletedAt        DateTime?  @db.Timestamptz()
+  deletedById      String?
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  uploader   User?       @relation("FileAssetUploader", fields: [uploaderUserId], references: [id], onDelete: SetNull)
+  exportJobs ExportJob[] @relation("ExportJobResult")
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, kind])
+  @@index([uploaderUserId, tenantId])
+}
+
+// ── ExportJob ────────────────────────────────────────────────
+// Async export tracking per spec §5.11. Inline CSV < 500 rows, async via
+// pg-boss otherwise (queue setup deferred to p3+). 24h signed-URL TTL on
+// resultFileAsset per §16.1.
+//
+// requestedByUserId is RESTRICT (operational records require attributable
+// requester; admin must clean up jobs before user hard-delete — see Ship
+// Notes operational caveat).
+
+model ExportJob {
+  id                String          @id @default(cuid())
+  tenantId          String
+  requestedByUserId String
+  entityKind        String          @db.VarChar(50)
+  format            ExportFormat
+  status            ExportJobStatus @default(PENDING)
+  filterPayload     Json            @default("{}")
+  resultFileAssetId String?
+  errorMessage      String?         @db.VarChar(2000)
+  expiresAt         DateTime        @db.Timestamptz()
+  createdAt         DateTime        @default(now()) @db.Timestamptz()
+  createdById       String?
+  updatedAt         DateTime        @updatedAt @db.Timestamptz()
+  updatedById       String?
+
+  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  requestedBy     User       @relation("ExportJobRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  resultFileAsset FileAsset? @relation("ExportJobResult", fields: [resultFileAssetId], references: [id], onDelete: SetNull)
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, requestedByUserId])
+  @@index([resultFileAssetId, tenantId])
+}
+
+// ── EmailLog ─────────────────────────────────────────────────
+// Per spec §4.1 Foundation row. Resend SMTP delivery tracking. status is
+// plain VARCHAR (not enum — operational state may grow with provider quirks
+// per EmailLog precedent). messageId from Resend API response.
+
+model EmailLog {
+  id             String    @id @default(cuid())
+  tenantId       String
+  recipientEmail String    @db.VarChar(255)
+  subject        String    @db.VarChar(500)
+  template       String    @db.VarChar(100)
+  status         String    @db.VarChar(50)
+  messageId      String?   @db.VarChar(255)
+  errorMessage   String?   @db.VarChar(2000)
+  sentAt         DateTime? @db.Timestamptz()
+  createdAt      DateTime  @default(now()) @db.Timestamptz()
+  createdById    String?
+  updatedAt      DateTime  @updatedAt @db.Timestamptz()
+  updatedById    String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, recipientEmail])
+}
+
+// ── WebhookEvent ─────────────────────────────────────────────
+// Per spec §4.1 Foundation row. External integration log (Xendit, Resend,
+// Supabase). idempotencyKey + (source) deduplicates replays. signature is
+// provider-supplied HMAC for replay verification (handler signs raw body).
+
+model WebhookEvent {
+  id             String    @id @default(cuid())
+  tenantId       String
+  source         String    @db.VarChar(50)
+  eventType      String    @db.VarChar(100)
+  payload        Json
+  signature      String?   @db.VarChar(255)
+  idempotencyKey String    @db.VarChar(255)
+  processedAt    DateTime? @db.Timestamptz()
+  errorMessage   String?   @db.VarChar(2000)
+  createdAt      DateTime  @default(now()) @db.Timestamptz()
+  updatedAt      DateTime  @updatedAt @db.Timestamptz()
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, source, idempotencyKey])
+  @@index([tenantId])
+  @@index([tenantId, source, eventType])
+  @@index([tenantId, processedAt])
+}
+
+// ── OrgConfig ────────────────────────────────────────────────
+// Per spec §4.1 Foundation row. Singleton-per-tenant via column-level UNIQUE
+// on tenantId (cleaner than @@unique([tenantId]) for the test parser; same
+// effect; documented drift in Ship Notes — `migrate dev --create-only` would
+// emit a separate `CREATE UNIQUE INDEX`).
+//
+// lemburCompliant per v1 ADR (overtime compliance toggle for payroll).
+// autoDropAdmissionDays drives §7.1 admission AUTO_DROPPED cron threshold.
+
+model OrgConfig {
+  id                    String    @id @default(cuid())
+  tenantId              String    @unique
+  lemburCompliant       Boolean   @default(false)
+  nisPrefix             String?   @db.VarChar(10)
+  currentAcademicYearId String?
+  autoDropAdmissionDays Int       @default(30)
+  timezone              String    @default("Asia/Jakarta") @db.VarChar(50)
+  locale                String    @default("id-ID") @db.VarChar(10)
+  createdAt             DateTime  @default(now()) @db.Timestamptz()
+  createdById           String?
+  updatedAt             DateTime  @updatedAt @db.Timestamptz()
+  updatedById           String?
+  deletedAt             DateTime? @db.Timestamptz()
+  deletedById           String?
+
+  tenant              Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  currentAcademicYear AcademicYear? @relation("OrgConfigCurrentYear", fields: [currentAcademicYearId], references: [id], onDelete: SetNull)
+
+  // Composite unique for any future FK target (none in MVP).
+  @@unique([id, tenantId])
+}
+
+// ── Holiday ──────────────────────────────────────────────────
+// Per spec §4.1 Foundation row. Tenant-scoped calendar reference. kind is
+// plain VARCHAR (not enum) — small finite set may extend per locale (e.g.
+// PAUD-specific). Partial unique on (tenantId, date) WHERE deletedAt IS NULL
+// added in 16_scaffold migration (Prisma 7 lacks DSL for partial uniques).
+
+model Holiday {
+  id          String    @id @default(cuid())
+  tenantId    String
+  date        DateTime  @db.Date
+  name        String    @db.VarChar(255)
+  kind        String    @db.VarChar(20)
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime? @db.Timestamptz()
+  deletedById String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([tenantId, date])
 }
