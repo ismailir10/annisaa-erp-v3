@@ -91,7 +91,7 @@ Subagent dispatch plan: T1 (migration 07 SQL), T4 (rate-limit lib), T5 (MIME ver
 - [x] **T11 — Migration test `prisma/migration-tests/07-students.test.ts`**. Parses committed `prisma/migrations/07_students/migration.sql`. Asserts: 4 `ENABLE ROW LEVEL SECURITY` calls present (Household + Student + StudentIdentifier + StudentIdentifierSequence), ≥1 `CREATE POLICY` per table, partial-unique index on StudentIdentifier with WHERE clause `"isPrimary" = true AND "deletedAt" IS NULL` (verbatim SQL match per assumption 11), composite FK shape on Student/Household/StudentIdentifier/StudentIdentifierSequence (regex match against `FOREIGN KEY ... REFERENCES ... (id, "tenantId")` form), `storage.objects` policies `tenant_scoped_storage_select` + `no_writes_via_postgrest_storage` present. NO advisory-lock SQL assertion (lock is app-layer per assumption 12 — covered by T3 vitest cases). Static-only (no live DB), runs under `npx vitest run`.
 - [x] **T12 — Audit-pii Student.nik propagation**. Edit `scripts/generate-audit-redactor.ts` hardcoded triple list (add `(Student, nik, redact)`). Edit `scripts/verify-pii-annotations.sh` triple list match. Run `npx tsx scripts/generate-audit-redactor.ts` to regenerate `lib/audit/redactor.ts`. Edit `.claude/standards/audit-pii.md` Hardcoded triple list section. Acceptance: `verify-pii-annotations.sh` reports 3/3; redactor diff is minimal + deterministic.
 - [x] **T13 — README + CLAUDE.md updates**. README ADR row (Decision cell ≤ 400 chars; link cycle for detail) + entity table extended (Student / Household / StudentIdentifier / StudentIdentifierSequence rows). CLAUDE.md header note RLS strict 25 → 29. Acceptance: pre-commit hook green (one-file-per-cycle + ADR cell-length + narrow doc-sync — `chore` commit subject covered by broad rule).
-- [ ] **T14 — End-of-cycle review + Verification + Ship Notes**. Code review via feature-dev:code-reviewer on full diff. Fill cycle doc Verification (gate output verbatim, test names, manual smoke notes — Playwright skip recorded with rationale). Fill Ship Notes (NIS allocator runbook, rate-limit env-var matrix, MIME verify FileKind allowlist note, scaffold-page recipe deferred to next cycle, permission.ts contract fix migration notes for downstream callers, deferral table for p2-guardians + p2-students-guardians-scaffold).
+- [x] **T14 — End-of-cycle review + Verification + Ship Notes**. Code review via feature-dev:code-reviewer on full diff. Fill cycle doc Verification (gate output verbatim, test names, manual smoke notes — Playwright skip recorded with rationale). Fill Ship Notes (NIS allocator runbook, rate-limit env-var matrix, MIME verify FileKind allowlist note, scaffold-page recipe deferred to next cycle, permission.ts contract fix migration notes for downstream callers, deferral table for p2-guardians + p2-students-guardians-scaffold).
 
 ### Dependencies for /build subagent dispatch
 
@@ -125,6 +125,7 @@ End-of-cycle gate: same. Playwright skip explicit (rebuild-window guard active; 
 - T10 — `/api/_demo/login` wired with per-IP rate-limit + `getClientIp` extraction to shared lib — app/api/_demo/login/route.ts + app/api/_demo/login/__tests__/route.test.ts + lib/http/ip.ts (NEW) + app/auth/callback/route.ts (refactor). **`getClientIp` strategy: extract.** T9 inlined the helper because it was the first caller and no `lib/http/` module existed; T10 is now the third hypothetical caller (oauth_callback, demo_login, future routes) and the function is non-trivial enough (header chain + fallback semantics + the deliberate `"unknown"` collapse) to warrant deduplication. New file `lib/http/ip.ts` carries the same logic as T9's inline copy, plus a header comment documenting the XFF leftmost-entry rationale and the `"unknown"`-bucket-conservative-throttle behaviour. T9's route now imports `getClientIp` from `@/lib/http/ip` — 4-line edit (delete inline helper + comment + add import), no behavioural change. T9's test surface unaffected (the helper was module-private; tests never referenced it directly). T10 route insertion: rate-limit gate placed AFTER role-validation 400 reject (cheap path stays cheap) and BEFORE the tenant `findFirst` lookup (so a flood cannot drive Prisma load) — `checkRateLimit({ key: getClientIp(request), scope: "demo_login" })`. On reject: `NextResponse.json({ error: "rate_limited", retryAfterMs }, { status: 429, headers: { "Retry-After": <ceil(retryAfterMs / 1000)> } })`. **Reject contract is 429 JSON, NOT a redirect** — this is an `/api/*` endpoint and per p1-auth Ship Notes the route already returns 400/500 JSON envelopes for other failure modes; redirect form would be the wrong shape for callers (Playwright global-setup, curl in dev). No `console.warn` here because the route is internal/dev-only; logging a warn on every demo-spam during local iteration would be noise. Test changes: 1 new hoisted mock (`mockCheckRateLimit`) + `vi.mock("@/lib/rate-limit", …)` factory + happy-path default `{ ok: true, remaining: 59 }` seeded in `beforeEach` so all 7 existing cases pass unchanged. 1 new test case in new `describe("/api/_demo/login — rate-limit (T10)")` block — "returns 429 + Retry-After header + JSON body when checkRateLimit rejects (no DB lookup)" (mock returns `{ ok: false, retryAfterMs: 30_000 }`; asserts status 429, body `{ error: "rate_limited", retryAfterMs: 30_000 }`, `Retry-After: "30"` header, checkRateLimit called with `scope: "demo_login"`, tenant.findFirst + userRole.findFirst + setDemoSessionCookie all NOT called — short-circuit confirmed pre-DB).
 - T12 — Audit-pii Student.nik propagation — scripts/verify-pii-annotations.sh + lib/audit/redactor.ts (regenerated) + .claude/standards/audit-pii.md — extended `TRIPLES` array in `verify-pii-annotations.sh` from 2 → 3 entries (added `"Student:nik:redact"` after the two Employee rows; canonical insertion order matches schema sequence). `scripts/generate-audit-redactor.ts` itself required NO edit — it's a pure schema parser (no hardcoded list lives in the generator; the `Student.nik /// @PII redact` annotation T2 added at schema line 1031 is what the generator picks up). Re-ran `npx tsx scripts/generate-audit-redactor.ts` → output is +3 lines on `lib/audit/redactor.ts` (new `"Student": { "nik": "redact" }` block alphabetically after the existing `"Employee"` block via `sortModelMap`); a second consecutive run produced no further diff (determinism confirmed). Standards doc gained a new `### Hardcoded triple list` subsection under §3 with a 3-row table (Model | Field | Policy | Cycle introduced) — Employee.nik tagged `p1-employees` (migration 03), Employee.phone tagged `p1-audit-timeline-files` (migration 06), Student.nik tagged `p2-students-guardians-household` (migration 07). Plus a `#### Deferred to p2-guardians cycle` block listing `(Guardian, nik, redact)` + `(Guardian, phone, mask:last4)` deferred to migration 08, with the gate jump prediction 3/3 → 5/5 documented.
 - T13 — README + CLAUDE.md updates — README.md + CLAUDE.md — README ADR row inserted as the new top 2026-05-06 entry (Decision cell **396 chars** verified via `awk '{ print length }'`, well under the pre-commit Rule 6 400-char cap; Why cell 197 chars carries the cycle link + the unblocked-cycles list for p2-guardians + p2-students-guardians-scaffold + p2-addresses-idn-chain + p2-admission-funnel). README modules-table `students` row description extended to enumerate the new entities (Household, Student, StudentIdentifier (NIS history), StudentIdentifierSequence (NIS allocator anchor)) with Guardian noted as "deferred to p2-guardians" — README has no formal entity table per se (only Modules + Portals tables); the modules row is the closest analog per the task escalation guidance ("If the README has no entity table per se, pick the closest analogous section. Don't invent a new table"). CLAUDE.md three updates: (1) "Migrations landed" header note retitled `(Phase 1)` → `(Phase 1 + Phase 2)` + extended with the 07_students paragraph (composite FKs §6.4, soft-delete-aware partial-unique guard with verbatim WHERE clause `"isPrimary" = true AND "deletedAt" IS NULL`, advisory-lock app-layer rationale per assumption 12, soft-delete asymmetry YES on Household/Student/StudentIdentifier vs NO on StudentIdentifierSequence matching ExportJob/EmailLog precedent); (2) RLS coverage guard count bumped 25 → 29 with the cycle-of-record updated from `p1-audit-timeline-files` to `p2-students-guardians-household` and the delta annotated (4 new tables: Household/Student/StudentIdentifier/StudentIdentifierSequence); the parser-regression floor stays at 5; "remaining Phase 1 + Phase 2 cycles" copy collapsed to "remaining Phase 2 cycles" since Phase 1 is closed; (3) Audit redactor sentence extended — annotates list grew `Employee.nik + Employee.phone` → `Employee.nik + Employee.phone + Student.nik` with the CI gate count 2/2 → 3/3 anchored to `p2-students-guardians-household`, and a new trailing sentence calls out Guardian fields deferred to p2-guardians (lands with migration 08). No other Phase-2-marker copy edits required (no other "Phase 2" or "p2" markers in CLAUDE.md need flipping).
+- T14 — End-of-cycle parallel review (feature-dev:code-reviewer + superpowers:code-reviewer) + 2 review fixes + final synthesis — `app/auth/callback/route.ts` + `app/auth/callback/__tests__/route.test.ts` + `prisma/schema.prisma` — feature-dev:code-reviewer surfaced 3 MAJORs; superpowers:code-reviewer reported SHIP no-blockers/no-majors. After analysis, 2 of the 3 MAJORs were folded as fixes; 1 was rejected as semantically incorrect. **MAJOR-2 fix (callback redirect drift):** T9's rate-limit reject branch redirected to `/login?error=rate_limit` per task spec literal text, but the route's `errorRedirect` helper points to `/auth/error?reason=...` and `/login` doesn't exist as a route in this codebase — would 404 on actual rejection. Swapped to `errorRedirect("rate_limit")` for redirect-target consistency with every other error branch in the handler; updated test assertion accordingly. **MAJOR-3 fix (schema/migration unique drift):** `Household.@@unique([tenantId, code])` and `Student.@@unique([tenantId, nis])` in `prisma/schema.prisma` were full-uniques; the matching migration constraints are partial-WHERE indexes (`WHERE deletedAt IS NULL AND <col> IS NOT NULL`). On the next `prisma migrate dev` run the schema-side full unique would attempt to regenerate as a separate constraint conflicting with the partial index. Removed both `@@unique` directives + replaced with `@@index([tenantId, code])` / `@@index([tenantId, nis])` for query coverage; partial uniqueness now lives ONLY in the 07_students migration (single source of truth). Schema comments updated. Zero live callers depend on the removed `findUnique` API surfaces (`grep -rn "tenantId_code\|tenantId_nis" lib/ app/` returns no hits). **MAJOR-1 rejected (storage.objects FOR ALL OR-evaluation):** reviewer claimed `USING (false) FOR ALL` would beat `tenant_scoped_storage_select`'s SELECT grant via OR-evaluation. Postgres RLS PERMISSIVE policies are OR'd — `false OR <prefix-match>` = `<prefix-match>`, NOT false. The intended behavior holds: SELECT permitted when prefix matches, INSERT/UPDATE/DELETE blocked. Rejected with rationale; documented in Ship Notes for next cycle to verify Supabase default storage.objects policies don't override the `REVOKE FROM authenticated` (separate concern, not blocker for schema-only ship). No new tests for T14 (the 2 fixes are covered by existing test reshape + Prisma client regen).
 
 ## Verification
 
@@ -142,7 +143,133 @@ End-of-cycle gate: same. Playwright skip explicit (rebuild-window guard active; 
 - T11: `npm run build && npm run typecheck && npx vitest run` passed (`Test Files 34 passed | 1 skipped (35) / Tests 848 passed | 4 skipped (852)` — +18 new cases over T10 baseline 830). Targeted `npx vitest run prisma/migration-tests/07-students.test.ts` reports `Test Files 1 passed (1) / Tests 18 passed (18)` (all 18 pass on the FIRST run — the migration SQL was already committed by T1 and the test parses it). 18 cases in `prisma/migration-tests/07-students.test.ts` across 5 describe blocks: 4 RLS-enable cases (one per tenant table) + 4 ≥1-policy cases (one per tenant table) + 1 exact-count case (`/ENABLE ROW LEVEL SECURITY/g` === 4); 1 partial-unique guard with verbatim deletedAt-aware WHERE; 5 composite-FK shape cases (Student→Household, Student→Program, StudentIdentifier→Student, StudentIdentifierSequence→AcademicYear, StudentIdentifierSequence→Program); 2 storage.objects policy cases (`tenant_scoped_storage_select`, `no_writes_via_postgrest_storage`); 1 negative guard (no `CREATE FUNCTION ... pg_advisory_xact_lock` per assumption 12 — lock is app-layer per T3). No regex adjustments vs the spec template needed beyond using literal `FOREIGN KEY ("col", "tenantId") REFERENCES "Table"("id", "tenantId")` form (the migration uses canonical Prisma FK formatting; strict literal form gives clearer diffs than the loose `[^)]*` placeholder form). No build/typecheck regressions.
 - T10: `npm run build && npm run typecheck && npx vitest run` passed (`Test Files 33 passed | 1 skipped (34) / Tests 830 passed | 4 skipped (834)` — +1 new case over T9 baseline 829, matching spec acceptance "existing demo-login tests green + 1 new case (over-limit 429 JSON)"). Targeted `npx vitest run app/api/_demo/ app/auth/` reports `Test Files 2 passed (2) / Tests 26 passed (26)` (8 demo-login = 7 existing + 1 new; 18 auth-callback unchanged from T9 — refactor to `@/lib/http/ip` import did not perturb any test). All 7 existing demo-login cases continue to pass via happy-path `mockCheckRateLimit.mockReturnValue({ ok: true, remaining: 59 })` seeded in `beforeEach`. New case `"returns 429 + Retry-After header + JSON body when checkRateLimit rejects (no DB lookup)"` lives in new `describe("/api/_demo/login — rate-limit (T10)")` block at end of file (asserts 429 status, body `{ error: "rate_limited", retryAfterMs: 30_000 }`, `Retry-After: "30"`, scope `demo_login`, no tenant/userRole/cookie writes). **`getClientIp` extraction decision: chose extract (over inline-duplicate or cross-route import).** Rationale: T10 is the third caller path of XFF-chain → x-real-ip → "unknown" fallback (T9 implemented inline only because it was the first caller); the function is non-trivial enough — header chain semantics + the deliberate `"unknown"`-collapse-throttle-conservative behaviour — to be worth deduplicating once a third caller exists. New file `lib/http/ip.ts` carries the helper plus a header comment block documenting both the XFF leftmost-entry choice and the "unknown" bucket rationale; T9's route refactored to import from the new module (4-line edit: removed inline copy + 14-line comment, added `import { getClientIp } from "@/lib/http/ip"`). T9's test surface unaffected (helper was module-private — never directly referenced by tests). No new test for `lib/http/ip.ts` itself — the helper is a 6-line header-extraction function fully covered by both consumer routes' end-to-end mocks of `request.headers.get("x-forwarded-for"|"x-real-ip")`; isolated unit tests would not exercise behaviour the consumer tests do not already cover. Cross-route import (importing from `app/auth/callback/route.ts`) was rejected as bad practice — route handlers should not be reused as library surfaces. No build/typecheck regressions.
 - T12: `npm run build && npm run typecheck && npx vitest run` passed (`Test Files 34 passed | 1 skipped (35) / Tests 848 passed | 4 skipped (852)` — no test delta vs T11 baseline 848; T12 is gate-config + generator-output, no new vitest cases authored — `lib/audit/redactor.ts` is the AUTO-GENERATED output, not a test surface). `bash scripts/verify-pii-annotations.sh` reports `✓ PII annotation coverage OK: 3 / 3 known-PII fields annotated.` (exit 0). `lib/audit/redactor.ts` diff is +3 lines / -0 lines (new `"Student": { "nik": "redact" }` block inserted alphabetically after `"Employee"` per `sortModelMap`). Determinism verified: ran `npx tsx scripts/generate-audit-redactor.ts` twice consecutively — second run produced zero further diff against the first run's output (`git diff --stat` unchanged at +3 lines). Generator script itself untouched — no hardcoded list lives in `generate-audit-redactor.ts`; the schema's `/// @PII` annotation (T2 added `Student.nik /// @PII redact` at schema line 1031) is the source of truth, with `scripts/verify-pii-annotations.sh` TRIPLES array as the cross-check gate. Files staged: `scripts/verify-pii-annotations.sh` (1-line addition), `lib/audit/redactor.ts` (regenerated, +3 lines), `.claude/standards/audit-pii.md` (new §3 Hardcoded triple list subsection + Deferred sub-block).
+- T13: `npm run build && npm run typecheck && npx vitest run` passed (no test delta vs T12 baseline 848 — pure docs change). `verify-rls-coverage.sh` confirms `29 / 29 tenant-scoped models have ENABLE + policy.` (matches CLAUDE.md update). ADR Decision cell length verified at 396 chars (under 400 cap).
+- T14: Final end-of-cycle gate run after 2 review fixes (MAJOR-2 callback redirect + MAJOR-3 schema unique drift):
+  - `npx prisma generate` clean (`✔ Generated Prisma Client (7.6.0) ... in 318ms`)
+  - `npm run build` clean (Next.js compiled, route table unchanged)
+  - `npm run typecheck` clean (`✔ Generated Prisma Client` + tsc --noEmit no errors)
+  - `npx vitest run` → `Test Files 34 passed | 1 skipped (35) / Tests 848 passed | 4 skipped (852)` (test count unchanged; the T14 fixes were in-place edits to existing tests, not additions)
+  - `scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 29 / 29 tenant-scoped models have ENABLE + policy.`
+  - `scripts/verify-pii-annotations.sh` → `✓ PII annotation coverage OK: 3 / 3 known-PII fields annotated.`
+  - `scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 4 / 4 routes have session helper or @public sentinel.`
+  - **Playwright skip:** explicit + justified — this cycle ships zero UI (`app/admin/**`, `app/teacher/**`, `app/parent/**` untouched), `e2e/` directory still has zero `*.spec.ts` files, CI rebuild-window guard in `.github/workflows/ci.yml` automatically skips Playwright + seed steps when no specs are present. First spec lands in `p2-students-guardians-scaffold` (next-after-next cycle); guard re-enables itself the moment it detects an `e2e/**/*.spec.ts` file.
 
 ## Ship Notes
 
-<!-- /ship fills: migrations, env vars, manual steps, rollback plan -->
+### Migrations to run
+
+One new migration: `prisma/migrations/07_students/`. Auto-applied on staging deploy via `npx prisma migrate deploy` (existing pipeline). 4 new tables (Household, Student, StudentIdentifier, StudentIdentifierSequence) + tenant-scoped RLS on all 4 + `storage.objects` RLS policies (`tenant_scoped_storage_select` + `no_writes_via_postgrest_storage`) folded inline at end of migration.
+
+Post-migration verify (manual smoke from a Supabase dashboard SQL session, optional):
+```sql
+SELECT COUNT(*) FROM information_schema.tables
+  WHERE table_name IN ('Household','Student','StudentIdentifier','StudentIdentifierSequence');
+-- expect: 4
+
+SELECT COUNT(*) FROM pg_policies
+  WHERE schemaname = 'public'
+  AND tablename IN ('Household','Student','StudentIdentifier','StudentIdentifierSequence');
+-- expect: ≥ 4 (1+ policy per table)
+
+SELECT polname FROM pg_policy WHERE polrelid = 'storage.objects'::regclass
+  AND polname IN ('tenant_scoped_storage_select','no_writes_via_postgrest_storage');
+-- expect: 2 rows
+```
+
+### New env vars
+
+Two **optional** env vars introduced for `lib/rate-limit.ts` (defaults are sane; only set if you need different limits):
+
+| Var | Default | Purpose |
+|---|---|---|
+| `RATE_LIMIT_REQUESTS_PER_MINUTE` | `60` | Max requests per (scope, key) tuple per window |
+| `RATE_LIMIT_STORAGE_TTL_MS` | `60000` | Window length in milliseconds |
+
+Both parse via `parsePositiveInt(process.env.X, fallback)` — invalid / missing values fall through to the default. No production rollout requires setting these for v1.
+
+### Manual smoke-test on Vercel preview
+
+After staging deploy, verify the four wired routes don't regress:
+
+1. **`/api/upload`** — call with valid auth + valid image; expect 200 + FileAsset row written. Repeat 61 times within 60s; expect 429 + `Retry-After: <seconds>` header on call #61. (Default limit is 60/min; lower with `RATE_LIMIT_REQUESTS_PER_MINUTE=5` for a faster smoke if needed.)
+2. **`/api/upload`** — POST a file with extension `.jpg` but body bytes for a PDF (`%PDF-`); expect 400 `{ error: "invalid_mime", reason: ... }`.
+3. **`/auth/callback`** — flood with 61 GETs from same IP within 60s; expect 307 redirect to `/auth/error?reason=rate_limit` on call #61 (no Supabase exchange triggered; check Supabase audit logs).
+4. **`/api/_demo/login`** — flood with 61 POSTs from same IP within 60s; expect 429 + `Retry-After` header on call #61. Tenant lookup NOT triggered (check Postgres logs).
+
+For NIS allocator runbook (no consumers yet — so no smoke needed this cycle), see "NIS allocator usage" below.
+
+### NIS allocator runbook
+
+**Module:** `lib/students/nis-allocator.ts`. Single export: `allocateNis({ tenantId, academicYearId, programId, prisma })`.
+
+**Caller contract:**
+- Pass the root PrismaClient (not a `tx` from an outer transaction — the allocator opens its own `$transaction` internally with the advisory lock).
+- The (tenantId, academicYearId, programId) tuple must reference existing rows. Missing program → `PROGRAM_NOT_FOUND`; missing year → `ACADEMIC_YEAR_NOT_FOUND`.
+- Empty / undefined args → `INVALID_INPUT` thrown BEFORE the transaction starts.
+- Sequence overflow at `lastValue > 9999` → `SEQUENCE_OVERFLOW`. PAUD scale (≤500 students/year/program); overflow won't fire for 20+ years.
+
+**Lock semantics:**
+- Advisory transaction lock on `hashtext(tenantId || ':nis:' || academicYearId)` — releases automatically on commit/rollback (Postgres semantics).
+- Lock-key shape excludes program (assumption 6 in cycle doc) — different programs share the same lock per (tenant, year). This is correctness-preserving (each program has its own sequence row); the trade-off is rare cross-program serialization (acceptable at PAUD scale).
+- 32-bit `hashtext` collision risk negligible at PAUD scale (10s of tenants × ≤5 programs × 2 active years = ~100 keys; cross-tenant collision causes spurious cross-tenant serialization, NOT incorrect sequence assignment).
+
+**Output format:** `<programCode>-<lastTwoYearDigits>-<paddedSequence>` e.g. `PAUD-A-25-0001`. Year suffix derived from `AcademicYear.name` regex 4-digit match if present; falls back to `startDate.getUTCFullYear() % 100`.
+
+### Rate-limit env var matrix (no rollout action required)
+
+In-memory `Map<string, Bucket>` storage. Single-region Vercel deploy assumed; counters lost on cold start (acceptable per cycle assumption 4). Multi-region / Redis migration deferred to p3+. For staging today no env vars need setting.
+
+### MIME verify FileKind allowlist note
+
+`lib/storage/mime-verify.ts` covers all 5 `FileKind` enum values: DOCUMENT (PDF), IMAGE (JPEG/PNG/WEBP), VIDEO (MP4 ftyp), AUDIO (MP3 ID3v2 + MPEG sync + M4A), ARCHIVE (ZIP). The `_internal.TABLE` coverage-invariant test fails closed if a future migration adds a new FileKind value without extending the table — keeps drift visible.
+
+If a future cycle wants to add SVG to IMAGE (e.g. for vector logos): SVG has no fixed magic byte. Either (a) add a "SVG" matcher that probes for `<?xml` / `<svg` in the first N bytes (still spoofable), or (b) restrict SVG to a separate `FileKind.SVG` with a dedicated content-sanitizer (since SVG can carry script tags). Don't accept SVG into the existing IMAGE allowlist without that decision being made explicitly.
+
+### Permission resolver contract migration notes (downstream callers)
+
+Future callers of `resolvePermissions(args)` (lib/scaffold/permission.ts) MUST pass BOTH `userId` (User.id, CUID) AND `supabaseUserId` (Supabase auth uuid) on the `ResolveArgs` object. Both are available on the session (post-p1-auth-google-oauth). Resolver is a pure function — no live callers today; first call sites land in `p2-students-guardians-scaffold` (admin pages).
+
+Cache key still uses User.id only (User.id ↔ supabaseUserId is a stable 1:1 mapping; adding supabaseUserId would not change hit rate, just expand cardinality).
+
+### Scaffold-page recipe (deferred to p2-students-guardians-scaffold)
+
+This cycle ships zero scaffold pages. Recipe for next cycle:
+
+```tsx
+// app/admin/students/page.tsx
+import { ScaffoldListPage } from "@/lib/scaffold";
+import student from "@/lib/entities/student/entity";
+export default function Page() {
+  return <ScaffoldListPage entity={student} />;
+}
+```
+
+Per spec §5.2 4-line page pattern. Identical for Form (`new/page.tsx`), Detail (`[id]/page.tsx`), Edit (`[id]/edit/page.tsx`). Per-entity registry (`lib/entities/<name>/{schema,entity,policy}.ts`) lands alongside the pages. First Playwright canary `e2e/admin/students.spec.ts` flips the CI rebuild-window guard automatically.
+
+### Storage.objects RLS audit (deferred verification)
+
+`07_students` migration adds `tenant_scoped_storage_select` + `no_writes_via_postgrest_storage` policies on `storage.objects`. Supabase ships its own default policies on this table (managed by the platform). Open question for next cycle: do Supabase's defaults grant write access to `authenticated` that would override our `REVOKE ALL FROM authenticated` block? Spot-check via `SELECT polname, polcmd, polroles FROM pg_policy WHERE polrelid = 'storage.objects'::regclass` after deploy. If write-grants exist, restructure our `no_writes_via_postgrest_storage` from PERMISSIVE-USING(false) (which OR's with their PERMISSIVE-USING(true) and is therefore inert) to RESTRICTIVE-USING(false) (which AND's and overrides). Schema-only ship today (no client-side storage.objects writers), so this is not a blocker for /ship.
+
+### Rollback plan
+
+- **Revert path:** `git revert <PR merge SHA>` undoes all 14 task commits cleanly (the 13 implementation commits + the T14 ship-notes commit). One file changed per task on average, fully isolated.
+- **Schema rollback:** Migration 07 cannot be reverted by Prisma (no `prisma migrate undo`). Manual DOWN-migration would `DROP TABLE` the 4 new tables + `DROP POLICY` on storage.objects. No data loss risk: zero rows are written this cycle (no consumers). If staging needs a clean revert: drop the schema objects via a one-off SQL session, then re-apply the next migration cycle.
+- **Risk window:** essentially zero. Schema-only ship + platform plumbing with no live consumer callers. Worst case is `prisma generate` failing in CI (already verified clean locally + on the gate scripts).
+- **JWT hook:** unchanged from p1-auth-google-oauth. No re-deploy of Supabase config needed.
+
+### Phase 2 status (post-merge)
+
+- [x] **P2 Cycle 1 shipped** — Migration 07 (Students/Household schema) + NIS allocator + platform plumbing (rate-limit, MIME verify, permission fix, getSession console.error, storage.objects RLS folded inline) + audit-pii Student
+- [ ] `p2-guardians` — Migration 08 (Guardian + StudentGuardian + GuardianInvitation) + audit-pii Guardian.nik / Guardian.phone. RLS strict will jump 29 → 32. ~10 files, 1 migration. Next p2 cycle.
+- [ ] `p2-students-guardians-scaffold` — 5 entity registries + admin pages × 4 (List/Form/Detail/Edit) + role-FileKind gating + scaffold.md standard authoring + Playwright canary `e2e/admin/students.spec.ts` (re-enables Playwright in CI). ~30+ files, 0 migrations. Likely sub-splits.
+- [ ] `p2-addresses-idn-chain` — Address chain (Province / Regency / District / Village + cascading dropdown UI). FK on Household.addressId becomes non-nullable.
+- [ ] `p2-admission-funnel` — Public `/daftar` form + workflow state machine (Admission states).
+
+After all p2 cycles ship: phase 3 (fee + invoice + payment + installment foundation) starts.
+
+### Lessons surfaced this cycle
+
+- **Spec-time literal-text vs route-convention drift.** T9 implementer followed task spec literally (`/login?error=rate_limit`) when the route's existing convention is `/auth/error?reason=...`. Folded as fix at T14 review. Lesson: when speccing route changes, prefer "use the existing `errorRedirect` helper / match the existing redirect convention" over literal URL strings — leaves less room for drift if the convention changes between speccing and implementing.
+- **Schema partial-unique drift trap.** T2 implementer added `@@unique([tenantId, code])` + `@@unique([tenantId, nis])` to schema.prisma WITH a comment explaining "Prisma sees full unique; partial WHERE in migration". This works for `prisma migrate deploy` but not `prisma migrate dev` (which would regenerate the full constraint as a new migration). Folded as fix at T14 review — declarations removed; partial uniqueness lives ONLY in migration. Lesson: Prisma's DSL cannot express partial-WHERE uniqueness; document the partial unique in migration + use `findFirst` for those queries; don't double-declare.
+- **Two-reviewer parallel review surfaces real findings.** feature-dev:code-reviewer caught both fixes above; superpowers:code-reviewer caught zero. The two reviewers had complementary attention surfaces (feature-dev focused on contract drift + scope; superpowers focused on RLS / advisory-lock / IP-extraction security primitives). Worth keeping as the standard cycle-end pattern when the diff has both schema and security-control content.
+- **`getClientIp` deduplication threshold.** T9 inlined the helper; T10 had to decide between inline-duplicate, cross-route import, or extract. Picked extract → `lib/http/ip.ts`. Lesson: 3 callers is a strong signal to extract; 2 is the inflection point worth surfacing in code review. Document the rule of thumb in `.claude/standards/api.md` next time it's touched.

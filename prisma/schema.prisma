@@ -1007,10 +1007,13 @@ model Household {
   // Composite unique on (id, tenantId) — required as FK target for Student
   // composite-FK chain (§6.4) + future p2-guardians + p2-admission-funnel.
   @@unique([id, tenantId])
-  // Prisma sees full unique; partial WHERE (deletedAt IS NULL AND code IS NOT NULL)
-  // enforced at DB level via 07_students migration.
-  @@unique([tenantId, code])
+  // Code uniqueness is partial-WHERE (deletedAt IS NULL AND code IS NOT NULL)
+  // and lives ONLY in the 07_students migration — declaring `@@unique([tenantId,
+  // code])` here would cause `prisma migrate dev` to regenerate a full unique
+  // constraint conflicting with the partial index. Use `findFirst` for
+  // (tenantId, code) lookups; the index below covers the query.
   @@index([tenantId])
+  @@index([tenantId, code])
 }
 
 // ── Student ──────────────────────────────────────────────────
@@ -1051,10 +1054,13 @@ model Student {
   // Composite unique on (id, tenantId) — required as FK target for
   // StudentIdentifier composite-FK chain (§6.4) + future p2-guardians.
   @@unique([id, tenantId])
-  // Prisma sees full unique; partial WHERE (deletedAt IS NULL AND nis IS NOT NULL)
-  // enforced at DB level via 07_students migration.
-  @@unique([tenantId, nis])
+  // NIS uniqueness is partial-WHERE (deletedAt IS NULL AND nis IS NOT NULL)
+  // and lives ONLY in the 07_students migration — declaring `@@unique([tenantId,
+  // nis])` here would cause `prisma migrate dev` to regenerate a full unique
+  // constraint conflicting with the partial index. Use `findFirst` for
+  // (tenantId, nis) lookups; the index below covers the query.
   @@index([tenantId])
+  @@index([tenantId, nis])
   @@index([tenantId, householdId])
   @@index([tenantId, programId])
   // Plain B-tree index for fullName equality / prefix; trigram GIN index

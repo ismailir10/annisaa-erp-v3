@@ -375,17 +375,19 @@ describe("/auth/callback — ?next= validation", () => {
 });
 
 describe("/auth/callback — rate-limit (T9)", () => {
-  it("redirects to /login?error=rate_limit when checkRateLimit rejects (no Supabase exchange)", async () => {
+  it("redirects to /auth/error?reason=rate_limit when checkRateLimit rejects (no Supabase exchange)", async () => {
     // Over-limit case: rate-limit lib reports rejection. Per the route's
-    // redirect-error contract, response is a 307 to /login?error=rate_limit
-    // (NOT 429 JSON). Supabase exchangeCodeForSession must NOT be called —
-    // the gate sits before the exchange.
+    // redirect-error contract, response is a 307 to /auth/error?reason=
+    // rate_limit (NOT 429 JSON, NOT /login). Uses the route's existing
+    // errorRedirect helper so the redirect target is consistent with
+    // every other error branch in this handler. Supabase
+    // exchangeCodeForSession must NOT be called — gate sits before exchange.
     mockCheckRateLimit.mockReturnValue({ ok: false, retryAfterMs: 30_000 });
 
     const res = await GET(makeRequest("?code=abc") as never);
 
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/login?error=rate_limit");
+    expect(res.headers.get("location")).toContain("/auth/error?reason=rate_limit");
     expect(mockCheckRateLimit).toHaveBeenCalledWith({
       key: expect.any(String),
       scope: "oauth_callback",

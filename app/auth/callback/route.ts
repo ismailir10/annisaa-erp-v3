@@ -116,17 +116,17 @@ export async function GET(request: NextRequest) {
   // Per-IP rate-limit gate — runs AFTER code-extract so the missing_code path
   // stays cheap, BEFORE the Supabase exchange so a flood of valid-shape
   // requests cannot drive Supabase auth load. Scope is `oauth_callback`;
-  // limit defaults from `RATE_LIMIT_REQUESTS_PER_MINUTE` env (60/min).
-  // Reject path matches the route's redirect-error contract — login lands at
-  // `/login?error=rate_limit` (NOT a 429 JSON body), so the user sees a
-  // standard error toast instead of a raw HTTP error.
+  // limit defaults from `RATE_LIMIT_REQUESTS_PER_MINUTE` env (60/min). Reject
+  // path uses the route's existing `errorRedirect` helper (→ /auth/error?
+  // reason=rate_limit) for redirect-target consistency with every other
+  // error branch in this handler.
   const ip = getClientIp(request);
   const rateLimit = checkRateLimit({ key: ip, scope: "oauth_callback" });
   if (!rateLimit.ok) {
     console.warn(
       `[auth/callback] rate-limited ip=${ip} retryAfterMs=${rateLimit.retryAfterMs}`,
     );
-    return NextResponse.redirect(new URL("/login?error=rate_limit", request.url));
+    return errorRedirect("rate_limit");
   }
 
   const supabase = createServerClient(
