@@ -146,6 +146,9 @@ model Tenant {
   students                   Student[]
   studentIdentifiers         StudentIdentifier[]
   studentIdentifierSequences StudentIdentifierSequence[]
+  guardians                  Guardian[]
+  studentGuardians           StudentGuardian[]
+  guardianInvitations        GuardianInvitation[]
 }
 
 // ── Campus ───────────────────────────────────────────────────
@@ -295,6 +298,7 @@ model User {
   timelineEvents     TimelineEvent[] @relation("TimelineEventActor")
   uploadedFileAssets FileAsset[]     @relation("FileAssetUploader")
   exportJobs         ExportJob[]     @relation("ExportJobRequester")
+  guardians          Guardian[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -1046,10 +1050,12 @@ model Student {
   deletedAt   DateTime? @db.Timestamptz()
   deletedById String?
 
-  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  household   Household           @relation(fields: [householdId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  program     Program             @relation(fields: [programId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  identifiers StudentIdentifier[]
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  household           Household            @relation(fields: [householdId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  program             Program              @relation(fields: [programId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  identifiers         StudentIdentifier[]
+  studentGuardians    StudentGuardian[]
+  guardianInvitations GuardianInvitation[]
 
   // Composite unique on (id, tenantId) — required as FK target for
   // StudentIdentifier composite-FK chain (§6.4) + future p2-guardians.
@@ -1130,4 +1136,161 @@ model StudentIdentifierSequence {
   program      Program      @relation(fields: [programId, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   @@unique([tenantId, academicYearId, programId])
+}
+
+// ── Guardian ─────────────────────────────────────────────────
+// Per spec §6.1 (migration 08). Tenant-scoped, soft-delete, audit per §4.4.
+// `nik` Indonesian national ID — PII per §4.5 (annotated `/// @PII redact`,
+// audit redactor strips it from before/after payloads). `phone` PII
+// (`/// @PII mask:last4` — audit redactor masks all but last 4 chars).
+//
+// `userId` is the optional link to a User row created at GuardianInvitation
+// acceptance (NULL until accepted, populated atomically in the consume tx).
+//
+// FK shape (cycle assumption 5 — split-view):
+//   - DB / migration:   composite FK `(userId, tenantId) → User(id, tenantId)
+//                       ON DELETE SET NULL ("userId")` (Postgres 15.4+
+//                       column-list SET NULL — preserves §6.4 tenant
+//                       alignment; tenantId stays bound to Guardian when
+//                       a User is hard-deleted).
+//   - Prisma schema:    SINGLE-column relation `user User?
+//                       @relation(fields: [userId], references: [id],
+//                       onDelete: SetNull)`. NOT composite. Dodges Prisma
+//                       issue #25061 — composite SetNull would null all
+//                       composite columns including tenantId via the
+//                       Prisma client disconnect path, breaking the NOT
+//                       NULL constraint at runtime.
+//   - `prisma migrate dev` will detect drift and propose regeneration.
+//                       REJECT in PR review — drift is intentional;
+//                       `migrate deploy` (production path) only applies
+//                       committed migrations and is unaffected.
+
+model Guardian {
+  id          String    @id @default(cuid())
+  tenantId    String
+  userId      String?
+  fullName    String    @db.VarChar(255)
+  email       String?   @db.VarChar(255)
+  nik         String?   @db.VarChar(16) /// @PII redact
+  phone       String?   @db.VarChar(20) /// @PII mask:last4
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime? @db.Timestamptz()
+  deletedById String?
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Single-column FK by design — see header note above. DB enforces
+  // composite (userId, tenantId) → User(id, tenantId) with column-list
+  // SET NULL ("userId") via the migration. Do NOT change to a composite
+  // relation here without first re-confirming Prisma issue #25061 status.
+  user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  studentGuardians    StudentGuardian[]
+  guardianInvitations GuardianInvitation[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([tenantId, userId])
+  @@index([tenantId, fullName])
+}
+
+// ── StudentGuardian ──────────────────────────────────────────
+// Per spec §6.1 (migration 08) — many-to-many between Student and Guardian
+// with relationship enum + isPrimary flag. Tenant-scoped, soft-delete, audit
+// per §4.4. `relationship` uses CHECK ('FATHER', 'MOTHER', 'GUARDIAN',
+// 'OTHER') at DB level — schema-light, no Prisma enum (mirrors
+// Student.gender / StudentIdentifier.kind precedent in migration 07).
+//
+// Partial-unique PRIMARY guard (cycle assumption 8) lives ONLY in
+// 08_guardians migration — scope `(studentId, tenantId, relationship)` +
+// `WHERE "isPrimary" = true AND "deletedAt" IS NULL`. Permits PRIMARY
+// FATHER + PRIMARY MOTHER coexisting per Indonesian PAUD admission practice.
+// Do NOT declare `@@unique([studentId, tenantId, relationship])` here —
+// `prisma migrate dev` would regenerate a full unique constraint
+// conflicting with the partial-WHERE index (per p2-cycle-1 lesson). Use
+// `findFirst` for the (studentId, tenantId, relationship) PRIMARY lookup;
+// the `@@index([tenantId, studentId])` covers the query.
+
+model StudentGuardian {
+  id           String    @id @default(cuid())
+  tenantId     String
+  studentId    String
+  guardianId   String
+  // relationship CHECK ('FATHER', 'MOTHER', 'GUARDIAN', 'OTHER') at DB level.
+  relationship String    @db.VarChar(20)
+  isPrimary    Boolean   @default(false)
+  notes        String?   @db.VarChar(2000)
+  createdAt    DateTime  @default(now()) @db.Timestamptz()
+  createdById  String?
+  updatedAt    DateTime  @updatedAt @db.Timestamptz()
+  updatedById  String?
+  deletedAt    DateTime? @db.Timestamptz()
+  deletedById  String?
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student  Student  @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  guardian Guardian @relation(fields: [guardianId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([guardianId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, guardianId])
+}
+
+// ── GuardianInvitation ───────────────────────────────────────
+// Per spec §6.1 (migration 08). Token-based parent-portal activation row.
+// Tenant-scoped. NO soft-delete (operational; status enum carries lifecycle;
+// matches ExportJob/EmailLog precedent in 16_scaffold and
+// StudentIdentifierSequence in 07_students). Audit columns:
+// createdAt / createdById / updatedAt / updatedById. NO deletedAt /
+// deletedById per the operational-record convention.
+//
+// `token` is a 32-byte base64url string (256 bits entropy, ~43 chars
+// URL-safe), app-generated via `crypto.randomBytes(32).toString('base64url')`.
+// NOT pgcrypto-generated — column has no DEFAULT. Stored as VARCHAR(64)
+// with global UNIQUE — collision astronomically unlikely; global unique
+// simplifies the consume route (token → invitation row across all tenants,
+// then app-layer-gate on tenantId).
+//
+// `status` uses CHECK ('PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED') at DB
+// level. Single-use semantics enforced via atomic
+// `UPDATE ... WHERE status='PENDING'` at consume (cycle assumption 4) —
+// no row-lock needed under MVCC. `expiresAt` enforced app-layer at consume
+// (cycle assumption 3); pg-boss sweep PENDING+expired → EXPIRED deferred
+// to p3+.
+//
+// `guardianId` NOT NULL (cycle assumption 6) — admin pre-creates the
+// Guardian row (with userId = NULL) at invitation issue time, then issues
+// the invitation referencing that Guardian. Acceptance flow populates
+// Guardian.userId atomically.
+
+model GuardianInvitation {
+  id          String    @id @default(cuid())
+  tenantId    String
+  studentId   String
+  guardianId  String
+  token       String    @db.VarChar(64)
+  // status CHECK ('PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED') at DB level.
+  status      String    @default("PENDING") @db.VarChar(20)
+  expiresAt   DateTime  @db.Timestamptz()
+  acceptedAt  DateTime? @db.Timestamptz()
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student  Student  @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  guardian Guardian @relation(fields: [guardianId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@unique([token])
+  @@index([tenantId])
+  @@index([guardianId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, guardianId])
+  @@index([tenantId, status])
 }
