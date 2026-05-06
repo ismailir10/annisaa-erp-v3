@@ -74,4 +74,7 @@ export const householdPolicy: EntityPolicy = defineEntityPolicy({
   },
 });
 
+// Canonical alias for scaffold-check static guard.
+export const policy = householdPolicy;
+
 export default householdPolicy;

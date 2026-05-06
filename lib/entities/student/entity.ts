@@ -47,7 +47,7 @@ const GENDER_OPTIONS = [
   { value: "FEMALE", label: "Perempuan" },
 ] as const;
 
-const entity: EntityDef<Student> = {
+export const entity: EntityDef<Student> = {
   key: "student",
   label: "Siswa",
   labelSingular: "Siswa",

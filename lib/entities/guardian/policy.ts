@@ -69,4 +69,8 @@ export const guardianPolicy: EntityPolicy = defineEntityPolicy({
   },
 });
 
+// Canonical alias for `scripts/scaffold-check.ts` static guard (expects
+// `export const policy`). Same value.
+export const policy = guardianPolicy;
+
 export default guardianPolicy;

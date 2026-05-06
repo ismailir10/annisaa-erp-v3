@@ -178,4 +178,7 @@ export const householdEntity: EntityDef<HouseholdRow> = {
   dataFetcher,
 };
 
+// Canonical alias for scaffold-check static guard.
+export const entity = householdEntity;
+
 export default householdEntity;

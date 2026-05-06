@@ -142,7 +142,7 @@ const dataFetcher: DataFetcher<GuardianRow> = async (params) => {
 
 // ── EntityDef instance ──────────────────────────────────────────
 
-const guardianEntity: EntityDef<GuardianRow> = {
+export const entity: EntityDef<GuardianRow> = {
   key: "guardian",
   label: "Wali",
   labelSingular: "Wali",
@@ -273,4 +273,4 @@ const guardianEntity: EntityDef<GuardianRow> = {
   dataFetcher,
 };
 
-export default guardianEntity;
+export default entity;

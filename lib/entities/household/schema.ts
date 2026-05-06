@@ -28,4 +28,7 @@ export const householdSchema = z.object({
 
 export type HouseholdInput = z.infer<typeof householdSchema>;
 
+// Canonical alias for scaffold-check static guard.
+export const schema = householdSchema;
+
 export default householdSchema;

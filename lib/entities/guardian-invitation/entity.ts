@@ -241,4 +241,7 @@ export const guardianInvitationEntity: EntityDef<GuardianInvitationRow> = {
   dataFetcher,
 };
 
+// Canonical alias for scaffold-check static guard.
+export const entity = guardianInvitationEntity;
+
 export default guardianInvitationEntity;

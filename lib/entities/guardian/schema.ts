@@ -45,4 +45,8 @@ export const guardianSchema = z.object({
 
 export type GuardianInput = z.infer<typeof guardianSchema>;
 
+// Canonical alias for `scripts/scaffold-check.ts` static guard (expects
+// `export const schema`). Same value.
+export const schema = guardianSchema;
+
 export default guardianSchema;

@@ -71,4 +71,7 @@ export const studentIdentifierPolicy: EntityPolicy = defineEntityPolicy({
   },
 });
 
+// Canonical alias for scaffold-check static guard.
+export const policy = studentIdentifierPolicy;
+
 export default studentIdentifierPolicy;

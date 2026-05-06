@@ -228,6 +228,10 @@ Each entity's `dataFetcher: DataFetcher<T>` MUST satisfy these clauses (referenc
   - `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 4 / 4 routes have session helper or @public sentinel.` (unchanged — no new API routes this cycle).
   - `bash scripts/verify-pii-annotations.sh` → `✓ PII annotation coverage OK: 5 / 5 known-PII fields annotated.` (unchanged — no schema changes this cycle).
   - **Playwright skip — explicit + justified**: this cycle ships zero UI (`app/admin/**`, `app/teacher/**`, `app/parent/**` untouched); no `e2e/admin/students.spec.ts` yet (lands `p2-scaffold-canary`). Rebuild-window guard in `.github/workflows/ci.yml` automatically skips Playwright + seed steps when no specs are present. Guard re-enables itself the moment it detects an `e2e/**/*.spec.ts` file.
+- **CI fix-up commit (PR #193 first iteration):** `npm run scaffold:check` failed in CI with `scaffold-check: guardian/schema.ts: missing required export schema`. Two follow-up fixes folded:
+  1. Subagents named exports `<entity>Schema` / `<entity>Entity` / `<entity>Policy` but `scripts/scaffold-check.ts` requires canonical short names `schema` / `entity` / `policy` per spec §5.1. Added canonical aliases in each non-canonical file (Guardian / Household / StudentIdentifier / GuardianInvitation schemas; 4 entities; 4 policies). Existing barrel imports unchanged.
+  2. Next iteration `npm run scaffold:check` failed `guardian/entity.ts: references unknown FieldDef kind "SEARCH"` — the kind extractor matches all `kind: "X"` literals, including FilterKind values (`SEARCH`, `DATE_RANGE`) inside `filters[]`. Mirrored the FilterKind union from `lib/scaffold/entity.ts` into a `FILTER_KINDS` set in `scripts/scaffold-check.ts` so the gate accepts both FieldDef + FilterKind. Typo-catch coverage for kinds outside both sets stays intact.
+  Local re-verify: `npm run scaffold:check` → `5 entities validated`; `npm run typecheck` clean; `npx vitest run lib/entities/__tests__/` → `64/64 passed`. Pushed as fix commit; CI re-runs on push.
 
 ## Ship Notes
 

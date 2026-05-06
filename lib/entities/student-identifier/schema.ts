@@ -31,4 +31,7 @@ export const studentIdentifierSchema = z.object({
 
 export type StudentIdentifierInput = z.infer<typeof studentIdentifierSchema>;
 
+// Canonical alias for scaffold-check static guard.
+export const schema = studentIdentifierSchema;
+
 export default studentIdentifierSchema;

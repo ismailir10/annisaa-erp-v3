@@ -211,4 +211,7 @@ export const studentIdentifierEntity: EntityDef<StudentIdentifier> = {
   dataFetcher,
 };
 
+// Canonical alias for scaffold-check static guard.
+export const entity = studentIdentifierEntity;
+
 export default studentIdentifierEntity;

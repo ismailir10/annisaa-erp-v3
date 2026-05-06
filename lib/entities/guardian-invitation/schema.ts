@@ -26,4 +26,7 @@ export const guardianInvitationSchema = z.object({
 
 export type GuardianInvitationInput = z.infer<typeof guardianInvitationSchema>;
 
+// Canonical alias for scaffold-check static guard.
+export const schema = guardianInvitationSchema;
+
 export default guardianInvitationSchema;

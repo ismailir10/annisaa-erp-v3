@@ -78,6 +78,22 @@ function loadFieldKinds(): Set<string> {
   return new Set(kinds);
 }
 
+// FilterKind is declared as a string-literal union in lib/scaffold/entity.ts
+// (no runtime tuple to mirror, unlike FIELD_KINDS). Entity files use the
+// same `kind:` property name on `filters[]` entries (FilterKind) as on
+// `listColumns[].render` entries (FieldKind), so the loose `kind:` regex
+// in `extractKindLiterals` would false-positive on filter-only kinds like
+// `SEARCH` / `DATE_RANGE`. Mirror the FilterKind union here so the scaffold-
+// check accepts both — typo-catch coverage stays intact for any kind not in
+// either set.
+const FILTER_KINDS = new Set([
+  "SELECT",
+  "MULTISELECT",
+  "DATE_RANGE",
+  "BOOLEAN",
+  "SEARCH",
+]);
+
 function loadPermissionScopes(): Set<string> {
   const src = readOptional(SCHEMA_PRISMA);
   if (!src) fail(`could not read ${SCHEMA_PRISMA}`);
@@ -145,8 +161,9 @@ function main(): void {
       if (file === "entity.ts") {
         const usedKinds = extractKindLiterals(src);
         for (const k of usedKinds) {
-          if (!fieldKinds.has(k)) {
-            fail(`${entityName}/entity.ts: references unknown FieldDef kind "${k}". Known kinds: ${[...fieldKinds].sort().join(", ")}`);
+          if (!fieldKinds.has(k) && !FILTER_KINDS.has(k)) {
+            const allKnown = [...fieldKinds, ...FILTER_KINDS].sort();
+            fail(`${entityName}/entity.ts: references unknown kind "${k}". Known FieldDef + FilterKind values: ${allKnown.join(", ")}`);
           }
         }
       }
