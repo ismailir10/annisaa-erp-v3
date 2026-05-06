@@ -34,24 +34,8 @@ import { DEMO_SUPABASE_PREFIX } from "@/lib/auth/demo-cookie";
 import { writeAuditLog } from "@/lib/audit/write";
 import { prisma } from "@/lib/db";
 import { AuditAction } from "@/lib/generated/prisma/client";
+import { getClientIp } from "@/lib/http/ip";
 import { checkRateLimit } from "@/lib/rate-limit";
-
-/**
- * Extract the client IP from forwarding headers (Vercel/standard proxy chain).
- * Trust the leftmost `x-forwarded-for` entry — Next.js 15+ removed
- * `request.ip`, so the header is the only reliable source. Falls back to
- * `x-real-ip` then `"unknown"`. A flood of `"unknown"` hits trips the per-key
- * limit faster (single shared bucket), which is the desired conservative
- * behavior — better to over-throttle anonymous load than to leak unmetered
- * traffic.
- */
-function getClientIp(request: NextRequest): string {
-  const xff = request.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  const real = request.headers.get("x-real-ip");
-  if (real) return real.trim();
-  return "unknown";
-}
 
 type PendingCookie = {
   name: string;

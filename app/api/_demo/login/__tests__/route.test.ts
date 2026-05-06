@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockTenantFindFirst = vi.fn();
 const mockUserRoleFindFirst = vi.fn();
 const mockSetDemoSessionCookie = vi.fn();
+const mockCheckRateLimit = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -16,6 +17,10 @@ vi.mock("@/lib/auth/demo-cookie", () => ({
   setDemoSessionCookie: (...args: unknown[]) => mockSetDemoSessionCookie(...args),
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: (...args: unknown[]) => mockCheckRateLimit(...args),
+}));
+
 import { POST } from "../route";
 
 function makeRequest(query: string): Request {
@@ -26,8 +31,11 @@ beforeEach(() => {
   mockTenantFindFirst.mockReset();
   mockUserRoleFindFirst.mockReset();
   mockSetDemoSessionCookie.mockReset();
+  mockCheckRateLimit.mockReset();
   // Default: a single seeded tenant exists. Specific tests override.
   mockTenantFindFirst.mockResolvedValue({ id: "tenant_a1" });
+  // Default: rate-limit allows. T10 over-limit test overrides.
+  mockCheckRateLimit.mockReturnValue({ ok: true, remaining: 59 });
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -149,6 +157,32 @@ describe("/api/_demo/login — happy path", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("no_tenant");
+    expect(mockUserRoleFindFirst).not.toHaveBeenCalled();
+    expect(mockSetDemoSessionCookie).not.toHaveBeenCalled();
+  });
+});
+
+describe("/api/_demo/login — rate-limit (T10)", () => {
+  beforeEach(() => {
+    vi.stubEnv("DEMO_MODE", "true");
+  });
+
+  it("returns 429 + Retry-After header + JSON body when checkRateLimit rejects (no DB lookup)", async () => {
+    mockCheckRateLimit.mockReturnValue({ ok: false, retryAfterMs: 30_000 });
+
+    const res = await POST(makeRequest("?role=admin") as never);
+
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body).toEqual({ error: "rate_limited", retryAfterMs: 30_000 });
+    expect(res.headers.get("Retry-After")).toBe("30");
+
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "demo_login" }),
+    );
+    // Short-circuit confirmed: rate-limit fires post-validation but
+    // pre-DB-lookup so neither tenant nor user lookup nor cookie write run.
+    expect(mockTenantFindFirst).not.toHaveBeenCalled();
     expect(mockUserRoleFindFirst).not.toHaveBeenCalled();
     expect(mockSetDemoSessionCookie).not.toHaveBeenCalled();
   });
