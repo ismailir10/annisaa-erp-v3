@@ -27,7 +27,7 @@ import type { AuditAction, FileKind } from "@/lib/generated/prisma/client";
 // the union; an out-of-sync union therefore surfaces as type errors at the
 // next consumer touch, rather than silently allowing a stale role.
 
-const ROLE_CODES = [
+export const ROLE_CODES = [
   "admin",
   "principal",
   "kadiv",
