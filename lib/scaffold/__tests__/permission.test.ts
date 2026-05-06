@@ -38,6 +38,8 @@ function makePrisma(overrides: Partial<MockPrisma> = {}): MockPrisma & Permissio
 
 const ARGS = {
   userId: "u1",
+  // Supabase auth uuid — distinct from User.id (CUID). See ResolveArgs JSDoc.
+  supabaseUserId: "00000000-0000-0000-0000-000000000001",
   tenantId: "t1",
   currentTermId: "term-2026-1",
 } as const;
@@ -569,6 +571,58 @@ describe("resolvePermissions — tenant isolation", () => {
     await resolvePermissions({ ...ARGS, tenantId: "t-x", prisma });
     const call = prisma.employee.findFirst.mock.calls[0]?.[0];
     expect(call?.where?.tenantId).toBe("t-x");
+  });
+});
+
+describe("resolvePermissions — User.id vs supabaseUserId contract", () => {
+  it("uses supabaseUserId (not userId) when looking up the Employee row", async () => {
+    // Mismatched user/supabaseUser pair — proves the Step 2 query reads
+    // args.supabaseUserId, not args.userId. Pre-fix this would have failed:
+    // the Employee lookup keyed by User.id CUID instead of supabase uuid.
+    const prisma = makePrisma({
+      userRole: {
+        findMany: vi.fn().mockResolvedValue([
+          { role: { rolePermissions: [rolePerm("OWN_CAMPUS")] } },
+        ]),
+      },
+      employee: { findFirst: vi.fn().mockResolvedValue({ id: "emp1" }) },
+    });
+    await resolvePermissions({
+      ...ARGS,
+      userId: "user_cuid_abc",
+      supabaseUserId: "supabase_uuid_xyz",
+      prisma,
+    });
+    const where = prisma.employee.findFirst.mock.calls[0]?.[0]?.where;
+    expect(where?.supabaseUserId).toBe("supabase_uuid_xyz");
+    // Sanity: NOT the userId value
+    expect(where?.supabaseUserId).not.toBe("user_cuid_abc");
+    // And the role lookup keeps using args.userId (User.id)
+    const userRoleWhere = prisma.userRole.findMany.mock.calls[0]?.[0]?.where;
+    expect(userRoleWhere?.userId).toBe("user_cuid_abc");
+  });
+
+  it("returns empty employee-derived sets when supabaseUserId has no matching Employee row", async () => {
+    // Grant OWN_CAMPUS via roles, but no Employee row matches supabaseUserId.
+    // Resolver must short-circuit the campus assignment query and return
+    // empty campusIds (NOT throw, NOT mis-key off args.userId).
+    const prisma = makePrisma({
+      userRole: {
+        findMany: vi.fn().mockResolvedValue([
+          { role: { rolePermissions: [rolePerm("OWN_CAMPUS")] } },
+        ]),
+      },
+      employee: { findFirst: vi.fn().mockResolvedValue(null) },
+    });
+    const r = await resolvePermissions({
+      ...ARGS,
+      userId: "user_cuid_abc",
+      supabaseUserId: "supabase_uuid_no_employee",
+      prisma,
+    });
+    expect(r.campusIds.size).toBe(0);
+    expect(r.all).toBe(false);
+    expect(prisma.employeeCampusAssignment.findMany).not.toHaveBeenCalled();
   });
 });
 

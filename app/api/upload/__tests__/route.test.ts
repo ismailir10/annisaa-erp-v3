@@ -25,6 +25,8 @@ const {
   uploadToStorageMock,
   createSignedUrlMock,
   bucketForKindMock,
+  checkRateLimitMock,
+  verifyMimeBytesMock,
   PRISMA_DECIMAL,
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
@@ -37,6 +39,8 @@ const {
   uploadToStorageMock: vi.fn(),
   createSignedUrlMock: vi.fn(),
   bucketForKindMock: vi.fn(),
+  checkRateLimitMock: vi.fn(),
+  verifyMimeBytesMock: vi.fn(),
   PRISMA_DECIMAL: class FakeDecimal {
     constructor(public n: number) {}
     toString() {
@@ -66,6 +70,14 @@ vi.mock("@/lib/audit/write", () => ({
 
 vi.mock("@/lib/storage/sharp", () => ({
   compressImage: compressImageMock,
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: checkRateLimitMock,
+}));
+
+vi.mock("@/lib/storage/mime-verify", () => ({
+  verifyMimeBytes: verifyMimeBytesMock,
 }));
 
 vi.mock("@/lib/storage/supabase", () => ({
@@ -136,6 +148,8 @@ beforeEach(() => {
   uploadToStorageMock.mockReset();
   createSignedUrlMock.mockReset();
   bucketForKindMock.mockReset();
+  checkRateLimitMock.mockReset();
+  verifyMimeBytesMock.mockReset();
 
   // Sensible defaults — individual tests override.
   getSessionMock.mockResolvedValue(SESSION);
@@ -143,6 +157,9 @@ beforeEach(() => {
   createSignedUrlMock.mockResolvedValue("https://signed.example/foo");
   writeAuditLogMock.mockResolvedValue(undefined);
   uploadToStorageMock.mockResolvedValue(undefined);
+  // T8 wired collaborators — happy-path defaults; individual tests override.
+  checkRateLimitMock.mockReturnValue({ ok: true, remaining: 59 });
+  verifyMimeBytesMock.mockReturnValue({ ok: true });
   // tx mock: invoke callback with a `tx` proxy that hits the same mocks so
   // tx-vs-non-tx call-count assertions work uniformly.
   transactionMock.mockImplementation(async (cb: (tx: unknown) => unknown) => {
@@ -412,5 +429,63 @@ describe("POST /api/upload — tx threading", () => {
     expect(failedCall.data.status).toBe("FAILED");
     // Signed URL never created (failed before reaching it).
     expect(createSignedUrlMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/upload — rate-limit (T8)", () => {
+  it("returns 429 + Retry-After header when checkRateLimit rejects", async () => {
+    checkRateLimitMock.mockReturnValueOnce({
+      ok: false,
+      retryAfterMs: 30_000,
+    });
+    const file = new File([new Uint8Array(64)], "x.jpg", {
+      type: "image/jpeg",
+    });
+    const res = await POST(
+      makeReq(buildForm({ file, kind: "IMAGE" })) as never,
+    );
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({
+      error: "rate_limited",
+      retryAfterMs: 30_000,
+    });
+    expect(res.headers.get("Retry-After")).toBe("30");
+    // Per-user scope, keyed by session.userId.
+    expect(checkRateLimitMock).toHaveBeenCalledWith({
+      key: SESSION.userId,
+      scope: "upload",
+    });
+    // Short-circuit before any file processing / storage I/O.
+    expect(fileAssetCreateMock).not.toHaveBeenCalled();
+    expect(uploadToStorageMock).not.toHaveBeenCalled();
+    expect(verifyMimeBytesMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/upload — magic-byte MIME verify (T8)", () => {
+  it("returns 400 invalid_mime when verifyMimeBytes rejects (content-type spoof)", async () => {
+    const reason =
+      "magic bytes for IMAGE did not match any expected signature";
+    verifyMimeBytesMock.mockReturnValueOnce({ ok: false, reason });
+    // Declared MIME passes the route's MIME_ALLOWLIST check (image/jpeg ∈
+    // IMAGE), but the buffer's leading bytes don't match — the kind of
+    // spoof T5+T8 are designed to reject.
+    const file = new File([new Uint8Array(64)], "spoof.jpg", {
+      type: "image/jpeg",
+    });
+    const res = await POST(
+      makeReq(buildForm({ file, kind: "IMAGE" })) as never,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_mime", reason });
+    // Verify was called with the kind enum value + buffer.
+    expect(verifyMimeBytesMock).toHaveBeenCalledTimes(1);
+    const [bufArg, kindArg] = verifyMimeBytesMock.mock.calls[0];
+    expect(bufArg).toBeInstanceOf(Uint8Array);
+    expect(kindArg).toBe("IMAGE");
+    // Short-circuit before tx1 / sharp / storage.
+    expect(fileAssetCreateMock).not.toHaveBeenCalled();
+    expect(compressImageMock).not.toHaveBeenCalled();
+    expect(uploadToStorageMock).not.toHaveBeenCalled();
   });
 });

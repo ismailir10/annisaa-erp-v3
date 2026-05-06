@@ -123,25 +123,29 @@ model Tenant {
   createdAt       DateTime              @default(now()) @db.Timestamptz()
   updatedAt       DateTime              @updatedAt @db.Timestamptz()
 
-  campuses       Campus[]
-  programs       Program[]
-  academicYears  AcademicYear[]
-  academicTerms  AcademicTerm[]
-  users          User[]
-  roles          Role[]
-  permissions    Permission[]
-  employees      Employee[]
-  classSections  ClassSection[]
-  sentras        Sentra[]
-  classSessions  ClassSession[]
-  auditLogs      AuditLog[]
-  timelineEvents TimelineEvent[]
-  fileAssets     FileAsset[]
-  exportJobs     ExportJob[]
-  emailLogs      EmailLog[]
-  webhookEvents  WebhookEvent[]
-  orgConfig      OrgConfig?
-  holidays       Holiday[]
+  campuses                   Campus[]
+  programs                   Program[]
+  academicYears              AcademicYear[]
+  academicTerms              AcademicTerm[]
+  users                      User[]
+  roles                      Role[]
+  permissions                Permission[]
+  employees                  Employee[]
+  classSections              ClassSection[]
+  sentras                    Sentra[]
+  classSessions              ClassSession[]
+  auditLogs                  AuditLog[]
+  timelineEvents             TimelineEvent[]
+  fileAssets                 FileAsset[]
+  exportJobs                 ExportJob[]
+  emailLogs                  EmailLog[]
+  webhookEvents              WebhookEvent[]
+  orgConfig                  OrgConfig?
+  holidays                   Holiday[]
+  households                 Household[]
+  students                   Student[]
+  studentIdentifiers         StudentIdentifier[]
+  studentIdentifierSequences StudentIdentifierSequence[]
 }
 
 // ── Campus ───────────────────────────────────────────────────
@@ -190,9 +194,11 @@ model Program {
   deletedAt      DateTime? @db.Timestamptz()
   deletedById    String?
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  headEmployee  Employee?      @relation("ProgramHead", fields: [headEmployeeId], references: [id], onDelete: SetNull)
-  classSections ClassSection[]
+  tenant                     Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  headEmployee               Employee?                   @relation("ProgramHead", fields: [headEmployeeId], references: [id], onDelete: SetNull)
+  classSections              ClassSection[]
+  students                   Student[]
+  studentIdentifierSequences StudentIdentifierSequence[]
 
   // Composite unique on (id, tenantId) backfilled in 04_classes migration.
   // Required as FK target for ClassSection composite-FK chain (§6.4).
@@ -218,10 +224,11 @@ model AcademicYear {
   deletedAt   DateTime? @db.Timestamptz()
   deletedById String?
 
-  tenant               Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  terms                AcademicTerm[]
-  classSections        ClassSection[]
-  currentForOrgConfigs OrgConfig[]    @relation("OrgConfigCurrentYear")
+  tenant                     Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  terms                      AcademicTerm[]
+  classSections              ClassSection[]
+  currentForOrgConfigs       OrgConfig[]                 @relation("OrgConfigCurrentYear")
+  studentIdentifierSequences StudentIdentifierSequence[]
 
   // Composite unique on (id, tenantId) backfilled in 04_classes migration.
   // Required as FK target for ClassSection composite-FK chain (§6.4) +
@@ -967,4 +974,160 @@ model Holiday {
 
   @@index([tenantId])
   @@index([tenantId, date])
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Cycle p2-students-guardians-household (foundation spec §6.1 mig 07)
+// ════════════════════════════════════════════════════════════════════════
+
+// ── Household ────────────────────────────────────────────────
+// Per spec §6.1. Tenant-scoped, soft-delete, audit per §4.4. `code` is the
+// display code (e.g. "HH-2026-001"); allocated lazily by admin tools, NULL
+// until issued. Partial unique on (tenantId, code) WHERE deletedAt IS NULL
+// AND code IS NOT NULL lives in 07_students migration (Prisma 7 lacks DSL
+// for partial uniques). `addressId` ships without an FK constraint —
+// Address model lands p2-addresses-idn-chain.
+
+model Household {
+  id          String    @id @default(cuid())
+  tenantId    String
+  code        String?   @db.VarChar(50)
+  addressId   String?
+  notes       String?   @db.VarChar(2000)
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime? @db.Timestamptz()
+  deletedById String?
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  students Student[]
+
+  // Composite unique on (id, tenantId) — required as FK target for Student
+  // composite-FK chain (§6.4) + future p2-guardians + p2-admission-funnel.
+  @@unique([id, tenantId])
+  // Code uniqueness is partial-WHERE (deletedAt IS NULL AND code IS NOT NULL)
+  // and lives ONLY in the 07_students migration — declaring `@@unique([tenantId,
+  // code])` here would cause `prisma migrate dev` to regenerate a full unique
+  // constraint conflicting with the partial index. Use `findFirst` for
+  // (tenantId, code) lookups; the index below covers the query.
+  @@index([tenantId])
+  @@index([tenantId, code])
+}
+
+// ── Student ──────────────────────────────────────────────────
+// Per spec §6.1. Tenant-scoped, soft-delete, audit per §4.4. `nis` allocated
+// lazily by NIS allocator (T3); unique per tenant among non-deleted rows
+// (partial unique enforced in migration). `nik` is Indonesian national ID,
+// PII per §4.5 — annotated `/// @PII redact` (audit redactor strips it from
+// before/after payloads). `gender` uses a CHECK constraint in SQL (no enum)
+// for schema-light single-binary-value field. GIN trigram index on fullName
+// lives in migration only (Prisma 7 lacks DSL for GIN).
+
+model Student {
+  id          String    @id @default(cuid())
+  tenantId    String
+  householdId String
+  programId   String
+  nis         String?   @db.VarChar(50)
+  nik         String?   @db.VarChar(16) /// @PII redact
+  fullName    String    @db.VarChar(255)
+  nickname    String?   @db.VarChar(100)
+  birthPlace  String?   @db.VarChar(100)
+  birthDate   DateTime? @db.Date
+  // gender CHECK ('MALE', 'FEMALE') enforced at DB level via 07_students migration.
+  gender      String    @db.VarChar(10)
+  enrolledAt  DateTime? @db.Date
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime? @db.Timestamptz()
+  deletedById String?
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  household   Household           @relation(fields: [householdId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  program     Program             @relation(fields: [programId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  identifiers StudentIdentifier[]
+
+  // Composite unique on (id, tenantId) — required as FK target for
+  // StudentIdentifier composite-FK chain (§6.4) + future p2-guardians.
+  @@unique([id, tenantId])
+  // NIS uniqueness is partial-WHERE (deletedAt IS NULL AND nis IS NOT NULL)
+  // and lives ONLY in the 07_students migration — declaring `@@unique([tenantId,
+  // nis])` here would cause `prisma migrate dev` to regenerate a full unique
+  // constraint conflicting with the partial index. Use `findFirst` for
+  // (tenantId, nis) lookups; the index below covers the query.
+  @@index([tenantId])
+  @@index([tenantId, nis])
+  @@index([tenantId, householdId])
+  @@index([tenantId, programId])
+  // Plain B-tree index for fullName equality / prefix; trigram GIN index
+  // for fuzzy search lives in 07_students migration only (Prisma 7 lacks DSL).
+  @@index([tenantId, fullName])
+}
+
+// ── StudentIdentifier ────────────────────────────────────────
+// Per spec §6.1 + §4.5 NIS history. Tenant-scoped, soft-delete (NIS history
+// retained), audit per §4.4. `kind` uses CHECK ('NIS', 'NISN', 'PREVIOUS_SCHOOL')
+// at DB level — schema-light, no enum. Composite FK to Student per §6.4 with
+// CASCADE on Student hard-delete (admin-tool path); soft-delete on Student
+// preserves identifier history (deletedAt cascades via app-layer, not FK).
+// Partial-unique single-PRIMARY-per-student guard lives in 07_students migration:
+// `WHERE "isPrimary" = true AND "deletedAt" IS NULL` — diverges from
+// SessionTeacher precedent because soft-deleted primaries must NOT block
+// re-issue (per spec §4.5).
+
+model StudentIdentifier {
+  id          String    @id @default(cuid())
+  tenantId    String
+  studentId   String
+  // kind CHECK ('NIS', 'NISN', 'PREVIOUS_SCHOOL') enforced at DB level.
+  kind        String    @db.VarChar(30)
+  value       String    @db.VarChar(100)
+  isPrimary   Boolean   @default(false)
+  issuedAt    DateTime? @db.Date
+  notes       String?   @db.VarChar(2000)
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime? @db.Timestamptz()
+  deletedById String?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, kind, value])
+}
+
+// ── StudentIdentifierSequence ────────────────────────────────
+// Per spec §6.1 + §6.6. Operational counter row per (tenant, year, program)
+// triple — NO soft-delete (append-only; matches ExportJob/EmailLog precedent
+// in 16_scaffold). NIS allocator (T3) bumps `lastValue` inside a
+// `pg_advisory_xact_lock` transaction — per-row contention is rare (different
+// programs allocate different ranges), so lock granularity at (tenant, year)
+// is sufficient. Audit-column deviation: no deletedAt / deletedById per the
+// operational-record convention.
+
+model StudentIdentifierSequence {
+  id             String   @id @default(cuid())
+  tenantId       String
+  academicYearId String
+  programId      String
+  lastValue      Int      @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz()
+  createdById    String?
+  updatedAt      DateTime @updatedAt @db.Timestamptz()
+  updatedById    String?
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  program      Program      @relation(fields: [programId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([tenantId, academicYearId, programId])
 }

@@ -23,6 +23,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { DEMO_SUPABASE_PREFIX, setDemoSessionCookie } from "@/lib/auth/demo-cookie";
+import { getClientIp } from "@/lib/http/ip";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const RoleParamSchema = z.enum(["admin", "teacher", "parent"]);
 
@@ -46,6 +48,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
   const roleCodes = ROLE_CODE_MAP[parsed.data];
+
+  // Per-IP rate-limit gate — runs AFTER role validation (cheap reject path
+  // stays cheap) and BEFORE any DB lookup so a flood cannot drive Prisma load.
+  // Scope `demo_login`; default 60/min via `RATE_LIMIT_REQUESTS_PER_MINUTE`.
+  // Reject contract is 429 + JSON body (NOT a redirect — this is an /api/*
+  // endpoint per p1-auth Ship Notes, callers expect JSON error envelopes).
+  const ip = getClientIp(request);
+  const rateLimit = checkRateLimit({ key: ip, scope: "demo_login" });
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterMs: rateLimit.retryAfterMs },
+      {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(rateLimit.retryAfterMs / 1000)) },
+      },
+    );
+  }
 
   // Resolve the demo tenant — single-tenant MVP picks the first tenant. When
   // multi-tenant lands, this becomes ?tenant= query param (the demo route

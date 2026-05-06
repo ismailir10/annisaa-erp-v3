@@ -7,6 +7,18 @@
 // ALLOWLIST_CAP (5000), the resolver returns `overflow: true` with empty
 // Sets — callers must fall back to a JOIN subquery against the source table.
 //
+// Two distinct identifiers arrive on `ResolveArgs`:
+//   - `userId` — the internal `User.id` (CUID). Used as the FK target for
+//     `UserRole.userId` in the Step 1 role lookup.
+//   - `supabaseUserId` — the Supabase `auth.users.uuid`. Used as the FK target
+//     for `Employee.supabaseUserId` in the Step 2 employee lookup.
+// These are NOT the same value. The User-Employee relationship is mediated by
+// the Supabase auth subject — every session caller holds both IDs after
+// p1-auth-google-oauth, so we ask for both explicitly rather than lying about
+// which identifier we mean. (Pre-fix: a single `userId` arg was used in both
+// queries, which silently broke the Step 2 lookup whenever User.id ≠ supabase
+// uuid — i.e. always.)
+//
 // Cache invalidation: in-memory only this cycle (single-process, MVP).
 // Multi-instance staleness acceptable per spec §4.2 ("in-memory 5 min").
 // `clearPermissionCache()` exposed for explicit role-mutation flows in
@@ -79,6 +91,11 @@ export type PermissionPrismaLike = {
 type CacheEntry = { value: ResolvedPermissions; expiresAt: number };
 const cache = new Map<string, CacheEntry>();
 
+// Cache key uses User.id (not supabaseUserId) because User.id ↔ supabaseUserId
+// is a stable 1:1 mapping for the lifetime of the User row. Adding
+// supabaseUserId to the key would not change hit rate — the Employee lookup
+// runs once per resolve regardless — but it would expand cache cardinality
+// pointlessly. Keep the key tight.
 function cacheKey(tenantId: string, userId: string, currentTermId: string): string {
   return `${tenantId}|${userId}|${currentTermId}`;
 }
@@ -94,7 +111,20 @@ export function _resetMissingStudentWarning(): void {
 }
 
 export type ResolveArgs = {
+  /**
+   * The internal `User.id` (CUID). Used as the FK target for
+   * `UserRole.userId` in the role-grant lookup. NOT the same value as
+   * `supabaseUserId` — see module header for the contract.
+   */
   userId: string;
+  /**
+   * The Supabase `auth.users.uuid`. Used to look up the corresponding
+   * `Employee` row via `Employee.supabaseUserId`. Distinct from `userId`
+   * because the User ↔ Employee relationship is mediated by the Supabase
+   * auth subject. Every session caller has both IDs available
+   * post-p1-auth-google-oauth, so we ask for both explicitly.
+   */
+  supabaseUserId: string;
   tenantId: string;
   currentTermId: string;
   prisma: PermissionPrismaLike;
@@ -103,6 +133,14 @@ export type ResolveArgs = {
 /** Test-only seam — clock injection for cache-TTL tests. Not exported. */
 type InternalArgs = ResolveArgs & { now?: () => number };
 
+/**
+ * Resolve permission ID Sets for a session caller within a tenant + term.
+ *
+ * Caller must supply BOTH `userId` (User.id, CUID) AND `supabaseUserId`
+ * (Supabase auth uuid). They are different identifier types — see
+ * `ResolveArgs` JSDoc and the module header. Pre-p1-auth, only one was
+ * required and the resolver silently mis-keyed the Employee lookup.
+ */
 export async function resolvePermissions(
   args: ResolveArgs,
 ): Promise<ResolvedPermissions> {
@@ -145,8 +183,11 @@ async function resolvePermissionsInternal(
   const all = grantedScopes.has("ALL");
 
   // Step 2 — find Employee row owned by this user (single).
+  // Uses `args.supabaseUserId` (the Supabase auth uuid), NOT `args.userId`
+  // (User.id CUID). See module header + ResolveArgs JSDoc for why these are
+  // two different identifier types.
   const employee = await args.prisma.employee.findFirst({
-    where: { tenantId: args.tenantId, supabaseUserId: args.userId, deletedAt: null },
+    where: { tenantId: args.tenantId, supabaseUserId: args.supabaseUserId, deletedAt: null },
     select: { id: true },
   });
   const employeeId: string | null = employee?.id ?? null;

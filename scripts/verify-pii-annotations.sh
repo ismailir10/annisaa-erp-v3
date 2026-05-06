@@ -40,6 +40,7 @@ fi
 TRIPLES=(
   "Employee:nik:redact"
   "Employee:phone:mask:last4"
+  "Student:nik:redact"
 )
 
 missing=()
