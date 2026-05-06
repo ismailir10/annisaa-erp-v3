@@ -34,6 +34,24 @@ import { DEMO_SUPABASE_PREFIX } from "@/lib/auth/demo-cookie";
 import { writeAuditLog } from "@/lib/audit/write";
 import { prisma } from "@/lib/db";
 import { AuditAction } from "@/lib/generated/prisma/client";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+/**
+ * Extract the client IP from forwarding headers (Vercel/standard proxy chain).
+ * Trust the leftmost `x-forwarded-for` entry — Next.js 15+ removed
+ * `request.ip`, so the header is the only reliable source. Falls back to
+ * `x-real-ip` then `"unknown"`. A flood of `"unknown"` hits trips the per-key
+ * limit faster (single shared bucket), which is the desired conservative
+ * behavior — better to over-throttle anonymous load than to leak unmetered
+ * traffic.
+ */
+function getClientIp(request: NextRequest): string {
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim();
+  const real = request.headers.get("x-real-ip");
+  if (real) return real.trim();
+  return "unknown";
+}
 
 type PendingCookie = {
   name: string;
@@ -110,6 +128,22 @@ export async function GET(request: NextRequest) {
   }
 
   if (!code) return errorRedirect("missing_code");
+
+  // Per-IP rate-limit gate — runs AFTER code-extract so the missing_code path
+  // stays cheap, BEFORE the Supabase exchange so a flood of valid-shape
+  // requests cannot drive Supabase auth load. Scope is `oauth_callback`;
+  // limit defaults from `RATE_LIMIT_REQUESTS_PER_MINUTE` env (60/min).
+  // Reject path matches the route's redirect-error contract — login lands at
+  // `/login?error=rate_limit` (NOT a 429 JSON body), so the user sees a
+  // standard error toast instead of a raw HTTP error.
+  const ip = getClientIp(request);
+  const rateLimit = checkRateLimit({ key: ip, scope: "oauth_callback" });
+  if (!rateLimit.ok) {
+    console.warn(
+      `[auth/callback] rate-limited ip=${ip} retryAfterMs=${rateLimit.retryAfterMs}`,
+    );
+    return NextResponse.redirect(new URL("/login?error=rate_limit", request.url));
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

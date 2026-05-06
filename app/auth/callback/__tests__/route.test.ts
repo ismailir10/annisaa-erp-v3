@@ -10,6 +10,7 @@ const mockUserUpdate = vi.fn();
 const mockUserUpdateMany = vi.fn();
 const mockWriteAuditLog = vi.fn();
 const mockSetAll = vi.fn();
+const mockCheckRateLimit = vi.fn();
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (
@@ -66,6 +67,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: (...args: unknown[]) => mockCheckRateLimit(...args),
+}));
+
 vi.mock("@/lib/generated/prisma/client", () => ({
   AuditAction: {
     CREATE: "CREATE",
@@ -103,8 +108,12 @@ beforeEach(() => {
   mockUserUpdateMany.mockReset();
   mockWriteAuditLog.mockReset();
   mockSetAll.mockReset();
-  // Suppress noisy console.error from rejection paths in tests.
+  mockCheckRateLimit.mockReset();
+  // Default happy-path: rate-limit lets every existing test through unchanged.
+  mockCheckRateLimit.mockReturnValue({ ok: true, remaining: 59 });
+  // Suppress noisy console.error / console.warn from rejection paths in tests.
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -362,5 +371,27 @@ describe("/auth/callback — ?next= validation", () => {
       const location = res.headers.get("location") ?? "";
       expect(location.endsWith("/admin")).toBe(true);
     }
+  });
+});
+
+describe("/auth/callback — rate-limit (T9)", () => {
+  it("redirects to /login?error=rate_limit when checkRateLimit rejects (no Supabase exchange)", async () => {
+    // Over-limit case: rate-limit lib reports rejection. Per the route's
+    // redirect-error contract, response is a 307 to /login?error=rate_limit
+    // (NOT 429 JSON). Supabase exchangeCodeForSession must NOT be called —
+    // the gate sits before the exchange.
+    mockCheckRateLimit.mockReturnValue({ ok: false, retryAfterMs: 30_000 });
+
+    const res = await GET(makeRequest("?code=abc") as never);
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login?error=rate_limit");
+    expect(mockCheckRateLimit).toHaveBeenCalledWith({
+      key: expect.any(String),
+      scope: "oauth_callback",
+    });
+    expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(mockUserFindMany).not.toHaveBeenCalled();
   });
 });
