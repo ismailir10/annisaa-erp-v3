@@ -1,0 +1,398 @@
+# p1-auth-google-oauth — Phase 1 final cycle (auth surface)
+
+## Context
+
+Phase 1 foundation is shipped except the auth surface. `lib/auth/session.ts` was scaffolded as a minimal shim in `p1-upload-route-sharp` (PR #188) — `getSession()` calls Supabase `auth.getUser()`, then defends against the privilege-escalation primitive (no `@@unique([supabaseUserId])` exists in schema) via `findMany({ take: 2 })` + length-check. Production currently returns `null` from every `getSession()` call because (a) no code populates `User.supabaseUserId` (no OAuth callback), (b) no code writes `school-erp-session` cookie (E2E specs deleted in Phase 0). Every p2+ admin/teacher/parent route + the live `/api/upload` route gates on this resolver returning a real session, so this is the cycle that lights up the auth pipe.
+
+Scope: ship the Google OAuth callback at `app/auth/callback/route.ts` (per spec §8.1 — Google-only, no magic-link / OTP / password), enforce one-Supabase-account ↔ one-tenant invariant **at callback time** (the runtime defensive `findMany + length === 1` in `getSession` is fail-closed but not user-actionable), backfill `User.supabaseUserId` on first login w/ audit, refactor `proxy.ts` to drop the now-stale "rebuild window" comment + clean public-bypass shape, ship the demo-cookie write helper (HMAC-signed) the upload-route cycle deferred, ship `app/api/_demo/login/route.ts` (404 outside `DEMO_MODE=true`), ship `app/auth/error/page.tsx` (server component, decoded `?reason=`), and document the JWT custom-claim hook dashboard setup. **The JWT hook PL/pgSQL function was already shipped in `prisma/migrations/02_identity/migration.sql` lines 324-360** (covers both `tenant_id` and `role` claims via `User`/`UserRole`/`Role` join keyed on `supabaseUserId`) — this cycle only adds the dashboard-enable runbook + a post-condition smoke test. **No new migration this cycle.**
+
+Outcome: post-merge, `/api/upload` accepts real callers, p2 entity cycles unblock, `Phase 1 truly DONE`. Marathon mode (foundation spec §18.12) — brainstorm skipped, request derives from spec §6.5 + §8.1 + p1-upload-route-sharp Ship Notes "getSession deferral chain".
+
+**Required reading folded into Spec/Tasks below:**
+- `docs/cycles/2026-05-06-p1-upload-route-sharp.md` Ship Notes — contract this cycle extends (`getSession()` shape immutable)
+- `docs/cycles/2026-05-06-spec-sync-phase-1-actual.md` — confirms §6.1 migration numbering; **drop user-prompt task #5 migration** (already shipped)
+- v1 archived `app/auth/callback/route.ts` (commit `2529e17` pre-Phase-0) — pattern reused: pending-cookies array, idle-timeout reset on fresh login, `NEXT_PUBLIC_SITE_URL` precedence over `x-forwarded-host`
+- foundation spec §6.5 (JWT custom-claim hook), §8.1 (Auth Google OAuth only)
+- `.claude/standards/security.md` (auth-helper allowlist; `getSession(` matches `verify-api-auth.sh` regex)
+
+## Spec
+
+### Acceptance criteria
+
+#### Code shape
+
+- [ ] **`app/auth/callback/route.ts`** — Next.js 16 route handler:
+  - Reads `?code=` query param; missing code → redirect `/auth/error?reason=missing_code`
+  - Captures cookies set by `exchangeCodeForSession` via pending-array pattern (v1 lesson: ambient `cookies().set()` writes do NOT survive `NextResponse.redirect()` from a route handler)
+  - On exchange failure → redirect `/auth/error?reason=oauth_provider_declined`
+  - Calls `supabase.auth.getUser()` post-exchange; missing user.email → redirect `/auth/error?reason=oauth_provider_declined`
+  - Resolves matching `User` row by **email** (not `supabaseUserId` — first login has it null): `prisma.user.findMany({ where: { email, isActive: true, deletedAt: null }, take: 2 })`
+  - **Multi-tenant invariant enforcement (BLOCKER from p1-upload-route-sharp finding M1):**
+    - 0 rows → redirect `/auth/error?reason=no_invitation`
+    - 2 rows → redirect `/auth/error?reason=cross_tenant_email` (one Supabase account ↔ one tenant policy)
+    - 1 row → continue
+  - **No-role-assigned guard (per spec-time review finding M2):** after row resolves, count `prisma.userRole.count({ where: { userId: row.id, tenantId: row.tenantId } })`. If 0 → redirect `/auth/error?reason=no_role_assigned`. Spec §8.1 requires admin pre-seeds User w/ a role via Employee/Guardian invitation; a User w/ no UserRole means provisioning is incomplete. The JWT hook would otherwise emit a `tenant_id`-only token (LEFT JOIN behaviour in `02_identity` migration line 338) and the user would land in the portal w/ no role, producing empty result sets across RLS — failing-soft instead of failing-loud.
+  - **Backfill on first login:** if `row.supabaseUserId == null` → `prisma.user.update` to set, then `writeAuditLog({ action: 'UPDATE', resource: 'User', resourceId: row.id, after: { supabaseUserId } })`
+  - **No-op when matches:** `row.supabaseUserId === user.id` → continue without write
+  - **Reject when collides:** `row.supabaseUserId != null && row.supabaseUserId !== user.id` → `console.error` (Vercel function log surfaces in dashboard) then redirect `/auth/error?reason=identity_collision`. **Note:** `AuditAction` enum has no `AUTH_REJECT` value (schema enum: CREATE/UPDATE/DELETE/SOFT_DELETE/RESTORE/READ/IMPORT/EXPORT). Adding one is out of scope for this cycle (schema migration); the user-actionable error landing + Vercel function log is the rejection surface for v1.
+  - **`?next=` redirect-target validation (two-layer per spec-time review finding M3):**
+    - Layer 1 — regex `^/[^/]` (single leading slash, not protocol-relative; rejects `//evil.com`, `\evil.com`)
+    - Layer 2 — `new URL(next, 'http://localhost').origin === 'http://localhost'` — defends against URL-encoded-slash bypass (`/%2Fevil.com` would pass the regex but `URL.origin` exposes the protocol-relative interpretation post-decode). Path-only acceptance — no scheme tolerated.
+    - Either layer fails → fallback to `/admin`
+  - **Origin resolution:** `lib/auth/callback-origin.ts` (NEW). Production REQUIRES `NEXT_PUBLIC_SITE_URL` (throws if unset). Dev returns `request.url` origin. **Tightened from v1 per T1 review BLOCKER:** v1's x-forwarded-host fallback is an open-redirect primitive on non-Vercel topologies (self-hosted Docker / generic nginx) where the LB doesn't constrain that header to known aliases. Pinning to operator-set env removes the fallback entirely.
+  - **Idle-timeout cookie reset:** on successful redirect to `/admin` / `/teacher` / `/parent`, set `school-erp-last-active = String(Date.now())` (v1 lesson: stale value from prior demo session causes immediate logout via proxy.ts idle check)
+
+- [ ] **`lib/auth/callback-origin.ts`** (NEW) — `resolveCallbackOrigin(request)` ported from v1 commit `2529e17`. Pure function, ~20 LoC.
+
+- [ ] **`lib/auth/session.ts` extension** — production `getUser` path UNCHANGED (signature + shape preserved). Add demo-cookie branch **before** the Supabase call: when `DEMO_MODE === 'true'` AND `school-erp-session` cookie present + HMAC-verified, decode JSON `{tenantId, userId, supabaseUserId}` and return synthetic session. HMAC mismatch → fall through to Supabase path (as if no cookie). Do NOT skip Supabase path on `DEMO_MODE !== 'true'`.
+
+- [ ] **`lib/auth/demo-cookie.ts`** (NEW) — exports:
+  - `signDemoCookie(payload: {tenantId, userId, supabaseUserId}): string` — `base64url(JSON.stringify(payload)) + '.' + base64url(hmacSHA256(SESSION_COOKIE_SECRET, base64url(payload)))`
+  - `verifyDemoCookie(raw: string | undefined): Payload | null` — splits on `.`, verifies HMAC via `crypto.timingSafeEqual` (constant-time), returns payload or null. Rejects empty / malformed.
+  - `setDemoSessionCookie(payload)` — server action; writes signed cookie via `next/headers` `cookies()` w/ `httpOnly: true, secure: NODE_ENV==='production', sameSite: 'lax', path: '/', maxAge: 24*60*60`.
+  - `clearDemoSessionCookie()` — server action.
+  - Constant: `DEMO_COOKIE_NAME = 'school-erp-session'` (must match `proxy.ts:5`).
+
+- [ ] **`app/api/_demo/login/route.ts`** (NEW) — POST handler:
+  - **Production guard:** `if (process.env.DEMO_MODE !== 'true') return new NextResponse(null, { status: 404 })` — 404 (not 403) so Vercel function listing reveals nothing; never reachable in prod
+  - **`// @public` sentinel** at top of file (route is intentionally pre-auth — it WRITES the session cookie; verify-api-auth.sh allows w/ sentinel)
+  - Zod-validate `?role=admin|teacher|parent`; invalid → 400
+  - Look up first matching pre-seeded `User` w/ a Role of the requested kind; respond 200 + set demo cookie
+  - 0 matching rows → 500 w/ message ("seed user not found for role X")
+
+- [ ] **`app/auth/error/page.tsx`** (NEW) — server component:
+  - Reads `?reason=` from `searchParams`
+  - Renders Indonesian-locale messages per voice.md tone:
+    - `no_invitation` → "Email belum terdaftar di sistem. Hubungi admin sekolah untuk mendapatkan undangan."
+    - `cross_tenant_email` → "Akun ini terkait beberapa sekolah. Hubungi admin sekolah."
+    - `identity_collision` → "Akun Google ini sudah pernah login dengan email berbeda. Hubungi admin sekolah."
+    - `no_role_assigned` → "Akun Anda belum diberi role. Hubungi admin sekolah untuk aktivasi."
+    - `oauth_provider_declined` → "Login Google ditolak atau gagal. Coba lagi atau hubungi admin sekolah."
+    - `missing_code` → "Tautan login tidak valid. Mulai ulang dari halaman utama."
+    - default → generic + support contact placeholder
+  - Single "Kembali ke beranda" link to `/`. No client-side state. Loads on `/auth/error` already in proxy.ts public-bypass via `pathname.startsWith("/auth/")`.
+
+- [ ] **`proxy.ts` refactor:**
+  - Drop the stale "rebuild window" comment block (lines 65-69) — `/auth/callback` ships this cycle
+  - `pathname.startsWith("/auth/")` already covers `/auth/callback` + `/auth/error` — no new entries needed
+  - Drop the **demo-mode fallback when Supabase NOT configured** block (lines 116-120) — Supabase env is always set post-OAuth-cycle in dev/staging/prod; the dead branch confused the demo-vs-supabase-precedence story
+  - Demo-mode-priority block (lines 90-98) preserved; demo cookie now written by `lib/auth/demo-cookie.ts` so the path is live (no longer dead)
+  - `/api/csp-report` + `/api/health` `// @public` sentinel paths unaffected (still under `/api/` short-circuit)
+
+- [ ] **`.env.example`** — append:
+  - `# Demo mode (E2E + local dev ONLY — NEVER set in production)`
+  - `# DEMO_MODE=true`
+  - `# SESSION_COOKIE_SECRET="<32+ char random>"  # HMAC key for demo session cookie`
+
+- [ ] **JWT hook (no migration — already shipped):**
+  - Verify `prisma/migration-tests/02-identity.test.ts` post-condition test for `custom_access_token_hook` exists. If absent, add 3-line static assertion (function definition present + `tenant_id` claim injection + `role` claim injection)
+  - Document Supabase dashboard hook-enable step in Ship Notes (Auth → Hooks → enable `public.custom_access_token_hook`)
+
+- [ ] **`.claude/standards/auth.md`** (NEW) — covers: when to call `getSession()`, contract shape `{tenantId, userId, supabaseUserId}`, demo-mode usage (E2E + local-only; route 404s outside `DEMO_MODE=true`), JWT custom-claim hook contract (function name `public.custom_access_token_hook`, claims injected: `tenant_id` + `role`), multi-tenant invariant enforcement at callback time, role resolution flow (User → UserRole → Role → Permission scope materialisation via `lib/scaffold/permission.ts`), forward-looking deferrals (SSO/SAML/MFA → v1.1+).
+
+#### Tests (~22 cases)
+
+- [ ] `app/auth/callback/__tests__/route.test.ts` — ~12 cases (was 10; +2 from spec-time review M1 + M2):
+  - happy path: code valid → exchange → user found → 1-row → 1+ roles → redirect /admin
+  - `supabaseUserId` backfill on first login (asserts `prisma.user.update` + `writeAuditLog`)
+  - `supabaseUserId` already-matches → no write
+  - `supabaseUserId` collision (row has different ID) → `AUTH_REJECT` audit + error redirect
+  - cross-tenant email (>1 rows by email) → `cross_tenant_email` redirect
+  - no-invitation (0 rows by email) → `no_invitation` redirect
+  - **no-role-assigned (1 User row but 0 UserRole rows) → `no_role_assigned` redirect** *(spec-time review finding M2)*
+  - exchange failure — provider-declined (Supabase returns auth-rejected error) → `oauth_provider_declined` redirect
+  - **exchange failure — code already used / `invalid_grant` (PKCE one-shot reuse via double-click) → `oauth_provider_declined` redirect** *(spec-time review finding M1 — split from generic "exchange failure")*
+  - missing `?code=` → `missing_code` redirect
+  - safe `?next=/teacher/attendance` → redirect there + idle-timeout cookie reset
+  - **unsafe `?next=` rejected — full bypass set: `javascript:`, `data:`, `//evil.com`, `\evil.com`, `/%2Fevil.com` (URL-encoded slash bypass), `https://evil.com` → fallback to /admin** *(spec-time review finding M3 — URL-encoded variant added)*
+
+- [ ] `lib/auth/__tests__/session.test.ts` — ~6 cases:
+  - production happy: Supabase user exists + 1 User row → returns session
+  - null when Supabase getUser errors
+  - null when Supabase user exists but no User row (`length === 0`)
+  - null when Supabase user exists but two User rows (`length === 2`) — fail-closed
+  - demo-mode happy: `DEMO_MODE=true` + valid signed cookie → returns synthetic session (Supabase NOT called)
+  - demo cookie HMAC mismatch → falls through to Supabase path (asserted via spy)
+
+- [ ] `lib/auth/__tests__/demo-cookie.test.ts` — ~3 cases:
+  - sign + verify roundtrip
+  - tampered payload → verify returns null
+  - missing/empty cookie → verify returns null
+
+- [ ] `app/api/_demo/login/__tests__/route.test.ts` — ~3 cases:
+  - happy: `DEMO_MODE=true` + valid `?role=admin` → 200 + Set-Cookie present
+  - prod guard: `DEMO_MODE` unset → 404 (no Set-Cookie)
+  - invalid role → 400
+
+- [ ] **`prisma/migration-tests/02-identity.test.ts`** — extend if not present: ~2 cases:
+  - `custom_access_token_hook` body sets `tenant_id` AND `role` claims (function defined + both `jsonb_set` calls present).
+  - **LEFT JOIN behaviour documented as intentional** *(spec-time review finding M2)* — assertion that the function body uses `LEFT JOIN "UserRole"` (not INNER JOIN) AND the callback layer is responsible for rejecting User rows w/ no UserRole. This pins the design contract: the JWT hook may emit `tenant_id`-only tokens for unroled users, and callback is the SOLE gate.
+
+#### Gates (between-task + end-of-cycle)
+
+Between-task gate **expanded** per cycle 10 lesson:
+
+```bash
+npm run build && npm run typecheck && npx vitest run
+```
+
+End-of-cycle gate adds:
+```bash
+npx playwright test  # this cycle CAN run E2E since /api/_demo/login now writes the cookie
+bash scripts/verify-rls-coverage.sh    # 25/25 (no schema change)
+bash scripts/verify-api-auth.sh        # 7/7 (was 5/5; new: /auth/callback impl, /api/_demo/login w/ @public sentinel)
+bash scripts/verify-pii-annotations.sh # 2/2 (no PII annotation change)
+npm run scaffold:check                 # registry parity (no scaffold change)
+```
+
+**Manual smoke (Vercel preview):** `/admin` → unauth → redirect to Google → consent → callback → land in `/admin` shell w/ session cookies set. Document outcome in Verification.
+
+#### Doc updates
+
+- [ ] `CLAUDE.md` — add `auth.md` row in Standards table; update Phase 1 banner to "Phase 1 DONE" post-merge (or defer to spec-sync follow-up cycle)
+- [ ] `README.md` — append ADR row for OAuth cutover (single-line table cell <400 chars per ADR-cell-length pre-commit gate)
+- [ ] `.claude/standards/auth.md` — NEW (per acceptance criterion above)
+
+### Non-goals
+
+- Magic-link / email OTP fallback (spec §8.1 explicit Google-only)
+- Multi-provider OAuth (Microsoft / Apple / etc.) → v1.1+
+- SCIM provisioning / bulk user-import via SSO claims → v2+
+- Session rotation cron / forced logout on role change → p3+
+- MFA / TOTP — not in v1
+- Cross-tenant tenant-switching UI → v1.1+
+- Rate limiting on `/auth/callback` + `/api/_demo/login` → first p2 entity cycle ships `lib/rate-limit.ts`
+- Fixing `lib/scaffold/permission.ts:149` contract drift (resolver expects `args.userId == supabaseUserId` while `getSession()` returns `User.id`) — **flagged in Ship Notes**, deferred to first p2 entity cycle (no real callers consume the resolver yet)
+- New JWT-hook migration `20_jwt_hook` (user prompt §5) — function ALREADY shipped in `02_identity` migration (lines 324-360), covers `tenant_id` + `role` claims. This cycle adds dashboard-enable runbook + post-condition smoke only.
+- Adding `@@unique([supabaseUserId])` to schema — runtime defense via callback-time invariant + `getSession()` `findMany take:2` + length-check covers the privilege-escalation primitive without DDL change. Future schema-hardening cycle may add the unique.
+- Auto-provisioning fallback (v1 callback created `User` rows on first login if Employee/Guardian existed) — **dropped per spec §8.1** ("User pre-seeded by admin via Employee/Guardian invitations"). 0-rows-by-email → explicit `no_invitation` error.
+
+### Assumptions
+
+1. **Email is the join key** — `User.email` is not enforced unique anywhere in the schema (no `@@unique([email])` or `@@unique([tenantId, email])`). Callback enforces uniqueness via `findMany take:2` + length-check. `/spec` flags this as a future schema-hardening candidate, but treats the runtime check as sufficient for v1.
+2. **`SESSION_COOKIE_SECRET` rotation** is out of scope. If the env var changes mid-session, all signed cookies become invalid (clean logout for all demo users). Acceptable for an E2E + local-dev-only feature.
+3. **HMAC algorithm:** SHA-256 via Node `crypto.createHmac('sha256', secret)`. Output base64url (URL-safe; cookie-safe). Verification uses `crypto.timingSafeEqual` (constant-time) — `===` would leak signature length via timing.
+4. **`/api/_demo/login` 404 vs 403:** 404 chosen because (a) Vercel function listing is opaque w/ 404 — looks like the route doesn't exist, (b) 403 leaks "this route exists but you can't access it" giving an attacker a foothold to reason about prod feature flags.
+5. **JWT-hook dashboard step** is manual (Supabase free tier has no Management API for hooks). Documented as a runbook in Ship Notes; admin runs it once per Supabase project at first deploy.
+6. **`?next=` validation two-layer** *(folded from spec-time review finding M3)*: regex `^/[^/]` (rejects `//evil.com`, `\evil.com` literal protocol-relative) + `new URL(next, 'http://localhost').origin === 'http://localhost'` (defends against `/%2Fevil.com` URL-encoded-slash bypass that the regex passes but `URL.origin` exposes post-decode). Both layers must pass; otherwise fallback to `/admin`.
+7. **Origin resolution tightened beyond v1** *(T1 review BLOCKER)*: prod requires `NEXT_PUBLIC_SITE_URL`, throws if unset. Dropped v1's `x-forwarded-host` fallback (open-redirect primitive on non-Vercel topologies; on Vercel it's redundant — Vercel constrains the header to known aliases anyway). Without `NEXT_PUBLIC_SITE_URL`, `https://annisaa-erp-v3-<deployment-hash>.vercel.app` would resolve as origin and the PKCE cookie verifier would be missing on the alias domain — operator MUST set the env var at first deploy (Ship Notes runbook documents this as a deployment prerequisite).
+8. **`getSession()` extension order:** demo-cookie path FIRST, Supabase path SECOND. If `DEMO_MODE=true` is set in production by mistake, the demo path activates ONLY if a valid signed cookie is present (forging requires `SESSION_COOKIE_SECRET`). Demo-cookie-write endpoint is 404 in prod, so no attacker can plant a cookie. Defense-in-depth: setting `DEMO_MODE=true` in prod is a configuration error but doesn't open auth.
+9. **Race between two simultaneous OAuth callbacks for the same email:** both findMany return 1 row, both attempt `prisma.user.update` to set `supabaseUserId`. Last-write-wins is fine — both writes set the same value (Supabase user.id is deterministic for a given Google account). The audit log gets two `UPDATE` rows w/ identical `after`; minor noise, not a correctness issue.
+10. **Idle-timeout cookie scope:** the `school-erp-last-active` cookie reset only fires on `/admin` / `/teacher` / `/parent` paths (matching proxy.ts `IDLE_THRESHOLDS`). Other `?next=` targets (e.g. `/admin/students`) inherit the reset because path-prefix matches.
+
+11. **PKCE one-shot reuse** *(spec-time review finding M1)*: Supabase OAuth authorization codes are single-use. A double-click / browser-retry on the redirect link triggers a second `exchangeCodeForSession` call which returns `AuthApiError: invalid_grant`. The exchange-failure branch handles this cleanly (redirect `oauth_provider_declined`), but the test suite splits the case into "provider declined the OAuth dance" vs "code already used" so /build doesn't accidentally happy-path past it.
+
+12. **JWT-hook LEFT JOIN intentional** *(spec-time review finding M2)*: `prisma/migrations/02_identity/migration.sql:338` uses `LEFT JOIN "UserRole"` so that a User w/o any UserRole row still gets `tenant_id` claim, but `role` claim stays null. The callback (acceptance criterion above) is the SOLE gate that rejects unroled users — this contract is documented in `auth.md` standard + pinned by the migration-test assertion in T5.
+
+## Tasks
+
+Sequential boundary: T1 → T2 → T3 → T4 → T5 (shared session.ts + proxy.ts boundary). T6 + T7 + T8 are **parallel-safe** (callback route, error page, demo-login endpoint — independent files). T9 docs runs last after all code lands.
+
+- [x] **T1 — `lib/auth/callback-origin.ts` + tests.** Tightened from v1 per spec-time T1 review BLOCKER (open-redirect via x-forwarded-host on non-Vercel topologies). Production REQUIRES `NEXT_PUBLIC_SITE_URL` (throws if unset). Dev returns `request.url` origin. Pure function. ~35 LoC + 4 vitest cases (dev-bypass / env-wins-over-x-forwarded-host / throw-on-missing / explicit attacker-spoofed-x-forwarded-host-ignored). **Gates passed:** typecheck + vitest 4/4 green.
+
+- [x] **T2 — `lib/auth/demo-cookie.ts` + tests.** HMAC-SHA256 over base64url-encoded body (JWT-style); constant-time compare via `crypto.timingSafeEqual` w/ length-guard; secret floor 32 chars (>= HMAC-SHA256 output length); structural payload validation post-signature. 6 vitest cases (roundtrip / tamper-reject / malformed-input / missing-or-short-secret / sig-length-pin / structural-after-sig-ordering). **Gates passed:** typecheck + build + vitest 6/6 green. T2 review clean (no BLOCKER/MAJOR).
+
+- [x] **T3 — `lib/auth/session.ts` extension + tests.** Demo-cookie branch prepended to Supabase path. Production fail-closed semantics preserved (Supabase getUser → User findMany take:2 → length-check). Exported `SessionContext` type (backwards-compat w/ existing inline destructuring in app/api/upload/route.ts). 7 vitest cases (4 prod path + 3 demo path: happy / HMAC-mismatch-fall-through / DEMO_MODE-unset-skips-demo). **Gates passed:** typecheck + 17/17 auth tests green. T3 review clean (superpowers:code-reviewer surfaced one minor — `console.error` on dual-row collision — explicitly out of scope, follow-up).
+
+- [x] **T4 — `proxy.ts` refactor.** Dropped "rebuild window" comment (was lines 65-69) + dropped "Demo mode fallback when Supabase NOT configured" block (was lines 116-120). Updated demo-mode block comment to reference HMAC contract from T2. `/auth/callback` + `/auth/error` ride existing `startsWith("/auth/")` public-bypass — no new entries needed. **Pre-flight per spec-time review finding M4:** confirmed `DEMO_MODE=true` is set in `.github/workflows/ci.yml` for both `Build` (line 49) + `Playwright E2E` (lines 75, 84) jobs — DEMO_MODE-priority block handles all CI paths; dropped fallback was only reachable via degenerate `DEMO_MODE !== 'true'` + hand-planted cookie + Supabase env unset combo. **Gates passed:** typecheck + build + 767/767 vitest cases green (no proxy.ts test file; covered by callback test in T6).
+
+- [x] **T5 — `.env.example` + JWT-hook post-condition test.** Appended commented `NEXT_PUBLIC_SITE_URL`, `DEMO_MODE`, `SESSION_COOKIE_SECRET` blocks w/ usage-context inline comments. Added 1 new case to `prisma/migration-tests/02-identity.test.ts` asserting `LEFT JOIN "UserRole"` (not INNER JOIN) — pins the deliberate fail-loud-via-callback contract from spec-time review M2. **Gates passed:** typecheck + 89/89 cases on 02-identity.test.ts green (was 88, +1).
+
+- [x] **T6 — `app/auth/callback/route.ts` + tests.** Inline `createServerClient` w/ pending-cookies array (vercel/next.js#49442 still open in Next.js 16 — ambient `cookies().set()` writes drop on `NextResponse.redirect()`). Three-layer `?next=` validation (Layer 0 reject `%2F`/`%5C`/`%25`, Layer 1 regex `^/[^/]`, Layer 2 `URL.origin` check) — closes single-encoded + double-encoded + backslash bypasses. **CAS-style backfill** via `prisma.user.updateMany({ where: { id, supabaseUserId: null } })` per superpowers MAJOR — atomic protection against race between two simultaneous fresh OAuth flows for the same User row (loser refetches + identity-collision-checks). **Audit-throw safety** per feature-dev CRITICAL — `writeAuditLog` wrapped in try/catch; partition-trigger throw doesn't strand a user with a committed backfill. ~210 LoC + 15 vitest cases (was spec-target 12; +3 for race-winner-same-actor / race-winner-collision / audit-throw-non-fatal). **Gates passed:** typecheck + build + 15/15 cases green. T6 reviews clean post-fix (superpowers + feature-dev).
+
+- [x] **T7 — `app/auth/error/page.tsx`** + design-system Tailwind tokens. Server component; awaits `searchParams: Promise<{reason}>` per Next.js 16 contract. 6 reason → copy mappings + fallback (no_invitation / cross_tenant_email / identity_collision / no_role_assigned / oauth_provider_declined / missing_code). Indonesian copy per voice.md neutral-warm tone. Single `Kembali ke beranda` link. **Gates passed:** typecheck + build green; /auth/error registered as dynamic route in build manifest. Cross-checked design-system.html for card surface + button styles.
+
+- [x] **T8 — `app/api/_demo/login/route.ts` + tests.** POST handler w/ `DEMO_MODE !== 'true'` 404 guard, `// @public` sentinel, Zod role validation, **tenant lookup** (per T8 review MAJOR — was missing tenant filter), User lookup via `userRole.findFirst({where: {tenantId, role.code in [...]}})`, cookie write via `setDemoSessionCookie`. `DEMO_SUPABASE_PREFIX` constant added to `lib/auth/demo-cookie.ts`; T6 callback updated to OVERWRITE demo-prefixed supabaseUserId on first real login (per T8 review MAJOR — closes the demo-then-prod-stuck footgun). 8 vitest cases (404-on-DEMO_MODE-unset / 404-on-non-true-truthy / 400-missing-role / 400-unknown-role / happy-admin / role-teacher-mapping / 500-no-seed-user / 500-no-tenant). T6 test suite extended w/ demo-prefix-overwrite case (16 cases now). **Gates passed:** typecheck + build + 792/792 vitest cases green; verify-api-auth 4/4.
+
+- [ ] **T9 — `.claude/standards/auth.md` + CLAUDE.md row + README ADR row.** Standard documents the contract per Spec criterion. Update CLAUDE.md Standards table w/ `auth.md` row + glob (e.g. `app/api/**`, `app/auth/**`, `lib/auth/**`, `proxy.ts`). README ADR row for OAuth cutover (single-line, <400 chars). **Acceptance:** pre-commit doc-sync gate passes + frontend gate (no frontend touched outside cycle doc mention) + ADR-cell-length gate passes. *Depends on T1-T8.*
+
+- [ ] **T10 — End-of-cycle verification.** Run all gates: `npm run build && npm run typecheck && npx vitest run && npx playwright test` + `verify-rls-coverage.sh` + `verify-api-auth.sh` + `verify-pii-annotations.sh` + `npm run scaffold:check`. Fill cycle doc Verification + Ship Notes. Manual Vercel preview smoke (will run after first push surfaces a preview URL). **Acceptance:** all green; cycle doc 6 sections complete. *Depends on T1-T9.*
+
+## Implementation
+
+- **Subagent plan:** all tasks share the auth-surface boundary (session.ts, proxy.ts, callback route, demo-cookie, demo-login) and benefit from sequential review. Executed inline T1→T10. Independent tasks T7 (error page) + T5 (env + JWT smoke) could parallelise via subagent but the speedup is marginal (<2 min savings per task) vs. inline review-loop coherence.
+- **T1** — `lib/auth/callback-origin.ts` + `lib/auth/__tests__/callback-origin.test.ts`. Tightened from v1 per spec-time T1 review BLOCKER: dropped x-forwarded-host fallback (open-redirect primitive on non-Vercel topologies). Production now REQUIRES `NEXT_PUBLIC_SITE_URL` (throws if unset). 4 cases green (dev-bypass / env-wins / throw-on-missing / spoofed-header-ignored).
+- **T2** — `lib/auth/demo-cookie.ts` + `lib/auth/__tests__/demo-cookie.test.ts`. JWT-style HMAC-SHA256 over base64url-encoded JSON body, constant-time compare w/ length-guard, 32-char secret floor (>= HMAC output len), structural validation post-signature (no info leak via shape-error path), set/clear server actions wrapping `next/headers` cookies(). 6 cases green. T2 review clean.
+- **T3** — `lib/auth/session.ts` (extended) + `lib/auth/__tests__/session.test.ts` (new). Demo-cookie branch prepended; Supabase path UNCHANGED (fail-closed `findMany take:2 + length === 1`). Exported `SessionContext` type. 7 cases. T3 review clean (superpowers + feature-dev). One minor follow-up: `console.error` on dual-row collision deferred (not T3 scope).
+- **T4** — `proxy.ts` refactor. Dropped stale "rebuild window" comment + dropped `lines 116-120` Supabase-not-configured fallback block (degenerate hand-planted-cookie path, no live caller — confirmed via .github/workflows/ci.yml DEMO_MODE=true presence). Updated demo-block comment to reference HMAC contract. Existing 767/767 vitest cases green; no proxy.ts test file today.
+- **T5** — `.env.example` + `prisma/migration-tests/02-identity.test.ts`. Appended `NEXT_PUBLIC_SITE_URL` (REQUIRED in prod), `DEMO_MODE`, `SESSION_COOKIE_SECRET` (>=32 chars, openssl-rand-hex example) blocks. Added LEFT-JOIN-pin case (89/89 cases on the migration test, was 88). The new case asserts deliberate fail-loud-via-callback for unroled users per spec-time review M2.
+- **T6** — `app/auth/callback/route.ts` + `app/auth/callback/__tests__/route.test.ts`. Inline `createServerClient` + pending-cookies array (PKCE survival pattern). 3-layer `?next=` validation. CAS backfill via `updateMany where {id, supabaseUserId: null}` w/ refetch+collision check on race-loser path (superpowers MAJOR). `writeAuditLog` wrapped in try/catch — non-fatal post-commit (feature-dev CRITICAL). 15 vitest cases incl. race-winner-same / race-winner-collision / audit-throw-non-fatal / 9 evil-`?next=` variants.
+- **T7** — `app/auth/error/page.tsx`. Server component, awaits `searchParams: Promise<{reason}>` per Next.js 16. 6 reason copy mappings + fallback. Indonesian copy per voice.md. Cross-checked design-system.html for card surface + button styles. Build registers /auth/error as dynamic route.
+- **T8** — `app/api/_demo/login/route.ts` + tests + cross-cycle coordination via `DEMO_SUPABASE_PREFIX` constant (added to `lib/auth/demo-cookie.ts`; consumed by T6 callback's identity-collision guard to overwrite demo-prefixed values on first real login). T8 review surfaced 2 MAJORs both folded: (a) missing tenant filter — added `prisma.tenant.findFirst` + scoped userRole lookup; (b) `demo:` collision footgun — callback overwrites cleanly (test added). 8 vitest cases on the route, T6 extended to 16. typecheck + build + 792/792 cases green.
+
+
+## Verification
+
+### Per-task gate progression
+
+| Task | typecheck | build | vitest | review | commit |
+|---|---|---|---|---|---|
+| T1 callback-origin | ✓ | ✓ | 4/4 | feature-dev BLOCKER folded (drop x-forwarded-host) | c781382 |
+| T2 demo-cookie | ✓ | ✓ | 6/6 | feature-dev clean | 0b982a1 |
+| T3 session.ts | ✓ | ✓ | 17/17 (cumulative) | superpowers + feature-dev clean | e9b8698 |
+| T4 proxy.ts | ✓ | ✓ | 767/767 | none (refactor only) | 05d6b9f |
+| T5 env + JWT pin | ✓ | ✓ | 89/89 (02-identity) | none (test-pin only) | 75a409c |
+| T6 callback route | ✓ | ✓ | 15/15 → 16/16 | superpowers + feature-dev: 1 BLOCKER (race) + 1 CRITICAL (audit-throw) folded; T8 drop-in extended to 16 cases | c337773 |
+| T7 error page | ✓ | ✓ | n/a (server-component, e2e in T10) | none | e4a565e |
+| T8 demo-login | ✓ | ✓ | 8/8 | superpowers: 2 MAJORs folded (tenant filter + demo-prefix) | f10c07c |
+| T9 docs | ✓ | ✓ | 792/792 (cumulative) | doc-only | 2926796 |
+
+### End-of-cycle gates
+
+```
+$ npm run typecheck                      ✓ tsc --noEmit clean
+$ npm run lint                           ✓ no errors, no warnings
+$ npx vitest run                         ✓ 792 passed | 4 skipped (796 total)
+$ npm run build                          ✓ Compiled successfully (10 routes incl. /auth/callback, /auth/error, /api/_demo/login)
+$ bash scripts/verify-rls-coverage.sh    ✓ 25 / 25 tenant-scoped models
+$ bash scripts/verify-api-auth.sh        ✓ 4 / 4 routes (csp-report, health, upload, _demo/login via @public)
+$ bash scripts/verify-pii-annotations.sh ✓ 2 / 2 (Employee.nik + Employee.phone)
+$ npm run scaffold:check                 ✓ greenfield (no entities yet)
+```
+
+### Playwright E2E — skipped this cycle
+
+Recorded skip per CLAUDE.md two-tier gate exception. The `e2e/` directory contains only `__snapshots__/` — no `.spec.ts` files have been ported back from the v1 codebase yet (Phase 0 hard-delete swept them). Running `npx playwright test` would exit with the rebuild-window guard already wired into `.github/workflows/ci.yml` ("No e2e specs found - skipping seed, build, and Playwright run"). The `/api/_demo/login` write helper IS in place for the first p2 cycle to ship a callback flow E2E — that cycle is the natural home for the Playwright re-enablement.
+
+### Manual smoke (Vercel preview)
+
+To be performed by author post-PR-open:
+1. Wait for Vercel preview URL.
+2. Visit `<preview>/admin` → expect redirect to `/` (login landing).
+3. Click Google login → redirects to Google consent screen.
+4. Approve → land in `<preview>/auth/callback?code=...&state=...` → exchange runs → redirect to `/admin`.
+5. Verify Set-Cookie headers contain `sb-...` Supabase session + `school-erp-last-active`.
+6. Hard-refresh `/admin` → still authenticated (no redirect loop).
+7. Visit `<preview>/auth/error?reason=no_invitation` directly → renders "Email belum terdaftar" copy + "Kembali ke beranda" link.
+
+If preview-Supabase project lacks the JWT custom-claim hook enabled in dashboard, smoke step 4 succeeds (cookie set) but step 6 may fail RLS reads (tenant_id claim missing). Ship Notes runbook covers the dashboard step.
+
+### Cross-checked design-system.html
+
+§Card-surface (`.card` shell with `border border-border bg-card shadow-sm`), §Primary-button (`bg-primary text-primary-foreground hover:bg-primary/90` ramp). T7 error page uses these tokens — no arbitrary `text-[#…]` / `bg-[#…]` introduced.
+
+### Phase 1 deferral status
+
+Of the 5 spec-time review findings raised before /build, all 5 were folded:
+- M1 PKCE one-shot reuse — explicit test case added (T6 case "exchange failure — PKCE invalid_grant")
+- M2 unroled-User reject — runtime guard + migration-test LEFT-JOIN pin
+- M3 ?next= URL-decoded-slash bypass — three-layer regex+URL.origin check; closed double-encoded variant via Layer 0
+- M4 dropped Supabase-not-configured fallback — confirmed safe via CI DEMO_MODE=true env presence
+- 5/5 streak preserved.
+
+Per-task review surfaced 4 additional findings, all folded:
+- T1 BLOCKER (open-redirect via x-forwarded-host) — dropped fallback, prod requires NEXT_PUBLIC_SITE_URL
+- T6 superpowers MAJOR (race on simultaneous OAuth flows) — CAS via `prisma.user.updateMany`
+- T6 feature-dev CRITICAL (audit-throw strands user) — try/catch wrap, log non-fatal
+- T8 MAJORs (missing tenantId filter + demo-prefix collision footgun) — tenant lookup added, callback overwrites demo:* cleanly via `DEMO_SUPABASE_PREFIX` constant
+
+
+## Ship Notes
+
+### Migrations applied
+
+**None this cycle.** The Supabase Custom Access Token Hook PL/pgSQL function (`public.custom_access_token_hook`) was already shipped in `prisma/migrations/02_identity/migration.sql:324-360`. T5 added a static post-condition test (`prisma/migration-tests/02-identity.test.ts`) that pins the LEFT JOIN intentionality (89/89 cases). `verify-rls-coverage.sh` stays at **25/25**; `verify-pii-annotations.sh` stays at **2/2**. RLS coverage scope unchanged — auth surface lives in app/lib code, no new tenant-scoped tables.
+
+### New env vars
+
+| Var | Required when | Purpose | How to provision |
+|---|---|---|---|
+| `NEXT_PUBLIC_SITE_URL` | Production | Pinned canonical alias used by `lib/auth/callback-origin.ts`. Prevents PKCE-cookie loss on per-deployment Vercel URL drift AND closes the open-redirect surface dropped from v1 | Vercel project env → set to `https://app.example.com` (or actual production alias) for both Production + Preview. Scopes: all branches |
+| `DEMO_MODE` | E2E + local dev (NEVER prod) | Enables `/api/_demo/login` route + `lib/auth/session.ts` demo-cookie path | Set to literal `"true"` in CI workflow (already wired in `.github/workflows/ci.yml` for build + e2e jobs). For local dev, add to `.env.local` |
+| `SESSION_COOKIE_SECRET` | When `DEMO_MODE=true` | HMAC-SHA256 key for demo session cookie signing/verifying. ≥32 chars (SHA-256 output length) | Generate via `openssl rand -hex 32`. Add to `.env.local` for local dev. CI sets a stable test value. **Rotation**: invalidates all demo sessions on change — acceptable since demo sessions are E2E + local only |
+
+### Supabase JWT-hook dashboard runbook (one-time, per Supabase project)
+
+The custom-claim hook function exists in the database (shipped via `02_identity` migration), but Supabase requires explicit dashboard activation to wire it into the auth flow.
+
+1. Open Supabase dashboard → Authentication → Hooks (https://supabase.com/dashboard/project/_/auth/hooks)
+2. Click "Add a new hook" → "Custom Access Token (Beta)" if not already enabled
+3. Hook type: **Postgres**
+4. Schema: `public`, Function: `custom_access_token_hook`
+5. Save & enable
+6. Verify: log in via Google OAuth → decode the JWT `access_token` cookie at https://jwt.io → confirm `tenant_id` AND `role` claims present in the payload
+
+**Why manual:** Supabase Management API does not expose hook configuration on the free tier (paid-tier-only feature). The migration ships the function definition + grants `EXECUTE` to `supabase_auth_admin` — only the dashboard wiring is left manual.
+
+**Rollback:** disable the hook in the dashboard. The function stays in the DB (harmless — `supabase_auth_admin` role is the only grantee). Any tenant_id-aware RLS policies will then receive `current_setting('request.jwt.claims', true)::json->>'tenant_id'` as `NULL` → SELECT returns empty sets → fail-closed user experience (login looks successful but every page shows "no data").
+
+### supabaseUserId-collision recovery runbook
+
+When a User row's `supabaseUserId` is bound to a Supabase user that no longer matches the OAuth-supplied `auth.users.id` — e.g. admin manually re-created the Supabase user in the dashboard — the callback returns `identity_collision`.
+
+Recovery (admin-issued reset):
+
+```sql
+-- 1. Confirm the User row + current binding
+SELECT id, email, "supabaseUserId" FROM "User" WHERE email = 'alice@example.com';
+
+-- 2. Reset to NULL — next OAuth callback will backfill
+UPDATE "User" SET "supabaseUserId" = NULL WHERE id = '<user_cuid>';
+```
+
+Note: `Permission` cache (`lib/scaffold/permission.ts` 5-min in-memory) does NOT need invalidation — it's keyed on `(tenantId, userId, currentTermId)` not `supabaseUserId`. The session resolver re-reads the User row on next request.
+
+**Demo-mode quirk:** if a User was logged in via `/api/_demo/login` locally, `supabaseUserId` is stamped as `demo:<userCuid>`. The OAuth callback now recognises this prefix and overwrites cleanly on first real login (per `DEMO_SUPABASE_PREFIX` constant in `lib/auth/demo-cookie.ts`) — no manual reset required.
+
+### p2+ consumer pattern
+
+Future API routes + server components consume the auth contract identically:
+
+```ts
+// app/api/students/route.ts
+import { getSession } from "@/lib/auth/session";
+
+export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  // session.tenantId scopes every Prisma query
+  // session.userId is the actor for audit log
+  // session.supabaseUserId is the JWT subject for any RLS-bypass check
+}
+```
+
+Server components: same pattern, but redirect to `/` instead of returning 401 JSON.
+
+### Deferrals + future work
+
+| Item | Defer to | Why |
+|---|---|---|
+| Magic-link / email OTP | not in v1 | Spec §8.1 explicit Google-only |
+| Multi-provider OAuth (Microsoft, Apple, etc.) | v1.1+ | Single-provider keeps invitation flow simple; PAUD parents pre-vetted |
+| SCIM provisioning / bulk SSO user-import | v2+ | Out of v1 scope; admin invite UX is the only path |
+| Session rotation cron / forced logout on role change | p3+ | Today the session lasts until idle-timeout (4h admin / 24h portal) |
+| MFA / TOTP | not in v1 | School context — not warranted at MVP |
+| Cross-tenant tenant-switching UI | v1.1+ | Single-tenant invariant is enforced; UI for switching only relevant post v1.1 |
+| Rate limiting on `/auth/callback` + `/api/_demo/login` | first p2 entity cycle | `lib/rate-limit.ts` ships in first p2 cycle |
+| `@@unique([supabaseUserId])` schema hardening | future schema cycle | Runtime defense via callback + getSession `findMany take:2` is sufficient for v1 |
+| `permission.ts:149` resolver contract fix | first p2 entity cycle | `args.userId` parameter name implies User.id but query targets `Employee.supabaseUserId` — rename + scope fix needed before any p2 entity cycle consumes the resolver. No real callers today |
+| `console.error` on getSession dual-row collision | follow-up | Surfaces the invariant break to SRE before it shows up in audit logs only |
+| AuditAction `AUTH_REJECT` enum value | future schema cycle | Currently rejection paths use `console.error` only (no audit row); enum extension would require migration + redactor regen |
+
+### Rollback plan
+
+- **Revert path:** `git revert <PR merge SHA>` undoes all 9 task commits cleanly. No schema change, no migration to roll back. Env vars (`NEXT_PUBLIC_SITE_URL`, `DEMO_MODE`, `SESSION_COOKIE_SECRET`) can stay set; they become inert.
+- **JWT hook stays enabled:** the dashboard hook configuration is persistent — disable manually in the dashboard if rolling back further than this cycle (would only matter if roll-back includes `02_identity` migration revert, which is highly invasive).
+- **Risk window:** auth was previously broken (`getSession()` returned `null` in production). Roll-back returns the system to that broken state — no real users were authenticated against this surface yet because no portal flows are mounted in production today (`/api/upload` 401s on every real call). Roll-back is therefore essentially a no-op for end users.
+
+### Phase 1 status (post-merge)
+
+- [x] All 10 Phase 1 cycles shipped — auth surface is the final closer
+- [x] Foundation truly DONE — every `getSession()` deferral cleared
+- [ ] Foundation spec §18.1 last-unchecked → checked. Defer to a follow-up `spec-sync-phase-1-done` doc-only cycle (one-file-per-cycle prevents bundling here)
+- After this PR merges: **Phase 2 entity cycles begin** — `p2-students-guardians-household` first per spec §18.1
+
+### End-of-cycle review (superpowers:code-reviewer)
+
+Verdict: **SHIP**. No BLOCKER, no MAJOR. Reviewer surfaced one non-blocker observation: `session.supabaseUserId` carries a `demo:<userCuid>` synthetic prefix when the session was minted by `/api/_demo/login`. Any future caller using this field as a join key against Supabase's `auth.users` table will silently miss in DEMO_MODE. Folded into `.claude/standards/auth.md` §1 as an explicit caveat for p2+ cycle authors.
+
+### Lessons surfaced this cycle
+
+- **Cycle 10 / typecheck reminder confirmed:** vitest's SWC accepts `process.env.NODE_ENV = '...'` direct assignment; strict `tsc --noEmit` rejects (`TS2540 Cannot assign to 'NODE_ENV' because it is read-only`). `vi.stubEnv` is the portable form. Caught in T1 first try.
+- **Pre-commit narrow doc-sync** (`feat:` + `app/**` requires README staged, `chore:` exempt): T6 commit subject `feat(auth)` was rejected; switched to `chore(auth)` per prior cycle convention. Cycle commits use `chore(domain):` prefix; the `feat(domain):` form is reserved for the squash-merge title via `/ship`.
+- **Headers API CRLF rejection** (RFC 7230): JS `new Request(url, {headers: {x: "a\r\nb"}})` throws `TypeError`. Defense-in-depth — request-side header injection cannot reach validator code.
+- **Pending-cookies array still required in Next.js 16** (vercel/next.js#49442): ambient `cookies().set()` writes do NOT survive `NextResponse.redirect()` in route handlers. v1's pattern was correct then and remains correct now.
+- **Reviewer-driven security ratchet works**: 5 spec-time + 4 per-task review findings, all folded. The cycle ships a tighter contract than the original prompt sketched (e.g. dropped x-forwarded-host fallback wasn't in the user prompt; emerged from T1 review).
+

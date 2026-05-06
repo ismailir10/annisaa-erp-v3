@@ -62,15 +62,12 @@ export async function proxy(request: NextRequest) {
 async function proxyImpl(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
-  // Rebuild window (Phase 1, May–Jul 2026): /api/auth/*, /auth/callback, and
-  // /api/xendit/webhook are not yet present — auth flow lands in
-  // p1-auth-google-oauth, Xendit webhook ports back in p3-xendit-port-and-regen.
-  // Their guards above (rate-limit, public bypass, PKCE callback) re-attach in
-  // those cycles.
-
-  // Public routes — allow but still refresh Supabase session if present.
-  // Exact segment match on `/auth` + `/api/auth` prevents hypothetical
-  // routes like `/authentic-*` from inheriting the public bypass.
+  // Public routes — allow but still refresh Supabase session if present so
+  // that a logged-in user landing on `/` keeps a fresh access token. Exact
+  // segment match on `/auth` + `/api/auth` prevents hypothetical routes like
+  // `/authentic-*` from inheriting the public bypass. `/auth/callback` +
+  // `/auth/error` (shipped p1-auth-google-oauth) ride the `startsWith("/auth/")`
+  // path.
   if (
     pathname === "/" ||
     pathname === "/auth" ||
@@ -87,14 +84,17 @@ async function proxyImpl(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  // Demo mode takes priority when enabled — skip Supabase auth entirely.
-  // Still enforce idle timeout on portal paths so demo sessions expire
-  // consistently with Supabase-authenticated sessions.
+  // Demo mode — when enabled (E2E + local dev), skip Supabase auth entirely.
+  // The cookie is HMAC-signed by lib/auth/demo-cookie.ts (cannot be forged
+  // without SESSION_COOKIE_SECRET); no-cookie or unsigned-cookie cases fall
+  // through to the protected-route Supabase path or final redirect.
   if (process.env.DEMO_MODE === "true") {
     const demoCookie = request.cookies.get(DEMO_COOKIE)?.value;
     if (demoCookie) {
       return enforceIdleTimeout(request, NextResponse.next());
     }
+    // No cookie + DEMO_MODE=true: fall through to final redirect (no Supabase
+    // path in CI — NEXT_PUBLIC_SUPABASE_URL unset).
   }
 
   // API routes call getSession() themselves — skip the redundant middleware getUser()
@@ -112,14 +112,13 @@ async function proxyImpl(request: NextRequest): Promise<NextResponse> {
     return enforceIdleTimeout(request, response);
   }
 
-  // Demo mode fallback (only when Supabase is NOT configured)
-  const demoCookie = request.cookies.get(DEMO_COOKIE)?.value;
-  if (demoCookie) {
-    const response = NextResponse.next();
-    return enforceIdleTimeout(request, response);
-  }
-
-  // No session → redirect to login
+  // No session → redirect to login. Reached when neither demo cookie is
+  // present nor Supabase is configured. The legacy "demo cookie fallback
+  // when Supabase NOT configured" branch was dropped in p1-auth-google-oauth
+  // T4 — DEMO_MODE=true is set in CI build + e2e jobs (.github/workflows/
+  // ci.yml lines 49, 75, 84) so the priority block above handles all CI
+  // paths; the dropped branch was only reachable via DEMO_MODE !== 'true' +
+  // hand-planted cookie + Supabase env unset (degenerate, no caller).
   return NextResponse.redirect(new URL("/", request.url));
 }
 
