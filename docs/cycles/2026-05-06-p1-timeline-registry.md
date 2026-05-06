@@ -238,7 +238,7 @@ Annotations: **[sequential]** — depends on prior task output; **[independent]*
   - Include code example for emit call site (Student admission server action) + bridge contract diagram (writeAuditLog → bridge map → emitTimelineEvent in same tx).
   - Acceptance: file present; no markdown lint issues; `pre-commit` allowlist accepts (`.claude/**` permitted).
 
-- [ ] **T5 — `CLAUDE.md` standards-table row + `README.md` ADR row + cycle doc finalise** [sequential — last, after T1-T4] (commit subject: `feat:` — only commit that triggers narrow doc-sync; bundles README + CLAUDE.md + cycle doc final fill)
+- [x] **T5 — `CLAUDE.md` standards-table row + `README.md` ADR row + cycle doc finalise** [sequential — last, after T1-T4] (commit subject: `feat:` — only commit that triggers narrow doc-sync; bundles README + CLAUDE.md + cycle doc final fill)
   - `CLAUDE.md`: insert new row in the standards table directly after the `audit-pii.md` row: `| timeline.md | TimelineEvent registry, emit middleware, audit→timeline bridge, visibility tiers | lib/timeline/**, prisma/schema.prisma, lib/**/actions/** (last glob forward-looking) |`.
   - `README.md`: append ADR row in the active ADR table — `| 2026-05-06 | v2 timeline registry + emit middleware + audit bridge | TIMELINE_EVENTS frozen registry (8 seed kinds, Zod-validated payloads), emitTimelineEvent server-only generic over kind w/ tx threading + subjectKind mismatch guard, writeAuditLog SOFT_DELETE/RESTORE bridge via RESOURCE_TO_SOFT_DELETE_KIND map (Student + Employee starter set), timeline.md standards | Cycle-6 timeline-registry deferral cleared; 1 of 4 cycle-6 deferrals remain (p1-upload-route-sharp); p2+ entity cycles extend registry per domain — see [cycle](docs/cycles/2026-05-06-p1-timeline-registry.md) |` (each cell verified ≤ 400 chars during /spec; cell 3 ≈ 320, cell 4 ≈ 211).
   - Cycle doc Implementation/Verification/Ship Notes filled.
@@ -250,6 +250,7 @@ Annotations: **[sequential]** — depends on prior task output; **[independent]*
 - **T1 — `lib/timeline/events.ts` (104 lines) + `lib/timeline/__tests__/events.test.ts` (10 tests).** `_TIMELINE_EVENTS_RAW as const satisfies Record<...>` preserves per-entry `payloadSchema` types; `Object.freeze` wraps for runtime immutability. 8 seed kinds (student × 4, employee × 3, note.added). `RESOURCE_TO_SOFT_DELETE_KIND` typed as `Partial<Record<"SOFT_DELETE" | "RESTORE", TimelineEventKind>>` allows Employee to omit RESTORE. Reviewer (`feature-dev:code-reviewer`) confirmed `z.infer` flows through correctly; flagged 2 missing tests (sentinel + min-1 constraint) — added before commit. Final test count 10 (spec'd 7, plus seed-count assertion + sentinel + min-1 = +3).
 - **T2 — `lib/timeline/emit.ts` (113 lines) + `lib/timeline/__tests__/emit.test.ts` (16 tests).** `emitTimelineEvent<K>(input, tx?)` generic over kind. Validates required fields, looks up registry, parses payload via Zod (re-thrown raw), resolves subjectKind (registry value for non-polymorphic; mismatch throws explicit; `"*"` sentinel demands input.subjectKind), defaults visibility from registry, JSON-normalizes payload (`JSON.parse(JSON.stringify(...))`) for parity with `writeAuditLog`, INSERTs via `(tx ?? prisma).timelineEvent.create`. `Prisma.TimelineEventUncheckedCreateInput` accepts FK scalars directly. Reviewer (`feature-dev:code-reviewer`) flagged: MAJOR missing JSON-normalize step (asymmetry with `writeAuditLog`) — added; IMPORTANT missing `student.soft-deleted` strict-empty test (load-bearing for T3) — added. Final test count 16 (spec'd 13, plus strict-empty + match-passthrough = +2 over spec, plus parametrized split).
 - **T4 — `.claude/standards/timeline.md` (7 sections).** Mirrors `audit-pii.md` structure: when-to-emit table, visibility tiers, how-to-add-a-kind 4-step checklist, polymorphic subject pattern with `"*"` sentinel rules, audit-vs-timeline integration diagram + bridge map, tx threading, JSON-normalisation contract.
+- **T5 — `CLAUDE.md` standards-table row + `README.md` ADR row + cycle doc finalise.** New CLAUDE.md row inserted between `audit-pii.md` and `colors.md`; glob includes the forward-looking `lib/**/actions/**`. README ADR row prepended (cells 311 / 217 chars, both under the 400-char pre-commit limit). Cycle doc Verification + Ship Notes filled.
 - **T3 — `lib/audit/write.ts` bridge (+43 lines) + `lib/audit/__tests__/write.test.ts` +5 bridge cases.** Post-`auditLog.create` block: lookup `RESOURCE_TO_SOFT_DELETE_KIND[resource]`; when bridge entry exists AND action is SOFT_DELETE/RESTORE, invoke real `emitTimelineEvent({ ..., payload: {} }, tx)` on shared client — atomic when caller passes `tx`, non-atomic phantom-row risk when not (documented inline + in `audit-pii.md` + future `timeline.md`). Partial-coverage path (Employee.RESTORE, no kind registered) emits `console.warn` with format `writeAuditLog bridge: <resource>.<action> has no timeline kind registered — audit row written, no timeline event emitted`. Mock layering: `@/lib/db` extended with `timelineEvent.create` + `TimelineVisibility` enum stub; emit + events called real (per spec — thicker integration coverage). Reviewer (`feature-dev:code-reviewer`) flagged: IMPORTANT cast widening loses registry-literal narrowing — replaced double-cast with single narrower cast `keyof typeof RESOURCE_TO_SOFT_DELETE_KIND` + value cast `Partial<Record<..., emitKind>>`; `actorUserId` assertion already present (false alarm). Build error TS2339 on union-typed indexing fixed by the same narrower cast.
 
 ## Verification
@@ -257,6 +258,44 @@ Annotations: **[sequential]** — depends on prior task output; **[independent]*
 - T1: `npx vitest run lib/timeline/__tests__/events.test.ts` → 10/10 pass; `npm run build` → PASS; full `npx vitest run` → 702 passed / 4 skipped (4 expected live-DB skips from `append-only-trigger.test.ts`). Frontend gate inactive (no `app/**` or `components/**` paths staged). Voice gate inactive.
 - T2: `npx vitest run lib/timeline/__tests__/emit.test.ts` → 16/16 pass; `npm run build` → PASS; full `npx vitest run` → 720 passed / 4 skipped.
 - T3: `npx vitest run lib/audit/__tests__/write.test.ts` → 18/18 pass (13 existing + 5 new bridge cases); `npm run build` → PASS; full `npx vitest run` → 725 passed / 4 skipped.
+- T4 + T5: no incremental gate run (T4 markdown-only; T5 docs-only). End-of-cycle gate run captured below covers both.
+
+**End-of-cycle gate run (after T5):**
+- `npm run build` → PASS
+- `npx vitest run` → **725 passed / 4 skipped** (4 expected live-DB skips from `append-only-trigger.test.ts`).
+- `bash scripts/verify-rls-coverage.sh` → PASS: 25 / 25 tenant-scoped models.
+- `bash scripts/verify-api-auth.sh` → PASS: 2 / 2 routes covered.
+- `bash scripts/verify-pii-annotations.sh` → PASS: 2 / 2 PII fields annotated.
+- `npm run scaffold:check` → PASS (no entities registered yet — greenfield).
+- Playwright skipped via the scaffold-cycle exception — no UI route mounted; same precedent as `p1-audit-write-middleware`. Cycle ships library code + standards + docs only.
+- Frontend gate **inactive** (verified) — no `app/**/*.tsx`, `components/**/*.tsx`, `tailwind.config.*` paths in the cycle's diff. `design-system` token mentioned here for cycle-6 precedent / future-proofing.
+- Voice gate **inactive** — no user-facing copy.
 
 ## Ship Notes
-<filled by /ship — migrations, env vars, manual steps, rollback plan>
+
+- **Migrations:** none. TimelineEvent model + TimelineVisibility enum + GIN index already at staging tip via PR #185 (cycle 7 — `p1-audit-timeline-files`). Cycle ships library code + tests + standards documentation only.
+- **Env vars:** none new. `emitTimelineEvent` and the audit→timeline bridge are server-only via the `prisma` import (same boundary marker as `writeAuditLog`); no `server-only` package shim needed.
+- **New library exports:**
+  - `lib/timeline/events.ts` — `TIMELINE_EVENTS` (frozen registry, 8 seed kinds), `TimelineEventKind`, `TimelineEventPayload<K>`, `RESOURCE_TO_SOFT_DELETE_KIND` (audit bridge map).
+  - `lib/timeline/emit.ts` — `emitTimelineEvent<K>(input, tx?)` server-only, `EmitTimelineEventInput<K>` type.
+  - `lib/audit/write.ts` — bridge wired post-`auditLog.create`; behaviour unchanged for unmapped resources / non-soft-delete actions (existing 13 tests pass without modification).
+- **Registry seed list (8 kinds):**
+  - `student.admitted` — Student / `PARENT_VISIBLE` / `{ programId?, admittedAt? }`
+  - `student.enrolled` — Student / `PARENT_VISIBLE` / `{ classSectionId? }`
+  - `student.soft-deleted` — Student / `INTERNAL` / `{}`
+  - `student.restored` — Student / `INTERNAL` / `{}`
+  - `employee.hired` — Employee / `INTERNAL` / `{ employmentType? }`
+  - `employee.soft-deleted` — Employee / `INTERNAL` / `{}` (new this cycle, splits semantics from `employee.terminated`)
+  - `employee.terminated` — Employee / `PRIVATE` / `{ reason? }` (reserved for future direct-emit termination workflow; NOT the SOFT_DELETE bridge target)
+  - `note.added` — polymorphic (`"*"` sentinel) / `INTERNAL` / `{ text: string min(1).max(2000) }`
+- **Audit-bridge map contents:** `Student → { SOFT_DELETE: 'student.soft-deleted', RESTORE: 'student.restored' }`, `Employee → { SOFT_DELETE: 'employee.soft-deleted' }` (no `Employee.RESTORE` this cycle — partial-coverage `console.warn` surfaces a clear diagnostic at the gap; covered by bridge test 5).
+- **Manual steps:** none for ship. The bridge fires only when a caller invokes `writeAuditLog` with a SOFT_DELETE / RESTORE action on Student / Employee — and no such caller exists yet (no p2+ entity cycles have shipped). End-to-end first exercise lands with `p2-students-guardians-household`.
+- **Rollback plan:** revert PR. No DB changes. `lib/timeline/events.ts` and `lib/timeline/emit.ts` have no production callers yet (introduced this cycle). The `lib/audit/write.ts` bridge is a pure-additive code path: when no `RESOURCE_TO_SOFT_DELETE_KIND[resource]` entry exists OR action is not SOFT_DELETE/RESTORE, behaviour is identical to staging tip pre-T3 (verified by 13 pre-existing audit tests still passing).
+- **Remaining cycle-6 deferrals (1 of 4 cleared by this cycle):**
+  - `p1-upload-route-sharp` — independent; only remaining cycle-6 deferral. Recommended next cycle. Once shipped, phase 1 foundation is complete and phase 2 entity cycles begin (`p2-students-guardians-household` first).
+- **p2+ extension path:**
+  - Per-domain server actions add new kinds to `TIMELINE_EVENTS` (extend the `as const satisfies ...` literal; per-cycle entries with their Zod payload schemas).
+  - When a domain has a soft-delete + restore lifecycle worth tracking in the timeline, extend `RESOURCE_TO_SOFT_DELETE_KIND` and add the matching `<resource>.soft-deleted` + `<resource>.restored` kinds.
+  - For events outside the soft-delete pair (admission progression, payment received, leave approved), call `emitTimelineEvent` directly from the server action — same `tx` discipline as `writeAuditLog`.
+  - The `employee.terminated` direct-emit call site lands with the entity cycle that owns the HR termination workflow.
+- **Observability footnote:** `console.warn` on partial-coverage bridge gaps (e.g. an Employee.RESTORE call before `employee.restored` is registered) is intentional. The dev tail surfaces the gap immediately; future per-domain cycles registering the missing kinds eliminate the warn at the source.
