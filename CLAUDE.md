@@ -218,6 +218,7 @@ Domain standards live under `.claude/standards/` — loaded only when relevant f
 | `audit-pii.md` | `writeAuditLog` usage, PII annotations, partition retention, append-only contract | `lib/audit/**`, `prisma/schema.prisma`, `lib/**/actions/**` (last glob forward-looking — activates when p2+ per-domain server actions land) |
 | `timeline.md` | TimelineEvent registry, emit middleware, audit→timeline bridge, visibility tiers | `lib/timeline/**`, `prisma/schema.prisma`, `lib/**/actions/**` (last glob forward-looking) |
 | `storage.md` | `/api/upload` route, sharp pipeline, signed URL TTL, FAILED-row semantics, lazy upload trigger, bucket layout | `app/api/upload/**`, `lib/storage/**`, `lib/auth/session.ts`, `lib/scaffold/renderers/file.tsx`, `lib/scaffold/upload.ts`, files w/ `FileKind` + storage write |
+| `auth.md` | Google OAuth callback, `getSession()` contract, JWT custom-claim hook, demo-mode HMAC cookie, `?next=` validation, multi-tenant invariant enforcement | `app/api/**`, `app/auth/**`, `lib/auth/**`, `proxy.ts` |
 | `colors.md` | Color tokens + brand | `app/globals.css`, `tailwind.config.*`, `bg-status-*`/`text-status-*` edits, files containing `text-[#…]`/`bg-[#…]`/`border-[#…]` |
 
 **Frontend gate (pre-commit Rule 4):** frontend diffs (`app/**/*.{tsx,css}`, `components/**/*.tsx`, `tailwind.config.*`) require the staged cycle doc to contain the literal token `design-system`. A one-line Verification bullet ("Cross-checked design-system.html §N for Z") satisfies the gate. Keeps the reference alive against silent drift.
