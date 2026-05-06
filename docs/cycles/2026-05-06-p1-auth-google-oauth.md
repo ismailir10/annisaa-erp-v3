@@ -190,7 +190,7 @@ Sequential boundary: T1 → T2 → T3 → T4 → T5 (shared session.ts + proxy.t
 
 - [x] **T1 — `lib/auth/callback-origin.ts` + tests.** Tightened from v1 per spec-time T1 review BLOCKER (open-redirect via x-forwarded-host on non-Vercel topologies). Production REQUIRES `NEXT_PUBLIC_SITE_URL` (throws if unset). Dev returns `request.url` origin. Pure function. ~35 LoC + 4 vitest cases (dev-bypass / env-wins-over-x-forwarded-host / throw-on-missing / explicit attacker-spoofed-x-forwarded-host-ignored). **Gates passed:** typecheck + vitest 4/4 green.
 
-- [ ] **T2 — `lib/auth/demo-cookie.ts` + tests.** HMAC-SHA256 sign/verify, set/clear server actions, constant-time compare via `crypto.timingSafeEqual`. ~70 LoC + ~3 vitest cases. **Acceptance:** sign-verify roundtrip + tamper-detection + missing-cookie test all pass. *Independent of T1, T3-T8 except T3 (session.ts imports `verifyDemoCookie`) + T8 (demo-login endpoint imports `setDemoSessionCookie`).*
+- [x] **T2 — `lib/auth/demo-cookie.ts` + tests.** HMAC-SHA256 over base64url-encoded body (JWT-style); constant-time compare via `crypto.timingSafeEqual` w/ length-guard; secret floor 32 chars (>= HMAC-SHA256 output length); structural payload validation post-signature. 6 vitest cases (roundtrip / tamper-reject / malformed-input / missing-or-short-secret / sig-length-pin / structural-after-sig-ordering). **Gates passed:** typecheck + build + vitest 6/6 green. T2 review clean (no BLOCKER/MAJOR).
 
 - [ ] **T3 — `lib/auth/session.ts` extension + tests.** Prepend demo-cookie branch before Supabase path. Production path UNCHANGED (assertion in test diff). Add ~3 demo-mode test cases (happy + HMAC-mismatch fall-through + DEMO_MODE-unset-skips-demo). **Acceptance:** existing 6-case session test continues to pass + new cases green. **Depends on T2.**
 
@@ -212,6 +212,7 @@ Sequential boundary: T1 → T2 → T3 → T4 → T5 (shared session.ts + proxy.t
 
 - **Subagent plan:** all tasks share the auth-surface boundary (session.ts, proxy.ts, callback route, demo-cookie, demo-login) and benefit from sequential review. Executed inline T1→T10. Independent tasks T7 (error page) + T5 (env + JWT smoke) could parallelise via subagent but the speedup is marginal (<2 min savings per task) vs. inline review-loop coherence.
 - **T1** — `lib/auth/callback-origin.ts` + `lib/auth/__tests__/callback-origin.test.ts`. Tightened from v1 per spec-time T1 review BLOCKER: dropped x-forwarded-host fallback (open-redirect primitive on non-Vercel topologies). Production now REQUIRES `NEXT_PUBLIC_SITE_URL` (throws if unset). 4 cases green (dev-bypass / env-wins / throw-on-missing / spoofed-header-ignored).
+- **T2** — `lib/auth/demo-cookie.ts` + `lib/auth/__tests__/demo-cookie.test.ts`. JWT-style HMAC-SHA256 over base64url-encoded JSON body, constant-time compare w/ length-guard, 32-char secret floor (>= HMAC output len), structural validation post-signature (no info leak via shape-error path), set/clear server actions wrapping `next/headers` cookies(). 6 cases green. T2 review clean.
 
 
 ## Verification
