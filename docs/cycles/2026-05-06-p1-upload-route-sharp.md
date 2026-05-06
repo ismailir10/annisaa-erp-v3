@@ -219,7 +219,7 @@ Cross-checked design-system.html: N/A (route + library + standards cycle, no fro
 - [x] **T6 — `lib/storage/__tests__/sharp.test.ts` + `fixtures/sample.jpg` (~50KB).** Depends on T3 only. Pair with T3 in the same subagent. Acceptance: ~5 cases pass; fixture committed via `git add -f` to bypass any binary-asset gitignore (verify .gitignore doesn't exclude `*.jpg` first); fixture documented in test file header (camera model + dimensions for repeatability).
 - [x] **T7 — `lib/scaffold/upload.ts` (`useUploadOnSubmit` hook + `uploadFile` helper).** Renderer (`lib/scaffold/renderers/file.tsx`) intentionally NOT changed this cycle — existing renderer's `disabled` prop + inline error slot already cover upload-in-flight UX; integration is purely via the hook. No `FieldDef` shape change (per Assumption §9).
 - [x] **T8 — `lib/scaffold/__tests__/upload-hook.test.tsx` (9 cases, NEW).** Renderer test file deferred — no renderer code change to lock; consumer-cycle tests cover the hook ↔ renderer integration once the first p2 entity wires it.
-- [ ] **T9 — `.claude/standards/storage.md` + `CLAUDE.md` standards-table row + `README.md` ADR row + cycle doc Implementation/Verification/Ship Notes sections.** Bundled at the end. Acceptance: standards file ships with every section listed in Spec §storage.md; CLAUDE.md row added; README ADR row added; cycle doc filled. **Ship Notes must include a retraction note** (per spec-time review NIT §3) pointing back to cycle 7's storage runbook section: bucket layout was originally documented as per-tenant per-kind (`an-nisaa-image`); this cycle picks one-bucket-per-kind w/ tenantId path prefix instead, so `storage.md` is the new authority. Pre-commit hooks pass (broad doc-sync triggered by code changes is satisfied by the staged cycle doc + CLAUDE.md + README.md).
+- [x] **T9 — `.claude/standards/storage.md` + `CLAUDE.md` standards-table row + `README.md` ADR row + cycle doc Implementation/Verification/Ship Notes sections.** Bundled at the end. Acceptance: standards file ships with every section listed in Spec §storage.md; CLAUDE.md row added; README ADR row added; cycle doc filled. **Ship Notes must include a retraction note** (per spec-time review NIT §3) pointing back to cycle 7's storage runbook section: bucket layout was originally documented as per-tenant per-kind (`an-nisaa-image`); this cycle picks one-bucket-per-kind w/ tenantId path prefix instead, so `storage.md` is the new authority. Pre-commit hooks pass (broad doc-sync triggered by code changes is satisfied by the staged cycle doc + CLAUDE.md + README.md).
 
 ## Implementation
 
@@ -238,7 +238,119 @@ Cross-checked design-system.html: N/A (route + library + standards cycle, no fro
 - T3+T6: `npm run lint` ✓; `npm run build` ✓; `npx vitest run` ✓ — **730 passed | 4 skipped (734 total)**, baseline 725 → 730 (+5). Verbatim sharp.test.ts pass list: `caps a 3000×2000 image at 1920px on the long edge` (151ms) · `produces output with no EXIF metadata (regression lock against .withMetadata())` (123ms) · `computes ratio as output.buffer.length / input.length` (124ms) · `re-encodes a PNG input as JPEG output` (5ms) · `rejects a non-image buffer` (7ms).
 - T4: `npm run lint` ✓; `npm run build` ✓; `npx vitest run` ✓ — 730/730 + 4 skipped (no new tests this task; route tests in T5 cover the helper via mocks).
 - T7+T8: `npm run lint` ✓; `npm run build` ✓; `npx vitest run lib/scaffold` ✓ — **134 passed (5 files)**, baseline 125 → 134 (+9 hook tests).
+- T9: `.claude/standards/storage.md` shipped (10 sections covering when-to-call, MIME allowlist, sharp pipeline, hard limits, storage layout, lazy upload, FAILED semantics, service-role/RLS split, bucket runbook, deferrals); CLAUDE.md standards table row added; cycle 7 runbook retraction recorded in Ship Notes; Implementation/Verification/Ship Notes filled. **End-of-cycle gates** all green: `npm run lint` ✓, `npm run build` ✓, `npx vitest run` ✓ **750 passed | 4 skipped (754 total)**, `verify-rls-coverage.sh` ✓ 25/25, `verify-api-auth.sh` ✓ 3/3, `verify-pii-annotations.sh` ✓ 2/2, `npm run scaffold:check` ✓ (greenfield). **Playwright deliberately skipped** (per cycle prompt — UI integration lands w/ p2 entity cycles that consume the upload through the renderer; route handler unit-tested at 11 cases + hook unit-tested at 9 cases provides coverage for this cycle's surface area).
+- Cross-checked design-system.html: N/A (route + library + standards cycle, no frontend visual diff).
 - T5: `npm run lint` ✓; `npm run build` ✓ (4 routes incl. new `/api/upload`); `npx vitest run` ✓ — **741 passed | 4 skipped (745 total)**, baseline 730 → 741 (+11 route tests). All verify scripts green: `verify-api-auth.sh` ✓ **3/3** (new `/api/upload` counts via `getSession(` token); `verify-rls-coverage.sh` ✓ **25/25** (no schema change); `verify-pii-annotations.sh` ✓ **2/2** (no PII annotation change — note: filename PII handled by code-side audit-payload omission, not by the redactor allowlist); `npm run scaffold:check` ✓ (greenfield — no entities registered yet). Verbatim route.test.ts pass list: `returns 401 when getSession() returns null` · `returns 400 when file form field is missing` · `returns 400 when kind form field is missing` · `returns 400 when kind is not a valid FileKind enum member` · `returns 400 when file.size exceeds 10 MiB` · `returns 400 when MIME type does not match the kind allowlist` · `compresses an IMAGE kind, transitions to COMPRESSED, returns ratio + signedUrl + .jpg path` · `passes a DOCUMENT kind through unchanged, transitions to UPLOADED, no compression, signedUrl returned` · `returns 500 + flips row to FAILED + audits the FAILED transition when storage throws` · `returns 500 tx1_failed when tx1 audit-write throws (no FileAsset committed; no storage I/O)` · `returns 500 tx2_failed + flips row to FAILED when tx2 throws after storage upload succeeds (B1 lock-in)`. Playwright skipped this task (UI integration lands w/ p2 entity cycles per cycle prompt).
 
 ## Ship Notes
-<!-- filled by /ship — migrations, env vars, manual steps, rollback plan -->
+
+### Migrations applied
+
+**None this cycle.** No schema change — `FileAsset` model + `FileKind` / `FileStatus` enums shipped in cycle 7 (`p1-audit-timeline-files` migration `06_audit_timeline`). `verify-rls-coverage.sh` stays at 25/25; `verify-pii-annotations.sh` stays at 2/2 (filename PII handled by code-side audit-payload omission, NOT by adding a `/// @PII` annotation — see runbook below).
+
+### New env vars
+
+- `SUPABASE_SERVICE_ROLE_KEY` — required for `lib/storage/supabase.ts` lazy singleton. Already in `.env.local` for staging/prod since the cycle 7 runbook flagged it; verify present in Vercel project env before merge.
+- `NEXT_PUBLIC_SUPABASE_URL` — already in use; service-role client reads it from the same env var as the SSR client.
+
+### Sharp install platform notes
+
+- `sharp@^0.34.5` installed via standard `npm install` — sharp's prebuilt binaries for Vercel's `linux-x64-gnu` runtime resolve automatically via the scoped optional package `@img/sharp-linux-x64`. **No `--platform` install flags needed** since sharp v0.33.
+- **Critical Vercel runtime gate:** `next.config.ts` adds `serverExternalPackages: ["sharp"]`. Without this, Next.js Webpack-bundles sharp into the server bundle and the route silently 500s in production with `Could not load the "sharp" module using the linux-x64 runtime` (sharp issue #3870, vercel issue #14001). T1 commit message documents the rationale; CI build verifies sharp is externalised before merge.
+- `vercel-build.sh` not modified — sharp installs via the standard `npm ci` step. No postinstall hook risk verified.
+- Runtime memory: Vercel default 2 GB / 1 vCPU on all plans (incl. Hobby) — sharp decoding a 10 MB JPEG peaks ~50–80 MB transient via libvips streaming. No `vercel.json` `memory` override needed. `limitInputPixels: 24_000_000` in `lib/storage/sharp.ts` closes the decompression-bomb DoS that would otherwise OOM the function on a malicious 10 MB PNG (decodes to ~25k×25k×4 ≈ 2.5 GB raw).
+
+### Bucket provisioning runbook (per-tenant, manual until v1.1+)
+
+At each new-tenant onboarding:
+
+1. Open Supabase dashboard → Storage → New bucket.
+2. Create five buckets — names locked: `documents`, `images`, `videos`, `audios`, `archives`.
+3. Mark each **Private** (no public read).
+4. RLS policies on `storage.objects` from the cycle 7 runbook — applied via raw SQL migration when first p2 entity cycle ships (or run inline now if real upload UI is needed before that cycle):
+   ```sql
+   CREATE POLICY "tenant_scoped_storage_select" ON storage.objects
+     FOR SELECT TO authenticated
+     USING (name LIKE (current_setting('request.jwt.claims', true)::json->>'tenant_id') || '/%');
+   CREATE POLICY "no_writes_via_postgrest_storage" ON storage.objects
+     FOR ALL TO anon, authenticated
+     USING (false) WITH CHECK (false);
+   ```
+5. Service-role write boundary: `/api/upload` runs server-side with `SUPABASE_SERVICE_ROLE_KEY` and bypasses RLS. Browser-side reads consume signed URLs only.
+
+### Cycle 7 runbook retraction
+
+Cycle 7 (`docs/cycles/2026-05-05-p1-audit-timeline-files.md` Ship Notes lines 421-428) documented bucket layout as **per-tenant per-kind** (e.g. `an-nisaa-image`). This cycle supersedes that with **one bucket per FileKind, tenant-scoped via path prefix** — `<tenantId>/<kind>/<cuid>.<ext>` (Assumption §1). The cycle 7 runbook's RLS policy already gates on `name LIKE tenant_id || '/%'` which only makes sense with the shared per-kind bucket layout — internal contradiction within cycle 7. **`.claude/standards/storage.md` is now the authoritative source** for bucket naming + path convention; the cycle 7 doc's runbook section is superseded but kept in place for historical context.
+
+### FAILED-row semantics
+
+- `FileAsset` rows in `FAILED` status are **operational records** of failed uploads, NOT rolled back from the original `PENDING_UPLOAD` insert. Ops follow-up via the manual cleanup query in `.claude/standards/storage.md` §7 until `file_asset.orphan_cleanup` cron lands in p3+.
+- A concurrent future orphan-cron flipping `PENDING_UPLOAD → ORPHANED` does NOT collide with the route's catch block: `updateMany` with `where: { status: 'PENDING_UPLOAD' }` becomes a no-op when the row has already moved on (per superpowers MAJOR §M3 fix).
+- tx2 (post-storage transition) has its own catch + FAILED-flip path so a tx2 throw never crashes the route as an unhandled rejection (per feature-dev BLOCKER §B1 fix).
+
+### Filename PII handling
+
+`originalName` is stored in the `FileAsset` row column for legitimate UI display, but the audit `after` payload OMITS it entirely (per superpowers MAJOR §S2). Filenames may carry PII (NIK, KK numbers, birthdate-encoded names — Indonesian users routinely name files `siti-rahmawati-nik-3201xxxxxxx.pdf`); since `FileAsset` is not in the `@PII` redactor's allowlist + the audit table is partition-append-only, the only defence against one-way leakage was code-side omission. **Future entity cycles consuming this route inherit the same omission** — do NOT add `originalName` to any audit payload that touches `FileAsset`. Alternative considered + rejected: adding `/// @PII redact` to the schema column (would lose the value from the live UI display query path, not just from audit).
+
+### `getSession()` deferral chain
+
+- `lib/auth/session.ts` ships as a **production-only minimal shim** this cycle. `getSession()` returns `null` in production until `p1-auth-google-oauth` ships the OAuth callback that populates `User.supabaseUserId` (no User row has it populated today — `verify-api-auth.sh` accepts the `getSession(` token unchanged).
+- Demo-cookie write path is explicitly deferred to `p1-auth-google-oauth` (no code currently writes the `school-erp-session` cookie that `proxy.ts` reads).
+- The signature `() => Promise<{tenantId, userId, supabaseUserId} | null>` is the contract that survives the auth-refactor cycle — the route + every future caller depends on it.
+- **Schema invariant correction folded** (superpowers MAJOR §M1): the schema's only index involving `supabaseUserId` is the **non-unique** `@@index([tenantId, supabaseUserId])` (prisma/schema.prisma:294) — no `@@unique` exists. The shim uses `findMany({ take: 2 })` + length-check as fail-closed defence against the privilege-escalation primitive where two User rows in different tenants share a `supabaseUserId`. **`p1-auth-google-oauth` MUST enforce one-Supabase-account ↔ one-tenant at the OAuth callback** (or add `@@unique([supabaseUserId])` via migration); failure to do so leaves the `findMany + length === 1` guard as the only defence.
+
+### Consumer pattern for p2+ entity cycles
+
+When a p2 entity ships a form with FILE fields (e.g. Student.photo, Employee.cv, Admission.documents):
+
+```tsx
+import { useUploadOnSubmit } from "@/lib/scaffold/upload";
+
+const FILE_FIELDS = [
+  { name: "photo", kind: "IMAGE" as const },
+  { name: "cv", kind: "DOCUMENT" as const },
+] as const;
+
+function StudentForm() {
+  const form = useForm<StudentValues>(...);
+  const { wrap, isUploading } = useUploadOnSubmit(form, FILE_FIELDS);
+
+  const onSubmit = wrap(async (values) => {
+    // values.photo + values.cv are now `{id, signedUrl}` shapes — pass to
+    // server action that persists the FileAsset id on the entity row.
+    await createStudent(values);
+  });
+
+  return <form onSubmit={form.handleSubmit(onSubmit)}>...</form>;
+}
+```
+
+The hook handles parallel uploads, RHF state replacement, per-field error surfacing, and submit-abort on partial failure. `isUploading` flag drives spinner UI / disabled buttons. `ScaffoldFormPage` does NOT auto-integrate the hook this cycle — first p2 entity cycle decides whether to extend `ScaffoldFormPageProps` with `fileFields` or keep manual wiring.
+
+### Deferrals + future work
+
+| Item | Defer to | Why |
+|---|---|---|
+| `file_asset.orphan_cleanup` cron | p3+ per spec §16.1a | Without it, PENDING_UPLOAD + FAILED rows accumulate. Manual cleanup query in `storage.md` §7. |
+| Direct-to-storage presigned PUT | p4+ | Current 10 MiB cap doesn't need bandwidth offload. |
+| Multipart resumable uploads | p4+ | Same. |
+| Programmatic bucket provisioning | v1.1+ | Manual via dashboard during phase 1. |
+| ExportJob result-FileAsset flow | p3-fee-foundation | pg-boss worker writes ExportJob → FileAsset link + emails signed URL. |
+| Image variants (thumbnails, srcset) | p3+ | If portal feed performance demands. |
+| HEIC/AVIF decode | Possibly W4 launch | libvips bundled with libheif (sharp 0.34.5); route allowlist stays conservative until field demand surfaces. |
+| Bytes-uploaded progress UX | Future polish | Requires XHR over fetch; spinner-only for MVP. |
+| Role-based FileKind gating | First p2 entity cycle | Any auth'd user can upload any kind today. |
+| Rate limiting on /api/upload | First p2 entity cycle | `lib/rate-limit.ts` not yet built; first p2 ships it. |
+| MIME magic-byte verification | First p2 entity cycle | Acceptable trust boundary at MVP. |
+| Demo-cookie write helper for E2E | `p1-auth-google-oauth` | No code currently writes `school-erp-session`; route 401s real callers until OAuth lands. |
+
+### Rollback plan
+
+- **Revert path:** `git revert <PR merge SHA>` undoes all 6 cycle commits cleanly. No schema change, no env var addition, no migration to roll back.
+- **Sharp dep:** `npm uninstall sharp` after revert. `next.config.ts` `serverExternalPackages` line can be removed but is harmless if left.
+- **Storage buckets:** any buckets manually provisioned during the cycle stay (idempotent). No data loss from revert.
+- **Risk window:** the route is auth-gated and `getSession()` returns `null` in production today, so production traffic to `/api/upload` already 401s — no real upload UI exists to rollback. Rollback is essentially a no-op for users.
+
+### Phase 1 foundation status
+
+**Phase 1 is now DONE.** All four cycle-6 deferrals cleared (audit-write middleware, scaffold renderers, timeline registry, this cycle's upload route + sharp pipeline). Phase 2 entity cycles begin next — `p2-students-guardians-household` first per spec §18.1 cycle plan. The first p2 cycle inherits the storage runbook, the upload-hook integration pattern, and the deferred role-gating + rate-limit + magic-byte items as P0 entry conditions.
