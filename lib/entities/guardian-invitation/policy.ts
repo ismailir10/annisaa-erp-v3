@@ -21,9 +21,9 @@
 
 import { AuditAction } from "@/lib/generated/prisma/client";
 
-import { defineEntityPolicy } from "../_types";
+import { defineEntityPolicy, type EntityPolicy } from "../_types";
 
-export const policy = defineEntityPolicy({
+export const policy: EntityPolicy = defineEntityPolicy({
   resource: "GuardianInvitation",
   softDelete: false,
   auditActions: [AuditAction.CREATE, AuditAction.UPDATE] as const,

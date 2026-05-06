@@ -25,9 +25,9 @@
 
 import { AuditAction, FileKind } from "@/lib/generated/prisma/client";
 
-import { defineEntityPolicy } from "../_types";
+import { defineEntityPolicy, type EntityPolicy } from "../_types";
 
-export const householdPolicy = defineEntityPolicy({
+export const householdPolicy: EntityPolicy = defineEntityPolicy({
   resource: "Household",
   softDelete: true,
   auditActions: [

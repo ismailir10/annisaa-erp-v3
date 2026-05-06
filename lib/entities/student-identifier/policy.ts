@@ -24,9 +24,9 @@
 
 import { AuditAction, FileKind } from "@/lib/generated/prisma/client";
 
-import { defineEntityPolicy } from "../_types";
+import { defineEntityPolicy, type EntityPolicy } from "../_types";
 
-export const studentIdentifierPolicy = defineEntityPolicy({
+export const studentIdentifierPolicy: EntityPolicy = defineEntityPolicy({
   resource: "StudentIdentifier",
   softDelete: true,
   auditActions: [
