@@ -23,6 +23,9 @@ export const PII_FIELDS: PiiModelMap = Object.freeze({
     "nik": "redact",
     "phone": "mask:last4",
   },
+  "Student": {
+    "nik": "redact",
+  },
 });
 
 type JsonObject = Record<string, unknown>;

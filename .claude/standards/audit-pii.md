@@ -45,6 +45,23 @@ The redactor walks **top-level keys only**. Nested PII must be flat-promoted to 
 5. Add a test case to `lib/audit/redactor.test.ts` covering the new field.
 6. Stage all four files (schema, script, redactor, test) in the same commit — the gate enforces sync.
 
+### Hardcoded triple list
+
+Source of truth is `scripts/verify-pii-annotations.sh`'s `TRIPLES` array. Mirror table below kept in sync per cycle:
+
+| Model    | Field   | Policy       | Cycle introduced                      |
+|----------|---------|--------------|---------------------------------------|
+| Employee | nik     | redact       | `p1-employees` (migration 03)         |
+| Employee | phone   | mask:last4   | `p1-audit-timeline-files` (migration 06) |
+| Student  | nik     | redact       | `p2-students-guardians-household` (migration 07) |
+
+#### Deferred to p2-guardians cycle
+
+- `(Guardian, nik, redact)` — schema lands in migration 08_guardians
+- `(Guardian, phone, mask:last4)` — schema lands in migration 08_guardians
+
+Both rows ship together in `p2-guardians` cycle (next phase 2 cycle). The `verify-pii-annotations.sh` gate will jump from 3/3 to 5/5 there.
+
 ## 4. Transaction threading (spec §5.13)
 
 Server actions wrapping mutations in `prisma.$transaction` MUST pass the `tx` arg through to `writeAuditLog`:
