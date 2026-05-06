@@ -340,7 +340,7 @@ Generator script reads triple-slash comments → `lib/audit/redactor.ts`. Wraps 
 
 ## 6. Migration + Seed + RLS
 
-### 6.1 Migration files (20 numbered)
+### 6.1 Migration files (21 numbered)
 
 ```
 00_extensions          pg_trgm, pgcrypto
@@ -352,18 +352,21 @@ Generator script reads triple-slash comments → `lib/audit/redactor.ts`. Wraps 
 06_audit_timeline      AuditLog (append-only trigger), TimelineEvent
 07_students            Household, Student, StudentIdentifier, StudentIdentifierSequence
 08_guardians           Guardian, StudentGuardian, GuardianInvitation
-09_addresses           Province/Regency/District/Village (idn-area-data) + Address chain
-10_curriculum          ScoringScale, CurriculumIndicator, HafalanItem, RaportSectionTemplate
-11_admission_workflow  Admission, InitialAssessment, MplsCohort/Member/Attendance
-12_enrollment          StudentEnrollment, StudentAttendance, PenilaianHarian, HafalanProgress
-13_raport              Raport, RaportComment
-14_finance             port from v1 + extend: FeeComponentDef (+ frequency, isFamilyShared), ProgramFeeStructure, FeeInstallmentScheme (NEW), SiblingDiscountRule (NEW), InvoiceNumberSequence, Invoice (+ installmentNo, parentInvoiceId, xenditSessionExpiresAt, baseAmount/discountAmount, expanded InvoiceStatus enum), Payment (+ method enum, cashReceiptNumber)
-15_payroll             port from v1: SalaryComponentDef, EmployeeSalaryValue, PayrollRun
-16_scaffold            FileAsset, ExportJob, EmailLog, WebhookEvent, OrgConfig, Holiday
-17_version_triggers    bump_version per versioned entity
-18_check_constraints   all CHECKs + partial uniques + GIN indexes
-19_jwt_hook            Supabase custom access token hook
+09_regions             Province/Regency/District/Village (idn-area-data v4.0.1, BPS-code PKs CHAR(2)/(4)/(6)/(10) — note District widened from CHAR(7) to CHAR(6) per p1-regions-seed Ship Notes; idn-area-data v4.0.1 ships PPRRDD 6-digit, not Permendagri 137/2017 PPRRDDD 7-digit)
+10_addresses           Address chain referencing 09_regions PKs (deferred to p2-addresses-idn-chain — first p2 entity cycle that needs it)
+11_curriculum          ScoringScale, CurriculumIndicator, HafalanItem, RaportSectionTemplate
+12_admission_workflow  Admission, InitialAssessment, MplsCohort/Member/Attendance
+13_enrollment          StudentEnrollment, StudentAttendance, PenilaianHarian, HafalanProgress
+14_raport              Raport, RaportComment
+15_finance             port from v1 + extend: FeeComponentDef (+ frequency, isFamilyShared), ProgramFeeStructure, FeeInstallmentScheme (NEW), SiblingDiscountRule (NEW), InvoiceNumberSequence, Invoice (+ installmentNo, parentInvoiceId, xenditSessionExpiresAt, baseAmount/discountAmount, expanded InvoiceStatus enum), Payment (+ method enum, cashReceiptNumber)
+16_payroll             port from v1: SalaryComponentDef, EmployeeSalaryValue, PayrollRun
+17_scaffold            FileAsset, ExportJob, EmailLog, WebhookEvent, OrgConfig, Holiday
+18_version_triggers    bump_version per versioned entity
+19_check_constraints   all CHECKs + partial uniques + GIN indexes
+20_jwt_hook            Supabase custom access token hook
 ```
+
+(Reconciled in `spec-sync-phase-1-actual`: original `09_addresses` slot split into `09_regions` + `10_addresses`; subsequent rows shifted +1; final list grew 20 → 21 numbered files.)
 
 Each file <200 lines. Each migration tested independently in CI.
 
@@ -715,7 +718,7 @@ Reviewer flagged 7-week plan = actually 8.5-9 weeks of work. Committing to 8 wee
 | Week | Focus | Deliverables |
 |---|---|---|
 | W1 day 1 | **Phase 0 — Hard delete** | Single cycle: nuke domain code (app/admin, app/teacher, app/parent, seed.ts, schema domain models, validators, e2e specs). Tag v1 backup. Greenfield-ready repo. |
-| W1 days 2-7 | Foundation + Schema | All migrations 00-19, seeds 00-12 (regions, programs, sentra, etc.), RLS, JWT hook, scaffold engine skeleton, Google OAuth flow, Supabase Storage setup, audit redactor, timeline event registry, file upload pipeline, region SQL seed. CI scaffold-check passing. |
+| W1 days 2-7 | Foundation + Schema | All migrations 00-19, seeds 00-12 (regions, programs, sentra, etc.), RLS, JWT hook, scaffold engine skeleton + 15 renderers, Google OAuth flow, Supabase Storage setup, audit redactor + write middleware, timeline event registry + emit middleware, file upload pipeline (`/api/upload` + sharp), region SQL seed. CI scaffold-check passing. **Phase 1 ran 10 cycles, not 7** — `p1-audit-timeline-files` and `p1-scaffold-engine-skeleton` each split mid-execution per §18.2 size cap; full per-cycle list in §18.1. |
 | W2 | Admin core (admission + people) | Admission funnel state machine + public form + sibling detect + cash/Xendit + InitialAssessment + MPLS + ClassSection + Employee + Sentra + SentraRotation. Admin dashboard skeleton. |
 | W3-W3.5 | Admin finance (1.5 weeks) | Port lib/xendit + lib/payroll + lib/finance. **Installment generator** (FeeInstallmentScheme + SiblingDiscountRule + on-enrollment effect). **Xendit auto-regen cron** + status-flip cron (OVERDUE/EXPIRED). **Cash payment recording** + partial payment flow. Tunggakan view + manual regen button + wa.me link templates. Payroll. |
 | W3.5-W4 | Import wizard | Student/Guardian XLSX import. Phone/name normalizers + dedup heuristic. Income free-text parser. Audit batched. |
@@ -925,9 +928,9 @@ This is the **foundation + MVP architecture** spec. Each domain gets dedicated /
 
 ## 18. Execution Plan + Workflow Adjustments
 
-Big task = ~30 cycles over 7 weeks. Existing `/spec → /build → /ship` workflow + CLAUDE.md conventions need adjustments to handle multi-cycle marathon.
+Big task = ~36 cycles over 8 weeks. Existing `/spec → /build → /ship` workflow + CLAUDE.md conventions need adjustments to handle multi-cycle marathon. (Original estimate was ~30/7 weeks; bumped after Phase 1 close — see §18.2 retrospective for the +3 cycles + §11 for the +1 week honest commitment.)
 
-### 18.1 Cycle decomposition (~33 cycles across 8 phases)
+### 18.1 Cycle decomposition (~36 cycles across 8 phases)
 
 Phase-by-phase. Each cycle ≤ 2 working days. Cycle naming: `YYYY-MM-DD-p<N>-<slug>` where N = phase number.
 
@@ -972,17 +975,23 @@ Phase-by-phase. Each cycle ≤ 2 working days. Cycle naming: `YYYY-MM-DD-p<N>-<s
 - [ ] `lib/finance/run-bulk-*` test suite green against gutted schema (port subset)
 - [ ] Rollback plan rehearsed locally: `git revert` + `prisma migrate reset` + restore `pg_dump` — TESTED before merge
 
-#### Phase 1 — Foundation (W1, ~7 cycles)
+#### Phase 1 — Foundation (W1, ~10 cycles — 9 shipped, 1 pending)
 
-- `p1-extensions-tenancy` — migrations 00 + 01 (extensions, Tenant, Campus, Program, AcademicYear, AcademicTerm) + seeds 00-04
-- `p1-identity-rls` — migration 02 (User, Role, Permission, UserRole + composite FK + RLS policies + verify-rls-coverage extended) + seed 05-06 + JWT hook
-- `p1-regions-seed` — migration 09 (idn-area-data tables) + 01-regions.sql large seed
-- `p1-employees-classes-sentra` — migrations 03-05 (Employee, ClassSection, Sentra, SentraRotation, ClassSession + SessionTeacher) + seeds 07
-- `p1-audit-timeline-files` — migrations 06 + 16 (AuditLog, TimelineEvent, FileAsset, ExportJob) + Supabase Storage setup + sharp pipeline + redactor generator
-- `p1-scaffold-engine-skeleton` — `lib/scaffold/*` package: ScaffoldListPage, ScaffoldFormPage, ScaffoldDetailPage, field renderers, permission resolver w/ scope cache, format helpers, override hatch, scaffold-check CLI
-- `p1-auth-google-oauth` — Supabase Google OAuth flow refactor (split lib/auth.ts), session middleware (replace proxy.ts), demo-mode cookie
+Original plan was 7 cycles; the `p1-audit-timeline-files` and `p1-scaffold-engine-skeleton` parents both hit the §18.2 per-cycle scope cap (≤25 staged files / ≤2 days) and were split mid-execution. Split rationale captured in each parent's Ship Notes; the four downstream cycles below all branched off the cycle-6 deferral chain.
 
-Deliverable end-W1: foundation green, scaffold-check passes, dev server boots, anonymous user blocked, authenticated user sees empty admin shell.
+- [x] `p1-extensions-tenancy` (2026-05-04) — migrations 00 + 01 (extensions, Tenant, Campus, Program, AcademicYear, AcademicTerm) + seeds 00-04
+- [x] `p1-identity-rls` (2026-05-05) — migration 02 (User, Role, Permission, UserRole + composite FK + RLS policies + verify-rls-coverage extended) + seed 05-06 + JWT hook
+- [x] `p1-regions-seed` (2026-05-05) — migration 09 (idn-area-data tables) + 01-regions.sql large seed
+- [x] `p1-employees-classes-sentra` (2026-05-05) — migrations 03-05 (Employee, ClassSection, Sentra, SentraRotation, ClassSession + SessionTeacher) + seeds 07
+- [x] `p1-audit-timeline-files` (2026-05-05) — migrations 06 + 16 schemas only (AuditLog, TimelineEvent, FileAsset, ExportJob) + Supabase Storage runbook + redactor generator. Storage runtime + sharp pipeline + `writeAuditLog` runtime + timeline emit middleware split into the 4 cycles below per §18.2 cap.
+- [x] `p1-scaffold-engine-skeleton` (2026-05-05) — `lib/scaffold/*` engine + 1/15 field renderers (TEXT placeholder) + permission resolver w/ scope cache + format helpers + override hatch + `scaffold-check` CLI. Remaining 14 renderers split into the cycle below.
+- [x] `p1-scaffold-renderers` (2026-05-05) — 14 of 15 field renderer impls completing the registry (`textarea/number/decimal/currency/date/datetime/boolean/select/multiselect/email/phone/relation/file/enum`); split from `p1-scaffold-engine-skeleton` per §18.2 cap.
+- [x] `p1-audit-write-middleware` (2026-05-05) — `lib/audit/write.ts` `writeAuditLog` runtime + opt-in `audit?` config on `defineAction` + `audit-pii.md` standards + `verify-pii-annotations.sh` CI gate; split from `p1-audit-timeline-files` per §18.2 cap.
+- [x] `p1-timeline-registry` (2026-05-06) — `TIMELINE_EVENTS` registry (8 seed kinds) + `emitTimelineEvent` middleware + audit→timeline SOFT_DELETE/RESTORE bridge + `timeline.md` standards; split from `p1-audit-timeline-files` per §18.2 cap.
+- [x] `p1-upload-route-sharp` (2026-05-06) — `POST /api/upload` route + sharp compression pipeline + Supabase Storage wrapper + minimal `lib/auth/session.ts` `getSession()` shim + `storage.md` standards; split from `p1-audit-timeline-files` + `p1-scaffold-engine-skeleton` per §18.2 cap (final cycle-6 deferral, marks Phase 1 runtime-complete pending auth).
+- [ ] `p1-auth-google-oauth` — Supabase Google OAuth flow refactor (split `lib/auth.ts`), session middleware (replace `proxy.ts`), demo-mode cookie write helper, extends the `lib/auth/session.ts` shim from `p1-upload-route-sharp` with the full callback. Until this ships, `/api/upload` 401s real callers (acceptable: no real upload UI mounted yet).
+
+Deliverable end-W1: foundation green, scaffold-check passes, dev server boots, anonymous user blocked, authenticated user sees empty admin shell. **Status:** 9/10 shipped; awaiting `p1-auth-google-oauth` to close the auth surface.
 
 #### Phase 2 — Admin core: people + admission (W2, ~5 cycles)
 
@@ -1045,6 +1054,8 @@ Cycle types:
 
 Each cycle doc has `## Type` header to declare intent + permitted skips.
 
+**Retrospective (Phase 1 close):** the cap fired twice during Phase 1 — `p1-audit-timeline-files` (cycle 5) and `p1-scaffold-engine-skeleton` (cycle 6) both blew the ≤25-file / ≤2-day budget once their full §18.1 scope was in front of the implementer. Both were split mid-execution into 4 follow-on cycles total (`p1-scaffold-renderers`, `p1-audit-write-middleware`, `p1-timeline-registry`, `p1-upload-route-sharp`) per the deferral chain recorded in each parent's Ship Notes. **This is the cap working as designed, not failing** — surfacing scope creep at the file-count boundary before the implementer commits to a 5-day megacycle is exactly the intent. Future phases should expect 1-2 splits per phase as a normal outcome and budget the cycle count accordingly (Phase 1 nominal 7 → actual 10).
+
 ### 18.3 CLAUDE.md adjustments needed
 
 CLAUDE.md predates this rebuild. Edits required (carefully, incremental per cycle, not big-bang):
@@ -1069,10 +1080,12 @@ Add new standards files in `.claude/standards/`:
 
 | File | Created when | Owns |
 |---|---|---|
-| `scaffold.md` | p1-scaffold-engine-skeleton cycle | scaffold engine usage, override patterns, slot system |
+| `scaffold.md` | p1-scaffold-engine-skeleton | scaffold engine + permission resolver + format helpers (renderer-side standards landed in the split cycle below) |
 | `entity-registry.md` | p1-scaffold-engine-skeleton | per-entity directory contract (schema/entity/policy/events files) |
 | `permission-scope.md` | p1-identity-rls | RBAC scope predicates, scope cache, debug view |
-| `audit-pii.md` | p1-audit-timeline-files | `/// @PII` annotation usage, redactor generator, retention |
+| `audit-pii.md` | p1-audit-write-middleware | `/// @PII` annotation usage, redactor generator, retention |
+| `timeline.md` | p1-timeline-registry | TimelineEvent registry, emit middleware, audit→timeline bridge, visibility tiers |
+| `storage.md` | p1-upload-route-sharp | `/api/upload` route, sharp pipeline, signed URL TTL, FAILED-row semantics, lazy upload trigger, bucket layout |
 | `workflow.md` | (post-foundation) | state machine + typed effects pattern |
 | `migration.md` | p1-extensions-tenancy | migration order, naming, test pattern, rollback policy |
 
@@ -1173,7 +1186,7 @@ Beyond per-cycle CLAUDE.md edits, structural improvements worth shipping early i
 1. **`/cycle-new` slash command** — wraps `cycle-new.sh`. Auto-branches, creates cycle doc skeleton, sets `.claude/session-role`. Eliminates manual setup friction.
 2. **Cycle dashboard** — simple `docs/cycles/INDEX.md` updated by `/ship` w/ cycle title + status (open/merged) + PR link. Easy to see phase progress.
 3. **Cycle template** — `docs/cycles/_TEMPLATE.md` w/ all 6 sections pre-filled. `/spec` copies as starting point.
-4. **Phase boundaries** — `docs/cycles/_PHASES.md` listing phases + planned cycles + completion checkboxes. Updated as phases complete.
+4. **Phase boundaries** — see §18.1 above (single source for phase + cycle list + per-cycle checkbox status). Original plan called for a separate `docs/cycles/_PHASES.md` checkbox file; never created. §18.1 with `[x]/[ ]` markers absorbed the role.
 5. **Cron monitor** — `/admin/_cron/status` dev-only page showing pg-boss job queue health. Useful during phase 3 when many crons land.
 6. **Demo seed split** — modular `demo-seed/` for Playwright fixtures + `prod-seed/` for production. Same data sources, different rendering. Eliminates 20 test skips from current.
 
@@ -1367,7 +1380,6 @@ Before **phase 1 cycle 1**:
 - [ ] Phase 0 merged + verified
 - [ ] `scripts/cycle-new.sh` created + tested
 - [ ] `docs/cycles/_TEMPLATE.md` created
-- [ ] `docs/cycles/_PHASES.md` created listing all ~33 cycles + checkboxes
 - [ ] Demo seed split planned
 
 After phase 0 kickoff: invoke `superpowers:writing-plans` skill to produce **Phase 0 cycle (`p0-hard-delete-domain-code`)** implementation plan as first deliverable. Subsequent cycles get own /spec → plan via marathon workflow.
