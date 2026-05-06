@@ -190,11 +190,11 @@ Each entity's `dataFetcher: DataFetcher<T>` MUST satisfy these clauses (referenc
 
 ### T10 — End-of-cycle gate + Verification + Ship Notes
 
-- [ ] Run end-of-cycle gate: `prisma generate && npm run lint && npm run typecheck && npm run build && npx vitest run`. Playwright skipped (justified — no UI changes; rebuild-window guard active).
-- [ ] Run verify gates: `bash scripts/verify-rls-coverage.sh` (expect 32/32 unchanged), `bash scripts/verify-api-auth.sh` (expect 4/4 unchanged), `bash scripts/verify-pii-annotations.sh` (expect 5/5 unchanged).
-- [ ] Fill cycle doc Verification section with verbatim gate output per task.
-- [ ] Fill cycle doc Ship Notes covering: registry consumer contract documentation (importable barrel + how `p2-scaffold-pages` consumes); deferred-items table refresh; rollback plan (`git revert <PR merge SHA>` — pure source/test/docs; no migration; no env vars; near-zero risk).
-- [ ] Spec-time + end-of-cycle code review (`feature-dev:code-reviewer` on diff) per CLAUDE.md /build pattern; surface any CRITICAL/MAJOR findings as fix commits before /ship.
+- [x] Run end-of-cycle gate: `prisma generate && npm run lint && npm run typecheck && npm run build && npx vitest run`. Playwright skipped (justified — no UI changes; rebuild-window guard active).
+- [x] Run verify gates: `bash scripts/verify-rls-coverage.sh` (32/32 unchanged), `bash scripts/verify-api-auth.sh` (4/4 unchanged), `bash scripts/verify-pii-annotations.sh` (5/5 unchanged).
+- [x] Fill cycle doc Verification section with verbatim gate output per task.
+- [x] Fill cycle doc Ship Notes covering: registry consumer contract documentation (importable barrel + how `p2-scaffold-pages` consumes); deferred-items table refresh; rollback plan (`git revert <PR merge SHA>` — pure source/test/docs; no migration; no env vars; near-zero risk).
+- [x] Spec-time + end-of-cycle code review (`feature-dev:code-reviewer` on diff) per CLAUDE.md /build pattern; surfaced + addressed CRITICAL/MAJOR findings as in-task fix edits before commit.
 - **Acceptance:** all gates green; cycle doc all 6 sections populated; ready for /ship.
 
 ## Implementation
@@ -216,7 +216,101 @@ Each entity's `dataFetcher: DataFetcher<T>` MUST satisfy these clauses (referenc
 - T1 gate: `npx prisma generate` clean (`✔ Generated Prisma Client (7.6.0)`); `npm run typecheck` clean (no errors); `npm run lint` clean (1 pre-existing warning on `lib/students/__tests__/nis-allocator.test.ts:52:28` `_args` unused — unchanged from baseline). `npm run build` clean (route table unchanged). `npx vitest run` passed `Tests 866 passed | 4 skipped (871)` after re-run; **2-4 known flakes** on full-suite parallel run (`components/ui/__tests__/confirm-dialog.test.tsx` "closes on successful onConfirm resolution" / "stays open when onConfirm rejects" / "closes when Cancel is clicked" / "disables both buttons while onConfirm is pending"; `components/ui/__tests__/select.test.tsx` "renders the <SelectItem> label on the trigger when value matches (enum-style value)") — verified pre-existing on origin/staging via `git stash --include-untracked && npx vitest run components/ui/__tests__/{confirm-dialog,select}.test.tsx → 9/9 passed`. Targeted re-run with T1 in tree → 9/9 passed. Flakes are jsdom timing under full-suite parallel load, not T1-induced.
 - T2-T6 gates: `npx prisma generate` clean; `npm run typecheck` clean; `npm run lint` clean (lint baseline 1 warning, no new findings). `npm run build` clean (no new routes — registries are `lib/*` only). `npx vitest run` `Tests 865 passed | 4 skipped (871)` (test count unchanged from T1 — registries shipped without tests; T7 adds 5 entity test files with the full coverage matrix). Same 2-4 confirm-dialog/select flakes confirmed pre-existing.
 - T7 gate: `npx prisma generate` clean; `npm run typecheck` clean; `npm run lint` clean (1 baseline warning unchanged). `npm run build` clean (no new routes). `npx vitest run` `Test Files 39 passed | 1 skipped (41) / Tests 929 passed | 4 skipped (935)` (+64 cases over T1 baseline 866; targeted `npx vitest run lib/entities/__tests__/` reports `Test Files 5 passed (5) / Tests 64 passed (64)` end-to-end). Same 2 confirm-dialog flakes confirmed pre-existing (verified targeted-pass on baseline + with T7 in tree). Each entity test file uses `vi.mock("@/lib/db")` + `vi.mock("@/lib/auth/session")` to stub the Prisma + session import chain — same pattern as `lib/audit/__tests__/write.test.ts`.
+- T8 gate: docs-only authoring; gates inherited from T7 baseline. No code changes.
+- T9 gate: docs-only edits (README ADR row + CLAUDE.md table row). README ADR Decision cell length verified 347 chars (under 400 cap) via `awk -F'|'`. Cycle doc Implementation bullet logged.
+- **T10 end-of-cycle gate (final):**
+  - `npx prisma generate` → `✔ Generated Prisma Client (7.6.0)` clean.
+  - `npm run lint` → `✖ 1 problem (0 errors, 1 warning)` — single warning is pre-existing baseline (`lib/students/__tests__/nis-allocator.test.ts:52:28` `_args` unused; unchanged from origin/staging).
+  - `npm run typecheck` → clean (no errors).
+  - `npm run build` → clean (route table unchanged; registries are `lib/*` only — no new routes).
+  - `npx vitest run` → `Test Files 40 passed | 1 skipped (41) / Tests 931 passed | 4 skipped (935)` (final-run flake set was empty — 2 known confirm-dialog/select flakes passed this iteration; +65 cases over T1 baseline 866).
+  - `bash scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 32 / 32 tenant-scoped models have ENABLE + policy.` (unchanged — no migration this cycle).
+  - `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 4 / 4 routes have session helper or @public sentinel.` (unchanged — no new API routes this cycle).
+  - `bash scripts/verify-pii-annotations.sh` → `✓ PII annotation coverage OK: 5 / 5 known-PII fields annotated.` (unchanged — no schema changes this cycle).
+  - **Playwright skip — explicit + justified**: this cycle ships zero UI (`app/admin/**`, `app/teacher/**`, `app/parent/**` untouched); no `e2e/admin/students.spec.ts` yet (lands `p2-scaffold-canary`). Rebuild-window guard in `.github/workflows/ci.yml` automatically skips Playwright + seed steps when no specs are present. Guard re-enables itself the moment it detects an `e2e/**/*.spec.ts` file.
 
 ## Ship Notes
 
-<!-- /ship fills: migrations, env vars, manual steps, rollback plan -->
+### Migrations to run
+
+**None.** This cycle ships zero schema changes. `prisma/schema.prisma` untouched. `prisma/migrations/` untouched. RLS strict count remains 32/32. PII gate remains 5/5. API auth gate remains 4/4.
+
+### New env vars
+
+**None.** No env-var changes; no operator action required on Vercel preview / staging.
+
+### Registry consumer contract (for `p2-scaffold-pages` next cycle)
+
+Next cycle's admin pages will consume the registries via two import patterns. Both ship in this PR — no follow-up registry work required for the page recipe to land.
+
+Per-entity default-export (matches spec §5.2 4-line page pattern):
+
+```tsx
+// app/admin/students/page.tsx
+import { ScaffoldListPage } from "@/lib/scaffold";
+import student from "@/lib/entities/student/entity";
+export default function Page() {
+  return <ScaffoldListPage entity={student} />;
+}
+```
+
+Identical for Form (`new/page.tsx`), Detail (`[id]/page.tsx`), Edit (`[id]/edit/page.tsx`). 5 entities × 4 page types = 20 page files in `p2-scaffold-pages`.
+
+Barrel-import for downstream introspection (nav rendering, permission seed iteration):
+
+```ts
+import { ALL_ENTITIES, ALL_POLICIES, studentPolicy, type EntityPolicy } from "@/lib/entities";
+```
+
+Resolution paths the next cycle MUST wire:
+1. **`SessionContext` widening** — add `role: RoleCode` + `currentTermId: string` to `lib/auth/session.ts` `SessionContext`. Demo-cookie path (`lib/auth/demo-cookie.ts`) and Supabase JWT-claim path (callback in `app/auth/callback/route.ts`) both populate. JWT-claim path reads from the Custom Access Token Hook output (already injects `tenant_id` per p1-identity-rls; extend to inject `role` + `current_term_id`).
+2. **Page-layer fail-closed wrapper** — wraps `entity.dataFetcher` in a role-aware shell that performs the OWN_STUDENT resolver call + `throw new Error("OWN_STUDENT_UNRESOLVED")` per Shared dataFetcher contract clause 4 (currently deferred — see Assumption §7 + scaffold.md §3a clause 4). Catches the typed error at the page boundary and renders the no-permission UI.
+3. **Server-action layer** — `lib/<domain>/actions/{create,update,soft-delete,restore}.ts` per entity for CRUD mutations (read path lives in `entity.dataFetcher` already). Each action calls `writeAuditLog` with `policy.auditActions` enrolment check + `policy.scopes.<action>` scope check.
+
+### Deferred items refresh
+
+| Item | Deferred to | Notes |
+|---|---|---|
+| Admin scaffold pages × 5 entities × 4 page types (List/Form/Detail/Edit) | `p2-scaffold-pages` | 4-line page pattern per spec §5.2; consumes `import student from "@/lib/entities/student/entity"` |
+| Server-action layer for 5 entities (CREATE / UPDATE / SOFT_DELETE / RESTORE) | `p2-scaffold-pages` | Wires to admin pages; reads `policy.auditActions` + `policy.scopes.<action>` |
+| `SessionContext` widening to include `role` + `currentTermId` | `p2-scaffold-pages` | Required for OWN_STUDENT resolver branch + role-aware page-layer wrapper |
+| `OWN_STUDENT` resolver wiring (`studentIds` Set materialization for parents via `studentGuardians.guardianId IN (currentSession.guardianId)`) | `p2-scaffold-canary` | Flips `studentScopeUnresolved` flag false; until then page-layer fail-closed throw catches the unresolved state |
+| Page-layer `OWN_STUDENT_UNRESOLVED` typed-error catch + no-permission UI | `p2-scaffold-pages` | Per Shared dataFetcher contract clause 4 + scaffold.md §3a |
+| Playwright canary `e2e/admin/students.spec.ts` (re-enables CI Playwright globally) | `p2-scaffold-canary` | Rebuild-window guard auto-skips Playwright until first `e2e/**/*.spec.ts` lands |
+| Role-based FileKind gating LOGIC per-entity (consumes `policy.fileKindAllowlist[session.role]`) | `p2-scaffold-canary` | Gate at upload route — fail-closed when role lookup yields `undefined` |
+| `storage.objects` RLS Supabase-default-policy audit resolution | `p2-scaffold-canary` | First storage.objects writer ships with admin pages |
+| WhatsApp `wa.me` invitation flow consumer (consumes GuardianInvitation tokens) | `p6-portal-invitation-flow` | Atomic `UPDATE ... WHERE status='PENDING'` consume populates Guardian.userId |
+| Public `/daftar` admission form | `p2-admission-funnel` | Workflow state machine |
+| Address chain (Province / Regency / District / Village FKs on Household) | `p2-addresses-idn-chain` | Household.addressId becomes non-nullable then |
+| `AuditAction.AUTH_REJECT` enum value | future schema cycle | Not required for v1 launch |
+
+### Rollback plan
+
+- **Revert path:** `git revert <PR merge SHA>` undoes all 9 task commits cleanly. Each commit is fully isolated to its own file set:
+  - T1: 1 source file (`lib/entities/_types.ts`) + cycle doc.
+  - T2-T6 bundled: 15 source files (5 × 3 entity dirs) + cycle doc + `_types.ts` follow-up.
+  - T7: 1 barrel + 5 test files + 3 policy.ts annotations + cycle doc.
+  - T8: 1 standard file + cycle doc.
+  - T9: README + CLAUDE.md + cycle doc.
+- **Schema rollback:** N/A — no migrations.
+- **Risk window:** essentially zero. Source/test/docs only — no migration, no env vars, no API routes, no UI, no live consumers (registries ship without admin pages; the engine-consumer surface is type-safe but the dataFetchers are unreachable from `app/**` until `p2-scaffold-pages` lands). Worst case is `prisma generate` failing in CI (already verified clean locally + on the gate scripts) or a stale TypeScript build cache (handled by Vercel's standard rebuild).
+- **JWT hook:** unchanged. No re-deploy of Supabase config needed.
+
+### Spec-time + post-build review streak
+
+- **Spec-time `feature-dev:code-reviewer`** (cycle doc): 2 CRITICAL + 4 MAJOR + 2 MINOR findings — all addressed in cycle doc Spec/Tasks before /build. (8th cycle in the streak.)
+- **Post-build T1 reviewer**: 1 Important finding (RoleCode inlining vs cross-import to seed) — addressed before T1 commit.
+- **Post-build T2-T6 combined reviewer**: 5 MAJOR + 2 MINOR findings — all 7 addressed in the bundled commit before merge:
+  - C1 (cycle-spec adjustment): dataFetcher OWN_STUDENT branch deferred to p2-scaffold-pages with throw contract documented for next cycle's wrapper
+  - M1: Guardian listColumns gained `hasInvitation` indicator + dataFetcher includes `_count`
+  - M3: GuardianInvitation schema swapped hand-rolled CUID regex for `z.string().cuid()`
+  - M4-M5: Household / StudentIdentifier / GuardianInvitation entities now type-arg over Prisma row types
+  - N1: file count 26 → 25 via `_types.test.ts` fold into Student test
+  - N7: Student `searchFields` drops `nik` (PII minimisation)
+
+### Lessons surfaced this cycle
+
+- **`SessionContext` shape gap surfaced at /build time.** Cycle spec assumed `session.role` + `session.currentTermId` so dataFetchers could discriminate admin (ALL) from parent (OWN_STUDENT). Post-p1-auth the session carries only `{ tenantId, userId, supabaseUserId }`. Spec adjusted: dataFetchers admin-only this cycle; OWN_STUDENT throw branch deferred to `p2-scaffold-pages` when SessionContext widens. Lesson folded into scaffold.md §10: future cycles wiring per-role data access must `grep -n "type SessionContext\|interface SessionContext" lib/auth/session.ts` at spec time.
+- **Narrow literal inference on `defineEntityPolicy<P>` blocks Partial-keyed absence tests.** Tests asserting `policy.fileKindAllowlist.parent === undefined` need the wide `Partial<Record<RoleCode, ...>>` type, not the narrow inferred-keys-only type. Annotate policy exports `: EntityPolicy` explicitly. T7 follow-up corrected 3 of 5 entity policies (Student + Guardian were already correctly annotated). Lesson folded into scaffold.md §1 + §10.
+- **`EntityDef<InputType>` is the wrong narrowing pattern.** Always use the row type (Prisma model + relation includes). Spec-time + post-build review caught all 3 affected entities (Household / StudentIdentifier / GuardianInvitation). Future entities should never start from the input type — type-check the row return shape against `prisma.<model>.findMany(...)` includes early. Lesson folded into scaffold.md §3 + §10.
+- **Subagent verbatim test reports critical when full-suite has known flakes.** T1's full-vitest run reported 6 failures; the implementer's targeted re-run + baseline `git stash` confirmed the 4-6 confirm-dialog/select failures were jsdom-parallel timing flakes pre-existing on origin/staging. Without verbatim grep + targeted-pass verification this would have been mis-attributed to the new code. Memory hint validated: "Subagent test reports must be verbatim — verify independently."
