@@ -7,11 +7,12 @@
 //
 // Spec: docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md §5.13
 // Cycle: docs/cycles/2026-05-05-p1-audit-write-middleware.md
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // vi.mock factories are hoisted above imports — share state via vi.hoisted.
-const { createMock, PRISMA_JSON_NULL } = vi.hoisted(() => ({
+const { createMock, timelineCreateMock, PRISMA_JSON_NULL } = vi.hoisted(() => ({
   createMock: vi.fn(),
+  timelineCreateMock: vi.fn(),
   PRISMA_JSON_NULL: Symbol.for("Prisma.JsonNull-test"),
 }));
 
@@ -19,6 +20,9 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     auditLog: {
       create: createMock,
+    },
+    timelineEvent: {
+      create: timelineCreateMock,
     },
   },
 }));
@@ -33,6 +37,11 @@ vi.mock("@/lib/generated/prisma/client", () => ({
     READ: "READ",
     IMPORT: "IMPORT",
     EXPORT: "EXPORT",
+  },
+  TimelineVisibility: {
+    PRIVATE: "PRIVATE",
+    INTERNAL: "INTERNAL",
+    PARENT_VISIBLE: "PARENT_VISIBLE",
   },
   Prisma: {
     JsonNull: PRISMA_JSON_NULL,
@@ -53,6 +62,8 @@ const baseInput: WriteAuditLogInput = {
 beforeEach(() => {
   createMock.mockReset();
   createMock.mockResolvedValue({ id: "audit_1" });
+  timelineCreateMock.mockReset();
+  timelineCreateMock.mockResolvedValue({ id: "evt_1" });
 });
 
 describe("writeAuditLog — happy path", () => {
@@ -200,5 +211,96 @@ describe("writeAuditLog — re-throw semantics (no silent swallow)", () => {
     createMock.mockRejectedValueOnce(dbError);
 
     await expect(writeAuditLog(baseInput)).rejects.toBe(dbError);
+  });
+});
+
+describe("writeAuditLog — timeline bridge (p1-timeline-registry)", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it("SOFT_DELETE on Student emits student.soft-deleted (audit + timeline both fire)", async () => {
+    await writeAuditLog({
+      ...baseInput,
+      action: AuditAction.SOFT_DELETE,
+      resource: "Student",
+      resourceId: "stu_1",
+    });
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(timelineCreateMock).toHaveBeenCalledTimes(1);
+    const data = timelineCreateMock.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      tenantId: "t_1",
+      actorUserId: "u_1",
+      kind: "student.soft-deleted",
+      subjectKind: "Student",
+      subjectId: "stu_1",
+      visibility: "INTERNAL",
+      payload: {},
+    });
+  });
+
+  it("RESTORE on Student emits student.restored", async () => {
+    await writeAuditLog({
+      ...baseInput,
+      action: AuditAction.RESTORE,
+      resource: "Student",
+      resourceId: "stu_1",
+    });
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(timelineCreateMock).toHaveBeenCalledTimes(1);
+    expect(timelineCreateMock.mock.calls[0][0].data.kind).toBe(
+      "student.restored",
+    );
+  });
+
+  it("UPDATE on Student does NOT emit timeline event (action-gated)", async () => {
+    await writeAuditLog({
+      ...baseInput,
+      action: AuditAction.UPDATE,
+      resource: "Student",
+      resourceId: "stu_1",
+    });
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(timelineCreateMock).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("SOFT_DELETE on unmapped resource does NOT emit and does NOT warn (resource-gated)", async () => {
+    await writeAuditLog({
+      ...baseInput,
+      action: AuditAction.SOFT_DELETE,
+      resource: "NotInMap",
+      resourceId: "x_1",
+    });
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(timelineCreateMock).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("RESTORE on Employee (mapped resource, partial coverage) does NOT emit and warns", async () => {
+    await writeAuditLog({
+      ...baseInput,
+      action: AuditAction.RESTORE,
+      resource: "Employee",
+      resourceId: "emp_1",
+    });
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(timelineCreateMock).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Employee.RESTORE has no timeline kind registered"),
+    );
   });
 });

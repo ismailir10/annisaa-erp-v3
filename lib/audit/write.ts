@@ -24,12 +24,19 @@
 // throws if `DATABASE_URL` is missing — accidental client-bundle inclusion
 // fails fast at runtime. The `server-only` npm shim isn't installed in this
 // repo (verified at /spec time); the prisma import is the boundary marker.
+//
+// Audit→timeline bridge: when `action` is SOFT_DELETE / RESTORE on a resource
+// keyed in RESOURCE_TO_SOFT_DELETE_KIND, this function additionally calls
+// emitTimelineEvent on the same client (tx ?? prisma) for atomic semantics.
+// Full contract documented in .claude/standards/timeline.md.
 
 import { prisma } from "@/lib/db";
 import {
   AuditAction,
   Prisma,
 } from "@/lib/generated/prisma/client";
+import { emitTimelineEvent } from "@/lib/timeline/emit";
+import { RESOURCE_TO_SOFT_DELETE_KIND } from "@/lib/timeline/events";
 import { redact } from "./redactor";
 
 export type WriteAuditLogInput = {
@@ -100,4 +107,37 @@ export async function writeAuditLog(
       userAgent: input.userAgent ?? null,
     },
   });
+
+  // NOTE: when no tx is supplied, audit + timeline writes run on the global
+  // prisma client without a transaction — a timeline failure here leaves the
+  // audit row committed without a matching timeline event. Callers needing
+  // atomicity MUST pass tx (see audit-pii.md §4 / timeline.md §6).
+  const resourceMap = RESOURCE_TO_SOFT_DELETE_KIND[
+    input.resource as keyof typeof RESOURCE_TO_SOFT_DELETE_KIND
+  ] as Partial<
+    Record<"SOFT_DELETE" | "RESTORE", Parameters<typeof emitTimelineEvent>[0]["kind"]>
+  > | undefined;
+  if (
+    resourceMap &&
+    (input.action === AuditAction.SOFT_DELETE ||
+      input.action === AuditAction.RESTORE)
+  ) {
+    const kind = resourceMap[input.action];
+    if (kind) {
+      await emitTimelineEvent(
+        {
+          tenantId: input.tenantId,
+          actorUserId: input.actorUserId,
+          kind,
+          subjectId: input.resourceId,
+          payload: {},
+        },
+        tx,
+      );
+    } else {
+      console.warn(
+        `writeAuditLog bridge: ${input.resource}.${input.action} has no timeline kind registered — audit row written, no timeline event emitted`,
+      );
+    }
+  }
 }
