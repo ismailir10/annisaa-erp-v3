@@ -77,7 +77,16 @@ export async function getSession(): Promise<SessionContext | null> {
     select: { id: true, tenantId: true },
     take: 2,
   });
-  if (rows.length !== 1) return null;
+  if (rows.length !== 1) {
+    if (rows.length > 1) {
+      console.error(
+        `[auth/session] dual-row collision for supabaseUserId=${data.user.id}: ` +
+          `${rows.length} active User rows found. The OAuth callback gate should ` +
+          `have prevented this — invariant violation, fail-closed.`,
+      );
+    }
+    return null;
+  }
   const row = rows[0];
 
   return {
