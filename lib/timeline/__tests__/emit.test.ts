@@ -58,8 +58,7 @@ describe("emitTimelineEvent — registry lookup", () => {
     await expect(
       emitTimelineEvent({
         ...baseInput,
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input
-        kind: "nope.notreal" as any,
+        kind: "nope.notreal" as unknown as typeof baseInput.kind,
       }),
     ).rejects.toThrow(/unknown kind 'nope\.notreal'/);
     expect(timelineCreateMock).not.toHaveBeenCalled();
@@ -91,8 +90,7 @@ describe("emitTimelineEvent — payload Zod validation", () => {
         ...baseInput,
         kind: "note.added",
         subjectKind: "Invoice",
-        // biome-ignore lint/suspicious/noExplicitAny: testing invalid input
-        payload: { text: "" } as any,
+        payload: { text: "" } as unknown as { text: string },
       }),
     ).rejects.toThrow();
     expect(timelineCreateMock).not.toHaveBeenCalled();
@@ -104,8 +102,7 @@ describe("emitTimelineEvent — visibility resolution", () => {
     await emitTimelineEvent({
       ...baseInput,
       kind: "employee.terminated",
-      // biome-ignore lint/suspicious/noExplicitAny: shape mismatch in test
-      payload: {} as any,
+      payload: {} as { reason?: string },
     });
     expect(timelineCreateMock.mock.calls[0][0].data.visibility).toBe("PRIVATE");
   });

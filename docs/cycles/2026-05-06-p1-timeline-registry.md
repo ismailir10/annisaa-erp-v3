@@ -258,6 +258,7 @@ Annotations: **[sequential]** — depends on prior task output; **[independent]*
 - T1: `npx vitest run lib/timeline/__tests__/events.test.ts` → 10/10 pass; `npm run build` → PASS; full `npx vitest run` → 702 passed / 4 skipped (4 expected live-DB skips from `append-only-trigger.test.ts`). Frontend gate inactive (no `app/**` or `components/**` paths staged). Voice gate inactive.
 - T2: `npx vitest run lib/timeline/__tests__/emit.test.ts` → 16/16 pass; `npm run build` → PASS; full `npx vitest run` → 720 passed / 4 skipped.
 - T3: `npx vitest run lib/audit/__tests__/write.test.ts` → 18/18 pass (13 existing + 5 new bridge cases); `npm run build` → PASS; full `npx vitest run` → 725 passed / 4 skipped.
+- Post-ship lint fix: PR #187 CI flagged 3 `@typescript-eslint/no-explicit-any` errors in `lib/timeline/__tests__/emit.test.ts` (biome-ignore comments don't suppress ESLint). Replaced `as any` with structural `as unknown as ...` casts for invalid-input tests and direct schema-shape casts for the empty-payload case. `npm run lint` → clean; `npx vitest run lib/timeline/__tests__/emit.test.ts` → 16/16 pass; `npm run typecheck` → clean.
 - T4 + T5: no incremental gate run (T4 markdown-only; T5 docs-only). End-of-cycle gate run captured below covers both.
 
 **End-of-cycle gate run (after T5):**
