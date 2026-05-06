@@ -252,4 +252,16 @@ describe("02_identity — JWT hook (spec §6.5)", () => {
       /GRANT SELECT ON "User", "Role", "UserRole" TO supabase_auth_admin/
     );
   });
+
+  // Pinned by p1-auth-google-oauth (T5) per spec-time review finding M2.
+  // The hook uses LEFT JOIN — Users w/o any UserRole get a tenant_id-only
+  // JWT (role claim absent). The OAuth callback (app/auth/callback/route.ts)
+  // is the SOLE gate that rejects unroled users with `no_role_assigned`.
+  // INNER JOIN here would emit no claims at all and silently log the user
+  // in with an unprivileged session — fail-soft instead of fail-loud. The
+  // LEFT JOIN + callback-time rejection is the deliberate choice.
+  it("hook uses LEFT JOIN UserRole — callback is SOLE gate for unroled users", () => {
+    expect(MIG_02).toMatch(/LEFT JOIN "UserRole"/);
+    expect(MIG_02).not.toMatch(/INNER JOIN "UserRole"/);
+  });
 });
