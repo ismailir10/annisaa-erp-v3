@@ -8,7 +8,7 @@
 //
 // Cycle: docs/cycles/2026-05-06-p1-upload-route-sharp.md (Spec §lib/scaffold/upload.ts + tests)
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { render, screen, act } from "@testing-library/react";
 import * as React from "react";
@@ -53,12 +53,14 @@ function mockFetchSequence(
   });
 }
 
-let originalFetch: typeof globalThis.fetch;
-beforeEach(() => {
-  originalFetch = globalThis.fetch;
-});
+// Capture the real fetch ONCE at module load (not per-test) so prior-file
+// pollution can't leak: a beforeEach capture would store whatever vi.fn the
+// previous test file left in globalThis.fetch, then re-install that stale
+// mock as the "restored" value, breaking every subsequent test that calls
+// fetch. Restoring to the module-load reference is the only safe pattern.
+const ORIGINAL_FETCH: typeof globalThis.fetch = globalThis.fetch;
 afterEach(() => {
-  globalThis.fetch = originalFetch;
+  globalThis.fetch = ORIGINAL_FETCH;
 });
 
 // Test harness — a tiny consumer form that mounts the hook and exposes the
@@ -183,7 +185,7 @@ describe("useUploadOnSubmit — mixed state passthrough", () => {
     mockFetchSequence([{ ok: true, body: { id: "fa_new", signedUrl: "https://s/new" } }]);
 
     const onValid = vi.fn().mockResolvedValue(undefined);
-    let api!: ReturnType<Parameters<NonNullable<React.ComponentProps<typeof Harness>["onCapture"]>>[0]>;
+    let api!: Parameters<NonNullable<React.ComponentProps<typeof Harness>["onCapture"]>>[0];
     render(
       <Harness
         defaults={{
@@ -213,7 +215,7 @@ describe("useUploadOnSubmit — mixed state passthrough", () => {
   it("calls the handler immediately when no field needs uploading", async () => {
     globalThis.fetch = vi.fn();
     const onValid = vi.fn().mockResolvedValue(undefined);
-    let api!: ReturnType<Parameters<NonNullable<React.ComponentProps<typeof Harness>["onCapture"]>>[0]>;
+    let api!: Parameters<NonNullable<React.ComponentProps<typeof Harness>["onCapture"]>>[0];
     render(
       <Harness
         defaults={{ photo: null, cv: null }}
@@ -240,7 +242,7 @@ describe("useUploadOnSubmit — failure path", () => {
     ]);
 
     const onValid = vi.fn();
-    let api!: ReturnType<Parameters<NonNullable<React.ComponentProps<typeof Harness>["onCapture"]>>[0]>;
+    let api!: Parameters<NonNullable<React.ComponentProps<typeof Harness>["onCapture"]>>[0];
     render(
       <Harness
         defaults={{
@@ -270,7 +272,7 @@ describe("useUploadOnSubmit — failure path", () => {
       { ok: false, status: 400, body: { error: "file_too_large" } },
     ]);
     const onValid = vi.fn();
-    let api!: ReturnType<Parameters<NonNullable<React.ComponentProps<typeof Harness>["onCapture"]>>[0]>;
+    let api!: Parameters<NonNullable<React.ComponentProps<typeof Harness>["onCapture"]>>[0];
     render(
       <Harness
         defaults={{ photo: makeFile("p.jpg", "image/jpeg"), cv: null }}
