@@ -225,7 +225,7 @@ Edit `CLAUDE.md`:
 
 **Acceptance:** `pre-commit` hook accepts the staged files (broad doc-sync rule satisfied because cycle doc is also staged; narrow doc-sync rule satisfied because subjects use `chore(guardians):` prefix, not `feat:`). `scripts/test-hooks.sh` (if run) reports the staged combination as allowed. README ADR cell ≤ 400 chars verified by the cell-length gate.
 
-### T7 — Final review + Ship Notes `[wave 5, depends T1-T6]`
+### T7 — Final review + Ship Notes `[wave 5, depends T1-T6]` ✅
 
 Run end-of-cycle gate: `npm run build && npx vitest run`. Skip Playwright per non-goal #4 — no UI changes.
 
@@ -255,7 +255,113 @@ Fill `## Ship Notes` (migration runbook with post-deploy SQL smoke, env vars (no
 - T4 — `npx vitest run prisma/migration-tests/08-guardians.test.ts` ✓ **19 / 19** in 1.07s. `npm run build` ✓ (compiled in 3.2s). `npx vitest run` (full suite) ✓ **35 files, 867 passed | 4 skipped** (871 total).
 - T5 — Determinism check ✓ (run1.ts vs run2.ts → diff exits 0). `npx vitest run lib/audit/redactor.test.ts` ✓ **22 / 22**. `npm run build` ✓ (compiled in 3.3s). `npx vitest run` (full suite) ✓ **35 files, 867 passed | 4 skipped**.
 - T6 — ADR Decision cell length: 345 chars (cap 400). `npm run build` ✓ (compiled in 2.9s). `npx vitest run` (full suite) ✓ **35 files, 867 passed | 4 skipped**.
+- T7 — End-of-cycle gates all green: `npm run build` ✓ (compiled in 21.8s; 9/9 static pages OK), `npx vitest run` ✓ (35 files, 867 passed | 4 skipped, 871 total), `bash scripts/verify-rls-coverage.sh` ✓ **32 / 32**, `bash scripts/verify-pii-annotations.sh` ✓ **5 / 5**, `bash scripts/verify-api-auth.sh` ✓ **4 / 4** (unchanged from p2-cycle-1 — no new API routes this cycle). **Playwright skipped** per cycle non-goal #4 (no UI; rebuild-window guard remains active until p2-students-guardians-scaffold). **Pre-commit hook** allowed all 7 task commits without override (broad doc-sync OK because cycle doc staged each time; narrow doc-sync did not fire because subjects use `chore(guardians):` not `feat:`; one-file-per-cycle rule satisfied — only `docs/cycles/2026-05-06-p2-guardians.md` is new in `docs/cycles/`; ADR cell-length gate satisfied — 345 chars). **Frontend gate (Rule 4)** did not fire — no `app/**/*.tsx` or `components/**/*.tsx` changes this cycle.
 
 ## Ship Notes
 
-_Filled by /ship. Will cover: migration runbook (post-deploy SQL smoke for the 3 new tables + 6 RLS policies), env vars (none new), Phase 2 status table refresh (mark p2-guardians shipped, p2-students-guardians-scaffold next), rollback plan (revert SHA + DROP TABLE order: GuardianInvitation → StudentGuardian → Guardian to respect FK ordering), lessons surfaced._
+### Migrations to run
+
+One new migration: `prisma/migrations/08_guardians/`. Auto-applied on staging deploy via `npx prisma migrate deploy` (existing pipeline). 3 new tables (Guardian, StudentGuardian, GuardianInvitation) + tenant-scoped RLS on all 3 (6 policies total: 3 × `tenant_isolation_select` + 3 × `no_writes_via_postgrest`).
+
+**Critical Postgres version requirement:** the `Guardian.userId` composite FK uses Postgres-15.4+ column-list `ON DELETE SET NULL ("userId")` syntax. Supabase production runs Postgres 15.6+ — verified compatible. If a deploy ever targets a Postgres < 15.4 host, this migration WILL fail at the `ALTER TABLE "Guardian" ADD CONSTRAINT "Guardian_userId_tenantId_fkey"` statement with `syntax error at or near "("`.
+
+Post-migration verify (manual smoke from a Supabase dashboard SQL session, optional):
+```sql
+SELECT COUNT(*) FROM information_schema.tables
+  WHERE table_name IN ('Guardian','StudentGuardian','GuardianInvitation');
+-- expect: 3
+
+SELECT COUNT(*) FROM pg_policies
+  WHERE schemaname = 'public'
+  AND tablename IN ('Guardian','StudentGuardian','GuardianInvitation');
+-- expect: 6 (2 policies per table)
+
+SELECT confdeltype, confupdtype FROM pg_constraint
+  WHERE conname = 'Guardian_userId_tenantId_fkey';
+-- expect: confdeltype='n' (SET NULL); confupdtype='c' (CASCADE)
+
+SELECT pg_get_indexdef(indexrelid) FROM pg_index
+  JOIN pg_class ON pg_class.oid = indexrelid
+  WHERE relname = 'StudentGuardian_singlePrimaryPerRelationship_key';
+-- expect: a UNIQUE INDEX on ("studentId", "tenantId", "relationship")
+--         WITH ("isPrimary" = true AND "deletedAt" IS NULL) predicate
+```
+
+`storage.objects` RLS policies are NOT touched by this migration — `tenant_scoped_storage_select` + `no_writes_via_postgrest_storage` policies already shipped in migration 07 and remain in place.
+
+### New env vars
+
+**None.** Cycle ships zero new env vars. Guardian.fullName/email/phone are entered through admin UI (lands in `p2-students-guardians-scaffold`); GuardianInvitation token generation will use `crypto.randomBytes(32).toString('base64url')` from Node's standard library — no SECRET_KEY env var required.
+
+### Manual smoke-test on Vercel preview
+
+**No app-level smoke needed this cycle.** Schema-only ship — no consumers, no UI, no new API routes. The verify-* CI gates running on the PR are the smoke surface. After staging deploy, optionally:
+
+1. Confirm `npx prisma migrate status` shows `08_guardians` as applied.
+2. Run the post-migration verify SQL block above against the staging Supabase dashboard.
+3. Spot-check that existing `/api/upload` route still returns 200 for valid auth + valid image (no regression — this cycle does not touch upload path; merely confirms migration deploy didn't break a downstream).
+
+### `prisma migrate dev` drift trap (DO NOT regenerate)
+
+If a contributor runs `npx prisma migrate dev` against this schema in their local environment, Prisma WILL detect drift between `schema.prisma` and the deployed migration on the `Guardian.userId` FK:
+- Schema says: `user User? @relation(fields: [userId], references: [id], onDelete: SetNull)` (single-column).
+- Migration says: composite FK `(userId, tenantId) → User(id, tenantId) ON DELETE SET NULL ("userId")`.
+
+This drift is **intentional** — see cycle assumption 5. Prisma issue #25061 prevents composite SetNull from working at the client layer (would null `tenantId` and fail the NOT NULL constraint). The single-column Prisma view + composite DB FK is the correct shape.
+
+**REJECT any "regenerated" migration that Prisma proposes here.** `prisma migrate deploy` (the production path) is unaffected — it only applies committed migrations and does not compare schema vs DB. The drift only manifests on `migrate dev`.
+
+If a future contributor needs to run `migrate dev` for an UNRELATED schema change, the recommended flow is:
+1. Make the unrelated schema change.
+2. Run `migrate dev` — Prisma will produce a migration containing BOTH (a) the unrelated change, AND (b) a "regeneration" of the Guardian.userId FK that drops the column-list SET NULL.
+3. **Manually edit the generated migration** to remove the spurious Guardian.userId FK changes, keeping only the unrelated change.
+4. Apply via `migrate dev --create-only` if needed.
+
+### Phase 2 status (post-merge)
+
+- [x] **P2 Cycle 1 shipped** (`p2-students-guardians-household`, #191) — Migration 07 (Students/Household schema) + NIS allocator + platform plumbing + audit-pii Student
+- [x] **P2 Cycle 2 shipped (this cycle)** — Migration 08 (Guardian + StudentGuardian + GuardianInvitation) + audit-pii Guardian.nik / Guardian.phone. RLS strict 29 → 32. PII gate 3 → 5.
+- [ ] `p2-students-guardians-scaffold` — 5 entity registries (Student / Guardian / Household / StudentIdentifier / GuardianInvitation) + admin pages × 4 (List/Form/Detail/Edit) + role-FileKind gating + scaffold.md standard authoring + Playwright canary `e2e/admin/students.spec.ts` (re-enables Playwright in CI). ~30+ files, 0 migrations. Likely sub-splits.
+- [ ] `p2-addresses-idn-chain` — Address chain (Province / Regency / District / Village + cascading dropdown UI). FK on Household.addressId becomes non-nullable.
+- [ ] `p2-admission-funnel` — Public `/daftar` form + workflow state machine (Admission states).
+- [ ] `p6-portal-invitation-flow` — WhatsApp `wa.me` invitation flow consumer; consumes GuardianInvitation tokens (atomic `UPDATE ... WHERE status='PENDING'` consume; populates Guardian.userId on accept).
+
+After all p2 cycles ship: phase 3 (fee + invoice + payment + installment foundation) starts.
+
+### Deferred items refresh
+
+| Item | Deferred to | Notes |
+|---|---|---|
+| 5 entity registries + admin scaffold pages × 4 page types | `p2-students-guardians-scaffold` | Per-entity `lib/entities/<name>/{schema,entity,policy}.ts` lands alongside the pages. |
+| Role-based FileKind gating per-entity policy | `p2-students-guardians-scaffold` | Scaffold engine wires admin/teacher/parent FileKind allowlists per entity. |
+| Playwright canary `e2e/admin/students.spec.ts` | `p2-students-guardians-scaffold` | Re-enables CI Playwright. |
+| WhatsApp `wa.me` invitation flow consumer | `p6-portal-invitation-flow` | Consumes GuardianInvitation tokens via atomic status transition. |
+| Public `/daftar` admission form | `p2-admission-funnel` | Workflow state machine |
+| Address chain (Province/Regency/District/Village FKs on Household) | `p2-addresses-idn-chain` | Household.addressId becomes non-nullable. |
+| `AuditAction.AUTH_REJECT` enum value | future schema cycle | Not required for v1 launch. |
+| Persistent rate-limit storage (Redis / pg-boss) | p3+ | In-memory `Map<string, Bucket>` storage acceptable for single-region v1. |
+| `storage.objects` RLS Supabase-default-policy audit | first storage-writing cycle (likely `p2-students-guardians-scaffold`) | Schema-only this cycle; no storage.objects writes; deferral safe. |
+| `pg-boss` invitation expiry sweep (PENDING → EXPIRED on `expiresAt < now()`) | p3+ | App-layer expiry check at consume covers UX; sweep is cleanup. |
+
+### Rollback plan
+
+- **Revert path:** `git revert <PR merge SHA>` undoes all 7 task commits cleanly. Each commit touches a small, isolated file set (T1: 1 file; T2: 1 file; T3: 2 files; T4: 1 file; T5: 1 file; T6: 2 files; T7: cycle doc only).
+- **Schema rollback:** Migration 08 cannot be reverted by Prisma (no `prisma migrate undo`). Manual DOWN-migration order (respecting FK dependencies):
+  1. `DROP TABLE "GuardianInvitation"` (FK targets Student + Guardian; CASCADE handles)
+  2. `DROP TABLE "StudentGuardian"` (FK targets Student + Guardian; CASCADE handles)
+  3. `DROP TABLE "Guardian"` (FK targets User + Tenant)
+  Plus the corresponding `DROP POLICY` and `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` calls (or omit — DROP TABLE removes policies). `storage.objects` RLS policies are NOT touched by this rollback (they belong to migration 07 and remain).
+- **Risk window:** essentially zero. Schema-only ship + zero consumers (no live writes against any of the 3 new tables; no UI; no API routes; no seed data). Worst case is `prisma generate` failing in CI (already verified clean locally + on the gate scripts) or column-list SET NULL syntax not parsing on a Postgres < 15.4 host (Supabase 15.6+ confirms safe).
+- **JWT hook:** unchanged. No re-deploy of Supabase config needed.
+
+### Trailer-on-T1 advisory
+
+T1 commit (`fc9f6a7`) carries `Model-Trailer: unknown` + `Role: product-builder` because the worktree's `.claude/session-role` was scaffolded with default values by `setup-worktree.sh` and the assistant missed CLAUDE.md's "override on every session start" rule on turn one. Subsequent commits (T2 onwards = `3a4d4bb` through `3e61f95`) carry the correct `Model-Trailer: claude-opus-4-7` + `Role: cto`. The T1 diff itself is correct; only the trailer is wrong. Squash-merge to staging will preserve only the PR title + CI metadata, so the per-task trailer drift does not propagate to staging history. No amend planned (operator discretion at /ship time).
+
+### Lessons surfaced this cycle
+
+- **Spec-time CRITICAL findings save build-time rework.** Spec-time `feature-dev:code-reviewer` surfaced 2 CRITICAL findings before /build started: (a) Prisma issue #25061 on composite SetNull on `Guardian.userId` (would null tenantId at runtime), (b) global single-PRIMARY-per-student rule blocking PRIMARY FATHER + PRIMARY MOTHER coexistence. Both fixed in spec — saved a /build round of T2 schema rewrite + T1 SQL rewrite. 8-cycle streak (post p2-cycle-1) of feature-dev surfacing real findings continues. Worth keeping as a default cycle pattern.
+- **Migration test negative-regex on prose-in-comments needs comment-stripping helper.** T4 reviewer round 1 caught that the migration's header comment block intentionally mentions `CREATE POLICY ... ON storage.objects` and `ALTER TABLE storage.objects` as prose — the negative regex on the raw SQL string false-positive'd. Fix: introduced `SQL_DDL` view stripping `--` line comments AND `/* ... */` block comments before negative-shaped assertions. Future migration tests with similar prose references should reuse this pattern. Worth folding into a shared test helper if a third cycle hits the same issue.
+- **`prisma format` is idempotent — keep schema-prisma diffs trivial.** T2 ran `npx prisma format` after edits; the format pass produced zero diff in the new model bodies (already-formatted) but normalized whitespace in the reverse-relation arrays I added on Tenant/Student/User. Helps keep PR diffs scoped to substantive changes.
+- **§6.4 is for RLS-critical join tables; nullable contact-card FKs may diverge.** Guardian.userId is the first nullable cross-tenant-aligned FK in the codebase. The composite-FK pattern from §6.4 collides with Prisma issue #25061 on composite SetNull. Resolution: split-view (DB composite, schema single-column). This is a precedent worth referencing in future entity cycles where a nullable cross-tenant FK lands. Documented in CLAUDE.md's Migrations landed paragraph.
+- **Worktree session-role file: setup-worktree.sh writes defaults; CLAUDE.md's "override on every session start" rule applies to the worktree's file too.** T1 commit landed with `Model-Trailer: unknown` because I read the main checkout's session-role file (which had `role=cto` correct) but didn't realize the worktree has its own copy that setup-worktree.sh just scaffolded with defaults. Fix: rewrite `.claude/session-role` IMMEDIATELY after `EnterWorktree` per CLAUDE.md's rule, BEFORE any commits. This is a recurring trap — the rule is well-documented but easy to miss in the rush to start /spec.
