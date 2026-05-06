@@ -49,6 +49,10 @@ vi.mock("@/lib/auth/callback-origin", () => ({
   resolveCallbackOrigin: () => "http://localhost:3000",
 }));
 
+vi.mock("@/lib/auth/demo-cookie", () => ({
+  DEMO_SUPABASE_PREFIX: "demo:",
+}));
+
 vi.mock("@/lib/audit/write", () => ({
   writeAuditLog: (...args: unknown[]) => mockWriteAuditLog(...args),
 }));
@@ -226,7 +230,7 @@ describe("/auth/callback — race + non-fatal audit", () => {
 });
 
 describe("/auth/callback — rejection paths", () => {
-  it("redirects identity_collision when supabaseUserId mismatch", async () => {
+  it("redirects identity_collision when supabaseUserId mismatch (real value)", async () => {
     mockExchangeCodeForSession.mockResolvedValue({ data: {}, error: null });
     mockGetUser.mockResolvedValue({ data: { user: SUPABASE_USER }, error: null });
     mockUserFindMany.mockResolvedValue([{ ...USER_ROW, supabaseUserId: "sup_OTHER" }]);
@@ -236,6 +240,34 @@ describe("/auth/callback — rejection paths", () => {
     expectRedirectTo(res, "/auth/error?reason=identity_collision");
     expect(mockUserUpdate).not.toHaveBeenCalled();
     expect(mockWriteAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("OVERWRITES demo:* synthetic supabaseUserId on first real login (no collision)", async () => {
+    // User was demo'd locally — supabaseUserId stamped as "demo:user_u1".
+    // The real OAuth callback must NOT collide; instead overwrite + audit
+    // the transition from synthetic to real Supabase user.id.
+    mockExchangeCodeForSession.mockResolvedValue({ data: {}, error: null });
+    mockGetUser.mockResolvedValue({ data: { user: SUPABASE_USER }, error: null });
+    mockUserFindMany.mockResolvedValue([{ ...USER_ROW, supabaseUserId: "demo:user_u1" }]);
+    mockUserRoleCount.mockResolvedValue(1);
+    mockUserUpdateMany.mockResolvedValue({ count: 1 });
+
+    const res = await GET(makeRequest("?code=abc") as never);
+
+    expectRedirectTo(res, "/admin");
+    // CAS targets the exact demo:* value (not null).
+    expect(mockUserUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: USER_ROW.id, supabaseUserId: "demo:user_u1" },
+        data: expect.objectContaining({ supabaseUserId: SUPABASE_USER.id }),
+      }),
+    );
+    expect(mockWriteAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        before: { supabaseUserId: "demo:user_u1" },
+        after: { supabaseUserId: SUPABASE_USER.id },
+      }),
+    );
   });
 
   it("redirects cross_tenant_email when 2 rows match by email", async () => {

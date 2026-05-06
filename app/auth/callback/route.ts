@@ -30,6 +30,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { resolveCallbackOrigin } from "@/lib/auth/callback-origin";
+import { DEMO_SUPABASE_PREFIX } from "@/lib/auth/demo-cookie";
 import { writeAuditLog } from "@/lib/audit/write";
 import { prisma } from "@/lib/db";
 import { AuditAction } from "@/lib/generated/prisma/client";
@@ -162,7 +163,12 @@ export async function GET(request: NextRequest) {
 
   // Identity-collision: User row already bound to a different Supabase user.
   // Reject + log; the legitimate path is admin-issued reset (out of scope).
-  if (row.supabaseUserId && row.supabaseUserId !== supabaseUser.id) {
+  // Exception: `demo:*` synthetic prefix from /api/_demo/login is overwritten
+  // on first real login — otherwise a User who was demo'd locally would be
+  // permanently stuck on prod login (T8 review MAJOR).
+  const isDemoSynthetic =
+    row.supabaseUserId !== null && row.supabaseUserId.startsWith(DEMO_SUPABASE_PREFIX);
+  if (row.supabaseUserId && row.supabaseUserId !== supabaseUser.id && !isDemoSynthetic) {
     console.error(
       `[auth/callback] identity_collision: User ${row.id} bound to ${row.supabaseUserId}, ` +
         `OAuth supplied ${supabaseUser.id}`,
@@ -183,15 +189,21 @@ export async function GET(request: NextRequest) {
   }
 
   // Backfill supabaseUserId on first login via a CAS-style updateMany —
-  // updates ONLY if supabaseUserId is still null. Two simultaneous fresh
-  // OAuth flows for the same User row both pass the read-time null check,
-  // but exactly one wins the CAS write; the loser sees count === 0 and
-  // re-fetches to confirm identity match. Without CAS, the second writer
-  // could clobber a different supabaseUserId set by a concurrent flow,
-  // bypassing the identity_collision guard above.
-  if (row.supabaseUserId === null) {
+  // updates ONLY if supabaseUserId is still null OR is a demo:* synthetic
+  // value (cleaned up here so a User who was demo'd locally can log in
+  // for real). Two simultaneous fresh OAuth flows for the same User row
+  // both pass the read-time null check, but exactly one wins the CAS
+  // write; the loser sees count === 0 and re-fetches to confirm identity
+  // match. Without CAS, the second writer could clobber a different
+  // supabaseUserId set by a concurrent flow, bypassing the
+  // identity_collision guard above.
+  const needsBackfill = row.supabaseUserId === null || isDemoSynthetic;
+  if (needsBackfill) {
+    const casWhere = isDemoSynthetic
+      ? { id: row.id, supabaseUserId: row.supabaseUserId } // exact-match the demo:... value
+      : { id: row.id, supabaseUserId: null };
     const cas = await prisma.user.updateMany({
-      where: { id: row.id, supabaseUserId: null },
+      where: casWhere,
       data: { supabaseUserId: supabaseUser.id, lastLoginAt: new Date() },
     });
     if (cas.count === 1) {
@@ -206,7 +218,7 @@ export async function GET(request: NextRequest) {
           action: AuditAction.UPDATE,
           resource: "User",
           resourceId: row.id,
-          before: { supabaseUserId: null },
+          before: { supabaseUserId: row.supabaseUserId },
           after: { supabaseUserId: supabaseUser.id },
         });
       } catch (auditErr) {

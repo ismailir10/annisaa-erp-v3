@@ -20,6 +20,13 @@ import { cookies } from "next/headers";
 
 export const DEMO_COOKIE_NAME = "school-erp-session";
 
+// Synthetic supabaseUserId prefix used by /api/_demo/login when stamping the
+// User row's id-derived placeholder onto the demo cookie. The OAuth callback
+// (app/auth/callback/route.ts) checks for this prefix and overwrites instead
+// of raising identity_collision — otherwise a User who was ever demo'd gets
+// permanently stuck on prod login.
+export const DEMO_SUPABASE_PREFIX = "demo:";
+
 export type DemoSessionPayload = {
   tenantId: string;
   userId: string;
