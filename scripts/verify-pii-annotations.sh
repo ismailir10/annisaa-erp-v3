@@ -18,13 +18,18 @@
 #   - redact:      top-level field replaced with null in the audit log.
 #   - mask:last4:  string values → '***' + last 4 chars in the audit log.
 #
-# Cycle p1-audit-timeline-files lands the first 2 entries (Employee.nik
-# already shipped in cycle 4; Employee.phone added in cycle 5). Future
-# cycles extend the TRIPLES array below — Student.nisn → redact,
-# Guardian.phone → mask:last4, Household.kkNumber → redact, etc.
+# Cycle history:
+#   p1-employees                     — Employee.nik (redact)         [migration 03]
+#   p1-audit-timeline-files          — Employee.phone (mask:last4)   [migration 06]
+#   p2-students-guardians-household  — Student.nik  (redact)         [migration 07]
+#   p2-guardians                     — Guardian.nik (redact),
+#                                      Guardian.phone (mask:last4)   [migration 08]
+#
+# Future cycles extend the TRIPLES array below as new PII fields land.
 #
 # Spec:  docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md §5.13
-# Cycle: docs/cycles/2026-05-05-p1-audit-timeline-files.md
+# Cycle: docs/cycles/2026-05-05-p1-audit-timeline-files.md (first introduced),
+#        docs/cycles/2026-05-06-p2-guardians.md            (count grew to 5/5)
 
 set -euo pipefail
 
@@ -40,6 +45,8 @@ fi
 TRIPLES=(
   "Employee:nik:redact"
   "Employee:phone:mask:last4"
+  "Guardian:nik:redact"
+  "Guardian:phone:mask:last4"
   "Student:nik:redact"
 )
 
