@@ -6,6 +6,13 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
+  // sharp is a native module (libvips). Webpack-bundling it produces a runtime
+  // 500 on Vercel ("Could not load the 'sharp' module using the linux-x64
+  // runtime"). Externalising forces Next.js to require() it from node_modules
+  // at request time, where the prebuilt @img/sharp-linux-x64 binary resolves
+  // correctly. See cycle docs/cycles/2026-05-06-p1-upload-route-sharp.md
+  // BLOCKER §1 + sharp issue #3870 / vercel issue #14001.
+  serverExternalPackages: ["sharp"],
   images: {
     formats: ["image/avif", "image/webp"],
   },
