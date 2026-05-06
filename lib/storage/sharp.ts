@@ -45,7 +45,12 @@ export async function compressImage(buffer: Buffer): Promise<{
   mimeType: "image/jpeg";
   ratio: number;
 }> {
-  const output = await sharp(buffer)
+  // limitInputPixels caps decoded pixel count BEFORE the resize clamp runs —
+  // closes the decompression-bomb DoS where a small (≤10 MB) PNG decodes to
+  // ~25k×25k×4 ≈ 2.5 GB raw and OOMs the function. 24 MP covers any real
+  // phone (12 MP camera + 2× cropping headroom) while rejecting bombs cleanly
+  // (libvips throws; route catch flips the row to FAILED).
+  const output = await sharp(buffer, { limitInputPixels: 24_000_000 })
     .autoOrient()
     .resize({
       width: 1920,
