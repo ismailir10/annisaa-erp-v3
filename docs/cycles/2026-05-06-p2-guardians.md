@@ -168,7 +168,7 @@ Edit `prisma/schema.prisma`:
 
 **Acceptance:** `npx prisma generate` succeeds with zero warnings. `npx prisma format` produces zero diff (i.e. file is already formatted). `npx prisma validate` passes.
 
-### T3 — Audit-pii TRIPLES + standard table `[wave 1, indep]`
+### T3 — Audit-pii TRIPLES + standard table `[wave 1, indep]` ✅
 
 Edit two files:
 
@@ -242,11 +242,13 @@ Fill `## Ship Notes` (migration runbook with post-deploy SQL smoke, env vars (no
 - Subagent plan: tasks all executed inline (no parallel subagent dispatch). Reordered to T1 → T2 → T3 → T4 → T5 → T6 → T7 to keep `verify-pii-annotations.sh` green at every commit boundary (T3 alone breaks the gate; sequencing T2 first lands the schema annotations so T3's TRIPLES expansion lines up). Per-task `feature-dev:code-reviewer` agent pass before each commit per /build §6.
 - T1 — Migration 08 SQL — `prisma/migrations/08_guardians/migration.sql` (~285 lines). 3 tables (Guardian, StudentGuardian, GuardianInvitation), 6 RLS policies (tenant_isolation_select + no_writes_via_postgrest × 3), partial-unique PRIMARY guard scoped per relationship type, composite FKs per §6.4 with column-list `SET NULL ("userId")` on Guardian.userId (Postgres 15.4+), global unique on token (256-bit base64url app-generated), no advisory-lock helper, no storage.objects re-add. Reviewer M1 fix folded inline: added 3 standalone FK-column indexes (`Guardian_userId_idx`, `StudentGuardian_guardianId_idx`, `GuardianInvitation_guardianId_idx`) for cascade-scan coverage. N1 (≤200-line cap) waived — guideline broken throughout existing migrations (02:371, 07:319, 16:374); header comments substantive and warranted given split-view FK + token-shape decisions.
 - T2 — Schema additions — `prisma/schema.prisma` (+167/-4 lines). 3 new models matching migration 08 SQL column shapes verbatim. Reverse relations: Tenant +3 (guardians/studentGuardians/guardianInvitations), Student +2 (studentGuardians/guardianInvitations), User +1 (guardians). Split-view FK on Guardian.user — single-column Prisma relation with `onDelete: SetNull` + schema comment block warning of `prisma migrate dev` drift trap (DB carries composite column-list SET NULL). PII annotations: Guardian.nik /// @PII redact + Guardian.phone /// @PII mask:last4. No `@@unique` on partial-WHERE columns (StudentGuardian relationship-scoped PRIMARY guard lives only in migration). Standalone FK indexes mirror migration 08. RLS gate: 32/32. PII gate: 5/5. Reviewer clean — one NIT on GuardianInvitation @@unique symmetry accepted (cheap, forward-compat).
+- T3 — Audit-pii TRIPLES + standard table — `scripts/verify-pii-annotations.sh` (TRIPLES 3→5 + header comment rewrite removing stale `Student.nisn` typo) + `.claude/standards/audit-pii.md` (Hardcoded triple list table 3→5 rows; "Deferred to p2-guardians cycle" sub-block fully removed). `bash scripts/verify-pii-annotations.sh` reports 5/5. Reviewer clean — TRIPLES parse correctly under `%%:*`/`#*:` split logic, alphabetical ordering Employee → Guardian → Student preserved, markdown table 4-col integrity maintained.
 
 ## Verification
 
 - T1 — `npm run build` ✓ (compiled in 2.5s; 9/9 static pages OK), `npx vitest run` ✓ (34 files, 848 passed | 4 skipped). `bash scripts/verify-rls-coverage.sh` ✓ at 29/29 (jumps to 32/32 after T2 lands schema). `wc -l prisma/migrations/08_guardians/migration.sql` = ~285 (reviewer N1 waived per existing-migration precedent). Reviewer M1 fix verified — 3 FK-column standalone indexes added. Migration tests re-ran green (9 files, 523 tests).
 - T2 — `npx prisma generate` ✓ (Prisma Client 7.6.0). `npx prisma format` ✓ (idempotent reformat). `bash scripts/verify-rls-coverage.sh` ✓ **32 / 32** (jumped from 29). `bash scripts/verify-pii-annotations.sh` ✓ **5 / 5** (jumped from 3 — Guardian.nik + Guardian.phone now schema-annotated; T3 will sync TRIPLES array). `npm run build` ✓ (compiled in 3.5s). `npx vitest run` ✓ (34 files, 848 passed | 4 skipped).
+- T3 — `bash scripts/verify-pii-annotations.sh` ✓ **5 / 5** (TRIPLES + schema now in sync). `npm run build` ✓ (compiled in 3.6s). `npx vitest run` ✓ (10s, full suite).
 
 ## Ship Notes
 
