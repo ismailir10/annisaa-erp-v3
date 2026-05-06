@@ -30,6 +30,8 @@ type SessionContext = {
 
 **Where to call:** server components, API route handlers, server actions. **NEVER from `proxy.ts` (Edge middleware)** — `next/headers` `cookies()` errors there. The proxy reads the demo-cookie value directly via `request.cookies.get(...)`.
 
+**Demo-mode caveat — `session.supabaseUserId` may carry a synthetic prefix.** When the session was minted by `/api/_demo/login` (no real Supabase OAuth), `supabaseUserId` is stamped as `demo:<userCuid>` rather than a real `auth.users.id` UUID. Any caller that uses this field as a join key against Supabase's `auth.users` table or RLS-bypass path WILL silently miss in DEMO_MODE. Today the only consumer is `lib/scaffold/permission.ts:149` (already flagged as resolver contract drift in Ship Notes — no live caller). Future p2+ cycles consuming `session.supabaseUserId` for Supabase-side joins must check for the `demo:` prefix or guard with `if (process.env.DEMO_MODE !== 'true')`.
+
 ## 2. OAuth callback (`/auth/callback`)
 
 The callback handler is the one place that WRITES the session — it has `// @public` sentinel because verify-api-auth.sh's regex matches that or `getSession(`. The callback does not (and cannot) call `getSession()`.

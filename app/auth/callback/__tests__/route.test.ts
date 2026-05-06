@@ -11,8 +11,6 @@ const mockUserUpdateMany = vi.fn();
 const mockWriteAuditLog = vi.fn();
 const mockSetAll = vi.fn();
 
-let lastSupabaseConfig: { setAll?: (cookies: { name: string; value: string; options: unknown }[]) => void } = {};
-
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (
     _url: string,
@@ -23,7 +21,6 @@ vi.mock("@supabase/ssr", () => ({
       };
     },
   ) => {
-    lastSupabaseConfig = config.cookies;
     // Simulate exchangeCodeForSession writing a cookie via setAll callback.
     return {
       auth: {
@@ -106,7 +103,6 @@ beforeEach(() => {
   mockUserUpdateMany.mockReset();
   mockWriteAuditLog.mockReset();
   mockSetAll.mockReset();
-  lastSupabaseConfig = {};
   // Suppress noisy console.error from rejection paths in tests.
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
