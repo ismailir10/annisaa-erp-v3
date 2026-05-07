@@ -181,7 +181,7 @@ export async function GET(request: NextRequest) {
 
   // Identity-collision: User row already bound to a different Supabase user.
   // Reject + log; the legitimate path is admin-issued reset (out of scope).
-  // Exception: `demo:*` synthetic prefix from /api/_demo/login is overwritten
+  // Exception: `demo:*` synthetic prefix from /api/demo/login is overwritten
   // on first real login — otherwise a User who was demo'd locally would be
   // permanently stuck on prod login (T8 review MAJOR).
   const isDemoSynthetic =

@@ -7,7 +7,7 @@
 // Spec: docs/cycles/2026-05-06-p1-auth-google-oauth.md (T8)
 //
 // Used by:
-//   - Future E2E specs (Playwright global-setup) — POST /api/_demo/login?role=admin
+//   - Future E2E specs (Playwright global-setup) — POST /api/demo/login?role=admin
 //     before each test stub to seed a demo session cookie.
 //   - Local dev workflow — `npm run dev` + manual curl to skip Google OAuth.
 //
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     supabaseUserId:
       userRoleRow.user.supabaseUserId ?? `${DEMO_SUPABASE_PREFIX}${userRoleRow.user.id}`,
     // Cast: DB role.code is `string` per Prisma type; the seed enforces only
-    // valid RoleCode literals (`05-system-roles.ts` SYSTEM_ROLES). The /api/_demo
+    // valid RoleCode literals (`05-system-roles.ts` SYSTEM_ROLES). The /api/demo
     // /login query already filtered `role.code in roleCodes` (validated against
     // the RoleCode union in this route's request body), so the cast is sound.
     role: userRoleRow.role.code as DemoSessionPayload["role"],

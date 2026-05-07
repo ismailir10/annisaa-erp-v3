@@ -26,7 +26,7 @@ vi.mock("@/lib/rate-limit", () => ({
 import { POST } from "../route";
 
 function makeRequest(query: string): Request {
-  return new Request(`http://localhost:3000/api/_demo/login${query}`, { method: "POST" });
+  return new Request(`http://localhost:3000/api/demo/login${query}`, { method: "POST" });
 }
 
 beforeEach(() => {
@@ -46,7 +46,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("/api/_demo/login — production guard", () => {
+describe("/api/demo/login — production guard", () => {
   it("returns 404 (no body) when DEMO_MODE is unset", async () => {
     vi.stubEnv("DEMO_MODE", "");
     const res = await POST(makeRequest("?role=admin") as never);
@@ -62,7 +62,7 @@ describe("/api/_demo/login — production guard", () => {
   });
 });
 
-describe("/api/_demo/login — input validation", () => {
+describe("/api/demo/login — input validation", () => {
   beforeEach(() => {
     vi.stubEnv("DEMO_MODE", "true");
   });
@@ -80,7 +80,7 @@ describe("/api/_demo/login — input validation", () => {
   });
 });
 
-describe("/api/_demo/login — happy path", () => {
+describe("/api/demo/login — happy path", () => {
   beforeEach(() => {
     vi.stubEnv("DEMO_MODE", "true");
   });
@@ -191,7 +191,7 @@ describe("/api/_demo/login — happy path", () => {
   });
 });
 
-describe("/api/_demo/login — rate-limit (T10)", () => {
+describe("/api/demo/login — rate-limit (T10)", () => {
   beforeEach(() => {
     vi.stubEnv("DEMO_MODE", "true");
   });

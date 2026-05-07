@@ -145,6 +145,11 @@ jobs:
           DEMO_MODE: "true"
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
           NEXTAUTH_SECRET: "ci-e2e-dummy-secret"
+          # Demo-mode HMAC cookie secret (lib/auth/demo-cookie.ts ≥32 chars).
+          # Wired p2-scaffold-canary T6 — first canary needs the demo login
+          # route to mint cookies. Static dummy is safe in CI (DEMO_MODE only;
+          # /api/demo/login 404s outside DEMO_MODE).
+          SESSION_COOKIE_SECRET: "ci-e2e-dummy-session-cookie-secret-min-32-chars"
           # Xendit sandbox key — `xnd_development_*` prefix. Without this
           # the admin tagihan tests (admin.spec.ts:429-706) fail with
           # INVALID_API_KEY because lib/xendit/client.ts hits the live

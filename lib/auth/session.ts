@@ -10,7 +10,7 @@
 // HMAC-signed `school-erp-session` cookie, return the synthetic session
 // without calling Supabase. The HMAC closes a defense-in-depth gap against
 // `DEMO_MODE=true` accidentally set in prod (forging requires
-// SESSION_COOKIE_SECRET; the /api/_demo/login route 404s outside DEMO_MODE
+// SESSION_COOKIE_SECRET; the /api/demo/login route 404s outside DEMO_MODE
 // so no attacker can plant a cookie). HMAC-mismatch falls through to the
 // Supabase path — same observable shape as no cookie.
 //

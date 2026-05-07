@@ -7,6 +7,23 @@
 // ALLOWLIST_CAP (5000), the resolver returns `overflow: true` with empty
 // Sets — callers must fall back to a JOIN subquery against the source table.
 //
+// OWN_STUDENT semantics (wired p2-scaffold-canary):
+//   - Materialised via studentGuardian.findMany joined through Guardian on
+//     (userId, tenantId, deletedAt: null). Inner tenantId is emitted because
+//     StudentGuardian → Guardian is a COMPOSITE relation
+//     (`fields: [guardianId, tenantId]` at schema.prisma model
+//     StudentGuardian) — Prisma joins on both columns AND applies the
+//     nested filter against Guardian's scalar tenantId. INDEPENDENT of
+//     Prisma issue #25061 (which concerns the unrelated Guardian → User
+//     SetNull path). Per p2-scaffold-canary spec-time review SF1.
+//   - studentScopeUnresolved is true ONLY when OWN_STUDENT was granted AND
+//     no Guardian row backs the userId — fail-closed signal for the
+//     page-layer wrapper (lib/entities/student/entity.ts Clause 4 +
+//     lib/scaffold/error-state.tsx no-permission branch).
+//   - Cache invalidation: 5-min TTL only. A new StudentGuardian link can
+//     stale for up to 5 minutes per cache key. Single-process MVP per
+//     §4.2 — multi-instance shared cache lands post-Cycle B.
+//
 // Two distinct identifiers arrive on `ResolveArgs`:
 //   - `userId` — the internal `User.id` (CUID). Used as the FK target for
 //     `UserRole.userId` in the Step 1 role lookup.
@@ -43,11 +60,14 @@ export type ResolvedPermissions = {
   /** Set when total resolved cardinality > ALLOWLIST_CAP — caller must JOIN. */
   readonly overflow: boolean;
   /**
-   * True when OWN_STUDENT scope was granted but the Student model is not yet
-   * in the schema (lands p2-students-guardians-household). Callers MUST treat
-   * this as a fail-closed signal — do not interpret `studentIds.size === 0` as
-   * "no permission set"; instead surface a server-side error or block the
-   * page until p2 wires the resolver.
+   * True when OWN_STUDENT scope was granted AND no Guardian row backs the
+   * (userId, tenantId) pair — i.e. the caller carries the parent role grant
+   * but isn't actually wired up as a guardian. Genuine fail-closed signal:
+   * callers MUST throw `OwnStudentUnresolvedError` (caught by the page-layer
+   * wrapper to render no-permission UI). Do NOT interpret `studentIds.size
+   * === 0` alone as "no permission set" — a Guardian row with zero
+   * StudentGuardian links is also empty, but `studentScopeUnresolved: false`
+   * (genuine empty allowlist, not unresolvable).
    */
   readonly studentScopeUnresolved: boolean;
 };
@@ -85,6 +105,13 @@ export type PermissionPrismaLike = {
   sessionTeacher: {
     findMany(args: FindManyArgs): Promise<Array<{ classSessionId: string }>>;
   };
+  // OWN_STUDENT resolver wiring (p2-scaffold-canary T1).
+  studentGuardian: {
+    findMany(args: FindManyArgs): Promise<Array<{ studentId: string }>>;
+  };
+  guardian: {
+    findFirst(args: FindManyArgs): Promise<{ id: string } | null>;
+  };
   $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
 };
 
@@ -102,12 +129,6 @@ function cacheKey(tenantId: string, userId: string, currentTermId: string): stri
 
 export function clearPermissionCache(): void {
   cache.clear();
-}
-
-// Single warn per process for OWN_STUDENT before Student model lands (p2).
-let warnedMissingStudent = false;
-export function _resetMissingStudentWarning(): void {
-  warnedMissingStudent = false;
 }
 
 export type ResolveArgs = {
@@ -267,18 +288,46 @@ async function resolvePermissionsInternal(
     for (const r of rows) sessionIds.add(r.classSessionId);
   }
 
-  // OWN_STUDENT — Student model lands p2-students-guardians-household.
-  // Emit a single warn so p2 integration testing surfaces wiring gaps loudly.
-  // Result carries `studentScopeUnresolved: true` so callers fail-closed
-  // rather than misinterpreting the empty set.
-  const studentScopeUnresolved = grantedScopes.has("OWN_STUDENT");
-  if (studentScopeUnresolved && !warnedMissingStudent) {
-    console.warn(
-      `[scaffold/permission] OWN_STUDENT scope requested for userId=${args.userId} ` +
-        `but Student model not yet in schema (lands p2-students-guardians-household). ` +
-        `Returning empty studentIds Set + studentScopeUnresolved=true.`,
-    );
-    warnedMissingStudent = true;
+  // OWN_STUDENT — wired p2-scaffold-canary T1. Two-step:
+  //   (a) Materialise studentIds via studentGuardian.findMany joined through
+  //       Guardian on (userId, tenantId, deletedAt: null). Inner tenantId IS
+  //       emitted because StudentGuardian → Guardian is composite (per module
+  //       header). Soft-deleted StudentGuardian rows excluded so a deleted
+  //       parent link doesn't widen the parent's scope.
+  //   (b) Determine studentScopeUnresolved via guardian.findFirst — needed
+  //       to distinguish "no Guardian row at all (fail-closed)" from
+  //       "Guardian row exists with zero StudentGuardian links (resolved
+  //       but empty allowlist)". The findMany above returns zero rows for
+  //       both cases, indistinguishable at the Prisma layer.
+  // Guard the findMany with `grantedScopes.has("OWN_STUDENT")` ONLY (not
+  // `all || ...`) — ALL-scoped roles bypass studentIds at the dataFetcher
+  // (they take the `all: true` flag path), so running this JOIN for them
+  // is pure waste on every cache-miss. Per spec-time review B1.
+  let studentScopeUnresolved = false;
+  if (grantedScopes.has("OWN_STUDENT")) {
+    const rows = await args.prisma.studentGuardian.findMany({
+      where: {
+        tenantId: args.tenantId,
+        deletedAt: null,
+        guardian: {
+          userId: args.userId,
+          tenantId: args.tenantId,
+          deletedAt: null,
+        },
+      },
+      select: { studentId: true },
+    });
+    for (const r of rows) studentIds.add(r.studentId);
+
+    const guardianExists = await args.prisma.guardian.findFirst({
+      where: {
+        userId: args.userId,
+        tenantId: args.tenantId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!guardianExists) studentScopeUnresolved = true;
   }
 
   // Step 4 — overflow check (per-scope, not aggregate, to surface a single

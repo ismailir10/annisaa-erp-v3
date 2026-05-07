@@ -116,9 +116,36 @@ vi.mock("@/lib/generated/prisma/client", () => ({
   },
 }));
 
+// NOTE: `@/lib/entities/_registry` is intentionally NOT mocked. The route
+// imports `getPolicyByResource` from the registry, which transitively imports
+// all 5 entity policies. Each policy imports `FileKind` from
+// `@/lib/generated/prisma/client` — which IS mocked above. The hoisted client
+// mock means every entity-policy module receives the stub `FileKind` strings
+// at import time, so the test exercises the REAL registry against the real
+// per-entity allowlist declarations. This catches drift if a future policy
+// edit changes the allowlist shape (which is exactly what these tests gate).
+//
+// Trap to watch for in future cycles: if a new entity policy added to
+// `lib/entities/_registry.ts` imports any module beyond `@/lib/generated/
+// prisma/client` + `../_types` (e.g. `@/lib/db`, `next/headers`), this test
+// will throw at import time with a cryptic resolution error instead of a
+// readable test failure. At that point, either add an explicit
+// `vi.mock("@/lib/entities/_registry", ...)` with a controlled stub, or
+// extend the per-policy module's allowed dependency surface.
 import { POST } from "../route";
 
-const SESSION = { tenantId: "t_1", userId: "u_1", supabaseUserId: "sup_1" };
+// Session shape extended in p2-scaffold-canary T3 — `role` + `currentTermId`
+// were added in p2-scaffold-pages SessionContext widening; the upload route
+// now reads `session.role` for the FileKind allowlist gate. `admin` is the
+// default test role because admin's allowlist includes IMAGE+DOCUMENT+ARCHIVE
+// across every entity, so existing tests don't trip the new gate.
+const SESSION = {
+  tenantId: "t_1",
+  userId: "u_1",
+  supabaseUserId: "sup_1",
+  role: "admin" as const,
+  currentTermId: "at_1",
+};
 
 function makeReq(form: FormData): Request {
   return new Request("http://localhost/api/upload", {
@@ -127,13 +154,20 @@ function makeReq(form: FormData): Request {
   });
 }
 
+// `resource` defaults to "Student" so pre-existing tests don't need to set
+// it explicitly. Pass `resource: undefined` to omit (covers missing-field
+// cases). Pass `resource: "X"` to override (covers invalid-resource +
+// per-entity gating cases).
 function buildForm(args: {
   file?: File | null;
   kind?: string | null;
+  resource?: string | null;
 }): FormData {
   const fd = new FormData();
   if (args.file) fd.set("file", args.file);
   if (args.kind != null) fd.set("kind", args.kind);
+  const resource = args.resource === undefined ? "Student" : args.resource;
+  if (resource != null) fd.set("resource", resource);
   return fd;
 }
 
@@ -487,5 +521,138 @@ describe("POST /api/upload — magic-byte MIME verify (T8)", () => {
     expect(fileAssetCreateMock).not.toHaveBeenCalled();
     expect(compressImageMock).not.toHaveBeenCalled();
     expect(uploadToStorageMock).not.toHaveBeenCalled();
+  });
+});
+
+// ── Role-based FileKind gating (p2-scaffold-canary T4) ───────────────────
+// Route now consumes `policy.fileKindAllowlist[session.role]` resolved by
+// `getPolicyByResource(form.resource)`. Fail-closed semantics:
+//   - missing `resource` form field   → 400 missing_field
+//   - unknown `resource`              → 400 invalid_resource
+//   - role has no allowlist key       → 403 forbidden_kind
+//   - role's allowlist excludes kind  → 403 forbidden_kind
+
+describe("POST /api/upload — resource form-field validation", () => {
+  it("returns 400 when `resource` form field is missing", async () => {
+    const file = new File([new Uint8Array(64)], "a.pdf", { type: "application/pdf" });
+    const res = await POST(
+      makeReq(buildForm({ file, kind: "DOCUMENT", resource: null })) as never,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "missing_field", field: "resource" });
+    expect(fileAssetCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when `resource` does not match any registered policy", async () => {
+    const file = new File([new Uint8Array(64)], "a.pdf", { type: "application/pdf" });
+    const res = await POST(
+      makeReq(
+        buildForm({ file, kind: "DOCUMENT", resource: "NotARealEntity" }),
+      ) as never,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "invalid_resource",
+      resource: "NotARealEntity",
+    });
+    expect(fileAssetCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/upload — role-FileKind allowlist gating (pass cases)", () => {
+  it("admin uploads DOCUMENT to Guardian → proceeds (200)", async () => {
+    getSessionMock.mockResolvedValue({ ...SESSION, role: "admin" });
+    const file = new File([new Uint8Array(64)], "g.pdf", { type: "application/pdf" });
+    const res = await POST(
+      makeReq(buildForm({ file, kind: "DOCUMENT", resource: "Guardian" })) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(fileAssetCreateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("admin uploads IMAGE to Student → proceeds (200)", async () => {
+    getSessionMock.mockResolvedValue({ ...SESSION, role: "admin" });
+    const file = new File([new Uint8Array(64)], "s.jpg", { type: "image/jpeg" });
+    compressImageMock.mockResolvedValue({
+      buffer: Buffer.from(new Uint8Array(32)),
+      mimeType: "image/jpeg",
+      ratio: 0.5,
+    });
+    const res = await POST(
+      makeReq(buildForm({ file, kind: "IMAGE", resource: "Student" })) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(compressImageMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("admission_officer uploads DOCUMENT to Household → proceeds (200)", async () => {
+    getSessionMock.mockResolvedValue({ ...SESSION, role: "admission_officer" });
+    const file = new File([new Uint8Array(64)], "kk.pdf", { type: "application/pdf" });
+    const res = await POST(
+      makeReq(buildForm({ file, kind: "DOCUMENT", resource: "Household" })) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(fileAssetCreateMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /api/upload — role-FileKind allowlist gating (fail cases)", () => {
+  it("kadiv uploads IMAGE to Guardian → 403 forbidden_kind (kadiv allowlist on Guardian is [DOCUMENT])", async () => {
+    getSessionMock.mockResolvedValue({ ...SESSION, role: "kadiv" });
+    const file = new File([new Uint8Array(64)], "img.jpg", { type: "image/jpeg" });
+    const res = await POST(
+      makeReq(buildForm({ file, kind: "IMAGE", resource: "Guardian" })) as never,
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: "forbidden_kind",
+      resource: "Guardian",
+      role: "kadiv",
+      kind: "IMAGE",
+    });
+    expect(fileAssetCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("finance_officer uploads DOCUMENT to Household → 403 forbidden_kind (FO has no allowlist key on Household)", async () => {
+    getSessionMock.mockResolvedValue({ ...SESSION, role: "finance_officer" });
+    const file = new File([new Uint8Array(64)], "x.pdf", { type: "application/pdf" });
+    const res = await POST(
+      makeReq(
+        buildForm({ file, kind: "DOCUMENT", resource: "Household" }),
+      ) as never,
+    );
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("forbidden_kind");
+    expect(body.role).toBe("finance_officer");
+    expect(fileAssetCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("parent uploads IMAGE to Student → 403 forbidden_kind (parent omitted from Student allowlist — read-only)", async () => {
+    getSessionMock.mockResolvedValue({ ...SESSION, role: "parent" });
+    const file = new File([new Uint8Array(64)], "p.jpg", { type: "image/jpeg" });
+    const res = await POST(
+      makeReq(buildForm({ file, kind: "IMAGE", resource: "Student" })) as never,
+    );
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("forbidden_kind");
+    expect(body.role).toBe("parent");
+    expect(fileAssetCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("admin uploads IMAGE to GuardianInvitation → 403 forbidden_kind (GuardianInvitation.fileKindAllowlist is empty {})", async () => {
+    getSessionMock.mockResolvedValue({ ...SESSION, role: "admin" });
+    const file = new File([new Uint8Array(64)], "i.jpg", { type: "image/jpeg" });
+    const res = await POST(
+      makeReq(
+        buildForm({ file, kind: "IMAGE", resource: "GuardianInvitation" }),
+      ) as never,
+    );
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("forbidden_kind");
+    expect(body.resource).toBe("GuardianInvitation");
+    expect(fileAssetCreateMock).not.toHaveBeenCalled();
   });
 });

@@ -12,7 +12,7 @@
 // behavior, better than leaking unmetered traffic.
 //
 // Callers: app/auth/callback/route.ts (oauth_callback scope),
-//          app/api/_demo/login/route.ts (demo_login scope).
+//          app/api/demo/login/route.ts (demo_login scope).
 
 import type { NextRequest } from "next/server";
 

@@ -22,13 +22,20 @@
 //
 // Out-of-scope this cycle (per cycle doc Non-goals):
 //   - Rate limiting (lib/rate-limit.ts not yet built; lands w/ first p2 route)
-//   - Role-based FileKind gating (any auth'd user can upload any kind)
 //   - Direct-to-storage uploads / multipart resumable / image variants
+//
+// Role-based FileKind gating WIRED p2-scaffold-canary T3 (was previously
+// out-of-scope). Caller posts `resource` form field (verbatim Prisma model
+// name, PascalCase — e.g. `"Student"`, `"Guardian"`); route resolves the
+// matching `EntityPolicy` from `lib/entities/_registry` and checks
+// `policy.fileKindAllowlist[session.role]` against the submitted `kind`.
+// Fail-closed: undefined allowlist key OR kind-not-in-array → 403.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { writeAuditLog } from "@/lib/audit/write";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { getPolicyByResource } from "@/lib/entities/_registry";
 import {
   AuditAction,
   FileKind,
@@ -109,11 +116,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
   const file = form.get("file");
   const kindRaw = form.get("kind");
+  const resourceRaw = form.get("resource");
   if (!(file instanceof File)) {
     return jsonError(400, { error: "missing_field", field: "file" });
   }
   if (typeof kindRaw !== "string" || kindRaw === "") {
     return jsonError(400, { error: "missing_field", field: "kind" });
+  }
+  if (typeof resourceRaw !== "string" || resourceRaw === "") {
+    return jsonError(400, { error: "missing_field", field: "resource" });
   }
 
   // 3. Validate kind
@@ -121,6 +132,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return jsonError(400, { error: "invalid_kind", kind: kindRaw });
   }
   const kind: FileKind = kindRaw;
+
+  // 3a. Resolve policy + role-FileKind gate (p2-scaffold-canary T3).
+  // `resource` = verbatim Prisma model name (PascalCase). Unknown resource
+  // → 400 invalid_resource. Then role-allowlist check: policy.fileKindAllowlist
+  // is `Partial<Record<RoleCode, ReadonlyArray<FileKind>>>` — undefined lookup
+  // = no upload right (fail-closed); kind-not-in-array = 403 forbidden_kind.
+  const policy = getPolicyByResource(resourceRaw);
+  if (!policy) {
+    return jsonError(400, { error: "invalid_resource", resource: resourceRaw });
+  }
+  const allowedKinds = policy.fileKindAllowlist[session.role];
+  if (!allowedKinds || !allowedKinds.includes(kind)) {
+    return jsonError(403, {
+      error: "forbidden_kind",
+      resource: policy.resource,
+      role: session.role,
+      kind,
+    });
+  }
 
   // 4. Validate size
   if (file.size > MAX_BYTES) {

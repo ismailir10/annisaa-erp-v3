@@ -6,7 +6,6 @@ import {
   getJwtTenantId,
   resolvePermissions,
   _resolvePermissionsForTest,
-  _resetMissingStudentWarning,
   type PermissionPrismaLike,
 } from "../permission";
 
@@ -19,6 +18,8 @@ type MockPrisma = {
   teachingDefault: { findMany: Mock };
   sentraRotation: { findMany: Mock };
   sessionTeacher: { findMany: Mock };
+  studentGuardian: { findMany: Mock };
+  guardian: { findFirst: Mock };
   $queryRaw: Mock;
 };
 
@@ -31,6 +32,8 @@ function makePrisma(overrides: Partial<MockPrisma> = {}): MockPrisma & Permissio
     teachingDefault: { findMany: vi.fn().mockResolvedValue([]) },
     sentraRotation: { findMany: vi.fn().mockResolvedValue([]) },
     sessionTeacher: { findMany: vi.fn().mockResolvedValue([]) },
+    studentGuardian: { findMany: vi.fn().mockResolvedValue([]) },
+    guardian: { findFirst: vi.fn().mockResolvedValue(null) },
     $queryRaw: vi.fn().mockResolvedValue([]),
   };
   return { ...base, ...overrides } as MockPrisma & PermissionPrismaLike;
@@ -50,7 +53,6 @@ function rolePerm(scope: string) {
 
 beforeEach(() => {
   clearPermissionCache();
-  _resetMissingStudentWarning();
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
@@ -354,35 +356,125 @@ describe("resolvePermissions — OWN_SESSION scope", () => {
   });
 });
 
-describe("resolvePermissions — OWN_STUDENT scope (p2 stub)", () => {
-  it("returns empty studentIds + studentScopeUnresolved:true + warns once per process", async () => {
-    const prisma = makePrisma({
+describe("resolvePermissions — OWN_STUDENT scope (parent role, wired p2-scaffold-canary)", () => {
+  function ownStudentPrisma(
+    overrides: Partial<MockPrisma> = {},
+  ): MockPrisma & PermissionPrismaLike {
+    return makePrisma({
       userRole: {
         findMany: vi.fn().mockResolvedValue([
           { role: { rolePermissions: [rolePerm("OWN_STUDENT")] } },
         ]),
       },
-      employee: { findFirst: vi.fn().mockResolvedValue({ id: "emp1" }) },
+      ...overrides,
     });
-    const warnSpy = vi.spyOn(console, "warn");
-    const r1 = await resolvePermissions({ ...ARGS, prisma });
-    const r2 = await resolvePermissions({
-      ...ARGS,
-      userId: "u2",
-      prisma,
+  }
+
+  it("studentScopeUnresolved=true + empty studentIds when no Guardian row backs the userId", async () => {
+    const prisma = ownStudentPrisma({
+      // Guardian.findFirst returns null → fail-closed signal.
+      guardian: { findFirst: vi.fn().mockResolvedValue(null) },
+      // studentGuardian.findMany returns nothing because the nested guardian
+      // filter doesn't match (no Guardian row).
+      studentGuardian: { findMany: vi.fn().mockResolvedValue([]) },
     });
-    expect(r1.studentIds.size).toBe(0);
-    expect(r1.studentScopeUnresolved).toBe(true);
-    expect(r2.studentIds.size).toBe(0);
-    expect(r2.studentScopeUnresolved).toBe(true);
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0]?.[0]).toContain("p2-students-guardians-household");
+    const r = await resolvePermissions({ ...ARGS, prisma });
+    expect(r.studentIds.size).toBe(0);
+    expect(r.studentScopeUnresolved).toBe(true);
+    // Both queries fired; the guardian.findFirst is the unresolved-determinant.
+    expect(prisma.studentGuardian.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.guardian.findFirst).toHaveBeenCalledTimes(1);
   });
 
-  it("studentScopeUnresolved is false for users without OWN_STUDENT scope", async () => {
+  it("studentScopeUnresolved=false + empty studentIds when Guardian row exists but has zero StudentGuardian links", async () => {
+    const prisma = ownStudentPrisma({
+      guardian: { findFirst: vi.fn().mockResolvedValue({ id: "g1" }) },
+      studentGuardian: { findMany: vi.fn().mockResolvedValue([]) },
+    });
+    const r = await resolvePermissions({ ...ARGS, prisma });
+    expect(r.studentIds.size).toBe(0);
+    expect(r.studentScopeUnresolved).toBe(false);
+  });
+
+  it("studentScopeUnresolved=false + studentIds materialised from StudentGuardian rows", async () => {
+    const prisma = ownStudentPrisma({
+      guardian: { findFirst: vi.fn().mockResolvedValue({ id: "g1" }) },
+      studentGuardian: {
+        findMany: vi.fn().mockResolvedValue([
+          { studentId: "s1" },
+          { studentId: "s2" },
+          { studentId: "s3" },
+        ]),
+      },
+    });
+    const r = await resolvePermissions({ ...ARGS, prisma });
+    expect(r.studentScopeUnresolved).toBe(false);
+    expect(r.studentIds.size).toBe(3);
+    expect([...r.studentIds].sort()).toEqual(["s1", "s2", "s3"]);
+  });
+
+  it("threads tenantId on BOTH StudentGuardian top-level AND nested guardian filter (defense-in-depth per composite-FK §6.4)", async () => {
+    const findManyMock = vi.fn().mockResolvedValue([{ studentId: "s1" }]);
+    const prisma = ownStudentPrisma({
+      guardian: { findFirst: vi.fn().mockResolvedValue({ id: "g1" }) },
+      studentGuardian: { findMany: findManyMock },
+    });
+    await resolvePermissions({ ...ARGS, prisma });
+    const callArg = findManyMock.mock.calls[0]?.[0] as {
+      where: {
+        tenantId: string;
+        deletedAt: null;
+        guardian: { userId: string; tenantId: string; deletedAt: null };
+      };
+    };
+    expect(callArg.where.tenantId).toBe(ARGS.tenantId);
+    expect(callArg.where.deletedAt).toBeNull();
+    expect(callArg.where.guardian.tenantId).toBe(ARGS.tenantId);
+    expect(callArg.where.guardian.userId).toBe(ARGS.userId);
+    expect(callArg.where.guardian.deletedAt).toBeNull();
+  });
+
+  it("cache hit on second call within TTL skips both StudentGuardian + Guardian queries", async () => {
+    const sgFindMany = vi.fn().mockResolvedValue([{ studentId: "s1" }]);
+    const gFindFirst = vi.fn().mockResolvedValue({ id: "g1" });
+    const prisma = ownStudentPrisma({
+      guardian: { findFirst: gFindFirst },
+      studentGuardian: { findMany: sgFindMany },
+    });
+    const r1 = await resolvePermissions({ ...ARGS, prisma });
+    const r2 = await resolvePermissions({ ...ARGS, prisma });
+    expect(r1).toBe(r2); // cached frozen object identity
+    expect(sgFindMany).toHaveBeenCalledTimes(1);
+    expect(gFindFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it("studentScopeUnresolved=false for users without OWN_STUDENT scope (no resolver work)", async () => {
     const prisma = makePrisma();
     const r = await resolvePermissions({ ...ARGS, prisma });
     expect(r.studentScopeUnresolved).toBe(false);
+    expect(prisma.studentGuardian.findMany).not.toHaveBeenCalled();
+    expect(prisma.guardian.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("ALL-scoped role does NOT fire studentGuardian/guardian queries (per spec-time review B1)", async () => {
+    const sgFindMany = vi.fn().mockResolvedValue([]);
+    const gFindFirst = vi.fn().mockResolvedValue(null);
+    const prisma = makePrisma({
+      userRole: {
+        findMany: vi.fn().mockResolvedValue([
+          { role: { rolePermissions: [rolePerm("ALL")] } },
+        ]),
+      },
+      studentGuardian: { findMany: sgFindMany },
+      guardian: { findFirst: gFindFirst },
+    });
+    const r = await resolvePermissions({ ...ARGS, prisma });
+    expect(r.all).toBe(true);
+    expect(r.studentScopeUnresolved).toBe(false);
+    // ALL-scoped roles bypass studentIds at the dataFetcher; running these
+    // JOINs would be pure waste on every cache-miss.
+    expect(sgFindMany).not.toHaveBeenCalled();
+    expect(gFindFirst).not.toHaveBeenCalled();
   });
 });
 
