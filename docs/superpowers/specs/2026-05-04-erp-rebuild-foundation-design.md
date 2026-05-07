@@ -723,7 +723,24 @@ Subset of Walas. Penilaian Harian grid scoped to (sentra, session, kelas).
 
 §10.1-10.6 above are task-level. This section is the **canonical sidebar grouping** every page mounts under. Three portals (admin, teacher, parent); kepsek = admin portal w/ `principal` role per §10.4 (same shell, scope-filtered).
 
-**Routing convention.** Pages live at `/<portal>/<group-slug>/<entity-slug>` for primary entity pages, `/<portal>/<group-slug>/<entity-slug>/[id]` for detail. Settings (Pengaturan) under `/<portal>/pengaturan/<entity-slug>`. Smart-View routes use `?view=<slug>` query (per §5.10 — URL state, shareable). Sidebar nav = its own cycle (`p2-portal-shell-sidebar`); scaffold pages mount under expected groups, sidebar active-state lands separately. ScaffoldListPage / ScaffoldFormPage / ScaffoldDetailPage per §5.2 — 4-line page recipe everywhere.
+**Backend English, labels Indonesian.** Per §4.4 (`Field naming: English camelCase always`) extended to URLs + identifiers: every route segment, file path, entity slug, role code, scope code, action code, smart-view query value, enum literal, JSON key, and code-level identifier MUST be English. Sidebar group labels, page titles, button copy, status text, error/empty/success messages, and every user-visible string stay Indonesian per §10A tables and `voice.md`. **Rule of thumb:** if a developer types it (route, code, JSON), it's English. If a parent/walas/admin reads it on screen, it's Indonesian.
+
+**Routing convention.** Pages live at `/<portal>/<group-slug>/<entity-slug>` for primary entity pages, `/<portal>/<group-slug>/<entity-slug>/[id]` for detail. Smart-View routes use `?view=<english-slug>` query (per §5.10 — URL state, shareable). Group slugs are **English** even though their displayed label is Indonesian:
+
+| Group label (Indonesian) | Group slug (English) |
+|---|---|
+| Beranda | `/` (or `/home`) |
+| Akademik | `/academic` |
+| Penilaian | `/assessment` |
+| Keuangan | `/finance` |
+| HR | `/hr` |
+| Berkas | `/files` |
+| Audit | `/audit` |
+| Pengaturan | `/settings` |
+
+Entity slugs likewise English kebab-case (label → slug examples: `Pendaftaran → admissions`, `Wali Murid → guardians`, `Keluarga → households`, `Tahun Akademik → academic-years`, `Hari Libur → holidays`, `Jam Kerja → work-hours`, `Komponen Biaya → fee-components`, `Skema Cicilan → fee-installment-schemes`, `Tunggakan → invoices?view=overdue`, `Lampiran → file-assets`, `Profil Sekolah → org-config`, `Akun Saya → me`, `Penilaian Harian → daily-assessments`, `Penghubung → journal`). When unsure of the English term, use the Prisma model name as the canonical source (kebab-cased + pluralized).
+
+Sidebar nav = its own cycle (`p2-portal-shell-sidebar`); scaffold pages mount under expected groups, sidebar active-state lands separately. ScaffoldListPage / ScaffoldFormPage / ScaffoldDetailPage per §5.2 — 4-line page recipe everywhere. The label↔slug mapping owned by each `lib/entities/<name>/entity.ts` (`label.id` Indonesian + `slug` English-kebab) — single source of truth.
 
 **Read-scope notation.** Per-page `Min read` column lists role:scope tuples; multiple roles sharing a scope abbreviate (e.g. `A/P/KD: ALL`). Vocabulary defined in §10.7. Roles: `A=admin, P=principal, KD=kadiv, AO=admission_officer, FO=finance_officer, HT=homeroom_teacher, ST=sentra_teacher, PR=parent`.
 
