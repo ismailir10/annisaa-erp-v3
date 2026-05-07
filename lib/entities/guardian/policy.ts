@@ -44,6 +44,13 @@ export const guardianPolicy: EntityPolicy = defineEntityPolicy({
       { role: "principal", scope: "ALL" },
       { role: "kadiv", scope: "ALL" },
       { role: "admission_officer", scope: "ALL" },
+      // Parent updates own Guardian row only — SELF scope canary per cycle
+      // p2-portal-shell-sidebar SD2. Row-level enforcement at
+      // `lib/guardians/actions/update.ts` via `userId: session.userId`
+      // clause when grant.scope === "SELF". Required for the SELF-on-write
+      // contract enforced by the meta-test at
+      // `lib/scaffold/__tests__/self-write-contract.test.ts`.
+      { role: "parent", scope: "SELF" },
     ],
     // Hard delete intentionally denied to all roles — soft-delete only.
     delete: [],

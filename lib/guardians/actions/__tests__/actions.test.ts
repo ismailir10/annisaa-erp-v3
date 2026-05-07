@@ -120,8 +120,8 @@ describe("assertScope (Guardian policy)", () => {
     expect(() => assertScope(KADIV_SESSION, guardianPolicy, "soft_delete")).toThrow(/FORBIDDEN/);
   });
 
-  it("throws FORBIDDEN for parent role on update (no scope grant)", () => {
-    expect(() => assertScope(PARENT_SESSION, guardianPolicy, "update")).toThrow(/FORBIDDEN/);
+  it("passes for parent role on update — SELF widening per p2-portal-shell-sidebar T4", () => {
+    expect(() => assertScope(PARENT_SESSION, guardianPolicy, "update")).not.toThrow();
   });
 });
 
@@ -174,18 +174,65 @@ describe("createGuardian", () => {
 });
 
 describe("updateGuardian", () => {
-  it("returns FORBIDDEN for parent role (no update grant)", async () => {
-    mockGetSession.mockResolvedValue(PARENT_SESSION);
-    const result = await updateGuardian("g_1", { fullName: "Bu Sari Baru" });
-    expect(result).toEqual({ ok: false, error: "FORBIDDEN" });
-  });
-
   it("returns NOT_FOUND when guardian does not exist in tenant", async () => {
     mockGetSession.mockResolvedValue(ADMIN_SESSION);
     mockGuardianFindFirst.mockResolvedValue(null);
     const result = await updateGuardian("g_missing", { fullName: "X" });
     expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
     expect(mockGuardianUpdate).not.toHaveBeenCalled();
+  });
+
+  it("parent SELF: precheck where-clause includes userId predicate (row-level guard)", async () => {
+    mockGetSession.mockResolvedValue(PARENT_SESSION);
+    // Row matches the SELF predicate — Guardian belongs to this parent.
+    const ownGuardian = { ...GUARDIAN_ROW, userId: "user_parent" };
+    mockGuardianFindFirst.mockResolvedValue(ownGuardian);
+    mockGuardianUpdate.mockResolvedValue({ ...ownGuardian, phone: "08111111111" });
+    const result = await updateGuardian("g_1", { phone: "08111111111" });
+    expect(result.ok).toBe(true);
+    // Verify the precheck where-clause carried the SELF predicate.
+    expect(mockGuardianFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "g_1",
+          tenantId: "tenant_a1",
+          deletedAt: null,
+          userId: "user_parent",
+        }),
+      }),
+    );
+  });
+
+  it("parent SELF: NOT_FOUND when row exists but userId does NOT match — wrong-row attempt", async () => {
+    mockGetSession.mockResolvedValue(PARENT_SESSION);
+    // Mock returns null because the userId clause filters the row out —
+    // mirrors what real Prisma would return for a guardian belonging to
+    // someone else.
+    mockGuardianFindFirst.mockResolvedValue(null);
+    const result = await updateGuardian("g_other_parents_row", { phone: "08111111111" });
+    expect(result).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(mockGuardianUpdate).not.toHaveBeenCalled();
+    // The precheck still went out with the userId clause — assert it.
+    expect(mockGuardianFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "g_other_parents_row",
+          userId: "user_parent",
+        }),
+      }),
+    );
+  });
+
+  it("admin ALL: precheck where-clause omits userId predicate (regression — ALL grants unaffected)", async () => {
+    mockGetSession.mockResolvedValue(ADMIN_SESSION);
+    mockGuardianFindFirst.mockResolvedValue(GUARDIAN_ROW);
+    mockGuardianUpdate.mockResolvedValue({ ...GUARDIAN_ROW, fullName: "X" });
+    const result = await updateGuardian("g_1", { fullName: "X" });
+    expect(result.ok).toBe(true);
+    const callArg = mockGuardianFindFirst.mock.calls[0][0] as {
+      where: Record<string, unknown>;
+    };
+    expect(callArg.where).not.toHaveProperty("userId");
   });
 
   it("returns NO_CHANGES when input is empty (avoids phantom UPDATE audit row)", async () => {
