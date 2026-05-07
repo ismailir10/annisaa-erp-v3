@@ -159,8 +159,82 @@ This cycle's pages render exclusively through existing scaffold engine primitive
 
 ## Verification
 
-(filled by /build)
+End-of-cycle gate (final, all green):
+
+- `npx prisma generate` → `✔ Generated Prisma Client (7.6.0)` clean.
+- `npm run lint` → `✖ 1 problem (0 errors, 1 warning)` — single warning is the pre-existing `lib/students/__tests__/nis-allocator.test.ts:52:28 _args` unused; unchanged from origin/staging baseline.
+- `npm run typecheck` → clean (exit 0).
+- `npm run build` → clean. Route table registers all 8 new admin routes: `ƒ /admin/akademik/wali`, `○ /admin/akademik/wali/new`, `ƒ /admin/akademik/wali/[id]`, `ƒ /admin/akademik/wali/[id]/edit`, `ƒ /admin/akademik/keluarga`, `○ /admin/akademik/keluarga/new`, `ƒ /admin/akademik/keluarga/[id]`, `ƒ /admin/akademik/keluarga/[id]/edit` (alongside the 4 Student routes from p2-scaffold-pages — 12 admin/akademik routes total).
+- `npx vitest run` → `Test Files 3 failed | 41 passed | 1 skipped (45) / Tests 6 failed | 998 passed | 4 skipped (1008)` (+38 over Student-slice baseline 964 → 1008 — T1 Guardian +19 + T2 Household +19. Drift +2 unrelated). The 6 failures are pre-existing flakes in confirm-dialog (4) + select (1) + page-contract (1) — same flakes documented in `docs/cycles/2026-05-07-p2-scaffold-pages.md`. Verified targeted-pass: `npx vitest run components/ui/__tests__/confirm-dialog.test.tsx components/ui/__tests__/select.test.tsx lib/scaffold/__tests__/page-contract.test.tsx` → 29/29 pass standalone. Issue is render-budget-bound under jsdom + the full-suite parallel pressure.
+- `bash scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 32 / 32 tenant-scoped models have ENABLE + policy.` (unchanged — no migration this cycle).
+- `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 4 / 4 routes have session helper or @public sentinel.` (unchanged — server actions are NOT API routes; verify-api-auth.sh scans `app/api/**` only).
+- `bash scripts/verify-pii-annotations.sh` → `✓ PII annotation coverage OK: 5 / 5 known-PII fields annotated.` (unchanged — no schema changes).
+- `npm run scaffold:check` → `5 entities validated.` (guardian-invitation / guardian / household / student / student-identifier — unchanged; the new page files at `app/admin/**` are outside the scaffold-check scan path).
+- **Playwright skip — explicit + justified:** `e2e/` contains only `__snapshots__/` (snapshot fixtures, no `*.spec.ts`). The rebuild-window guard in `.github/workflows/ci.yml` automatically skips Playwright when no specs exist. First admin spec lands `p2-scaffold-canary`; the guard re-enables itself the moment it detects an `e2e/**/*.spec.ts` file.
+
+Per-task verification:
+
+- T1: `npx vitest run lib/guardians/actions/` → 19 cases green. Coverage: 6 `assertScope` + 4 createGuardian + 4 updateGuardian + 3 softDeleteGuardian + 2 restoreGuardian. Strict-ALL gate fires correctly: kadiv on soft_delete returns FORBIDDEN (Guardian.soft_delete grants A/P only), parent on update returns FORBIDDEN (no parent grant). NO_CHANGES guard fires before any DB read.
+- T2: `npx vitest run lib/households/actions/` → 19 cases green. Coverage mirrors T1 with FO swapped for parent on the policy-difference cases: FO read passes presence-only (Household.read FO ALL — sibling-discount queries), FO create returns FORBIDDEN (read-only on Household), kadiv soft_delete returns FORBIDDEN (Household.soft_delete grants A/P only).
+- T3: `npm run build` registers 4 Guardian admin routes. Default-import `guardian` from entity module (no `guardianEntity` named export — only `entity` + default; verified). Detail page typed `ScaffoldDetailPage<GuardianRow>` with `_count.guardianInvitations` include preserved. Edit page uses `updateGuardian.bind(null, id)` — bound server action retains use-server marker.
+- T4: `npm run build` registers 4 Household admin routes. Named-import `householdEntity` (entity module exports both `householdEntity` + `entity` alias). Detail page `rowLabel={(row) => row.code ?? row.id}` (Household.code is `String?` nullable per schema).
+- Cross-checked design-system.html § (Empty / Error / No-permission states + Form layout + Detail anatomy) — no new tokens or visual surfaces introduced; rendering flows entirely through existing scaffold engine primitives. Frontend gate (Rule 4) satisfied.
+
+Manual smoke (deferred to p2-scaffold-canary):
+
+This cycle ships zero Playwright canary; first admin E2E spec lands `p2-scaffold-canary`. Manual smoke against Vercel preview will exercise: Guardian list page renders + empty state, Guardian new form submits create action + redirects to detail, Guardian detail page tabs render placeholders, Guardian edit form pre-populates initial values + submits update, Guardian soft-delete + restore actions emit audit rows + flip `deletedAt`. Same for Household. Documented as a Ship Notes step rather than a gate-blocker per the cycle type (`page` w/ Playwright deferral).
 
 ## Ship Notes
 
-(filled by /ship)
+### Migrations to run
+
+**None.** This cycle ships zero schema changes. `prisma/schema.prisma` untouched. `prisma/migrations/` untouched. RLS strict count remains 32/32. PII gate remains 5/5. API auth gate remains 4/4.
+
+### New env vars
+
+**None.** No env-var changes; no operator action required on Vercel preview / staging.
+
+### Deferred-items refresh
+
+| Item | Deferred to | Notes |
+|---|---|---|
+| StudentIdentifier admin pages | **never** (collapsed) | §10A.4 detail-tab pattern absorbs into Student detail. |
+| GuardianInvitation admin pages | **never** (collapsed) | §10A.4 action-button + status-pill on Guardian detail. |
+| Playwright canary `e2e/admin/{students,wali,keluarga}.spec.ts` | `p2-scaffold-canary` | Re-enables CI Playwright globally (rebuild-window guard auto-skips until first spec lands). |
+| Role-based FileKind gating LOGIC at upload route | `p2-scaffold-canary` | Consumes `policy.fileKindAllowlist[session.role]`; fail-closed when `undefined`. |
+| OWN_STUDENT resolver wiring (`studentIds` Set materialization for parents) | `p2-scaffold-canary` | Flips `studentScopeUnresolved=false`; until then page-layer fail-closed wrapper catches the typed error and renders the no-permission state. Guardian + Household out-of-scope (admin-only effectively per Spec assumptions). |
+| `storage.objects` RLS Supabase-default-policy audit resolution | `p2-scaffold-canary` | First storage.objects writer ships with admin pages. |
+| Drift #1 `Student.read` missing `FO: ALL` | `p3-fee-foundation` | Matrix §10.7.3 — fix lands when finance reads Student first. |
+| Drift #2 `Guardian.read` missing `FO: ALL` | `p3-fee-foundation` | Same as drift #1. Matrix grants FO ALL on Guardian for wa.me targets; current `policy.ts` omits FO. |
+| Drift #3 `GuardianInvitation.read` parent grant removal | next entity audit cycle | Low priority; no surface mounts the page. |
+| Sidebar nav shell + portal-role gating | `p2-portal-shell-sidebar` | Until then, admin-portal routes have no portal-level role gate; the strict-ALL `assertScope` posture on writes compensates per spec-time review. |
+| WhatsApp wa.me invitation flow consumer | `p6-portal-invitation-flow` | Atomic `UPDATE ... WHERE status='PENDING'` consume on token URL. |
+| Public `/daftar` admission form | `p2-admission-funnel` | Workflow state machine. |
+| Address chain (Province / Regency / District / Village FKs on Household) | `p2-addresses-idn-chain` | `Household.addressId` becomes non-nullable then. |
+| Guardian dataFetcher OWN_STUDENT throw branch | indefinite | Per spec-time review reasoning — Guardian is admin-only effectively (parent reads Guardian via SELF on `/parent/akun/profil`, not a Guardian list). Widens only when a future portal cycle genuinely surfaces Guardian to parents. |
+| Household + Guardian detail-tab content | future per-tab cycle | This cycle ships placeholder render functions per registries cycle Assumption §10. Anggota tab on Household + Anak / Riwayat / Aktivitas tabs on Guardian wired in domain-specific cycles. |
+
+### Rollback plan
+
+`git revert <PR merge SHA>` undoes all task commits cleanly. Per-commit isolation:
+
+- T1: 6 files (4 Guardian actions + 1 combined test + cycle doc).
+- T2: 6 files (4 Household actions + 1 combined test + cycle doc note).
+- T3: 5 files (4 Guardian pages + cycle doc note).
+- T4: 5 files (4 Household pages + cycle doc note).
+- T5: README + cycle doc Verification + Ship Notes (this commit).
+
+Risk surface: zero schema changes, zero env vars, zero migrations, zero new API routes (server actions live in `lib/{guardians,households}/actions/`, not `app/api/`). The `SessionContext` shape was already widened in Student slice; this cycle consumes the same shape via the same `getSession()` callers. Detail page `_count` includes are forward-compat-only — list pages already use the same includes via the dataFetcher.
+
+### Spec-time + post-build review streak (11th cycle)
+
+- **Spec-time `feature-dev:code-reviewer`** (cycle doc): 0 CRITICAL + 3 IMPORTANT findings — all addressed inline in the cycle doc before /build:
+  - Guardian entity import name (`entity` default, NOT `guardianEntity` named — only Household has the `householdEntity` named alias). Spec patched to clarify default-import.
+  - Guardian detail page type parameter (`ScaffoldDetailPage<GuardianRow>` with `_count.guardianInvitations` include preserved — without GuardianRow widening, `_count` shape isn't typed).
+  - Test mock SessionContext literals must include `role` + `currentTermId` per the p2-scaffold-pages widening. Spec patched to call out copying session shapes from the Student template verbatim.
+
+### Lessons surfaced this cycle
+
+- **Sub-split cycle pattern works.** Student slice landed the foundational scaffold-page wiring (SessionContext widen, page-layer fail-closed wrapper, server-action helpers, formSpec extraction). This cycle reuses 100% of that infrastructure with zero engine-side edits — only domain copy-paste. File count fits 18 (well under §18.2 ≤25 cap). Pattern repeatable for downstream entity rollouts (ClassSection, Employee, Invoice, etc.).
+- **Default vs named export inconsistency between entities.** Student + Guardian export `entity` only (with default re-export); Household exports `householdEntity` + `entity` alias. The split caused a one-line spec-time review finding. Future entity registries should standardise on the dual-named pattern (`<entity>Entity` named + `entity` alias + default re-export) for consistency. Filed for follow-up in next entity registry cycle.
+- **Detail page _count includes are forward-compat-only this cycle.** Detail tabs render placeholders; the includes preserve the row-shape contract so future tab consumers reading `row._count.<rel>` don't need a refactor at the findFirst layer. Matches the dataFetcher's existing include pattern — list + detail stay symmetric.
