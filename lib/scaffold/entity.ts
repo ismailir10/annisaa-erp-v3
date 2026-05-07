@@ -149,6 +149,16 @@ export type DetailTabDef<T> = {
 // scaffold has zero compile-time dependency on the generated Prisma client
 // (which is not present in test contexts). `lib/scaffold/permission.ts`
 // owns the runtime mapping to the PermissionScope Postgres enum.
+//
+// ⚠ SELF-on-write contract (cycle p2-portal-shell-sidebar T4): the
+// `assertScope` writes-gate at `lib/scaffold/server-action.ts` accepts
+// SELF for write actions. Every policy that grants SELF on a WRITE
+// action (create / update / soft_delete / restore / delete) MUST pair
+// the grant with a row-level `userId: session.userId` (or equivalent
+// caller-identity) predicate at the action layer. The static meta-test
+// at `lib/scaffold/__tests__/self-write-contract.test.ts` enforces this
+// pairing and breaks CI on regression. OWN_* scopes still fail-closed
+// at the writes-gate.
 
 export type ScaffoldScope =
   | "ALL"

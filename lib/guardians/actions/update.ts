@@ -12,6 +12,7 @@ import { schema as guardianSchema } from "@/lib/entities/guardian/schema";
 import { policy as guardianPolicy } from "@/lib/entities/guardian/policy";
 import { AuditAction, type Guardian } from "@/lib/generated/prisma/client";
 import { assertScope, type ActionResult } from "@/lib/scaffold/server-action";
+import type { ScopeGrant } from "@/lib/entities/_types";
 
 export async function updateGuardian(
   id: string,
@@ -20,11 +21,32 @@ export async function updateGuardian(
   const session = await getSession();
   if (!session) return { ok: false, error: "UNAUTHENTICATED" };
 
+  // assertScope returns the resolved grant (per spec-time review T4-#1) so
+  // we cannot drift between the gate's grant and the SELF-predicate
+  // derivation — eliminates the duplicate-grant-ordering footgun.
+  let grant: ScopeGrant;
   try {
-    assertScope(session, guardianPolicy, "update");
+    grant = assertScope(session, guardianPolicy, "update");
   } catch {
     return { ok: false, error: "FORBIDDEN" };
   }
+
+  // Per cycle p2-portal-shell-sidebar SD2 — SELF scope canary. When the
+  // role's update grant carries `scope: "SELF"`, add a row-level
+  // `userId: session.userId` clause to the precheck `findFirst`; rows
+  // belonging to other parents are then indistinguishable from NOT_FOUND
+  // for that caller (information-leak posture). ALL grants keep the
+  // existing tenant-only precheck. Required by the SELF-on-write contract
+  // enforced at `lib/scaffold/__tests__/self-write-contract.test.ts`.
+  //
+  // Precondition (per spec-time review T4-#2): a parent SELF caller must
+  // have a populated `Guardian.userId` matching `session.userId`. The
+  // current demo seed (`08-demo-users.ts`) creates the parent User row but
+  // does NOT seed a corresponding Guardian.userId-linked row — manual
+  // smoke + future Playwright SELF-update specs need a dedicated parent
+  // Guardian seed (deferred to `p2-portal-write-widening`). Real-tenant
+  // parents acquire `Guardian.userId` only after invitation acceptance.
+  const restrictToSelf = grant.scope === "SELF";
 
   // Allow partial updates — admin may PATCH a single field. `.partial()` keeps
   // each field's individual validation (NIK regex, phone regex, email format)
@@ -48,13 +70,24 @@ export async function updateGuardian(
   }
 
   const before = await prisma.guardian.findFirst({
-    where: { id, tenantId: session.tenantId, deletedAt: null },
+    where: {
+      id,
+      tenantId: session.tenantId,
+      deletedAt: null,
+      // SELF row-level predicate — see note above. Required for SELF-on-write contract.
+      ...(restrictToSelf ? { userId: session.userId } : {}),
+    },
   });
   if (!before) return { ok: false, error: "NOT_FOUND" };
 
   const updated = await prisma.$transaction(async (tx) => {
+    // Defense-in-depth per spec-time review T4-#3: use the compound-unique
+    // `(id, tenantId)` selector so the inner update reinforces tenant
+    // isolation even if a future TOCTOU swapped the row between the
+    // precheck and this call. The precheck `findFirst` is the primary
+    // guard; this is belt-and-braces.
     const row = await tx.guardian.update({
-      where: { id },
+      where: { id_tenantId: { id, tenantId: session.tenantId } },
       data: parsed.data,
     });
     if (guardianPolicy.auditActions.includes(AuditAction.UPDATE)) {
