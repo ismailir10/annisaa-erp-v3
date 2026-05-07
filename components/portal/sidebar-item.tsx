@@ -6,11 +6,18 @@
 // muted span — surfaces the IA without offering navigation to unmounted
 // destinations.
 //
+// Icon dispatch uses `React.createElement(resolveIcon(name), props)` rather
+// than `const Icon = resolveIcon(name); <Icon ... />` because the latter
+// triggers `react-hooks/static-components` ESLint (rule treats the binding
+// as a fresh component created on every render). `createElement` of an
+// already-defined component reference is fine.
+//
 // Cycle: docs/cycles/2026-05-08-p2-portal-shell-sidebar.md (T1)
 
 import * as LucideIcons from "lucide-react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
+import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -25,6 +32,13 @@ function resolveIcon(name: string): LucideIcon {
   return typeof candidate === "function" ? candidate : FALLBACK_ICON;
 }
 
+function renderIcon(name: string): React.ReactElement {
+  return React.createElement(resolveIcon(name), {
+    className: "size-4 shrink-0",
+    "aria-hidden": "true",
+  });
+}
+
 export type SidebarItemProps = {
   readonly item: NavItem;
   readonly active: boolean;
@@ -32,8 +46,6 @@ export type SidebarItemProps = {
 };
 
 export function SidebarItem({ item, active, collapsed }: SidebarItemProps) {
-  const Icon = resolveIcon(item.icon);
-
   if (item.disabled) {
     return (
       <span
@@ -44,7 +56,7 @@ export function SidebarItem({ item, active, collapsed }: SidebarItemProps) {
         )}
         title={collapsed ? item.label : undefined}
       >
-        <Icon className="size-4 shrink-0" aria-hidden="true" />
+        {renderIcon(item.icon)}
         {!collapsed && <span className="truncate">{item.label}</span>}
       </span>
     );
@@ -64,7 +76,7 @@ export function SidebarItem({ item, active, collapsed }: SidebarItemProps) {
       )}
       title={collapsed ? item.label : undefined}
     >
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      {renderIcon(item.icon)}
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
   );
