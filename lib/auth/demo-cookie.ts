@@ -17,6 +17,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import type { RoleCode } from "@/lib/entities/_types";
 
 export const DEMO_COOKIE_NAME = "school-erp-session";
 
@@ -27,10 +28,18 @@ export const DEMO_COOKIE_NAME = "school-erp-session";
 // permanently stuck on prod login.
 export const DEMO_SUPABASE_PREFIX = "demo:";
 
+// Payload shape extended in p2-scaffold-pages (2026-05-07) to carry role +
+// currentTermId. Cookies issued before this cycle are missing the new fields
+// and fail validation in verifyDemoCookie → fall through to Supabase path
+// (effectively forcing re-login). 24h max-age is the natural expiry. CI/E2E
+// unaffected (login route called per-test). Local-dev developers refresh via
+// `curl -X POST 'http://localhost:3000/api/_demo/login?role=admin'`.
 export type DemoSessionPayload = {
   tenantId: string;
   userId: string;
   supabaseUserId: string;
+  role: RoleCode;
+  currentTermId: string;
 };
 
 const COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60; // 24h, matches proxy idle thresholds
@@ -97,7 +106,11 @@ export function verifyDemoCookie(raw: string | undefined | null): DemoSessionPay
     typeof decoded !== "object" ||
     typeof (decoded as Record<string, unknown>).tenantId !== "string" ||
     typeof (decoded as Record<string, unknown>).userId !== "string" ||
-    typeof (decoded as Record<string, unknown>).supabaseUserId !== "string"
+    typeof (decoded as Record<string, unknown>).supabaseUserId !== "string" ||
+    typeof (decoded as Record<string, unknown>).role !== "string" ||
+    (decoded as Record<string, unknown>).role === "" ||
+    typeof (decoded as Record<string, unknown>).currentTermId !== "string" ||
+    (decoded as Record<string, unknown>).currentTermId === ""
   ) {
     return null;
   }

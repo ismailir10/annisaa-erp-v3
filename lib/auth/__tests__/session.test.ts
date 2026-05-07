@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Mock dependencies BEFORE importing getSession.
 const mockGetUser = vi.fn();
 const mockFindMany = vi.fn();
+const mockUserRoleFindFirst = vi.fn();
+const mockAcademicTermFindFirst = vi.fn();
 const mockCookieGet = vi.fn();
 
 vi.mock("next/headers", () => ({
@@ -14,7 +16,11 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/db", () => ({
-  prisma: { user: { findMany: (...a: unknown[]) => mockFindMany(...a) } },
+  prisma: {
+    user: { findMany: (...a: unknown[]) => mockFindMany(...a) },
+    userRole: { findFirst: (...a: unknown[]) => mockUserRoleFindFirst(...a) },
+    academicTerm: { findFirst: (...a: unknown[]) => mockAcademicTermFindFirst(...a) },
+  },
 }));
 
 import { getSession } from "../session";
@@ -30,13 +36,18 @@ describe("getSession — production (Supabase) path", () => {
     vi.stubEnv("SESSION_COOKIE_SECRET", VALID_SECRET);
     mockGetUser.mockReset();
     mockFindMany.mockReset();
+    mockUserRoleFindFirst.mockReset();
+    mockAcademicTermFindFirst.mockReset();
     mockCookieGet.mockReset();
+    // Default happy-path: role + active term resolve. Individual tests override.
+    mockUserRoleFindFirst.mockResolvedValue({ role: { code: "admin" } });
+    mockAcademicTermFindFirst.mockResolvedValue({ id: "term_active_1" });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("returns session when Supabase user resolves to exactly 1 row", async () => {
+  it("returns widened session when Supabase user resolves + role + active term", async () => {
     mockGetUser.mockResolvedValue({ data: { user: SUPABASE_USER }, error: null });
     mockFindMany.mockResolvedValue([USER_ROW]);
 
@@ -46,11 +57,25 @@ describe("getSession — production (Supabase) path", () => {
       tenantId: "tenant_a1",
       userId: "user_u1",
       supabaseUserId: "sup_x9",
+      role: "admin",
+      currentTermId: "term_active_1",
     });
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { supabaseUserId: "sup_x9", isActive: true, deletedAt: null },
         take: 2,
+      }),
+    );
+    expect(mockUserRoleFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user_u1", tenantId: "tenant_a1" },
+        orderBy: { createdAt: "asc" },
+      }),
+    );
+    expect(mockAcademicTermFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: "tenant_a1", isActive: true },
+        orderBy: { startDate: "asc" },
       }),
     );
   });
@@ -72,6 +97,20 @@ describe("getSession — production (Supabase) path", () => {
     mockFindMany.mockResolvedValue([USER_ROW, { id: "user_u2", tenantId: "tenant_evil" }]);
     expect(await getSession()).toBeNull();
   });
+
+  it("returns null when no UserRole row exists for the resolved User", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: SUPABASE_USER }, error: null });
+    mockFindMany.mockResolvedValue([USER_ROW]);
+    mockUserRoleFindFirst.mockResolvedValue(null);
+    expect(await getSession()).toBeNull();
+  });
+
+  it("returns null when no active AcademicTerm exists for the tenant", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: SUPABASE_USER }, error: null });
+    mockFindMany.mockResolvedValue([USER_ROW]);
+    mockAcademicTermFindFirst.mockResolvedValue(null);
+    expect(await getSession()).toBeNull();
+  });
 });
 
 describe("getSession — demo-cookie path", () => {
@@ -79,18 +118,24 @@ describe("getSession — demo-cookie path", () => {
     vi.stubEnv("SESSION_COOKIE_SECRET", VALID_SECRET);
     mockGetUser.mockReset();
     mockFindMany.mockReset();
+    mockUserRoleFindFirst.mockReset();
+    mockAcademicTermFindFirst.mockReset();
     mockCookieGet.mockReset();
+    mockUserRoleFindFirst.mockResolvedValue({ role: { code: "admin" } });
+    mockAcademicTermFindFirst.mockResolvedValue({ id: "term_active_1" });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("returns synthetic session when DEMO_MODE=true + valid signed cookie", async () => {
+  it("returns synthetic session when DEMO_MODE=true + valid signed cookie (carries widened payload)", async () => {
     vi.stubEnv("DEMO_MODE", "true");
     const payload = {
       tenantId: "tenant_demo",
       userId: "user_demo",
       supabaseUserId: "sup_demo",
+      role: "admin" as const,
+      currentTermId: "term_demo_1",
     };
     mockCookieGet.mockReturnValue({ value: signDemoCookie(payload) });
 
@@ -100,6 +145,8 @@ describe("getSession — demo-cookie path", () => {
     // Supabase path NOT touched.
     expect(mockGetUser).not.toHaveBeenCalled();
     expect(mockFindMany).not.toHaveBeenCalled();
+    expect(mockUserRoleFindFirst).not.toHaveBeenCalled();
+    expect(mockAcademicTermFindFirst).not.toHaveBeenCalled();
   });
 
   it("HMAC mismatch falls through to Supabase path (same shape as no cookie)", async () => {
@@ -114,6 +161,8 @@ describe("getSession — demo-cookie path", () => {
       tenantId: "tenant_a1",
       userId: "user_u1",
       supabaseUserId: "sup_x9",
+      role: "admin",
+      currentTermId: "term_active_1",
     });
     // Fall-through proven: Supabase path WAS touched.
     expect(mockGetUser).toHaveBeenCalledOnce();
@@ -125,6 +174,8 @@ describe("getSession — demo-cookie path", () => {
       tenantId: "tenant_demo",
       userId: "user_demo",
       supabaseUserId: "sup_demo",
+      role: "admin" as const,
+      currentTermId: "term_demo_1",
     };
     mockCookieGet.mockReturnValue({ value: signDemoCookie(payload) });
     mockGetUser.mockResolvedValue({ data: { user: SUPABASE_USER }, error: null });

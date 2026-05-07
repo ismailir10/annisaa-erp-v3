@@ -22,7 +22,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { DEMO_SUPABASE_PREFIX, setDemoSessionCookie } from "@/lib/auth/demo-cookie";
+import {
+  DEMO_SUPABASE_PREFIX,
+  setDemoSessionCookie,
+  type DemoSessionPayload,
+} from "@/lib/auth/demo-cookie";
 import { getClientIp } from "@/lib/http/ip";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -82,7 +86,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Find first active User with at least one matching role IN THIS TENANT.
   // Order by id for deterministic E2E test selection (same fixture row across
-  // runs).
+  // runs). Role.code selected so the demo cookie carries the resolved role
+  // (p2-scaffold-pages widening — sessionContext.role is required downstream).
   const userRoleRow = await prisma.userRole.findFirst({
     where: {
       tenantId: tenant.id,
@@ -92,6 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     select: {
       tenantId: true,
       user: { select: { id: true, supabaseUserId: true } },
+      role: { select: { code: true } },
     },
     orderBy: { user: { id: "asc" } },
   });
@@ -106,6 +112,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Resolve current academic term — required for the widened SessionContext.
+  // orderBy startDate asc per p2-scaffold-pages cycle: deterministic if the
+  // partial-WHERE unique on (tenantId, isActive=true) is ever bypassed.
+  const activeTerm = await prisma.academicTerm.findFirst({
+    where: { tenantId: userRoleRow.tenantId, isActive: true },
+    select: { id: true },
+    orderBy: { startDate: "asc" },
+  });
+
+  if (!activeTerm) {
+    return NextResponse.json(
+      {
+        error: "no_active_term",
+        message:
+          "No active AcademicTerm found for this tenant. Run `npx prisma db seed` to seed the term, or flip an existing term's isActive flag.",
+      },
+      { status: 500 },
+    );
+  }
+
   await setDemoSessionCookie({
     tenantId: userRoleRow.tenantId,
     userId: userRoleRow.user.id,
@@ -115,6 +141,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // identity-collision guard so a real future login overwrites cleanly.
     supabaseUserId:
       userRoleRow.user.supabaseUserId ?? `${DEMO_SUPABASE_PREFIX}${userRoleRow.user.id}`,
+    // Cast: DB role.code is `string` per Prisma type; the seed enforces only
+    // valid RoleCode literals (`05-system-roles.ts` SYSTEM_ROLES). The /api/_demo
+    // /login query already filtered `role.code in roleCodes` (validated against
+    // the RoleCode union in this route's request body), so the cast is sound.
+    role: userRoleRow.role.code as DemoSessionPayload["role"],
+    currentTermId: activeTerm.id,
   });
 
   return NextResponse.json({
