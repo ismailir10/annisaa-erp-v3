@@ -97,12 +97,14 @@ Plus one product-value commitment:
 │  — i18n (next-intl, ID primary, EN admin fallback)      │
 ├─────────────────────────────────────────────────────────┤
 │ Schema (Prisma + Postgres via Supabase)                 │
-│  — ~50 models, ~31 Postgres enums                       │
+│  — ~75 models, ~34 Postgres enums                       │
 │  — Multi-tenant w/ tenantId everywhere                  │
 │  — Composite FK on UserRole+Permission for tenant align │
 │  — RLS = SELECT-only; writes via service-role           │
 └─────────────────────────────────────────────────────────┘
 ```
+
+> Model count was `~50` in the original draft; per-domain expansion in §4.1 totals ~75 once Address chain + Admission/MPLS + Enrollment + Curriculum/Assessment + Raport + Finance + Payroll + Operational rows are summed. §4.1 is the canonical inventory; §3.1 stays a rough order-of-magnitude.
 
 ### 3.2 Stack decisions
 
@@ -148,12 +150,12 @@ Plus one product-value commitment:
 
 ### 4.1 Entity inventory
 
-~50 models across 8 domains:
+~75 models across 17 domain groups (`~50` in the original draft was an undercount — per-domain expansion below totals ~75; §3.1's stack diagram label was bumped accordingly):
 
 | Domain | Models |
 |---|---|
 | Tenancy | Tenant, Campus, Program, AcademicYear, AcademicTerm |
-| Identity | User, Role, Permission, UserRole |
+| Identity | User, Role, Permission, UserRole, **RolePermission** |
 | Org | Employee, EmployeeCampusAssignment |
 | Classes | ClassSection, TeachingDefault, Sentra, SentraRotation |
 | Sessions | ClassSession, SessionTeacher |
@@ -169,6 +171,12 @@ Plus one product-value commitment:
 | Payroll | SalaryComponentDef, EmployeeSalaryValue, AttendanceRecord, PayrollRun, PayrollItem, PayrollItemLine, LeaveRequest |
 | Foundation | OrgConfig, Holiday, AuditLog, TimelineEvent, FileAsset, ExportJob, EmailLog, WebhookEvent |
 | Operational journey | ParentMeeting, ParentMeetingAttendance, InvoiceReminder, EmployeeDailyCheckIn, AdmissionFile (FileAsset link), SubstituteAssignment |
+
+> **`RolePermission` reconciliation note.** Shipped in `02_identity` (`p1-identity-rls`, 2026-05-05) but absent from this table in the original draft. Added inline above. Composite FK pattern wraps `UserRole` + `RolePermission` per §6.4.
+>
+> **Pengaturan > Jam Kerja decision.** No new entity — covered by `OrgConfig` work-time fields (`workStartTime`, `workEndTime`, `gracePeriodMinutes`). v1 baseline shipped wrong defaults (07:00/16:00/15min); An Nisaa runs 07:30/17:00/N (per v1 audit §2.3 + research insights). MVP wires a dedicated **Pengaturan > Jam Kerja** UI page on top of existing `OrgConfig` fields (placement declared in §10A admin sidebar). Per-staff schedule overrides (shift rotation, per-day overrides) deferred to v1.1 (§15).
+>
+> **Yayasan reporting / Event mgmt / Referral.** No MVP entities. Yayasan: §10.1 admin "Yayasan reporting" stays "CSV export by date range" — no dashboard entity. Event mgmt (Jambore/Fest/MABIT/PHBI/Manasik), Referral / Be Our Ambassador, Lomba scoring — all deferred to v1.1 (§15). §9.3 "NEVER" list unchanged (PROMES / Modul Ajar / RAB authoring stay Drive).
 
 ### 4.2 Enums (~34 Postgres-native)
 
@@ -711,6 +719,264 @@ Subset of Walas. Penilaian Harian grid scoped to (sentra, session, kelas).
 | Kepsek | ~30% (raport approval; rest stays offline) |
 | Sentra teacher | ~50% (penilaian only) |
 
+## 10A. Information Architecture per Portal
+
+§10.1-10.6 above are task-level. This section is the **canonical sidebar grouping** every page mounts under. Three portals (admin, teacher, parent); kepsek = admin portal w/ `principal` role per §10.4 (same shell, scope-filtered).
+
+**Routing convention.** Pages live at `/<portal>/<group-slug>/<entity-slug>` for primary entity pages, `/<portal>/<group-slug>/<entity-slug>/[id]` for detail. Settings (Pengaturan) under `/<portal>/pengaturan/<entity-slug>`. Smart-View routes use `?view=<slug>` query (per §5.10 — URL state, shareable). Sidebar nav = its own cycle (`p2-portal-shell-sidebar`); scaffold pages mount under expected groups, sidebar active-state lands separately. ScaffoldListPage / ScaffoldFormPage / ScaffoldDetailPage per §5.2 — 4-line page recipe everywhere.
+
+**Read-scope notation.** Per-page `Min read` column lists role:scope tuples; multiple roles sharing a scope abbreviate (e.g. `A/P/KD: ALL`). Vocabulary defined in §10.7. Roles: `A=admin, P=principal, KD=kadiv, AO=admission_officer, FO=finance_officer, HT=homeroom_teacher, ST=sentra_teacher, PR=parent`.
+
+### 10A.1 Admin portal
+
+Lifecycle ordering: top of each group = where work starts; bottom = setup admin touches once per year (`— Konfigurasi —` subgroup at the end of Akademik / Penilaian / Keuangan). Detail-tab pattern (§5.4) absorbs workflow children — GuardianInvitation / InitialAssessment / MplsAttendance / SentraRotation / SessionTeacher / RolePermission / AcademicTerm / RaportComment all fold into parent detail, no top-level sidebar entry. Pengaturan is **strictly system config** — no domain catalogs.
+
+| Group | Page | Entity | Min read |
+|---|---|---|---|
+| **Beranda** | Dashboard | (aggregated) | A/P/KD/AO/FO: ALL |
+| **Akademik** | Pendaftaran (Admission funnel — smart views per state) | Admission · InitialAssessment (detail tab) · `source ∈ {ONLINE / WALK_IN / REFERRAL}` covers `/daftar` + buku-tamu walk-in + referral channels | A/P/KD/AO: ALL |
+| | MPLS Cohort | MplsCohort + MplsMember + MplsAttendance (inline) | A/P/KD/AO: ALL |
+| | Pendaftaran Program | StudentEnrollment | A/P/KD/AO/FO: ALL |
+| | Siswa | Student · StudentIdentifier (detail tab) | A/P/KD/AO: ALL |
+| | Wali Murid | Guardian · GuardianInvitation (action: "Kirim Undangan" + status pill) · StudentGuardian (detail tab) | A/P/KD/AO: ALL |
+| | Keluarga | Household | A/P/KD/AO/FO: ALL |
+| | Kelas | ClassSection · TeachingDefault (detail tab) · SentraRotation (detail tab) · ClassSession + SessionTeacher (detail tab) | A/P/KD: ALL |
+| | Pertemuan Ortu | ParentMeeting + ParentMeetingAttendance (inline) | A/P/KD: ALL |
+| | — Konfigurasi Akademik — | | |
+| | Tahun Akademik | AcademicYear + AcademicTerm (inline) | A/P: ALL |
+| | Program | Program (catalog) | A/P: ALL |
+| | Sentra | Sentra (catalog) | A/P: ALL |
+| **Penilaian** | Penilaian Harian (admin aggregate) | PenilaianHarian (read-only aggregate) | A/P/KD: ALL |
+| | Hafalan (admin aggregate) | HafalanProgress (read-only aggregate) | A/P/KD: ALL |
+| | Raport | Raport + RaportComment (inline) | A/P/KD: ALL |
+| | — Konfigurasi Penilaian — | | |
+| | Skala Penilaian | ScoringScale (catalog) | A/P: ALL |
+| | Indikator Kurikulum | CurriculumIndicator (catalog) | A/P: ALL |
+| | Item Hafalan | HafalanItem (catalog) | A/P: ALL |
+| | Template Raport | RaportSectionTemplate (catalog) | A/P: ALL |
+| **Keuangan** | Tagihan | Invoice | A/P/KD/FO: ALL |
+| | Pembayaran | Payment | A/P/KD/FO: ALL |
+| | Tunggakan (smart view) | Invoice (`view=overdue+expired`) | A/P/KD/FO: ALL |
+| | Reminder Tagihan | InvoiceReminder | A/P/KD/FO: ALL |
+| | — Konfigurasi Biaya — | | |
+| | Komponen Biaya | FeeComponentDef (catalog) | A/P/FO: ALL |
+| | Struktur Biaya per Program | ProgramFeeStructure | A/P/FO: ALL |
+| | Skema Cicilan | FeeInstallmentScheme | A/P/FO: ALL |
+| | Aturan Diskon Saudara | SiblingDiscountRule | A/P/FO: ALL |
+| **HR** | Akun Saya | Employee + LeaveRequest + AttendanceRecord + slip (SELF for any role w/ Employee record) | A/P/KD/HT/ST/AO/FO: SELF |
+| | Karyawan | Employee + EmployeeCampusAssignment (inline) | A/P: ALL · KD: OWN_CAMPUS · FO: ALL |
+| | Daily Check-in | EmployeeDailyCheckIn | A/P/FO: ALL · KD: OWN_CAMPUS |
+| | Absen Karyawan | AttendanceRecord (aggregate) | A/P/FO: ALL · KD: OWN_CAMPUS |
+| | Cuti Karyawan | LeaveRequest | A/P/FO: ALL · KD: OWN_CAMPUS |
+| | Substitute Assignment | SubstituteAssignment | A/P/KD: ALL |
+| | — Penggajian (subgroup, hidden from `principal`) — | | |
+| | Penggajian | PayrollRun + PayrollItem + PayrollItemLine (inline) | A/FO: ALL · KD: OWN_CAMPUS |
+| | Komponen Gaji | SalaryComponentDef (catalog) | A/FO: ALL · KD: OWN_CAMPUS |
+| | Nilai Gaji per Karyawan | EmployeeSalaryValue | A/FO: ALL · KD: OWN_CAMPUS |
+| **Berkas** | Lampiran | FileAsset | A/P/KD/AO: ALL |
+| | Job Ekspor | ExportJob | A/P/KD/AO/FO: ALL |
+| | Email Log | EmailLog | A/P/FO: ALL |
+| | Webhook | WebhookEvent | A/P/FO: ALL |
+| **Audit** | Audit Log | AuditLog | A/P: ALL |
+| | Timeline Events | TimelineEvent | A/P/KD: ALL |
+| **Pengaturan** | Profil Sekolah | OrgConfig + Tenant | A/P: ALL |
+| | Jam Kerja | OrgConfig (work-time fields) | A/P: ALL |
+| | Kampus | Campus | A/P: ALL |
+| | Hari Libur | Holiday | A/P: ALL |
+| | Pengguna | User + UserRole (inline) | A/P: ALL |
+| | Peran | Role + RolePermission (inline) | A/P: ALL |
+| | Izin | Permission (catalog, read-only) | A/P: ALL |
+| | Wilayah | Province/Regency/District/Village (read-only ~91k rows) | A/P/KD/AO/FO/HT/ST/PR: ALL |
+
+### 10A.2 Teacher portal
+
+Lifecycle ordering: today → context → input → period output → communication → self.
+
+| Group | Page | Entity | Min read |
+|---|---|---|---|
+| **Beranda** | Dashboard | (aggregated: today's sessions, pending raport, daily check-in nudge) | HT/ST: SELF |
+| **Kelas** | Sesi Hari Ini | ClassSession (filter: today + role-scoped) | HT: OWN_CLASS · ST: OWN_SESSION |
+| | Daftar Kelas | ClassSection (own assignments) | HT/ST: OWN_CLASS |
+| | Roster | Student (via own ClassSection) | HT/ST: OWN_CLASS |
+| | Absensi Kelas | StudentAttendance (tap-grid) | HT: OWN_CLASS · ST: OWN_SESSION |
+| **Penilaian** | Penilaian Harian per Sentra | PenilaianHarian (SM/BM grid) | HT/ST: OWN_CLASS |
+| | Hafalan | HafalanProgress (acquire-mark) | HT/ST: OWN_CLASS |
+| | Raport | Raport (DRAFT/IN_REVIEW for own walas-class) | HT: OWN_CLASS |
+| **Penghubung** | Buku Penghubung | TimelineEvent + journal notes (single timeline) | HT: OWN_CLASS |
+| **Akun** | Daily Check-in | EmployeeDailyCheckIn | HT/ST: SELF |
+| | Profil | Employee | HT/ST: SELF |
+| | Cuti | LeaveRequest | HT/ST: SELF |
+| | Slip Gaji | PayrollItem + PayrollItemLine (own months) | HT/ST: SELF |
+
+### 10A.3 Parent portal
+
+Lifecycle ordering: child first (research-backed: child status checked daily, billing monthly), money second, self last. Onboarding Checklist auto-hides on Beranda once 100% complete.
+
+| Group | Page | Entity | Min read |
+|---|---|---|---|
+| **Beranda** | Dashboard | (aggregated: Hijri greeting + kid card + unpaid invoice + journal excerpt + onboarding nudge if incomplete) | PR: OWN_HOUSEHOLD |
+| **Akademik** | Anak Saya | Student (roster card) | PR: OWN_STUDENT |
+| | Absen Anak | StudentAttendance (monthly) | PR: OWN_STUDENT |
+| | Penghubung | TimelineEvent + journal notes | PR: OWN_STUDENT |
+| | Hafalan | HafalanProgress (read-only) | PR: OWN_STUDENT |
+| | Raport | Raport (PUBLISHED only) + RaportComment (own comment write) | PR: OWN_STUDENT (PUBLISHED) |
+| **Tagihan** | Tagihan | Invoice | PR: OWN_STUDENT |
+| | Pembayaran (riwayat) | Payment | PR: OWN_STUDENT |
+| **Akun** | Profil | Guardian | PR: SELF |
+| | Onboarding Checklist | (aggregated: Student + Guardian + AdmissionFile completeness — auto-hides at 100%) | PR: OWN_STUDENT |
+
+### 10A.4 IA notes
+
+- **Pengaturan = system config only.** Domain catalogs (Tahun Akademik / Program / Sentra / ScoringScale / CurriculumIndicator / HafalanItem / RaportSectionTemplate / FeeComponentDef / ProgramFeeStructure / FeeInstallmentScheme / SiblingDiscountRule / SalaryComponentDef / EmployeeSalaryValue) live INSIDE the modules they configure (`Akademik` / `Penilaian` / `Keuangan` / `HR > Penggajian`). Pengaturan retains only profile, work-time, location, calendar, RBAC, region master.
+- **Lifecycle ordering within each group.** Top of group = where work starts (Pendaftaran → MPLS → Enrollment → Siswa). Bottom = `— Konfigurasi —` subgroup admin touches once per year. Same pattern across portals.
+- **Kepsek = admin portal w/ `principal` role.** No separate sidebar shell. `principal` co-listed with `admin` in nearly every read tuple (per current `lib/entities/*/policy.ts`). Approval-only screens (raport sign-off) live inline on the relevant detail page.
+- **Payroll subgroup hidden from `principal`.** HR > Penggajian (PayrollRun + Komponen Gaji + Nilai Gaji per Karyawan) gated to `A/FO/KD` only. `principal` sees HR roster + attendance + leave but no salary data — kepsek discipline. Own slip available via `Akun Saya` (SELF). Matrix §10.7.1 reflects: P drops to `—` on PayrollRun / SalaryComponentDef and to SELF on PayrollItem / PayrollItemLine / EmployeeSalaryValue.
+- **Akun Saya pattern.** Top of HR group for any role w/ Employee record (admin / principal / kadiv / homeroom / sentra / admission / finance). Aggregates Employee profile + LeaveRequest + AttendanceRecord + slip — all SELF-scoped. Same pattern as Teacher portal Akun group.
+- **Single Pendaftaran page per portal.** Admission funnel uses smart views (§5.10) per state — `view=calon` (INQUIRY/VISITED/FORM_SUBMITTED), `view=review` (UNDER_REVIEW/REVISION_REQUESTED), `view=approved` (APPROVED/INVOICE_SENT), `view=paid` (PAID/PROMOTED), `view=portal` (AWAITING_MPLS/PORTAL_ACTIVE), `view=drop` (DROPPED/AUTO_DROPPED). Source channels (`/daftar` ONLINE / buku-tamu WALK_IN / REFERRAL) all create Admission rows on the same page; `Admission.source` distinguishes channel. No separate "Calon Siswa" sidebar entry.
+- **Detail-tab pattern (§5.4) absorbs workflow children.** GuardianInvitation inline on Guardian (action button + status pill); InitialAssessment inline on Admission detail tab; MplsAttendance inline on MplsCohort; SentraRotation + TeachingDefault + ClassSession inline on ClassSection; SessionTeacher inline on ClassSession; RolePermission inline on Role; UserRole inline on User; AcademicTerm inline on AcademicYear; RaportComment inline on Raport; ParentMeetingAttendance inline on ParentMeeting; PayrollItem + PayrollItemLine inline on PayrollRun; StudentIdentifier + StudentGuardian inline on Student. None get top-level sidebar entries.
+- **`finance_officer` cross-domain reads** locked here for back-reference. FO reads: Household (sibling discounts) · Student (invoice context — drift #1) · Guardian (wa.me target — drift #2) · Invoice/Payment/InvoiceReminder · Email/Webhook · payroll · HR roster. FO does NOT read academic entities (PenilaianHarian / Hafalan / Raport / ClassSession / StudentAttendance) — pedagogy never reaches finance per audit-PII discipline.
+- **Settings (Pengaturan) writes admin-only.** `A/P` only on every Pengaturan page. `KD` reads where granted but no edits. RBAC catalog (Role / Permission / RolePermission / UserRole) writes admin-only by convention.
+- **`PR: OWN_HOUSEHOLD` on Household resolves dashboard-aggregation only — no parent Household page.** §10.7.1 grants parent OWN_HOUSEHOLD read on Household so the parent Beranda dashboard can aggregate sibling-discount rendering, unpaid-invoice grouping, and journal-excerpt sourcing across all kids in the household via a single household-keyed query. No standalone Household page exists in the parent portal sidebar (§10A.3) — Household is a join aggregator, not a browse target. Future v1.1 may surface a `/parent/keluarga` overview if data justifies it; MVP keeps it dashboard-only.
+
+## 10.7 Role × Entity scope matrix
+
+Canonical scope vocabulary used across `lib/entities/*/policy.ts` and §10A:
+
+| Code | Meaning |
+|---|---|
+| `ALL` | Unrestricted within tenant |
+| `OWN_CAMPUS` | Filter by `Employee.campusId` (or `EmployeeCampusAssignment` for cross-campus) |
+| `OWN_PROGRAM` | Filter by `Employee` → `TeachingDefault.programId` |
+| `OWN_CLASS` | Filter by `ClassSection` where teacher = HOMEROOM/SENTRA/ASSISTANT (`TeachingDefault`) or SUBSTITUTE for the date |
+| `OWN_SESSION` | Filter by `ClassSession` where teacher in `SessionTeacher` for the date |
+| `OWN_STUDENT` | Filter by `Student` where guardian links via `StudentGuardian` |
+| `OWN_HOUSEHOLD` | Filter by `Household` where `Guardian.householdId = SELF.householdId` |
+| `SELF` | Row keyed to self (`Employee.userId = SELF` / `Guardian.userId = SELF`) |
+| `—` | No read |
+
+Roles (per `06-permissions.ts` seed, §6.2):
+`A=admin, P=principal, KD=kadiv, HT=homeroom_teacher, ST=sentra_teacher, AO=admission_officer, FO=finance_officer, PR=parent`.
+
+### 10.7.1 Read-scope matrix
+
+Default action = read. Write deltas in §10.7.2.
+
+| Entity | A | P | KD | HT | ST | AO | FO | PR |
+|---|---|---|---|---|---|---|---|---|
+| **— Tenancy / Settings —** | | | | | | | | |
+| Tenant | SELF | — | — | — | — | — | — | — |
+| Campus | ALL | ALL | ALL | OWN_CAMPUS | OWN_CAMPUS | ALL | ALL | OWN_STUDENT.campus |
+| Program | ALL | ALL | ALL | ALL | ALL | ALL | ALL | OWN_STUDENT.program |
+| AcademicYear | ALL | ALL | ALL | ALL | ALL | ALL | ALL | ALL |
+| AcademicTerm | ALL | ALL | ALL | ALL | ALL | ALL | ALL | ALL |
+| OrgConfig | ALL | ALL | — | — | — | — | — | — |
+| Holiday | ALL | ALL | ALL | ALL | ALL | ALL | ALL | ALL |
+| Sentra | ALL | ALL | ALL | ALL | ALL | ALL | — | ALL |
+| **— Identity —** | | | | | | | | |
+| User | ALL | ALL | OWN_CAMPUS | SELF | SELF | SELF | SELF | SELF |
+| Role | ALL | ALL | — | — | — | — | — | — |
+| Permission | ALL | ALL | — | — | — | — | — | — |
+| RolePermission | ALL | ALL | — | — | — | — | — | — |
+| UserRole | ALL | ALL | OWN_CAMPUS | — | — | — | — | — |
+| **— People —** | | | | | | | | |
+| Student | ALL | ALL | ALL | OWN_CLASS | OWN_CLASS | ALL | ALL | OWN_STUDENT |
+| Household | ALL | ALL | ALL | — | — | ALL | ALL | OWN_HOUSEHOLD |
+| Guardian | ALL | ALL | ALL | — | — | ALL | ALL | SELF |
+| StudentGuardian | ALL | ALL | ALL | OWN_CLASS | — | ALL | ALL | OWN_STUDENT |
+| StudentIdentifier | ALL | ALL | ALL | OWN_CLASS | — | ALL | — | OWN_STUDENT |
+| GuardianInvitation | ALL | ALL | ALL | — | — | ALL | — | — |
+| **— HR —** | | | | | | | | |
+| Employee | ALL | ALL | OWN_CAMPUS | — | — | — | ALL | — |
+| EmployeeCampusAssignment | ALL | ALL | OWN_CAMPUS | — | — | — | — | — |
+| AttendanceRecord | ALL | ALL | OWN_CAMPUS | SELF | SELF | — | ALL | — |
+| EmployeeDailyCheckIn | ALL | ALL | OWN_CAMPUS | SELF | SELF | — | ALL | — |
+| LeaveRequest | ALL | ALL | OWN_CAMPUS | SELF | SELF | — | ALL | — |
+| SubstituteAssignment | ALL | ALL | ALL | OWN_CLASS | — | — | — | — |
+| **— Classes / Sessions —** | | | | | | | | |
+| ClassSection | ALL | ALL | ALL | OWN_CLASS | OWN_CLASS | — | — | OWN_STUDENT |
+| ClassSession | ALL | ALL | ALL | OWN_CLASS | OWN_SESSION | — | — | OWN_STUDENT |
+| SessionTeacher | ALL | ALL | ALL | OWN_CLASS | OWN_SESSION | — | — | — |
+| TeachingDefault | ALL | ALL | ALL | SELF | SELF | — | — | — |
+| SentraRotation | ALL | ALL | ALL | OWN_CLASS | OWN_CLASS | — | — | OWN_STUDENT |
+| **— Admission / MPLS —** | | | | | | | | |
+| Admission | ALL | ALL | ALL | — | — | ALL | ALL | OWN_STUDENT |
+| InitialAssessment | ALL | ALL | ALL | — | — | ALL | — | OWN_STUDENT |
+| MplsCohort | ALL | ALL | ALL | OWN_CLASS | — | ALL | — | — |
+| MplsMember | ALL | ALL | ALL | OWN_CLASS | — | ALL | — | OWN_STUDENT |
+| MplsAttendance | ALL | ALL | ALL | OWN_CLASS | — | ALL | — | OWN_STUDENT |
+| **— Enrollment / Attendance —** | | | | | | | | |
+| StudentEnrollment | ALL | ALL | ALL | OWN_CLASS | — | ALL | ALL | OWN_STUDENT |
+| StudentAttendance | ALL | ALL | ALL | OWN_CLASS | OWN_SESSION | ALL | — | OWN_STUDENT |
+| **— Curriculum catalogs —** | | | | | | | | |
+| ScoringScale | ALL | ALL | ALL | ALL | ALL | — | — | — |
+| CurriculumIndicator | ALL | ALL | ALL | ALL | ALL | — | — | — |
+| HafalanItem | ALL | ALL | ALL | ALL | ALL | — | — | ALL |
+| RaportSectionTemplate | ALL | ALL | ALL | ALL | ALL | — | — | — |
+| **— Assessment / Hafalan —** | | | | | | | | |
+| PenilaianHarian | ALL | ALL | ALL | OWN_CLASS | OWN_CLASS | — | — | OWN_STUDENT |
+| HafalanProgress | ALL | ALL | ALL | OWN_CLASS | OWN_CLASS | — | — | OWN_STUDENT |
+| **— Raport —** | | | | | | | | |
+| Raport | ALL | ALL | ALL | OWN_CLASS | — | — | — | OWN_STUDENT (PUBLISHED) |
+| RaportComment | ALL | ALL | ALL | OWN_CLASS | — | — | — | OWN_STUDENT (PUBLISHED) |
+| **— Finance —** | | | | | | | | |
+| FeeComponentDef | ALL | ALL | ALL | — | — | ALL | ALL | — |
+| ProgramFeeStructure | ALL | ALL | ALL | — | — | ALL | ALL | — |
+| FeeInstallmentScheme | ALL | ALL | ALL | — | — | ALL | ALL | — |
+| SiblingDiscountRule | ALL | ALL | ALL | — | — | ALL | ALL | — |
+| InvoiceNumberSequence | ALL | ALL | ALL | — | — | ALL | ALL | — |
+| StudentIdentifierSequence | ALL | ALL | ALL | — | — | ALL | — | — |
+| Invoice | ALL | ALL | ALL | — | — | ALL | ALL | OWN_STUDENT |
+| Payment | ALL | ALL | ALL | — | — | ALL | ALL | OWN_STUDENT |
+| InvoiceReminder | ALL | ALL | ALL | — | — | ALL | ALL | OWN_STUDENT |
+| **— Payroll —** (kepsek lockdown — `P` drops to `—` / SELF) | | | | | | | | |
+| SalaryComponentDef | ALL | — | OWN_CAMPUS | — | — | — | ALL | — |
+| EmployeeSalaryValue | ALL | SELF | OWN_CAMPUS | SELF | SELF | — | ALL | — |
+| PayrollRun | ALL | — | OWN_CAMPUS | — | — | — | ALL | — |
+| PayrollItem | ALL | SELF | OWN_CAMPUS | SELF | SELF | — | ALL | — |
+| PayrollItemLine | ALL | SELF | OWN_CAMPUS | SELF | SELF | — | ALL | — |
+| **— Operational —** | | | | | | | | |
+| ParentMeeting | ALL | ALL | ALL | ALL | — | ALL | — | OWN_STUDENT |
+| ParentMeetingAttendance | ALL | ALL | ALL | OWN_CLASS | — | ALL | — | OWN_STUDENT |
+| AdmissionFile | ALL | ALL | ALL | — | — | ALL | — | OWN_STUDENT |
+| **— Foundation —** | | | | | | | | |
+| TimelineEvent | ALL | ALL | ALL | OWN_CLASS | OWN_CLASS | ALL | — | OWN_STUDENT |
+| FileAsset | ALL | ALL | ALL | OWN_CLASS | OWN_CLASS | ALL | — | OWN_STUDENT (raport_pdf only) |
+| AuditLog | ALL | ALL | ALL | — | — | — | — | — |
+| ExportJob | ALL | ALL | ALL | — | — | ALL | ALL | — |
+| EmailLog | ALL | ALL | ALL | — | — | ALL | ALL | — |
+| WebhookEvent | ALL | ALL | ALL | — | — | — | ALL | — |
+| **— Regions (public-read) —** | | | | | | | | |
+| Province / Regency / District / Village | ALL | ALL | ALL | ALL | ALL | ALL | ALL | ALL |
+
+### 10.7.2 Write-action deltas (create / update / soft_delete / restore)
+
+Default: a role with read scope `S` on entity `E` can create / update at the same scope `S` if `E` is admin-editable. Exceptions:
+
+| Action class | Rule |
+|---|---|
+| `create` / `update` on people-entities (Student, Guardian, Household, StudentGuardian, StudentIdentifier, GuardianInvitation) | `A/P/KD/AO: ALL`. `HT: OWN_CLASS update` (limited fields per existing policy). PR: SELF on Guardian profile only; no other writes. |
+| `create` / `update` on academic catalogs (ScoringScale / CurriculumIndicator / HafalanItem / RaportSectionTemplate / Sentra) | `A/P: ALL` only. Teachers read-only — catalogs are admin-curated. |
+| `create` / `update` on PenilaianHarian / HafalanProgress / StudentAttendance | `HT: OWN_CLASS · ST: OWN_CLASS (PenilaianHarian/HafalanProgress) or OWN_SESSION (StudentAttendance)`. Admin write override allowed for corrections. |
+| `create` / `update` on Raport | `HT: OWN_CLASS` create + edit DRAFT/IN_REVIEW. `P: ALL` review/publish transition. Parent: comment-only write on PUBLISHED. |
+| `create` / `update` on Invoice / Payment / InvoiceReminder | `A/P/FO: ALL`. AO: ALL on Admission-stage invoice (initial fees). HT/ST/PR: read-only. |
+| `create` / `update` on payroll (PayrollRun / PayrollItem / EmployeeSalaryValue) | `A/P/FO: ALL` write; `KD: OWN_CAMPUS` read-only review; HT/ST: SELF read on slip. |
+| `create` / `update` on Pengaturan group | `A/P: ALL` only (per §10A.4). KD/AO/FO read where matrix grants but no edits. |
+| `soft_delete` / `restore` on any soft-deletable entity | `A/P: ALL` only (current policy.ts convention; preserves audit trail discipline). |
+| `AuditLog` writes | **Never user-writable.** Append-only via `writeAuditLog` middleware (§4.4 + `audit-pii.md`). Trigger raises P0001 on UPDATE/DELETE for all roles incl. service-role. |
+| `TimelineEvent` writes | **Never user-writable.** Emitted via `emitTimelineEvent` middleware (`timeline.md`). Audit→timeline bridge maps SOFT_DELETE/RESTORE automatically. |
+| `FileAsset` writes | Created via `/api/upload` route (`storage.md`); status transitions `PENDING_UPLOAD → ACTIVE → FAILED/ORPHANED` system-driven. User write = upload + soft_delete only. |
+
+### 10.7.3 Drift surfaced vs already-shipped policy.ts (5 entities)
+
+This matrix is the **canonical source for every future `lib/entities/*/policy.ts`**. The 5 entity registries shipped in `p2-scaffold-registries` (2026-05-06) diverge from the matrix in three places — all flagged here for fix in the next cycle that touches the relevant policy file. **No fix in this cycle** (doc-only). Drift inventory:
+
+1. **`Student.read`** policy currently lacks `finance_officer: ALL`. Matrix wants it (FO needs Student.firstName/lastName for invoice context + wa.me deep link). Fix lands in `p3-fee-foundation` when finance reads first cross-domain.
+2. **`Guardian.read`** policy currently lacks `finance_officer: ALL`. Matrix wants it (FO sends wa.me reminders to guardian phone). Same cycle as drift #1.
+3. **`GuardianInvitation.read`** policy currently grants `parent: OWN_STUDENT`. Matrix removes parent read entirely (post-activation parents have no need to read pending invitations; pre-activation parents access via token URL, not through portal). Fix lands in next entity audit cycle (low priority — no surface mounts the page yet).
+4. **`Guardian.read` `HT: OWN_CLASS`** — matrix grants homeroom_teacher OWN_CLASS read on Guardian, but `lib/entities/guardian/policy.ts` omits homeroom_teacher entirely (admin/principal/kadiv/admission_officer/parent only). Resolution: **matrix is too broad**; teachers reach guardian context via Student detail's Wali tab (§5.4 detail anatomy + detail-tab pattern in §10A.4), not a direct Guardian list page. Teacher portal has no Guardian sidebar entry per §10A.2. Fix is to **drop HT from matrix Guardian row** in this cycle (matrix-side correction since policy.ts is the conservative source) — tracked here so the §10.7.1 Guardian row read `A/P/KD: ALL · AO: ALL · FO: ALL · PR: SELF` (no HT cell). Already corrected inline in §10.7.1 above.
+
+Drift items that are **policy.ts correct and matrix wrong** (drift #4 above is the first instance). When future cycles hit such a case, update this matrix in the same PR — drift in either direction is a bug.
+
 ## 11. Sprint Plan — 8 weeks (honest)
 
 Reviewer flagged 7-week plan = actually 8.5-9 weeks of work. Committing to 8 weeks honest. Phase 0 hard-delete folded into W1 day 1. Buffer week real, not optimistic.
@@ -790,6 +1056,8 @@ Phase 2 enables:
 - Yearbook auto-compile per kelas per year
 
 Phase 3+ (multi-tenant, alumni tracking, public APIs).
+
+> **Pengaturan > Jam Kerja v1.1 extension.** MVP wires a single `OrgConfig`-backed page (work-time fields per §4.1 reconciliation footnote). v1.1 extends with admin-extensible per-staff schedule (shift rotation, per-day overrides, per-campus working days, holiday calendar integration deeper than the current `Holiday` join). Yayasan reporting dashboard, Events module, Referral / Be Our Ambassador all remain v1.1 — no MVP entities; CSV export covers admin-side yayasan reporting per §10.1.
 
 ## 16. Operations
 
@@ -993,13 +1261,22 @@ Original plan was 7 cycles; the `p1-audit-timeline-files` and `p1-scaffold-engin
 
 Deliverable end-W1: foundation green, scaffold-check passes, dev server boots, anonymous user blocked, authenticated user sees empty admin shell. **Status:** 9/10 shipped; awaiting `p1-auth-google-oauth` to close the auth surface.
 
-#### Phase 2 — Admin core: people + admission (W2, ~5 cycles)
+#### Phase 2 — Admin core: people + admission (W2, ~9 cycles — 3 shipped, 6 pending)
 
-- `p2-students-guardians-household` — migrations 07-08 + seeds 13 (employees) + per-entity registry (Student, Guardian, Household, StudentIdentifier, GuardianInvitation) + scaffold pages + composite admission slots
-- `p2-addresses-idn-chain` — migration 10 (Address chain referencing Province/Regency/District/Village seeded earlier) + cascading dropdown UI
-- `p2-admission-funnel` — migration 11 (Admission, InitialAssessment, MplsCohort, MplsMember, MplsAttendance) + workflow state machine (states + transitions code) + public form `/daftar` + sibling auto-detect + admin review screen
-- `p2-mpls-placement` — drag-drop placement screen + capacity warn + cohort generation
-- `p2-classes-management` — admin pages for ClassSection, TeachingDefault, SentraRotation w/ scaffold
+Original plan was 5 cycles. Phase 2 grew +4 from 5 → 9 because: (a) `p2-students-guardians-household` hit the §18.2 cap and split into people-tier + guardian-tier (`p2-guardians`); (b) `p2-scaffold-registries` was added as a new lib/entities ratchet cycle (not in original §18.1) when the entity-registry pattern locked from `p1-scaffold-engine-skeleton` needed a dedicated cycle to seed 5 entity registries before scaffold pages mount; (c) `p2-scaffold-pages` was paused mid-/spec for the IA contract this rethink (`spec-rebuild-foundation-rethink`, 2026-05-07) lands; (d) `p2-portal-shell-sidebar` and `p2-scaffold-canary` are new cycles separating sidebar-nav-and-shell concerns from bulk page mounts. Same split-driven-by-cap pattern as Phase 1 (`spec-sync-phase-1-actual`, PR #189).
+
+- [x] `p2-students-guardians-household` (2026-05-06) — migration 07 (Household, Student, StudentIdentifier, StudentIdentifierSequence) + RLS + storage.objects policies + rate limiting. Guardian cluster split into next cycle per §18.2 cap.
+- [x] `p2-guardians` (2026-05-06) — migration 08 (Guardian, StudentGuardian, GuardianInvitation) + RLS (6 policies) + composite FK pattern w/ `ON DELETE SET NULL` (Postgres 15.4+) + partial unique on StudentGuardian primary; split from `p2-students-guardians-household` per §18.2 cap.
+- [x] `p2-scaffold-registries` (2026-05-06) — 5 entity registries (`student`, `guardian`, `household`, `student-identifier`, `guardian-invitation`) under `lib/entities/*` + entity default-export pattern (4-line page recipe per §5.2) + barrel-import for introspection + consumer pattern sketched (SessionContext widening, fail-closed wrapper, server-action layer). Drift #1-#3 surfaced (FO missing from Student/Guardian read; PR over-broad on GuardianInvitation read) — fix lands in `p3-fee-foundation` + future audit cleanup. **Not in original §18.1**; added as ratchet cycle when entity-registry pattern needed seed-coverage before scaffold pages mount.
+- [x] `spec-rebuild-foundation-rethink` (2026-05-07) — doc-only foundation md edits: §10A IA per portal (admin/teacher/parent, lifecycle ordering, Pengaturan-as-system-config), §10.7 role × entity scope matrix (canonical source for future policy.ts), §4.1 reconciliation (`RolePermission` added, Jam Kerja decision, Yayasan/Events/Referral re-confirmed v1.1), §18.1 Phase 2 refresh (this section), §15 v1.1 footnote.
+- [ ] `p2-scaffold-canary` — canary-test scaffold output on 1 entity end-to-end before bulk pages. Validates ScaffoldListPage + ScaffoldFormPage + ScaffoldDetailPage rendering against `lib/entities/student/*` + an admin page mount + Playwright visual diff. Locks the renderer-and-policy round-trip before `p2-scaffold-pages` bulk-mounts.
+- [ ] `p2-portal-shell-sidebar` — admin / teacher / parent portal shells: sidebar nav per §10A IA (lifecycle-ordered groups + active-state), header, breadcrumbs, role-gated visibility (e.g. payroll subgroup hidden from `principal`). Owns the IA contract from §10A. Mounts before `p2-scaffold-pages` so pages drop into expected groups.
+- [ ] `p2-addresses-idn-chain` — migration 10 (Address chain referencing 09_regions PKs, deferred from p1-regions-seed) + cascading dropdown UI. Independent of scaffold pages — can land in parallel.
+- [ ] `p2-admission-funnel` — migration 11 (Admission, InitialAssessment, MplsCohort, MplsMember, MplsAttendance) + workflow state machine (states + transitions code) + public form `/daftar` + sibling auto-detect + admin review screen. Includes `Admission.source ∈ {ONLINE / WALK_IN / REFERRAL}` per §10A.4.
+- [ ] `p2-classes-management` — admin pages for ClassSection w/ TeachingDefault + SentraRotation + ClassSession all as detail tabs (§10A.4 detail-tab pattern). Replaces original "Penugasan Walas + Sentra" + "Jadwal Sentra" + "Sesi Kelas" sidebar entries with a single Kelas page.
+- [ ] `p2-scaffold-pages` — bulk-mount admin entity pages under expected sidebar groups per §10A.1. List + Form + Detail per entity. Smart views per §5.10 declared in `entity.ts`. Depends on `p2-scaffold-canary` (renderer validated) + `p2-portal-shell-sidebar` (groups exist) + `p2-admission-funnel` + `p2-classes-management` (entity backings present).
+
+Cycle order: `p2-scaffold-canary` → `p2-portal-shell-sidebar` → `p2-addresses-idn-chain` (parallel-safe) → `p2-admission-funnel` → `p2-classes-management` → `p2-scaffold-pages`. **Status:** 3/9 shipped; foundation rethink (4/9) + 5 entity/scaffold cycles pending.
 
 #### Phase 3 — Admin finance + import (W3-3.5, ~5 cycles)
 
