@@ -8,6 +8,7 @@ export { ScaffoldDetailPage, ScaffoldDetailPageLoading } from "./detail-page";
 export { ScaffoldErrorState } from "./error-state";
 export { OwnStudentUnresolvedError } from "./errors";
 export { defineAction } from "./action";
+export { assertScope, type ActionResult } from "./server-action";
 export { fmt, type Fmt } from "./format";
 export {
   resolvePermissions,

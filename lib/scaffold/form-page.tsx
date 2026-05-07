@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 
 import type { EntityDef, FieldDef } from "./entity";
 import { ScaffoldErrorState } from "./error-state";
+import type { ActionResult } from "./server-action";
 import {
   getRenderer,
   MissingRendererError,
@@ -42,8 +43,15 @@ export type ScaffoldFormPageProps<T extends FieldValues> = {
   breadcrumbs?: ReadonlyArray<{ label: string; href?: string }>;
   /** "Tambah" / "Ubah" — drives header label. Default: "Tambah". */
   mode?: "create" | "edit";
-  /** Form submit handler. Caller owns server-action invocation + audit. */
-  onSubmit: (values: T) => Promise<void> | void;
+  /**
+   * Server-action submit handler. Pass the imported `"use server"` action
+   * directly (e.g. `onSubmit={createStudent}`) — Next.js App Router only
+   * serialises server actions across the RSC → Client Component boundary.
+   * Inline closures wrapping a server action are NOT serialisable and break
+   * at build time. Returns `ActionResult<unknown>`; the form reads `result.ok`
+   * and surfaces `result.error` via the inline error state on `false`.
+   */
+  onSubmit: (values: T) => Promise<ActionResult<unknown>>;
   cancelHref?: string;
 };
 
@@ -61,8 +69,17 @@ export function ScaffoldFormPage<T extends FieldValues>({
   const handleSubmit = form.handleSubmit(async (values) => {
     setSubmitError(null);
     try {
-      await onSubmit(values);
+      const result = await onSubmit(values);
+      if (!result.ok) {
+        // Server-action failure surfaces as inline error. ActionResult.error
+        // is the contract per `lib/scaffold/server-action.ts`. The optional
+        // `field` is forwarded to RHF in a future cycle (per-field validation
+        // surface); currently rendered via the page-level ScaffoldErrorState.
+        setSubmitError(new Error(result.error));
+      }
     } catch (e) {
+      // Network failure / unexpected throw — server actions normally return
+      // ActionResult, so reaching this branch indicates infra-level error.
       setSubmitError(e instanceof Error ? e : new Error(String(e)));
     }
   });
