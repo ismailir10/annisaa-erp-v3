@@ -174,6 +174,11 @@ Print (don't execute — just remind the user):
 - [ ] Wait for all four CI checks green via `gh pr checks <number> --watch`, then run `gh pr merge <number> --squash --delete-branch` yourself
 - [ ] Once merged, check the Vercel preview deploy on staging succeeded
 - [ ] Smoke-test the feature on the preview URL (follow `## Ship Notes` instructions)
+- [ ] **Update `## 18A. Phase Status` ledger** in `docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md`. Match the cycle by exact-string equality on the `Slug` column (case-sensitive, no whitespace tolerance):
+  - If a row exists with `status=shipped` for this slug → no-op (already rowed). Print `"already rowed — no-op"` and skip.
+  - If a row exists with `status=next` for this slug → **UPDATE that row in-place**: fill `Merged` (today's `YYYY-MM-DD`), `PR` (`#<number>` from the PR URL), `Tip Commit` (squash commit short-sha — first 7 chars of the merge commit), `Status` (`shipped`). Do NOT append a new row.
+  - If no row exists for this slug → **APPEND a new shipped row** at the bottom of the table.
+  - Stage in a follow-up `chore(spec): update §18A row for <slug>` commit OR fold into the next cycle's first commit. The §18A ledger is the canonical ship-state surface (per CLAUDE.md Documentation Maintenance authority split); without this update, future `/spec` ground-truth checks see a stale ledger and may draft against a stale staging tip.
 - [ ] Reclaim disk + reduce next-session noise: `bash scripts/cleanup-merged.sh --yes` from the main checkout. Removes the worktree + local branch for any feat/* PR that was squash-merged. SessionStart already prints the same candidates in `--report` mode on every new session.
 - [ ] Staging → main promotion is a separate `/ship --to-main` call, CTO-initiated
 

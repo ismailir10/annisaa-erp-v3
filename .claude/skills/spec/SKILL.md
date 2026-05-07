@@ -44,7 +44,14 @@ Run these checks first. If any fails, stop and surface the error.
      Print: *"Created feat/<slug> from origin/staging."* Then proceed.
    - **Already on `feat/*`:** run `git fetch origin staging` and `git rev-list --count $(git merge-base HEAD origin/staging)..origin/staging`. If the count is >5, stop and print: *"feat/<slug> is behind origin/staging by <N> commits. Rebase before continuing: `git fetch origin staging && git rebase origin/staging`."* The user must resolve before `/spec` proceeds. Otherwise proceed silently.
    - **On any other branch:** warn the user and ask whether to continue or switch.
-5. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
+5. **Ground-truth check.** Read the foundation md `## 18A. Phase Status` table at `docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md`. If the user's requested cycle slug already appears with `status=shipped`:
+   - **PAUSE** — do not write the cycle doc yet.
+   - Surface the matched row to the user (cite Phase / Slug / Merged / PR / Tip Commit verbatim).
+   - Use `AskUserQuestion` to ask: *"Slug `<slug>` already shipped at PR `<#PR>` (`<sha>`, merged `<date>`). Is this a follow-up cycle (rename to `<slug>-followup` or `<slug>-v2`)? Or did you want me to proceed with a different slug?"*
+   - After the user confirms a disambiguated slug, proceed normally with Step 1.
+
+   Match is exact slug equality (case-sensitive, full kebab-case string); substring matches do not trigger. This is informational, not a hard-block — its purpose is to catch session-start drift on hand-written prompts that restate a stale staging tip. If the slug appears with `status=next` (a deliberate placeholder for the current cycle), proceed without prompting.
+6. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
 
 ## Step 1: Understand the request (optionally refine)
 

@@ -1198,7 +1198,43 @@ This is the **foundation + MVP architecture** spec. Each domain gets dedicated /
 
 Big task = ~36 cycles over 8 weeks. Existing `/spec → /build → /ship` workflow + CLAUDE.md conventions need adjustments to handle multi-cycle marathon. (Original estimate was ~30/7 weeks; bumped after Phase 1 close — see §18.2 retrospective for the +3 cycles + §11 for the +1 week honest commitment.)
 
+## 18A. Phase Status — shipped cycle ledger
+
+Canonical surface for **what shipped, when, where**. One row per merged-to-staging cycle since v2 rebuild start (2026-05-04). Maintained by `/ship` post-merge (per `.claude/skills/ship/SKILL.md` Step 3) and read by `/spec` Preflight (per `.claude/skills/spec/SKILL.md` ground-truth check) so new sessions cannot draft cycle docs against stale staging tips. Authority split codified in `CLAUDE.md` Documentation Maintenance: this ledger = phase / cycle / sha grain (ship state); `README.md` ADR table = constraint / decision grain (why). Do NOT add a README ADR row for routine cycle merges — only when the cycle introduces a new architecture decision or constraint.
+
+| Phase | Cycle | Slug | Merged | PR | Tip Commit | Status |
+|---|---|---|---|---|---|---|
+| 0 | hard-delete-domain-code | p0-hard-delete-domain-code | 2026-05-04 | #178 | 52112ee | shipped |
+| 1 | extensions-tenancy | p1-extensions-tenancy | 2026-05-05 | #179 | ff55b93 | shipped |
+| 1 | identity-rls | p1-identity-rls | 2026-05-05 | #180 | d1857ec | shipped |
+| 1 | regions-seed | p1-regions-seed | 2026-05-05 | #181 | fd44713 | shipped |
+| 1 | employees-classes-sentra | p1-employees-classes-sentra | 2026-05-05 | #182 | 93a42c6 | shipped |
+| 1 | audit-timeline-files | p1-audit-timeline-files | 2026-05-05 | #183 | 371440b | shipped |
+| 1 | scaffold-engine-skeleton | p1-scaffold-engine-skeleton | 2026-05-05 | #184 | fc87f31 | shipped |
+| 1 | scaffold-renderers | p1-scaffold-renderers | 2026-05-05 | #185 | 21c648a | shipped |
+| 1 | audit-write-middleware | p1-audit-write-middleware | 2026-05-06 | #186 | 1e6405f | shipped |
+| 1 | timeline-registry | p1-timeline-registry | 2026-05-06 | #187 | 923ed62 | shipped |
+| 1 | upload-route-sharp | p1-upload-route-sharp | 2026-05-06 | #188 | a2cb65b | shipped |
+| 1 | spec-sync-phase-1-actual | spec-sync-phase-1-actual | 2026-05-06 | #189 | 22fbac9 | shipped |
+| 1 | auth-google-oauth | p1-auth-google-oauth | 2026-05-06 | #190 | b344b4f | shipped |
+| 2 | students-guardians-household | p2-students-guardians-household | 2026-05-06 | #191 | 02632e4 | shipped |
+| 2 | guardians | p2-guardians | 2026-05-06 | #192 | bd7e661 | shipped |
+| 2 | scaffold-registries | p2-scaffold-registries | 2026-05-07 | #193 | dd98ee9 | shipped |
+| 2 | spec-rebuild-foundation-rethink | spec-rebuild-foundation-rethink | 2026-05-07 | #194 | f8a289e | shipped |
+| 2 | scaffold-pages | p2-scaffold-pages | 2026-05-07 | #196 | ee8e7f2 | shipped |
+| 2 | scaffold-pages-guardian-household | p2-scaffold-pages-guardian-household | 2026-05-07 | #198 | ea00b9b | shipped |
+| 2 | scaffold-canary | p2-scaffold-canary | 2026-05-07 | #199 | dbb817e | shipped |
+| 2 | spec-sync-canary-shipped | p2-spec-sync-canary-shipped | — | — | — | next |
+
+**Notes:**
+- **Slug column is the canonical match key.** `/ship` post-merge matches by exact-string equality (case-sensitive); on `status=next` row match → update-in-place; on `status=shipped` match → no-op; on no match → append.
+- **PR gap at #195 is intentional.** PR #195 (`hotfix(spec): backend English / labels Indonesian rule`) is OPEN-not-merged at backfill time (verified 2026-05-07 via `gh pr view 195 --json state` → `OPEN`). Ledger only tracks merged-to-staging cycles.
+- **Phase 1 ran 13 ledger rows, not 10 cycles.** `spec-sync-phase-1-actual` is a doc-only spec-sync row; the `[ ]→[x]` cycle count in §18.1 narrative remains 10.
+- **Phase 2 ledger growth.** §18.1 Phase 2 narrative says ~9 cycles original/post-rethink scope; ledger rows for Phase 2 to-date = 7 shipped + 1 next (`spec-rebuild-foundation-rethink` is a Phase 2 spec-sync sibling).
+
 ### 18.1 Cycle decomposition (~36 cycles across 8 phases)
+
+> **Cycle ship state is canonical at §18A Phase Status (above)** — this section retains planning narrative + per-phase cycle decomposition. Update §18.1 prose only when phase scope shifts; row-level status updates happen at §18A.
 
 Phase-by-phase. Each cycle ≤ 2 working days. Cycle naming: `YYYY-MM-DD-p<N>-<slug>` where N = phase number.
 
