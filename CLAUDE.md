@@ -6,6 +6,7 @@
 >
 > **Read first** before any work:
 > - [Foundation Design Spec](docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md) — covers schema, scaffold engine, sprint plan, cycle decomposition (~33 cycles / 8 phases / 8 weeks)
+> - **MANDATORY: [Foundation Design Spec `## 18A. Phase Status — shipped cycle ledger`](docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md#18a-phase-status--shipped-cycle-ledger)** — canonical ledger of shipped cycles since v2 rebuild start (slug / merged-at / PR / tip-commit). Read before drafting any cycle prompt to avoid drift onto already-shipped slugs.
 > - [Phase 0 Plan](docs/superpowers/plans/2026-05-04-p0-hard-delete-domain-code.md) — current cycle implementation plan
 > - [Research insights](docs/research/2026-05-04-nisaa-teacher-insights.md)
 > - [v1 audit](docs/research/2026-05-04-existing-erp-audit.md)
@@ -147,6 +148,21 @@ Auto-appended by `prepare-commit-msg`. If the hook fails, the commit lands with 
 
 ---
 
+## Ground-truth check
+
+Before drafting any cycle prompt or starting a new `/spec`, run this 5-second sanity sequence to anchor the session against the actual staging tip (not a stale hand-written prompt):
+
+1. **Latest merged cycles:**
+   ```
+   git log origin/staging --oneline -10
+   ```
+   The top line is the current staging tip. If the user's prompt cites an older sha as "current", that prompt is stale — surface the discrepancy before proceeding.
+2. **Cross-check `## 18A. Phase Status`** in [the foundation md](docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md#18a-phase-status--shipped-cycle-ledger). If the user's requested cycle slug already appears with `status=shipped`, the work is done — confirm with the user whether they meant a follow-up (`<slug>-followup` / `<slug>-v2`) before drafting a new cycle doc. The `/spec` Preflight encodes this as a hard step; this check is the same logic surfaced earlier so it can catch drift even outside the slash-command flow.
+
+**Why this matters.** Hand-written prompts derived from a previous session's context window can restate a stale staging tip. Without a ground-truth check, the assistant drafts a cycle doc against a sha that's no longer the head, then `/build` proceeds on a base that may already include the work being re-spec'd. The §18A ledger + this check are the two surfaces that catch the drift before any code lands.
+
+---
+
 ## One-File-Per-Cycle Rule
 
 **Allowed markdown files:**
@@ -182,12 +198,15 @@ Single-source-of-truth contract — every fact has exactly one owner; the other 
 
 | Document | Owns | Update when |
 |---|---|---|
-| **README.md** | Product identity, tech stack, modules, portals, ADRs (last 60d), setup, environments | Modules/routes/entities change; new ADR; setup/env changes |
-| **CLAUDE.md** | Workflow, multi-LLM safety, hooks, standards table, doc-maintenance, file structure, `/uat`, one-file-per-cycle rule | Workflow/safety/hooks/standards listing change |
+| **README.md** | Product identity, tech stack, modules, portals, ADRs (last 60d, **constraint/decision grain — why something is the way it is**), setup, environments | Modules/routes/entities change; new ADR (only when cycle introduces architecture decision or constraint); setup/env changes |
+| **CLAUDE.md** | Workflow, multi-LLM safety, hooks, standards table, doc-maintenance, file structure, `/uat`, one-file-per-cycle rule, ground-truth check | Workflow/safety/hooks/standards listing change |
+| `docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md` | Foundation rebuild design + sprint plan + cycle decomposition + **§18A Phase Status (cycle ship state at sha grain — what shipped, when, where)** | New cycle merged to staging (§18A ledger row append/update via `/ship` Step 3); phase scope shifts (§18.1 prose) |
 | `.claude/standards/*.md` | Domain rules (UI / patterns / voice / CRUD / portal / API / security / colors) | When a standard needs correction |
 | `docs/cycles/YYYY-MM-DD-<slug>.md` | Per-cycle history (one per cycle) | `/spec` creates, `/build`+`/ship` update |
 | `docs/adrs/archive.md` | ADRs > 60d OR codified in CLAUDE.md/standards | When trimming README's active ADR table |
 | `docs/runbooks/*.md` + `docs/uat/{jobs,reports}/*.md` + `.claude/personas/*.md` | Runbooks, UAT JTBD library, UAT reports (committed), fixed personas | When procedure / capability / persona changes |
+
+**Authority split — `## 18A. Phase Status` vs README ADR table.** Both surfaces list shipped work but at different grains. §18A = phase / cycle / sha grain (every merged cycle gets a row). README ADR = constraint / decision grain (only cycles that introduce a new architecture decision or active constraint). **Do NOT add a README ADR row for routine cycle merges** — only when the cycle introduces a new architecture decision or constraint. Duplicating cycle merges in README ADR causes drift between the two grain-distinct surfaces.
 
 **`prd.md` is retired.** All product/roadmap/ADR content lives in README.md.
 
