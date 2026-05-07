@@ -1,24 +1,27 @@
 // Per-portal IA registry per foundation §10A.1.
 //
 // Single source of truth for sidebar navigation across the three portals.
-// Pulls entity labels from `lib/entities/index.ts` (one-way dep — entity
-// modules NEVER import portal config; ESLint `import/no-cycle` catches
-// regressions).
-//
 // Per foundation §10A backend-English / labels-Indonesian rule: the route
 // slugs are Indonesian-kebab (`siswa`, `wali`, `keluarga`) matching the
 // existing admin route tree at `app/admin/akademik/{siswa,wali,keluarga}`.
-// Hard-coded here because EntityDef does not (yet) carry a route-slug
-// field — adding one is a separate cycle's call. Labels still derive from
-// the entity registry to avoid string-duplication drift.
+//
+// Labels are hard-coded INLINE here (not imported from `lib/entities`)
+// because this module is consumed by `components/portal/sidebar.tsx` which
+// is `"use client"` — importing the entity barrel pulls `getSession` /
+// `prisma` (server-only via `next/headers`) into the client bundle and
+// fails Turbopack's RSC boundary check.
+//
+// Drift coverage scope (per spec-time review T2-#1): the Akademik group's
+// 3 items (Siswa / Wali / Keluarga) have entity-registry counterparts —
+// `nav-config.test.ts` asserts label equality with `<entity>.label` and
+// fails CI on drift. The 10 stub items across Operasi / Keuangan /
+// Identitas / Sistem groups + the 8 teacher/parent items have NO entity
+// registry counterpart today (they are placeholders for future cycles)
+// and thus are NOT covered by the drift guard. When a future cycle wires
+// a scaffold registry behind a stub item, that cycle MUST extend the
+// drift test to cover the new label-equality pair.
 //
 // Cycle: docs/cycles/2026-05-08-p2-portal-shell-sidebar.md (T1)
-
-import {
-  studentEntity,
-  guardianEntity,
-  householdEntity,
-} from "@/lib/entities";
 
 export type NavItem = {
   /** Stable identifier for active-route highlight + key. */
@@ -51,23 +54,28 @@ const ADMIN_NAV: ReadonlyArray<NavGroup> = [
     key: "akademik",
     label: "Akademik",
     items: [
+      // NOTE — Akademik labels duplicated from `lib/entities/<name>/entity.ts`
+      // per the module-doc rationale (client-bundle isolation). Drift
+      // between these strings and `<entity>.label` caught by
+      // `nav-config.test.ts` (Akademik group only — see module doc for
+      // out-of-scope items).
       {
         key: "siswa",
-        label: studentEntity.label,
+        label: "Siswa",
         href: "/admin/akademik/siswa",
-        icon: studentEntity.icon,
+        icon: "Users",
       },
       {
         key: "wali",
-        label: guardianEntity.label,
+        label: "Wali",
         href: "/admin/akademik/wali",
-        icon: guardianEntity.icon,
+        icon: "UserCircle",
       },
       {
         key: "keluarga",
-        label: householdEntity.label,
+        label: "Keluarga",
         href: "/admin/akademik/keluarga",
-        icon: householdEntity.icon,
+        icon: "Home",
       },
     ],
   },

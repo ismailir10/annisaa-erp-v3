@@ -40,13 +40,15 @@ describe("NAV_BY_PORTAL", () => {
     ]);
   });
 
-  it("admin Akademik items derive labels from entity registry (no hard-coded strings)", () => {
-    const akademik = NAV_BY_PORTAL.admin.find((g) => g.key === "akademik");
-    expect(akademik).toBeDefined();
-    const labels = akademik!.items.map((i) => i.label);
-    expect(labels).toContain(studentEntity.label);
-    expect(labels).toContain(guardianEntity.label);
-    expect(labels).toContain(householdEntity.label);
+  it("admin Akademik labels stay in sync with entity registry (drift guard)", () => {
+    // Labels are hard-coded inline in nav-config to keep the entity barrel
+    // (which pulls server-only modules) out of the client bundle. This test
+    // is the only guard against drift — fails CI if entity.label diverges.
+    const akademik = NAV_BY_PORTAL.admin.find((g) => g.key === "akademik")!;
+    const byKey = (key: string) => akademik.items.find((i) => i.key === key)?.label;
+    expect(byKey("siswa")).toBe(studentEntity.label);
+    expect(byKey("wali")).toBe(guardianEntity.label);
+    expect(byKey("keluarga")).toBe(householdEntity.label);
   });
 
   it("teacher + parent portals are single-group flat lists with 4 items each", () => {
