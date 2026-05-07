@@ -191,6 +191,16 @@ describe("updateStudent", () => {
     expect(mockStudentUpdate).not.toHaveBeenCalled();
   });
 
+  it("returns NO_CHANGES when input is empty (avoids phantom UPDATE audit row)", async () => {
+    mockGetSession.mockResolvedValue(ADMIN_SESSION);
+    const result = await updateStudent("stu_1", {});
+    expect(result).toEqual({ ok: false, error: "NO_CHANGES" });
+    // Critically, no DB read OR write happens — guard fires before findFirst.
+    expect(mockStudentFindFirst).not.toHaveBeenCalled();
+    expect(mockStudentUpdate).not.toHaveBeenCalled();
+    expect(mockWriteAuditLog).not.toHaveBeenCalled();
+  });
+
   it("admin role: updates + emits UPDATE audit with before+after", async () => {
     mockGetSession.mockResolvedValue(ADMIN_SESSION);
     mockStudentFindFirst.mockResolvedValue(STUDENT_ROW);

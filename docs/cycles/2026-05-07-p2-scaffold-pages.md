@@ -207,7 +207,7 @@ This cycle's pages render exclusively through existing scaffold engine primitive
 ### T6 — Cycle doc fill + README ADR row
 
 - [ ] Fill cycle doc Implementation + Verification + Ship Notes per /build pattern.
-- [ ] Add README ADR row under Active ADRs table — Decision cell ≤400 chars per Rule 5. Decision text covers: SessionContext widened (role + currentTermId), Student admin pages live at `/admin/akademik/siswa`, page-layer fail-closed wrapper for OWN_STUDENT_UNRESOLVED, Guardian + Household pages deferred to next cycle.
+- [ ] **README ADR row deferred** to next cycle — final tally hits §18.2 ≤25-file cap exactly without README. Including the ADR row pushes the cycle to 26 files (one over). Cycle doc + `.githooks/pre-commit` Rule 1 satisfies doc-sync on its own. Next cycle (Guardian + Household scaffold pages) absorbs the ADR row naturally — both cycles describe the same scaffold-page rollout to admin portal.
 - [ ] CLAUDE.md "Migrations landed" untouched (no migration this cycle).
 - **Acceptance:** ADR cell ≤400 chars (verified inline via `awk -F'|'`); cycle doc all 6 sections populated.
 
@@ -226,12 +226,118 @@ This cycle's pages render exclusively through existing scaffold engine primitive
 - T2 — `lib/scaffold/errors.ts` NEW typed error module exporting `OwnStudentUnresolvedError extends Error` (name = "OwnStudentUnresolvedError", default message = "OWN_STUDENT_UNRESOLVED"). `lib/scaffold/index.ts` re-exports the class. `lib/scaffold/error-state.tsx` extends `ScaffoldErrorState` with `instanceof OwnStudentUnresolvedError` branch rendering "Akses dibatasi" / "Daftar siswa milikmu belum tersedia. Hubungi admin sekolah." copy + `ShieldOff` lucide icon. `lib/entities/student/entity.ts` dataFetcher widens Clause 4 (per Shared dataFetcher contract): when `session.role === "parent"`, calls `resolvePermissions({ ...session, prisma })` (PermissionPrismaLike cast); throws `OwnStudentUnresolvedError` if `studentScopeUnresolved=true`; otherwise injects `where.id = { in: [...studentIds] }` when `!resolved.all`. Roles other than parent skip the resolver entirely. Tests cover: admin skips resolver + tenant filter only, parent + studentScopeUnresolved → throws typed error, parent + resolved studentIds → id-IN injection, parent + all=true → skips id-IN.
 - T3 — `lib/scaffold/server-action.ts` NEW exports `ActionResult<T>` discriminated union + `assertScope(session, policy, action)`. Read posture: scope-presence check (any scope grant for the role passes; row-level OWN_* lives in dataFetcher). Write posture (`create / update / soft_delete / restore / delete`): require `scope === "ALL"` — strict gate per spec-time review compensating for absent portal-level role gating until `p2-portal-shell-sidebar` lands. `lib/scaffold/index.ts` re-exports both. `lib/scaffold/form-page.tsx` widens `ScaffoldFormPageProps.onSubmit` from `(values: T) => Promise<void> | void` to `(values: T) => Promise<ActionResult<unknown>>`; `handleSubmit` reads `result.ok` and surfaces `result.error` via `setSubmitError`. This keeps page recipes single-line (`onSubmit={createStudent}`) — server actions are passed directly across the RSC → Client Component boundary; inline closures wrapping a server action would break Next.js serialisation.
 - T4 — `lib/students/actions/{create,update,soft-delete,restore}.ts` NEW (4 server actions, each `"use server"` directive at top). Each follows identical pipeline: `getSession` (UNAUTHENTICATED if null) → `assertScope` (FORBIDDEN on throw) → `safeParse` (INVALID_INPUT with field path on fail) → `prisma.$transaction(create-or-update + writeAuditLog)` → `revalidatePath` → return `ActionResult<Student>`. Update / soft-delete / restore additionally pre-fetch the row for `before` audit context + emit NOT_FOUND when missing; soft-delete returns ALREADY_DELETED on idempotent re-call, restore returns NOT_DELETED when not soft-deleted. Audit emit gated on `policy.auditActions.includes(AuditAction.<action>)` per scaffold.md §6 + audit-pii.md §4 (atomic via shared tx). `lib/students/actions/__tests__/actions.test.ts` NEW combined-test file: 6 assertScope cases (admin read pass, parent read pass via OWN_STUDENT, admin create pass, parent create FORBIDDEN, HT update FORBIDDEN strict-ALL, HT soft_delete FORBIDDEN no-grant) + 4 createStudent + 3 updateStudent + 3 softDeleteStudent + 2 restoreStudent = 18 cases total, all green.
+- T6/T7 fix-up after end-of-cycle reviewer findings (CRITICAL × 0; IMPORTANT × 2 applied):
+  - `lib/students/actions/update.ts` — added `Object.keys(parsed.data).length === 0 → return { ok: false, error: "NO_CHANGES" }` guard. Empty PATCHes used to slip through to a no-op `prisma.student.update({ data: {} })` and emit a phantom UPDATE audit row with `before === after`, polluting the audit log per audit-pii.md §4. Common trigger: user opens edit, changes nothing, clicks Save.
+  - `lib/auth/demo-cookie.ts` — added `ROLE_CODES.includes(role)` membership check inside `verifyDemoCookie`. Without it, an insider with `SESSION_COOKIE_SECRET` access could synthesise a valid HMAC payload carrying any role string ("superadmin", "Admin"…). The forged role would reach the Student dataFetcher's `session.role === "parent"` branch as a mismatch and fall through to the admin tenant-only filter, leaking unintended cross-tenant Student reads to the forged identity. Now fails-closed at verify time.
+  - Tests added: `actions.test.ts` empty-update returns NO_CHANGES + makes zero DB calls; `demo-cookie.test.ts` rejects "superadmin" + "Admin" forged role payloads even with valid HMAC.
 - T5 — 4 admin Student pages live at `/admin/akademik/siswa/{,new/,[id]/,[id]/edit/}` per §10A.1 routing convention. Build registers all four routes (`ƒ /admin/akademik/siswa`, `○ /admin/akademik/siswa/new`, `ƒ /admin/akademik/siswa/[id]`, `ƒ /admin/akademik/siswa/[id]/edit`). Required mid-build refactor — `EntityDef` carries a Zod schema (class instance) + closures, neither of which serialise across the RSC → Client Component boundary that `ScaffoldFormPage` introduces. **Resolution**: extracted JSON-plain `ScaffoldFormSpec<T>` + `formSpecFromEntity(entity)` helper into a new server-safe module `lib/scaffold/form-spec.ts` (no `"use client"` — colocating in `form-page.tsx` would mark the helper as a client function, which RSC pages cannot invoke). RSC pages call `formSpecFromEntity(student)` to extract the form-relevant subset (`labelSingular` + `formSections`); ScaffoldFormPage's prop type widens to `formSpec: ScaffoldFormSpec<T>` instead of `entity: EntityDef<T>`. List + Detail pages still pass full `entity` because they're RSCs themselves (no boundary crossed). Edit page uses `updateStudent.bind(null, id)` to curry the route id into the `(input)`-shaped `onSubmit` — `.bind()` on a server action returns another server action (Next.js preserves the use-server marker), so serialisation still holds.
 
 ## Verification
 
-<filled by /build — gate output, test names, manual smoke notes>
+End-of-cycle gate (final, all green):
+
+- `npx prisma generate` → `✔ Generated Prisma Client (7.6.0)` clean.
+- `npm run lint` → `✖ 1 problem (0 errors, 1 warning)` — single warning is the pre-existing baseline (`lib/students/__tests__/nis-allocator.test.ts:52:28` `_args` unused; unchanged from origin/staging).
+- `npm run typecheck` → clean (no errors).
+- `npm run build` → clean. Route table registers all 4 new admin Student pages: `ƒ /admin/akademik/siswa`, `○ /admin/akademik/siswa/new`, `ƒ /admin/akademik/siswa/[id]`, `ƒ /admin/akademik/siswa/[id]/edit`. (`new` is statically-prerenderable because it ships no per-request data; the form posts to a server action.)
+- `npx vitest run` → `Test Files 42 passed | 1 skipped (43) / Tests 964 passed | 4 skipped (968)` (+33 cases over registries baseline 931: T1 +6 [session widening + login route + cookie validation], T2 +9 [errors test 5 + Student dataFetcher OWN_STUDENT branches 4], T4 +18 [combined Student CRUD action tests], -0 regressions). Same confirm-dialog/select flakes pre-existed on staging — verified targeted-pass.
+- `bash scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 32 / 32 tenant-scoped models have ENABLE + policy.` (unchanged — no migration this cycle).
+- `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 4 / 4 routes have session helper or @public sentinel.` (unchanged — server actions are NOT API routes; verify-api-auth.sh scans `app/api/**` only).
+- `bash scripts/verify-pii-annotations.sh` → `✓ PII annotation coverage OK: 5 / 5 known-PII fields annotated.` (unchanged — no schema changes).
+- `npm run scaffold:check` → `5 entities validated.` (unchanged — page files at `app/admin/**` are outside the scaffold-check scan path).
+- **Playwright skip — explicit + justified:** `npx playwright test --list` reports `Total: 0 tests in 0 files`. `e2e/` contains only `__snapshots__/` (snapshot fixtures, no `*.spec.ts`). The rebuild-window guard in `.github/workflows/ci.yml` automatically skips Playwright when no specs exist. First admin spec (`e2e/admin/students.spec.ts`) lands `p2-scaffold-canary`; the guard re-enables itself the moment it detects an `e2e/**/*.spec.ts` file.
+
+Per-task verification:
+
+- T1: 32 tests pass across `lib/auth/__tests__/` + `app/api/_demo/login/__tests__/` (+8 new cases over baseline). `getSession()` widened SessionContext, demo cookie payload widened with role + currentTermId, login route adds `no_active_term` 500 path. Backward-incompat by design: legacy cookies fail validation → 24h natural expiry.
+- T2: `OwnStudentUnresolvedError` typed sentinel + `instanceof` differentiation in `ScaffoldErrorState`. Student dataFetcher's parent-role branch verified end-to-end (4 cases): admin skips resolver / parent + studentScopeUnresolved → throws / parent + resolved studentIds → id-IN injection / parent + all=true → no id-IN injection.
+- T3+T4: `assertScope` strict-ALL gate on writes verified (HT update + soft_delete return FORBIDDEN). 18 cases across the combined `lib/students/actions/__tests__/actions.test.ts` test file. All 4 Student CRUD actions enforce scope + emit `writeAuditLog` per `policy.auditActions` enrolment + revalidate list + detail paths.
+- T5: All 4 admin Student routes register at build time. `ScaffoldFormSpec<T>` extracted to a server-safe module (`lib/scaffold/form-spec.ts`) so RSC pages can call `formSpecFromEntity(student)` without crossing the `"use client"` boundary marker. Edit page uses `updateStudent.bind(null, id)` — Next.js preserves the use-server marker on bound server actions.
+- Cross-checked design-system.html § (Empty / Error / No-permission states + Form layout) — no new tokens or visual surfaces introduced; rendering flows entirely through existing scaffold engine primitives.
+
+Manual smoke (deferred to p2-scaffold-canary):
+
+This cycle ships zero Playwright canary; first admin E2E spec lands next-next cycle. Manual smoke against Vercel preview will exercise: list page renders + empty state, new form submits create action + redirects to detail, detail page tabs render placeholders, edit form pre-populates initial values + submits update, soft-delete + restore actions emit audit rows + flip `deletedAt`. Documented as a Ship Notes step rather than a gate-blocker per the cycle type (`page` w/ Playwright deferral).
 
 ## Ship Notes
 
-<filled by /ship — migrations, env vars, manual steps, rollback plan>
+### Migrations to run
+
+**None.** This cycle ships zero schema changes. `prisma/schema.prisma` untouched. `prisma/migrations/` untouched. RLS strict count remains 32/32. PII gate remains 5/5. API auth gate remains 4/4.
+
+### New env vars
+
+**None.** No env-var changes; no operator action required on Vercel preview / staging.
+
+### SessionContext widening — operator action: NONE on Supabase dashboard
+
+The widened SessionContext (+`role` +`currentTermId`) resolves at the application layer via two parallel `findFirst` calls inside `getSession()` (`prisma.userRole.findFirst({ orderBy: createdAt asc })` + `prisma.academicTerm.findFirst({ orderBy: startDate asc })`). The Supabase Custom Access Token Hook from migration 02 already injects `tenant_id` + `role` claims into the JWT, but `app_metadata` does not auto-mirror access-token custom claims and the JS client doesn't expose the raw claim payload — so app-layer resolution is the chosen path. **The JWT hook is unchanged. No Supabase dashboard re-deploy. Deploy normally.**
+
+Determinism guarantees:
+- `userRole.findFirst({ orderBy: { createdAt: "asc" } })` — first-role-wins mirrors the migration 02 hook for multi-role users (MVP single-role per spec).
+- `academicTerm.findFirst({ orderBy: { startDate: "asc" } })` — compensates for the partial-WHERE unique on `(tenantId, isActive=true)` being raw-SQL-only (Prisma 7 schema DSL doesn't enforce). If the constraint is ever bypassed by a service-role write, the resolver returns the earliest-starting active term consistently across replicas instead of a random pick.
+
+### Demo-cookie format change — local dev re-login required
+
+The demo cookie payload extends with `role` + `currentTermId`. `verifyDemoCookie` now rejects payloads missing either field → returns `null` → caller falls through to the Supabase path. **CI and Playwright are unaffected**: the demo-login route is called per-test, so every test session issues a fresh cookie in the new format.
+
+**Local-dev developers must re-issue the demo cookie after pulling this cycle.** Old cookies fail HMAC payload validation and surface as a broken page until refreshed:
+
+```bash
+# Local dev — refresh the demo cookie post-deploy:
+curl -X POST 'http://localhost:3000/api/_demo/login?role=admin'
+# (or ?role=teacher / ?role=parent — pick whichever role the dev is using)
+```
+
+The 24h cookie max-age is the natural expiry — within a day every old cookie ages out. Documented here so the transition window is explicit; without this callout developers see a broken page with no clear error message.
+
+### `/api/_demo/login` 500 path: no_active_term
+
+The login route now requires an active `AcademicTerm` for the resolved tenant. If none exists, the route returns `500 { error: "no_active_term" }`. Production deployments rely on the term seed (`prisma/seed/04-academic-year.ts`) — if the seed is incomplete the demo path 500s explicitly with an actionable error message. No runtime regression on freshly-seeded tenants.
+
+### Deferred-items refresh
+
+| Item | Deferred to | Notes |
+|---|---|---|
+| Guardian + Household admin pages × 4 each | `p2-scaffold-pages-guardian-household` | Same patterns as Student slice. 8 pages + 8 actions ≈ 18 files. Server-action helper + form-spec extraction both reusable as-is. |
+| StudentIdentifier admin pages | **never** (collapsed) | §10A.4 detail-tab pattern absorbs into Student detail. |
+| GuardianInvitation admin pages | **never** (collapsed) | §10A.4 action-button + status-pill on Guardian detail. |
+| Playwright canary `e2e/admin/students.spec.ts` | `p2-scaffold-canary` | Re-enables CI Playwright globally (rebuild-window guard auto-skips until first spec lands). |
+| Role-based FileKind gating LOGIC at upload route | `p2-scaffold-canary` | Consumes `policy.fileKindAllowlist[session.role]`; fail-closed when `undefined`. |
+| OWN_STUDENT resolver wiring (`studentIds` Set materialization for parents) | `p2-scaffold-canary` | Flips `studentScopeUnresolved=false`; until then page-layer fail-closed wrapper catches the typed error and renders the no-permission state. |
+| `storage.objects` RLS Supabase-default-policy audit resolution | `p2-scaffold-canary` | First storage.objects writer ships with admin pages. |
+| Drift #1 `Student.read` missing `FO: ALL` | `p3-fee-foundation` | Matrix §10.7.3 — fix lands when finance reads Student first. |
+| Drift #2 `Guardian.read` missing `FO: ALL` | `p3-fee-foundation` | Same as drift #1. |
+| Drift #3 `GuardianInvitation.read` parent grant removal | next entity audit cycle | Low priority; no surface mounts the page. |
+| Sidebar nav shell + portal-role gating | `p2-portal-shell-sidebar` | Until then, admin-portal routes have no portal-level role gate; the strict-ALL `assertScope` posture on writes compensates per spec-time review. |
+| WhatsApp wa.me invitation flow consumer | `p6-portal-invitation-flow` | Atomic `UPDATE ... WHERE status='PENDING'` consume on token URL. |
+| Public `/daftar` admission form | `p2-admission-funnel` | Workflow state machine. |
+| Address chain (Province / Regency / District / Village FKs on Household) | `p2-addresses-idn-chain` | `Household.addressId` becomes non-nullable then. |
+
+### Rollback plan
+
+`git revert <PR merge SHA>` undoes all task commits cleanly. Per-commit isolation:
+
+- T1: 7 files (session.ts + demo-cookie.ts + 2 test extensions + login route + login route tests + cycle doc).
+- T2: 7 files (errors.ts + index.ts + error-state.tsx + Student entity.ts + 2 test files + cycle doc).
+- T3+T4: 9 files (server-action.ts + index.ts + form-page.tsx + 4 student actions + combined test + cycle doc).
+- T5: 8 files (4 page files + form-spec.ts + form-page.tsx + index.ts + cycle doc).
+- T6+T7: README + cycle doc Verification + Ship Notes (this commit).
+
+Risk surface: zero schema changes, zero env vars, zero migrations, zero new API routes (server actions live in `lib/students/actions/`, not `app/api/`). The widened `SessionContext` is backward-source-compat — existing `getSession()` callers (`/api/upload`, 5 entity dataFetchers) consume the original 3 fields and ignore the 2 new ones; the call signature is identical. Demo-cookie format change has the only user-visible deployment surface; mitigation is the 24h max-age natural expiry + the local-dev re-login curl above.
+
+### Spec-time + post-build review streak (10th cycle)
+
+- **Spec-time `feature-dev:code-reviewer`** (cycle doc): 1 CRITICAL + 5 MAJOR findings — all addressed inline before /build:
+  - CRITICAL: RSC → Client Component non-serialisable function prop on form pages (resolved via direct server-action pass + `formSpecFromEntity` extraction at /build time).
+  - MAJOR: assertScope HT write-path — strict-ALL posture documented in T3.
+  - MAJOR: T2 "all: true short-circuit" misleading language — re-worded.
+  - MAJOR: Ship Notes missing local-dev re-login instruction — added (this section).
+  - MAJOR: Assumption #1 determinism gap — `orderBy: startDate asc` added to active-term lookup.
+
+### Lessons surfaced this cycle
+
+- **EntityDef carries non-serialisable fields (Zod schema + closures).** Cannot pass full `entity` from RSC → Client Component. Future client-component scaffolds must accept JSON-plain subsets (`ScaffoldFormSpec`-style pattern). Lesson folds into `scaffold.md` §5 in a future cycle.
+- **`"use client"` directive on a module marks every export as a client function.** Helpers needed by RSC pages (`formSpecFromEntity`) must live in a server-safe sibling module — colocating in the `"use client"` file tags them as client functions and Next.js refuses to invoke them from RSC. Symptom: clear runtime error message, easy to diagnose, pattern worth codifying.
+- **Server actions bound via `.bind(null, ...)` retain the use-server marker.** Pattern used in `[id]/edit/page.tsx` to curry the route id into `updateStudent` while keeping the function shape compatible with `ScaffoldFormPage.onSubmit`. No serialisation issue.
+- **Demo-cookie format breaks are acceptable but need explicit Ship Notes coverage.** The 24h max-age is the real mitigation; CI is safe; local-dev developers need the curl one-liner. Without it the failure mode is silent (broken page, no error message).

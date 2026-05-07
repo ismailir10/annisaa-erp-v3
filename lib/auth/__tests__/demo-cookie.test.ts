@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHmac } from "node:crypto";
 
 // next/headers cookies() requires a Next.js runtime context — mock for unit tests.
 // setDemoSessionCookie / clearDemoSessionCookie are exercised via the demo-login
@@ -22,7 +23,6 @@ const PAYLOAD = {
 function signWithSecret(payload: Record<string, unknown>, secret: string): string {
   // Re-implement minimal sign for crafted-payload tests that bypass type guards.
   // Mirrors signDemoCookie internals: b64url(JSON) + "." + b64url(HMAC-SHA256(secret, body)).
-  const { createHmac } = require("node:crypto") as typeof import("node:crypto");
   const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   const sig = createHmac("sha256", secret).update(body).digest().toString("base64url");
   return `${body}.${sig}`;
@@ -121,5 +121,17 @@ describe("demo-cookie sign/verify", () => {
     expect(verifyDemoCookie(emptyRole)).toBeNull();
     const emptyTerm = signWithSecret({ ...PAYLOAD, currentTermId: "" }, VALID_SECRET);
     expect(verifyDemoCookie(emptyTerm)).toBeNull();
+  });
+
+  it("rejects payload with non-canonical role string (membership check)", () => {
+    // Even with a valid HMAC signature (insider with SECRET), forging a role
+    // outside the canonical RoleCode union must fail-closed at verify time.
+    // Otherwise the unrecognised role reaches the dataFetcher's
+    // `session.role === "parent"` branch as a mismatch and falls through to
+    // the admin tenant-only path — leaking reads to the forged identity.
+    const forged = signWithSecret({ ...PAYLOAD, role: "superadmin" }, VALID_SECRET);
+    expect(verifyDemoCookie(forged)).toBeNull();
+    const lowercased = signWithSecret({ ...PAYLOAD, role: "Admin" }, VALID_SECRET);
+    expect(verifyDemoCookie(lowercased)).toBeNull();
   });
 });

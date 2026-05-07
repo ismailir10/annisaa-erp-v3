@@ -39,6 +39,15 @@ export async function updateStudent(
     };
   }
 
+  // Reject empty-PATCH submits. `partial()` accepts `{}` as valid input, but
+  // running it through prisma.student.update would write zero columns AND
+  // emit a phantom UPDATE audit row with before === after — which pollutes
+  // the audit log per audit-pii.md §4 (audit must reflect genuine state
+  // change). Common trigger: user opens edit, changes nothing, clicks Save.
+  if (Object.keys(parsed.data).length === 0) {
+    return { ok: false, error: "NO_CHANGES" };
+  }
+
   const before = await prisma.student.findFirst({
     where: { id, tenantId: session.tenantId, deletedAt: null },
   });

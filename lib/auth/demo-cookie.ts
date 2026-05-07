@@ -17,7 +17,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import type { RoleCode } from "@/lib/entities/_types";
+import { ROLE_CODES, type RoleCode } from "@/lib/entities/_types";
 
 export const DEMO_COOKIE_NAME = "school-erp-session";
 
@@ -114,6 +114,21 @@ export function verifyDemoCookie(raw: string | undefined | null): DemoSessionPay
   ) {
     return null;
   }
+
+  // Validate role membership against the canonical RoleCode union per
+  // p2-scaffold-pages T7 review. The HMAC closes the external attacker
+  // vector (forging requires SESSION_COOKIE_SECRET), but an insider with
+  // SECRET access could synthesise a payload with an unrecognised role
+  // string. Without this membership check, an unknown role would reach
+  // the Student dataFetcher's `session.role === "parent"` branch as a
+  // mismatch — falling through to the admin tenant-only filter and
+  // granting unintended cross-tenant-or-cross-cohort reads to the forged
+  // identity. Fail-closed by rejecting any non-canonical role here.
+  const role = (decoded as Record<string, unknown>).role as string;
+  if (!(ROLE_CODES as ReadonlyArray<string>).includes(role)) {
+    return null;
+  }
+
   return decoded as DemoSessionPayload;
 }
 
