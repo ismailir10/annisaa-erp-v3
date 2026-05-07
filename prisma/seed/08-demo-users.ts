@@ -1,20 +1,28 @@
-// Seed 08 — Demo Users (admin, parent). Required for E2E + local-dev demo
-// flows: `app/api/demo/login` resolves first User row matching the requested
-// role.code IN_TENANT, then mints the demo session cookie. Without seeded
-// User+UserRole rows, the login route 500s with `no_seed_user`.
+// Seed 08 — Demo Users (admin, teacher, parent). Required for E2E +
+// local-dev demo flows: `app/api/demo/login` resolves first User row
+// matching the requested role.code IN_TENANT, then mints the demo session
+// cookie. Without seeded User+UserRole rows, the login route 500s with
+// `no_seed_user`.
 //
 // Idempotent via findFirst-then-update keyed on (tenantId, email). 8 system
-// roles exist after seed 05; this seed creates one User per role used by the
-// E2E suite (admin + parent for the canary; teacher roles map to the
-// `teacher` query-param via 05-system-roles role.code lookup — added when
-// the teacher portal canary lands). Email convention: `<role>@demo.local`.
+// roles exist after seed 05; this seed creates one User per role used by
+// the E2E suite. The `teacher` query-param at /api/demo/login resolves
+// against ["homeroom_teacher", "sentra_teacher"] (first match wins) per
+// `app/api/demo/login/route.ts:37` ROLE_CODE_MAP. Email convention:
+// `<role>@demo.local`.
+//
+// Teacher demo seed added in cycle p2-portal-shell-sidebar T5 to unblock
+// the teacher-portal Playwright spec (was 500ing with `no_seed_user` until
+// a `homeroom_teacher` User existed).
 //
 // Cycle: docs/cycles/2026-05-07-p2-scaffold-canary.md (T6)
+//        + docs/cycles/2026-05-08-p2-portal-shell-sidebar.md (T5)
 
 import type { PrismaClient } from "@/lib/generated/prisma/client";
 
 export const DEMO_USERS = [
   { email: "admin@demo.local", name: "Demo Admin", roleCode: "admin" },
+  { email: "teacher@demo.local", name: "Demo Teacher", roleCode: "homeroom_teacher" },
   { email: "parent@demo.local", name: "Demo Parent", roleCode: "parent" },
 ] as const;
 
