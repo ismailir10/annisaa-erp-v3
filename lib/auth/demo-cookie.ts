@@ -1,8 +1,8 @@
 // Demo-mode session cookie — HMAC-signed JSON payload for E2E + local-dev only.
 //
 // Production guard: this module is gated by `process.env.DEMO_MODE === 'true'`
-// at every public consumer (lib/auth/session.ts, app/api/_demo/login/route.ts).
-// The /api/_demo/login route 404s outside DEMO_MODE so no attacker can plant
+// at every public consumer (lib/auth/session.ts, app/api/demo/login/route.ts).
+// The /api/demo/login route 404s outside DEMO_MODE so no attacker can plant
 // a cookie in production. The HMAC closes a defense-in-depth gap against
 // `DEMO_MODE=true` being accidentally set in prod (forging requires
 // SESSION_COOKIE_SECRET).
@@ -21,7 +21,7 @@ import { ROLE_CODES, type RoleCode } from "@/lib/entities/_types";
 
 export const DEMO_COOKIE_NAME = "school-erp-session";
 
-// Synthetic supabaseUserId prefix used by /api/_demo/login when stamping the
+// Synthetic supabaseUserId prefix used by /api/demo/login when stamping the
 // User row's id-derived placeholder onto the demo cookie. The OAuth callback
 // (app/auth/callback/route.ts) checks for this prefix and overwrites instead
 // of raising identity_collision — otherwise a User who was ever demo'd gets
@@ -33,7 +33,7 @@ export const DEMO_SUPABASE_PREFIX = "demo:";
 // and fail validation in verifyDemoCookie → fall through to Supabase path
 // (effectively forcing re-login). 24h max-age is the natural expiry. CI/E2E
 // unaffected (login route called per-test). Local-dev developers refresh via
-// `curl -X POST 'http://localhost:3000/api/_demo/login?role=admin'`.
+// `curl -X POST 'http://localhost:3000/api/demo/login?role=admin'`.
 export type DemoSessionPayload = {
   tenantId: string;
   userId: string;

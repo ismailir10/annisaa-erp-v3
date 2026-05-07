@@ -30,7 +30,7 @@ type SessionContext = {
 
 **Where to call:** server components, API route handlers, server actions. **NEVER from `proxy.ts` (Edge middleware)** — `next/headers` `cookies()` errors there. The proxy reads the demo-cookie value directly via `request.cookies.get(...)`.
 
-**Demo-mode caveat — `session.supabaseUserId` may carry a synthetic prefix.** When the session was minted by `/api/_demo/login` (no real Supabase OAuth), `supabaseUserId` is stamped as `demo:<userCuid>` rather than a real `auth.users.id` UUID. Any caller that uses this field as a join key against Supabase's `auth.users` table or RLS-bypass path WILL silently miss in DEMO_MODE. Today the only consumer is `lib/scaffold/permission.ts:149` (already flagged as resolver contract drift in Ship Notes — no live caller). Future p2+ cycles consuming `session.supabaseUserId` for Supabase-side joins must check for the `demo:` prefix or guard with `if (process.env.DEMO_MODE !== 'true')`.
+**Demo-mode caveat — `session.supabaseUserId` may carry a synthetic prefix.** When the session was minted by `/api/demo/login` (no real Supabase OAuth), `supabaseUserId` is stamped as `demo:<userCuid>` rather than a real `auth.users.id` UUID. Any caller that uses this field as a join key against Supabase's `auth.users` table or RLS-bypass path WILL silently miss in DEMO_MODE. Today the only consumer is `lib/scaffold/permission.ts:149` (already flagged as resolver contract drift in Ship Notes — no live caller). Future p2+ cycles consuming `session.supabaseUserId` for Supabase-side joins must check for the `demo:` prefix or guard with `if (process.env.DEMO_MODE !== 'true')`.
 
 ## 2. OAuth callback (`/auth/callback`)
 
@@ -79,9 +79,9 @@ Three env-vars participate:
 
 Cookie shape (`school-erp-session`): `<base64url(JSON {tenantId, userId, supabaseUserId})>.<base64url(HMAC-SHA256)>`. Verification uses `crypto.timingSafeEqual` w/ length-guard. See `lib/auth/demo-cookie.ts`.
 
-**Why HMAC even though gated by DEMO_MODE:** defense-in-depth. If `DEMO_MODE=true` is accidentally set in prod (configuration error), forging requires `SESSION_COOKIE_SECRET`. The `/api/_demo/login` route 404s outside DEMO_MODE so an attacker can't plant a cookie either.
+**Why HMAC even though gated by DEMO_MODE:** defense-in-depth. If `DEMO_MODE=true` is accidentally set in prod (configuration error), forging requires `SESSION_COOKIE_SECRET`. The `/api/demo/login` route 404s outside DEMO_MODE so an attacker can't plant a cookie either.
 
-**`/api/_demo/login`** writes the cookie:
+**`/api/demo/login`** writes the cookie:
 - POST + `?role=admin|teacher|parent`
 - 404 if `DEMO_MODE !== 'true'`
 - Looks up first User w/ matching role in first tenant (single-tenant MVP)
@@ -136,6 +136,6 @@ User.id → UserRole[].roleId → Role.id
 | Session rotation cron / forced logout on role change | p3+ |
 | MFA / TOTP | not in v1 |
 | Cross-tenant tenant-switching UI | v1.1+ |
-| Rate limiting on `/auth/callback` + `/api/_demo/login` | first p2 entity cycle ships `lib/rate-limit.ts` |
+| Rate limiting on `/auth/callback` + `/api/demo/login` | first p2 entity cycle ships `lib/rate-limit.ts` |
 | `@@unique([supabaseUserId])` schema hardening | future schema cycle |
 | `permission.ts:149` resolver contract fix (args.userId vs supabaseUserId) | first p2 entity cycle |

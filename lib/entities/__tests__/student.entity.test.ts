@@ -288,4 +288,49 @@ describe("Student dataFetcher OWN_STUDENT branch", () => {
     const callArg = mockStudentFindMany.mock.calls[0][0];
     expect(callArg.where).not.toHaveProperty("id");
   });
+
+  // p2-scaffold-canary T5 — additional edge case: resolver now returns
+  // resolved-but-empty studentIds when Guardian row exists with zero
+  // StudentGuardian links. Previously this case was indistinguishable
+  // from "no Guardian row at all" (both returned studentScopeUnresolved=true).
+  // Post-T1, empty + Guardian-exists → no throw, empty-IN predicate, no rows.
+  it("parent role + resolved-but-empty studentIds (Guardian exists, zero StudentGuardian): id-IN with empty array, no throw", async () => {
+    mockGetSession.mockResolvedValue(PARENT_SESSION);
+    mockResolvePermissions.mockResolvedValue({
+      all: false,
+      studentScopeUnresolved: false,
+      studentIds: new Set<string>(),
+      campusIds: new Set<string>(),
+      programIds: new Set<string>(),
+      classIds: new Set<string>(),
+      sessionIds: new Set<string>(),
+      overflow: false,
+    });
+    await studentEntity.dataFetcher({ page: 1, pageSize: 10, filters: {} });
+    const callArg = mockStudentFindMany.mock.calls[0][0];
+    expect(callArg.where.id).toEqual({ in: [] });
+    // Verify NO throw — Prisma WILL return zero rows for `id IN ()`, which
+    // is the correct semantic (resolved empty allowlist) and surfaces as the
+    // empty-state UI rather than the no-permission UI.
+    expect(mockStudentFindMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("parent role + resolved studentIds: tenantId still threaded on Student where (defense-in-depth — id IN doesn't waive tenant filter)", async () => {
+    mockGetSession.mockResolvedValue(PARENT_SESSION);
+    mockResolvePermissions.mockResolvedValue({
+      all: false,
+      studentScopeUnresolved: false,
+      studentIds: new Set(["s_x"]),
+      campusIds: new Set<string>(),
+      programIds: new Set<string>(),
+      classIds: new Set<string>(),
+      sessionIds: new Set<string>(),
+      overflow: false,
+    });
+    await studentEntity.dataFetcher({ page: 1, pageSize: 10, filters: {} });
+    const where = mockStudentFindMany.mock.calls[0][0].where;
+    expect(where.tenantId).toBe("tenant_a1");
+    expect(where.deletedAt).toBeNull();
+    expect(where.id).toEqual({ in: ["s_x"] });
+  });
 });

@@ -37,6 +37,12 @@ export default defineConfig({
       // tests that mock `createXenditSessionForInvoice` directly.
       XENDIT_SECRET_KEY: process.env.XENDIT_SECRET_KEY ?? "test-secret",
       XENDIT_WEBHOOK_TOKEN: process.env.XENDIT_WEBHOOK_TOKEN ?? "test-webhook-token",
+      // Demo-mode HMAC secret for /api/demo/login (lib/auth/demo-cookie.ts).
+      // Required ≥32 chars; demo-mode auth never touches production. Wired
+      // p2-scaffold-canary T6 — first canary needed cookie minting to work.
+      SESSION_COOKIE_SECRET:
+        process.env.SESSION_COOKIE_SECRET ??
+        "playwright-e2e-dummy-secret-min-32-chars",
     },
   },
 });
