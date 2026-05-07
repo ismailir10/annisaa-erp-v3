@@ -28,9 +28,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
-import type { EntityDef, FieldDef } from "./entity";
+import type { FieldDef } from "./entity";
 import { ScaffoldErrorState } from "./error-state";
 import type { ActionResult } from "./server-action";
+import type { ScaffoldFormSpec } from "./form-spec";
 import {
   getRenderer,
   MissingRendererError,
@@ -38,7 +39,7 @@ import {
 } from "./field-renderer";
 
 export type ScaffoldFormPageProps<T extends FieldValues> = {
-  entity: EntityDef<T>;
+  formSpec: ScaffoldFormSpec<T>;
   initialValues?: Partial<T>;
   breadcrumbs?: ReadonlyArray<{ label: string; href?: string }>;
   /** "Tambah" / "Ubah" — drives header label. Default: "Tambah". */
@@ -56,7 +57,7 @@ export type ScaffoldFormPageProps<T extends FieldValues> = {
 };
 
 export function ScaffoldFormPage<T extends FieldValues>({
-  entity,
+  formSpec,
   initialValues,
   breadcrumbs = [],
   mode = "create",
@@ -85,8 +86,13 @@ export function ScaffoldFormPage<T extends FieldValues>({
   });
 
   const headerLabel =
-    mode === "edit" ? `Ubah ${entity.labelSingular}` : `Tambah ${entity.labelSingular}`;
-  const trail = [...breadcrumbs, { label: entity.label, href: cancelHref }, { label: headerLabel }];
+    mode === "edit" ? `Ubah ${formSpec.labelSingular}` : `Tambah ${formSpec.labelSingular}`;
+  // Caller owns the `breadcrumbs` trail entirely; the form appends only the
+  // mode-specific tail crumb (Tambah/Ubah). Earlier versions appended an
+  // `entity.label` crumb here — that field doesn't exist on ScaffoldFormSpec
+  // (label is plural, distinct from labelSingular) and would have duplicated
+  // whatever the caller's last breadcrumb already provided.
+  const trail = [...breadcrumbs, { label: headerLabel }];
 
   return (
     <form
@@ -119,7 +125,7 @@ export function ScaffoldFormPage<T extends FieldValues>({
         <h1 className="text-2xl font-semibold tracking-tight">{headerLabel}</h1>
       </header>
       {submitError && <ScaffoldErrorState error={submitError} title="Gagal menyimpan" />}
-      {entity.formSections.map((section) => (
+      {formSpec.formSections.map((section) => (
         <fieldset key={section.key} className="rounded-lg border p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           <legend className="px-2 text-sm font-medium">{section.label}</legend>
           {section.fields.map((f) => (

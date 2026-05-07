@@ -4,6 +4,7 @@
 
 export { ScaffoldListPage, ScaffoldListPageLoading } from "./list-page";
 export { ScaffoldFormPage, ScaffoldFormPageLoading } from "./form-page";
+export { formSpecFromEntity, type ScaffoldFormSpec } from "./form-spec";
 export { ScaffoldDetailPage, ScaffoldDetailPageLoading } from "./detail-page";
 export { ScaffoldErrorState } from "./error-state";
 export { OwnStudentUnresolvedError } from "./errors";
