@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockTenantFindFirst = vi.fn();
 const mockUserRoleFindFirst = vi.fn();
+const mockAcademicTermFindFirst = vi.fn();
 const mockSetDemoSessionCookie = vi.fn();
 const mockCheckRateLimit = vi.fn();
 
@@ -9,6 +10,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     tenant: { findFirst: (...args: unknown[]) => mockTenantFindFirst(...args) },
     userRole: { findFirst: (...args: unknown[]) => mockUserRoleFindFirst(...args) },
+    academicTerm: { findFirst: (...args: unknown[]) => mockAcademicTermFindFirst(...args) },
   },
 }));
 
@@ -30,12 +32,15 @@ function makeRequest(query: string): Request {
 beforeEach(() => {
   mockTenantFindFirst.mockReset();
   mockUserRoleFindFirst.mockReset();
+  mockAcademicTermFindFirst.mockReset();
   mockSetDemoSessionCookie.mockReset();
   mockCheckRateLimit.mockReset();
   // Default: a single seeded tenant exists. Specific tests override.
   mockTenantFindFirst.mockResolvedValue({ id: "tenant_a1" });
   // Default: rate-limit allows. T10 over-limit test overrides.
   mockCheckRateLimit.mockReturnValue({ ok: true, remaining: 59 });
+  // Default: an active academic term exists. p2-scaffold-pages widening.
+  mockAcademicTermFindFirst.mockResolvedValue({ id: "term_2026_1" });
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -84,6 +89,7 @@ describe("/api/_demo/login — happy path", () => {
     mockUserRoleFindFirst.mockResolvedValue({
       tenantId: "tenant_a1",
       user: { id: "user_admin_1", supabaseUserId: null },
+      role: { code: "admin" },
     });
 
     const res = await POST(makeRequest("?role=admin") as never);
@@ -110,6 +116,8 @@ describe("/api/_demo/login — happy path", () => {
       userId: "user_admin_1",
       // Synthetic prefix for demo (no real Supabase login).
       supabaseUserId: "demo:user_admin_1",
+      role: "admin",
+      currentTermId: "term_2026_1",
     });
   });
 
@@ -117,6 +125,7 @@ describe("/api/_demo/login — happy path", () => {
     mockUserRoleFindFirst.mockResolvedValue({
       tenantId: "tenant_a1",
       user: { id: "user_teacher_1", supabaseUserId: "sup_real" },
+      role: { code: "homeroom_teacher" },
     });
 
     const res = await POST(makeRequest("?role=teacher") as never);
@@ -134,7 +143,11 @@ describe("/api/_demo/login — happy path", () => {
     );
     // Real supabaseUserId preserved when present (not synthetic demo:...).
     expect(mockSetDemoSessionCookie).toHaveBeenCalledWith(
-      expect.objectContaining({ supabaseUserId: "sup_real" }),
+      expect.objectContaining({
+        supabaseUserId: "sup_real",
+        role: "homeroom_teacher",
+        currentTermId: "term_2026_1",
+      }),
     );
   });
 
@@ -158,6 +171,22 @@ describe("/api/_demo/login — happy path", () => {
     const body = await res.json();
     expect(body.error).toBe("no_tenant");
     expect(mockUserRoleFindFirst).not.toHaveBeenCalled();
+    expect(mockSetDemoSessionCookie).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 + no_active_term when no AcademicTerm has isActive=true", async () => {
+    mockUserRoleFindFirst.mockResolvedValue({
+      tenantId: "tenant_a1",
+      user: { id: "user_admin_1", supabaseUserId: null },
+      role: { code: "admin" },
+    });
+    mockAcademicTermFindFirst.mockResolvedValue(null);
+
+    const res = await POST(makeRequest("?role=admin") as never);
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("no_active_term");
     expect(mockSetDemoSessionCookie).not.toHaveBeenCalled();
   });
 });
@@ -184,6 +213,7 @@ describe("/api/_demo/login — rate-limit (T10)", () => {
     // pre-DB-lookup so neither tenant nor user lookup nor cookie write run.
     expect(mockTenantFindFirst).not.toHaveBeenCalled();
     expect(mockUserRoleFindFirst).not.toHaveBeenCalled();
+    expect(mockAcademicTermFindFirst).not.toHaveBeenCalled();
     expect(mockSetDemoSessionCookie).not.toHaveBeenCalled();
   });
 });

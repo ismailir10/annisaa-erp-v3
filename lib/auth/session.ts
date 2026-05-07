@@ -39,11 +39,23 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 import { DEMO_COOKIE_NAME, verifyDemoCookie } from "@/lib/auth/demo-cookie";
+import type { RoleCode } from "@/lib/entities/_types";
 
+// `role` + `currentTermId` widened in p2-scaffold-pages (2026-05-07) to support
+// per-role dataFetcher branching (parent OWN_STUDENT throw) + future term-aware
+// permission resolution. JWT custom-claim hook already injects role into the
+// access token (migration 02 hook), but `app_metadata` does NOT auto-mirror
+// access-token custom claims, and the Supabase JS client doesn't expose the
+// raw claim payload. So both fields resolve from the database at session-resolve
+// time — same prisma roundtrip the User row already triggers, plus two parallel
+// findFirst calls. Avoids JWT decoding + avoids redeploying the hook to add
+// current_term_id.
 export type SessionContext = {
   tenantId: string;
   userId: string;
   supabaseUserId: string;
+  role: RoleCode;
+  currentTermId: string;
 };
 
 export async function getSession(): Promise<SessionContext | null> {
@@ -89,9 +101,36 @@ export async function getSession(): Promise<SessionContext | null> {
   }
   const row = rows[0];
 
+  // Resolve role + currentTermId in parallel. Both are required for the widened
+  // SessionContext per p2-scaffold-pages cycle. Either missing → fail-closed
+  // null (caller treats as 401). Determinism notes:
+  // - userRole orderBy createdAt asc mirrors the JWT hook in migration 02 —
+  //   first-role wins for multi-role users (MVP single-role per spec).
+  // - academicTerm orderBy startDate asc compensates for the partial-WHERE
+  //   unique on (tenantId, isActive=true) being raw-SQL only (Prisma 7 schema
+  //   DSL doesn't enforce); deterministic if the constraint is ever bypassed.
+  const [userRoleRow, activeTerm] = await Promise.all([
+    prisma.userRole.findFirst({
+      where: { userId: row.id, tenantId: row.tenantId },
+      select: { role: { select: { code: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.academicTerm.findFirst({
+      where: { tenantId: row.tenantId, isActive: true },
+      select: { id: true },
+      orderBy: { startDate: "asc" },
+    }),
+  ]);
+
+  if (!userRoleRow?.role.code || !activeTerm?.id) {
+    return null;
+  }
+
   return {
     tenantId: row.tenantId,
     userId: row.id,
     supabaseUserId: data.user.id,
+    role: userRoleRow.role.code as RoleCode,
+    currentTermId: activeTerm.id,
   };
 }

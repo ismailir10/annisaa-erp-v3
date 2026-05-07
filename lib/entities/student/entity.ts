@@ -36,6 +36,11 @@ import * as React from "react";
 import type { ZodType } from "zod";
 
 import type { EntityDef } from "@/lib/scaffold";
+import { OwnStudentUnresolvedError } from "@/lib/scaffold/errors";
+import {
+  resolvePermissions,
+  type PermissionPrismaLike,
+} from "@/lib/scaffold/permission";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import type { Student } from "@/lib/generated/prisma/client";
@@ -239,6 +244,34 @@ export const entity: EntityDef<Student> = {
     const session = await getSession();
     if (!session) throw new Error("UNAUTHENTICATED");
 
+    // Clause 4 — OWN_STUDENT fail-closed branch (parent role).
+    // Roles other than `parent` skip resolvePermissions in this cycle; OWN_CLASS
+    // injection for HT/ST is a pre-existing dataFetcher gap to be addressed in
+    // the teacher portal cycle. Admin/principal/kadiv/admission_officer carry
+    // ALL scope per §10.7.1 — tenant filter is correct for them.
+    let ownStudentIdsFilter: { in: string[] } | undefined;
+    if (session.role === "parent") {
+      const resolved = await resolvePermissions({
+        userId: session.userId,
+        supabaseUserId: session.supabaseUserId,
+        tenantId: session.tenantId,
+        currentTermId: session.currentTermId,
+        // Cast: resolver's `PermissionPrismaLike` is the minimal Prisma surface
+        // it needs (8 model accessors + $queryRaw); the real PrismaClient is a
+        // structural superset. Same pattern other resolver consumers will adopt.
+        prisma: prisma as unknown as PermissionPrismaLike,
+      });
+      if (resolved.studentScopeUnresolved) {
+        // Page-layer fail-closed wrapper: ScaffoldErrorState catches the typed
+        // error and renders the "Akses dibatasi" no-permission state. Resolver
+        // wiring (flips `studentScopeUnresolved` to false) lands p2-scaffold-canary.
+        throw new OwnStudentUnresolvedError();
+      }
+      if (!resolved.all) {
+        ownStudentIdsFilter = { in: [...resolved.studentIds] };
+      }
+    }
+
     // Clause 7 — search predicate. Trigram GIN exists on Student.fullName
     // (migration 07); Prisma `contains` doesn't exploit it but is correct.
     const search = params.search?.trim();
@@ -271,9 +304,11 @@ export const entity: EntityDef<Student> = {
     }
 
     // Clause 2 + 3 — tenant filter + soft-delete filter (softDelete: true).
+    // Clause 4 (parent OWN_STUDENT) injects `id: { in: studentIds }` if set.
     const where = {
       tenantId: session.tenantId,
       deletedAt: null,
+      ...(ownStudentIdsFilter ? { id: ownStudentIdsFilter } : {}),
       ...searchPredicate,
       ...filterPredicates,
     };

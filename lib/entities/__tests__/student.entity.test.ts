@@ -4,14 +4,35 @@
 //
 // Cycle: docs/cycles/2026-05-06-p2-scaffold-registries.md (T7)
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { z } from "zod";
 
 // Stub `lib/db` so importing entity.ts (which closes over `prisma`) does not
 // instantiate PrismaPg / require DATABASE_URL at test time. Same hoisted-mock
 // pattern as `lib/audit/__tests__/write.test.ts`.
-vi.mock("@/lib/db", () => ({ prisma: {} }));
-vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
+// Mock prisma so importing entity.ts (closure over `prisma`) does NOT
+// instantiate PrismaPg. Mock getSession so dataFetcher tests below can stub
+// session.role + currentTermId. resolvePermissions is mocked separately to
+// drive the OWN_STUDENT branch deterministically.
+const mockStudentFindMany = vi.fn();
+const mockStudentCount = vi.fn();
+const mockGetSession = vi.fn();
+const mockResolvePermissions = vi.fn();
+
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    student: {
+      findMany: (...a: unknown[]) => mockStudentFindMany(...a),
+      count: (...a: unknown[]) => mockStudentCount(...a),
+    },
+  },
+}));
+vi.mock("@/lib/auth/session", () => ({
+  getSession: (...a: unknown[]) => mockGetSession(...a),
+}));
+vi.mock("@/lib/scaffold/permission", () => ({
+  resolvePermissions: (...a: unknown[]) => mockResolvePermissions(...a),
+}));
 
 import { AuditAction, FileKind } from "@/lib/generated/prisma/client";
 import {
@@ -170,3 +191,101 @@ describe("defineEntityPolicy round-trip (folds _types.test.ts per N1)", () => {
 // a future test author can extend with regex/edge cases without adding the
 // import; touch it once to anchor the import.
 void z;
+
+// ─── dataFetcher OWN_STUDENT branch (p2-scaffold-pages T2) ──────────
+// Parent role + studentScopeUnresolved → OwnStudentUnresolvedError thrown.
+// Parent role + resolved studentIds → where injects { id: { in: [...] } }.
+// Non-parent roles skip resolvePermissions entirely (admin tenant filter only).
+
+import { OwnStudentUnresolvedError } from "@/lib/scaffold/errors";
+
+describe("Student dataFetcher OWN_STUDENT branch", () => {
+  const ADMIN_SESSION = {
+    tenantId: "tenant_a1",
+    userId: "user_admin",
+    supabaseUserId: "sup_admin",
+    role: "admin" as const,
+    currentTermId: "term_1",
+  };
+  const PARENT_SESSION = {
+    tenantId: "tenant_a1",
+    userId: "user_parent",
+    supabaseUserId: "sup_parent",
+    role: "parent" as const,
+    currentTermId: "term_1",
+  };
+
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockStudentFindMany.mockReset();
+    mockStudentCount.mockReset();
+    mockResolvePermissions.mockReset();
+    mockStudentFindMany.mockResolvedValue([]);
+    mockStudentCount.mockResolvedValue(0);
+  });
+
+  it("admin role: skips resolvePermissions and queries with tenant filter only", async () => {
+    mockGetSession.mockResolvedValue(ADMIN_SESSION);
+    await studentEntity.dataFetcher({ page: 1, pageSize: 10, filters: {} });
+    expect(mockResolvePermissions).not.toHaveBeenCalled();
+    expect(mockStudentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tenantId: "tenant_a1", deletedAt: null }),
+      }),
+    );
+    expect(mockStudentFindMany.mock.calls[0][0].where).not.toHaveProperty("id");
+  });
+
+  it("parent role + studentScopeUnresolved=true: throws OwnStudentUnresolvedError", async () => {
+    mockGetSession.mockResolvedValue(PARENT_SESSION);
+    mockResolvePermissions.mockResolvedValue({
+      all: false,
+      studentScopeUnresolved: true,
+      studentIds: new Set<string>(),
+      campusIds: new Set<string>(),
+      programIds: new Set<string>(),
+      classIds: new Set<string>(),
+      sessionIds: new Set<string>(),
+      overflow: false,
+    });
+    await expect(
+      studentEntity.dataFetcher({ page: 1, pageSize: 10, filters: {} }),
+    ).rejects.toBeInstanceOf(OwnStudentUnresolvedError);
+    expect(mockStudentFindMany).not.toHaveBeenCalled();
+  });
+
+  it("parent role + resolved studentIds: injects id-IN filter", async () => {
+    mockGetSession.mockResolvedValue(PARENT_SESSION);
+    mockResolvePermissions.mockResolvedValue({
+      all: false,
+      studentScopeUnresolved: false,
+      studentIds: new Set(["s_1", "s_2"]),
+      campusIds: new Set<string>(),
+      programIds: new Set<string>(),
+      classIds: new Set<string>(),
+      sessionIds: new Set<string>(),
+      overflow: false,
+    });
+    await studentEntity.dataFetcher({ page: 1, pageSize: 10, filters: {} });
+    const callArg = mockStudentFindMany.mock.calls[0][0];
+    expect(callArg.where.id).toEqual({ in: expect.arrayContaining(["s_1", "s_2"]) });
+    expect(callArg.where.id.in).toHaveLength(2);
+  });
+
+  it("parent role + all=true: skips id-IN injection (ALL short-circuits)", async () => {
+    mockGetSession.mockResolvedValue(PARENT_SESSION);
+    mockResolvePermissions.mockResolvedValue({
+      all: true,
+      studentScopeUnresolved: false,
+      studentIds: new Set<string>(),
+      campusIds: new Set<string>(),
+      programIds: new Set<string>(),
+      classIds: new Set<string>(),
+      sessionIds: new Set<string>(),
+      overflow: false,
+    });
+    await studentEntity.dataFetcher({ page: 1, pageSize: 10, filters: {} });
+    const callArg = mockStudentFindMany.mock.calls[0][0];
+    expect(callArg.where).not.toHaveProperty("id");
+  });
+});
