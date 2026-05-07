@@ -152,7 +152,8 @@ This cycle's pages render exclusively through existing scaffold engine primitive
 
 ## Implementation
 
-(filled by /build)
+- T1 — `lib/guardians/actions/{create,update,soft-delete,restore}.ts` NEW (4 server actions, each `"use server"` directive at top). Mirrors Student-slice template VERBATIM with `Student` → `Guardian` substitution. `update` preserves the empty-PATCH `NO_CHANGES` guard before any DB read (audit-pii.md §4 phantom-UPDATE prevention). Soft-delete + restore idempotent paths (`ALREADY_DELETED` / `NOT_DELETED`). Audit emit gated on `policy.auditActions.includes(AuditAction.<action>)` per Guardian policy enrolment `[CREATE, UPDATE, SOFT_DELETE, RESTORE]`. `revalidatePath` on `/admin/akademik/wali` for list + `/admin/akademik/wali/${id}` for detail. `lib/guardians/actions/__tests__/actions.test.ts` NEW combined test file: 6 assertScope cases (admin read pass, parent read pass via OWN_STUDENT, admin create pass, parent create FORBIDDEN, kadiv soft_delete FORBIDDEN [A/P only], parent update FORBIDDEN) + 4 createGuardian + 4 updateGuardian + 3 softDeleteGuardian + 2 restoreGuardian = 19 cases total.
+- T2 — `lib/households/actions/{create,update,soft-delete,restore}.ts` NEW (4 server actions). Same pipeline as T1 with `Household` substitution. `revalidatePath` on `/admin/akademik/keluarga` + `/admin/akademik/keluarga/${id}`. `lib/households/actions/__tests__/actions.test.ts` NEW: 6 assertScope (admin read pass, FO read pass via sibling-discount ALL grant, parent read FORBIDDEN [no parent grant on Household], admin create pass, FO create FORBIDDEN [read-only], kadiv soft_delete FORBIDDEN [A/P only]) + 4 createHousehold + 4 updateHousehold + 3 softDeleteHousehold + 2 restoreHousehold = 19 cases total. After T2: 989 baseline → 1008 (+19 expected).
 
 ## Verification
 
