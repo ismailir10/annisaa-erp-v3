@@ -1224,7 +1224,7 @@ Canonical surface for **what shipped, when, where**. One row per merged-to-stagi
 | 2 | scaffold-pages | p2-scaffold-pages | 2026-05-07 | #196 | ee8e7f2 | shipped |
 | 2 | scaffold-pages-guardian-household | p2-scaffold-pages-guardian-household | 2026-05-07 | #198 | ea00b9b | shipped |
 | 2 | scaffold-canary | p2-scaffold-canary | 2026-05-07 | #199 | dbb817e | shipped |
-| 2 | spec-sync-canary-shipped | p2-spec-sync-canary-shipped | — | — | — | next |
+| 2 | spec-sync-canary-shipped | p2-spec-sync-canary-shipped | 2026-05-07 | #200 | 11a7933 | shipped |
 
 **Notes:**
 - **Slug column is the canonical match key.** `/ship` post-merge matches by exact-string equality (case-sensitive); on `status=next` row match → update-in-place; on `status=shipped` match → no-op; on no match → append.
