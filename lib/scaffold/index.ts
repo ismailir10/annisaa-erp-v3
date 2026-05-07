@@ -6,6 +6,7 @@ export { ScaffoldListPage, ScaffoldListPageLoading } from "./list-page";
 export { ScaffoldFormPage, ScaffoldFormPageLoading } from "./form-page";
 export { ScaffoldDetailPage, ScaffoldDetailPageLoading } from "./detail-page";
 export { ScaffoldErrorState } from "./error-state";
+export { OwnStudentUnresolvedError } from "./errors";
 export { defineAction } from "./action";
 export { fmt, type Fmt } from "./format";
 export {
