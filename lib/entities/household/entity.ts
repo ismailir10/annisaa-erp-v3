@@ -41,6 +41,8 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import type { DataFetcher, EntityDef } from "@/lib/scaffold";
 import type { Household } from "@/lib/generated/prisma/client";
+import { softDeleteHousehold } from "@/lib/households/actions/soft-delete";
+import { restoreHousehold } from "@/lib/households/actions/restore";
 import { householdSchema } from "./schema";
 
 // Row type widens the Prisma `Household` model with the `_count.students`
@@ -174,7 +176,37 @@ export const householdEntity: EntityDef<HouseholdRow> = {
       render: () => React.createElement("div", null, "(deferred)"),
     },
   ],
-  detailActions: [],
+  detailActions: [
+    {
+      key: "soft-delete",
+      label: "Arsipkan",
+      icon: "Archive",
+      scope: "ALL",
+      variant: "destructive",
+      confirm: {
+        title: "Arsipkan Keluarga?",
+        description:
+          "Keluarga tidak akan muncul di daftar aktif. Bisa dipulihkan kembali.",
+      },
+      onClick: async (row) => {
+        await softDeleteHousehold(row.id);
+      },
+    },
+    {
+      key: "restore",
+      label: "Pulihkan",
+      icon: "Undo2",
+      scope: "ALL",
+      variant: "default",
+      confirm: {
+        title: "Pulihkan Keluarga?",
+        description: "Keluarga akan muncul kembali di daftar aktif.",
+      },
+      onClick: async (row) => {
+        await restoreHousehold(row.id);
+      },
+    },
+  ],
   dataFetcher,
 };
 

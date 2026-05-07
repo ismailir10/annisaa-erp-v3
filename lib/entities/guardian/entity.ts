@@ -41,6 +41,8 @@ import type { ZodType } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import type { DataFetcher, EntityDef } from "@/lib/scaffold";
+import { softDeleteGuardian } from "@/lib/guardians/actions/soft-delete";
+import { restoreGuardian } from "@/lib/guardians/actions/restore";
 
 import { guardianSchema, type GuardianInput } from "./schema";
 
@@ -269,7 +271,37 @@ export const entity: EntityDef<GuardianRow> = {
       render: () => React.createElement("div", null, "(deferred)"),
     },
   ],
-  detailActions: [],
+  detailActions: [
+    {
+      key: "soft-delete",
+      label: "Arsipkan",
+      icon: "Archive",
+      scope: "ALL",
+      variant: "destructive",
+      confirm: {
+        title: "Arsipkan Wali?",
+        description:
+          "Wali tidak akan muncul di daftar aktif. Bisa dipulihkan kembali.",
+      },
+      onClick: async (row) => {
+        await softDeleteGuardian(row.id);
+      },
+    },
+    {
+      key: "restore",
+      label: "Pulihkan",
+      icon: "Undo2",
+      scope: "ALL",
+      variant: "default",
+      confirm: {
+        title: "Pulihkan Wali?",
+        description: "Wali akan muncul kembali di daftar aktif.",
+      },
+      onClick: async (row) => {
+        await restoreGuardian(row.id);
+      },
+    },
+  ],
   dataFetcher,
 };
 

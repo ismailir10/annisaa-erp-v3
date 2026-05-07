@@ -44,6 +44,8 @@ import {
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import type { Student } from "@/lib/generated/prisma/client";
+import { softDeleteStudent } from "@/lib/students/actions/soft-delete";
+import { restoreStudent } from "@/lib/students/actions/restore";
 
 import { schema } from "./schema";
 
@@ -236,9 +238,46 @@ export const entity: EntityDef<Student> = {
       render: () => React.createElement("div", null, "(deferred)"),
     },
   ],
-  // Detail-page actions (e.g. soft-delete confirmation) land in
-  // p2-scaffold-pages alongside the action layer.
-  detailActions: [],
+  // Soft-delete + restore detail-page actions. Server actions enforce
+  // current-state correctness (`ALREADY_DELETED` / `NOT_DELETED` from
+  // soft-delete + restore respectively), so both buttons render regardless
+  // of `deletedAt` state — clicking the wrong-state button surfaces the
+  // server error via revalidation. State-aware button hiding (predicate
+  // hatch on DetailActionDef) deferred to a future scaffold-engine cycle.
+  // Confirmation copy aligned with .claude/standards/voice.md §Destructive
+  // confirmations: title is the imperative-action question; body is a
+  // present-tense state-change consequence. NO trailing "Lanjutkan?".
+  detailActions: [
+    {
+      key: "soft-delete",
+      label: "Arsipkan",
+      icon: "Archive",
+      scope: "ALL",
+      variant: "destructive",
+      confirm: {
+        title: "Arsipkan Siswa?",
+        description:
+          "Siswa tidak akan muncul di daftar aktif. Bisa dipulihkan kembali.",
+      },
+      onClick: async (row) => {
+        await softDeleteStudent(row.id);
+      },
+    },
+    {
+      key: "restore",
+      label: "Pulihkan",
+      icon: "Undo2",
+      scope: "ALL",
+      variant: "default",
+      confirm: {
+        title: "Pulihkan Siswa?",
+        description: "Siswa akan muncul kembali di daftar aktif.",
+      },
+      onClick: async (row) => {
+        await restoreStudent(row.id);
+      },
+    },
+  ],
   dataFetcher: async (params) => {
     // Clause 1 — session resolve.
     const session = await getSession();
