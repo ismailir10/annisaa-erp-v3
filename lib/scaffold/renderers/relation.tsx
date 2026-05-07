@@ -14,7 +14,7 @@ import type { FieldDef } from "../entity";
 import type { FieldRendererProps } from "./text";
 
 type RelationDef = Extract<FieldDef, { kind: "RELATION" }>;
-type Item = { id: string; [key: string]: unknown };
+type Item = { id: string; label?: string };
 
 export function RelationRenderer({ field, def, disabled, ariaInvalid }: FieldRendererProps) {
   if (def.kind !== "RELATION") throw new Error(`RelationRenderer received non-RELATION FieldDef (kind="${def.kind}")`);
@@ -27,7 +27,7 @@ export function RelationRenderer({ field, def, disabled, ariaInvalid }: FieldRen
   React.useEffect(() => {
     let cancelled = false;
     setStatus("loading");
-    fetch(`/api/${t.resource}?q=${encodeURIComponent(q)}&limit=20`)
+    fetch(`/api/scaffold/${t.resource}?q=${encodeURIComponent(q)}&limit=20`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: { items?: Item[] }) => !cancelled && (setItems(Array.isArray(d.items) ? d.items : []), setStatus("idle")))
       .catch(() => !cancelled && setStatus("error"));
@@ -47,7 +47,7 @@ export function RelationRenderer({ field, def, disabled, ariaInvalid }: FieldRen
           {status === "loading" && <div className="p-2 text-sm text-muted-foreground">Memuat …</div>}
           {status === "error" && <div className="p-2 text-sm text-destructive">Gagal memuat</div>}
           {status === "idle" && items.map((it) => (
-            <ComboboxItem key={it.id} value={it.id}>{String(it[t.labelField] ?? it.id)}</ComboboxItem>
+            <ComboboxItem key={it.id} value={it.id}>{String(it.label ?? it.id)}</ComboboxItem>
           ))}
           <ComboboxEmpty>Tidak ada hasil</ComboboxEmpty>
         </ComboboxList>
