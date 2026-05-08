@@ -840,6 +840,22 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 - Reviewer second flag (Household drift-trap warning comment) — verified already present at `prisma/schema.prisma:1073-1078`. No-op.
 - Re-ran gates: build clean, vitest 1070 passed | 4 skipped, verify-rls 33/33.
 
+### T2 — Address entity registry
+
+**Files touched:**
+- `lib/entities/address/schema.ts` — Created. `addressSchema` Zod object with BPS-code regex per field + `superRefine` chain-validity (prefix-check per Spec §1). Exports `schema` alias + default for scaffold-check static guard.
+- `lib/entities/address/policy.ts` — Created. `addressPolicy`: `softDelete: true`; `auditActions: [CREATE, UPDATE, SOFT_DELETE, RESTORE]`; scopes: A/P/KD/AO ALL create+update; A/P/KD ALL read; A/P ALL soft_delete+restore; `delete: []`; `fileKindAllowlist: {}` (no upload affordance). Exports `addressPolicy` + `policy` alias + default.
+- `lib/entities/address/entity.ts` — Created. `EntityDef<Address>`: key `address`, label `Alamat`, icon `MapPin`, resource `Address`, `searchFields: ["streetLine", "notes"]` (no PII). dataFetcher: tenant-scoped, `deletedAt: null` soft-delete-aware `prisma.address.findMany`. 4 listColumns (streetLine, districtId, postalCode, notes). 1 filter (SEARCH — under-floor deviation documented inline). 1 detailTab (ringkasan, deferred). `detailActions: []`. Exports `entity` alias + default.
+- `lib/entities/_registry.ts` — Added `addressPolicy` import + `[addressPolicy.resource]: addressPolicy` entry. Registry: 5 → 6 entries.
+- `lib/entities/index.ts` — Added address re-exports (named: `addressEntity`, `addressPolicy`, `addressSchema`, `AddressInput`). Added `addressEntityDefault` + `addressPolicyValue` to `ALL_ENTITIES` + `ALL_POLICIES` aggregates.
+- `lib/entities/address/__tests__/policy.test.ts` — Created. 20 test cases: registry membership, core fields (resource/softDelete/auditActions), scope grants per role (admin/principal/kadiv/AO on create+update; A/P/KD on read; A/P on soft_delete+restore; HT/sentra_teacher/finance_officer/parent absent from read), fileKindAllowlist empty `{}`.
+- `lib/entities/__tests__/address.entity.test.ts` — Created. Schema tests (chain-validity superRefine, field-length guards, BPS-code prefix rejection). EntityDef shape tests (key/resource/label/icon/filters/detailActions/tabs/formSections). dataFetcher tests (mock prisma: asserts `where.tenantId === session.tenantId` + `deletedAt: null`; throws UNAUTHENTICATED when no session).
+
+**Gates (T2):**
+- `npm run scaffold:check` → `scaffold-check: 6 entities validated.` (was 5/5 → 6/6 +1 Address)
+- `npm run build` → `✓ Compiled successfully in 4.5s` / `Finished TypeScript in 6.1s` — TS clean, 19 pages.
+- `npx vitest run` → `Test Files 56 passed | 1 skipped (57) / Tests 1122 passed | 4 skipped (1126)` in 8.60s (+52 tests from policy.test.ts + address.entity.test.ts + schema cases).
+
 ## Verification
 
 > Filled by /build after end-of-cycle gate. Includes:
