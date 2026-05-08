@@ -908,6 +908,12 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 - `npm run build` → `✓ Compiled successfully in 4.3s` / `Finished TypeScript in 6.1s` — TS clean, 31 routes.
 - `npx vitest run` → `Test Files 59 passed | 1 skipped (60) / Tests 1187 passed | 4 skipped (1191)` in 9.14s — exact T4 baseline, no regressions.
 
+**T5 reviewer follow-up (commit 2):** reviewer flagged two UX gaps:
+1. **Race condition on rapid parent selection** — when user picks Province A then immediately B before A's regency fetch resolves, A's stale `.then()` could poison the cache and the spinner could remain stuck. Fixed by wrapping each level's fetch in an `AbortController` (effect cleanup aborts in-flight stale requests on dependency change). Stale `.then()` resolutions now reject as `AbortError` and are silently discarded.
+2. **Silent 500 errors swallowed as empty state** — `fetchRegions` previously returned `[]` on `!res.ok`, indistinguishable from a legitimate orphan-parent empty list. Fixed by throwing on non-OK status; caller catches + shows `toast.error("Gagal memuat <level>. Coba lagi.")` per AC4 error-toast requirement. AbortError is excluded from the toast path (cancellations are normal lifecycle events, not user-visible faults).
+
+Re-ran gates: build clean, vitest 1187 passed | 4 skipped (no test count change — UI runtime fix, no new tests).
+
 ## Verification
 
 > Filled by /build after end-of-cycle gate. Includes:

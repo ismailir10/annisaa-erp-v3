@@ -64,9 +64,18 @@ export interface AddressChainFieldProps {
 // Helpers
 // --------------------------------------------------------------------------
 
-async function fetchRegions(url: string): Promise<RegionItem[]> {
-  const res = await fetch(url);
-  if (!res.ok) return [];
+async function fetchRegions(
+  url: string,
+  signal: AbortSignal,
+): Promise<RegionItem[]> {
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    // 4xx / 5xx — surface to caller via thrown error rather than silently
+    // returning []. Caller decides whether to toast (genuine fault) vs swallow
+    // (AbortError on cancel). Distinguishes legitimate empty list (200 + [])
+    // from server fault (which should show "Gagal memuat" not "Tidak ada pilihan").
+    throw new Error(`region_fetch_failed:${res.status}`);
+  }
   const json: RegionApiResponse = await res.json();
   return json.items ?? [];
 }
@@ -116,50 +125,87 @@ export function AddressChainField({
   const districts = districtsCache.get(regencyId) ?? [];
   const villages = villagesCache.get(districtId) ?? [];
 
+  // ── Fetch helper: AbortController per dependency change cancels stale
+  //    in-flight requests and surfaces server errors via toast. Pattern
+  //    avoids the race where rapid parent switching leaves stale cache
+  //    entries or stuck spinners (T5 reviewer findings).
+  const runFetch = useCallback(
+    (
+      url: string,
+      cacheKey: string,
+      setLoading: (b: boolean) => void,
+      setCache: (key: string, items: RegionItem[]) => void,
+      levelLabel: string,
+    ) => {
+      const ctrl = new AbortController();
+      setLoading(true);
+      fetchRegions(url, ctrl.signal)
+        .then((items) => {
+          setCache(cacheKey, items);
+          setLoading(false);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === "AbortError") return; // stale, ignore
+          setLoading(false);
+          toast.error(`Gagal memuat ${levelLabel}. Coba lagi.`);
+        });
+      return () => ctrl.abort();
+    },
+    [],
+  );
+
   // ── Load provinces on mount ────────────────────────────────────────────
   useEffect(() => {
     if (provincesCache.has("")) return;
-    setLoadingProvinces(true);
-    fetchRegions("/api/regions/provinces").then((items) => {
-      setProvincesCache((prev) => new Map(prev).set("", items));
-      setLoadingProvinces(false);
-    });
+    return runFetch(
+      "/api/regions/provinces",
+      "",
+      setLoadingProvinces,
+      (k, items) => setProvincesCache((prev) => new Map(prev).set(k, items)),
+      "Provinsi",
+    );
     // provincesCache intentionally excluded — sentinel guarantees single fetch
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [runFetch]);
 
   // ── Load regencies when provinceId changes ─────────────────────────────
   useEffect(() => {
     if (!provinceId) return;
     if (regenciesCache.has(provinceId)) return;
-    setLoadingRegencies(true);
-    fetchRegions(`/api/regions/regencies?provinceId=${provinceId}`).then((items) => {
-      setRegenciesCache((prev) => new Map(prev).set(provinceId, items));
-      setLoadingRegencies(false);
-    });
-  }, [provinceId]); // eslint-disable-line react-hooks/exhaustive-deps
+    return runFetch(
+      `/api/regions/regencies?provinceId=${provinceId}`,
+      provinceId,
+      setLoadingRegencies,
+      (k, items) => setRegenciesCache((prev) => new Map(prev).set(k, items)),
+      "Kabupaten/Kota",
+    );
+  }, [provinceId, runFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load districts when regencyId changes ─────────────────────────────
   useEffect(() => {
     if (!regencyId) return;
     if (districtsCache.has(regencyId)) return;
-    setLoadingDistricts(true);
-    fetchRegions(`/api/regions/districts?regencyId=${regencyId}`).then((items) => {
-      setDistrictsCache((prev) => new Map(prev).set(regencyId, items));
-      setLoadingDistricts(false);
-    });
-  }, [regencyId]); // eslint-disable-line react-hooks/exhaustive-deps
+    return runFetch(
+      `/api/regions/districts?regencyId=${regencyId}`,
+      regencyId,
+      setLoadingDistricts,
+      (k, items) => setDistrictsCache((prev) => new Map(prev).set(k, items)),
+      "Kecamatan",
+    );
+  }, [regencyId, runFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load villages when districtId changes ─────────────────────────────
   useEffect(() => {
     if (!districtId) return;
     if (villagesCache.has(districtId)) return;
-    setLoadingVillages(true);
-    fetchRegions(`/api/regions/villages?districtId=${districtId}`).then((items) => {
-      setVillagesCache((prev) => new Map(prev).set(districtId, items));
-      setLoadingVillages(false);
-    });
-  }, [districtId]); // eslint-disable-line react-hooks/exhaustive-deps
+    return runFetch(
+      `/api/regions/villages?districtId=${districtId}`,
+      districtId,
+      setLoadingVillages,
+      (k, items) => setVillagesCache((prev) => new Map(prev).set(k, items)),
+      "Kelurahan/Desa",
+    );
+  }, [districtId, runFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Cascade reset handlers ─────────────────────────────────────────────
 
