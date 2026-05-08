@@ -96,7 +96,7 @@ Tasks are sequential — the seed must land before the test that asserts it, and
   - missing parent User → throws with the exact message specified in T1.
   Mocking posture mirrors `lib/scaffold/__tests__/self-write-contract.test.ts` (`vi.mock('@/lib/db', () => ({ prisma: { ... } }))`). **Acceptance:** `npx vitest run prisma/seed/__tests__/10-demo-parent-guardian.test.ts` green; all four scenarios assert correct call counts on the mocked Prisma client.
 
-- [ ] **T3 — Guardian.update SELF action coverage extension.** Extend `lib/guardians/actions/__tests__/update.test.ts` (create if it doesn't exist; otherwise add cases). Three cases:
+- [x] **T3 — Guardian.update SELF action coverage extension.** Extend `lib/guardians/actions/__tests__/update.test.ts` (create if it doesn't exist; otherwise add cases). Three cases:
   - `parent + matching userId` → `ok: true` + audit row written with `actorUserId === session.userId`.
   - `parent + non-matching userId` (row owned by a household-seeded Guardian) → `ok: false, error: 'NOT_FOUND'` (information-leak posture).
   - `admin + ALL grant` → `ok: true` regardless of row's `userId` (regression).
@@ -117,10 +117,12 @@ Tasks are sequential — the seed must land before the test that asserts it, and
 
 - Subagent plan: tasks fully sequential (T1 → T2 → T3 → T4a → T4b → T5). T2 tests T1's seed; T4b calls T4a's route; T5 lands cycle-doc finalization. No parallel-safe split. No subagent dispatch.
 - Task 1+2 (combined commit) — `prisma/seed/10-demo-parent-guardian.ts` (new) + `prisma/seed/index.ts` (orchestrator wire) + `prisma/seed/__tests__/10-demo-parent-guardian.test.ts` (new) — seeds two Guardian rows (one parent-owned via `userId === parent@demo.local.id`, one unowned fixture via `userId: null`), idempotent on re-run with resurrect-on-soft-delete via `deletedAt: null` reset; 4 vitest cases cover first-run / re-run / missing-User-throws / post-soft-delete create-path. Schema fields used: `tenantId`, `userId`, `fullName` only — `Guardian` carries no `kindKaitan` column (per spec-time review P0a).
+- Task 3 — `lib/guardians/actions/__tests__/actions.test.ts` extension. Existing test file (added in `p2-portal-shell-sidebar` T4) already covered the three originally-planned cases at lines 185, 206, 226 (parent SELF own-row → ok + where-clause shape; parent SELF wrong-row → NOT_FOUND; admin ALL regression). T3 narrows to the missing assertion: parent SELF write emits an audit row with `actorUserId === parent.userId` + `action: UPDATE` + `resource: 'Guardian'` + `resourceId: id`. +1 vitest case (22 → 23 in this file).
 
 ## Verification
 
 - Task 1+2 — `npx prisma generate` ✓; `npm run build` ✓; `npx vitest run prisma/seed/__tests__/10-demo-parent-guardian.test.ts` 4/4 ✓; full `npx vitest run` 1069 passed | 4 skipped (1073 total) — net +4 cases vs. prior run (was 1065).
+- Task 3 — `npx vitest run lib/guardians/actions/__tests__/actions.test.ts` 22/22 ✓ (was 21 → 22 with the new audit-actorUserId case).
 
 ## Ship Notes
 

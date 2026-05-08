@@ -223,6 +223,25 @@ describe("updateGuardian", () => {
     );
   });
 
+  it("parent SELF: audit row carries actorUserId === parent.userId (canary smoke contract per p2-portal-write-widening T3)", async () => {
+    mockGetSession.mockResolvedValue(PARENT_SESSION);
+    const ownGuardian = { ...GUARDIAN_ROW, userId: "user_parent" };
+    mockGuardianFindFirst.mockResolvedValue(ownGuardian);
+    mockGuardianUpdate.mockResolvedValue({ ...ownGuardian, fullName: "Bu Sari Updated" });
+    const result = await updateGuardian("g_1", { fullName: "Bu Sari Updated" });
+    expect(result.ok).toBe(true);
+    expect(mockWriteAuditLog).toHaveBeenCalledTimes(1);
+    expect(mockWriteAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: "user_parent",
+        action: AuditAction.UPDATE,
+        resource: "Guardian",
+        resourceId: "g_1",
+      }),
+      expect.anything(),
+    );
+  });
+
   it("admin ALL: precheck where-clause omits userId predicate (regression — ALL grants unaffected)", async () => {
     mockGetSession.mockResolvedValue(ADMIN_SESSION);
     mockGuardianFindFirst.mockResolvedValue(GUARDIAN_ROW);
