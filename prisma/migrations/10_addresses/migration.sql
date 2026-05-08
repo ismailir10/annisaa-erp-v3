@@ -83,7 +83,9 @@ CREATE INDEX "Address_tenantId_idx"             ON "Address"("tenantId");
 CREATE INDEX "Address_provinceId_idx"           ON "Address"("provinceId");
 CREATE INDEX "Address_regencyId_provinceId_idx" ON "Address"("regencyId", "provinceId");
 CREATE INDEX "Address_districtId_regencyId_idx" ON "Address"("districtId", "regencyId");
-CREATE INDEX "Address_villageId_districtId_idx" ON "Address"("villageId", "districtId");
+-- villageId is nullable — leading non-null `districtId` keeps the index useful for
+-- "filter by district" queries and avoids NULL-row index bloat.
+CREATE INDEX "Address_districtId_villageId_idx" ON "Address"("districtId", "villageId");
 
 -- ── Foreign keys ──────────────────────────────────────────────────────────────
 -- Tenant FK: Restrict per §4.4 (never cascade Tenant).

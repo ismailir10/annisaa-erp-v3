@@ -509,7 +509,9 @@ model Address {
   @@index([provinceId])
   @@index([regencyId, provinceId])
   @@index([districtId, regencyId])
-  @@index([villageId, districtId])
+  // villageId is nullable — leading non-null `districtId` keeps the index
+  // useful for "filter by district" queries and avoids NULL-row index bloat.
+  @@index([districtId, villageId])
 }
 
 // ════════════════════════════════════════════════════════════════════════

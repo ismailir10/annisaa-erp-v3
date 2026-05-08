@@ -835,6 +835,11 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 - `npm run build` → TS clean, Next.js 16 build succeeded (19 pages).
 - `npx vitest run` → `Test Files 54 passed | 1 skipped (55) / Tests 1070 passed | 4 skipped (1074)` in 8.52s.
 
+**T1 reviewer follow-up (commit 2):**
+- `feature-dev:code-reviewer` flagged `Address_villageId_districtId_idx` as nullable-leading column → flipped to `Address_districtId_villageId_idx` `(districtId, villageId)`. Non-null leading; supports "filter by district" forward queries; no NULL-row index bloat. Schema + migration SQL both updated. Dev DB stale (Prisma blocks AI-invoked `migrate reset`); CI fresh-clone applies the corrected migration.
+- Reviewer second flag (Household drift-trap warning comment) — verified already present at `prisma/schema.prisma:1073-1078`. No-op.
+- Re-ran gates: build clean, vitest 1070 passed | 4 skipped, verify-rls 33/33.
+
 ## Verification
 
 > Filled by /build after end-of-cycle gate. Includes:
