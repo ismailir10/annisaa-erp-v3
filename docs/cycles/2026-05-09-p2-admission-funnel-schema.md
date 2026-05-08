@@ -34,7 +34,7 @@ Phase 2 entity backbone advances to admission. With Address (Migration 10, #208)
   - No DB / session / Prisma imports — pure transition algebra. Server-action wrapping happens in the UI cycle.
 
 - **AC6 — State-machine vitest.** `lib/admission/state-machine.test.ts` covers:
-  - Every cell in `ADMISSION_TRANSITIONS` legal-transitions list returns `canTransition === true` (exactly 12 cases — the legal edges enumerated below in State Transitions).
+  - Every cell in `ADMISSION_TRANSITIONS` legal-transitions list returns `canTransition === true` (exactly 15 cases — the legal edges enumerated below in State Transitions: 2+3+4+3+3).
   - At least one illegal transition per source state returns `canTransition === false` (≈8 cases — one illegal per non-terminal source, plus terminal states).
   - `assertTransition` throws on illegal with the documented error message shape (`/INVALID_TRANSITION:/` regex).
   - Terminal states (`ACCEPTED`, `REJECTED`, `WITHDRAWN`) reject ALL outbound transitions including self-loop.
@@ -86,7 +86,7 @@ REJECTED              → (terminal — no outbound)
 WITHDRAWN             → (terminal — no outbound)
 ```
 
-12 legal edges. Self-loops illegal. Skip-ahead transitions illegal (e.g., `DRAFT → ACCEPTED` rejected). UNDER_REVIEW can fast-track to OFFER_EXTENDED (skipping INTERVIEW_SCHEDULED) — this is a deliberate edge for admins who waive interview for known referrals.
+15 legal edges. Self-loops illegal. Skip-ahead transitions illegal (e.g., `DRAFT → ACCEPTED` rejected). UNDER_REVIEW can fast-track to OFFER_EXTENDED (skipping INTERVIEW_SCHEDULED) — this is a deliberate edge for admins who waive interview for known referrals.
 
 ## Tasks
 
