@@ -20,6 +20,7 @@ import { policy as guardianPolicy } from "./guardian/policy";
 import { policy as householdPolicy } from "./household/policy";
 import { policy as studentIdentifierPolicy } from "./student-identifier/policy";
 import { policy as guardianInvitationPolicy } from "./guardian-invitation/policy";
+import { policy as addressPolicy } from "./address/policy";
 
 export const POLICY_BY_RESOURCE: Readonly<Record<string, EntityPolicy>> = Object.freeze({
   [studentPolicy.resource]: studentPolicy,
@@ -27,6 +28,7 @@ export const POLICY_BY_RESOURCE: Readonly<Record<string, EntityPolicy>> = Object
   [householdPolicy.resource]: householdPolicy,
   [studentIdentifierPolicy.resource]: studentIdentifierPolicy,
   [guardianInvitationPolicy.resource]: guardianInvitationPolicy,
+  [addressPolicy.resource]: addressPolicy,
 });
 
 export function getPolicyByResource(resource: string): EntityPolicy | undefined {
