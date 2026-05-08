@@ -1242,7 +1242,7 @@ Canonical surface for **what shipped, when, where**. One row per merged-to-stagi
 | 2 | scaffold-pages-guardian-household | p2-scaffold-pages-guardian-household | 2026-05-07 | #198 | ea00b9b | shipped |
 | 2 | scaffold-canary | p2-scaffold-canary | 2026-05-07 | #199 | dbb817e | shipped |
 | 2 | spec-sync-canary-shipped | p2-spec-sync-canary-shipped | 2026-05-07 | #200 | 11a7933 | shipped |
-| 2 | portal-shell-sidebar | p2-portal-shell-sidebar | 2026-05-08 | — | — | next |
+| 2 | portal-shell-sidebar | p2-portal-shell-sidebar | 2026-05-08 | #204 | 805588f | shipped |
 | 2 | entity-actions | p2-entity-actions | 2026-05-08 | #202 | 36550c9 | shipped |
 
 **Notes:**
