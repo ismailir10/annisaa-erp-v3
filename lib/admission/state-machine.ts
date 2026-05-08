@@ -11,7 +11,8 @@
 // locked out of this cycle; future P3 cycles extend additively (`ALTER TYPE
 // ... ADD VALUE`).
 //
-// Transition table — exactly 12 legal edges:
+// Transition table — exactly 15 legal edges (2 + 3 + 4 + 3 + 3 across the 5
+// non-terminal source states):
 //
 //   DRAFT                 → SUBMITTED, WITHDRAWN
 //   SUBMITTED             → UNDER_REVIEW, REJECTED, WITHDRAWN

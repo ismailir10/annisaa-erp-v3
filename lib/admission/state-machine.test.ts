@@ -3,7 +3,8 @@
 //
 // Coverage shape (cycle Spec AC6):
 //   - Every legal cell in ADMISSION_TRANSITIONS returns canTransition === true
-//     (exactly 12 cases — the legal edges per Spec §State Transitions)
+//     (exactly 15 cases — the legal edges per Spec §State Transitions:
+//      2 + 3 + 4 + 3 + 3 across the 5 non-terminal source states)
 //   - At least one illegal transition per non-terminal source state returns
 //     canTransition === false (≈8 cases)
 //   - assertTransition throws on illegal with the documented error message shape

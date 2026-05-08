@@ -148,9 +148,12 @@ export const admissionEntity: EntityDef<Admission> = {
       kind: "SEARCH",
     },
   ],
-  // Smart views per AdmissionStatus clusters (cycle Spec AC7).
-  // Note: filter values are status-cluster keys; the dataFetcher's clause 7
-  // does not yet wire status filtering this cycle — UI cycle adds it.
+  // Smart views — every AdmissionStatus value reachable from at least one
+  // view (cycle Spec AC7 + reviewer fix). Single-status views per state so
+  // INTERVIEW_SCHEDULED + REJECTED + WITHDRAWN are not silently unreachable.
+  // dataFetcher clause 7 does not yet wire status filtering this cycle — UI
+  // cycle adds the filter dispatch + may collapse adjacent states into
+  // multi-status views once the engine grows multi-value filter support.
   views: [
     {
       key: "default",
@@ -173,14 +176,29 @@ export const admissionEntity: EntityDef<Admission> = {
       filters: { status: "UNDER_REVIEW" },
     },
     {
+      key: "interview",
+      label: "Wawancara Terjadwal",
+      filters: { status: "INTERVIEW_SCHEDULED" },
+    },
+    {
       key: "offered",
       label: "Tawaran",
       filters: { status: "OFFER_EXTENDED" },
     },
     {
-      key: "decided",
-      label: "Final",
+      key: "accepted",
+      label: "Diterima",
       filters: { status: "ACCEPTED" },
+    },
+    {
+      key: "rejected",
+      label: "Ditolak",
+      filters: { status: "REJECTED" },
+    },
+    {
+      key: "withdrawn",
+      label: "Ditarik",
+      filters: { status: "WITHDRAWN" },
     },
   ],
   // formSections empty — UI cycle ships public /daftar multi-step form.

@@ -134,8 +134,12 @@ WITHDRAWN             → (terminal — no outbound)
 - `lib/entities/index.ts`: barrel exports admissionEntity / admissionPolicy / admissionSchema + AdmissionInput type; `ALL_ENTITIES` and `ALL_POLICIES` aggregates extended.
 - `npm run scaffold:check` reports `7 entities validated`.
 
-**T4 — Admin list page mount** (this commit)
+**T4 — Admin list page mount** (commit `fe24b24`)
 - `app/admin/akademik/penerimaan/page.tsx`: 4-line `ScaffoldListPage` recipe per `app/admin/akademik/keluarga/page.tsx` precedent. Renders empty list (no Admission rows seeded this cycle). Sidebar group `Akademik` already includes `Pendaftaran` entry from `p2-portal-shell-sidebar` (#204) — no nav edit needed.
+
+**Review fixes** (this commit) — three findings from `feature-dev:code-reviewer` post-T4:
+1. `state-machine.ts` + test header comments said "12 legal edges" — corrected to 15 (the test body already enforced 15). Foundation §18.1 prose updated similarly.
+2. `entity.ts` `views` array reshaped from 6 → 9 — original `decided` view mapped only to `ACCEPTED`, leaving `REJECTED` + `WITHDRAWN` + `INTERVIEW_SCHEDULED` silently unreachable. Now every `AdmissionStatus` value is reachable from at least one named view (default + draft + submitted + in_review + interview + offered + accepted + rejected + withdrawn). dataFetcher status-filter dispatch still deferred to UI cycle.
 
 ## Verification
 
