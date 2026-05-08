@@ -12,6 +12,7 @@
 //   - DRAFT → DRAFT (self) is illegal at the algebra layer
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { AdmissionStatus } from "@/lib/generated/prisma/enums";
 import {
   ADMISSION_TRANSITIONS,
@@ -169,9 +170,10 @@ describe("State-machine module purity (Spec AC5 — no DB / session imports)", (
     // Static check: the module text contains no forbidden imports.
     // Since vitest evaluates the module, a side-effect import would already
     // have surfaced. This test pins the contract for future maintainers.
-    const moduleText = require("node:fs")
-      .readFileSync(`${__dirname}/state-machine.ts`, "utf8")
-      .toString();
+    const moduleText = readFileSync(
+      `${__dirname}/state-machine.ts`,
+      "utf8",
+    );
     expect(moduleText).not.toMatch(/from\s+["']@\/lib\/db["']/);
     expect(moduleText).not.toMatch(/from\s+["']@\/lib\/auth/);
     expect(moduleText).not.toMatch(/getSession/);
