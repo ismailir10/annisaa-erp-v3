@@ -321,22 +321,22 @@ CREATE POLICY "no_writes_via_postgrest" ON "Address"
   USING (false) WITH CHECK (false);
 ```
 
-- [ ] **Step 5 — Run migrate (two-phase per `--create-only` workflow).**
-  1. `npx prisma migrate dev --name 10_addresses --create-only` — generates draft `migration.sql` from schema deltas (Address table + indexes + auto-generated single-column FKs + Region `@@unique` indexes).
-  2. Hand-edit the generated `migration.sql` per Step 4 above (replace Address single-column FKs with compound; replace Household FK with column-list SET NULL; add length CHECKs; add RLS block).
-  3. `npx prisma migrate dev` (no flag) — applies the edited migration.
-  4. `npx prisma generate`.
+- [x] **Step 5 — Run migrate (two-phase per `--create-only` workflow).**
+  1. `npx prisma migrate dev --name 10_addresses --create-only` — BLOCKED by shadow-DB `storage` schema issue (established project precedent; same as `2026-05-01-student-journal-cross-actor-audit`).
+  2. Hand-written `migration.sql` using cycle doc SQL skeleton + compound FKs + LENGTH CHECKs + RLS block (per fallback documented in `2026-05-01-student-journal-cross-actor-audit`).
+  3. Applied via `npx prisma migrate deploy` — `All migrations have been successfully applied.`
+  4. `npx prisma generate` — `✔ Generated Prisma Client (7.6.0) to ./lib/generated/prisma in 192ms`.
 
   **Drift expectation post-apply:** subsequent `prisma migrate dev` invocations WILL detect that schema declares single-column FKs while DB has compound FKs (same trap as Guardian.userId per scaffold.md §6). Drift is intentional. REJECT the regenerated migration in PR review. `migrate deploy` (production CI path) only applies committed migrations and is unaffected.
 
-- [ ] **Step 6 — Verify gates.** Run:
+- [x] **Step 6 — Verify gates.** Run:
 ```bash
-bash scripts/verify-rls-coverage.sh        # 33/33 (was 32/32 + Address)
+bash scripts/verify-rls-coverage.sh        # ✓ RLS coverage OK: 33 / 33 tenant-scoped models have ENABLE + policy.
 npm run build                              # TS clean — Address types regenerated
-npx vitest run                             # all green (no behavior change yet)
+npx vitest run                             # Test Files 54 passed | 1 skipped (55) / Tests 1070 passed | 4 skipped (1074)
 ```
 
-- [ ] **Step 7 — Commit T1.**
+- [x] **Step 7 — Commit T1.**
 
 ```bash
 git add prisma/schema.prisma prisma/migrations/10_addresses/ docs/cycles/2026-05-08-p2-addresses-idn-chain.md
@@ -822,7 +822,18 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 
 ## Implementation
 
-> Filled by /build per task. One subsection per task, listing files touched + summary.
+### T1 — Migration 10 + Address Prisma model
+
+**Files touched:**
+- `prisma/schema.prisma` — Added `addresses Address[]` reverse relation on `Province`, `Regency`, `District`, `Village`; added `@@unique([id, provinceId])` on `Regency`, `@@unique([id, regencyId])` on `District`, `@@unique([id, districtId])` on `Village`; inserted full `Address` model after `Village` block; added `addresses Address[]` to `Tenant` relation list; updated `Household` header comment (removed deferred-FK marker); added `address Address?` single-column relation on `Household`.
+- `prisma/migrations/10_addresses/migration.sql` — Hand-written (shadow-DB `storage` schema issue blocks `migrate dev --create-only`, consistent with prior cycles e.g. `2026-05-01-student-journal-cross-actor-audit`). Full SQL: Region composite-unique indexes (`Regency_id_provinceId_key`, `District_id_regencyId_key`, `Village_id_districtId_key`); `CREATE TABLE "Address"` with LENGTH CHECKs; `Address_id_tenantId_key` composite unique; lookup indexes; compound FKs (`Address_tenantId_fkey` Restrict, `Address_provinceId_fkey` Restrict, `Address_regencyId_provinceId_fkey` compound Restrict, `Address_districtId_regencyId_fkey` compound Restrict, `Address_villageId_districtId_fkey` compound Restrict); `Household_addressId_tenantId_fkey` compound with column-list `SET NULL ("addressId")`; RLS block (`ENABLE + REVOKE ALL + GRANT SELECT + tenant_isolation_select + no_writes_via_postgrest`).
+- Applied via `npx prisma migrate deploy` (shadow-DB workaround per project precedent).
+- `npx prisma generate` — Address types regenerated in `lib/generated/prisma`.
+
+**Gates (T1):**
+- `bash scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 33 / 33 tenant-scoped models have ENABLE + policy.`
+- `npm run build` → TS clean, Next.js 16 build succeeded (19 pages).
+- `npx vitest run` → `Test Files 54 passed | 1 skipped (55) / Tests 1070 passed | 4 skipped (1074)` in 8.52s.
 
 ## Verification
 

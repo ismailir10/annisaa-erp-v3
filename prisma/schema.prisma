@@ -149,6 +149,7 @@ model Tenant {
   guardians                  Guardian[]
   studentGuardians           StudentGuardian[]
   guardianInvitations        GuardianInvitation[]
+  addresses                  Address[]
 }
 
 // ── Campus ───────────────────────────────────────────────────
@@ -407,6 +408,7 @@ model Province {
   updatedAt DateTime @updatedAt @db.Timestamptz()
 
   regencies Regency[]
+  addresses Address[]
 }
 
 model Regency {
@@ -419,7 +421,9 @@ model Regency {
 
   province  Province   @relation(fields: [provinceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   districts District[]
+  addresses Address[]
 
+  @@unique([id, provinceId])
   @@index([provinceId])
 }
 
@@ -430,9 +434,11 @@ model District {
   createdAt DateTime @default(now()) @db.Timestamptz()
   updatedAt DateTime @updatedAt @db.Timestamptz()
 
-  regency  Regency   @relation(fields: [regencyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  villages Village[]
+  regency   Regency   @relation(fields: [regencyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  villages  Village[]
+  addresses Address[]
 
+  @@unique([id, regencyId])
   @@index([regencyId])
 }
 
@@ -443,9 +449,67 @@ model Village {
   createdAt  DateTime @default(now()) @db.Timestamptz()
   updatedAt  DateTime @updatedAt @db.Timestamptz()
 
-  district District @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district  District  @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  addresses Address[]
 
+  @@unique([id, districtId])
   @@index([districtId])
+}
+
+// ── Address ──────────────────────────────────────────────────
+// Per spec §6.1 + §6.4 composite-FK pattern. Tenant-scoped, soft-delete,
+// audit per §4.4. Region chain (provinceId / regencyId / districtId /
+// villageId) enforced via compound FKs at DB layer + Zod superRefine
+// prefix-check at app layer (lowest-cost belt-and-braces; see cycle
+// p2-addresses-idn-chain Spec §1).
+//
+// `villageId` is OPTIONAL — some PAUD parents don't know village
+// granularity at admission time; addresses without village still satisfy
+// the Indonesian administrative chain at District precision.
+//
+// `streetLine`, `notes` — operator free-text. `rt`/`rw`/`postalCode`
+// optional. No /// @PII annotations this cycle (see cycle Spec §3).
+
+model Address {
+  id          String    @id @default(cuid())
+  tenantId    String
+  provinceId  String    @db.Char(2)
+  regencyId   String    @db.Char(4)
+  districtId  String    @db.Char(6)
+  villageId   String?   @db.Char(10)
+  streetLine  String    @db.VarChar(500)
+  rt          String?   @db.VarChar(3)
+  rw          String?   @db.VarChar(3)
+  postalCode  String?   @db.VarChar(5)
+  notes       String?   @db.VarChar(1000)
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  updatedById String?
+  deletedAt   DateTime? @db.Timestamptz()
+  deletedById String?
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Region FKs use SINGLE-column Prisma relations (NOT composite). DB-level
+  // composite FKs in migration SQL enforce hierarchy (BPS prefix + row
+  // existence). Composite Prisma relations on Restrict-only FKs are safe in
+  // theory but trigger `prisma migrate dev` regenerating composite REFERENCES
+  // mismatched to the migration's column-list ordering — single-column at
+  // Prisma keeps the schema↔migration mapping unambiguous.
+  province Province   @relation(fields: [provinceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  regency  Regency    @relation(fields: [regencyId],  references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district District   @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  village  Village?   @relation(fields: [villageId],  references: [id], onDelete: Restrict, onUpdate: Cascade)
+  households Household[]
+
+  // Composite unique on (id, tenantId) — required as FK target for
+  // Household.addressId composite-FK chain (§6.4).
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([provinceId])
+  @@index([regencyId, provinceId])
+  @@index([districtId, regencyId])
+  @@index([villageId, districtId])
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -989,8 +1053,8 @@ model Holiday {
 // display code (e.g. "HH-2026-001"); allocated lazily by admin tools, NULL
 // until issued. Partial unique on (tenantId, code) WHERE deletedAt IS NULL
 // AND code IS NOT NULL lives in 07_students migration (Prisma 7 lacks DSL
-// for partial uniques). `addressId` ships without an FK constraint —
-// Address model lands p2-addresses-idn-chain.
+// for partial uniques). Address FK wired in p2-addresses-idn-chain — SPLIT-VIEW
+// per scaffold.md §6 (Prisma single-column + DB composite SET NULL column-list).
 
 model Household {
   id          String    @id @default(cuid())
@@ -1006,6 +1070,13 @@ model Household {
   deletedById String?
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // SINGLE-column relation per scaffold.md §6 split-view pattern (NOT composite).
+  // Mirrors Guardian.userId precedent (cycle p2-guardians T2 step 3). The DB-
+  // level composite FK with column-list `SET NULL ("addressId")` lives in this
+  // migration's SQL — the §6.4 tenant alignment is preserved at the DB layer.
+  // `prisma migrate dev` WILL detect drift between this single-column relation
+  // and the DB composite FK; REJECT regeneration in PR review.
+  address  Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   students Student[]
 
   // Composite unique on (id, tenantId) — required as FK target for Student
