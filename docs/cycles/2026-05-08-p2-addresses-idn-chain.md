@@ -888,6 +888,26 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 - `npm run build` → `✓ Compiled successfully in 4.4s` — TS clean.
 - `npx vitest run` → `Test Files 59 passed | 1 skipped (60) / Tests 1187 passed | 4 skipped (1191)` in 8.78s (+28 tests from create.test.ts + update.test.ts; T3 baseline was 1159 passed | 4 skipped).
 
+### T5 — `<AddressChainField>` component + Household form wire-in
+
+**Design choice: simpler alternative (two independent forms).** `<AddressChainField>` saves Address standalone (and chains `updateHousehold` on create to link the new `addressId`). The existing `<ScaffoldFormPage>` handles Household scalars unchanged. This avoids complex state threading between RSC and client boundaries and matches the task's "pick whichever path is faster + cleaner" guidance.
+
+**New-page deferral:** `app/admin/akademik/keluarga/new/page.tsx` address wire-in is deferred to a follow-up cycle. Admin creates the Household first, then edits it to add the Address. Documented in the new page header comment.
+
+**Files created / modified:**
+- `components/forms/address-chain-field.tsx` — Created. Client component (`"use client"`). Props: `initialValues`, `onSave`, `saveLabel`. Internal state: 4 select values (provinceId/regencyId/districtId/villageId), 4 `Map<parentId, RegionItem[]>` option caches (avoids re-fetch on back-navigation), 5 text inputs (streetLine/rt/rw/postalCode/notes), loading flags per level, fieldError. Cascade behavior: province loads on mount; regency/district/village fetch on parent change and reset all downstream values. `onValueChange` handlers accept `string | null` (base-ui Select API). Save assembles `AddressInput`, calls `onSave(values)`, on `{ ok: true }` fires `toast.success`; on `{ ok: false }` sets inline `fieldError` state. Indonesian labels per voice.md: `Provinsi`, `Kabupaten/Kota`, `Kecamatan`, `Kelurahan/Desa`, `Alamat (Jalan, RT/RW)`, `Kode Pos`, `Catatan`. Empty-state copy: `"Tidak ada pilihan"`. Save button disabled until provinceId + regencyId + districtId + streetLine are non-empty.
+- `app/admin/akademik/keluarga/[id]/edit/address-section.tsx` — Created. Client wrapper `HouseholdAddressSection`. Receives bound server actions (createAddress, updateAddress, updateHousehold) and existingAddress data from server component. Handles two paths: create-and-link (createAddress → updateHousehold chain) vs update-standalone. Promotes to update path after first successful create within session.
+- `app/admin/akademik/keluarga/[id]/edit/page.tsx` — Modified. Now a server component that fetches Household with `include: { address }` plus Province/Regency/District/Village labels via `Promise.all`. Renders `<HouseholdAddressSection>` above `<ScaffoldFormPage>`. Passes bound server actions + existing address data.
+- `app/admin/akademik/keluarga/new/page.tsx` — Modified (comment only). Added T5 deferral note in header comment — new page behavior unchanged.
+
+**Type fix encountered:** base-ui `Select.Root.onValueChange` receives `string | null` (not `string`), causing a TS error at first build attempt. Fixed cascade handlers to accept `string | null` with `?? ""` coercion.
+
+**Cross-checked design-system.html §components/forms cascading-Select pattern** for `<AddressChainField>` — Loader2 spinner for loading state, disabled trigger per level until parent is selected.
+
+**Gates (T5):**
+- `npm run build` → `✓ Compiled successfully in 4.3s` / `Finished TypeScript in 6.1s` — TS clean, 31 routes.
+- `npx vitest run` → `Test Files 59 passed | 1 skipped (60) / Tests 1187 passed | 4 skipped (1191)` in 9.14s — exact T4 baseline, no regressions.
+
 ## Verification
 
 > Filled by /build after end-of-cycle gate. Includes:
