@@ -874,6 +874,20 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 - `npm run build` → `✓ Compiled successfully in 4.3s` / `Finished TypeScript in 6.0s` — TS clean, 23 pages (4 new region routes).
 - `npx vitest run` → `Test Files 57 passed | 1 skipped (58) / Tests 1156 passed | 4 skipped (1160)` in 8.92s (+1 file, +34 tests from routes.test.ts).
 
+### T4 — Address server actions (create + update)
+
+**Files touched:**
+- `lib/addresses/actions/create.ts` — Created. `createAddress(input: unknown): Promise<ActionResult<Address>>`. Pipeline: `getSession` → `assertScope("create")` → `addressSchema.safeParse` (full chain-validity superRefine runs) → `prisma.$transaction(tx.address.create + writeAuditLog)` → `revalidatePath("/admin/akademik/keluarga")` → `{ ok: true, data }`. Injects `tenantId`, `createdById`, `updatedById` from session. Audit emit gated on `addressPolicy.auditActions.includes(AuditAction.CREATE)`.
+- `lib/addresses/actions/update.ts` — Created. `updateAddress(id: string, input: unknown): Promise<ActionResult<Address>>`. Partial update: Zod v4 disallows `.partial()` on schemas with `.superRefine()` at runtime — partial schema is an explicit `z.object({...all fields optional...})` WITHOUT the chain-validity superRefine. Per spec T4 step 2, partial updates rely on DB compound FK as canonical hierarchy enforcement. Guards: NO_CHANGES (empty parsed.data), NOT_FOUND (findFirst with `{ id, tenantId, deletedAt: null }`). Injects `updatedById` on every update. Revalidates list + detail paths.
+- `lib/addresses/actions/__tests__/create.test.ts` — Created. 14 test cases across 5 describe groups: UNAUTHENTICATED (1), FORBIDDEN role gates via `it.each` (4: HT/sentra_teacher/FO/parent), chain-validity rejections (3: regency outside province, district outside regency, village outside district), optional villageId (1: omitting passes), happy path (5: `it.each` over admin/principal/kadiv/AO + villageId-included case with audit assertion).
+- `lib/addresses/actions/__tests__/update.test.ts` — Created. 14 test cases across 6 describe groups: UNAUTHENTICATED (1), FORBIDDEN role gates via `it.each` (4: HT/sentra_teacher/FO/parent), NO_CHANGES guard (1), NOT_FOUND (2: missing + soft-deleted), happy path (5: admin partial PATCH with audit+revalidate, principal permitted, streetLine-only partial passes without chain error, regencyId-only partial passes without chain error, optional fields patch), findFirst predicate assertion (1: tenant isolation + deletedAt: null).
+
+**Implementation note — Zod v4 `.partial()` incompatibility:** `addressSchema` has `.superRefine()` which Zod v4 blocks from `.partial()` (throws `".partial() cannot be used on object schemas containing refinements"` at runtime). Fix: `update.ts` defines the partial schema as an explicit `z.object({...})` with all fields optional and no refinement — mirrors the spec's intended behavior (chain-validity stripped on partial) while being Zod v4 compatible. The household schema has no superRefine so this issue doesn't surface there.
+
+**Gates (T4):**
+- `npm run build` → `✓ Compiled successfully in 4.4s` — TS clean.
+- `npx vitest run` → `Test Files 59 passed | 1 skipped (60) / Tests 1187 passed | 4 skipped (1191)` in 8.78s (+28 tests from create.test.ts + update.test.ts; T3 baseline was 1159 passed | 4 skipped).
+
 ## Verification
 
 > Filled by /build after end-of-cycle gate. Includes:
