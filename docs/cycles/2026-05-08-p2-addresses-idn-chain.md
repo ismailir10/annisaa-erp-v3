@@ -931,6 +931,20 @@ Re-ran gates: build clean, vitest 1187 passed | 4 skipped (no test count change 
 - `bash scripts/verify-pii-annotations.sh` → `✓ PII annotation coverage OK: 5 / 5 known-PII fields annotated.`
 - `npm run scaffold:check` → `scaffold-check: 6 entities validated.`
 
+## CI follow-up (post-PR-open)
+
+PR #208's first CI run failed at `Lint, Typecheck & Test` → `Typecheck` step:
+
+```
+lib/addresses/actions/__tests__/create.test.ts(82,3): error TS2322:
+  Type '"head_teacher"' is not assignable to type 'RoleCode union'.
+```
+
+T4 implementer used `"head_teacher"` in role-gate fixtures (4 occurrences across both action test files). The actual RoleCode literal per `lib/entities/_types.ts ROLE_CODES` is `"homeroom_teacher"`. Local vitest masked the mismatch — fixtures are runtime-mocked so the SessionContext type check never runs at vitest boundary. `npm run build` (Next.js TS pass) is more lax than `tsc --noEmit` — it only checks files in the bundle graph; test files outside the bundle are ignored.
+
+**Fix:** sed-replace `"head_teacher"` → `"homeroom_teacher"` across both files.
+**Lesson:** add `npm run typecheck` (which runs `tsc --noEmit` over the entire project) to between-task gate going forward.
+
 ## Verification
 
 - `npm run build` → `✓ Compiled successfully in 4.7s` / `Finished TypeScript in 6.1s` / `✓ Generating static pages using 7 workers (23/23) in 180ms`

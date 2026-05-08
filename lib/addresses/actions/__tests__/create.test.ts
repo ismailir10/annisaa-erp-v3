@@ -79,7 +79,7 @@ const HT_SESSION: SessionContext = {
   tenantId: "tenant_a1",
   userId: "user_ht",
   supabaseUserId: "sup_ht",
-  role: "head_teacher",
+  role: "homeroom_teacher",
   currentTermId: "term_1",
 };
 const SENTRA_TEACHER_SESSION: SessionContext = {
@@ -164,7 +164,7 @@ describe("createAddress — UNAUTHENTICATED", () => {
 
 describe("createAddress — role gates (FORBIDDEN)", () => {
   it.each([
-    ["head_teacher", HT_SESSION],
+    ["homeroom_teacher", HT_SESSION],
     ["sentra_teacher", SENTRA_TEACHER_SESSION],
     ["finance_officer", FINANCE_OFFICER_SESSION],
     ["parent", PARENT_SESSION],
