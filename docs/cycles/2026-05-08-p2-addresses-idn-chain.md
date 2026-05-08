@@ -858,6 +858,20 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 - `npm run build` → `✓ Compiled successfully in 4.5s` / `Finished TypeScript in 6.1s` — TS clean, 19 pages.
 - `npx vitest run` → `Test Files 56 passed | 1 skipped (57) / Tests 1122 passed | 4 skipped (1126)` in 8.60s (+52 tests from policy.test.ts + address.entity.test.ts + schema cases).
 
+### T3 — Per-level region GET routes
+
+**Files touched:**
+- `app/api/regions/provinces/route.ts` — Created. `GET()` with no params: `getSession()` auth guard, `prisma.province.findMany({ orderBy: { name: "asc" }, select: { id, name } })`, returns `{ items: [{id, label}], hasMore: false }`. No Zod parsing (provinces route is unbounded; `?pageSize` query params silently ignored per T3 Step 5 behavioral note).
+- `app/api/regions/regencies/route.ts` — Created. `GET(req: NextRequest)`: `getSession()` auth guard; explicit `provinceId` presence check → 400 `missing_parent_id`; Zod `querySchema` with `provinceId: /^\d{2}$/`, `page` (default 1), `pageSize` (default 50, max 200); orphan parent → 200 empty (Postel's law); pagination via `take: pageSize+1` + trim + `hasMore` flag.
+- `app/api/regions/districts/route.ts` — Created. Mirrors regencies verbatim with `regencyId: /^\d{4}$/`, `district.findMany({ where: { regencyId } })`.
+- `app/api/regions/villages/route.ts` — Created. Mirrors regencies verbatim with `districtId: /^\d{6}$/`, `village.findMany({ where: { districtId } })`.
+- `app/api/regions/__tests__/routes.test.ts` — Created. Single combined file: `vi.mock("@/lib/auth/session")` + `vi.mock("@/lib/db")` with per-model `findMany` mocks. `describe.each` over regencies/districts/villages covering: 401 unauth, 400 missing parent, 400 invalid format, 200 orphan empty, 200 valid with `{id, label}` items + `hasMore` shape, `hasMore=true` trim, default pagination args, `where` clause forwarding, `orderBy: {name: asc}`. Provinces `describe`: 401, full list with `hasMore: false`, column projection, name→label mapping, `?pageSize` silently ignored (documented behavior).
+
+**Gates (T3):**
+- `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 10 / 10 routes have session helper or @public sentinel.` (was 6 → +4)
+- `npm run build` → `✓ Compiled successfully in 4.3s` / `Finished TypeScript in 6.0s` — TS clean, 23 pages (4 new region routes).
+- `npx vitest run` → `Test Files 57 passed | 1 skipped (58) / Tests 1156 passed | 4 skipped (1160)` in 8.92s (+1 file, +34 tests from routes.test.ts).
+
 ## Verification
 
 > Filled by /build after end-of-cycle gate. Includes:
