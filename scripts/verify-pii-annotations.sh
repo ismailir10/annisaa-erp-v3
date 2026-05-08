@@ -24,6 +24,11 @@
 #   p2-students-guardians-household  — Student.nik  (redact)         [migration 07]
 #   p2-guardians                     — Guardian.nik (redact),
 #                                      Guardian.phone (mask:last4)   [migration 08]
+#   p2-admission-funnel-schema       — Admission.applicantNik (redact),
+#                                      Admission.fatherNik (redact),
+#                                      Admission.motherNik (redact),
+#                                      Admission.fatherPhone (mask:last4),
+#                                      Admission.motherPhone (mask:last4) [migration 11]
 #
 # Future cycles extend the TRIPLES array below as new PII fields land.
 #
@@ -48,6 +53,11 @@ TRIPLES=(
   "Guardian:nik:redact"
   "Guardian:phone:mask:last4"
   "Student:nik:redact"
+  "Admission:applicantNik:redact"
+  "Admission:fatherNik:redact"
+  "Admission:motherNik:redact"
+  "Admission:fatherPhone:mask:last4"
+  "Admission:motherPhone:mask:last4"
 )
 
 missing=()
