@@ -232,6 +232,17 @@ describe.each([
         }),
       );
     });
+
+    it("returns 400 invalid_query when pageSize=0 (Zod min(1) boundary)", async () => {
+      const req = makeParentedReq(routeName, {
+        [parentParam]: validParent,
+        pageSize: "0",
+      });
+      const res = await GET(req as never);
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("invalid_query");
+      expect(findManyMock).not.toHaveBeenCalled();
+    });
   },
 );
 
@@ -241,7 +252,7 @@ describe("GET /api/regions/provinces", () => {
   it("returns 401 when no session", async () => {
     getSessionMock.mockResolvedValueOnce(null);
     const req = makeProvincesReq();
-    const res = await getProvinces();
+    const res = await getProvinces(makeProvincesReq() as never);
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "unauthenticated" });
     expect(provinceFindManyMock).not.toHaveBeenCalled();
@@ -253,7 +264,7 @@ describe("GET /api/regions/provinces", () => {
       name: `Provinsi ${i + 1}`,
     }));
     provinceFindManyMock.mockResolvedValueOnce(provinceRows);
-    const res = await getProvinces();
+    const res = await getProvinces(makeProvincesReq() as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.hasMore).toBe(false);
@@ -266,7 +277,7 @@ describe("GET /api/regions/provinces", () => {
 
   it("orders results by name ascending", async () => {
     provinceFindManyMock.mockResolvedValueOnce([]);
-    await getProvinces();
+    await getProvinces(makeProvincesReq() as never);
     expect(provinceFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         orderBy: { name: "asc" },
@@ -276,7 +287,7 @@ describe("GET /api/regions/provinces", () => {
 
   it("selects only id and name columns", async () => {
     provinceFindManyMock.mockResolvedValueOnce([]);
-    await getProvinces();
+    await getProvinces(makeProvincesReq() as never);
     expect(provinceFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         select: { id: true, name: true },
@@ -289,7 +300,7 @@ describe("GET /api/regions/provinces", () => {
       { id: "11", name: "Aceh" },
       { id: "12", name: "Sumatera Utara" },
     ]);
-    const res = await getProvinces();
+    const res = await getProvinces(makeProvincesReq() as never);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       items: [
@@ -300,18 +311,16 @@ describe("GET /api/regions/provinces", () => {
     });
   });
 
-  it("?pageSize=10 is silently ignored — response shape is correct regardless (no Zod schema on provinces route)", async () => {
-    // The provinces route has no Zod parsing — ALL query params are ignored.
-    // This is documented behavior (cycle T3 Step 5 notes). If strict 400
-    // rejection is wanted, that is a separate follow-up.
-    const provinceRows = [{ id: "11", name: "Aceh" }];
-    provinceFindManyMock.mockResolvedValueOnce(provinceRows);
-    // The provinces GET() takes no arguments — query params are irrelevant at
-    // the handler level. The route simply does not parse them.
-    const res = await getProvinces();
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.hasMore).toBe(false);
-    expect(body.items).toHaveLength(1);
+  it("returns 400 invalid_query when ANY query param is sent (strict mode per AC3)", async () => {
+    // Provinces is deliberately unbounded (38 rows constant); pagination
+    // params have no meaning. Reject any query param to surface client typos.
+    const req = makeProvincesReq({ pageSize: "10" });
+    const res = await getProvinces(req as never);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "invalid_query",
+      message: "provinces route accepts no query params",
+    });
+    expect(provinceFindManyMock).not.toHaveBeenCalled();
   });
 });

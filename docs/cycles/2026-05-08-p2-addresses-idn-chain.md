@@ -861,7 +861,9 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 ### T3 — Per-level region GET routes
 
 **Files touched:**
-- `app/api/regions/provinces/route.ts` — Created. `GET()` with no params: `getSession()` auth guard, `prisma.province.findMany({ orderBy: { name: "asc" }, select: { id, name } })`, returns `{ items: [{id, label}], hasMore: false }`. No Zod parsing (provinces route is unbounded; `?pageSize` query params silently ignored per T3 Step 5 behavioral note).
+- `app/api/regions/provinces/route.ts` — Created. `GET(req)` with strict-mode query rejection: `getSession()` auth guard, then `url.searchParams.size > 0` check returns `400 { error: "invalid_query" }` for ANY query param (provinces is deliberately unbounded — 38 rows; pagination params have no meaning and rejecting them surfaces client typos). Then `prisma.province.findMany({ orderBy: { name: "asc" }, select: { id, name } })` returns `{ items: [{id, label}], hasMore: false }`.
+
+  **T3 reviewer follow-up (commit 2):** reviewer caught spec inconsistency — AC3 said "rejected with 400 to surface mismatch" but T3 step 5 had loosened to "silently ignored". Tightened route to match AC3 (strict reject). `pageSize=0` boundary test added to describe.each to cover the Zod `min(1)` edge.
 - `app/api/regions/regencies/route.ts` — Created. `GET(req: NextRequest)`: `getSession()` auth guard; explicit `provinceId` presence check → 400 `missing_parent_id`; Zod `querySchema` with `provinceId: /^\d{2}$/`, `page` (default 1), `pageSize` (default 50, max 200); orphan parent → 200 empty (Postel's law); pagination via `take: pageSize+1` + trim + `hasMore` flag.
 - `app/api/regions/districts/route.ts` — Created. Mirrors regencies verbatim with `regencyId: /^\d{4}$/`, `district.findMany({ where: { regencyId } })`.
 - `app/api/regions/villages/route.ts` — Created. Mirrors regencies verbatim with `districtId: /^\d{6}$/`, `village.findMany({ where: { districtId } })`.
