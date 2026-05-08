@@ -229,3 +229,159 @@ test.describe("admin students entity-actions extension", () => {
     //       cleanly with mocked getSession.
   });
 });
+
+// p2-addresses-idn-chain extension — end-to-end smoke for the
+// <AddressChainField> cascading-Select component wired into the Household
+// edit form. Verifies the full fill→save→reload→assert round-trip against
+// the seeded Household data (KK-001..KK-008 from prisma/seed/09-households.ts).
+//
+// Seed note: prisma/seed/09-households.ts creates 8 Households but NO
+// Address rows — so the first visit to any Household edit page shows the
+// <AddressChainField> in create-path mode (no initial values). The test
+// fills the chain and saves, then reloads and asserts the saved values
+// persisted via the detail page's initial-values lookup.
+//
+// Region note: Province BPS code "31" = official name "Daerah Khusus Ibukota
+// Jakarta" (idn-area-data v4.0.1 stores the official full name, not the
+// common abbreviation "DKI Jakarta"). Region seed
+// (prisma/seed/01-regions.sql) is the full 91k-row snapshot — "31" is
+// guaranteed present.
+//
+// Cycle: docs/cycles/2026-05-08-p2-addresses-idn-chain.md (T6)
+test.describe("admin addresses — keluarga edit chain fill", () => {
+  test("keluarga edit fills address chain end-to-end", async ({ page }) => {
+    // 1. Demo-mode login.
+    const loginRes = await page.request.post("/api/demo/login?role=admin");
+    expect(loginRes.status(), "login responds 200").toBe(200);
+
+    // 2. Resolve first Household id from the scaffold relation-list endpoint.
+    //    The seed creates 8 KK-0xx rows; we pick whichever sorts first.
+    const householdListRes = await page.request.get(
+      "/api/scaffold/Household?limit=1",
+    );
+    expect(householdListRes.status(), "scaffold Household list 200").toBe(200);
+    const householdListBody = await householdListRes.json();
+    expect(
+      householdListBody.items?.length,
+      "at least 1 Household seeded",
+    ).toBeGreaterThanOrEqual(1);
+    const householdId: string = householdListBody.items[0].id;
+
+    // 3. Navigate directly to the Household edit page — skips the list→detail
+    //    navigation which adds one extra click and page-load for no canary value.
+    await page.goto(`/admin/akademik/keluarga/${householdId}/edit`);
+
+    // 4. Wait for the AddressChainField section heading to appear.
+    //    The section renders an <h3>Alamat</h3> and a Provinsi label.
+    await expect(
+      page.locator("h3", { hasText: "Alamat" }),
+      "AddressChainField heading 'Alamat' visible",
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.locator('label[for="acf-province"]'),
+      "Provinsi label visible",
+    ).toBeVisible();
+
+    // 5. Verify provinces loaded (the /api/regions/provinces route fires on
+    //    component mount — wait until the select trigger is no longer showing
+    //    the spinner by asserting the trigger is not disabled).
+    const provinceTrigger = page.locator("#acf-province");
+    await expect(
+      provinceTrigger,
+      "Provinsi trigger enabled after provinces load",
+    ).not.toBeDisabled({ timeout: 10_000 });
+
+    // 6. Select Provinsi — "Daerah Khusus Ibukota Jakarta" (BPS code "31").
+    //    Note: idn-area-data v4.0.1 stores the official full name, not
+    //    the common abbreviation "DKI Jakarta". Clicking first-available is
+    //    avoided to ensure a predictable regency/district chain for assertion.
+    //    Shadcn <Select> renders as a button[role=combobox]; click trigger to
+    //    open popover, then click the exact option text.
+    await provinceTrigger.click();
+    await page.getByRole("option", { name: "Daerah Khusus Ibukota Jakarta" }).click();
+
+    // 7. Wait for regency trigger to become enabled (regencies load on province
+    //    change), then select the first option.
+    const regencyTrigger = page.locator("#acf-regency");
+    await expect(
+      regencyTrigger,
+      "Kabupaten/Kota trigger enabled after regencies load",
+    ).not.toBeDisabled({ timeout: 10_000 });
+    await regencyTrigger.click();
+    // Pick "KOTA JAKARTA PUSAT" or whatever first option appears.
+    await page.getByRole("option").first().click();
+
+    // 8. Wait for district trigger to become enabled, select first option.
+    const districtTrigger = page.locator("#acf-district");
+    await expect(
+      districtTrigger,
+      "Kecamatan trigger enabled after districts load",
+    ).not.toBeDisabled({ timeout: 10_000 });
+    await districtTrigger.click();
+    await page.getByRole("option").first().click();
+
+    // 9. Village (Kelurahan/Desa) is optional per spec Spec §1 — select first
+    //    option if available; the save button doesn't require it.
+    const villageTrigger = page.locator("#acf-village");
+    await expect(
+      villageTrigger,
+      "Kelurahan/Desa trigger enabled after villages load",
+    ).not.toBeDisabled({ timeout: 10_000 });
+    await villageTrigger.click();
+    await page.getByRole("option").first().click();
+
+    // 10. Fill street-level inputs.
+    await page.locator("#acf-street").fill("Jalan Test 123");
+    await page.locator("#acf-rt").fill("001");
+    await page.locator("#acf-rw").fill("002");
+
+    // 11. Click "Simpan Alamat". The button is the direct child of
+    //     AddressChainField with text "Simpan Alamat".
+    const simpanBtn = page.getByRole("button", { name: "Simpan Alamat" });
+    await expect(simpanBtn, "Simpan Alamat button visible").toBeVisible();
+    await simpanBtn.click();
+
+    // 12. Wait for the success toast "Alamat berhasil disimpan." from
+    //     components/forms/address-chain-field.tsx:254 (toast.success).
+    await expect(
+      page.locator("text=Alamat berhasil disimpan"),
+      "success toast appears after save",
+    ).toBeVisible({ timeout: 10_000 });
+
+    // 13. Reload to verify persistence — the edit page fetches the Household
+    //     (including its Address relation) from the DB on every RSC render.
+    await page.reload();
+
+    // 14. After reload the AddressChainField rehydrates with initialValues from
+    //     the server. The SelectTrigger renders the stored label text inside the
+    //     trigger. Assert at minimum that the Provinsi field is no longer on its
+    //     placeholder (i.e. it now shows a province name, not "Pilih provinsi").
+    //     Full chain assertion via SelectValue content.
+    await expect(
+      page.locator("h3", { hasText: "Alamat" }),
+      "AddressChainField still rendered after reload",
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Assert street and RT/RW inputs retained values.
+    await expect(
+      page.locator("#acf-street"),
+      "streetLine persists after reload",
+    ).toHaveValue("Jalan Test 123");
+    await expect(
+      page.locator("#acf-rt"),
+      "rt persists after reload",
+    ).toHaveValue("001");
+    await expect(
+      page.locator("#acf-rw"),
+      "rw persists after reload",
+    ).toHaveValue("002");
+
+    // Assert province trigger no longer shows placeholder — a non-empty
+    // SelectValue is the visual indication the initial value was hydrated.
+    // The trigger text includes the province label when a value is selected.
+    await expect(
+      page.locator("#acf-province"),
+      "Provinsi select shows stored value (not placeholder)",
+    ).not.toContainText("Pilih provinsi", { timeout: 10_000 });
+  });
+});

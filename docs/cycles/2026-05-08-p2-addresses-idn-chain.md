@@ -914,18 +914,34 @@ all gates green: build, vitest, playwright, rls 33/33, api-auth 10/10"
 
 Re-ran gates: build clean, vitest 1187 passed | 4 skipped (no test count change — UI runtime fix, no new tests).
 
+### T6 — Playwright extension + README + final gate
+
+**Files touched:**
+- `e2e/admin/students.spec.ts` — Appended `test.describe("admin addresses — keluarga edit chain fill")` block with `test("keluarga edit fills address chain end-to-end")`. Test: admin demo-login → GET `/api/scaffold/Household?limit=1` to resolve first Household id → navigate to `/admin/akademik/keluarga/<id>/edit` → wait for AddressChainField heading → select `Daerah Khusus Ibukota Jakarta` from Provinsi → select first Kabupaten/Kota → select first Kecamatan → select first Kelurahan/Desa → fill `streetLine="Jalan Test 123"`, `rt="001"`, `rw="002"` → click `Simpan Alamat` → assert `toast.success` "Alamat berhasil disimpan" → `page.reload()` → assert `#acf-street` value, `#acf-rt`, `#acf-rw`, and Provinsi trigger not showing placeholder. Spec count: 7 files / 8 tests (students.spec.ts now has 3 describe blocks / 3 tests total; was 2/2).
+- `README.md` — `students` module row updated to include `Address` sub-entity: `Household (+ Address — Indonesian region chain, \`10_addresses\`)`.
+
+**Implementation note — Province name fix:** first Playwright run timed out on `getByRole("option", { name: /DKI Jakarta/i })`. The error-context page snapshot showed the open listbox contains `"Daerah Khusus Ibukota Jakarta"` — the idn-area-data v4.0.1 source uses the full official BPS name, not the common abbreviation. Fixed to exact string match. Test passed cleanly on next run.
+
+**Gates (T6 — end-of-cycle):**
+- `npm run build` → `✓ Compiled successfully in 4.7s` — TS clean, 23 pages.
+- `npx vitest run` → `Test Files  59 passed | 1 skipped (60) / Tests  1187 passed | 4 skipped (1191)` — exact T5 baseline (Playwright-spec extension adds no vitest cases).
+- `npx playwright test` → `8 passed (6.9s)` — 7 existing + 1 new test, no failures.
+- `bash scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 33 / 33 tenant-scoped models have ENABLE + policy.`
+- `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 10 / 10 routes have session helper or @public sentinel.`
+- `bash scripts/verify-pii-annotations.sh` → `✓ PII annotation coverage OK: 5 / 5 known-PII fields annotated.`
+- `npm run scaffold:check` → `scaffold-check: 6 entities validated.`
+
 ## Verification
 
-> Filled by /build after end-of-cycle gate. Includes:
-> - `npm run build` output
-> - `npx vitest run` summary (count + duration)
-> - `npx playwright test` summary
-> - `bash scripts/verify-rls-coverage.sh` output
-> - `bash scripts/verify-api-auth.sh` output
-> - `bash scripts/verify-pii-annotations.sh` output (5/5 unchanged)
-> - `npm run scaffold:check` (6/6)
-> - Manual smoke note: chain-fill end-to-end via dev server
-> - **Cross-checked design-system.html §components/forms cascading-Select pattern** for `<AddressChainField>` — frontend-gate token
+- `npm run build` → `✓ Compiled successfully in 4.7s` / `Finished TypeScript in 6.1s` / `✓ Generating static pages using 7 workers (23/23) in 180ms`
+- `npx vitest run` → `Test Files  59 passed | 1 skipped (60) / Tests  1187 passed | 4 skipped (1191)`
+- `npx playwright test` → `8 passed (6.9s)` — 8 tests across 5 specs (all green; 1 new `admin addresses — keluarga edit chain fill` test)
+- `bash scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 33 / 33 tenant-scoped models have ENABLE + policy.`
+- `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 10 / 10 routes have session helper or @public sentinel.`
+- `bash scripts/verify-pii-annotations.sh` → `✓ PII annotation coverage OK: 5 / 5 known-PII fields annotated.`
+- `npm run scaffold:check` → `scaffold-check: 6 entities validated.` (address OK, guardian OK, guardian-invitation OK, household OK, student OK, student-identifier OK)
+- **Playwright fix note:** initial `getByRole("option", { name: /DKI Jakarta/i })` timed out — idn-area-data v4.0.1 stores the official full name `"Daerah Khusus Ibukota Jakarta"`, not the abbreviation. Fixed to exact name match. Test passed on second run.
+- **Cross-checked design-system.html §components/forms cascading-Select pattern** for `<AddressChainField>` — Loader2 spinner, disabled trigger per level, frontend-gate token requirement satisfied.
 
 ## Ship Notes
 

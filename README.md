@@ -47,7 +47,7 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 | **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
 | **hr** | Staff lifecycle: employees, attendance, leave, payroll, salary components — gated by `hr.*` permissions |
 | **academic** | School structure: academic year, programs, class sections, teaching assignments |
-| **students** | Student lifecycle: Household, Student, StudentIdentifier (NIS history), StudentIdentifierSequence (NIS allocator anchor), Guardian, StudentGuardian (m2m w/ relationship enum + relationship-scoped PRIMARY), GuardianInvitation, enrollments, admissions |
+| **students** | Student lifecycle: Household (+ Address — Indonesian region chain, `10_addresses`), Student, StudentIdentifier (NIS history), StudentIdentifierSequence (NIS allocator anchor), Guardian, StudentGuardian (m2m w/ relationship enum + relationship-scoped PRIMARY), GuardianInvitation, enrollments, admissions |
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
 | **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |
 | **student-journal** | Buku Penghubung — bi-directional school + home indicators with audit trail |
