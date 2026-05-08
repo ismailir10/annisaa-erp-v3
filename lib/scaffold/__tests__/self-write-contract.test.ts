@@ -10,7 +10,21 @@
 // file contains the literal `userId: session.userId`. Static scan only —
 // no runtime exec; same posture as `scripts/scaffold-check.ts`.
 //
+// §10.7.2 ceiling — IMPORTANT for future cycles:
+//   Foundation §10.7.2 currently caps parent write-scope at
+//   `Guardian.update SELF` only. No `OWN_STUDENT` (or any other non-ALL
+//   non-SELF) write grants exist today. If a future cycle adds OWN_STUDENT
+//   on a write action, it MUST land alongside (a) a foundation §10.7.2
+//   amendment, (b) the corresponding row-level allowlist predicate at the
+//   action (e.g. `id: { in: Array.from(permissions.studentIds) }`), and
+//   (c) extension of this meta-test to enforce that predicate symmetric
+//   to the SELF case. Not negotiable — the gate at
+//   `lib/scaffold/server-action.ts` writes-clause deliberately fails OWN_*
+//   writes closed today, and unlocking it without the row-level guard
+//   would create the same footgun the SELF widening had to mitigate.
+//
 // Cycle: docs/cycles/2026-05-08-p2-portal-shell-sidebar.md (T4)
+//        + docs/cycles/2026-05-08-p2-portal-write-widening.md (T5)
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";

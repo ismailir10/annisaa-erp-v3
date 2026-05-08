@@ -12,6 +12,7 @@ import { seedPermissions } from "./06-permissions";
 import { seedSentra } from "./07-sentra";
 import { seedDemoUsers } from "./08-demo-users";
 import { seedHouseholds } from "./09-households";
+import { seedDemoParentGuardian } from "./10-demo-parent-guardian";
 
 async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
   const t0 = Date.now();
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   await timed("07-sentra", () => seedSentra(prisma, tenantId));
   await timed("08-demo-users", () => seedDemoUsers(prisma, tenantId));
   await timed("09-households", () => seedHouseholds(prisma, tenantId));
+  await timed("10-demo-parent-guardian", () => seedDemoParentGuardian(prisma, tenantId));
 
   console.log(`→ seed: complete (${((Date.now() - t0) / 1000).toFixed(2)}s total)`);
 }
