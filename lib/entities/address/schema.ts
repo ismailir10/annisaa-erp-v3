@@ -20,21 +20,25 @@ export const addressSchema = z
     notes: z.string().max(1000).optional(),
   })
   .superRefine((v, ctx) => {
-    if (!v.regencyId.startsWith(v.provinceId)) {
+    // Length pre-guards skip the chain check when the upstream code already
+    // failed its regex — avoids stacking a misleading prefix-mismatch error
+    // on top of the primary `invalid_*_code` error. Zod v4's superRefine runs
+    // unconditionally even when field-level refinements fail.
+    if (v.provinceId.length === 2 && !v.regencyId.startsWith(v.provinceId)) {
       ctx.addIssue({
         code: "custom",
         path: ["regencyId"],
         message: "regency_outside_province",
       });
     }
-    if (!v.districtId.startsWith(v.regencyId)) {
+    if (v.regencyId.length === 4 && !v.districtId.startsWith(v.regencyId)) {
       ctx.addIssue({
         code: "custom",
         path: ["districtId"],
         message: "district_outside_regency",
       });
     }
-    if (v.villageId && !v.villageId.startsWith(v.districtId)) {
+    if (v.villageId && v.districtId.length === 6 && !v.villageId.startsWith(v.districtId)) {
       ctx.addIssue({
         code: "custom",
         path: ["villageId"],

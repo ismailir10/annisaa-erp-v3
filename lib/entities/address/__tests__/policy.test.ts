@@ -68,6 +68,11 @@ describe("Address EntityPolicy — scope grants per spec §10.7.2", () => {
     expect(grant?.scope).toBe("ALL");
   });
 
+  it("admission_officer has ALL on read (mirrors Household.read posture — AO must list/detail their own writes)", () => {
+    const grant = addressPolicy.scopes.read.find((g) => g.role === "admission_officer");
+    expect(grant?.scope).toBe("ALL");
+  });
+
   it("homeroom_teacher has no read grant (deferred)", () => {
     const grant = addressPolicy.scopes.read.find((g) => g.role === "homeroom_teacher");
     expect(grant).toBeUndefined();
