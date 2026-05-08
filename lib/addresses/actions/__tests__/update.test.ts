@@ -184,7 +184,7 @@ describe("updateAddress — NOT_FOUND", () => {
 });
 
 describe("updateAddress — happy path", () => {
-  it("admin: partial PATCH updates row, emits UPDATE audit, revalidates list + detail", async () => {
+  it("admin: partial PATCH updates row, emits UPDATE audit, revalidates list (no Address-detail-by-id route)", async () => {
     mockGetSession.mockResolvedValue(ADMIN_SESSION);
     mockAddressFindFirst.mockResolvedValue(ADDRESS_ROW);
     const updatedRow = { ...ADDRESS_ROW, streetLine: "Jalan Sudirman No. 5", updatedById: "user_admin" };
@@ -214,7 +214,9 @@ describe("updateAddress — happy path", () => {
       expect.anything(),
     );
     expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/akademik/keluarga");
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/akademik/keluarga/addr_1");
+    // Address has no standalone detail route — Address id is NOT a Household
+    // route key. Only the list path is revalidated. (End-of-cycle reviewer fix.)
+    expect(mockRevalidatePath).not.toHaveBeenCalledWith("/admin/akademik/keluarga/addr_1");
   });
 
   it("principal: permitted to update", async () => {

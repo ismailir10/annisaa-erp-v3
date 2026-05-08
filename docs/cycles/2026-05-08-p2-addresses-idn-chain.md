@@ -934,7 +934,7 @@ Re-ran gates: build clean, vitest 1187 passed | 4 skipped (no test count change 
 ## Verification
 
 - `npm run build` → `✓ Compiled successfully in 4.7s` / `Finished TypeScript in 6.1s` / `✓ Generating static pages using 7 workers (23/23) in 180ms`
-- `npx vitest run` → `Test Files  59 passed | 1 skipped (60) / Tests  1187 passed | 4 skipped (1191)`
+- `npx vitest run` → `Test Files  60 passed | 1 skipped (61) / Tests  1212 passed | 4 skipped (1216)` — final tally after end-of-cycle reviewer fixes (was 1187 +25 from new `prisma/migration-tests/10-addresses.test.ts`).
 - `npx playwright test` → `8 passed (6.9s)` — 8 tests across 5 specs (all green; 1 new `admin addresses — keluarga edit chain fill` test)
 - `bash scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 33 / 33 tenant-scoped models have ENABLE + policy.`
 - `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 10 / 10 routes have session helper or @public sentinel.`
@@ -942,6 +942,13 @@ Re-ran gates: build clean, vitest 1187 passed | 4 skipped (no test count change 
 - `npm run scaffold:check` → `scaffold-check: 6 entities validated.` (address OK, guardian OK, guardian-invitation OK, household OK, student OK, student-identifier OK)
 - **Playwright fix note:** initial `getByRole("option", { name: /DKI Jakarta/i })` timed out — idn-area-data v4.0.1 stores the official full name `"Daerah Khusus Ibukota Jakarta"`, not the abbreviation. Fixed to exact name match. Test passed on second run.
 - **Cross-checked design-system.html §components/forms cascading-Select pattern** for `<AddressChainField>` — Loader2 spinner, disabled trigger per level, frontend-gate token requirement satisfied.
+
+**End-of-cycle reviewer fixes (final commit):**
+1. **`updateAddress` revalidatePath** dropped second path (`/admin/akademik/keluarga/${id}` where `id` was the Address id, not Household id — silent no-op since Address has no standalone detail route this cycle). Test updated to assert ONLY list path is revalidated.
+2. **`prisma/migration-tests/10-addresses.test.ts`** added — static post-condition tests parsing migration 10 SQL. 25 cases covering: RLS (ENABLE + tenant_isolation_select + no_writes_via_postgrest + REVOKE + GRANT + NO FORCE), length CHECK constraints on all 4 BPS code columns, Address(id, tenantId) composite unique, compound FKs to Region tables (chain-validity DB enforcement), Region composite-unique landing zones, Household.addressId compound FK with column-list `SET NULL ("addressId")` (and negative assertion that tenantId is NOT in the SET NULL list), lookup indexes including the T1 reviewer fix `Address_districtId_villageId_idx` (and negative assertion that the original villageId-leading index is gone). Mirrors `08-guardians.test.ts` pattern.
+3. **End-of-cycle reviewer** flagged 2 non-blocking concerns (acknowledged in PR description, not patched):
+   - `isErrorFor` helper in `address-chain-field.tsx` has dead-code second branch — server errors with no `field` key don't set `aria-invalid` on inputs (inline error paragraph still renders, so functionally non-blocking).
+   - "Save Address twice in same session before reload" CREATE-then-link gap — second save would create orphaned Address row. Acceptable for cycle scope (admin admission funnel is deliberate workflow); admission-funnel cycle author will revisit.
 
 ## Ship Notes
 

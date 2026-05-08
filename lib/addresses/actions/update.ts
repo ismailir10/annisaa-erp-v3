@@ -97,7 +97,12 @@ export async function updateAddress(
     return row;
   });
 
+  // Revalidate Household list only — Address-detail-by-id route does not
+  // exist (Address is rendered inline on the Household edit page; the
+  // would-be `/admin/akademik/keluarga/${id}` path uses Household id, not
+  // Address id, so revalidating with Address id is a guaranteed no-op).
+  // Caller (HouseholdAddressSection) re-fetches its server props on parent
+  // route reload; list invalidation is sufficient for the cycle's surfaces.
   revalidatePath("/admin/akademik/keluarga");
-  revalidatePath(`/admin/akademik/keluarga/${id}`);
   return { ok: true, data: updated };
 }
