@@ -112,6 +112,36 @@ enum ExportJobStatus {
   EXPIRED
 }
 
+// Cycle p2-admission-funnel-schema (foundation §4.1 row Admission/MPLS).
+// 8-state machine — DRAFT through terminal states (ACCEPTED/REJECTED/WITHDRAWN).
+// Foundation §10A.4 line 852 sketches a 13-state finance-coupled taxonomy
+// (INVOICE_SENT/PAID/PROMOTED/AWAITING_MPLS/PORTAL_ACTIVE/DROPPED/AUTO_DROPPED) —
+// scope-locked out of this cycle per Assumption 1; future P3 cycles extend
+// additively (`ALTER TYPE ... ADD VALUE`).
+
+enum AdmissionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  INTERVIEW_SCHEDULED
+  OFFER_EXTENDED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum AdmissionSource {
+  ONLINE
+  WALK_IN
+  REFERRAL
+}
+
+enum MplsCohortStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+}
+
 // ── Tenant ───────────────────────────────────────────────────
 // Root entity. No tenantId on itself, no soft-delete (tenant termination is operational).
 
@@ -150,6 +180,11 @@ model Tenant {
   studentGuardians           StudentGuardian[]
   guardianInvitations        GuardianInvitation[]
   addresses                  Address[]
+  admissions                 Admission[]
+  initialAssessments         InitialAssessment[]
+  mplsCohorts                MplsCohort[]
+  mplsMembers                MplsMember[]
+  mplsAttendances            MplsAttendance[]
 }
 
 // ── Campus ───────────────────────────────────────────────────
@@ -203,6 +238,7 @@ model Program {
   classSections              ClassSection[]
   students                   Student[]
   studentIdentifierSequences StudentIdentifierSequence[]
+  admissions                 Admission[]
 
   // Composite unique on (id, tenantId) backfilled in 04_classes migration.
   // Required as FK target for ClassSection composite-FK chain (§6.4).
@@ -233,6 +269,8 @@ model AcademicYear {
   classSections              ClassSection[]
   currentForOrgConfigs       OrgConfig[]                 @relation("OrgConfigCurrentYear")
   studentIdentifierSequences StudentIdentifierSequence[]
+  admissions                 Admission[]
+  mplsCohorts                MplsCohort[]
 
   // Composite unique on (id, tenantId) backfilled in 04_classes migration.
   // Required as FK target for ClassSection composite-FK chain (§6.4) +
@@ -489,18 +527,19 @@ model Address {
   deletedAt   DateTime? @db.Timestamptz()
   deletedById String?
 
-  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   // Region FKs use SINGLE-column Prisma relations (NOT composite). DB-level
   // composite FKs in migration SQL enforce hierarchy (BPS prefix + row
   // existence). Composite Prisma relations on Restrict-only FKs are safe in
   // theory but trigger `prisma migrate dev` regenerating composite REFERENCES
   // mismatched to the migration's column-list ordering — single-column at
   // Prisma keeps the schema↔migration mapping unambiguous.
-  province Province   @relation(fields: [provinceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  regency  Regency    @relation(fields: [regencyId],  references: [id], onDelete: Restrict, onUpdate: Cascade)
-  district District   @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  village  Village?   @relation(fields: [villageId],  references: [id], onDelete: Restrict, onUpdate: Cascade)
+  province   Province    @relation(fields: [provinceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  regency    Regency     @relation(fields: [regencyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district   District    @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  village    Village?    @relation(fields: [villageId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   households Household[]
+  admissions Admission[]
 
   // Composite unique on (id, tenantId) — required as FK target for
   // Household.addressId composite-FK chain (§6.4).
@@ -551,6 +590,7 @@ model Employee {
   teachingDefaults     TeachingDefault[]
   sessionTeachers      SessionTeacher[]
   headOfPrograms       Program[]                  @relation("ProgramHead")
+  initialAssessments   InitialAssessment[]
 
   @@unique([id, tenantId])
   @@index([tenantId])
@@ -1071,15 +1111,19 @@ model Household {
   deletedAt   DateTime? @db.Timestamptz()
   deletedById String?
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant                    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   // SINGLE-column relation per scaffold.md §6 split-view pattern (NOT composite).
   // Mirrors Guardian.userId precedent (cycle p2-guardians T2 step 3). The DB-
   // level composite FK with column-list `SET NULL ("addressId")` lives in this
   // migration's SQL — the §6.4 tenant alignment is preserved at the DB layer.
   // `prisma migrate dev` WILL detect drift between this single-column relation
   // and the DB composite FK; REJECT regeneration in PR review.
-  address  Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  students Student[]
+  address                   Address?    @relation(fields: [addressId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  students                  Student[]
+  // Admission.siblingDetectedFromHouseholdId back-relation. Same split-view
+  // pattern: SINGLE-column at Prisma, composite FK with column-list
+  // `SET NULL ("siblingDetectedFromHouseholdId")` in 11_admission migration SQL.
+  siblingDetectedAdmissions Admission[] @relation("AdmissionSiblingHousehold")
 
   // Composite unique on (id, tenantId) — required as FK target for Student
   // composite-FK chain (§6.4) + future p2-guardians + p2-admission-funnel.
@@ -1129,6 +1173,11 @@ model Student {
   identifiers         StudentIdentifier[]
   studentGuardians    StudentGuardian[]
   guardianInvitations GuardianInvitation[]
+  // Admission.acceptedStudentId back-relation. Split-view pattern: SINGLE-column
+  // at Prisma, composite FK with column-list `SET NULL ("acceptedStudentId")` in
+  // 11_admission migration SQL — preserves §6.4 tenant alignment when Student is
+  // hard-deleted.
+  acceptedAdmissions  Admission[]          @relation("AdmissionAcceptedStudent")
 
   // Composite unique on (id, tenantId) — required as FK target for
   // StudentIdentifier composite-FK chain (§6.4) + future p2-guardians.
@@ -1366,4 +1415,228 @@ model GuardianInvitation {
   @@index([tenantId, studentId])
   @@index([tenantId, guardianId])
   @@index([tenantId, status])
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Cycle p2-admission-funnel-schema (foundation §4.1 Admission/MPLS rows)
+// ════════════════════════════════════════════════════════════════════════
+
+// ── Admission ───────────────────────────────────────────────────
+// Per spec §4.1 + §10A.4. Tenant-scoped, soft-delete, audit per §4.4.
+// 8-state machine — see `lib/admission/state-machine.ts` for transitions.
+// Parent-snapshot fields (father*/mother*) are denormalized at submission time
+// (not FK to Guardian) — at submit the family is not yet a Household; ACCEPTED
+// transition (UI cycle) creates Guardian rows from these snapshots, but the
+// snapshot history persists even if later Guardian records drift.
+//
+// PII annotations:
+//   - applicantNik / fatherNik / motherNik  → redact
+//   - fatherPhone / motherPhone             → mask:last4
+//
+// FK shape (per §6.4 + scaffold.md §6 split-view pattern):
+//   - Tenant              composite (tenantId)                    Restrict
+//   - Program             composite (programId, tenantId)         Restrict
+//   - AcademicYear        composite (academicYearId, tenantId)    Restrict
+//   - Address             composite (addressId, tenantId)         Restrict (NOT NULL)
+//   - acceptedStudentId   composite (acceptedStudentId, tenantId) SET NULL ("acceptedStudentId")
+//                                                                 — Postgres 15.4+ column-list
+//   - siblingDetectedFromHouseholdId  composite (siblingDetectedFromHouseholdId, tenantId)
+//                                                                 SET NULL ("siblingDetectedFromHouseholdId")
+//
+// Single-column Prisma relations on the two SET NULL FKs (acceptedStudent,
+// siblingDetectedFromHousehold) per scaffold.md §6 split-view — dodges Prisma
+// issue #25061 (composite SetNull would null tenantId at runtime).
+//
+// Cycle: docs/cycles/2026-05-09-p2-admission-funnel-schema.md (T1).
+
+model Admission {
+  id                             String          @id @default(cuid())
+  tenantId                       String
+  programId                      String
+  academicYearId                 String
+  addressId                      String
+  status                         AdmissionStatus @default(DRAFT)
+  source                         AdmissionSource @default(ONLINE)
+  referralSourceText             String?         @db.VarChar(200)
+  applicantFullName              String          @db.VarChar(255)
+  applicantNickname              String?         @db.VarChar(100)
+  applicantNik                   String?         @db.VarChar(16) /// @PII redact
+  applicantBirthDate             DateTime?       @db.Date
+  // applicantGender CHECK ('MALE', 'FEMALE') enforced at DB level — schema-light
+  // single-binary-value field per Student.gender precedent in 07_students.
+  applicantGender                String?         @db.VarChar(10)
+  applicantBirthPlace            String?         @db.VarChar(100)
+  fatherName                     String?         @db.VarChar(255)
+  fatherNik                      String?         @db.VarChar(16) /// @PII redact
+  fatherPhone                    String?         @db.VarChar(20) /// @PII mask:last4
+  fatherOccupation               String?         @db.VarChar(100)
+  fatherMonthlyIncome            Int?
+  motherName                     String?         @db.VarChar(255)
+  motherNik                      String?         @db.VarChar(16) /// @PII redact
+  motherPhone                    String?         @db.VarChar(20) /// @PII mask:last4
+  motherOccupation               String?         @db.VarChar(100)
+  motherMonthlyIncome            Int?
+  siblingDetectedFromHouseholdId String?
+  acceptedStudentId              String?
+  submittedAt                    DateTime?       @db.Timestamptz()
+  decidedAt                      DateTime?       @db.Timestamptz()
+  interviewScheduledFor          DateTime?       @db.Timestamptz()
+  notes                          String?         @db.VarChar(2000)
+  createdAt                      DateTime        @default(now()) @db.Timestamptz()
+  createdById                    String?
+  updatedAt                      DateTime        @updatedAt @db.Timestamptz()
+  updatedById                    String?
+  deletedAt                      DateTime?       @db.Timestamptz()
+  deletedById                    String?
+
+  tenant                       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  program                      Program      @relation(fields: [programId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  academicYear                 AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  address                      Address      @relation(fields: [addressId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  // SINGLE-column relations on SET NULL FKs per scaffold.md §6 split-view.
+  // DB-level composite FK with column-list SET NULL lives in 11_admission migration.
+  // `prisma migrate dev` WILL detect drift; REJECT regeneration in PR review.
+  acceptedStudent              Student?     @relation("AdmissionAcceptedStudent", fields: [acceptedStudentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  siblingDetectedFromHousehold Household?   @relation("AdmissionSiblingHousehold", fields: [siblingDetectedFromHouseholdId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  initialAssessments InitialAssessment[]
+  mplsMembers        MplsMember[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, source])
+  @@index([tenantId, programId])
+  @@index([tenantId, academicYearId])
+  @@index([tenantId, submittedAt])
+  @@index([tenantId, applicantFullName])
+}
+
+// ── InitialAssessment ───────────────────────────────────────────
+// Per spec §4.1 + §10A.4 detail-tab pattern (line 853 — InitialAssessment inline
+// on Admission detail tab). Tenant-scoped. NO soft-delete: lifecycle cascades
+// from parent Admission soft-delete via app-layer filter — UI cycle's
+// dataFetcher MUST filter by `admission.deletedAt IS NULL` (deferred concern
+// from cycle Spec Assumption 5).
+//
+// Minimal shape this cycle: score Int? (0-100 placeholder) + notes Text. Richer
+// per-domain rubric structure deferred to a P5/P6 assessment cycle that
+// introduces dedicated rubric tables additively.
+//
+// Cycle: docs/cycles/2026-05-09-p2-admission-funnel-schema.md (T1).
+
+model InitialAssessment {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  admissionId        String
+  assessorEmployeeId String
+  assessmentDate     DateTime @db.Date
+  score              Int?
+  notes              String?
+  createdAt          DateTime @default(now()) @db.Timestamptz()
+  createdById        String?
+  updatedAt          DateTime @updatedAt @db.Timestamptz()
+  updatedById        String?
+
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  admission        Admission @relation(fields: [admissionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  assessorEmployee Employee  @relation(fields: [assessorEmployeeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, admissionId])
+  @@index([tenantId, assessorEmployeeId])
+}
+
+// ── MplsCohort ──────────────────────────────────────────────────
+// Per spec §4.1 + §10A.4 (MPLS = orientation period for newly accepted
+// students). Tenant-scoped, soft-delete (admin archives past waves).
+//
+// Cycle: docs/cycles/2026-05-09-p2-admission-funnel-schema.md (T1).
+
+model MplsCohort {
+  id             String           @id @default(cuid())
+  tenantId       String
+  academicYearId String
+  name           String           @db.VarChar(255)
+  startDate      DateTime         @db.Date
+  endDate        DateTime         @db.Date
+  status         MplsCohortStatus @default(PLANNED)
+  notes          String?          @db.VarChar(2000)
+  createdAt      DateTime         @default(now()) @db.Timestamptz()
+  createdById    String?
+  updatedAt      DateTime         @updatedAt @db.Timestamptz()
+  updatedById    String?
+  deletedAt      DateTime?        @db.Timestamptz()
+  deletedById    String?
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  members      MplsMember[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, academicYearId])
+  @@index([tenantId, status])
+}
+
+// ── MplsMember ──────────────────────────────────────────────────
+// Junction between MplsCohort and Admission — one row per (cohort, admission).
+// NO soft-delete (junction; parent's soft-delete drives lifecycle).
+//
+// Cycle: docs/cycles/2026-05-09-p2-admission-funnel-schema.md (T1).
+
+model MplsMember {
+  id          String   @id @default(cuid())
+  tenantId    String
+  cohortId    String
+  admissionId String
+  enrolledAt  DateTime @default(now()) @db.Timestamptz()
+  notes       String?  @db.VarChar(500)
+  createdAt   DateTime @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime @updatedAt @db.Timestamptz()
+  updatedById String?
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  cohort      MplsCohort       @relation(fields: [cohortId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  admission   Admission        @relation(fields: [admissionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  attendances MplsAttendance[]
+
+  @@unique([id, tenantId])
+  // One membership per (cohort, admission). Standard unique (no soft-delete).
+  @@unique([tenantId, cohortId, admissionId])
+  @@index([tenantId])
+  @@index([tenantId, cohortId])
+  @@index([tenantId, admissionId])
+}
+
+// ── MplsAttendance ──────────────────────────────────────────────
+// Per-day attendance fact for an MPLS cohort member. NO soft-delete (operational
+// fact; correction = update of `present` boolean or hard-delete via admin tool).
+// `cohortDay` is 1-indexed day number within the cohort (CHECK 1..30 enforced
+// at DB level).
+//
+// Cycle: docs/cycles/2026-05-09-p2-admission-funnel-schema.md (T1).
+
+model MplsAttendance {
+  id          String   @id @default(cuid())
+  tenantId    String
+  memberId    String
+  cohortDay   Int
+  present     Boolean  @default(false)
+  notes       String?  @db.VarChar(500)
+  createdAt   DateTime @default(now()) @db.Timestamptz()
+  createdById String?
+  updatedAt   DateTime @updatedAt @db.Timestamptz()
+  updatedById String?
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  member MplsMember @relation(fields: [memberId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  // One attendance fact per member per day.
+  @@unique([tenantId, memberId, cohortDay])
+  @@index([tenantId])
+  @@index([tenantId, memberId])
 }

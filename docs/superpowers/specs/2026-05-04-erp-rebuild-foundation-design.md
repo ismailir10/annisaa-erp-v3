@@ -1246,6 +1246,7 @@ Canonical surface for **what shipped, when, where**. One row per merged-to-stagi
 | 2 | portal-shell-sidebar | p2-portal-shell-sidebar | 2026-05-08 | #204 | 805588f | shipped |
 | 2 | entity-actions | p2-entity-actions | 2026-05-08 | #202 | 36550c9 | shipped |
 | 2 | addresses-idn-chain | p2-addresses-idn-chain | 2026-05-08 | #208 | f8aaaec | shipped |
+| 2 | admission-funnel-schema | p2-admission-funnel-schema | 2026-05-09 | — | — | next |
 
 **Notes:**
 - **Slug column is the canonical match key.** `/ship` post-merge matches by exact-string equality (case-sensitive); on `status=next` row match → update-in-place; on `status=shipped` match → no-op; on no match → append.
@@ -1329,11 +1330,12 @@ Original plan was 5 cycles. Phase 2 grew +4 from 5 → 9 because: (a) `p2-studen
 - [ ] `p2-scaffold-canary` — canary-test scaffold output on 1 entity end-to-end before bulk pages. Validates ScaffoldListPage + ScaffoldFormPage + ScaffoldDetailPage rendering against `lib/entities/student/*` + an admin page mount + Playwright visual diff. Locks the renderer-and-policy round-trip before `p2-scaffold-pages` bulk-mounts.
 - [ ] `p2-portal-shell-sidebar` — admin / teacher / parent portal shells: sidebar nav per §10A IA (lifecycle-ordered groups + active-state), header, breadcrumbs, role-gated visibility (e.g. payroll subgroup hidden from `principal`). Owns the IA contract from §10A. Mounts before `p2-scaffold-pages` so pages drop into expected groups.
 - [ ] `p2-addresses-idn-chain` — migration 10 (Address chain referencing 09_regions PKs, deferred from p1-regions-seed) + cascading dropdown UI. Independent of scaffold pages — can land in parallel.
-- [ ] `p2-admission-funnel` — migration 11 (Admission, InitialAssessment, MplsCohort, MplsMember, MplsAttendance) + workflow state machine (states + transitions code) + public form `/daftar` + sibling auto-detect + admin review screen. Includes `Admission.source ∈ {ONLINE / WALK_IN / REFERRAL}` per §10A.4.
+- [ ] `p2-admission-funnel-schema` — migration 11 (Admission, InitialAssessment, MplsCohort, MplsMember, MplsAttendance + 3 enums) + workflow state-machine library (`lib/admission/state-machine.ts` — pure transition algebra, 8 states / 15 legal edges) + Admission entity registry + minimal scaffold list page. Split from original `p2-admission-funnel` per §18.2 cap (≈30 files full scope > 25 cap). Rationale + split decision recorded in `docs/cycles/2026-05-09-p2-admission-funnel-schema.md`.
+- [ ] `p2-admission-funnel-ui` — public form `/daftar` (multi-step) + sibling auto-detect on submit + admin review screen + ACCEPTED side-effect bundle (Household + Student + Guardian creation tx) + MPLS minimal admin UI (cohort list + detail with attendance grid + bulk attendance action) + 3 email templates (admission-submitted / admission-accepted / admission-rejected) + Playwright canary specs (public + admin). Depends on `p2-admission-funnel-schema` (migration + state-machine + Admission entity).
 - [ ] `p2-classes-management` — admin pages for ClassSection w/ TeachingDefault + SentraRotation + ClassSession all as detail tabs (§10A.4 detail-tab pattern). Replaces original "Penugasan Walas + Sentra" + "Jadwal Sentra" + "Sesi Kelas" sidebar entries with a single Kelas page.
-- [ ] `p2-scaffold-pages` — bulk-mount admin entity pages under expected sidebar groups per §10A.1. List + Form + Detail per entity. Smart views per §5.10 declared in `entity.ts`. Depends on `p2-scaffold-canary` (renderer validated) + `p2-portal-shell-sidebar` (groups exist) + `p2-admission-funnel` + `p2-classes-management` (entity backings present).
+- [ ] `p2-scaffold-pages` — bulk-mount admin entity pages under expected sidebar groups per §10A.1. List + Form + Detail per entity. Smart views per §5.10 declared in `entity.ts`. Depends on `p2-scaffold-canary` (renderer validated) + `p2-portal-shell-sidebar` (groups exist) + `p2-admission-funnel-schema` + `p2-admission-funnel-ui` + `p2-classes-management` (entity backings present).
 
-Cycle order: `p2-scaffold-canary` → `p2-portal-shell-sidebar` → `p2-addresses-idn-chain` (parallel-safe) → `p2-admission-funnel` → `p2-classes-management` → `p2-scaffold-pages`. **Status:** 3/9 shipped; foundation rethink (4/9) + 5 entity/scaffold cycles pending.
+Cycle order: `p2-scaffold-canary` → `p2-portal-shell-sidebar` → `p2-addresses-idn-chain` (parallel-safe) → `p2-admission-funnel-schema` → `p2-admission-funnel-ui` → `p2-classes-management` → `p2-scaffold-pages`. **Status:** 3/10 shipped; foundation rethink (4/10) + 6 entity/scaffold cycles pending (admission split adds +1 cycle to phase total).
 
 #### Phase 3 — Admin finance + import (W3-3.5, ~5 cycles)
 

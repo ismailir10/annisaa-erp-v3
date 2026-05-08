@@ -19,6 +19,13 @@ export type PiiFieldMap = Readonly<Record<string, PiiPolicy>>;
 export type PiiModelMap = Readonly<Record<string, PiiFieldMap>>;
 
 export const PII_FIELDS: PiiModelMap = Object.freeze({
+  "Admission": {
+    "applicantNik": "redact",
+    "fatherNik": "redact",
+    "fatherPhone": "mask:last4",
+    "motherNik": "redact",
+    "motherPhone": "mask:last4",
+  },
   "Employee": {
     "nik": "redact",
     "phone": "mask:last4",
