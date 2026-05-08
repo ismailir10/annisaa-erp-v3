@@ -56,6 +56,11 @@ export { default as addressEntity } from "./address/entity";
 export { addressPolicy } from "./address/policy";
 export { addressSchema, type AddressInput } from "./address/schema";
 
+// ── Admission ───────────────────────────────────────────────
+export { default as admissionEntity } from "./admission/entity";
+export { admissionPolicy } from "./admission/policy";
+export { admissionSchema, type AdmissionInput } from "./admission/schema";
+
 // ── Aggregate ───────────────────────────────────────────────
 // Convenience aggregates for downstream introspection (e.g. nav rendering,
 // permission seed iteration). Order = preferred admin sidebar order.
@@ -66,6 +71,7 @@ import householdEntityDefault from "./household/entity";
 import studentIdentifierEntityDefault from "./student-identifier/entity";
 import guardianInvitationEntityDefault from "./guardian-invitation/entity";
 import addressEntityDefault from "./address/entity";
+import admissionEntityDefault from "./admission/entity";
 
 import { policy as studentPolicyValue } from "./student/policy";
 import { guardianPolicy as guardianPolicyValue } from "./guardian/policy";
@@ -73,6 +79,7 @@ import { householdPolicy as householdPolicyValue } from "./household/policy";
 import { studentIdentifierPolicy as studentIdentifierPolicyValue } from "./student-identifier/policy";
 import { policy as guardianInvitationPolicyValue } from "./guardian-invitation/policy";
 import { policy as addressPolicyValue } from "./address/policy";
+import { policy as admissionPolicyValue } from "./admission/policy";
 
 export const ALL_ENTITIES = [
   studentEntityDefault,
@@ -81,6 +88,7 @@ export const ALL_ENTITIES = [
   studentIdentifierEntityDefault,
   guardianInvitationEntityDefault,
   addressEntityDefault,
+  admissionEntityDefault,
 ] as const;
 
 export const ALL_POLICIES = [
@@ -90,4 +98,5 @@ export const ALL_POLICIES = [
   studentIdentifierPolicyValue,
   guardianInvitationPolicyValue,
   addressPolicyValue,
+  admissionPolicyValue,
 ] as const;
