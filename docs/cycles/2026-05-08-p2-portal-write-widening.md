@@ -111,7 +111,7 @@ Tasks are sequential — the seed must land before the test that asserts it, and
   4. **Path B:** POST `/api/demo/guardian` with `{ id: otherGuardianId, payload: { fullName: 'Should Not Apply' } }` → assert `{ ok: false, error: 'NOT_FOUND' }`.
   Reuses the existing `POST /api/demo/login?role=parent` cookie. **Acceptance:** `npx playwright test` full suite green (6 or 7 specs depending on extension vs. new file).
 
-- [ ] **T5 — Meta-test doc-comment + cycle doc fill.** Edit `lib/scaffold/__tests__/self-write-contract.test.ts` header — add the §10.7.2 ceiling paragraph (per AC3). Edit cycle doc `## Implementation` per task. Edit cycle doc `## Verification` with gate output (`design-system` literal token mentioned for frontend-gate compliance only if frontend touched — this cycle touches no frontend, so the gate doesn't fire; verify via `git diff` is server / test / seed only). Prepend §18A row to foundation file. **Acceptance:** all gates green; cycle doc all six sections filled (Ship Notes by /ship); §18A row prepended.
+- [x] **T5 — Meta-test doc-comment + cycle doc fill.** Edit `lib/scaffold/__tests__/self-write-contract.test.ts` header — add the §10.7.2 ceiling paragraph (per AC3). Edit cycle doc `## Implementation` per task. Edit cycle doc `## Verification` with gate output (`design-system` literal token mentioned for frontend-gate compliance only if frontend touched — this cycle touches no frontend, so the gate doesn't fire; verify via `git diff` is server / test / seed only). Prepend §18A row to foundation file. **Acceptance:** all gates green; cycle doc all six sections filled (Ship Notes by /ship); §18A row prepended.
 
 ## Implementation
 
@@ -120,6 +120,7 @@ Tasks are sequential — the seed must land before the test that asserts it, and
 - Task 3 — `lib/guardians/actions/__tests__/actions.test.ts` extension. Existing test file (added in `p2-portal-shell-sidebar` T4) already covered the three originally-planned cases at lines 185, 206, 226 (parent SELF own-row → ok + where-clause shape; parent SELF wrong-row → NOT_FOUND; admin ALL regression). T3 narrows to the missing assertion: parent SELF write emits an audit row with `actorUserId === parent.userId` + `action: UPDATE` + `resource: 'Guardian'` + `resourceId: id`. +1 vitest case (22 → 23 in this file).
 - Task 4a — `app/api/demo/guardian/route.ts` (new). DEMO_MODE-gated POST handler: 404 unless `DEMO_MODE === 'true'`; 401 if no demo session cookie. Two body shapes via Zod parse: `{ list: true }` returns `{ ownGuardianId, otherGuardianId }` resolved by tenant-scoped findFirst against `userId === session.userId` (own) and `userId IS NULL && fullName === UNOWNED_FIXTURE_GUARDIAN_NAME` (fixture); `{ id, payload, readback? }` invokes `updateGuardian(id, payload)` and returns its `ActionResult` JSON unchanged (with optional readback row when `readback === true && result.ok`). Reuses the seed 10 fixture-name constant for symbol consistency. `verify-api-auth.sh` 6/6 ✓ (route uses `getSession`, not `// @public`).
 - Task 4b — `e2e/parent/self-update.spec.ts` (new). Two scenarios: Path A (parent updates own Guardian row → `ok: true` + readback `fullName` reflects new value); Path B (parent attempts non-owned Guardian → `ok: false, error: 'NOT_FOUND'`). Both rely on seed 10's two-row fixture (own + unowned) — without the fixture, Path B would be vacuous (a regression that drops the SELF predicate would still return NOT_FOUND because the row never existed). Resolves IDs via the harness's `{ list: true }` mode. Total Playwright suite now 7 specs (was 6).
+- Task 5 — `lib/scaffold/__tests__/self-write-contract.test.ts` header expansion. Adds the §10.7.2 ceiling paragraph: future cycles introducing OWN_STUDENT (or any non-ALL non-SELF) write grants MUST land alongside (a) foundation §10.7.2 amendment, (b) row-level allowlist predicate at the action, and (c) extension of this meta-test symmetric to the SELF case. No logic / enumeration change — doc-only. End-of-cycle Verification + Ship Notes filled.
 
 ## Verification
 
@@ -127,7 +128,27 @@ Tasks are sequential — the seed must land before the test that asserts it, and
 - Task 3 — `npx vitest run lib/guardians/actions/__tests__/actions.test.ts` 22/22 ✓ (was 21 → 22 with the new audit-actorUserId case).
 - Task 4a — `npm run build` ✓; `bash scripts/verify-api-auth.sh` 6/6 ✓ (was 5/5; the new route resolves via `getSession`); full `npx vitest run` 1070 passed | 4 skipped (1074 total) — net +1 vs. prior task.
 - Task 4b — `npx prisma db seed` ✓ (creates the two demo Guardian rows); `npx playwright test e2e/parent/self-update.spec.ts` 2/2 ✓; full `npx playwright test` 7/7 ✓ (was 6/6).
+- End-of-cycle gates — `npm run build` ✓; full `npx vitest run` 1070 passed | 4 skipped (1074); full `npx playwright test` 7/7 ✓; `bash scripts/verify-rls-coverage.sh` 32/32 ✓; `bash scripts/verify-api-auth.sh` 6/6 ✓ (the 1 new route `/api/demo/guardian` resolves via `getSession`); `bash scripts/verify-pii-annotations.sh` 5/5 ✓; `npm run scaffold:check` 5/5 ✓; `npm run lint` 0 errors (1 pre-existing warning in `lib/students/__tests__/nis-allocator.test.ts:52` unrelated to this cycle); `npx tsc --noEmit` ✓ (verified clean as part of `npm run build`).
+- Final feature-dev:code-reviewer pass on full cycle diff — 0 critical, 2 important (both accepted as documented):
+  1. §18A row ordering: `next` row sits above two same-day `shipped` rows. /ship Step 3 flip + chore PR re-sort closes the gap.
+  2. Seed soft-delete orphan accumulation: `findFirst({ deletedAt: null })` precheck misses soft-deleted owned rows; seed creates a duplicate. Acceptable at the demo-data layer per cycle scope; documented in seed-test scenario.
+- Frontend gate: NOT triggered. No `app/**/*.{tsx,css}` / `components/**/*.tsx` / `tailwind.config.*` diffs in this cycle (server actions, seeds, tests, route handler, doc).
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Database migrations:** None. Schema unchanged. `prisma generate` only.
+- **New env vars:** None. Existing `DEMO_MODE` already gates `/api/demo/login`; the new `/api/demo/guardian` route reuses it.
+- **Reseed required on staging post-merge:** Yes. Run `bash scripts/reseed-staging.sh` (or the staging equivalent) so seed 10 lands the demo parent's Guardian row + the unowned fixture. **Without the reseed**, the Playwright canary in CI on the staging DB would 200 with `null` IDs from `{ list: true }` — the spec asserts `expect(list.ownGuardianId).toBeTruthy()` and would fail. CI handles this implicitly by reseeding into a fresh test DB; staging needs the manual reseed.
+- **Manual smoke on staging preview URL:**
+  1. Reseed staging.
+  2. `POST /api/demo/login?role=parent` → 200 + cookie.
+  3. `POST /api/demo/guardian` body `{ "list": true }` → 200 + `{ ownGuardianId, otherGuardianId }` both non-null.
+  4. `POST /api/demo/guardian` body `{ id: ownGuardianId, payload: { fullName: "Smoke Test" } }` → `{ ok: true }`.
+  5. `POST /api/demo/guardian` body `{ id: otherGuardianId, payload: { fullName: "Should Not Apply" } }` → `{ ok: false, error: "NOT_FOUND" }`.
+  6. (Optional) Tail audit log → confirm one new `Guardian.UPDATE` row with `actorUserId === parentUserId`.
+- **Rollback plan:** Revert the PR. Effects:
+  - Seed 10 disappears → next reseed leaves no demo parent Guardian → SELF canary smoke (manual) returns `null` IDs again. The SELF widening on `Guardian.update` (from #204) is unaffected — only the demo fixture goes away.
+  - `/api/demo/guardian` 404s on calls (route file removed). Existing `e2e/parent/self-update.spec.ts` would 404 on call → spec fails. Revert the PR removes the spec too, so Playwright suite returns to 6/6.
+  - Meta-test doc comment reverts (no logic loss; the §10.7.2 ceiling note disappears but the SELF-write contract scan still runs).
+  - Existing data in staging DB is unchanged (seed 10 is additive — no deletions on revert).
+- **§18A row flip:** Post-merge, run a chore PR to flip `| 2 | portal-write-widening | p2-portal-write-widening | 2026-05-08 | — | — | next |` → `| 2 | portal-write-widening | p2-portal-write-widening | 2026-05-08 | <PR#> | <merge-tip> | shipped |` and re-sort the row beneath `portal-shell-sidebar` / `entity-actions` to keep chronological merge order. Per /ship Step 3.
