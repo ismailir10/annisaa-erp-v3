@@ -75,6 +75,21 @@ const _TIMELINE_EVENTS_RAW = {
       text: z.string().min(1).max(2000),
     }).strict(),
   },
+  "admission.status-changed": {
+    // Emitted on every legal Admission state transition by the wrapper actions
+    // in `lib/admission/transitions/*.ts`. INTERNAL by default — parent-portal
+    // surfacing of admission status lands in a future cycle (a public
+    // `/lacak-pendaftaran/<trackingCode>` page outside of the timeline event
+    // stream). The two AdmissionStatus values are stored as plain strings so
+    // the registry stays free of Prisma-enum imports beyond TimelineVisibility.
+    subjectKind: "Admission",
+    defaultVisibility: TimelineVisibilityEnum.INTERNAL,
+    payloadSchema: z.object({
+      from: z.string().min(1),
+      to: z.string().min(1),
+      reason: z.string().max(2000).optional(),
+    }).strict(),
+  },
 } as const satisfies Record<
   string,
   {

@@ -15,7 +15,9 @@
 export type RateLimitScope =
   | "oauth_callback"
   | "demo_login"
-  | "upload";
+  | "upload"
+  | "admission_submit"
+  | "public_address_create";
 
 export type CheckRateLimitArgs = {
   /** A unique identifier within the scope — e.g. an IP address or userId. */
