@@ -28,13 +28,36 @@ describe("resolveCallbackOrigin", () => {
     expect(resolveCallbackOrigin(req)).toBe("https://app.example.com");
   });
 
-  it("throws in production when NEXT_PUBLIC_SITE_URL is unset", () => {
+  it("throws in production (VERCEL_ENV=production) when NEXT_PUBLIC_SITE_URL is unset", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    vi.stubEnv("VERCEL_ENV", "production");
     const req = makeRequest("https://app.example.com/auth/callback", {
       "x-forwarded-host": "alias.example.com",
     });
     expect(() => resolveCallbackOrigin(req)).toThrow(/NEXT_PUBLIC_SITE_URL/);
+  });
+
+  it("falls back to request.url origin on Vercel preview when NEXT_PUBLIC_SITE_URL is unset", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const req = makeRequest(
+      "https://annisaa-erp-v3-git-staging-team.vercel.app/auth/callback?code=abc",
+    );
+    expect(resolveCallbackOrigin(req)).toBe(
+      "https://annisaa-erp-v3-git-staging-team.vercel.app",
+    );
+  });
+
+  it("on Vercel preview NEXT_PUBLIC_SITE_URL still wins when set (operator override)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://staging.example.com");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const req = makeRequest(
+      "https://annisaa-erp-v3-git-staging-team.vercel.app/auth/callback",
+    );
+    expect(resolveCallbackOrigin(req)).toBe("https://staging.example.com");
   });
 
   it("never trusts x-forwarded-host in production — env wins", () => {
