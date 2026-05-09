@@ -112,6 +112,7 @@ Each task is independently committable. Build runs the between-task gate (`npm r
 - Task 9: `verify-api-auth` 12/12 (+1 for `/api/public/address`) + `npm run build` green. Cross-checked design-system.html §1 + §6 — public form shell uses standard Card chrome + sticky Lanjut/Kembali pair. End-to-end browser smoke deferred to T10 Playwright canary.
 - Task 10: `npx playwright test e2e/admission-public.spec.ts --project=chromium` → 5/5 green in 3.8s.
 - Task 11: full gate sweep — `npm run build` ✓ · `npx vitest run` 1417/1421 (4 skipped, 0 failed) ✓ · `npx playwright test --project=chromium` 12/13 passed (1 pre-existing failure on `e2e/admin/students.spec.ts:252` — verified pre-existing by stashing this cycle's diff and re-running; unrelated to admission funnel scope) · `verify-rls-coverage` 38/38 ✓ · `verify-pii-annotations` 10/10 ✓ · `verify-api-auth` 12/12 ✓ (+1 vs pre-cycle for `/api/admission/submit`; +1 for `/api/public/address`). §18A row corrected from literal `next` triple to `— | — | next` to satisfy `verify-phase-status` Tip Commit regex.
+- T11 follow-up: CI typecheck-strict caught a `vi.fn().mock.calls` index-access TS2493 in `lib/admission/transitions/__tests__/submit.test.ts` that the local lax typecheck did not — cast through `unknown` to a 1-tuple shape. No behavior change; vitest 10/10 still green.
 
 ## Ship Notes
 

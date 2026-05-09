@@ -181,9 +181,10 @@ describe("submitAdmission", () => {
     expect(m.admissions[0].siblingDetectedFromHouseholdId).toBe("h_existing");
     // Confirms the first guardian.findMany call queries by `nik` (not phone),
     // proving NIK precedence is exercised — not just lucky mock ordering.
-    const firstCall = m.tx.guardian.findMany.mock.calls[0]?.[0] as {
-      where: { nik?: unknown; OR?: unknown };
-    };
+    const calls = m.tx.guardian.findMany.mock.calls as unknown as Array<
+      [{ where?: { nik?: unknown; OR?: unknown } }]
+    >;
+    const firstCall = calls[0]?.[0] ?? {};
     expect(firstCall?.where?.nik).toBeDefined();
     expect(firstCall?.where?.OR).toBeUndefined();
   });
@@ -198,9 +199,10 @@ describe("submitAdmission", () => {
     });
     expect(result.siblingDetectedFromHouseholdId).toBe("h_phone");
     expect(result.siblingMatchKind).toBe("PHONE_LAST4");
-    const firstCall = m.tx.guardian.findMany.mock.calls[0]?.[0] as {
-      where: { nik?: unknown; OR?: unknown };
-    };
+    const calls = m.tx.guardian.findMany.mock.calls as unknown as Array<
+      [{ where?: { nik?: unknown; OR?: unknown } }]
+    >;
+    const firstCall = calls[0]?.[0] ?? {};
     expect(firstCall?.where?.nik).toBeUndefined();
     expect(firstCall?.where?.OR).toBeDefined();
   });
