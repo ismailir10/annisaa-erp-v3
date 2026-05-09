@@ -345,7 +345,7 @@ export function AdmissionDetailClient({
             <DialogTitle>Jadwalkan wawancara</DialogTitle>
             <DialogDescription>
               Pilih tanggal wawancara dengan keluarga {admission.applicantFullName}.
-              Status pendaftaran akan dipindahkan ke "Wawancara Terjadwal".
+              Status pendaftaran akan dipindahkan ke &quot;Wawancara Terjadwal&quot;.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -670,7 +670,7 @@ function AktivitasTab({ events }: { events: ReadonlyArray<TimelineRow> }) {
               </p>
               <p className="text-muted-foreground text-xs">{formatDate(e.occurredAt)}</p>
               {payload.reason && (
-                <p className="text-muted-foreground italic mt-1">"{payload.reason}"</p>
+                <p className="text-muted-foreground italic mt-1">&ldquo;{payload.reason}&rdquo;</p>
               )}
             </div>
           );
