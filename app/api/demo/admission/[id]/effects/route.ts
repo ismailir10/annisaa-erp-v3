@@ -107,3 +107,83 @@ export async function GET(
     studentGuardians,
   });
 }
+
+// DELETE — Playwright cleanup helper. Hard-deletes the Admission row
+// AND its ACCEPTED side-effect bundle (Student + Household + Guardian +
+// StudentGuardian) in dependency order so the spec doesn't pollute
+// downstream specs (e.g. admin students cold-empty-state assertion).
+//
+// Demo-only; admin scope. No-op if the rows are already gone.
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  if (process.env.DEMO_MODE !== "true") {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
+  }
+
+  // Re-use the read scope check — if you can read it via this route, you
+  // can wipe it (admin/principal/kadiv/admission_officer only).
+  try {
+    assertScope(session, admissionPolicy, "read");
+  } catch {
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  const admission = await prisma.admission.findFirst({
+    where: { id, tenantId: session.tenantId },
+    select: { id: true, acceptedStudentId: true },
+  });
+  if (!admission) {
+    return NextResponse.json({ ok: true, deleted: false });
+  }
+
+  // Resolve dependent ids in dependency-safe order before delete.
+  const student = admission.acceptedStudentId
+    ? await prisma.student.findFirst({
+        where: { id: admission.acceptedStudentId, tenantId: session.tenantId },
+        select: { id: true, householdId: true },
+      })
+    : null;
+
+  const sgRows = student
+    ? await prisma.studentGuardian.findMany({
+        where: { studentId: student.id, tenantId: session.tenantId },
+        select: { id: true, guardianId: true },
+      })
+    : [];
+
+  await prisma.$transaction(async (tx) => {
+    // Null the FK first to break the SET NULL composite reference cleanly.
+    await tx.admission.update({
+      where: { id: admission.id },
+      data: { acceptedStudentId: null },
+    });
+    if (sgRows.length > 0) {
+      await tx.studentGuardian.deleteMany({
+        where: { id: { in: sgRows.map((r) => r.id) } },
+      });
+      await tx.guardian.deleteMany({
+        where: {
+          id: { in: sgRows.map((r) => r.guardianId) },
+          tenantId: session.tenantId,
+        },
+      });
+    }
+    if (student) {
+      await tx.student.delete({ where: { id: student.id } });
+      await tx.household.delete({ where: { id: student.householdId } });
+    }
+    await tx.admission.delete({ where: { id: admission.id } });
+  });
+
+  return NextResponse.json({ ok: true, deleted: true });
+}
