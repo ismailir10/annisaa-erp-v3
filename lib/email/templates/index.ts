@@ -10,9 +10,13 @@
 // Cycle: docs/cycles/2026-05-10-p2-admission-funnel-ui-public.md (T5)
 
 import * as admissionSubmitted from "./admission-submitted";
+import * as admissionAccepted from "./admission-accepted";
+import * as admissionRejected from "./admission-rejected";
 
 export const TEMPLATES = {
   "admission-submitted": admissionSubmitted,
+  "admission-accepted": admissionAccepted,
+  "admission-rejected": admissionRejected,
 } as const;
 
 export type EmailTemplate = keyof typeof TEMPLATES;

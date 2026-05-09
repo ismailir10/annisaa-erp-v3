@@ -58,9 +58,11 @@ import { writeAuditLog } from "@/lib/audit/write";
 import { emitTimelineEvent } from "@/lib/timeline/emit";
 import { admissionPolicy } from "@/lib/entities/admission/policy";
 import { assertScope } from "@/lib/scaffold/server-action";
+import { sendEmail } from "@/lib/email/send";
 import type { SessionContext } from "@/lib/auth/session";
 
 import { assertTransition } from "../state-machine";
+import { deriveTrackingCode } from "./submit";
 
 export type AcceptAdmissionInput = {
   admissionId: string;
@@ -373,16 +375,36 @@ export async function acceptAdmission(
       householdId,
       studentId: student.id,
       guardianIds: [...guardianIds] as ReadonlyArray<string>,
+      applicantFullName: row.applicantFullName,
+      fatherName: row.fatherName,
+      motherName: row.motherName,
     };
   });
 
-  // TODO(T7): wire admission-accepted email enqueue here, OUTSIDE the tx.
-  // Mirror submit.ts's email-isolation contract: best-effort sendEmail call
-  // wrapped in try/catch so a failed enqueue does not roll back the
-  // committed ACCEPTED transition + side-effect bundle. Surface the resulting
-  // emailLogId on the returned result. Inputs already plumbed:
-  // input.notificationEmail + input.tenantDisplayName.
-  const emailLogId: string | null = null;
+  // Email enqueue runs OUTSIDE the tx — best-effort. A failed EmailLog INSERT
+  // must not roll back the just-committed ACCEPTED transition + side-effect
+  // bundle. Mirrors submit.ts's email-isolation contract.
+  let emailLogId: string | null = null;
+  if (input.notificationEmail && input.tenantDisplayName) {
+    try {
+      const send = await sendEmail(prisma, {
+        tenantId: session.tenantId,
+        recipientEmail: input.notificationEmail,
+        actorUserId: session.userId,
+        template: "admission-accepted",
+        data: {
+          trackingCode: deriveTrackingCode(txResult.admissionId),
+          parentDisplayName:
+            txResult.fatherName ?? txResult.motherName ?? "Wali Murid",
+          studentFullName: txResult.applicantFullName,
+          tenantDisplayName: input.tenantDisplayName,
+        },
+      });
+      emailLogId = send.emailLogId;
+    } catch (err) {
+      console.error("acceptAdmission: email enqueue failed", err);
+    }
+  }
 
   return {
     admissionId: txResult.admissionId,

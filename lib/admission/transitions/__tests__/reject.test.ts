@@ -58,7 +58,14 @@ function makePrismaMock(opts: {
           (a) => a.id === args.where.id && a.tenantId === args.where.tenantId,
         );
         if (!r) return null;
-        return { id: r.id, status: r.status, notes: r.notes };
+        return {
+          id: r.id,
+          status: r.status,
+          notes: r.notes,
+          applicantFullName: "Aisyah Nur Hasan",
+          fatherName: "Hasan",
+          motherName: "Nur Hidayah",
+        };
       },
     ),
     update: vi.fn(
@@ -93,16 +100,44 @@ function makePrismaMock(opts: {
     }),
   };
 
-  const tx = { admission, auditLog, timelineEvent };
+  // emailLog has TWO distinct mocks — tx-scoped (must NEVER be called; proves
+  // the email enqueue is OUTSIDE tx) and prisma-scoped (the actual call target).
+  // Distinct refs catch a future regression that moves sendEmail inside the tx.
+  const emailRows: Array<Record<string, unknown>> = [];
+  const txEmailLogCreate = vi.fn(async () => {
+    throw new Error("MOCK_VIOLATION: tx.emailLog.create must never be called — email enqueue runs OUTSIDE tx");
+  });
+  const prismaEmailLogCreate = vi.fn(async (args: { data: Record<string, unknown> }) => {
+    const row = { id: `el${nextOtherId++}`, ...args.data };
+    emailRows.push(row);
+    return { id: row.id };
+  });
+
+  const tx = {
+    admission,
+    auditLog,
+    timelineEvent,
+    emailLog: { create: txEmailLogCreate },
+  };
 
   const prisma = {
     ...tx,
+    emailLog: { create: prismaEmailLogCreate },
     $transaction: vi.fn(
       async (fn: (txClient: typeof tx) => Promise<unknown>) => fn(tx),
     ),
   };
 
-  return { prisma, tx, admissions, auditRows, timelineRows };
+  return {
+    prisma,
+    tx,
+    admissions,
+    auditRows,
+    timelineRows,
+    emailRows,
+    prismaEmailLogCreate,
+    txEmailLogCreate,
+  };
 }
 
 const ADMIN_SESSION: SessionContext = {
@@ -224,5 +259,45 @@ describe("rejectAdmission", () => {
     expect(m.tx.admission.findFirst).not.toHaveBeenCalled();
     expect(m.auditRows).toHaveLength(0);
     expect(m.timelineRows).toHaveLength(0);
+  });
+
+  it("email enqueue runs OUTSIDE tx + email failure does NOT roll back REJECTED", async () => {
+    const m = makePrismaMock({ seedStatus: AdmissionStatus.SUBMITTED });
+    // Force the OUTSIDE-tx email enqueue to throw — simulates Resend / DB outage.
+    m.prismaEmailLogCreate.mockImplementationOnce(async () => {
+      throw new Error("EMAIL_OUTBOX_DOWN");
+    });
+    const result = await rejectAdmission(m.prisma as never, ADMIN_SESSION, {
+      ...BASE_INPUT,
+      notificationEmail: "ibu.nur@example.com",
+      tenantDisplayName: "Annisaa PAUD",
+    });
+    // Transition still committed.
+    expect(m.admissions[0].status).toBe(AdmissionStatus.REJECTED);
+    expect(m.auditRows).toHaveLength(1);
+    expect(m.timelineRows).toHaveLength(1);
+    // The outside-tx prisma path was hit; the tx-scoped path was NOT.
+    expect(m.prismaEmailLogCreate).toHaveBeenCalledTimes(1);
+    expect(m.txEmailLogCreate).not.toHaveBeenCalled();
+    // Caller surfaces emailLogId=null so a retry job can re-enqueue.
+    expect(result.emailLogId).toBeNull();
+  });
+
+  it("happy email enqueue: prismaEmailLogCreate called once with admission-rejected template", async () => {
+    const m = makePrismaMock({ seedStatus: AdmissionStatus.SUBMITTED });
+    const result = await rejectAdmission(m.prisma as never, ADMIN_SESSION, {
+      ...BASE_INPUT,
+      notificationEmail: "ibu.nur@example.com",
+      tenantDisplayName: "Annisaa PAUD",
+    });
+    expect(m.prismaEmailLogCreate).toHaveBeenCalledTimes(1);
+    expect(m.txEmailLogCreate).not.toHaveBeenCalled();
+    expect(m.emailRows).toHaveLength(1);
+    expect(m.emailRows[0]).toMatchObject({
+      template: "admission-rejected",
+      status: "QUEUED",
+      recipientEmail: "ibu.nur@example.com",
+    });
+    expect(result.emailLogId).not.toBeNull();
   });
 });

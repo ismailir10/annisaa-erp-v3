@@ -31,9 +31,11 @@ import { writeAuditLog } from "@/lib/audit/write";
 import { emitTimelineEvent } from "@/lib/timeline/emit";
 import { admissionPolicy } from "@/lib/entities/admission/policy";
 import { assertScope } from "@/lib/scaffold/server-action";
+import { sendEmail } from "@/lib/email/send";
 import type { SessionContext } from "@/lib/auth/session";
 
 import { assertTransition } from "../state-machine";
+import { deriveTrackingCode } from "./submit";
 
 export type RejectAdmissionInput = {
   admissionId: string;
@@ -67,7 +69,14 @@ export async function rejectAdmission(
   const txResult = await prisma.$transaction(async (tx) => {
     const row = await tx.admission.findFirst({
       where: { id: input.admissionId, tenantId: session.tenantId, deletedAt: null },
-      select: { id: true, status: true, notes: true },
+      select: {
+        id: true,
+        status: true,
+        notes: true,
+        applicantFullName: true,
+        fatherName: true,
+        motherName: true,
+      },
     });
     if (!row) {
       throw new Error("NOT_FOUND");
@@ -144,16 +153,36 @@ export async function rejectAdmission(
       admissionId: updated.id,
       status: updated.status as AdmissionStatus,
       previousStatus,
+      applicantFullName: row.applicantFullName,
+      fatherName: row.fatherName,
+      motherName: row.motherName,
     };
   });
 
-  // TODO(T7): wire admission-rejected email enqueue here, OUTSIDE the tx.
-  // Mirror submit.ts's email-isolation contract: best-effort sendEmail call
-  // wrapped in try/catch so a failed enqueue does not roll back the
-  // committed REJECTED transition. Surface the resulting emailLogId on the
-  // returned result. Inputs already plumbed: input.notificationEmail +
-  // input.tenantDisplayName.
-  const emailLogId: string | null = null;
+  // Email enqueue runs OUTSIDE the tx — best-effort. A failed EmailLog INSERT
+  // must not roll back the just-committed REJECTED transition. Mirrors
+  // submit.ts's email-isolation contract.
+  let emailLogId: string | null = null;
+  if (input.notificationEmail && input.tenantDisplayName) {
+    try {
+      const send = await sendEmail(prisma, {
+        tenantId: session.tenantId,
+        recipientEmail: input.notificationEmail,
+        actorUserId: session.userId,
+        template: "admission-rejected",
+        data: {
+          trackingCode: deriveTrackingCode(txResult.admissionId),
+          parentDisplayName:
+            txResult.fatherName ?? txResult.motherName ?? "Wali Murid",
+          applicantFullName: txResult.applicantFullName,
+          tenantDisplayName: input.tenantDisplayName,
+        },
+      });
+      emailLogId = send.emailLogId;
+    } catch (err) {
+      console.error("rejectAdmission: email enqueue failed", err);
+    }
+  }
 
   return {
     admissionId: txResult.admissionId,
