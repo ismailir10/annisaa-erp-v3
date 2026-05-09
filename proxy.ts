@@ -73,6 +73,9 @@ async function proxyImpl(request: NextRequest): Promise<NextResponse> {
     pathname === "/auth" ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/api/auth/") ||
+    pathname === "/login" ||
+    pathname === "/daftar" ||
+    pathname.startsWith("/daftar/") ||
     pathname.startsWith("/legal/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||

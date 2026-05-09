@@ -37,7 +37,22 @@ function jsonError(status: number, error: string, message: string, field?: strin
   );
 }
 
+function isSameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const reqUrl = new URL(request.url);
+    return new URL(origin).origin === reqUrl.origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!isSameOrigin(request)) {
+    return jsonError(403, "forbidden", "Origin mismatch.");
+  }
+
   const ip = getClientIp(request);
   const rate = checkRateLimit({
     key: ip,
@@ -87,7 +102,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     select: { id: true, name: true },
   });
   if (!tenant) {
-    return jsonError(404, "tenant_not_found", "Sekolah tidak ditemukan.");
+    // Uniform 400 — do not leak which slugs exist via 404 vs 200.
+    return jsonError(400, "invalid_payload", "Payload validation failed.", "tenantSlug");
   }
 
   // Cross-tenant guard — every FK must belong to the resolved tenant.
