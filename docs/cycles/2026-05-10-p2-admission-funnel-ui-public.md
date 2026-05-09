@@ -67,7 +67,7 @@ Each task is independently committable. Build runs the between-task gate (`npm r
 - [x] **T8 — Public submit endpoint.** Create `app/api/admission/submit/route.ts` (POST, `@public` annotation for `verify-api-auth` allowlist) + `lib/admission/validations/public-submit.ts` (Zod payload, `.strict()` mass-assignment guard). Cross-tenant FK guard: program/academicYear/address looked up `(id, tenantId)`. Rate-limited 5/IP/5min via `admission_submit` scope on `lib/rate-limit.ts`. AC: route returns `{ ok: true, trackingCode }` on valid payload; `verify-api-auth` passes (11/11 routes).
 - [x] **T9 — Public `/daftar` page + multi-step client + `/login` Google OAuth entry + `/api/public/address` endpoint.** Multi-step form (Anak → Orang Tua → Alamat → Program → Tinjau) with `<AddressChainField>` reuse. Bu Nur voice. `/login` page lets the just-seeded real admin start OAuth. Cross-checked design-system.html §1 (typography) + §6 (form shells). Three security findings fixed pre-commit: open-redirect on /login `?next=` (validated via `safeNextPath`), tenant-slug enumeration oracle (uniform 400 on miss), CSRF on public endpoints (Origin same-site check). AC: page renders, frontend-gate satisfied (Verification mentions `design-system`).
 - [x] **T10 — Playwright canary `admission-public.spec.ts`.** 5 cases against the real seed tenant `an-nisaa-sekolahku`: 404 on no tenant + unknown tenant, form shell + step indicator render, Lanjut disabled until applicant name entered, /api/admission/submit Origin gate enforces 403 on missing Origin header. End-to-end multi-step submit asserted via direct UI interactions; full submit + tracking-code render moves to follow-up `-review` cycle once region API rate-limit allows test rigging. AC: 5/5 green locally.
-- [ ] **T11 — End-of-cycle gates + Verification + Ship Notes.** `npm run build && npx vitest run && npx playwright test`; verify-rls/pii/api-auth; fill Verification + Ship Notes (including end-to-end Google sign-in URL the user can paste into Chrome). AC: all gates green; doc-sync passes.
+- [x] **T11 — End-of-cycle gates + Verification + Ship Notes.** `npm run build && npx vitest run && npx playwright test`; verify-rls/pii/api-auth; fill Verification + Ship Notes (including end-to-end Google sign-in URL the user can paste into Chrome). AC: all gates green; doc-sync passes.
 
 ### Dependencies
 
@@ -111,7 +111,54 @@ Each task is independently committable. Build runs the between-task gate (`npm r
 - Task 8: `verify-api-auth` 11/11 + `npm run build` green. Endpoint integration tests deferred to T10 Playwright. Independent security review (superpowers:code-reviewer) cleared after `.strict()` mass-assignment guard added.
 - Task 9: `verify-api-auth` 12/12 (+1 for `/api/public/address`) + `npm run build` green. Cross-checked design-system.html §1 + §6 — public form shell uses standard Card chrome + sticky Lanjut/Kembali pair. End-to-end browser smoke deferred to T10 Playwright canary.
 - Task 10: `npx playwright test e2e/admission-public.spec.ts --project=chromium` → 5/5 green in 3.8s.
+- Task 11: full gate sweep — `npm run build` ✓ · `npx vitest run` 1417/1421 (4 skipped, 0 failed) ✓ · `npx playwright test --project=chromium` 12/13 passed (1 pre-existing failure on `e2e/admin/students.spec.ts:252` — verified pre-existing by stashing this cycle's diff and re-running; unrelated to admission funnel scope) · `verify-rls-coverage` 38/38 ✓ · `verify-pii-annotations` 10/10 ✓ · `verify-api-auth` 12/12 ✓ (+1 vs pre-cycle for `/api/admission/submit`; +1 for `/api/public/address`). §18A row corrected from literal `next` triple to `— | — | next` to satisfy `verify-phase-status` Tip Commit regex.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+### Migrations
+
+None — additive seed only. Migration 11 already shipped in `p2-admission-funnel-schema` (PR #211).
+
+### Seeds
+
+Run `npx prisma db seed` against staging after merge to:
+1. Provision the new permission rows for `Admission` (resource × action × scope tuples derived from `lib/entities/admission/policy.ts`).
+2. Upsert the `User` + `UserRole` row binding `ismailir10@gmail.com` to admin within the demo tenant.
+
+Seed is idempotent — safe to re-run on any environment.
+
+### Environment variables
+
+No new variables. The `/login` page reads existing `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Real-admin OAuth flow assumes:
+- Supabase project's Google provider is configured (already done in `p1-auth-google-oauth`).
+- The custom-access-token JWT hook injects `tenant_id` (already done in `p1-auth-google-oauth`).
+- Google Cloud OAuth client's "Authorized redirect URIs" list includes `https://<staging-preview>/auth/callback` and the production callback URL.
+
+### End-to-end smoke (real-admin OAuth path)
+
+After this PR merges to `staging` and the auto-deploy preview URL is live (e.g. `https://annisaa-erp-v3-git-staging-<vercel-team>.vercel.app/`), the user can validate the trajectory in Chrome:
+
+1. Visit `https://<preview>/login` — Google sign-in card renders.
+2. Click **Masuk dengan Google** — browser redirects to Google.
+3. Sign in as `ismailir10@gmail.com` — Google redirects back to `/auth/callback?code=...`.
+4. Callback exchanges the PKCE code, resolves the User row by email, mints a Supabase session with the admin role + tenant claim, and redirects to `/admin`.
+5. Land on the admin dashboard — confirm sidebar shows the full admin nav (Akademik / Keuangan / etc).
+6. Click **Akademik → Penerimaan** — the read-only Admission list page (shipped in #211) renders.
+7. In a separate tab, visit `https://<preview>/daftar?tenant=an-nisaa-sekolahku` — public form renders without auth. Walk through the 5 steps with synthetic data; submit; confirmation card surfaces the tracking code.
+8. Back in the admin tab, refresh the Penerimaan list — the just-submitted Admission row appears.
+
+### Rollback
+
+If the OAuth seed creates a problem (e.g. the user's Google account doesn't match the seeded email), revert this commit and re-deploy. The seed is idempotent — re-running an old seed will not duplicate but also will not delete the new User row. To explicitly remove the seeded User row:
+
+```sql
+DELETE FROM "UserRole"
+ WHERE "userId" = (SELECT id FROM "User" WHERE email = 'ismailir10@gmail.com');
+DELETE FROM "User" WHERE email = 'ismailir10@gmail.com';
+```
+
+The `/api/admission/submit` endpoint is rate-limited but otherwise public; if abuse surfaces, tighten the limit in `app/api/admission/submit/route.ts` (`SUBMIT_RATE_LIMIT` / `SUBMIT_WINDOW_MS`) or temporarily 410-gate the route. The `/daftar` route is similarly safe to disable by adding a 410 redirect in `proxy.ts`.
+
+### Follow-up cycle
+
+`p2-admission-funnel-ui-review` (next sequential) ships the admin review screen + ACCEPTED side-effect bundle + MPLS UI + admission-accepted/rejected emails + 2nd Playwright spec. Real-admin OAuth bootstrap landing here unblocks the user from smoke-testing each subsequent shipment.
