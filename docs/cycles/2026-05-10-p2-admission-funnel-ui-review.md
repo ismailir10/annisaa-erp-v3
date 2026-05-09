@@ -75,7 +75,7 @@ Each task is independently committable. Build runs the between-task gate (`npm r
 - [x] **T9 — Detail tab subcomponents + entity registry update.** (Folded into T8 — tabs co-located inline in client.tsx; entity.detailTabs registry left as `(deferred)` placeholders since the new admin detail page composes its own Tabs directly, bypassing ScaffoldDetailPage. Documented decision.) Co-located: `ringkasan-tab.tsx` (applicant + parent + address read-only), `assessment-tab.tsx` (InitialAssessment list read-only), `aktivitas-tab.tsx` (TimelineEvent feed). Update `lib/entities/admission/entity.ts` `detailTabs` to point to handler refs (or leave as `(deferred)` and compose flat in client.tsx if registry contract requires server-render). AC: 3 tabs render content for a sample admission in dev; TimelineEvent feed filters subjectKind=Admission AND subjectId=`<id>`.
 - [x] **T10 — `/api/demo/admission/[id]/effects` debug endpoint.** Admin-only `// @demo-only` annotated POST/GET that returns `{ household, student, guardians, studentGuardians }` for the given admission. Skipped in prod via env check. Used by T11 Playwright spec to assert side-effects. AC: endpoint returns expected shape for an ACCEPTED admission row in dev seed; `verify-api-auth` allowlist accepts the `// @demo-only` sentinel (verify pattern is supported, else fall back to assertion-via-prisma in T11).
 - [x] **T11 — Playwright admin walk-through.** `e2e/admission-admin.spec.ts` — demo-cookie admin login → `/admin/akademik/penerimaan` → click into a SUBMITTED row → walk SUBMITTED → UNDER_REVIEW → OFFER_EXTENDED → ACCEPTED. Asserts confirmation dialog visible before ACCEPTED commits + success toast. Asserts side-effects via `/api/demo/admission/[id]/effects` (or direct prisma query if T10 sentinel doesn't pan out). Reloads detail post-ACCEPTED — asserts action buttons no longer render. AC: 1 spec, ≥4 assertions, ≤30s runtime.
-- [ ] **T12 — End-of-cycle gates + Verification + Ship Notes.** `npm run build && npx vitest run && npx playwright test`; verify-rls-coverage / verify-pii-annotations / verify-api-auth; fill Verification (every task green count + design-system cross-check note) + Ship Notes (no migration, no env, rollback plan). AC: all gates green; doc-sync passes; cycle ready for /ship.
+- [x] **T12 — End-of-cycle gates + Verification + Ship Notes.** `npm run build && npx vitest run && npx playwright test`; verify-rls-coverage / verify-pii-annotations / verify-api-auth; fill Verification (every task green count + design-system cross-check note) + Ship Notes (no migration, no env, rollback plan). AC: all gates green; doc-sync passes; cycle ready for /ship.
 
 ### Dependencies
 
@@ -117,7 +117,78 @@ Each task is independently committable. Build runs the between-task gate (`npm r
 - Task 8 + T9: full vitest sweep `npx vitest run` 1458/1462 green (4 skipped pre-existing) + `npm run build` green. Cross-checked design-system.html §1 + §6. Manual UI smoke deferred to T11 Playwright.
 - Task 10: `verify-api-auth` 13/13 green (+1 for `/api/demo/admission/[id]/effects` via `getSession` helper) + `npm run build` green. Endpoint exercised by T11 Playwright spec.
 - Task 11: `npx playwright test e2e/admission-admin.spec.ts --project=chromium` → 1/1 green in 4.6s. `verify-api-auth` 14/14 green (+1 for `/api/demo/admission/seed-submitted`). Full Playwright suite `npx playwright test --project=chromium` → 12/14 passed; 2 failures in `e2e/admin/students.spec.ts` (`:31` cold-empty-state assertion + `:252` address-chain success-toast assertion) — verified pre-existing by stashing this cycle's diff and re-running; both unrelated to admission funnel scope (`:252` was already documented as pre-existing in the prior cycle's Verification; `:31` is a sibling pre-existing failure on the same spec file).
+- Task 12: full end-of-cycle gate sweep — `npm run build` ✓ · `npx vitest run` 1458/1462 (4 skipped pre-existing, 0 failed; ~+41 cases vs pre-cycle baseline 1417) ✓ · `verify-rls-coverage` 38/38 ✓ · `verify-pii-annotations` 10/10 ✓ · `verify-api-auth` 14/14 (+2 vs pre-cycle for `/api/demo/admission/[id]/effects` GET+DELETE and `/api/demo/admission/seed-submitted` POST) ✓ · file count = 20 staged (under §18.2 25-cap). Cross-checked design-system.html §1 + §6. Cycle Verification cites the design-system token for the frontend-gate (Rule 4 of pre-commit). No new migration; additive demo routes only.
 
 ## Ship Notes
 
-(filled by /ship)
+### Migrations
+
+None. Additive only — no new Prisma model + no new column. Migration 11 already shipped in `p2-admission-funnel-schema` (PR #211); the ACCEPTED bundle uses the `Admission.acceptedStudentId` + `Admission.siblingDetectedFromHouseholdId` + `Admission.interviewScheduledFor` columns that already exist on disk.
+
+### Seeds
+
+No new seed run required. Existing permission seed (`prisma/seed/06-permissions.ts`) already covers `Admission` UPDATE for admin/principal/kadiv/admission_officer (seeded in PR #214 T3). No new permission rows for the ACCEPTED side-effect bundle — Household / Student / Guardian / StudentGuardian creates inherit existing per-resource CREATE permissions seeded in earlier P2 cycles.
+
+### Environment variables
+
+None new. The new admin-only demo helpers (`/api/demo/admission/seed-submitted` POST, `/api/demo/admission/[id]/effects` GET + DELETE) gate on the existing `DEMO_MODE=true` env var per the standard `/api/demo/*` posture.
+
+### End-to-end smoke (admin admission funnel close-loop)
+
+After this PR merges to `staging` and the auto-deploy preview URL is live, the user can validate the full close-loop in Chrome (assumes `p2-admission-funnel-ui-public` real-admin OAuth seed already provisioned `ismailir10@gmail.com` per the prior cycle's Ship Notes).
+
+1. Visit `https://<preview>/login` → sign in as `ismailir10@gmail.com` via Google → land on `/admin`.
+2. Open a separate tab → `https://<preview>/daftar?tenant=an-nisaa-sekolahku` → walk the public form end-to-end with synthetic data (Aisyah Demo / Hasan Demo / Nur Demo / valid address chain) → submit → confirmation card surfaces tracking code.
+3. Back in admin tab → **Akademik → Penerimaan** → confirm the just-submitted Admission row appears in the list with status `SUBMITTED`.
+4. Click into the row → admin detail page renders with Bu Sari voice copy. Header shows applicant name + status badge. If sibling-merge fired, the "Keluarga terdeteksi: …" badge surfaces.
+5. Click **Pindahkan ke review** → status badge transitions to "Dalam Review". Action cluster updates to UNDER_REVIEW state buttons (Jadwalkan wawancara / Tawarkan tempat / Tolak / Tarik kembali).
+6. Click **Jadwalkan wawancara** → date dialog opens with native `<input type="date">` → pick a future date → click **Jadwalkan** → status transitions to "Wawancara Terjadwal", `interviewScheduledFor` column populated, "Wawancara dijadwalkan" surfaces in the Ringkasan tab → Status card.
+7. Click **Tawarkan tempat** → status transitions to "Tawaran Diberikan".
+8. Click **Tandai diterima** → confirmation dialog with copy "Akan membuat 1 Keluarga + 1 Siswa + 2 Wali baru. Lanjutkan?" → click **Lanjutkan** → status transitions to "Diterima". Header surfaces "Siswa terbentuk: <name>" line. Action cluster disappears (terminal state).
+9. Open the **Aktivitas** tab → confirm 4-5 timeline event rows appear in chronological order (SUBMITTED → UNDER_REVIEW → INTERVIEW_SCHEDULED → OFFER_EXTENDED → ACCEPTED), each with the from→to status pair rendered.
+10. Open **Akademik → Keluarga** → confirm the new Household row appears (with the address from step 2). Click into it → confirm the new Student is listed under the Household, and the 2 Guardians (FATHER + MOTHER) surface in the Wali tab when ready.
+
+Repeat steps 1-2 with a Tolak path (steps 5b → 7b: click **Tolak** at any non-terminal state, optionally fill the reason textarea, click **Tolak** in the dialog → status transitions to "Ditolak"; admission-rejected email enqueued OUTSIDE the tx — visible in `EmailLog` table at `status=QUEUED`).
+
+Repeat steps 1-2 with a Tarik kembali path (click **Tarik kembali** at any non-terminal state → optional reason → status transitions to "Ditarik"; no email enqueued).
+
+### Rollback
+
+If the ACCEPTED side-effect bundle creates a problem on a real submission (e.g. duplicate Guardian NIK across Households surfaces a `NIK_COLLISION_IN_HOUSEHOLD` for a legit case), revert this PR and re-deploy. The transition actions are pure code; reverting them restores the prior surface (admission funnel half — `-public`) without data loss. The Admission row + denormalized parent snapshots from `/daftar` submits stay intact under the prior surface.
+
+If a rogue ACCEPTED accidentally created Household + Student + Guardian rows that need cleanup:
+
+```sql
+-- 1. Resolve the bundle by admission id.
+SELECT id, "acceptedStudentId", "siblingDetectedFromHouseholdId", status
+  FROM "Admission" WHERE id = '<admission-id>';
+
+-- 2. Drop dependent rows in dependency-safe order (mirrors the demo
+--    DELETE handler at /api/demo/admission/[id]/effects).
+UPDATE "Admission" SET "acceptedStudentId" = NULL WHERE id = '<admission-id>';
+
+-- Replace <student-id> + <household-id> from step 1.
+DELETE FROM "StudentGuardian" WHERE "studentId" = '<student-id>';
+DELETE FROM "Guardian" WHERE id IN (
+  SELECT "guardianId" FROM "StudentGuardian" WHERE "studentId" = '<student-id>'
+);
+DELETE FROM "Student" WHERE id = '<student-id>';
+DELETE FROM "Household" WHERE id = '<household-id>';
+
+-- 3. Revert Admission status (admin can re-accept after the fix).
+UPDATE "Admission"
+   SET status = 'OFFER_EXTENDED', "decidedAt" = NULL
+ WHERE id = '<admission-id>';
+```
+
+The 6 transition routes are admin-scoped + rate-limited via the same proxy.ts surface as the existing `/admin/**` routes; if abuse surfaces, tighten the route handlers via `lib/rate-limit.ts` scopes (none added this cycle — relies on auth + scope gates).
+
+### Follow-up cycles
+
+`p2-mpls-minimal-admin` (next sequential per cycle Spec Assumption 1 — the deferred MPLS half from this cycle's pre-emptive split). Ships MplsCohort entity registry + permission seed + cohort list page + cohort detail page with attendance grid + `saveAttendance` bulk action + vitest. Independent of admission funnel — depends only on the `MplsCohort` / `MplsMember` / `MplsAttendance` schema models from `p2-admission-funnel-schema` (#211).
+
+Other deferred items surfaced in this cycle's Non-goals:
+- Free-text rejection reason on REJECTED transition (UX cycle).
+- Full InitialAssessment editor on the `assessment` tab (`p2-initial-assessment-editor` or similar).
+- Real Resend / SMTP wiring (`p2-email-infra`) — currently `EmailLog` rows pile up in QUEUED state.
+- Tenant-scoped audit log viewer + timeline visibility filter UX.
