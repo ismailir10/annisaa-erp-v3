@@ -1247,6 +1247,7 @@ Canonical surface for **what shipped, when, where**. One row per merged-to-stagi
 | 2 | entity-actions | p2-entity-actions | 2026-05-08 | #202 | 36550c9 | shipped |
 | 2 | addresses-idn-chain | p2-addresses-idn-chain | 2026-05-08 | #208 | f8aaaec | shipped |
 | 2 | admission-funnel-schema | p2-admission-funnel-schema | 2026-05-08 | #211 | 50bedfe | shipped |
+| 2 | admission-funnel-ui-public | p2-admission-funnel-ui-public | 2026-05-10 | next | next | next |
 
 **Notes:**
 - **Slug column is the canonical match key.** `/ship` post-merge matches by exact-string equality (case-sensitive); on `status=next` row match → update-in-place; on `status=shipped` match → no-op; on no match → append.
