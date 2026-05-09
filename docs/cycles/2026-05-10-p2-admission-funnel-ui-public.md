@@ -58,7 +58,7 @@ This cycle delivers the public-facing trajectory: a parent visits `/daftar?tenan
 Each task is independently committable. Build runs the between-task gate (`npm run build && npx vitest run`) before the next task starts.
 
 - [x] **T1 — §18A row + cycle doc skeleton.** Prepend `| 2 | admission-funnel-ui-public | p2-admission-funnel-ui-public | <today> | next | next | next |` to the §18A Phase Status table at `docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md`. AC: §18A row appears as `next`; pre-commit doc-sync allows the staged cycle doc.
-- [ ] **T2 — Real-admin OAuth seed.** Create `prisma/seed/11-real-admin.ts` (idempotent upsert of User + UserRole for `ismailir10@gmail.com` → admin within demo tenant). Register in `prisma/seed/index.ts`. AC: `npm run prisma:seed` runs twice without duplicate rows; psql query `SELECT u.email, sr.code FROM "User" u JOIN "UserRole" ur ON ur."userId"=u.id JOIN "SystemRole" sr ON sr.id=ur."systemRoleId" WHERE u.email='ismailir10@gmail.com'` returns exactly one row.
+- [x] **T2 — Real-admin OAuth seed.** Create `prisma/seed/11-real-admin.ts` (idempotent upsert of User + UserRole for `ismailir10@gmail.com` → admin within demo tenant). Register in `prisma/seed/index.ts`. AC: `npm run prisma:seed` runs twice without duplicate rows; psql query `SELECT u.email, r.code FROM "User" u JOIN "UserRole" ur ON ur."userId"=u.id JOIN "Role" r ON r.id=ur."roleId" WHERE u.email='ismailir10@gmail.com'` returns exactly one row.
 - [ ] **T3 — Admission permission seed.** Extend `prisma/seed/06-permissions.ts` to derive `Admission` permissions from `policy.ts` scopes (CREATE/READ/UPDATE/SOFT_DELETE/RESTORE × ALL/SELF/OWN_STUDENT). Idempotent. AC: closes #211 Spec Assumption 9; psql shows expected RolePermission rows for Admission.
 - [ ] **T4 — `admission.status_changed` TimelineEvent kind.** Add to `lib/timeline/events.ts` registry. Extend `lib/timeline/__tests__/events.test.ts` for the new kind (payload validation passes, registry entry present). AC: vitest green; `subjectKind` = `"Admission"`; `defaultVisibility` = `INTERNAL`.
 - [ ] **T5 — Email stub + `admission-submitted` template.** Create `lib/email/send.ts` (writes `EmailLog` row with `status = "QUEUED"`) + `lib/email/templates/admission-submitted.tsx` (Indonesian Bu Sari voice + tracking code variable). Vitest covers `sendEmail` writes the row + does not throw on success. AC: vitest green.
@@ -89,10 +89,12 @@ Each task is independently committable. Build runs the between-task gate (`npm r
 
 - Subagent plan: all tasks executed inline-sequential. T1–T6 are file-level independent but small; per-task code review keeps the diff scoped.
 - Task 1: §18A row + cycle doc skeleton — `docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md` (row prepended), `docs/cycles/2026-05-10-p2-admission-funnel-ui-public.md` (created).
+- Task 2: Real-admin OAuth seed — `prisma/seed/11-real-admin.ts` (new, idempotent upsert mirroring `seedDemoUsers` pattern), `prisma/seed/index.ts` (register), `prisma/seed/__tests__/11-real-admin.test.ts` (4 cases — first-run, idempotent re-run, undelete, missing-role abort). Reviewer flagged inherited `findFirst` no-`deletedAt` filter — comment added; pattern-wide fix is separate scope.
 
 ## Verification
 
 - Task 1: doc-only commit; pre-commit allowlist (cycle doc + spec md) passes.
+- Task 2: vitest 4/4 (`prisma/seed/__tests__/11-real-admin.test.ts`) + `npm run build` green. Re-seed against staging deferred to Ship Notes preview-smoke.
 
 ## Ship Notes
 
