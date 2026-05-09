@@ -22,8 +22,8 @@ describe("TIMELINE_EVENTS registry shape", () => {
     expect(Object.isFrozen(TIMELINE_EVENTS)).toBe(true);
   });
 
-  it("has 8 seed entries (student × 4, employee × 3, note × 1)", () => {
-    expect(KIND_KEYS).toHaveLength(8);
+  it("has 9 entries (student × 4, employee × 3, note × 1, admission × 1)", () => {
+    expect(KIND_KEYS).toHaveLength(9);
   });
 
   it("every kind matches kebab-case <subject>.<verb> regex", () => {
@@ -54,6 +54,28 @@ describe("TIMELINE_EVENTS registry shape", () => {
     expect(() =>
       TIMELINE_EVENTS["note.added"].payloadSchema.parse({ text: "" }),
     ).toThrow();
+  });
+
+  it("admission.status-changed targets the Admission subject and is INTERNAL by default", () => {
+    const entry = TIMELINE_EVENTS["admission.status-changed"];
+    expect(entry.subjectKind).toBe("Admission");
+    expect(entry.defaultVisibility).toBe(TimelineVisibility.INTERNAL);
+  });
+
+  it("admission.status-changed payloadSchema accepts {from, to} and rejects empty strings + extras", () => {
+    const schema = TIMELINE_EVENTS["admission.status-changed"].payloadSchema;
+    expect(schema.parse({ from: "DRAFT", to: "SUBMITTED" })).toEqual({
+      from: "DRAFT",
+      to: "SUBMITTED",
+    });
+    expect(schema.parse({ from: "OFFER_EXTENDED", to: "REJECTED", reason: "x" })).toEqual({
+      from: "OFFER_EXTENDED",
+      to: "REJECTED",
+      reason: "x",
+    });
+    expect(() => schema.parse({ from: "", to: "SUBMITTED" })).toThrow();
+    expect(() => schema.parse({ from: "DRAFT" })).toThrow();
+    expect(() => schema.parse({ from: "DRAFT", to: "SUBMITTED", extra: 1 })).toThrow();
   });
 });
 
