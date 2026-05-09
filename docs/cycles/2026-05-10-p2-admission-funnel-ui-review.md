@@ -64,8 +64,8 @@ This cycle delivers the deferred half of the original `p2-admission-funnel-ui` s
 
 Each task is independently committable. Build runs the between-task gate (`npm run build && npx vitest run`) before the next task starts. Per-task `feature-dev:code-reviewer` agent invocation per CLAUDE.md `/build` Step 4.
 
-- [ ] **T1 — §18A row prepend + cycle doc skeleton.** Already prepended at /spec time. AC: §18A row appears as `next`; pre-commit doc-sync allows the staged cycle doc.
-- [ ] **T2 — Schema-shape probe + interview-date storage decision.** Read `prisma/schema.prisma` Admission model. Confirm: (a) does `interviewScheduledAt` column exist? (b) what are exact denormalized parent snapshot field names? (c) confirm `acceptedStudentId` and `siblingDetectedFromHouseholdId` are nullable + SET NULL on cascade. Document findings in cycle doc Implementation. AC: Implementation section lists the 3 facts; transition actions in T3-T6 use the confirmed field names.
+- [x] **T1 — §18A row prepend + cycle doc skeleton.** Already prepended at /spec time. AC: §18A row appears as `next`; pre-commit doc-sync allows the staged cycle doc.
+- [x] **T2 — Schema-shape probe + interview-date storage decision.** Read `prisma/schema.prisma` Admission model. Confirm: (a) does `interviewScheduledAt` column exist? (b) what are exact denormalized parent snapshot field names? (c) confirm `acceptedStudentId` and `siblingDetectedFromHouseholdId` are nullable + SET NULL on cascade. Document findings in cycle doc Implementation. AC: Implementation section lists the 3 facts; transition actions in T3-T6 use the confirmed field names.
 - [ ] **T3 — `lib/admission/transitions/review.ts`.** SUBMITTED → UNDER_REVIEW transition. Wraps assertTransition + assertScope (Admission UPDATE) + writeAuditLog (UPDATE, before/after status) + emitTimelineEvent inside `prisma.$transaction`. `lib/admission/transitions/__tests__/review.test.ts` covers: happy path, illegal transition (DRAFT→UNDER_REVIEW rejected), scope rejection (parent role rejected), audit row written, timeline event emitted, `Admission.status` updated. AC: vitest +6 cases green.
 - [ ] **T4 — `lib/admission/transitions/withdraw.ts`.** Multi-source: any non-terminal → WITHDRAWN. Same shape as T3. Optional `reason` arg appended to timeline payload + audit `after.notes` (if reason provided, append to notes field). `__tests__/withdraw.test.ts` covers: from each non-terminal state succeeds, from terminal state fails, reason populates timeline, scope check. AC: vitest +5 cases green.
 - [ ] **T5 — `lib/admission/transitions/reject.ts`.** Multi-source: SUBMITTED / UNDER_REVIEW / INTERVIEW_SCHEDULED / OFFER_EXTENDED → REJECTED. Same shape as T4. Reason optional. `__tests__/reject.test.ts` covers: from each legal source state, illegal from DRAFT/ACCEPTED/WITHDRAWN, reason populates payload. AC: vitest +5 cases green.
@@ -94,11 +94,13 @@ Each task is independently committable. Build runs the between-task gate (`npm r
 
 ## Implementation
 
-(filled by /build)
+- Subagent plan: T1 (done at /spec). T2 inline probe. T3+T4+T5 dispatched in parallel via `superpowers:subagent-driven-development` (file-level independent — separate transition action files + isolated vitest). T6-T12 sequential (each depends on prior outputs).
+- Task 2 — Schema-shape probe: confirmed via `prisma/schema.prisma` Admission model (lines 1452-1513): (a) `interviewScheduledFor: DateTime? @db.Timestamptz()` already exists (line 1483) — INTERVIEW_SCHEDULED dialog stores directly on this column, no `notes` fallback needed. (b) Denormalized parent fields verbatim: `fatherName/fatherNik/fatherPhone/fatherOccupation/fatherMonthlyIncome` + `motherName/motherNik/motherPhone/motherOccupation/motherMonthlyIncome`. (c) `acceptedStudentId: String?` (line 1480, SetNull onDelete via composite migration) and `siblingDetectedFromHouseholdId: String?` (line 1479, SetNull) both nullable single-column at Prisma layer per scaffold.md §6 split-view. Implementation lock-in confirmed.
 
 ## Verification
 
-(filled by /build)
+- Task 1: doc-only at /spec; pre-commit allowlist + doc-sync passes.
+- Task 2: schema-probe doc-only; no code change. Findings recorded in Implementation bullet for T3-T6 to consume.
 
 ## Ship Notes
 
