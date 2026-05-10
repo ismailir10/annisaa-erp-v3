@@ -286,6 +286,30 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 
 `/teacher` median load 119 ms vs UAT figure 15 000 ms vs BLOCKER threshold 4 000 ms. Healed by rollback alone (verdict (a)) — the largest delta of the four (~126× faster than UAT). No code change. The 15 s UAT figure was implausible for the source's actual shape (37-line server component + single `findUnique`); diagnosis-first per cycle 0.1 + 0.2 precedent confirmed the figure was a pre-rollback artifact. The framer-motion delay-chain in `TeacherHomeClient` (`transition={{ delay: 0.15 / 0.25 / 0.3 }}`) is cosmetic, runs after first paint, and does NOT block `loadEventEnd`. GPS prompt timeout (10 s) only fires on user-initiated check-in, not on home-page load.
 
+### Task 6 — e2e/perf-budget.spec.ts — regression guard
+
+**Files:** `e2e/perf-budget.spec.ts` (NEW, 142 lines).
+
+**Coverage (4 tests, all green locally):**
+
+```
+Running 4 tests using 1 worker
+  ✓  1 /teacher load < 4s (764ms)
+  ✓  2 /parent load < 4s (421ms)
+  ✓  3 /parent/reports load < 4s (226ms)
+  ✓  4 /teacher/class-attendance roster visible < 4s (1.0s)
+4 passed (3.2s)
+```
+
+**Implementation matches Spec AC3 verbatim:**
+- Cookie discovery via `GET /api/auth/users` in `beforeAll` (per existing demo-mode pattern in `e2e/teacher.spec.ts` + `e2e/parent-attendance-scoping.spec.ts`). Static slugs would silently 307 → vacuous green.
+- RSC routes use `await page.waitForLoadState('load')` before reading `performance.timing.loadEventEnd - navigationStart` — guards against the false-zero timing read on fast prod builds (cycle 0.1 review lesson on `setTimeout` vs `waitForFunction`).
+- `/teacher/class-attendance` client route uses `Date.now()` delta + `waitForSelector` on the `data-roster-row, [data-empty-state="no-students"], [data-empty-state="no-class-assigned"]` anchor union (anchors landed in T3). 6-s hard `waitForSelector` timeout so a regression beyond 4 s budget fails loud rather than hanging at the default 30 s.
+- Hard `expect(...).toBeLessThan(PERF_BUDGET_MS)` per route — no `expect.soft(...)` (cycle 0.2 nav-anchor lesson).
+- One context per test (no shared cookie state across teacher / guardian tests).
+
+**Build-cache caveat (lesson learned during T6 dev):** the `next start` server caches the bundled `.next/` directory in memory at startup. After `npm run build` between tasks, the running server must be restarted before perf-budget runs against the new code — otherwise `data-roster-row` (added in T3) is invisible and the spec hangs on selector wait. Captured here so future cycles touching e2e + source-code in the same session don't re-burn the same investigation.
+
 ## Verification
 
 <!-- filled by /build -->
