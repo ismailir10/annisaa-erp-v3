@@ -282,6 +282,10 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 
 `/parent/reports` median load 147 ms vs UAT figure 5 100 ms vs BLOCKER threshold 4 000 ms. Healed by rollback alone (verdict (a)). No code change. UAT framing of "sheet open 5.1s" was imprecise — the route is a server RSC, not a client modal/sheet (Spec Assumption 6 confirmed against the source). Cached helpers (`getPublishedAssessmentsForStudent` 120 s, `getParentWithChildren` 60 s) are healthy at demo-seed scale.
 
+### Task 5 — U3 (teacher home perf) — NEGATIVE REPRODUCTION
+
+`/teacher` median load 119 ms vs UAT figure 15 000 ms vs BLOCKER threshold 4 000 ms. Healed by rollback alone (verdict (a)) — the largest delta of the four (~126× faster than UAT). No code change. The 15 s UAT figure was implausible for the source's actual shape (37-line server component + single `findUnique`); diagnosis-first per cycle 0.1 + 0.2 precedent confirmed the figure was a pre-rollback artifact. The framer-motion delay-chain in `TeacherHomeClient` (`transition={{ delay: 0.15 / 0.25 / 0.3 }}`) is cosmetic, runs after first paint, and does NOT block `loadEventEnd`. GPS prompt timeout (10 s) only fires on user-initiated check-in, not on home-page load.
+
 ## Verification
 
 <!-- filled by /build -->
