@@ -39,6 +39,8 @@ export type {
   FormFieldRef,
   DetailTabDef,
   DetailActionDef,
+  RowActionDef,
+  RowActionKind,
   DataFetcher,
   DataFetcherParams,
   DataFetcherResult,
@@ -47,3 +49,4 @@ export type {
   ScaffoldScope,
   SortDir,
 } from "./entity";
+export { resolveRowActions } from "./entity";
