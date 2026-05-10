@@ -77,7 +77,7 @@ The plan §5 cycle 1.1 closes that gap: a public `/daftar` route + public `POST 
 
 2. **Rate-limit shape is in-memory, per-Vercel-instance, soft-launch acceptable.** Per CTO brief q1 + plan §7 acceptable Phase-1 stopgap. Effective cap = 5 req/min/IP × small N instances. If post-launch traffic shows abuse, Phase 4 polish swaps to Upstash. The auth rate-limit precedent (`lib/security/auth-rate-limit.ts`) uses the same shape — this cycle reuses the same `lib/rate-limit.ts` `rateLimit()` primitive directly from the route handler (does NOT wrap it in a new helper module — adding indirection for a 3-line call is the kind of premature abstraction the system prompt forbids).
 
-   **Known soft limit on `getClientIp` (cycle-doc review #1 finding, deferred):** the existing `lib/rate-limit.ts:getClientIp` reads `forwarded?.split(",").at(-1)?.trim()` — the LAST entry of `x-forwarded-for`. Vercel typically PREPENDS the real client IP at index 0 of the chain; reading the last entry instead means a caller who SETS their own `X-Forwarded-For: <spoof>, <attacker>` header MAY get rate-limited under `<attacker>` rather than their real IP, allowing bucket-rotation. The same helper is in production for `/api/auth/*` (auth-rate-limit) since cycles 0.x — fixing it is a cross-cutting change, not in scope for Phase 1.1. **Filed follow-up: `daftar-rate-limit-ip-extraction-hardening` — investigate reading index 0 + cross-check `x-real-ip` + verify against the auth rate-limit's existing soft surface.** For this cycle the rate-limit is best-effort; combined with the in-memory per-instance shape and the absence of CAPTCHA, an attacker WILLING to spoof headers can defeat the rate guard. Acceptable for soft-launch (low-volume public form, abuse historically negligible at this scale); revisit Phase 4 polish or sooner if abuse seen post-launch.
+   **Known soft limit on `getClientIp` (cycle-doc review #1 finding, severity reframed by review #2, deferred):** the existing `lib/rate-limit.ts:getClientIp` reads `forwarded?.split(",").at(-1)?.trim()` — the LAST entry of `x-forwarded-for`. Vercel **prepends** the real client IP at index 0 of the chain; the last entry is the Vercel proxy node, which is constant across all requests through one edge region. The practical impact (escalated by code-review #2) is more severe than originally framed: on Vercel production every proxied request lands on a SHARED bucket keyed off the edge node's IP rather than the per-client bucket the code intends. A burst from many distinct clients all consume one bucket; conversely a single attacker can exhaust the bucket for every legitimate caller through the same edge node. The same helper is in production for `/api/auth/*` (auth-rate-limit) since cycles 0.x — fixing it is a cross-cutting change, not in scope for Phase 1.1. **Filed follow-up: `daftar-rate-limit-ip-extraction-hardening` — must land BEFORE the first publicised launch of `/daftar` (NOT a Phase 4 polish item). Investigate reading index 0 + cross-check `x-real-ip` + verify against the auth rate-limit's existing soft surface.** For this cycle the rate-limit is best-effort; combined with the in-memory per-instance shape and the absence of CAPTCHA, the surface is acceptable for an internal soft-launch where the URL is not yet publicised. Public marketing of the URL must wait on the follow-up.
 
 3. **No CAPTCHA.** Per CTO brief q2 + plan §7 q4. Rate-limit alone defends Phase 1.1; revisit Phase 4 polish.
 
@@ -232,8 +232,104 @@ Files changed (1): `e2e/daftar-public.spec.ts` (new). No new dependencies.
 
 ## Verification
 
-<!-- /build fills this section as Tasks complete; end-of-cycle gate logs land here. -->
+### Acceptance criteria
+
+- **AC1 (`/daftar` three-step form)** — satisfied. Page renders Talib chrome + greeting + Stepper; three steps render with the field shape declared in Spec; "Kembali" restores prior step state preserving values; "Kirim Pendaftaran" submits on step 3. Confirmed via `e2e/daftar-public.spec.ts` happy-path test (clicks through all three steps).
+- **AC2 (`POST /api/admission/submit` shape)** — satisfied. Validation 400 with `fields` map, 429 with `Retry-After`, 500 path defensive (covered in route source); 201 with `{ id }`; tenant resolved server-side; `source` hard-coded `WEBSITE`; `status` defaults to `INQUIRY` via schema. Confirmed via curl smoke + e2e tests 1, 3, 4.
+- **AC3 (best-effort confirmation email)** — satisfied. `lib/email/admission-submitted.ts` mirrors `send-slip.ts`; route try/catches both `result.sent === false` AND throws; 201 returned regardless. No `RESEND_API_KEY` in local — simulation log emitted (verified via local stdout).
+- **AC4 (`proxy.ts` public allow-list)** — satisfied. `curl -i /daftar` returns 200 (no 307 redirect to `/`); `curl -X POST /api/admission/submit -d '{}'` returns 400 (NOT 401 / 307). Existing `/api/xendit/webhook` + `/payment/` patterns unchanged.
+- **AC5 (e2e spec covers happy path / validation / rate limit)** — satisfied. `e2e/daftar-public.spec.ts` 4 tests, all green. See Task 6 Implementation.
+- **AC6 (vitest covers schema cases incl. attacker-field-strip)** — satisfied. 16 tests in `lib/admission/submit-validation.test.ts`, all green. Attacker-injected `source`/`status`/`studentId`/`tenantId`/`parentEducation`/`parentIncome`/`followUpDate` all silently absent from parsed result.
+- **AC7 (no regression on existing 12 e2e specs)** — partial; full suite ran 89 pass / 3 skip / 4 fail. The 4 failures are EXACTLY the pre-existing `admin.spec.ts:473 / 524 / 575 / 628` admin-tagihan flake set carried over from cycles 0.1 + 0.2 + 0.3 (filed as `phase0-admin-tagihan-flake-fix` follow-up). The cycle's own surface (`e2e/daftar-public.spec.ts`) is 4/4 green in isolation. CI canonical when GitHub Actions billing restored; until then local non-flake gates green.
+- **AC8 (README delta — ADR row + Modules + Portals)** — Task 7 (wrap commit) lands this; tracked in this section's "Wrap delta" subsection below after the wrap commit ships.
+- **AC9 (single-tenant invariant + deterministic resolution)** — satisfied via route source `prisma.tenant.findFirst({ where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" } })`. Vitest case for the resolution helper was scoped down — the route inlines the lookup without a wrapper module per system-prompt anti-premature-abstraction guidance, so there is no helper to unit-test in isolation; the e2e happy path exercises the success branch end-to-end (real ACTIVE tenant returned, Admission row inserts).
+
+### End-of-cycle gate (canonical surface)
+
+```
+$ npm run build
+✓ build green (every prior route + new /daftar + /api/admission/submit)
+
+$ npx vitest run
+Test Files  134 passed | 2 skipped (136)
+     Tests  1124 passed | 42 todo (1166)
+  Duration  70.57s
+
+$ pkill -f "next-server"; sleep 2
+$ npx playwright test
+89 passed | 3 skipped | 4 failed
+  4 failures: e2e/admin.spec.ts:473 / 524 / 575 / 628
+  (admin-tagihan flake set — pre-existing, carry-over from cycles 0.1 + 0.2 + 0.3,
+   filed as phase0-admin-tagihan-flake-fix follow-up, not blocking)
+
+$ npx playwright test e2e/daftar-public.spec.ts
+4 passed (4.1s)
+  ✓ happy path — three steps, valid data, 201 confirmation
+  ✓ validation — empty childName does not advance step
+  ✓ rate limit — direct POST returns 429 after the per-IP cap
+  ✓ rate limit response shape carries Retry-After header
+```
+
+### Manual smoke (local prod build)
+
+```
+$ DEMO_MODE=true npm run start &
+$ curl -sI http://localhost:3000/daftar
+HTTP/1.1 200 OK
+$ curl -sI -X POST http://localhost:3000/api/admission/submit -H "content-type: application/json" -d '{}'
+HTTP/1.1 400 Bad Request
+$ curl -X POST … -d '<valid body>'
+{"id":"cmozl6iz30000ozx78p7j9iew"}
+$ for i in 1..7; do curl -X POST … -d '<valid body>'; done
+201 201 201 429 429 429 429
+```
+
+### Carry-over caveats
+
+- **Admin-tagihan flake set** (`admin.spec.ts:473/524/575/628`): pre-existing, not cycle-induced. `phase0-admin-tagihan-flake-fix` follow-up.
+- **GitHub Actions billing failure (cycle 0.3 reminder #7)**: CI red until billing restored outside Claude. Local gates are canonical for THIS cycle. PR description records "CI red due to billing — local gates green" per cycle 0.2 / 0.3 precedent.
+- **Phase 0 closure /uat reports (cycle 0.3 AC10)** still pending — independent of this cycle. Run `/uat teacher` + `/uat parent` against staging URL post-merge of cycle 0.3 (already shipped); not a /build task here.
+- **`getClientIp` Vercel `at(-1)` known soft limit** (Spec Assumption 2): file `daftar-rate-limit-ip-extraction-hardening` follow-up; defers a cross-cutting helper change to a dedicated cycle.
+- **`preview_start` MCP harness EPERM uv_cwd against `.claude/worktrees/<slug>`** (Task 5 note): bash-launched server worked normally; full browser semantics covered by Task 6 e2e through playwright's own `webServer` orchestration.
 
 ## Ship Notes
 
-<!-- /ship fills this section: PR URL, CI status, ops steps, rollback. -->
+### Migrations
+
+None. No `prisma/migrations/*` change. Re-deploy lands without `npx prisma migrate deploy`.
+
+### Env vars
+
+No new env vars introduced. The new `/daftar` surface relies on:
+- `RESEND_API_KEY` (already required by `lib/email/send-slip.ts`) — when unset, `sendAdmissionSubmittedEmail` simulates and returns `{ sent: false }` without throwing.
+- `RESEND_FROM_EMAIL` (already required by `lib/email/send-slip.ts`) — explicit pre-send guard added in this cycle (review #2 follow-up): when unset with `RESEND_API_KEY` set, the route logs `[EMAIL] RESEND_FROM_EMAIL not set — dropping admission-submitted confirmation` and returns 201 anyway.
+- `NEXT_PUBLIC_APP_URL` (existing) — used in the email footer; falls back to `https://talib.annisaasekolahku.com` if absent.
+
+Verify in Vercel staging env that both Resend vars are present before merge — the staging Vercel preview already serves `lib/email/send-slip.ts` so this should already be configured. If Resend variables are MISSING in staging Vercel env, confirmation emails for `/daftar` submissions will silently drop (with a `console.error` line) — admission rows still land in DB; admin `/admin/admissions` still receives them.
+
+### Rollback
+
+Revert the merge commit. Reverts the public allow-list bypass in `proxy.ts` (any in-flight `/daftar` request post-revert will redirect to `/`), removes the `/daftar` route, removes `/api/admission/submit`, drops the new email template + sender, drops the validation lib + tests. **Admission rows already created in `INQUIRY` status with `source="WEBSITE"` STAY** — they have valid schema shape and are consumable by the existing admin CRM unchanged. No data loss on rollback.
+
+### Ops steps
+
+1. **Author watches CI** (`gh pr checks <number> --watch`). Per cycle 0.3 carry-over reminder #7: GitHub Actions billing is failing since 2026-05-10. CI checks (`Lint, Typecheck & Test`, `Build`, `Playwright E2E`) will be RED due to billing, NOT due to code defects. Local gates (`npm run build && npx vitest run && npx playwright test`) run by `/build` are the canonical authority until billing is restored outside Claude. PR description records "CI red due to billing — local gates green" per cycle 0.2 / 0.3 precedent.
+2. **Manual merge after CI green (or CI red + billing-blocker note):** `gh pr merge <number> --squash --delete-branch`. Branch protection on `staging` requires PR; direct push blocked.
+3. **Phase 0 closure UAT gate (cycle 0.3 AC10) — independent ops step, not part of this cycle.** Pending. Run `/uat teacher` then `/uat parent` against the staging Vercel URL after staging rebuilds with cycle 0.3's code (already shipped via PR #239). Both reports land in `docs/uat/reports/2026-05-10-{teacher,parent}.md` via a follow-up doc-only commit on `staging`. Expected outcome: 0 BLOCKER findings — closes Phase 0.
+4. **Optional `/uat daftar` post-merge** — heuristic public-form UAT against the staging Vercel URL once this PR merges; report lands in `docs/uat/reports/2026-05-10-daftar.md`. Not required for the cycle to ship, but useful Phase 1 closure-evidence baseline before cycle 1.2 (sibling-detect).
+5. **DO NOT prepare `/ship --to-main` this cycle.** Per plan §7 q7 + CTO brief: accumulate Phase 0 (3 cycles shipped) + Phase 1 (this cycle + 1.2 sibling-detect = 2 cycles) before the first staging→main promotion since rollback. Next cycle is `sibling-auto-detect` (plan §5 cycle 1.2) — admin-only "Detected sibling" badge on the Admission detail page.
+
+### Follow-ups filed during this cycle
+
+- `daftar-rate-limit-ip-extraction-hardening` — `lib/rate-limit.ts:getClientIp` reads `forwarded.split(",").at(-1)` but Vercel **prepends** the real client IP at index 0; the last entry is the Vercel proxy node which is constant per edge region. Practical effect: the rate-limit bucket is keyed off a shared edge-node IP rather than the per-client IP it intends to gate. Cycle Spec Assumption 2 + cycle-doc review #2 escalation. **Must land BEFORE the first publicised launch of `/daftar`.** Cross-cuts the existing auth rate-limit (`lib/security/auth-rate-limit.ts`) — fix shape: read index 0 of `x-forwarded-for`, fall back to `x-real-ip`, and verify against the auth path's existing soft surface.
+- `phase0-admin-tagihan-flake-fix` — pre-existing carry-over from cycles 0.1 / 0.2 / 0.3 (`e2e/admin.spec.ts:473 / 524 / 575 / 628`). Not blocking new cycles.
+- `phase0-uat-closure` — run `/uat teacher` + `/uat parent` against staging URL post-cycle-0.3-merge for Phase 0 closure (cycle 0.3 AC10).
+
+### Wrap delta (AC8 — README + cycle-doc Implementation/Verification/Ship-Notes)
+
+- README ADR row (top of active table, dated 2026-05-10) added.
+- README Modules table — `students` row mentions "+ public `/daftar` entry".
+- README Portals table — new top row `Public (applicant) | /daftar | (none — public) | Mobile-first vertical | Public admission entry — three-step form`.
+- Cycle-doc Implementation section: 6 task summaries.
+- Cycle-doc Verification section: 9 ACs + end-of-cycle gate output + manual smoke + carry-over caveats.
+- Cycle-doc Ship Notes section: this section.

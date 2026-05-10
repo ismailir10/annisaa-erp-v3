@@ -37,12 +37,21 @@ export async function sendAdmissionSubmittedEmail(
     return { sent: false };
   }
 
+  // Explicit env guard before the send call — makes a missing-config
+  // failure mode visible in logs instead of burying it in an exception
+  // trace from inside the resend.emails.send arg evaluation. Cycle 1.1
+  // code-review #2 follow-up.
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!from) {
+    console.error(
+      "[EMAIL] RESEND_FROM_EMAIL not set — dropping admission-submitted confirmation",
+    );
+    return { sent: false, error: "RESEND_FROM_EMAIL not configured" };
+  }
+
   try {
     const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL ??
-        (() => {
-          throw new Error("RESEND_FROM_EMAIL not set — configure a verified domain");
-        })(),
+      from,
       to: params.to,
       subject,
       html,
