@@ -21,32 +21,39 @@ import { test, expect } from "@playwright/test";
 
 test.describe("admin admissions list-shell parity", () => {
   let admissionId: string | null = null;
+  let cleanupContext: { request: import("@playwright/test").APIRequestContext } | null = null;
 
-  test.afterEach(async ({ request }) => {
-    if (admissionId) {
-      await request.delete(`/api/demo/admission/${admissionId}/effects`);
+  test.afterEach(async () => {
+    if (admissionId && cleanupContext) {
+      await cleanupContext.request.delete(
+        `/api/demo/admission/${admissionId}/effects`,
+        { failOnStatusCode: false },
+      );
       admissionId = null;
+      cleanupContext = null;
     }
   });
 
   test("Add CTA HIDDEN (createDisabled) + row click + Tarik kembali in dropdown", async ({
     page,
-    request,
   }) => {
-    const loginRes = await request.post("/api/demo/login?role=admin");
+    // Use page.request (matches e2e/admission-admin.spec.ts pattern that
+    // passes in CI). The test-level `request` fixture has its own isolated
+    // cookie jar — flaky in CI when seed-submitted needs the admin cookie
+    // to land cleanly.
+    const loginRes = await page.request.post("/api/demo/login?role=admin");
     expect(loginRes.status(), "login responds 200").toBe(200);
 
     // Seed a fresh SUBMITTED admission so the list has at least one row.
-    const seedRes = await request.post("/api/demo/admission/seed-submitted");
+    const seedRes = await page.request.post(
+      "/api/demo/admission/seed-submitted",
+      { failOnStatusCode: false },
+    );
     expect(seedRes.status(), "seed-submitted 200").toBe(200);
     const seed = await seedRes.json();
     admissionId = seed.admissionId;
+    cleanupContext = { request: page.request };
     expect(admissionId, "seed returns admissionId").toBeTruthy();
-
-    // Mirror the demo cookie onto the page's BrowserContext so the page nav
-    // below is authenticated.
-    const loginPageRes = await page.request.post("/api/demo/login?role=admin");
-    expect(loginPageRes.status(), "page login responds 200").toBe(200);
 
     await page.goto("/admin/akademik/penerimaan");
 
