@@ -207,7 +207,23 @@ Plan §3 figure of "364 / 544" is **stale** (pre-rollback artifact). Post-rollba
 
 ### Task 5 — e2e parent attendance scoping regression guard
 
-<!-- filled on Task 5 commit -->
+**Files:** `e2e/parent-attendance-scoping.spec.ts` (NEW, 110 lines).
+
+**Coverage (3 cases, all green locally):**
+- Happy path — `/parent/attendance` renders the Kehadiran header for a real demo guardian. Confirms the Task 4 invariant tightening did not break the legitimate happy path.
+- Fabricated `?child=<not-mine>` param — page renders Kehadiran header; week-nav `<a>` Prev/Next hrefs do NOT contain the fabricated id (those hrefs are server-built from `selected.studentId` which goes through `resolveSelectedChild`'s fallback). Earlier draft asserted `body.innerHTML()` does not contain the probe — that assertion was too strict (Next.js echoes URL searchParams into the RSC payload at the document tail). Tightened to href-level assertion.
+- Cross-tenant-shaped CUID probe — same href-level assertion + asserts no Next.js error boundary surfaces.
+
+**Code-review fix (MAJOR from `feature-dev:code-reviewer` on the Task 5 staged diff):** earlier draft's `if (prevLink !== null) expect(...)` would silently no-op if a future structural change removed the week-nav links. Replaced with hard `expect(prevHref, "Prev week nav link must be rendered").not.toBeNull()` so a missing nav element fails loud rather than producing a vacuous green.
+
+**Local Playwright run (`DEMO_MODE=true npm run start`):**
+```
+Running 3 tests using 1 worker
+  ✓  1 happy path (1.1s)
+  ✓  2 fabricated ?child= param falls back (684ms)
+  ✓  3 cross-tenant-shaped ?child= probe does not 500 or leak (636ms)
+3 passed (3.7s)
+```
 
 ### Task 6 — README ADR + cycle wrap
 
