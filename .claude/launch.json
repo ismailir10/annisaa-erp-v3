@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "next-prod-demo",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["DEMO_MODE=true", "npm", "run", "start"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
