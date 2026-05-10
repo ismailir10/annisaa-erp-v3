@@ -37,27 +37,31 @@ test.describe("Admin hydration regression guard (UAT U1 — 2026-05-02)", () => 
       await page.goto(route);
       await page.waitForURL(`**${route}`, { timeout: 5_000 });
 
-      // Wait up to 2 s for client hydration to flip Suspense placeholders.
-      // We assert AFTER the wait so a slow-but-healthy hydrate still passes.
-      const probe = await page.evaluate(async () => {
-        await new Promise((r) => setTimeout(r, 2_000));
-        return {
-          mainTextLen:
-            document.querySelector("main")?.innerText?.length ?? 0,
-          hiddenSuspense: document.querySelectorAll(
-            'div[hidden][id^="S:"]',
-          ).length,
-        };
-      });
+      // Poll-and-fail (NOT setTimeout-then-assert) — `setTimeout` inside
+      // page.evaluate blocks the page event loop and starves any in-flight
+      // RSC streaming + hydration that arrives during the wait. Polling via
+      // waitForFunction lets the browser keep working between ticks and
+      // surfaces a clear timeout if hydration never completes.
+      await page.waitForFunction(
+        () =>
+          document.querySelectorAll('div[hidden][id^="S:"]').length === 0,
+        null,
+        { timeout: 5_000 },
+      );
 
+      // The admin layout renders TWO <main> elements: the outer
+      // shadcn SidebarInset wrapper (always non-empty — contains breadcrumb
+      // + sidebar text) and the inner page <main class="px-page-x py-page-y">
+      // (the one UAT 05-02 reported as innerText.length === 0). The inner
+      // main is the second match — UAT evidence: `document.querySelectorAll
+      // ('main')[1].innerText.length === 0`. Match that index here.
+      const innerMainTextLen = await page.evaluate(
+        () => document.querySelectorAll("main")[1]?.innerText.length ?? 0,
+      );
       expect(
-        probe.mainTextLen,
-        `<main> innerText must be non-empty on ${route}`,
+        innerMainTextLen,
+        `inner <main> innerText must be non-empty on ${route}`,
       ).toBeGreaterThan(0);
-      expect(
-        probe.hiddenSuspense,
-        `no residual hidden Suspense placeholders on ${route}`,
-      ).toBe(0);
     });
   }
 });
