@@ -278,6 +278,39 @@ export const entity: EntityDef<Student> = {
       },
     },
   ],
+  // Cycle p2-scaffold-list-crud-parity (T3) — list-shell row actions:
+  // View + Edit (navigation) + Nonaktifkan (destructive soft-delete with
+  // AlertDialog confirm). softDeleteStudent is "use server"-tagged so it
+  // crosses the server→client boundary as an RPC stub safely.
+  rowActions: [
+    {
+      key: "view",
+      label: "Lihat",
+      kind: "view",
+      scope: "ALL",
+      href: (row) => `/admin/akademik/siswa/${row.id}`,
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      kind: "edit",
+      scope: "ALL",
+      href: (row) => `/admin/akademik/siswa/${row.id}/edit`,
+    },
+    {
+      key: "soft-delete",
+      label: "Nonaktifkan",
+      kind: "destructive",
+      scope: "ALL",
+      action: softDeleteStudent,
+      confirm: {
+        title: "Nonaktifkan siswa?",
+        description:
+          "Siswa tidak akan muncul di daftar aktif. Bisa diaktifkan kembali kapan saja.",
+        confirmLabel: "Nonaktifkan",
+      },
+    },
+  ],
   dataFetcher: async (params) => {
     // Clause 1 — session resolve.
     const session = await getSession();

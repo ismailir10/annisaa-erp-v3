@@ -42,6 +42,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import type { DataFetcher, EntityDef } from "@/lib/scaffold";
 import type { Admission } from "@/lib/generated/prisma/client";
+import { withdrawFromListRowAction } from "@/lib/admission/actions/withdraw-from-list";
 
 import { admissionSchema } from "./schema";
 
@@ -223,6 +224,41 @@ export const admissionEntity: EntityDef<Admission> = {
   // detailActions empty — state-transition buttons wired in UI cycle wrapping
   // `assertTransition` from `lib/admission/state-machine.ts`.
   detailActions: [],
+  // Cycle p2-scaffold-list-crud-parity (T3) — list-shell row actions:
+  // View + Edit + Tarik kembali (destructive WITHDRAW transition via the
+  // single-arg "use server" wrapper at lib/admission/actions/withdraw-from-list).
+  // No soft-delete: admission is a state-machine entity; WITHDRAWN is the
+  // terminal state for in-flight pendaftaran the family abandons.
+  rowActions: [
+    {
+      key: "view",
+      label: "Lihat",
+      kind: "view",
+      scope: "ALL",
+      href: (row) => `/admin/akademik/penerimaan/${row.id}`,
+    },
+    // No Edit row action — admission has no separate `[id]/edit` route;
+    // mutations happen via the state-machine action buttons on the detail
+    // page itself.
+    {
+      key: "withdraw",
+      label: "Tarik kembali",
+      kind: "destructive",
+      scope: "ALL",
+      action: withdrawFromListRowAction,
+      confirm: {
+        title: "Tarik kembali pendaftaran?",
+        description:
+          "Pendaftaran akan masuk status WITHDRAWN dan tidak bisa dilanjutkan. Detail tetap tersimpan untuk arsip.",
+        confirmLabel: "Tarik kembali",
+      },
+    },
+  ],
+  // Creation flow lives at the public /daftar route — hide the scaffold
+  // list "Tambah Penerimaan" CTA (formSections is empty so the gate already
+  // hides it, but createDisabled makes the intent explicit + future-proofs
+  // against admin-internal admission creation forms).
+  createDisabled: true,
   dataFetcher,
 };
 

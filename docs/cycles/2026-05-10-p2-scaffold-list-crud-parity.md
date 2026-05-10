@@ -87,7 +87,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
    - **Commit type:** `feat(scaffold):` — touches `lib/scaffold/**`. Per commit-msg narrow rule, README.md MUST be staged (add a one-line note under the relevant module section + bump the "Last cycle" footer if present, or append a brief mention).
    - AC: `app/admin/akademik/{siswa,wali,keluarga,penerimaan}/page.tsx` all re-render with new shell automatically. Visual smoke confirmed via Playwright in T5/T6. Vitest unchanged.
 
-- [ ] **T3 — Wire `rowActions` in 4 entity registries.** Edit `lib/entities/{student,guardian,household,admission}/entity.ts`:
+- [x] **T3 — Wire `rowActions` in 4 entity registries.** Edit `lib/entities/{student,guardian,household,admission}/entity.ts`:
    - Each defines a `rowActions` array per spec §AC3.
    - Wraps existing soft-delete (or withdraw for admission) action.
    - `admission` entity also sets `createDisabled: true` (creation flow is `/daftar` public route, not `/admin/.../new`).
@@ -111,7 +111,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
    - Demo-mode admin login.
    - Visit list page; assert Add button visible (admissions has no `/new` route exposed publicly because admission creation is `/daftar` — assert Add button HIDDEN for admission instead).
    - Row click → detail page.
-   - Action dropdown surfaces correct items per entity (guardians/households: 3 = view/edit/nonaktifkan; admissions: 3 = view/edit/tarik-kembali).
+   - Action dropdown surfaces correct items per entity. T3 wired guardians/households with 3 actions (view/edit/nonaktifkan); admissions wired with 2 (view/tarik-kembali — Edit dropped because admission has no `[id]/edit` route, mutations happen via state-machine action buttons on the detail page).
    - AC: 3 new specs green.
 
 - [ ] **T7 — `e2e/admission-admin.spec.ts` `afterEach` cleanup wrap.** Edit existing spec:
@@ -140,11 +140,13 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
 - Subagent plan: T1 sequential (foundation type), then T2/T3 sequential (T2 shell needs T1 type, T3 entity wiring also needs T1 + can run after T2 since T3 only edits entity registry files which T2 doesn't touch). T4/T7/T8 independent — could parallel post-T3. T5/T6 after T2/T3 (depend on shell DOM). T9 final gate.
 - Task 1: `EntityDef.rowActions` + `createDisabled` + `RowActionDef<T>` — `lib/scaffold/entity.ts` (+ `RowActionKind` + `resolveRowActions(entity, row, allowedScopes)` helper) + `lib/scaffold/index.ts` barrel re-exports + new `lib/scaffold/__tests__/row-actions.test.ts` (8 cases). Optional fields → no breaking change to existing 7 entity registries.
 - Task 2: `<ScaffoldListPage>` shell upgrade — `lib/scaffold/list-page.tsx` (Add CTA in header gated on `!createDisabled && formSections.length > 0`, `<ScaffoldListPageToolbar>` filter row, total-count subtitle, empty-state CTA via EmptyState `actionLabel/actionHref` props) + new `lib/scaffold/list-page-toolbar.tsx` client island (router-syncs `?q=` / `?view=`) + new `lib/scaffold/list-page-row.tsx` per-row client island (DataTableRowActions + AlertDialog confirm + sonner toast). Server pre-formats cells (string-narrowed) + per-row precomputes `href` strings to keep server→client boundary serialize-safe. `cells: ReadonlyArray<string>` (NOT ReactNode). Page-contract vitest extended (next/navigation mocked + 4 ScaffoldListRow cases — row-click nav, Enter key nav, no-affordance when no View, inline 'Lihat' button render). README ADR table prepended. design-system reference: design-system.html admin list shell — header + filter row + action column spacing tokens unchanged.
+- Task 3: rowActions wired in 4 entity registries — `lib/entities/{student,guardian,household}/entity.ts` each define [view, edit, soft-delete] (Nonaktifkan AlertDialog confirm, copy aligned to voice.md "Bisa diaktifkan kembali kapan saja."). `lib/entities/admission/entity.ts` defines [view, withdraw] + `createDisabled: true` (Edit dropped — no `[id]/edit` route for admission; creation lives at public `/daftar`). New thin "use server" wrapper `lib/admission/actions/withdraw-from-list.ts` adapts multi-arg `withdrawAdmission(prisma, session, input)` to the single-arg `(id) => ActionResult` shape required by `RowActionDef.action` (closures would fail server→client serialization). New vitest `lib/entities/__tests__/row-actions.test.ts` covers all 4 entities (12 cases — keys, hrefs, kind, confirm labels, createDisabled flag).
 
 ## Verification
 
 - Task 1: gates passed — `npx vitest run lib/scaffold/__tests__/row-actions.test.ts` (8/8), `npx tsc --noEmit` clean post-`prisma generate`, `npx vitest run` 1466 passed / 4 skipped, `npm run build` green.
 - Task 2: gates passed — `npx tsc --noEmit` clean, `npx vitest run` 1470 passed / 4 skipped (page-contract.test.tsx 24 passing incl. 4 new ScaffoldListRow cases), `npm run build` green. UI verification deferred to Playwright in T5/T6 (preview tool unavailable in this session). Cross-checked design-system.html admin list shell — Add button placement + filter chip styling + action column spacing match §1 + §6 tokens.
+- Task 3: gates passed — `npx vitest run lib/entities/__tests__/row-actions.test.ts` (12/12), `npx tsc --noEmit` clean, `npx vitest run` 1482 passed / 4 skipped, `npm run build` green.
 
 ## Ship Notes
 

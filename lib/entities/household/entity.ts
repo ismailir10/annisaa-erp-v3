@@ -207,6 +207,38 @@ export const householdEntity: EntityDef<HouseholdRow> = {
       },
     },
   ],
+  // Cycle p2-scaffold-list-crud-parity (T3) — list-shell row actions:
+  // View + Edit + Nonaktifkan (destructive soft-delete with AlertDialog
+  // confirm). softDeleteHousehold is "use server"-tagged.
+  rowActions: [
+    {
+      key: "view",
+      label: "Lihat",
+      kind: "view",
+      scope: "ALL",
+      href: (row) => `/admin/akademik/keluarga/${row.id}`,
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      kind: "edit",
+      scope: "ALL",
+      href: (row) => `/admin/akademik/keluarga/${row.id}/edit`,
+    },
+    {
+      key: "soft-delete",
+      label: "Nonaktifkan",
+      kind: "destructive",
+      scope: "ALL",
+      action: softDeleteHousehold,
+      confirm: {
+        title: "Nonaktifkan keluarga?",
+        description:
+          "Keluarga tidak akan muncul di daftar aktif. Bisa diaktifkan kembali kapan saja.",
+        confirmLabel: "Nonaktifkan",
+      },
+    },
+  ],
   dataFetcher,
 };
 
