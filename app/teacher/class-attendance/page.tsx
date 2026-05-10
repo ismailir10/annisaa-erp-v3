@@ -212,7 +212,7 @@ export default function ClassAttendancePage() {
             return (
               <motion.div key={s.student.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}>
                 <button
-                  data-roster-row
+                  data-testid="roster-row"
                   onClick={() => cycleStatus(s.student.id)}
                   className={`w-full flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/20 transition-colors text-left ${ROW_TINT[status]}`}
                 >

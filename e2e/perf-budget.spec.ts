@@ -21,8 +21,9 @@ import { test, expect } from "@playwright/test";
  *   `performance.timing.loadEventEnd - performance.timing.navigationStart`.
  * - "use client" route (/teacher/class-attendance) — roster renders
  *   AFTER `loadEventEnd` via two sequential client fetches. Measure
- *   time-to-roster-visible via `waitForSelector` on the `data-roster-row`
- *   anchor (or one of the empty-state anchors landed in cycle T3).
+ *   time-to-roster-visible via `waitForSelector` on the
+ *   `data-testid="roster-row"` anchor (or one of the empty-state anchors
+ *   landed in cycle T3).
  *   `loadEventEnd` would always read ~150 ms on this surface even when a
  *   user-visible 4 s bug fully reproduces — the timing metric must align
  *   with the user-perceived render, not the document-load event.
@@ -134,7 +135,7 @@ test.describe("Perf budget — page load < 4s", () => {
     // anchors land in cycle T3. Hard timeout 6 s so a regression beyond
     // budget fails loud rather than hanging at the default 30 s.
     await page.waitForSelector(
-      '[data-roster-row], [data-empty-state="no-students"], [data-empty-state="no-class-assigned"]',
+      '[data-testid="roster-row"], [data-empty-state="no-students"], [data-empty-state="no-class-assigned"]',
       { timeout: 6000 },
     );
     const ms = Date.now() - t0;
