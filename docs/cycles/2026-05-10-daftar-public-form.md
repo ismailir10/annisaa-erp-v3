@@ -1,0 +1,168 @@
+# Phase 1.1 — Public Admission Entry (`/daftar`)
+
+> **Source-of-truth plan:** [`docs/plans/2026-05-10-v1-incremental-evolution.md`](../plans/2026-05-10-v1-incremental-evolution.md) §5 Phase 1 cycle 1.1 + §7 user decisions.
+> **Phase:** 1 — Public Admission Entry. **THIS IS THE FIRST PHASE 1 (FEATURE) CYCLE since the v2 rollback.**
+> **Branch:** `feat/daftar-public-form` (off `origin/staging` @ `4595160` — post-PR-#239 squash).
+> **Prior cycles (Phase 0 closed in code 2026-05-10):** [`2026-05-10-phase0-admin-hydration-and-bfcache.md`](2026-05-10-phase0-admin-hydration-and-bfcache.md) (PR #222), [`2026-05-10-phase0-finance-backlog-drain.md`](2026-05-10-phase0-finance-backlog-drain.md) (PR #224), [`2026-05-10-phase0-perf-sweep.md`](2026-05-10-phase0-perf-sweep.md) (PR #239) — pattern reference for Verification + Ship Notes shape + per-task commit cadence + TWO code-review pattern.
+> **Phase 0 closure UAT gate (AC10 of cycle 0.3) is a pending OPS step** independent of this cycle — `/uat teacher` + `/uat parent` against the staging Vercel URL, expect 0 BLOCKERs. Not in scope here.
+
+---
+
+## Context
+
+v1 currently has an admin-only admission funnel: families call / WhatsApp / walk in, an admin opens `/admin/admissions`, clicks "Catat Inquiry Baru", and types the family's data into the dialog. There is no public surface where a family can submit an inquiry themselves.
+
+The plan §5 cycle 1.1 closes that gap: a public `/daftar` route + public `POST /api/admission/submit` endpoint that lifts v2's three-step form shape (`applicant → parents → preference`), drops v2's scaffold-engine dependency, and writes to v1's existing `Admission` model in `INQUIRY` status. The existing admin CRM at `/admin/admissions` then consumes those rows unchanged — same status machine (`INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → REGISTERED | CANCELLED`), same `convert-to-student` server action, same shape.
+
+**Schema ground-truth (read 2026-05-10 against `prisma/schema.prisma:551-579`):** v1's `Admission` model is **single-parent** — one `parentName` / `parentPhone` / `parentEmail` / `parentWhatsapp` set, NOT mother+father split. The CTO brief's q4 form-shape recommendation lifted v2's mother+father shape; this cycle adapts to v1 reality (single parent block, optional WhatsApp, no `prevSchool`, no `address`). `dateOfBirth` IS in the schema (string `YYYY-MM-DD`), `childAge` IS in the schema (string like "4 tahun"). `campusPreference` IS a free-text string field (not an FK to Campus). `programId` IS an FK to `Program` (optional). `tenantId` is required on insert — the public submit must resolve a tenant (single-tenant invariant in v1 production: `prisma.tenant.findFirst({ where: { status: "ACTIVE" } })` is the canonical lookup).
+
+**v2-shape lift, scaffold-free.** v2's `app/daftar/{page,client}.tsx` rendered a multi-step form via the scaffold engine's `EntityDef` + form-renderer abstraction. Phase 1.1 lifts the THREE-STEP UX (applicant → parent → preference) and the visual treatment, but writes a hand-rolled client form + RSC wrapper that imports Shadcn primitives directly per `.claude/standards/ui.md` (Shadcn-FIRST). No scaffold engine port, ever (per plan §4 verdict).
+
+**Phase 1.1 explicitly does NOT include sibling auto-detect.** Per plan §5 + §7 q6: sibling-detect lands in cycle 1.2 (next cycle), is admin-only ("Detected sibling" badge on the Admission detail page), and never surfaces on the applicant-facing `/daftar`. Phase 1.1's surface stays applicant-facing-only.
+
+**Existing infra reused, not re-built:**
+- `lib/rate-limit.ts` (`rateLimit()` + `getClientIp()`) — in-memory token bucket; per-Vercel-instance; soft-launch acceptable per CTO brief q1. 5 req / min / IP for `POST /api/admission/submit`.
+- `lib/email/send-slip.ts` Resend pattern — instantiate `new Resend(process.env.RESEND_API_KEY)` at module scope, fall through to `console.info` simulation when key absent. The new `lib/email/admission-submitted.ts` follows the SAME pattern verbatim — no new abstraction.
+- `lib/security/headers.ts` `applySecurityHeaders` runs in `proxy.ts` — public routes still get the security header pass.
+- Public-route allow-list in `proxy.ts` (the same conditional touched in cycle 0.1) — extended with `/daftar` + `/daftar/*` + `/api/admission/submit`.
+- Existing `lib/validations/admission.ts` `createAdmissionSchema` is the ADMIN schema (lets admin set `source` to any of 5 values, includes `parentEducation` / `parentOccupation` / `parentIncome` / `followUpDate`). Public submit gets its OWN narrower schema in `lib/admission/submit-validation.ts` — `source` hard-coded to `"WEBSITE"` server-side, no follow-up-date or admin-only fields exposed, fewer optional knobs.
+
+**Why a separate `/api/admission/submit` instead of POSTing to existing `/api/admissions`:**
+1. Existing `POST /api/admissions` requires admin session (`isAdminRole(session.role)` check); public callers would 403.
+2. Trust boundaries differ — public input must be sanitised + length-capped + admin-only fields server-rejected. A separate endpoint with a separate Zod schema makes the trust boundary explicit and auditable. Reusing the admin endpoint with a "skip-auth-if-public" branch would entangle two trust models in one route.
+3. Rate-limit shape differs (5/min for public via the new endpoint; 10/min for admin already in place).
+
+**No prisma migration. No schema change. No new admin field.** Pure additive — one public route, one public API endpoint, one email template, one e2e spec, one validation lib, one validation test.
+
+**Hooks reminders for `/build`:**
+- **Frontend gate (pre-commit Rule 4)** fires on staged `app/**/*.tsx` (specifically `app/daftar/page.tsx` + `app/daftar/client.tsx`). This cycle doc contains the literal token `design-system` (this paragraph) so the gate is satisfied. Task 5 verification cross-references `.claude/standards/design-system.html` (public-form patterns + brand chrome) + `.claude/standards/voice.md` (Bu Sari warm-Islamic-courtesy voice for the applicant copy) + `.claude/standards/ui.md` (Shadcn-FIRST primitives — `Field`, `FieldLabel`, `Input`, `Select`, `Button`, `Dialog` if any).
+- **Commit-msg narrow rule (`^(feat|perf):` + staged `app/**` or `lib/**` requires README staged)** — this IS feature work and `feat:` subjects are the natural fit. Per cycle 0.3 precedent (which AVOIDED `perf:` to dodge the rule), we go the other way here: **per-task commits use `chore(daftar):` / `test(daftar):` / `docs(daftar):` subjects** for code tasks and the SINGLE wrap commit uses `feat(daftar):` and stages README + cycle doc together. This avoids touching README on every task commit while still landing the narrow-rule README touch on the wrap.
+- **`pre-push` blocks direct pushes to `staging`/`main` for all roles incl. `cto`** — `/ship` opens the PR; CTO does not push direct.
+- **25-file cap (§18.2).** Estimated worst-case staged files: 11 — `app/daftar/page.tsx`, `app/daftar/client.tsx`, `app/api/admission/submit/route.ts`, `lib/admission/submit-validation.ts`, `lib/admission/submit-validation.test.ts` (vitest), `lib/email/admission-submitted.ts`, `lib/email/templates/admission-submitted.ts` (HTML template), `proxy.ts`, `e2e/daftar-public.spec.ts`, `README.md`, `docs/cycles/2026-05-10-daftar-public-form.md` (this file). Well under cap.
+- **Per-task pre-commit broad doc-sync rule.** Code changes to `app/**` / `lib/**` / `prisma/**` require **at least one** of cycle-doc / README / CLAUDE.md staged in the same commit. Per-task commits in this cycle stage the cycle-doc Implementation-section update alongside the code (matching cycle 0.3 precedent — Implementation gets one bullet per task as the task lands). The wrap commit additionally stages README. This satisfies the broad rule per-task without polluting README on every commit.
+
+**Carry-over caveats from Phase 0:**
+- **GitHub Actions billing failure (since 2026-05-10) blocks ALL CI.** Local gates (`npm run build && npx vitest run && npx playwright test`) are canonical until billing is restored outside Claude. The `/ship` PR opens normally; the CTO records "CI red due to billing — local gates green" in PR description per cycle 0.2/0.3 precedent.
+- **Marathon-Playwright stall.** Full local Playwright suite stalls server CPU after ~25 min serial run. End-of-cycle gate runs the full suite ONCE; if it stalls, moderate-subset re-run (`e2e/daftar-public.spec.ts` + `e2e/admin.spec.ts` admissions block + `e2e/perf-budget.spec.ts`) on a fresh server triages.
+- **Build-cache caveat.** Source code changed in this session — every `npx playwright test` run is preceded by `pkill -f "next-server"; sleep 1; DEMO_MODE=true npm run start &` to avoid a stale `next start` server.
+- **Admin-tagihan flake set** (`e2e/admin.spec.ts:473/524/575/628`) — pre-existing local flakes, not blocking new cycles. Filed as `phase0-admin-tagihan-flake-fix` follow-up.
+
+---
+
+## Spec
+
+### Acceptance Criteria
+
+- [ ] **AC1.** New public route `GET /daftar` (no auth, no session check) renders a three-step React form: Step 1 (Data Anak) collects `childName` (required, max 80 chars), `dateOfBirth` (required, HTML5 `type="date"`, accepts ISO `YYYY-MM-DD`), `childGender` (required, radio L / P). Step 2 (Data Orang Tua) collects `parentName` (required, max 80 chars), `parentPhone` (required, max 20 chars, Indonesian phone shape — digits / `+` / spaces / dashes / parens, validated server-side via regex), `parentWhatsapp` (optional, same shape), `parentEmail` (optional, valid email when present). Step 3 (Preferensi) collects `programId` (optional, dropdown populated from `prisma.program.findMany({ where: { status: "ACTIVE" } })` fetched in the RSC `page.tsx` and passed as a prop), `notes` (optional, max 500 chars, textarea). Step 1 → 2 → 3 navigation is in-page (no route change); a "Kembali" button on each step ≥ 2 returns to the prior step preserving entered values. Final "Kirim Pendaftaran" submits.
+
+- [ ] **AC2.** New public endpoint `POST /api/admission/submit` (no auth, no session check) accepts the JSON shape from AC1, runs through `lib/admission/submit-validation.ts` Zod schema (with sanitisation: `.trim()` on every string + length caps + phone-regex + email validation when present), rate-limits per-IP via `lib/rate-limit.ts` at 5 req / minute / IP (returns 429 with `{ error: "rate_limited" }` + `Retry-After: 60` header), and on success inserts an `Admission` row with `status="INQUIRY"`, `source="WEBSITE"` (hard-coded server-side, NOT taken from request), `tenantId` resolved via `prisma.tenant.findFirst({ where: { status: "ACTIVE" } })` (with a 500 if none found — should never happen in production but defensive), and returns `201` with `{ id: string }` (the new Admission CUID — NO PII echoed back). On Zod validation failure returns `400` with `{ error: "validation_failed", fields: { fieldName: "message" } }`. On unexpected error returns `500` with `{ error: "submit_failed" }` and logs the exception to `console.error` (no stack trace echoed to client).
+
+- [ ] **AC3.** After successful insert, the route fires `sendAdmissionSubmittedEmail` from `lib/email/admission-submitted.ts` synchronously (per plan §7 q4 — live Resend, no queued stub) when `parentEmail` is present. **Email failure is swallowed** — the route logs the Resend error to `console.error` and STILL returns `201` with the new id (the user submitted successfully; downstream notification is best-effort). When `parentEmail` is absent the email step is skipped entirely. The email template (`lib/email/templates/admission-submitted.ts`) renders Indonesian Bu Sari voice ("Assalamu'alaikum, terima kasih telah mendaftarkan ananda…"), names the child, and sets expectations ("Tim kami akan menghubungi Bapak/Ibu dalam 1–3 hari kerja"). NO links, NO tracking pixels, NO unsubscribe footer (transactional confirmation, not marketing). Sender display follows existing `RESEND_FROM_EMAIL` env (`Talib by An Nisaa' <noreply@annisaasekolahku.com>`).
+
+- [ ] **AC4.** `proxy.ts` public-route allow-list extended with `/daftar`, `/daftar/*`, and `/api/admission/submit`. These three patterns join the existing public block (`/`, `/auth/...`, `/legal/...`, etc.) — they do NOT trigger Supabase `updateSession`, do NOT trigger demo-mode session check, and do NOT redirect to `/` when no session cookie is present. Existing public webhook bypasses (`/api/xendit/webhook`, `/payment/`) stay above the allow-list block (no shape change to those). Auth rate-limit (`enforceAuthRateLimit`) only fires on `/api/auth/*` so the new public submit endpoint is untouched by it — the new endpoint's own per-IP 5/min limit is the only rate guard.
+
+- [ ] **AC5.** New e2e spec `e2e/daftar-public.spec.ts` covers (a) HAPPY PATH — clear cookies, navigate to `/daftar`, fill all three steps with valid data, submit, expect a confirmation state on the page (success heading + the inserted child's name + a "Selesai" / acknowledgment button), AND a fetch assertion that `POST /api/admission/submit` returned 201 with a non-empty `id`; (b) VALIDATION — submit step 1 with empty `childName` and assert step does NOT advance + an error message renders inline; (c) RATE LIMIT — make 6 sequential `fetch` calls to `/api/admission/submit` directly from the test (not via the form) and assert call 6 returns 429 with `Retry-After` header set. Each `test()` runs against `DEMO_MODE=true npm run start` (production build, single warm-server run — same orchestration pattern as `e2e/parent-attendance-scoping.spec.ts`).
+
+- [ ] **AC6.** Vitest coverage in `lib/admission/submit-validation.test.ts`: (a) valid minimal input passes; (b) missing `childName` rejects with field-specific message; (c) missing `dateOfBirth` rejects; (d) invalid `childGender` rejects (only `L` / `P` allowed); (e) invalid phone shape rejects; (f) invalid email when present rejects; (g) `notes` over 500 chars rejects; (h) trailing/leading whitespace is trimmed; (i) admin-only fields injected by attacker (e.g., `source: "WALK_IN"`, `status: "ADMITTED"`, `studentId: "x"`, `tenantId: "x"`) are silently stripped by the Zod schema (Zod v3 `.object()` default = `.strip()`; the schema does NOT declare those fields, so Zod removes them from the parsed output rather than rejecting the input — the test asserts that `parse(payloadWithExtras)` succeeds AND the parsed result does NOT contain the extras).
+
+- [ ] **AC7.** Existing 12 e2e specs stay green via end-of-cycle gate (`npm run build && npx vitest run && npx playwright test`). 4 pre-existing admin-tagihan flakes documented in cycles 0.1 / 0.2 / 0.3 may persist on local marathon runs — moderate-subset re-run on fresh server confirms cycle-touch surface clean; CI is canonical when billing is restored.
+
+- [ ] **AC8.** README.md gains: (a) one ADR row dated 2026-05-10 (cell ≤ 400 chars per pre-commit hook) summarising "Public `/daftar` admission entry — three-step form, `POST /api/admission/submit` rate-limited 5/min/IP, Resend confirmation email best-effort"; (b) one `Modules` table row tweak for `students` to mention "+ public `/daftar` entry" (or a new `Public surfaces` row alongside the existing portal table); (c) one `Portals` table addendum row for `/daftar` listing it as the public applicant surface (no role gate). Total README delta ≤ 6 lines.
+
+- [ ] **AC9. Single-tenant invariant.** The public submit assumes one ACTIVE tenant in production — `prisma.tenant.findFirst({ where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" } })`. If a future multi-tenant landing requires per-tenant `/daftar` URLs, the route gains a `?tenant=<slug>` query param then; not in scope here. The vitest case for the resolution helper covers (a) returns the lone ACTIVE tenant, (b) returns the OLDEST ACTIVE when multiple ACTIVE exist (deterministic, not arbitrary), (c) throws when no ACTIVE tenant exists.
+
+### Spec Assumptions
+
+1. **Trust boundary is the route, not the form.** The client form is a UX convenience — every validation runs ALSO server-side via the Zod schema. A malicious caller hitting `POST /api/admission/submit` with `{ source: "REFERRAL", status: "ADMITTED", tenantId: "<other tenant>" }` gets those fields silently dropped (Zod v3 `z.object({…})` defaults to `.strip()` mode — unknown keys are removed from the parsed result, neither rejected nor passed through; the schema explicitly omits admin-only fields so they never appear in the parsed output). `source` is hard-coded to `"WEBSITE"` server-side after parse. `status` is hard-coded to default `"INQUIRY"` (schema default — never set explicitly). `tenantId` is resolved server-side via `findFirst`, never read from the request.
+
+2. **Rate-limit shape is in-memory, per-Vercel-instance, soft-launch acceptable.** Per CTO brief q1 + plan §7 acceptable Phase-1 stopgap. Effective cap = 5 req/min/IP × small N instances. If post-launch traffic shows abuse, Phase 4 polish swaps to Upstash. The auth rate-limit precedent (`lib/security/auth-rate-limit.ts`) uses the same shape — this cycle reuses the same `lib/rate-limit.ts` `rateLimit()` primitive directly from the route handler (does NOT wrap it in a new helper module — adding indirection for a 3-line call is the kind of premature abstraction the system prompt forbids).
+
+   **Known soft limit on `getClientIp` (cycle-doc review #1 finding, deferred):** the existing `lib/rate-limit.ts:getClientIp` reads `forwarded?.split(",").at(-1)?.trim()` — the LAST entry of `x-forwarded-for`. Vercel typically PREPENDS the real client IP at index 0 of the chain; reading the last entry instead means a caller who SETS their own `X-Forwarded-For: <spoof>, <attacker>` header MAY get rate-limited under `<attacker>` rather than their real IP, allowing bucket-rotation. The same helper is in production for `/api/auth/*` (auth-rate-limit) since cycles 0.x — fixing it is a cross-cutting change, not in scope for Phase 1.1. **Filed follow-up: `daftar-rate-limit-ip-extraction-hardening` — investigate reading index 0 + cross-check `x-real-ip` + verify against the auth rate-limit's existing soft surface.** For this cycle the rate-limit is best-effort; combined with the in-memory per-instance shape and the absence of CAPTCHA, an attacker WILLING to spoof headers can defeat the rate guard. Acceptable for soft-launch (low-volume public form, abuse historically negligible at this scale); revisit Phase 4 polish or sooner if abuse seen post-launch.
+
+3. **No CAPTCHA.** Per CTO brief q2 + plan §7 q4. Rate-limit alone defends Phase 1.1; revisit Phase 4 polish.
+
+4. **Email is best-effort.** Per CTO brief q3. Resend live (no queued stub per plan §7 q4); failure path swallows + logs + returns 201. The user submitted successfully — they should see the confirmation page even if Resend has a hiccup.
+
+5. **Bu Sari voice for applicant copy.** Public surface = applicant family. `.claude/standards/voice.md` Bu Sari persona = "warm Islamic courtesy". Step labels, error messages, confirmation copy land in Indonesian with the standard greeting / closing shape (`Assalamu'alaikum…`, `Insya Allah…`, `Bapak/Ibu`). Build-time copy review against the voice standard runs in Task 5.
+
+6. **No admin-side change.** `/admin/admissions` flow is untouched — same dialog, same convert-to-student action, same status machine. The admin sees new `INQUIRY` rows appear with `source="WEBSITE"`. Phase 1.2 (next cycle) adds the sibling-detect badge on the admin detail page; this cycle does NOT pre-emptively add hooks for that.
+
+7. **Form fields adapted to v1 schema, NOT lifted from CTO brief q4.** CTO brief recommended `motherName/motherPhone/motherEmail/fatherName/fatherPhone/fatherEmail` (v2 mother+father split) + `prevSchool` + `address`. v1 schema is single-parent + no `prevSchool` field + no `address` field (Phase 3 skipped per plan §7 q2). Form adapts: single parent block (with WhatsApp as a separate optional field, mirroring the admin form's column), no prev-school question, no address. If v1.x ever introduces second-parent or address normalisation, the form extends additively.
+
+8. **`programId` resolution at form-load time.** RSC `page.tsx` calls `prisma.program.findMany({ where: { status: "ACTIVE" } })` and passes `programs` as a prop to the client form. NO new public GET endpoint for programs (avoids exposing an admin-shaped list publicly). The dropdown's labels are program names; values are the CUIDs. If `programs` is empty, the dropdown is hidden and `programId` is omitted from the submit payload — applicant just sees the optional notes field.
+
+9. **No `<Sheet>` / `<Dialog>` mobile-vs-desktop split.** Public form is a full-page surface with vertical step flow; the existing admin admissions form's Dialog/Sheet split is ergonomic for an embedded admin dialog, not for a primary public surface. Mobile-first vertical stack with Tailwind breakpoint widening (per `.claude/standards/design-system.html` public-form pattern). Inputs use shared Shadcn primitives (`<Field>`, `<FieldLabel required>`, `<Input>`, `<Select>` for gender + program, `<Textarea>` for notes, `<Button>` for navigation + submit).
+
+10. **`/ship --to-main` cadence — DO NOT prepare this cycle.** Per plan §7 q7 + CTO brief: accumulate Phase 0 (3 cycles shipped) + Phase 1 (this cycle + 1.2 sibling-auto-detect = 2 cycles) before the first staging→main promotion since rollback. This cycle ships staging-only.
+
+11. **Cycle doc is the source of truth, README is the index.** Detailed Implementation / Verification / Ship Notes land here; README's ADR row is one cell ≤ 400 chars per the pre-commit hook.
+
+### Non-goals
+
+- No change to `prisma/schema.prisma`. No new column. No new migration. (`Admission` already has every field the form needs.)
+- No change to `/admin/admissions` flow — admin form, admin endpoints, convert-to-student all untouched.
+- No sibling auto-detect surface (Phase 1.2 — next cycle).
+- No CAPTCHA / Turnstile (Phase 4 polish if abuse seen).
+- No queued-email stub (per plan §7 q4 — live Resend, best-effort).
+- No second-parent split, no `prevSchool`, no `address` (schema doesn't have them; Phase 3 skipped).
+- No `?tenant=<slug>` multi-tenant param (Phase 4 if multi-tenant lands).
+- No CSP / public-route security-header tightening beyond what `applySecurityHeaders` already applies.
+- No `/uat daftar` run this cycle — Phase 1.1 ships; first `/uat daftar` runs against staging URL after merge (separate ops step, parallel to the pending Phase 0 closure UAT gate AC10).
+- No promotion to `main` (Phase 4.2).
+
+---
+
+## Tasks
+
+### Task 1 — `proxy.ts` public allow-list extension
+
+Add `/daftar`, `/daftar/*`, `/api/admission/submit` to the existing public-route allow-list block in `proxy.ts`. The patterns join the existing list (`pathname === "/"`, `pathname.startsWith("/auth/")`, etc.). Verify locally that hitting `/daftar` with NO session cookie does NOT redirect to `/` and that hitting `/api/admission/submit` from an unauthenticated `curl` does not 401. No business logic change. **Test:** local `curl -i http://localhost:3000/daftar` returns 200 (page renders) without a cookie; `curl -i -X POST http://localhost:3000/api/admission/submit -H "content-type: application/json" -d '{}'` returns 400 (validation failure) — NOT 401 / 307. Commit subject: `chore(daftar): allow /daftar + /api/admission/submit through proxy public block`.
+
+### Task 2 — `lib/admission/submit-validation.ts` + vitest
+
+Write the public-submit Zod schema (subset of the admin schema, no `source` / `status` / `studentId` / `tenantId` / `parentEducation` / `parentOccupation` / `parentIncome` / `followUpDate`) with sanitisation: `.trim().min(1).max(80)` for `childName`, ISO date regex for `dateOfBirth`, enum `["L", "P"]` for `childGender`, `.trim().min(1).max(80)` for `parentName`, phone regex (`/^[+\d\s\-()]{6,20}$/`) for `parentPhone` + optional `parentWhatsapp`, `.email()` for optional `parentEmail`, optional `programId` (CUID-shape regex), optional `.trim().max(500)` for `notes`. Add `lib/admission/submit-validation.test.ts` covering the 9 cases listed in AC6. Commit subject: `test(daftar): add public-admission submit-validation lib + vitest`.
+
+### Task 3 — `POST /api/admission/submit` route
+
+`app/api/admission/submit/route.ts`. Reads request body, applies `rateLimit('admission-submit:' + getClientIp(req), 5, 60_000)` from `lib/rate-limit.ts` (rate-limit FIRST — cheap; defends parse cost), parses via the new schema, resolves tenant via `prisma.tenant.findFirst({ where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" } })`, inserts the Admission row with `source="WEBSITE"` and trimmed strings, fires `sendAdmissionSubmittedEmail` when `parentEmail` is set (await + try/catch + swallow + log on failure), returns 201 `{ id }`. Failure paths: 429 + `Retry-After: 60` on rate-limit, 400 + per-field errors on Zod fail, 500 + `submit_failed` on DB / unexpected. Commit subject: `chore(daftar): add POST /api/admission/submit route`.
+
+### Task 4 — `admission-submitted` email template + sender
+
+`lib/email/templates/admission-submitted.ts` exports `admissionSubmittedEmailHtml({ childName, parentName, appUrl })` returning a plain HTML string (matches `salary-slip.ts` template shape — no MJML build step at runtime; the existing salary-slip template is hand-rolled HTML and the docstring "MJML" in the CTO brief is taken loosely; following the established codebase pattern). `lib/email/admission-submitted.ts` exports `sendAdmissionSubmittedEmail({ to, childName, parentName }): Promise<{ sent: boolean; error?: string }>` — instantiates `new Resend(process.env.RESEND_API_KEY)` at module scope, simulates (logs + returns `{ sent: false }`) when key absent, sends with subject `Pendaftaran ananda diterima — Talib` and the rendered HTML, returns `{ sent: true }` on success / `{ sent: false, error }` on Resend error. Commit subject: `chore(daftar): add admission-submitted email template + sender`.
+
+### Task 5 — `/daftar` RSC page + client form
+
+`app/daftar/page.tsx` (RSC): fetches `programs` via `prisma.program.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" }, select: { id: true, name: true } })`, renders the brand chrome header (An Nisaa' logo + "Talib" wordmark per `.claude/standards/design-system.html` public-form pattern + login screen ADR baseline at README.md:57) and passes `programs` to `<DaftarClient programs={programs} />`. `app/daftar/client.tsx` (`"use client"`): three-step form state machine (1 = applicant, 2 = parent, 3 = preference + submit), per-step validation before advancing, "Kembali" / "Lanjut" / "Kirim Pendaftaran" buttons via Shadcn `<Button>` primitives, all inputs via `<Field>` / `<FieldLabel>` / `<Input>` / `<Select>` / `<Textarea>` per `.claude/standards/ui.md` Shadcn-FIRST. Bu Sari voice copy in Indonesian per `.claude/standards/voice.md` ("Assalamu'alaikum, Bapak/Ibu", "Bismillah, mari mulai…", "Insya Allah tim kami menghubungi dalam 1–3 hari kerja…"). Submit POSTs to `/api/admission/submit`, handles 400 / 429 / 500 / 201 with toast + inline-error feedback. After 201, swap the form for a confirmation state: green check + "Pendaftaran ananda <name> tercatat" + "Tim kami akan menghubungi…" + "Selesai" button (returns to step 1 with cleared state). Commit subject: `chore(daftar): add /daftar three-step public admission form`.
+
+### Task 6 — `e2e/daftar-public.spec.ts`
+
+`test('happy path')`: clears cookies, navigates `/daftar`, fills all three steps, clicks "Kirim Pendaftaran", asserts the confirmation state appears + the network response had `status === 201` + a non-empty `id`. `test('validation gates step advance')`: navigates `/daftar`, leaves `childName` empty, clicks "Lanjut", asserts step 2 NOT visible + step 1 inline error visible. `test('rate limit returns 429 after 5')`: makes 6 raw `fetch` POSTs to `/api/admission/submit` with valid bodies in quick succession, asserts call 6's response = 429 + has `retry-after` header. Spec runs against `DEMO_MODE=true npm run start` (single warm-server orchestration matching the rest of the suite). Commit subject: `test(e2e): add daftar-public spec — happy path + validation + rate limit`.
+
+### Task 7 — README ADR + Modules / Portals rows + wrap commit
+
+Add to README's ADR table (top row, dated 2026-05-10, ≤ 400 chars):
+> `2026-05-10 | Public `/daftar` admission entry — three-step form (applicant → parent → preference) writes Admission rows in INQUIRY status; POST /api/admission/submit rate-limited 5/min/IP via in-memory bucket; Resend confirmation email best-effort (failure swallowed). Reuses v1 single-parent Admission schema; admin /admin/admissions flow unchanged — see [cycle](docs/cycles/2026-05-10-daftar-public-form.md)`
+
+Update Modules table row for `students` to read "Student lifecycle: students, guardians, enrollments, admissions (admin CRM + public `/daftar` entry)".
+
+Update Portals table — add a public row `Public (applicant) | /daftar | (none) | Vertical mobile-first | Public admission entry — three-step form` above the existing portal rows.
+
+Wrap commit subject: `feat(daftar): add public /daftar admission entry — Phase 1.1` — stages README + cycle-doc Implementation/Verification/Ship Notes deltas. This is the SINGLE `feat:` subject in the cycle (per Spec Assumption hooks-reminder); per-task commits used `chore` / `test` subjects to dodge the narrow `^(feat|perf):` rule's per-commit README touch.
+
+---
+
+## Implementation
+
+### Task 1 — `proxy.ts` public allow-list extension
+
+`proxy.ts` line 73-86: extended the existing fully-public-route block (which previously listed `/api/xendit/webhook` + `/payment/`) with three new patterns: `pathname === "/daftar"`, `pathname.startsWith("/daftar/")`, and `pathname === "/api/admission/submit"`. Public callers reach those paths without going through Supabase `updateSession`, without demo-mode session check, and without the no-session redirect to `/`. Existing `applySecurityHeaders` outer wrapper still runs (the public-route bypass is in `proxyImpl`, not `proxy`). Auth rate-limit (`enforceAuthRateLimit`) is scoped to `/api/auth/*` only — the new public submit endpoint is untouched by it; its own per-IP 5/min guard lands in Task 3.
+
+Files changed (1): `proxy.ts`. No new dependencies. No env var changes.
+
+## Verification
+
+<!-- /build fills this section as Tasks complete; end-of-cycle gate logs land here. -->
+
+## Ship Notes
+
+<!-- /ship fills this section: PR URL, CI status, ops steps, rollback. -->
