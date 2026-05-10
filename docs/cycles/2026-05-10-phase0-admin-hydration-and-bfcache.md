@@ -219,11 +219,15 @@ Plus an inline comment explaining defense-in-depth and the relationship to Next.
 
 ### Task 3 — U1 negative-reproduction record
 
-(commit pending — no code change; Verification entry above is the record)
+Absorbed into Task 1 (commit `bcbbdf4`). The reproduction evidence in the Implementation §"Task 1" table is the record. No separate commit; no code change. If U1 reappears on the Vercel preview after this branch deploys (e.g., due to a Vercel-specific build artifact), file a follow-up cycle `phase0-admin-hydration-vercel-fix` rather than reopening this one.
 
 ### Task 4 — e2e admin hydration regression guard
 
-(commit pending)
+**Files:** `e2e/admin-hydration.spec.ts` (NEW, 67 lines).
+
+**Coverage:** parameterised over `/admin`, `/admin/students`, `/admin/invoices`. Each test signs in via direct cookie injection (matching the existing `e2e/admin.spec.ts` pattern), navigates, waits 2 s, then asserts `<main>.innerText.length > 0` AND `document.querySelectorAll('div[hidden][id^="S:"]').length === 0`. Failure messages are scoped per route so a regression points at the offending path.
+
+**Between-task gate:** `npx playwright test e2e/admin-hydration.spec.ts --reporter=list` — 3 / 3 passed in 8.2 s.
 
 ### Task 5 — e2e portal + logout Cache-Control header guard
 
