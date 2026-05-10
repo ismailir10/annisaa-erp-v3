@@ -122,6 +122,13 @@ const EMPTY_PARENT_RESULT = { parent: null, children: [] as ParentChild[] };
  * one of `parentId` / non-empty `email`. Sessions that fail the contract
  * short-circuit to an empty result here rather than risking an unscoped
  * Prisma query (see `_getParentWithChildren` for the leak shape).
+ *
+ * Cache invalidation note: the static cache tag is `"parent-children"`,
+ * so a `revalidateTag("parent-children")` call evicts every tenant's
+ * cached entry — Next.js tags are global, not per-tuple. Per-parent
+ * isolation applies to entry CREATION (the runtime args distinguish
+ * entries) but NOT to invalidation. Coarse-grain eviction is the known
+ * Next.js 14+ behaviour and is acceptable given the 60-s TTL.
  */
 export async function getParentWithChildren(session: SessionUser) {
   if (!session.tenantId) return EMPTY_PARENT_RESULT;

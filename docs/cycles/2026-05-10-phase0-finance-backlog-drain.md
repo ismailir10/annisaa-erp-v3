@@ -227,7 +227,11 @@ Running 3 tests using 1 worker
 
 ### Task 6 — README ADR + cycle wrap
 
-<!-- filled on wrap commit -->
+**Files:** `README.md` (1 ADR row inserted above the cycle-0.1 row, dated 2026-05-10), `lib/parent-helpers.ts` (JSDoc clarification per cumulative-review MAJOR), `docs/cycles/2026-05-10-phase0-finance-backlog-drain.md` (Verification fully filled + Ship Notes fully filled).
+
+**README ADR row:** col widths 12 / 188 / 273 — all under the 400-char pre-commit ceiling. Decision col references `_getParentWithChildren` invariant tightening + reuse of `scripts/backfill-pending-payment-links.ts`. Why col references the 200 staging null-email Parent rows + the stale 364 figure correction.
+
+**JSDoc clarification on `getParentWithChildren` (cumulative-review MAJOR):** explicit note that `revalidateTag("parent-children")` invalidates GLOBALLY across all tenants — Next.js cache tags are global, not per-tuple. The comment correctly distinguishes entry creation (per-tuple) from entry eviction (global). Pre-existing Next.js limitation; 60-s TTL caps blast radius.
 
 ## Verification
 
@@ -238,11 +242,47 @@ Running 3 tests using 1 worker
 | 1 | Diagnose U2 + U10 | manual probe + breakdown read | recorded above; no code change |
 | 2 | (skipped) retry-layer tweak | — | no gap surfaced; retry layer not at fault |
 | 3 | (folded into Task 6) | — | — |
-| 4 | parent-helpers invariants + vitest | `npm run build && npx vitest run` | <!-- on commit --> |
-| 5 | e2e parent attendance scoping | `npx playwright test e2e/parent-attendance-scoping.spec.ts` | <!-- on commit --> |
-| 6 | README ADR + cycle wrap | end-of-cycle gate | <!-- on wrap commit --> |
+| 4 | parent-helpers invariants + vitest | `npm run build && npx vitest run` | build green; 133 files / 1098 passed / 2 skipped / 42 todo, 65 s. Re-run after code-review fixes (cache-key collapse + explicit throw + extra collapsing test): same shape. |
+| 5 | e2e parent attendance scoping | `npx playwright test parent-attendance-scoping` | 3 / 3 passed in 3.7 s after code-review fix (hard expect-not-null on prev/next nav anchors). |
+| 6 | README ADR + cycle wrap | end-of-cycle gate (build + vitest + full Playwright) | see below |
+
+### End-of-cycle gate
+
+```
+npm run build       → green; route inventory unchanged.
+npx vitest run      → 133 files passed | 2 skipped (135) | 1098 passed | 42 todo (1140) | 49.15s.
+npx playwright test → 88 tests across full e2e suite, single DEMO_MODE=true npm run start server.
+                       80 passed, 4 failed, 4 skipped, 3.0 min total.
+```
+
+**Investigation of the 4 Playwright failures.** All four failures are in `e2e/admin.spec.ts:473/524/575/628` — "Admin tagihan flows (bulk + manual + retry)" cases around `PENDING_PAYMENT_LINK` alert / per-row retry / bulk-retry button / breakdown popover. None of this cycle's diff (`lib/parent-helpers.ts`, `lib/__tests__/parent-helpers.test.ts`, `e2e/parent-attendance-scoping.spec.ts`, `README.md`, cycle doc) touches the admin tagihan UI surface. The 4 failures are the same pre-existing flake set documented in the recent dependabot retargeting commit (`chore(ci): point dependabot at staging, not main`): "main is behind staging and currently carries 4 pre-existing flaky tests in e2e/admin.spec.ts (Admin tagihan flows — Xendit retry/alert UI). Every dependabot PR fails Playwright on main even when the dep bump itself is fine, blocking merge." The flake matches that exact location.
+
+**Conclusion.** The 4 admin-tagihan failures are pre-existing in the staging baseline, not introduced by this cycle. The cycle's own touch surface (`lib/parent-helpers.ts` server-only, plus tests) cannot mechanically cause `e2e/admin.spec.ts` admin-bulk/manual flows to fail. CI is the canonical green-light authority per CLAUDE.md + cycle 0.1's marathon-flake learning. If CI reproduces these same 4 failures on this PR, do NOT block the merge — file `phase0-admin-tagihan-flake-fix` as a follow-up cycle.
+
+### Cumulative code review (cycle wrap)
+
+`feature-dev:code-reviewer` ran twice — once on the `/spec` cycle doc (BLOCKER B1 + MAJOR M1 + MAJOR M2 + MINOR m1 fixed before `/build`), once on each task's staged diff (Task 4: MAJOR cache-key collapse + MAJOR explicit-throw fix; Task 5: MAJOR hard expect-not-null on nav anchors). Final cumulative-diff pass on `origin/staging..HEAD`:
+
+| Severity | Finding | Resolution |
+|---|---|---|
+| BLOCKER | none | — |
+| MAJOR | `getParentWithChildren` JSDoc implies per-tuple cache invalidation isolation; in reality `revalidateTag("parent-children")` is global per Next.js semantics. Comment is technically accurate about creation but misleading about eviction. | **Fixed in this wrap commit.** Added explicit invalidation-scope paragraph to the JSDoc clarifying creation-vs-eviction separation. Coarse-grain eviction accepted given the 60-s TTL. |
+| AFFIRM × 3 | Production caller gating clean (every parent caller is GUARDIAN-gated and lands a populated `tenantId`); `_getParentWithChildren` throw is unreachable from public surface by construction; e2e fails loud on missing nav labels. | n/a |
+
+### Manual U2 drain verification post-merge
+
+The drain step is **not** run during `/build` (per Spec Assumption 3 + CTO brief Q5). Run after this PR merges to staging, in this order:
+1. `cd <main checkout> && npx tsx --env-file-if-exists=.env scripts/backfill-pending-payment-links.ts --tenant cmoz7hi1d000018x71f2ez60y --dry-run` — re-read breakdown; confirm count is still 25 (or whatever drift has occurred).
+2. If the breakdown is healthy (no spike of 401 / 422 / 5xx tags), run the live drain: same command with `--confirm`. The orchestrator iterates until cleared, stalled, or hits the 50-iteration cap. Real Xendit calls × ≤25 invoices for legacy seed/test rows.
+3. If the breakdown surfaces a new ops-side gap (e.g., 401 dominates), do NOT drain. File `phase0-finance-backlog-drain-ops-fix` as a follow-up.
 
 ## Ship Notes
 
-<!-- filled on wrap commit -->
+- **Migrations:** none.
+- **Env vars:** none added; none changed. Vercel Preview scope already carries `XENDIT_SECRET_KEY`, `XENDIT_WEBHOOK_TOKEN`, `NEXT_PUBLIC_APP_URL`, `DATABASE_URL` (audited via `npx vercel env ls preview`; recorded in Implementation §"Task 1").
+- **API contract changes:** none. `getParentWithChildren` signature unchanged; only the empty-result short-circuit semantics tightened. All existing callers are GUARDIAN-gated and never lose data.
+- **Rollback:** `git revert <merge-commit>`. Reverts the precondition tightening on `_getParentWithChildren` + the JSDoc clarification + the e2e regression guard. Re-opens the latent fan-out shape but does NOT regress live behavior on rolled-back staging (the symptom doesn't reproduce). No data loss.
+- **Manual U2 drain ops step:** runs post-merge. See "Manual U2 drain verification post-merge" above. Drain is gated on a healthy breakdown read; do NOT live-drain if the read shows a fresh ops gap.
+- **Pre-existing flake set carry-over from cycle 0.1:** 4 failures on `e2e/admin.spec.ts:473/524/575/628` (Admin tagihan flows) match the dependabot history note ("4 pre-existing flaky tests on main"). Not blocking this PR. Track follow-up under `phase0-admin-tagihan-flake-fix` if CI reproduces.
+- **Plan §3 figure correction:** the "364 / 544 invoices stuck PENDING_PAYMENT_LINK" entry in `docs/plans/2026-05-10-v1-incremental-evolution.md` is stale post-rollback. Actual count on staging tenant `cmoz7hi1d000018x71f2ez60y` at the time of this cycle's diagnosis = 25 stuck rows of mixed test-artifact origin. The plan doc is not edited in this cycle (the figure is historically accurate as a *pre-rollback* measurement). A future plan refresh should read the breakdown at refresh time rather than carrying the historical count.
 
