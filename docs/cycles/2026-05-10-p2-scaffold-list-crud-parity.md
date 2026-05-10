@@ -114,7 +114,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
    - Action dropdown surfaces correct items per entity. T3 wired guardians/households with 3 actions (view/edit/nonaktifkan); admissions wired with 2 (view/tarik-kembali — Edit dropped because admission has no `[id]/edit` route, mutations happen via state-machine action buttons on the detail page).
    - AC: 3 new specs green.
 
-- [ ] **T7 — `e2e/admission-admin.spec.ts` `afterEach` cleanup wrap.** Edit existing spec:
+- [x] **T7 — `e2e/admission-admin.spec.ts` `afterEach` cleanup wrap.** Edit existing spec:
    - Move inline cleanup DELETE block into `test.afterEach(async ({ request }) => { ... })`.
    - Ensure cleanup fires on assertion failure mid-spec.
    - AC: spec still passes; manual fail-injection (e.g. `expect(false).toBe(true)` at the top) confirms cleanup still runs (verify locally, do not commit the injection).
@@ -144,6 +144,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
 - Task 4: `scripts/cleanup-demo-orphans.ts` — one-off invocable. Hard-deletes Students matching `Aisyah Demo %` sentinel + cascades StudentGuardian → Guardian → Student → Household (orphan-only — preserves households with other students) → Admission, mirroring `app/api/demo/admission/[id]/effects/route.ts` DELETE ordering (null FK first, transactional). Idempotent. Smoke-test invocation against demo DB during /build cleaned 2 orphans (Aisyah Demo 1778358464613 + Aisyah Demo 1778358517821 + cascade: 4 SG, 4 G, 2 S, 2 H, 2 A); second invocation reported "0 orphan students found." Ship Notes documents post-merge invocation against staging.
 - Task 5: `e2e/admin/students.spec.ts` extended with new `admin students list-shell parity` describe block — asserts header Add CTA + cold-empty-state CTA both navigate to `/new`, and the total-count subtitle reads "0 siswa" when empty. Existing `read-only navigation smoke` block preserved unchanged (EmptyState title + description selectors still match — new shell only ADDS the actionLabel/actionHref CTAs without altering pre-existing copy). Stale comment at line 71 corrected to reference the new CTAs. Row-click + action-dropdown assertions deferred to T6 specs that have seeded data (households 8 rows; admissions seedable via demo endpoint).
 - Task 6: 3 new Playwright specs — `e2e/admin/guardians.spec.ts` (Add CTA smoke, no row interactions — Guardian seed empty), `e2e/admin/households.spec.ts` (full coverage: Add CTA + total-count + row-click → detail + dropdown surfaces Edit + Nonaktifkan; uses 8 seeded KK-0xx rows), `e2e/admin/admissions.spec.ts` (negative case: Add CTA HIDDEN per `createDisabled: true` + row-click → detail + dropdown surfaces Tarik kembali / Edit HIDDEN; seeds + cleans up via existing /api/demo/admission endpoints with afterEach hook to mirror T7 pattern).
+- Task 7: `e2e/admission-admin.spec.ts` cleanup DELETE moved into a describe-scoped `afterEach` hook; describe captures the seeded admission id in a closure variable assigned right after `seed-submitted` returns. Mid-test assertion failures now still tear down the seeded rows. The previous inline-tail cleanup was the source of the orphan leakage T4 cleaned up.
 
 ## Verification
 
@@ -153,6 +154,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
 - Task 4: gates passed — `npx tsc --noEmit` clean, `npx vitest run` 1482 passed / 4 skipped (no new vitest — script is invocable). Functional smoke-test against demo DB: first invocation cleaned 2 orphans + 14 cascade rows; second invocation idempotent ("0 orphan students found").
 - Task 5: gates passed — `npx tsc --noEmit` clean. Playwright run deferred to end-of-cycle gate (T9) per testing-tier convention.
 - Task 6: gates passed — `npx tsc --noEmit` clean. Playwright run deferred to end-of-cycle gate (T9).
+- Task 7: gates passed — `npx tsc --noEmit` clean. Playwright run deferred to end-of-cycle gate (T9).
 
 ## Ship Notes
 
