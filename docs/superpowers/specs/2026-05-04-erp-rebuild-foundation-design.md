@@ -1221,6 +1221,7 @@ Canonical surface for **what shipped, when, where**. One row per merged-to-stagi
 
 | Phase | Cycle | Slug | Merged | PR | Tip Commit | Status |
 |---|---|---|---|---|---|---|
+| 2 | scaffold-list-crud-parity | p2-scaffold-list-crud-parity | 2026-05-10 | next | next | next |
 | 0 | hard-delete-domain-code | p0-hard-delete-domain-code | 2026-05-04 | #178 | 52112ee | shipped |
 | 1 | extensions-tenancy | p1-extensions-tenancy | 2026-05-05 | #179 | ff55b93 | shipped |
 | 1 | identity-rls | p1-identity-rls | 2026-05-05 | #180 | d1857ec | shipped |

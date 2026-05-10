@@ -119,7 +119,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
    - Ensure cleanup fires on assertion failure mid-spec.
    - AC: spec still passes; manual fail-injection (e.g. `expect(false).toBe(true)` at the top) confirms cleanup still runs (verify locally, do not commit the injection).
 
-- [ ] **T8 — Foundation §18A row prepend.** Edit `docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md` `## 18A. Phase Status` table — prepend a `next` row for `p2-scaffold-list-crud-parity` (Phase 2, slug, today's date, PR `next`, sha `next`, `next`). /ship Step 3 will flip to `shipped` post-merge via the chore-PR pattern.
+- [x] **T8 — Foundation §18A row prepend.** Edit `docs/superpowers/specs/2026-05-04-erp-rebuild-foundation-design.md` `## 18A. Phase Status` table — prepend a `next` row for `p2-scaffold-list-crud-parity` (Phase 2, slug, today's date, PR `next`, sha `next`, `next`). /ship Step 3 will flip to `shipped` post-merge via the chore-PR pattern.
    - AC: row appears at top of §18A table; doc-sync gate happy.
 
 - [ ] **T9 — End-of-cycle gates + Verification + Ship Notes.** Run all gates:
@@ -145,6 +145,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
 - Task 5: `e2e/admin/students.spec.ts` extended with new `admin students list-shell parity` describe block — asserts header Add CTA + cold-empty-state CTA both navigate to `/new`, and the total-count subtitle reads "0 siswa" when empty. Existing `read-only navigation smoke` block preserved unchanged (EmptyState title + description selectors still match — new shell only ADDS the actionLabel/actionHref CTAs without altering pre-existing copy). Stale comment at line 71 corrected to reference the new CTAs. Row-click + action-dropdown assertions deferred to T6 specs that have seeded data (households 8 rows; admissions seedable via demo endpoint).
 - Task 6: 3 new Playwright specs — `e2e/admin/guardians.spec.ts` (Add CTA smoke, no row interactions — Guardian seed empty), `e2e/admin/households.spec.ts` (full coverage: Add CTA + total-count + row-click → detail + dropdown surfaces Edit + Nonaktifkan; uses 8 seeded KK-0xx rows), `e2e/admin/admissions.spec.ts` (negative case: Add CTA HIDDEN per `createDisabled: true` + row-click → detail + dropdown surfaces Tarik kembali / Edit HIDDEN; seeds + cleans up via existing /api/demo/admission endpoints with afterEach hook to mirror T7 pattern).
 - Task 7: `e2e/admission-admin.spec.ts` cleanup DELETE moved into a describe-scoped `afterEach` hook; describe captures the seeded admission id in a closure variable assigned right after `seed-submitted` returns. Mid-test assertion failures now still tear down the seeded rows. The previous inline-tail cleanup was the source of the orphan leakage T4 cleaned up.
+- Task 8: §18A row prepended for `p2-scaffold-list-crud-parity` as `next` per the ledger convention. /ship Step 3 will flip to `shipped` via the chore-PR pattern post-merge.
 
 ## Verification
 
