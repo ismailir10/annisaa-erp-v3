@@ -193,6 +193,31 @@ Trust boundary asserts (verified in code):
 
 Files changed (1): `app/api/admission/submit/route.ts` (new). No new dependencies.
 
+### Task 5 — `/daftar` RSC page + client form
+
+`app/daftar/page.tsx` (new, RSC): fetches active programs via `prisma.program.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" }, select: { id: true, name: true } })` (wrapped in try/catch — empty array on DB failure), renders the public chrome (Talib logo round + "Talib by An Nisaa' Sekolahku" wordmark on `#0C5C3F` brand green per README:57 + design-system.html public-form pattern), the page title `Pendaftaran Siswa Baru` + Bu Sari greeting `Assalamu'alaikum, Bapak/Ibu. Silakan lengkapi data berikut — tim kami akan menghubungi dalam 1–3 hari kerja.`, and passes `programs` to `<DaftarClient programs={programs} />`. Metadata: title, Indonesian description, `robots: { index: true, follow: true }` (public surface, ok to index).
+
+`app/daftar/client.tsx` (new, `"use client"`): three-step form state machine.
+- **State**: `step: 1|2|3`, `form: FormState` (9 fields), `errors: Record<string, string>`, `submitting`, `globalError`, `confirmation: { id, childName } | null`.
+- **Step 1 (Data Anak)**: `childName` `<Input>`, `dateOfBirth` `<Input type="date">`, `childGender` 2-button card-style radio group (HTML radio + label, sr-only input, Tailwind for visual selected state) — `data-testid="field-child-gender-l"` / `-p` for e2e.
+- **Step 2 (Data Orang Tua)**: `parentName` `<Input>`, `parentPhone` `<Input type="tel" inputMode="tel">`, `parentWhatsapp` (optional, `<FieldDescription>` notes WhatsApp default channel), `parentEmail` (optional, `<FieldDescription>` notes confirmation email).
+- **Step 3 (Preferensi)**: `programId` `<NativeSelect>` populated from prop (hidden if `programs.length === 0`), `notes` `<Textarea rows={4} maxLength={500}>` with `XX/500` counter.
+- **Validation**: `validateStep(target)` runs client-side per-step before advancing (mirrors server Zod for required fields + phone regex + email regex — UX convenience; trust boundary remains the server). Step advance gated; failing fields surface inline via `<FieldError>` with the same messages as the server.
+- **Submit**: builds payload omitting empty-string optional fields (so server's `optionalTrimmed` preprocessor doesn't have to coerce client-side), `fetch("/api/admission/submit", POST, JSON)`, branches on response status: 201 → confirmation state with returned id; 400 + `validation_failed` → spread `body.fields` into `errors` + jump back to first failing step; 429 → `globalError` "Terlalu banyak permintaan dari jaringan ini"; 500/network → "Pendaftaran tidak terkirim".
+- **Confirmation state**: green `<CheckCircle2>` + "Pendaftaran ananda <name> tercatat" + Bu Sari "Insya Allah tim kami akan menghubungi Bapak/Ibu dalam 1–3 hari kerja" + the new admission id (numeric reference) + "Selesai" button that resets form + step + confirmation. `data-testid="daftar-confirmation"` + `confirmation-child-name` + `daftar-confirmation-reset` for e2e.
+- **`<Stepper>` sub-component**: ordered list of 3 step indicators (number circle + label) showing done/active/pending state per step. Mobile-first — labels hidden < `sm` breakpoint, only numbers visible.
+- **Shadcn primitives used**: `<Field>`, `<FieldLabel>`, `<FieldError>`, `<FieldDescription>`, `<Input>`, `<Textarea>`, `<NativeSelect>`/`<NativeSelectOption>`, `<Button>`. No new component shapes; matches existing admin admissions form's primitive vocabulary (`app/admin/admissions/page.tsx:124-156`) where compatible.
+
+Server smoke (local prod build, demo mode):
+- `curl http://localhost:3000/daftar` → 200; rendered HTML carries every form data-testid anchor (`field-child-name`, `field-date-of-birth`, `field-child-gender-l`/`-p`, `daftar-step-1`, `daftar-next`).
+- `curl -X POST /api/admission/submit -d '{}'` → 400 with per-field Zod messages.
+- Happy-path POST with valid body → 201 `{ id: "cmozl6...." }`.
+- 7 rapid POSTs from same IP → first 5 succeed (incl. earlier 400 — rate limit fires BEFORE parse, by design — defends parse cost), call 6+ return 429.
+
+**Browser-preview note:** the `preview_start` MCP tool failed with `EPERM: operation not permitted, uv_cwd` against this `.claude/worktrees/<slug>` location across three launch shapes (npm-via-env, direct node bin, bash with explicit cd) — harness-level CWD permission issue on the spawned child, NOT a code defect. The Bash-launched server worked normally and was used for the curl smoke above; full browser semantics are exercised by Task 6's Playwright e2e (which orchestrates its own server through the existing test harness, not the MCP preview tool).
+
+Files changed (2): `app/daftar/page.tsx` (new), `app/daftar/client.tsx` (new). No new dependencies.
+
 ## Verification
 
 <!-- /build fills this section as Tasks complete; end-of-cycle gate logs land here. -->
