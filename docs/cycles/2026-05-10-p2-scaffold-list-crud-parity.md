@@ -107,7 +107,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
    - Add 3 new assertions: Add button visible + click navigates to `/admin/akademik/siswa/new`; row click → detail page (`/admin/akademik/siswa/<id>`); action dropdown surfaces ≥3 items per row.
    - AC: `npx playwright test e2e/admin/students.spec.ts` green.
 
-- [ ] **T6 — Playwright new specs for `guardians`, `households`, `admissions`.** New files: `e2e/admin/guardians.spec.ts`, `e2e/admin/households.spec.ts`, `e2e/admin/admissions.spec.ts`. Each:
+- [x] **T6 — Playwright new specs for `guardians`, `households`, `admissions`.** New files: `e2e/admin/guardians.spec.ts`, `e2e/admin/households.spec.ts`, `e2e/admin/admissions.spec.ts`. Each:
    - Demo-mode admin login.
    - Visit list page; assert Add button visible (admissions has no `/new` route exposed publicly because admission creation is `/daftar` — assert Add button HIDDEN for admission instead).
    - Row click → detail page.
@@ -143,6 +143,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
 - Task 3: rowActions wired in 4 entity registries — `lib/entities/{student,guardian,household}/entity.ts` each define [view, edit, soft-delete] (Nonaktifkan AlertDialog confirm, copy aligned to voice.md "Bisa diaktifkan kembali kapan saja."). `lib/entities/admission/entity.ts` defines [view, withdraw] + `createDisabled: true` (Edit dropped — no `[id]/edit` route for admission; creation lives at public `/daftar`). New thin "use server" wrapper `lib/admission/actions/withdraw-from-list.ts` adapts multi-arg `withdrawAdmission(prisma, session, input)` to the single-arg `(id) => ActionResult` shape required by `RowActionDef.action` (closures would fail server→client serialization). New vitest `lib/entities/__tests__/row-actions.test.ts` covers all 4 entities (12 cases — keys, hrefs, kind, confirm labels, createDisabled flag).
 - Task 4: `scripts/cleanup-demo-orphans.ts` — one-off invocable. Hard-deletes Students matching `Aisyah Demo %` sentinel + cascades StudentGuardian → Guardian → Student → Household (orphan-only — preserves households with other students) → Admission, mirroring `app/api/demo/admission/[id]/effects/route.ts` DELETE ordering (null FK first, transactional). Idempotent. Smoke-test invocation against demo DB during /build cleaned 2 orphans (Aisyah Demo 1778358464613 + Aisyah Demo 1778358517821 + cascade: 4 SG, 4 G, 2 S, 2 H, 2 A); second invocation reported "0 orphan students found." Ship Notes documents post-merge invocation against staging.
 - Task 5: `e2e/admin/students.spec.ts` extended with new `admin students list-shell parity` describe block — asserts header Add CTA + cold-empty-state CTA both navigate to `/new`, and the total-count subtitle reads "0 siswa" when empty. Existing `read-only navigation smoke` block preserved unchanged (EmptyState title + description selectors still match — new shell only ADDS the actionLabel/actionHref CTAs without altering pre-existing copy). Stale comment at line 71 corrected to reference the new CTAs. Row-click + action-dropdown assertions deferred to T6 specs that have seeded data (households 8 rows; admissions seedable via demo endpoint).
+- Task 6: 3 new Playwright specs — `e2e/admin/guardians.spec.ts` (Add CTA smoke, no row interactions — Guardian seed empty), `e2e/admin/households.spec.ts` (full coverage: Add CTA + total-count + row-click → detail + dropdown surfaces Edit + Nonaktifkan; uses 8 seeded KK-0xx rows), `e2e/admin/admissions.spec.ts` (negative case: Add CTA HIDDEN per `createDisabled: true` + row-click → detail + dropdown surfaces Tarik kembali / Edit HIDDEN; seeds + cleans up via existing /api/demo/admission endpoints with afterEach hook to mirror T7 pattern).
 
 ## Verification
 
@@ -151,6 +152,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
 - Task 3: gates passed — `npx vitest run lib/entities/__tests__/row-actions.test.ts` (12/12), `npx tsc --noEmit` clean, `npx vitest run` 1482 passed / 4 skipped, `npm run build` green.
 - Task 4: gates passed — `npx tsc --noEmit` clean, `npx vitest run` 1482 passed / 4 skipped (no new vitest — script is invocable). Functional smoke-test against demo DB: first invocation cleaned 2 orphans + 14 cascade rows; second invocation idempotent ("0 orphan students found").
 - Task 5: gates passed — `npx tsc --noEmit` clean. Playwright run deferred to end-of-cycle gate (T9) per testing-tier convention.
+- Task 6: gates passed — `npx tsc --noEmit` clean. Playwright run deferred to end-of-cycle gate (T9).
 
 ## Ship Notes
 
