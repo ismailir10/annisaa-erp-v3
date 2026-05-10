@@ -231,7 +231,15 @@ Absorbed into Task 1 (commit `bcbbdf4`). The reproduction evidence in the Implem
 
 ### Task 5 — e2e portal + logout Cache-Control header guard
 
-(commit pending)
+**Files:** `e2e/parent-signout-bfcache.spec.ts` (NEW, 96 lines).
+
+**Coverage:**
+- 3 parameterised cases over `admin`, `parent`, `teacher` portal HTML responses (root path of each, e.g. `/admin`, `/parent`, `/teacher`). Each asserts `Cache-Control` contains `no-store`, `no-cache`, `must-revalidate`, AND `private`. Uses `page.request.fetch(root, { maxRedirects: 0 })` so the assertion is on the first response, not the login redirect chain.
+- 1 case for `POST /api/auth/logout` asserting status 200 + `Cache-Control` contains `no-store`, `no-cache`, `must-revalidate`, plus `Pragma: no-cache` and `Expires: 0`.
+
+The header file-doc explicitly notes why this is NOT a `page.goBack()` test (Playwright Chromium does not reliably exercise bfcache; header-level assertion is the true regression guard for Chrome's `MainResourceHasCacheControlNoStore` rule).
+
+**Between-task gate:** `npx playwright test e2e/parent-signout-bfcache.spec.ts --reporter=list` — 4 / 4 passed in 2.2 s.
 
 ### Task 6 — README ADR + cycle wrap
 
