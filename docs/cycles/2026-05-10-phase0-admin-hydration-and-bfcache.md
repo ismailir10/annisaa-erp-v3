@@ -153,16 +153,70 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 
 ## Implementation
 
-<!-- /build fills this section per task -->
+### Task 1 — Reproduction on local prod build (`DEMO_MODE=true npm run start`, NODE_ENV=production)
+
+**Server:** `next start` on `localhost:3000`, demo cookie `school-erp-session=u_super_admin` injected via `document.cookie` (login route gated by `NODE_ENV !== production` — bypassed via direct cookie set since `prod start` forces NODE_ENV=production).
+
+**U1 reproduction — NEGATIVE.** Rollback to PR #177 (`433a3bd`) appears to have healed U1. On `/admin` and `/admin/students`:
+
+| Route | mainTextLen | hidden Suspense (`div[hidden][id^="S:"]`) | h1 / content | Verdict |
+|---|---|---|---|---|
+| `/admin` | 602 | 0 | "Dasbor" + sidebar groups (SDM, Akademik, Keuangan, etc.) | renders ✓ |
+| `/admin/students` | 2714 | 0 | "Siswa" + 20 student rows + Tambah button | renders ✓ |
+
+UAT 2026-05-02 evidence: `<div hidden id="S:0">` / `<div hidden id="S:1">` placeholders that "never dehydrate" — none present in the current build. The SSR HTML still emits 1 Suspense placeholder + 1 inline `$RC(…)` script for `/admin` (matching the framework streaming shape), but the client successfully runs the dehydration script and the placeholder flips visible.
+
+**U6 reproduction — PARTIAL (already auto-mitigated for portal HTML).** `Cache-Control` headers observed on `localhost:3000` (`curl -I` with demo cookie):
+
+| Path | HTTP | Cache-Control |
+|---|---|---|
+| `/admin` | 200 | `private, no-cache, no-store, max-age=0, must-revalidate` |
+| `/admin/students` | 200 | `private, no-cache, no-store, max-age=0, must-revalidate` |
+| `/admin/invoices` | 200 | `private, no-cache, no-store, max-age=0, must-revalidate` |
+| `/admin/payroll` | 200 | `private, no-cache, no-store, max-age=0, must-revalidate` |
+| `/parent` | 307 (→ `/`) | `private, no-cache, no-store, max-age=0, must-revalidate` |
+| `/parent/profile` | 307 | `private, no-cache, no-store, max-age=0, must-revalidate` |
+| `/teacher` | 307 | `private, no-cache, no-store, max-age=0, must-revalidate` |
+| `/` (login) | 200 | `s-maxage=31536000` (CDN cache, no browser-cache directive) |
+| `POST /api/auth/logout` | 200 | **none** ← gap |
+
+Next.js automatically applies the portal Cache-Control because every portal layout calls `cookies()` via `getSession()`, marking the route dynamic. Chrome's bfcache disqualification rule (`MainResourceHasCacheControlNoStore`) is therefore already satisfied for the HTML. The remaining gap is `POST /api/auth/logout`, which carries no `Cache-Control` directive at all.
+
+**Other notable console errors (not the U1 cause):** `_vercel/insights/script.js` and `_vercel/speed-insights/script.js` redirect (307) to `/` locally because these endpoints are served by Vercel's infrastructure in production, not Next.js. Browser logs `Refused to execute script ... text/html` × 2. Same in production on Vercel — silently served correctly there. Not a U1 contributor — `/legal/terms` produces the same error pair and still hydrates fully.
+
+### Task 1 → scope adjustment
+
+Given Task 1 findings:
+
+1. **Task 3 (U1 hydration fix) becomes a no-op record commit.** No reproducer in the rolled-back code; if the bug returns post-rollback (e.g., on Vercel preview rebuild artifact mismatch), it will be a new cycle.
+2. **Task 2 narrows.** `lib/security/headers.ts` portal-prefix branch and the `proxy.ts` request-passing change are dropped — Next.js dynamic-route framework header already sets the same `Cache-Control` value, and any header we set in middleware would be silently overridden by Next.js's later set anyway. The fix becomes: explicit `Cache-Control` on `app/api/auth/logout/route.ts` response only.
+3. **Tasks 4 + 5 still ship.** They are the long-lived regression guards: AC1 ensures the rolled-back hydration shape stays healthy, AC2 ensures the auto-applied portal `no-store` (and the explicit logout header) do not silently regress.
+
+**Spec amendment** — AC2 wording is corrected to acknowledge that the portal-tree `no-store` is delivered by Next.js's dynamic-route default, not by code added in this cycle. The cycle's *contribution* to AC2 is (a) the explicit `no-store` on the logout response and (b) the regression guard test that fails if any portal route ever flips back to a cached/static shape that drops `no-store`.
+
+### Task 2 — explicit Cache-Control on logout response
+
+(commit pending)
+
+### Task 3 — U1 negative-reproduction record
+
+(commit pending — no code change; Verification entry above is the record)
+
+### Task 4 — e2e admin hydration regression guard
+
+(commit pending)
+
+### Task 5 — e2e portal + logout Cache-Control header guard
+
+(commit pending)
+
+### Task 6 — README ADR + cycle wrap
+
+(commit pending)
 
 ## Verification
 
-<!-- /build fills this section. Must record:
-     - Task 1 reproduction evidence (DOM snapshots, network logs, timing)
-     - Between-task gate output for tasks 2–5
-     - End-of-cycle gate output (build + vitest + playwright)
-     - Code review summary
--->
+(filled at end-of-cycle gate)<!-- pending Tasks 2–6 -->
 
 ## Ship Notes
 
