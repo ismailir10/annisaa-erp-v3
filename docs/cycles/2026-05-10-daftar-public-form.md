@@ -218,6 +218,18 @@ Server smoke (local prod build, demo mode):
 
 Files changed (2): `app/daftar/page.tsx` (new), `app/daftar/client.tsx` (new). No new dependencies.
 
+### Task 6 — `e2e/daftar-public.spec.ts`
+
+`e2e/daftar-public.spec.ts` (new): four Playwright tests under `Public admission entry — /daftar`. NO auth/cookie setup — `/daftar` + `/api/admission/submit` are public. `beforeEach` clears cookies for clean isolation.
+1. **`happy path — three steps, valid data, 201 confirmation`**: navigates `/daftar`, fills step 1 (childName / dateOfBirth / gender card-radio "Perempuan"), clicks Lanjut → asserts step 2 visible, fills parentName + parentPhone, Lanjut → step 3 visible, clicks Kirim. Awaits the submit POST response, asserts 201 + cuid-shaped id, asserts confirmation-state visible + child name renders in `confirmation-child-name`.
+2. **`validation — empty childName does not advance step`**: clicks Lanjut on step 1 with childName empty; asserts step 1 still visible + step 2 NOT visible + inline "Nama anak wajib diisi" error rendered.
+3. **`rate limit — direct POST returns 429 after the per-IP cap`**: fires 7 rapid `request.post('/api/admission/submit', { data: VALID_BODY })` from playwright's HTTP client. Asserts the resulting status array CONTAINS 429 (at-least-one rather than fixed-cutover-index — earlier tests in the same file may have already consumed bucket slots; the assertion tolerates that without flake).
+4. **`rate limit response shape carries Retry-After header`**: best-effort probe that the 429 response carries `Retry-After` + `{ error: "rate_limited" }`. Tolerates the rare bucket-reset-at-probe-edge case via `test.info().annotations` rather than a hard skip.
+
+`npx playwright test e2e/daftar-public.spec.ts` → 4/4 green in 4.1s, single Chromium worker (per playwright.config.ts).
+
+Files changed (1): `e2e/daftar-public.spec.ts` (new). No new dependencies.
+
 ## Verification
 
 <!-- /build fills this section as Tasks complete; end-of-cycle gate logs land here. -->
