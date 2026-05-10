@@ -278,6 +278,10 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 
 **Latent perf knob (deferred):** the two sequential `useEffect` client fetches (`/api/teaching-assignments/my` then `/api/student-attendance`) are still in place. Total RTT 541 ms median against localhost is well under threshold; under intermittent 4G the sequential shape could resurface. If a post-merge `/uat teacher` (AC10) flags renewed BLOCKER, file `phase0-class-attendance-server-prefetch` as a follow-up cycle.
 
+### Task 4 — U9 (parent reports perf) — NEGATIVE REPRODUCTION
+
+`/parent/reports` median load 147 ms vs UAT figure 5 100 ms vs BLOCKER threshold 4 000 ms. Healed by rollback alone (verdict (a)). No code change. UAT framing of "sheet open 5.1s" was imprecise — the route is a server RSC, not a client modal/sheet (Spec Assumption 6 confirmed against the source). Cached helpers (`getPublishedAssessmentsForStudent` 120 s, `getParentWithChildren` 60 s) are healthy at demo-seed scale.
+
 ## Verification
 
 <!-- filled by /build -->
