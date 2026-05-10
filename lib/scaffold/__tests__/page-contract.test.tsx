@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { z } from "zod";
 
 // Mock writeAuditLog so the audit-wiring tests below assert call shape
@@ -10,7 +10,19 @@ const { writeAuditLogMock } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/audit/write", () => ({ writeAuditLog: writeAuditLogMock }));
 
+// Cycle p2-scaffold-list-crud-parity (T2): the upgraded `<ScaffoldListPage>`
+// shell mounts a `<ScaffoldListPageToolbar>` client island that calls
+// `useRouter` / `useSearchParams` from next/navigation. JSDOM has no app
+// router context, so stub both with no-op implementations. The push spy is
+// captured + asserted in the ScaffoldListRow row-click test below.
+const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPush, replace: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 import { ScaffoldListPage, ScaffoldListPageLoading } from "../list-page";
+import { ScaffoldListRow } from "../list-page-row";
 import { ScaffoldDetailPage, ScaffoldDetailPageLoading } from "../detail-page";
 import { ScaffoldErrorState } from "../error-state";
 import { defineAction } from "../action";
@@ -297,6 +309,70 @@ describe("defineAction (override hatch §5.3)", () => {
       ).rejects.toBe(boom);
       expect(writeAuditLogMock).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("ScaffoldListRow — T2 client island", () => {
+  beforeEach(() => {
+    routerPush.mockReset();
+  });
+
+  it("clicking the row navigates to the View action's href", () => {
+    render(
+      <table><tbody>
+        <ScaffoldListRow
+          rowId="row-1"
+          cells={["Pak Budi"]}
+          actions={[{ key: "view", label: "Lihat", kind: "view", href: "/x/1" }]}
+        />
+      </tbody></table>,
+    );
+    const row = document.querySelector('[data-slot="scaffold-list-row"]') as HTMLElement;
+    fireEvent.click(row);
+    expect(routerPush).toHaveBeenCalledWith("/x/1");
+  });
+
+  it("Enter key on focused row triggers nav", () => {
+    render(
+      <table><tbody>
+        <ScaffoldListRow
+          rowId="row-1"
+          cells={["Pak Budi"]}
+          actions={[{ key: "view", label: "Lihat", kind: "view", href: "/x/2" }]}
+        />
+      </tbody></table>,
+    );
+    const row = document.querySelector('[data-slot="scaffold-list-row"]') as HTMLElement;
+    fireEvent.keyDown(row, { key: "Enter", target: row, currentTarget: row });
+    expect(routerPush).toHaveBeenCalledWith("/x/2");
+  });
+
+  it("renders no row-click affordance when no View action present", () => {
+    render(
+      <table><tbody>
+        <ScaffoldListRow
+          rowId="row-1"
+          cells={["Pak Budi"]}
+          actions={[]}
+        />
+      </tbody></table>,
+    );
+    const row = document.querySelector('[data-slot="scaffold-list-row"]') as HTMLElement;
+    expect(row.getAttribute("tabIndex")).toBeNull();
+    expect(row.getAttribute("data-clickable")).toBeNull();
+  });
+
+  it("renders the inline 'Lihat' button when View action present", () => {
+    render(
+      <table><tbody>
+        <ScaffoldListRow
+          rowId="row-1"
+          cells={["x"]}
+          actions={[{ key: "view", label: "Lihat", kind: "view", href: "/x/1" }]}
+        />
+      </tbody></table>,
+    );
+    expect(screen.getByText(/Lihat/i)).toBeInTheDocument();
   });
 });
 

@@ -68,8 +68,9 @@ test.describe("admin students canary", () => {
       "cold empty-state description visible",
     ).toBeVisible();
 
-    // 6. Navigate to new-student form by URL (no list-page CTA exists for
-    //    cold-empty state per current scaffold).
+    // 6. Navigate to new-student form by URL. (The header + cold-empty
+    //    CTAs now exist as of cycle p2-scaffold-list-crud-parity T2 — the
+    //    "list-shell parity" describe block below exercises them.)
     await page.goto("/admin/akademik/siswa/new");
 
     // 7. Form heading "Tambah Siswa".
@@ -125,6 +126,58 @@ test.describe("admin students canary", () => {
       page.locator("text=Tidak ada hasil"),
       "filter-empty state distinguishes from cold-empty",
     ).toBeVisible();
+  });
+});
+
+// p2-scaffold-list-crud-parity (T5) extension — verifies the upgraded
+// `<ScaffoldListPage>` shell affordances on the Siswa list:
+//   • Header Add CTA "Tambah Siswa" → `/admin/akademik/siswa/new`
+//   • Cold-empty-state primary CTA "Tambah Siswa pertama" → same route
+//
+// Row-click + action-column dropdown assertions are deferred to T6's specs
+// for entities with seeded list data (`keluarga` has 8 seeded Households,
+// `admissions` will seed via the demo POST endpoint). Student seed is empty
+// today; injecting a Student fixture for this spec would duplicate seed
+// machinery without canary value.
+//
+// Cycle: docs/cycles/2026-05-10-p2-scaffold-list-crud-parity.md (T5)
+test.describe("admin students list-shell parity", () => {
+  test("header Add CTA + cold-empty CTA both navigate to /new", async ({ page }) => {
+    const loginRes = await page.request.post("/api/demo/login?role=admin");
+    expect(loginRes.status(), "login responds 200").toBe(200);
+
+    await page.goto("/admin/akademik/siswa");
+
+    // Header Add CTA visible (rendered by `<ScaffoldHeader>` action slot).
+    const headerAdd = page.getByRole("link", { name: /^Tambah Siswa$/ });
+    await expect(headerAdd, "header 'Tambah Siswa' link visible").toBeVisible();
+
+    // Cold-empty-state CTA — `<EmptyState actionLabel="Tambah Siswa pertama">`.
+    const emptyCta = page.getByRole("link", { name: /^Tambah Siswa pertama$/ });
+    await expect(emptyCta, "cold-empty 'Tambah Siswa pertama' CTA visible").toBeVisible();
+
+    // Total-count subtitle reads "0 siswa" when empty (parity with
+    // populated branch — see `lib/scaffold/list-page.tsx:106-108`).
+    await expect(
+      page.locator("text=/^0 siswa$/"),
+      "total-count subtitle reads '0 siswa' when empty",
+    ).toBeVisible();
+
+    // Click the empty-state CTA (more user-realistic than the header CTA
+    // when the table is empty) — expect navigation to /new.
+    await emptyCta.click();
+    await expect(
+      page,
+      "empty-state CTA navigates to /new",
+    ).toHaveURL(/\/admin\/akademik\/siswa\/new$/);
+
+    // Back to list, click the header CTA — expect same target.
+    await page.goto("/admin/akademik/siswa");
+    await page.getByRole("link", { name: /^Tambah Siswa$/ }).click();
+    await expect(
+      page,
+      "header CTA also navigates to /new",
+    ).toHaveURL(/\/admin\/akademik\/siswa\/new$/);
   });
 });
 

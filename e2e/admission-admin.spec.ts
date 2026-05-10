@@ -19,6 +19,25 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("admin admission funnel walk-through", () => {
+  // Cycle p2-scaffold-list-crud-parity (T7) — track the seeded admission id
+  // in a describe-scoped closure so the cleanup DELETE fires regardless of
+  // mid-test assertion failure. Previously the cleanup was inlined at the
+  // tail of the happy-path test and silently leaked rows on any failure
+  // upstream of step 10 (the demo DB grew an `Aisyah Demo <stamp>` orphan
+  // tree per failed run; cycle T4 ships a one-off cleanup script for the
+  // existing leakage).
+  let seededAdmissionId: string | null = null;
+
+  test.afterEach(async ({ request }) => {
+    if (seededAdmissionId) {
+      await request.delete(
+        `/api/demo/admission/${seededAdmissionId}/effects`,
+        { failOnStatusCode: false },
+      );
+      seededAdmissionId = null;
+    }
+  });
+
   test("SUBMITTED → UNDER_REVIEW → OFFER_EXTENDED → ACCEPTED + side-effect bundle", async ({
     page,
   }) => {
@@ -37,6 +56,9 @@ test.describe("admin admission funnel walk-through", () => {
     expect(seedRes.status(), "seed-submitted responds 200").toBe(200);
     const { admissionId, applicantFullName } = await seedRes.json();
     expect(admissionId, "seed returns admissionId").toBeTruthy();
+    // Hand the id to the afterEach cleanup hook so a mid-test assertion
+    // failure still tears down the seeded rows.
+    seededAdmissionId = admissionId;
 
     // 3. Navigate to the admin detail page.
     await page.goto(`/admin/akademik/penerimaan/${admissionId}`);
@@ -113,14 +135,9 @@ test.describe("admin admission funnel walk-through", () => {
       "action cluster hidden in terminal state",
     ).toHaveCount(0);
 
-    // 10. Cleanup — hard-delete the Admission + side-effect bundle so the
-    //     created Student row does not pollute the admin students cold-
-    //     empty-state assertion in e2e/admin/students.spec.ts. The DELETE
-    //     handler walks dependent rows in the correct order.
-    const cleanupRes = await page.request.delete(
-      `/api/demo/admission/${admissionId}/effects`,
-      { failOnStatusCode: false },
-    );
-    expect(cleanupRes.status(), "cleanup DELETE responds 200").toBe(200);
+    // Cleanup happens in `afterEach` (cycle p2-scaffold-list-crud-parity T7
+    // — runs even when assertions above fail mid-test, so failed runs do
+    // not leak Aisyah Demo orphan rows). The describe-scoped
+    // `seededAdmissionId` variable tracks the seed for the hook.
   });
 });

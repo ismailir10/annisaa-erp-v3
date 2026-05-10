@@ -302,6 +302,38 @@ export const entity: EntityDef<GuardianRow> = {
       },
     },
   ],
+  // Cycle p2-scaffold-list-crud-parity (T3) — list-shell row actions:
+  // View + Edit + Nonaktifkan (destructive soft-delete with AlertDialog
+  // confirm). softDeleteGuardian is "use server"-tagged.
+  rowActions: [
+    {
+      key: "view",
+      label: "Lihat",
+      kind: "view",
+      scope: "ALL",
+      href: (row) => `/admin/akademik/wali/${row.id}`,
+    },
+    {
+      key: "edit",
+      label: "Edit",
+      kind: "edit",
+      scope: "ALL",
+      href: (row) => `/admin/akademik/wali/${row.id}/edit`,
+    },
+    {
+      key: "soft-delete",
+      label: "Nonaktifkan",
+      kind: "destructive",
+      scope: "ALL",
+      action: softDeleteGuardian,
+      confirm: {
+        title: "Nonaktifkan wali?",
+        description:
+          "Wali tidak akan muncul di daftar aktif. Bisa diaktifkan kembali kapan saja.",
+        confirmLabel: "Nonaktifkan",
+      },
+    },
+  ],
   dataFetcher,
 };
 
