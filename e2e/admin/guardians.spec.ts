@@ -2,20 +2,19 @@
 //
 // Verifies the upgraded ScaffoldListPage shell affordances on the Wali list:
 //   • Header Add CTA "Tambah Wali" → /admin/akademik/wali/new
-//   • Cold-empty-state CTA "Tambah Wali pertama" → same route
-//   • Total-count subtitle reads "0 wali" when empty
+//   • Action column header rendered + at least one row's "Lihat" inline button
 //
-// Row-click + action-dropdown assertions deferred — Guardian seed today is
-// empty (CI runs `db push --force-reset` + seed without Guardian fixtures).
-// Households spec (which has 8 seeded rows) covers the row-interaction
-// assertions per cycle T6 plan.
+// Cold-empty-state CTA NOT asserted: prisma/seed/10-demo-parent-guardian.ts
+// seeds 4 Guardian rows (the parent OAuth canary), so the list is never
+// empty in the e2e environment. The cold-empty branch is unit-covered by
+// the page-contract.test.tsx vitest in `lib/scaffold/__tests__/`.
 //
 // Cycle: docs/cycles/2026-05-10-p2-scaffold-list-crud-parity.md (T6)
 
 import { test, expect } from "@playwright/test";
 
 test.describe("admin guardians list-shell parity", () => {
-  test("header Add CTA + cold-empty CTA both navigate to /new", async ({ page }) => {
+  test("header Add CTA + action column visible with seeded rows", async ({ page }) => {
     const loginRes = await page.request.post("/api/demo/login?role=admin");
     expect(loginRes.status(), "login responds 200").toBe(200);
 
@@ -29,25 +28,23 @@ test.describe("admin guardians list-shell parity", () => {
     const headerAdd = page.getByRole("link", { name: /^Tambah Wali$/ });
     await expect(headerAdd, "header 'Tambah Wali' link visible").toBeVisible();
 
-    const emptyCta = page.getByRole("link", { name: /^Tambah Wali pertama$/ });
-    await expect(emptyCta, "cold-empty 'Tambah Wali pertama' CTA visible").toBeVisible();
-
+    // Action column header rendered (rowActions.length > 0).
     await expect(
-      page.locator("text=/^0 wali$/"),
-      "total-count subtitle reads '0 wali' when empty",
+      page.locator('th:has-text("Aksi")'),
+      "action column header 'Aksi' visible",
     ).toBeVisible();
 
-    await emptyCta.click();
+    // First row's inline "Lihat" button (DataTableRowActions primitive).
     await expect(
-      page,
-      "empty-state CTA navigates to /new",
-    ).toHaveURL(/\/admin\/akademik\/wali\/new$/);
+      page.locator('button:has-text("Lihat")').first(),
+      "first row 'Lihat' button visible",
+    ).toBeVisible();
 
-    await page.goto("/admin/akademik/wali");
-    await page.getByRole("link", { name: /^Tambah Wali$/ }).click();
+    // Header Add CTA navigates to /new.
+    await headerAdd.click();
     await expect(
       page,
-      "header CTA also navigates to /new",
+      "header CTA navigates to /new",
     ).toHaveURL(/\/admin\/akademik\/wali\/new$/);
   });
 });

@@ -1221,7 +1221,6 @@ Canonical surface for **what shipped, when, where**. One row per merged-to-stagi
 
 | Phase | Cycle | Slug | Merged | PR | Tip Commit | Status |
 |---|---|---|---|---|---|---|
-| 2 | scaffold-list-crud-parity | p2-scaffold-list-crud-parity | 2026-05-10 | next | next | next |
 | 0 | hard-delete-domain-code | p0-hard-delete-domain-code | 2026-05-04 | #178 | 52112ee | shipped |
 | 1 | extensions-tenancy | p1-extensions-tenancy | 2026-05-05 | #179 | ff55b93 | shipped |
 | 1 | identity-rls | p1-identity-rls | 2026-05-05 | #180 | d1857ec | shipped |
@@ -1250,6 +1249,7 @@ Canonical surface for **what shipped, when, where**. One row per merged-to-stagi
 | 2 | admission-funnel-schema | p2-admission-funnel-schema | 2026-05-08 | #211 | 50bedfe | shipped |
 | 2 | admission-funnel-ui-public | p2-admission-funnel-ui-public | 2026-05-10 | #214 | 1e7f945 | shipped |
 | 2 | admission-funnel-ui-review | p2-admission-funnel-ui-review | 2026-05-10 | #218 | cb340f4 | shipped |
+| 2 | scaffold-list-crud-parity | p2-scaffold-list-crud-parity | 2026-05-10 | — | — | next |
 
 **Notes:**
 - **Slug column is the canonical match key.** `/ship` post-merge matches by exact-string equality (case-sensitive); on `status=next` row match → update-in-place; on `status=shipped` match → no-op; on no match → append.

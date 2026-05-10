@@ -51,18 +51,18 @@ test.describe("admin admissions list-shell parity", () => {
     await page.goto("/admin/akademik/penerimaan");
 
     await expect(
-      page.locator('h1:has-text("Penerimaan")'),
-      "h1 'Penerimaan' visible",
+      page.locator('h1:has-text("Pendaftaran")'),
+      "h1 'Pendaftaran' visible (entity.label)",
     ).toBeVisible();
 
     // createDisabled: true → no header CTA + no cold-empty CTA.
     await expect(
-      page.getByRole("link", { name: /^Tambah Penerimaan$/ }),
-      "header 'Tambah Penerimaan' link HIDDEN (createDisabled)",
+      page.getByRole("link", { name: /^Tambah Pendaftaran$/ }),
+      "header 'Tambah Pendaftaran' link HIDDEN (createDisabled)",
     ).toHaveCount(0);
     await expect(
-      page.getByRole("link", { name: /^Tambah Penerimaan pertama$/ }),
-      "cold-empty 'Tambah Penerimaan pertama' CTA HIDDEN",
+      page.getByRole("link", { name: /^Tambah Pendaftaran pertama$/ }),
+      "cold-empty 'Tambah Pendaftaran pertama' CTA HIDDEN",
     ).toHaveCount(0);
 
     // Action column header rendered (rowActions.length > 0).

@@ -25,6 +25,7 @@ export default async function Page({
       entity={student}
       breadcrumbs={[{ label: "Akademik", href: "/admin/akademik" }]}
       searchParams={params}
+      basePath="/admin/akademik/siswa"
     />
   );
 }
