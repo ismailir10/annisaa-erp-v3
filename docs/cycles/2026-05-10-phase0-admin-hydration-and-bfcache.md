@@ -196,7 +196,26 @@ Given Task 1 findings:
 
 ### Task 2 — explicit Cache-Control on logout response
 
-(commit pending)
+**Files:** `app/api/auth/logout/route.ts`.
+
+**Change:** wrap the `NextResponse.json({ ok: true })` with explicit response headers:
+
+```ts
+return NextResponse.json(
+  { ok: true },
+  {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+    },
+  },
+);
+```
+
+Plus an inline comment explaining defense-in-depth and the relationship to Next.js's dynamic-route framework header on the prior portal page.
+
+**Between-task gate:** `npm run build && npx vitest run` — 133 files / 1098 tests passed, 2 skipped, 42 todo. Manual `curl -I -X POST http://localhost:3000/api/auth/logout` after restart confirms the three headers land on the response.
 
 ### Task 3 — U1 negative-reproduction record
 

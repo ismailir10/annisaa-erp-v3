@@ -14,5 +14,21 @@ export async function POST() {
   const cookieStore = await cookies();
   cookieStore.delete("school-erp-session");
 
-  return NextResponse.json({ ok: true });
+  // Defense-in-depth: explicit no-store so the logout response itself can
+  // never be cached by an intermediary or restored from disk cache. Portal
+  // HTML pages already carry Next.js's dynamic-route default (private,
+  // no-cache, no-store, max-age=0, must-revalidate) — Chrome's bfcache
+  // disqualification rule (MainResourceHasCacheControlNoStore) applies on
+  // the prior portal page; this header makes the policy explicit at the
+  // auth boundary.
+  return NextResponse.json(
+    { ok: true },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
+    },
+  );
 }
