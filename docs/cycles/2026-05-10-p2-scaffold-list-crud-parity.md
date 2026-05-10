@@ -77,7 +77,7 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
    - **Commit type:** `chore:` or `refactor:` (type-only change, no user-visible behavior). README staging NOT required (commit-msg narrow rule scoped to `feat:`/`perf:`).
    - AC: type compiles; vitest passes; build green WITHOUT touching the 7 existing entity files (optional field default = undefined).
 
-- [ ] **T2 — `<ScaffoldListPage>` shell upgrade.** Edit `lib/scaffold/list-page.tsx` + add `lib/scaffold/list-page-toolbar.tsx` (client) + `lib/scaffold/list-page-row-actions.tsx` (client island per row):
+- [x] **T2 — `<ScaffoldListPage>` shell upgrade.** Edit `lib/scaffold/list-page.tsx` + add `lib/scaffold/list-page-toolbar.tsx` (client) + `lib/scaffold/list-page-row-actions.tsx` (client island per row):
    - Inject Add button into `<ScaffoldHeader>` (server-rendered `<Link>`, gated on `entity.formSections.length > 0` + create-scope check).
    - Inject filter row (client `<ScaffoldListPageToolbar>`) above the table — wraps `<DataTableToolbar>`, syncs query params via `next/navigation` router.
    - Inject action column as final `<th>` / `<td>` per row — wraps `<DataTableRowActions>` in a client island that receives serialized action metadata + row id.
@@ -138,11 +138,13 @@ Two orphan Student rows leak from pre-#218 `e2e/admission-admin.spec.ts` runs (`
 ## Implementation
 
 - Subagent plan: T1 sequential (foundation type), then T2/T3 sequential (T2 shell needs T1 type, T3 entity wiring also needs T1 + can run after T2 since T3 only edits entity registry files which T2 doesn't touch). T4/T7/T8 independent — could parallel post-T3. T5/T6 after T2/T3 (depend on shell DOM). T9 final gate.
-- Task 1: `EntityDef.rowActions` + `createDisabled` + `RowActionDef<T>` — `lib/scaffold/entity.ts` (+ `RowActionKind` + `resolveRowActions(entity, row, allowedScopes)` helper) + `lib/scaffold/index.ts` barrel re-exports + new `lib/scaffold/__tests__/row-actions.test.ts` (7 cases). Optional fields → no breaking change to existing 7 entity registries.
+- Task 1: `EntityDef.rowActions` + `createDisabled` + `RowActionDef<T>` — `lib/scaffold/entity.ts` (+ `RowActionKind` + `resolveRowActions(entity, row, allowedScopes)` helper) + `lib/scaffold/index.ts` barrel re-exports + new `lib/scaffold/__tests__/row-actions.test.ts` (8 cases). Optional fields → no breaking change to existing 7 entity registries.
+- Task 2: `<ScaffoldListPage>` shell upgrade — `lib/scaffold/list-page.tsx` (Add CTA in header gated on `!createDisabled && formSections.length > 0`, `<ScaffoldListPageToolbar>` filter row, total-count subtitle, empty-state CTA via EmptyState `actionLabel/actionHref` props) + new `lib/scaffold/list-page-toolbar.tsx` client island (router-syncs `?q=` / `?view=`) + new `lib/scaffold/list-page-row.tsx` per-row client island (DataTableRowActions + AlertDialog confirm + sonner toast). Server pre-formats cells (string-narrowed) + per-row precomputes `href` strings to keep server→client boundary serialize-safe. `cells: ReadonlyArray<string>` (NOT ReactNode). Page-contract vitest extended (next/navigation mocked + 4 ScaffoldListRow cases — row-click nav, Enter key nav, no-affordance when no View, inline 'Lihat' button render). README ADR table prepended. design-system reference: design-system.html admin list shell — header + filter row + action column spacing tokens unchanged.
 
 ## Verification
 
-- Task 1: gates passed — `npx vitest run lib/scaffold/__tests__/row-actions.test.ts` (7/7), `npx tsc --noEmit` clean post-`prisma generate`, `npx vitest run` 1465 passed / 4 skipped, `npm run build` green.
+- Task 1: gates passed — `npx vitest run lib/scaffold/__tests__/row-actions.test.ts` (8/8), `npx tsc --noEmit` clean post-`prisma generate`, `npx vitest run` 1466 passed / 4 skipped, `npm run build` green.
+- Task 2: gates passed — `npx tsc --noEmit` clean, `npx vitest run` 1470 passed / 4 skipped (page-contract.test.tsx 24 passing incl. 4 new ScaffoldListRow cases), `npm run build` green. UI verification deferred to Playwright in T5/T6 (preview tool unavailable in this session). Cross-checked design-system.html admin list shell — Add button placement + filter chip styling + action column spacing match §1 + §6 tokens.
 
 ## Ship Notes
 
