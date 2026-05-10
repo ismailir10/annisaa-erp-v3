@@ -151,12 +151,82 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 
 ## Implementation
 
-<!-- filled by /build per task -->
+- Subagent plan: tasks all sequential. Task 1 diagnosis drives Task 4 fix surface; Task 5 spec depends on Task 4's invariants.
+
+### Task 1 — Diagnosis (no code change)
+
+**U2 backlog read against staging Supabase pooler** (read-only via existing `scripts/backfill-pending-payment-links.ts --dry-run`):
+
+```
+[XENDIT BACKFILL] tenantId=cmoz7hi1d000018x71f2ez60y mode=dry-run
+[XENDIT BACKFILL] initial pendingTotal=25 categoryBreakdown={"401":0,"403":0,"408":0,"422":0,"429":0,"5xx":0,"network":0,"4xx":0,"untagged":25,"unknown":0}
+```
+
+Plan §3 figure of "364 / 544" is **stale** (pre-rollback artifact). Post-rollback truth on staging tenant `cmoz7hi1d000018x71f2ez60y`:
+
+| Status | Count |
+|---|---|
+| PAID | 3 |
+| PARTIALLY_PAID | 1 |
+| SENT | 4 |
+| OVERDUE | 1 |
+| **PENDING_PAYMENT_LINK** | **25** |
+
+**Per-row shape on the 25 stuck:** all `paymentLinkError = null` (zero error tags); `xenditSessionId` distribution = 23 null + 2 `demo_session_*`; `xenditPaymentUrl` distribution = 23 null + 2 `https://demo.xendit.local/checkout/*`; all `createdAt = 2026-05-10`.
+
+**Root cause (candidate (f) — not in the original a-e brief list):** the 25 rows are **stale test/seed artifacts**, not real Xendit-failure rows. Two sub-shapes:
+- 23 rows: never had Xendit attempted (sessionId + paymentUrl + paymentLinkError all null). Likely created via a prior seed/bulk-create path that left them mid-flight.
+- 2 rows: succeeded the DEMO_MODE short-circuit branch (`lib/xendit/client.ts:182-188`) but status was not flipped to SENT. Came from a local `DEMO_MODE=true` session pointed at staging DB.
+
+**Vercel preview env audit** (`npx vercel env ls preview`): `XENDIT_SECRET_KEY` ✓, `XENDIT_WEBHOOK_TOKEN` ✓, `NEXT_PUBLIC_APP_URL` ✓, `DATABASE_URL` ✓, `RESEND_API_KEY` ✓. **Key-presence ruled out** as candidate (a) — but `vercel env ls` confirms only that the key exists in the scope, not that it authenticates against Xendit (an expired or revoked key would still appear here). Full exclusion would require a live Xendit `/balance` probe (which `pingXenditBalance` already provides; not run here because the failure shape on the 25 stuck rows already points at "never attempted Xendit", not "401 from Xendit"). `DEMO_MODE` is not present in `vercel env ls` output for Preview or Production scopes.
+
+**U10 reproduction — NEGATIVE on rolled-back staging.** Probed parent-children-attendance integrity for the seeded parent `u_rightjet` (User → `parentId=cmoz7hs5d00d518x7vdttepxg` → Parent `Siti Nurhaliza Hidayat`, 3 guardian links). All 3 children share the staging tenant; all attendance rows scope correctly via `student.tenantId`. The seed deliberately wires multi-child coverage in `prisma/seed.ts:773-844` — same parent gets `relationship="AYAH"` linked to a non-biological second + third child as multi-child UAT fixture. Page query is correct given the seed shape. The "scoping wrong" UAT framing reflects persona-expectation drift (Pak Budi expected "only Aisha"; the seeded parent has 3 guardian rows by design), not a data-access bug.
+
+**U10 latent risk surfaced during diagnosis (NOT the original UAT symptom but worth tightening):** `_getParentWithChildren` in `lib/parent-helpers.ts:40-67` accepts the where shape `{ email, tenantId: tenantId ?? undefined }` when `parentId` is null. With 200 staging Parent rows whose `email` is null and the `?? undefined` escape on `tenantId`, a hypothetical session with `parentId=null + email=null + tenantId=null` would lookup `{ email: null, tenantId: undefined }` and `findFirst` would return the FIRST null-email parent globally — an intra-tenant cross-family leak. No active call path reaches this state today (all callers are GUARDIAN-gated with non-null tenantId), but the helper's own preconditions do not enforce this. Task 4 tightens the invariant.
+
+### Task 4 — Tighten `_getParentWithChildren` lookup invariants
+
+**Files:** `lib/parent-helpers.ts`, `lib/__tests__/parent-helpers.test.ts`.
+
+**Production change (`lib/parent-helpers.ts`):**
+- `_getParentWithChildren` signature: `tenantId` is now `string` (non-null required); `email` is `string | null`. Removed the `tenantId ?? undefined` escape on both branches of the where clause.
+- Added an explicit runtime guard at the top of `_getParentWithChildren`: if `parentId` is null AND `email` is null/empty, throw a contract-violation error. Replaces the prior compile-only `email!` assertion (per code-review MAJOR 2).
+- Public `getParentWithChildren` short-circuits to `EMPTY_PARENT_RESULT` when `!session.tenantId` OR (`!session.parentId && !hasNonEmptyEmail`). Prisma is never called in those branches.
+- Cache-key shape (per code-review MAJOR 1): when `parentId` is set, the email arg passed to `_cachedGetParentWithChildren` is forced to `null`. Two sessions for the same parent — one with email, one without — share a single cache entry rather than priming two slots for identical data (the lookup ignores email when `parentId` is set, so the duplicate cache entry would be redundant).
+
+**Test coverage (`lib/__tests__/parent-helpers.test.ts`, new `getParentWithChildren — lookup invariants (U10 hardening)` describe block):**
+- Empty-result short-circuits (no Prisma call): `tenantId=null`, `parentId=null && email=null`, `parentId=null && email=""`.
+- Where-shape correctness: `{id, tenantId}` when parentId set; `{email, tenantId}` when email-fallback.
+- The Prisma call's where shape NEVER includes `email: null` even when the session has `parentId="…", email=null`.
+- Cache-slot collapsing: two sessions for the same parentId with different email values cache-key-share via `email=null` arg shape.
+- Cross-parent-id divergence: `parentId=null + email` vs `parentId=<uuid> + email` route to different where clauses.
+- Parent found with no guardians → empty children.
+- Parent found with one guardian → mapped child with className/programName/relationship.
+
+**Between-task gate result:** `npm run build && npx vitest run` — build green, 133 files / 1098 passed / 2 skipped / 42 todo, 65 s. Re-run after code-review fixes (cache-key collapse + explicit throw + extra collapsing test): same shape.
+
+### Task 5 — e2e parent attendance scoping regression guard
+
+<!-- filled on Task 5 commit -->
+
+### Task 6 — README ADR + cycle wrap
+
+<!-- filled on wrap commit -->
 
 ## Verification
 
-<!-- filled by /build: gate output, test names, manual smoke notes -->
+### Per-task gates (between-task)
+
+| # | Task | Gate | Result |
+|---|---|---|---|
+| 1 | Diagnose U2 + U10 | manual probe + breakdown read | recorded above; no code change |
+| 2 | (skipped) retry-layer tweak | — | no gap surfaced; retry layer not at fault |
+| 3 | (folded into Task 6) | — | — |
+| 4 | parent-helpers invariants + vitest | `npm run build && npx vitest run` | <!-- on commit --> |
+| 5 | e2e parent attendance scoping | `npx playwright test e2e/parent-attendance-scoping.spec.ts` | <!-- on commit --> |
+| 6 | README ADR + cycle wrap | end-of-cycle gate | <!-- on wrap commit --> |
 
 ## Ship Notes
 
-<!-- filled by /ship: migrations, env vars, ops drain step, rollback plan -->
+<!-- filled on wrap commit -->
+
