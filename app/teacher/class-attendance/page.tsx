@@ -147,7 +147,7 @@ export default function ClassAttendancePage() {
 
   if (assignments.length === 0) {
     return (
-      <div>
+      <div data-empty-state="no-class-assigned">
         <EmptyState icon={Users} title="Belum ditugaskan ke kelas" description="Hubungi admin untuk ditugaskan mengajar di kelas tertentu." />
       </div>
     );
@@ -202,7 +202,9 @@ export default function ClassAttendancePage() {
           ))}
         </div>
       ) : students.length === 0 ? (
-        <EmptyState icon={Users} title="Belum ada siswa di kelas ini" description="Minta admin untuk mendaftarkan siswa ke kelas ini." />
+        <div data-empty-state="no-students">
+          <EmptyState icon={Users} title="Belum ada siswa di kelas ini" description="Minta admin untuk mendaftarkan siswa ke kelas ini." />
+        </div>
       ) : (
         <div className="space-y-1.5">
           {students.map((s, i) => {
@@ -210,6 +212,7 @@ export default function ClassAttendancePage() {
             return (
               <motion.div key={s.student.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}>
                 <button
+                  data-roster-row
                   onClick={() => cycleStatus(s.student.id)}
                   className={`w-full flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/20 transition-colors text-left ${ROW_TINT[status]}`}
                 >

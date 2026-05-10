@@ -263,6 +263,21 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 
 `/parent` median load 127 ms vs UAT figure 2 100 ms vs MAJOR threshold 2 000 ms. Healed by rollback alone (verdict (a)). No code change. Latent perf knobs (`studentJournalNote.findMany` unbounded fetch + `getParentOutstandingForStudents` uncached) documented in Task 1 evidence + deferred to Phase 4 polish per AC2 verdict (a).
 
+### Task 3 — U8 (teacher class-attendance perf) — anchors-only
+
+`/teacher/class-attendance` time-to-roster-visible median 541 ms vs UAT figure 3 100–4 000 ms vs BLOCKER threshold 4 000 ms. Healed by rollback alone (verdict (a)) — but the `e2e/perf-budget.spec.ts` regression guard (Task 6) selector depends on a stable DOM anchor for "roster done loading", so this commit lands the anchors regardless of healing status (per spec's commit-message-healed-case clause).
+
+**Files:** `app/teacher/class-attendance/page.tsx` (3 edits, +3 -2 lines).
+
+**Production change:**
+- Wrapped the assignments-empty `EmptyState` in `<div data-empty-state="no-class-assigned">` (line 150).
+- Wrapped the students-empty `EmptyState` in `<div data-empty-state="no-students">` (line 207).
+- Added `data-roster-row` attribute to the per-student `<button>` element (line 213).
+
+**No behavior change.** Pure DOM anchor additions for the regression-guard selector. Cycle-tap interaction unchanged. Visual styling unchanged. Per the cycle doc's frontend-gate satisfaction line: design-system: no visual changes; perf-only diff (data-anchor additions on student rows + empty state).
+
+**Latent perf knob (deferred):** the two sequential `useEffect` client fetches (`/api/teaching-assignments/my` then `/api/student-attendance`) are still in place. Total RTT 541 ms median against localhost is well under threshold; under intermittent 4G the sequential shape could resurface. If a post-merge `/uat teacher` (AC10) flags renewed BLOCKER, file `phase0-class-attendance-server-prefetch` as a follow-up cycle.
+
 ## Verification
 
 <!-- filled by /build -->
