@@ -159,6 +159,14 @@ Wrap commit subject: `feat(daftar): add public /daftar admission entry — Phase
 
 Files changed (1): `proxy.ts`. No new dependencies. No env var changes.
 
+### Task 2 — `lib/admission/submit-validation.ts` + vitest
+
+`lib/admission/submit-validation.ts`: exports `submitAdmissionSchema` (Zod 4 object) + `SubmitAdmissionInput` type + `flattenSubmitErrors(zodErr)` helper that converts a `ZodError` into a flat `{ fieldName: message }` map (first error per field wins — sufficient for inline form display). Schema details: required `childName`/`parentName`/`parentPhone` use Zod 4 native `.string().trim().min(1, ...).max(N, ...)`; `dateOfBirth` checks the ISO `YYYY-MM-DD` regex; `childGender` is the enum `["L", "P"]` with Zod 4 native `error` shorthand (replaces v3's `errorMap`). All optional string fields (`parentWhatsapp`, `parentEmail`, `programId`, `notes`) wrap their inner validator with a local `optionalTrimmed(inner)` helper that uses `z.preprocess` to (a) trim, (b) treat empty-string as `undefined`. Without this helper, an unfilled HTML form input arrives as `""` and `.email()` / `.regex()` would fail on the empty string instead of skipping the validator. Phone regex `/^[+\d\s\-()]{6,20}$/` is intentionally permissive; CUID regex `/^c[a-z0-9]{24,}$/i` accepts both v1 (25-char) + v2 (variable-length) Prisma cuids.
+
+`lib/admission/submit-validation.test.ts`: 15 cases covering AC6(a–i) + extras: minimal-valid passes, fully-populated-valid passes, missing/whitespace-only `childName` rejects, missing `dateOfBirth` rejects, malformed `dateOfBirth` rejects, invalid `childGender` rejects with the Indonesian message, malformed `parentPhone` rejects, invalid `parentEmail` rejects, empty-string `parentEmail`/`parentWhatsapp`/`programId`/`notes` are coerced to `undefined`, `notes` over 500 chars rejects, leading/trailing whitespace is stripped on every required string field, and an attacker-shaped payload (with `source`/`status`/`studentId`/`tenantId`/`parentEducation`/`parentIncome`/`followUpDate`) parses successfully BUT the parsed result has all attacker keys absent (Zod 4 strip default). 16 vitest assertions across 16 tests, all green via `npx vitest run lib/admission/submit-validation.test.ts`.
+
+Files changed (2): `lib/admission/submit-validation.ts` (new), `lib/admission/submit-validation.test.ts` (new). No new dependencies (Zod already at `^4.3.6`).
+
 ## Verification
 
 <!-- /build fills this section as Tasks complete; end-of-cycle gate logs land here. -->
