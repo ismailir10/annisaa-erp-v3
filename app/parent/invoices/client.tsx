@@ -3,7 +3,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Receipt, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight, Receipt, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { formatRupiah, formatDate } from "@/lib/format";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -43,7 +44,29 @@ function isPaid(inv: InvoiceItem): boolean {
   return inv.status === "PAID";
 }
 
-export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
+type OtherChildOutstanding = {
+  studentId: string;
+  studentName: string;
+  count: number;
+};
+
+type SelectedChildSummary = {
+  count: number;
+  total: number;
+  nearestDue: string | null;
+};
+
+export function InvoicesClient({
+  data,
+  selectedStudentName = "",
+  selectedChildSummary,
+  otherChildrenWithOutstanding = [],
+}: {
+  data: InvoiceItem[] | null;
+  selectedStudentName?: string;
+  selectedChildSummary?: SelectedChildSummary;
+  otherChildrenWithOutstanding?: OtherChildOutstanding[];
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const invoiceParam = searchParams.get("invoice");
@@ -135,19 +158,24 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
   const todayYmd = new Date().toISOString().slice(0, 10);
 
   const summary = useMemo(() => {
+    // Prefer selectedChildSummary when supplied — it is derived from the same
+    // household helper as /parent's Tagihan tile, so the banner total cannot
+    // disagree with home by construction. Fall back to deriving from `data`
+    // for legacy callers (e.g. tests that don't pass the prop).
+    if (selectedChildSummary) {
+      const { count, total, nearestDue } = selectedChildSummary;
+      const allOverdue = nearestDue !== null && nearestDue < todayYmd && count > 0;
+      return { total, count, nearestDue, allOverdue };
+    }
     if (!data) return { total: 0, count: 0, nearestDue: null as string | null, allOverdue: false };
     const outstanding = data.filter(isOutstanding);
     const total = outstanding.reduce((s, i) => s + (i.totalDue - i.totalPaid), 0);
     const dueDates = outstanding.map((i) => i.dueDate).sort((a, b) => a.localeCompare(b));
-    // Prefer the nearest FUTURE due date. If all are past, fall back to the
-    // oldest past one and surface it as "lewat tempo" (overdue) instead of
-    // "terdekat" (nearest) — saying "jatuh tempo terdekat 10 Februari" when
-    // today is 27 April reads as if the bill is still in the future.
     const nearestFuture = dueDates.find((d) => d >= todayYmd) ?? null;
     const nearestDue = nearestFuture ?? dueDates[0] ?? null;
     const allOverdue = nearestFuture === null && dueDates.length > 0;
     return { total, count: outstanding.length, nearestDue, allOverdue };
-  }, [data, todayYmd]);
+  }, [data, todayYmd, selectedChildSummary]);
 
   if (loading) {
     return (
@@ -238,6 +266,42 @@ export function InvoicesClient({ data }: { data: InvoiceItem[] | null }) {
               </>
             ) : null}
           </p>
+        </section>
+      ) : otherChildrenWithOutstanding.length > 0 ? (
+        // Selected child is paid, but a sibling still has outstanding tagihan.
+        // Without this branch the page reads "Lunas semua" while /parent's
+        // Tagihan tile shows the household total — the UAT-2026-05-03 INV-01
+        // contradiction. Sibling rows ARE the CTA — no separate "select above"
+        // instruction (it would compete with the rows + duplicate ChildSelectorTabs).
+        <section className="rounded-xl border border-border bg-card p-4 md:p-6">
+          <div className="flex items-start gap-3">
+            <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-status-present-subtle text-status-present-text">
+              <CheckCircle2 size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">
+                Lunas untuk {selectedStudentName}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {otherChildrenWithOutstanding.reduce((s, c) => s + c.count, 0)} tagihan menunggu untuk anak lain.
+              </p>
+              <div className="mt-3 flex flex-col gap-1.5">
+                {otherChildrenWithOutstanding.map((c) => (
+                  <Link
+                    key={c.studentId}
+                    href={`/parent/invoices?child=${c.studentId}`}
+                    className="flex min-h-[44px] items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5 text-sm transition-colors hover:border-primary/30 active:border-primary/40"
+                  >
+                    <span className="font-medium text-foreground">{c.studentName}</span>
+                    <span className="flex items-center gap-1.5 text-xs text-status-absent-text">
+                      {c.count} tagihan
+                      <ChevronRight size={14} />
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
         </section>
       ) : (
         <section className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-4 md:p-6">

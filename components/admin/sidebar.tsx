@@ -24,6 +24,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import {
   adminNav,
   getActiveGroup,
@@ -159,12 +160,7 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
                   className="rounded-lg"
                 />
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">An Nisaa&apos;</span>
-                <span className="truncate text-xs text-sidebar-foreground/70">
-                  Sekolahku
-                </span>
-              </div>
+              <TalibWordmark size="md" showSublabel className="flex-1 min-w-0" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

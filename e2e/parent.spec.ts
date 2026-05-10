@@ -88,6 +88,71 @@ test.describe("Parent flows", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
+  test("home and /parent/invoices agree on outstanding (UAT-2026-05-03 INV-01)", async ({ page }) => {
+    // Wait for the home signal surface to render before probing — without
+    // this gate the .isVisible() check below resolves false on cold paint
+    // and the count scrape silently skips, producing a vacuous green that
+    // defeats the regression guard.
+    await expect(
+      page
+        .getByText(/Lunas semua/i)
+        .or(page.getByText(/tagihan belum dibayar/))
+        .first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Capture home Tagihan state. Two render branches:
+    //   (a) outstanding > 0   → text "{N} tagihan belum dibayar"
+    //   (b) outstanding === 0 → text "Lunas semua" (under "Pekan ini" eyebrow)
+    const lunasOnHome = await page
+      .getByText(/Lunas semua/i)
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    let homeCount: number | null = null;
+    if (!lunasOnHome) {
+      // Read "{N} tagihan belum dibayar". The N is the household-aggregate
+      // count produced by getParentOutstandingForStudents.
+      const countText = await page
+        .getByText(/(\d+)\s+tagihan belum dibayar/)
+        .first()
+        .textContent({ timeout: 5_000 });
+      const match = countText?.match(/(\d+)\s+tagihan belum dibayar/);
+      if (match) homeCount = Number(match[1]);
+    }
+
+    // Navigate to /parent/invoices (default child — first one).
+    await page.goto("/parent/invoices");
+    await page.waitForURL("**/parent/invoices");
+
+    if (lunasOnHome) {
+      // Home said no outstanding → list MUST also say "Lunas semua".
+      await expect(page.getByText(/Lunas semua/i).first()).toBeVisible({
+        timeout: 10_000,
+      });
+    } else {
+      expect(homeCount).not.toBeNull();
+      // List MUST NOT say "Lunas semua" outright when household has outstanding.
+      // Acceptable banners on the list (with default child selected):
+      //   - "Belum dibayar" header (selected child has outstanding too)
+      //   - "Lunas untuk {name}" with a sibling-switcher row (selected paid, sibling owes)
+      // Either is correct; "Lunas semua" alone is the bug we are guarding.
+      const lunasUntuk = page.getByText(/Lunas untuk/i).first();
+      const belumDibayar = page.getByText(/Belum dibayar/i).first();
+      await expect(lunasUntuk.or(belumDibayar)).toBeVisible({ timeout: 10_000 });
+
+      const naiveLunasSemua = page.getByText(/^Lunas semua$/);
+      // Strict-mode locator that targets ONLY the standalone celebration card,
+      // not the substring inside "Lunas untuk {name}". If naive is visible
+      // alongside outstanding household, the bug regressed.
+      const naiveCount = await naiveLunasSemua.count();
+      expect(
+        naiveCount,
+        `home shows ${homeCount} unpaid but list renders standalone "Lunas semua"`,
+      ).toBe(0);
+    }
+  });
+
   test("logout works", async ({ page }) => {
     await page.click("[aria-label='Keluar']");
     await page.waitForURL("/", { timeout: 10_000 });

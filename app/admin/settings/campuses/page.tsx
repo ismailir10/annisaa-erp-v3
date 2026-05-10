@@ -185,7 +185,7 @@ export default function CampusesPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Kampus" : "Tambah Kampus"}</DialogTitle>
             <DialogDescription>
@@ -194,7 +194,7 @@ export default function CampusesPage() {
           </DialogHeader>
           <div className="space-y-field py-2">
             <Field>
-              <FieldLabel>Nama *</FieldLabel>
+              <FieldLabel required>Nama</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" />
             </Field>
             <Field>
@@ -217,10 +217,10 @@ export default function CampusesPage() {
           </div>
           <DialogFooter>
             <DialogClose>
-              <Button variant="outline">Batal</Button>
+              <Button variant="ghost">Batal</Button>
             </DialogClose>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kampus"}
             </Button>
           </DialogFooter>
         </DialogContent>

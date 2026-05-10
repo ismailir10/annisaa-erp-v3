@@ -21,7 +21,7 @@ export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
   sent: boolean;
   error?: string;
 }> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
 
   const html = salarySlipEmailHtml({
     employeeName: params.employeeName,
@@ -29,10 +29,10 @@ export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
     appUrl,
   });
 
-  const subject = `Slip Gaji ${params.period} — An Nisaa' Sekolahku`;
+  const subject = `Slip Gaji ${params.period} — Talib`;
 
   if (!resend) {
-    console.log(`[EMAIL SIMULATED] To: ${params.to} | Subject: ${subject}`);
+    console.info(`[EMAIL SIMULATED] To: ${params.to} | Subject: ${subject}`);
     return { sent: false };
   }
 

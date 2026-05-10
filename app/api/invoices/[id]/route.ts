@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { updateInvoiceSchema } from "@/lib/validations/invoice";
@@ -53,6 +54,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       sentAt: body.status === "SENT" ? new Date() : existing.sentAt,
     },
   });
+
+  // Bust the parent-portal Tagihan cache. Without this the parent sees the
+  // old status until the 120s revalidate window — long enough that home and
+  // /parent/invoices can disagree (UAT-2026-05-03 INV-01 vector).
+  if (body.status && body.status !== existing.status) {
+    revalidateTag("parent-invoice-list", { expire: 0 });
+    revalidateTag("student-invoices", { expire: 0 });
+  }
 
   return NextResponse.json(invoice);
 }

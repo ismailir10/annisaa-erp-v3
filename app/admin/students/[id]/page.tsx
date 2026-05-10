@@ -342,7 +342,7 @@ export default function StudentDetailPage() {
                 <X size={14} className="mr-1" /> Batal
               </Button>
               <Button size="sm" onClick={saveStudent} disabled={savingStudent}>
-                <Save size={14} className="mr-1" /> {savingStudent ? "Menyimpan..." : "Simpan"}
+                <Save size={14} className="mr-1" /> {savingStudent ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
           )}
@@ -565,7 +565,7 @@ export default function StudentDetailPage() {
         const guardianBody = (
           <div className="space-y-field">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field><FieldLabel>Nama *</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
+              <Field><FieldLabel required>Nama</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
               <Field>
                 <FieldLabel>Hubungan</FieldLabel>
                 <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })} items={{ AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" }}>
@@ -646,18 +646,18 @@ export default function StudentDetailPage() {
               <div className="px-4 pb-4">{guardianBody}</div>
               <SheetFooter>
                 <Button variant="ghost" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
-                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
+                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}</Button>
               </SheetFooter>
             </SheetContent>
           </Sheet>
         ) : (
           <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
               <div>{guardianBody}</div>
               <DialogFooter>
                 <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : "Simpan"}</Button>
+                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -668,7 +668,7 @@ export default function StudentDetailPage() {
       {(() => {
         const enrollBody = (
           <Field>
-            <FieldLabel>Pilih Kelas *</FieldLabel>
+            <FieldLabel required>Pilih Kelas</FieldLabel>
             <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
               <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
               <SelectContent>
@@ -690,7 +690,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
               <div>{enrollBody}</div>
               <DialogFooter>
@@ -707,7 +707,7 @@ export default function StudentDetailPage() {
         const promoteBody = (
           <div className="space-y-field">
             <Field>
-              <FieldLabel>Kelas Tujuan *</FieldLabel>
+              <FieldLabel required>Kelas Tujuan</FieldLabel>
               <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
                 <SelectTrigger><SelectValue placeholder="Pilih kelas tujuan..." /></SelectTrigger>
                 <SelectContent>
@@ -734,7 +734,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
               <div>{promoteBody}</div>
               <DialogFooter>
@@ -757,7 +757,7 @@ export default function StudentDetailPage() {
               Mengeluarkan <strong>{student.name}</strong> dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.
             </p>
             <Field>
-              <FieldLabel>Alasan Keluar *</FieldLabel>
+              <FieldLabel required>Alasan Keluar</FieldLabel>
               <Textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} placeholder="Masukkan alasan pengeluaran siswa..." rows={3} />
             </Field>
           </div>
@@ -775,7 +775,7 @@ export default function StudentDetailPage() {
           </Sheet>
         ) : (
           <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
               <div>{withdrawBody}</div>
               <DialogFooter>

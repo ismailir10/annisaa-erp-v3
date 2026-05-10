@@ -341,7 +341,7 @@ export default function PayrollDetailPage() {
                 <X size={14} className="mr-1.5" /> Batal
               </Button>
               <Button size="sm" onClick={saveEdit} disabled={editSaving} data-testid="payroll-edit-save">
-                {editSaving ? "Menyimpan..." : "Simpan"}
+                {editSaving ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
           )}
@@ -483,7 +483,7 @@ export default function PayrollDetailPage() {
 
       {/* Variables Modal */}
       <Dialog open={!!varsModal} onOpenChange={(o) => !o && setVarsModal(null)}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Variabel Kehadiran</DialogTitle>
             <DialogDescription>{varsModal?.employee.nama}</DialogDescription>
@@ -495,7 +495,7 @@ export default function PayrollDetailPage() {
             <Field><FieldLabel>Hari DC</FieldLabel><Input type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
             <Button onClick={saveVars} disabled={varsSaving}>{varsSaving ? "Menyimpan..." : "Simpan & Hitung Ulang"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -503,7 +503,7 @@ export default function PayrollDetailPage() {
 
       {/* Line Adjustment Modal */}
       <Dialog open={!!lineModal} onOpenChange={(o) => !o && setLineModal(null)}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Penyesuaian</DialogTitle>
             <DialogDescription>{lineModal?.line.labelSnapshot} — {lineModal?.item.employee.nama}</DialogDescription>
@@ -511,19 +511,19 @@ export default function PayrollDetailPage() {
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
             <Field><FieldLabel>Penyesuaian (+ atau -)</FieldLabel><Input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
-            <Field><FieldLabel>Catatan *</FieldLabel><Textarea value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
+            <Field><FieldLabel required>Catatan</FieldLabel><Textarea value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
             <p className="text-sm">Final: <span className="font-currency font-bold text-primary">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-            <Button onClick={saveLineAdj} disabled={adjSaving}>{adjSaving ? "Menyimpan..." : "Simpan"}</Button>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <Button onClick={saveLineAdj} disabled={adjSaving}>{adjSaving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Approve Modal */}
       <Dialog open={approveModal} onOpenChange={setApproveModal}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Setujui Penggajian</DialogTitle>
             <DialogDescription>Setelah disetujui, kehadiran akan dikunci dan tidak bisa diubah.</DialogDescription>
@@ -535,7 +535,7 @@ export default function PayrollDetailPage() {
             {noBank.length > 0 && <p className="text-destructive">{noBank.length} karyawan tanpa rekening bank</p>}
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
             <Button onClick={handleApprove} disabled={approving}>{approving ? "Menyetujui..." : "Setujui"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -543,7 +543,7 @@ export default function PayrollDetailPage() {
 
       {/* Send Slips Modal */}
       <Dialog open={sendModal} onOpenChange={setSendModal}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Kirim Slip Gaji</DialogTitle>
             <DialogDescription>Slip gaji PDF akan dikirim ke email setiap karyawan.</DialogDescription>
@@ -552,7 +552,7 @@ export default function PayrollDetailPage() {
             <p>{data.items.length} slip akan dikirim</p>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
             <Button onClick={handleSendSlips} disabled={sending}>{sending ? "Mengirim..." : "Kirim Semua"}</Button>
           </DialogFooter>
         </DialogContent>

@@ -481,7 +481,7 @@ export default function AdminLeavePage() {
                   )}
                   <SheetClose
                     render={
-                      <Button variant="outline">{viewOnly ? "Tutup" : "Batal"}</Button>
+                      <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
                     }
                   />
                 </div>
@@ -490,7 +490,7 @@ export default function AdminLeavePage() {
           </Sheet>
         ) : (
           <Dialog open={!!reviewTarget} onOpenChange={(o) => { if (!o) { setReviewTarget(null); setViewOnly(false); } }}>
-            <DialogContent className="p-card">
+            <DialogContent className="p-card sm:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
                   {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
@@ -512,7 +512,7 @@ export default function AdminLeavePage() {
               </div>
               <DialogFooter>
                 <DialogClose>
-                  <Button variant="outline">{viewOnly ? "Tutup" : "Batal"}</Button>
+                  <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
                 </DialogClose>
                 {!viewOnly && (
                   <Button

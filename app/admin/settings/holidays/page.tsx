@@ -180,18 +180,18 @@ export default function HolidaysPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card">
+        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Hari Libur" : "Tambah Hari Libur"}</DialogTitle>
             <DialogDescription>Hari libur mempengaruhi perhitungan hari kerja</DialogDescription>
           </DialogHeader>
           <div className="space-y-field py-2">
             <Field>
-              <FieldLabel>Tanggal *</FieldLabel>
+              <FieldLabel required>Tanggal</FieldLabel>
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
             </Field>
             <Field>
-              <FieldLabel>Nama *</FieldLabel>
+              <FieldLabel required>Nama</FieldLabel>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Hari Raya Idul Fitri" />
             </Field>
             <Field>
@@ -211,9 +211,9 @@ export default function HolidaysPage() {
             </label>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="outline">Batal</Button></DialogClose>
+            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Hari Libur"}
             </Button>
           </DialogFooter>
         </DialogContent>

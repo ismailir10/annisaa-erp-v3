@@ -1,4 +1,4 @@
-# School ERP — Operating Manual
+# Talib (engineering id: `school-erp`) — Operating Manual
 
 > **Read this file completely before making any changes.** Operating manual for AI development sessions on this repo. What this product is — modules, portals, ADRs, setup, environments — lives in [README.md](./README.md). This file is the *how*; README is the *what*.
 
@@ -49,7 +49,7 @@ Two-tier — fast unit gate between every task, Playwright smoke once per cycle:
 | Between-task | `npm run build && npx vitest run` | Before every commit during `/build` |
 | End-of-cycle | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
 
-**Why two tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches UI regressions without slowing iteration. **Pure-docs cycles may skip Playwright** — record the skip explicitly in Verification. Tests live in `e2e/` (6 specs); demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
+**Why two tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches UI regressions without slowing iteration. **Pure-docs cycles may skip Playwright** — record the skip explicitly in Verification. Tests live in `e2e/` (7 specs); demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
 
 ### Standalone: `/uat` — heuristic user-acceptance testing
 
@@ -107,12 +107,12 @@ The exact rule table + every test scenario lives in `scripts/test-hooks.sh` — 
 
 ### GitHub branch protection (the real boundary)
 
-Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Required (when repo moves to GitHub Pro):
+Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Branch protection rules became free for private repositories in February 2023 — no GitHub Pro upgrade needed. Required configuration:
 
 - `staging` + `main`: require PR, no direct push for anyone (incl. owner), status checks must pass before merge
 - Required CI checks (job names from `.github/workflows/ci.yml`): `Lint, Typecheck & Test`, `Build`, `Playwright E2E`
 
-`/ship` opens the PR and stops; the author merges after CI is green. Branch protection / required checks / auto-merge require GitHub Pro and are **not active today**. On the free plan the safety net is `pre-push` blocking direct pushes + CTO discipline. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
+`/ship` opens the PR and stops; the author merges after CI is green. Branch protection on `main` and `staging` is enabled in the Talib production launch — Cycle B (Production Infrastructure). Until then the safety net is `pre-push` blocking direct pushes + CTO discipline. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
 
 ### Commit attribution
 
@@ -210,7 +210,7 @@ components/ui/               68 Shadcn components
 lib/{api,validations,payroll,xendit,email}/  business logic, retry, integrations
 prisma/                      schema + seed
 proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
-e2e/                         6 specs (admin, admin-school-admin, teacher, parent, design-system, payment)
+e2e/                         7 specs (admin, admin-school-admin, teacher, parent, design-system, payment, branding)
 docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
 .claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push

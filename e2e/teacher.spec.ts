@@ -47,9 +47,14 @@ test.describe("Teacher flows", () => {
     await page.goto("/teacher/slips");
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
     await expect(page.locator("text=Slip Gaji")).toBeVisible({ timeout: 10_000 });
-    // Page fetches data async — wait up to 10s for either state to appear
+    // Page fetches data async — wait up to 10s for either state to appear.
+    // .first() — seed renders one "Tersedia" badge per slip; strict mode
+    // would fail without scoping to the first match.
     await expect(
-      page.locator("text=Tersedia").or(page.locator("text=Belum ada slip gaji"))
+      page
+        .locator("text=Tersedia")
+        .or(page.locator("text=Belum ada slip gaji"))
+        .first()
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -68,6 +73,53 @@ test.describe("Teacher flows", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
+  test("assessment scoring persists across refresh (regression — autosave stale closure)", async ({ page }) => {
+    await page.goto("/teacher/assessments");
+    await page.waitForURL("**/teacher/assessments", { timeout: 15_000 });
+
+    // Find the first template link. Skip if seed has no class/template combo.
+    const templateLinks = page.locator('a[href*="/teacher/assessments/"][href*="Semester"]');
+    const linkCount = await templateLinks.count();
+    test.skip(linkCount === 0, "no assessment template/class for this teacher in demo seed");
+    const firstTemplate = templateLinks.first();
+
+    await firstTemplate.click();
+    await page.waitForURL(/\/teacher\/assessments\/[^/]+\/[^/]+\/Semester/, { timeout: 15_000 });
+
+    // Expand the first student accordion
+    const firstAccordion = page.locator('[data-slot="accordion-trigger"], button[aria-expanded]').first();
+    await firstAccordion.click();
+
+    // Click the first BB rubric button (labelled `BB — Belum Berkembang` via aria-label)
+    // and capture whether the click TOGGLED it on or off — re-running the suite
+    // leaves prior state in the DB, so the assertion has to reflect the actual
+    // change the click made rather than assume a fixed expected value.
+    const firstBB = page.getByRole("button", { name: /^BB —/ }).first();
+    const wasSelectedBefore = (await firstBB.getAttribute("class") ?? "").includes("bg-primary");
+    await firstBB.click();
+    const expectSelectedAfter = !wasSelectedBefore;
+
+    // Wait for autosave indicator (~1.2s debounce + network)
+    await expect(page.getByText("Tersimpan").first()).toBeVisible({ timeout: 8_000 });
+
+    // Reload — fix asserts the click persisted to DB. Pre-fix, refresh would
+    // wipe the selection because the stale-closure autosave never PUT it; the
+    // server-side empty-array fix is what makes a deselect persist too.
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+
+    // Re-expand the first student
+    const reopened = page.locator('[data-slot="accordion-trigger"], button[aria-expanded]').first();
+    await reopened.click();
+
+    const bbAfter = page.getByRole("button", { name: /^BB —/ }).first();
+    if (expectSelectedAfter) {
+      await expect(bbAfter).toHaveClass(/bg-primary/);
+    } else {
+      await expect(bbAfter).not.toHaveClass(/bg-primary/);
+    }
+  });
+
   test("profile page loads", async ({ page }) => {
     await page.goto("/teacher/profile");
     await expect(page.locator("text=Profil Saya")).toBeVisible();
@@ -79,7 +131,9 @@ test.describe("Teacher flows", () => {
   test("logout works", async ({ page }) => {
     await page.click("[aria-label='Keluar']");
     await page.waitForURL("/", { timeout: 10_000 });
-    await expect(page.locator("text=An Nisaa")).toBeVisible();
+    // Post-rebrand landing wordmark = TalibWordmark → renders <span>Talib</span>.
+    // exact:true avoids substring match on footer "Talib by An Nisaa' Sekolahku".
+    await expect(page.getByText("Talib", { exact: true }).first()).toBeVisible();
   });
 
   test("teacher can open Buku Penghubung picker and entry page", async ({ page }) => {

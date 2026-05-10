@@ -197,7 +197,7 @@ function GenerateInvoiceFormBody({
   return (
     <>
       <Field>
-        <FieldLabel>Periode *</FieldLabel>
+        <FieldLabel required>Periode</FieldLabel>
         <Input
           value={genForm.periodLabel}
           onChange={(e) => setGenForm({ ...genForm, periodLabel: e.target.value })}
@@ -206,7 +206,7 @@ function GenerateInvoiceFormBody({
         <FieldDescription>Contoh: April 2026</FieldDescription>
       </Field>
       <Field>
-        <FieldLabel>Tanggal Jatuh Tempo *</FieldLabel>
+        <FieldLabel required>Tanggal Jatuh Tempo</FieldLabel>
         <Input
           type="date"
           value={genForm.dueDate}
@@ -214,7 +214,7 @@ function GenerateInvoiceFormBody({
         />
       </Field>
       <Field>
-        <FieldLabel>Tahun Ajaran *</FieldLabel>
+        <FieldLabel required>Tahun Ajaran</FieldLabel>
         <Select
           value={genForm.academicYearId}
           onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
@@ -833,6 +833,7 @@ export default function InvoicesPage() {
         description={`Tagihan ${voidTarget?.invoiceNumber} (${voidTarget?.student.name}) tidak bisa dibayar lagi. Riwayat tetap tersimpan.`}
         onConfirm={handleVoidInvoice}
         confirmLabel="Ya, Batalkan"
+        destructive
       />
 
       {/* Manual single-invoice creation — own component handles Dialog/Sheet
@@ -862,7 +863,7 @@ export default function InvoicesPage() {
         </Sheet>
       ) : (
         <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Buat Tagihan Bulanan</DialogTitle>
               <DialogDescription>

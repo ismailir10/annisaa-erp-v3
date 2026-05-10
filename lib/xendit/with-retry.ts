@@ -8,7 +8,7 @@
  *
  * Logging: every attempt outcome emits `[XENDIT ATTEMPT] tenantId=... invoiceId=...
  * attempt=<n> result=<success|transient|hard> status=<httpStatus|null>
- * durationMs=<n>` via `console.log`. Vercel structured logs grep on the prefix.
+ * durationMs=<n>` via `console.info`. Vercel structured logs grep on the prefix.
  *
  * `result` convention:
  * - `success`  — the attempt's `fn()` resolved.
@@ -60,7 +60,7 @@ function logAttempt(
   status: number | null,
   durationMs: number,
 ): void {
-  console.log(
+  console.info(
     `[XENDIT ATTEMPT] tenantId=${ctx.tenantId} invoiceId=${ctx.invoiceId} attempt=${attempt} result=${result} status=${status} durationMs=${durationMs}`,
   );
 }

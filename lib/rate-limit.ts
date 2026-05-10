@@ -41,3 +41,10 @@ export function getClientIp(request: Request): string {
     "anonymous"
   );
 }
+
+/**
+ * Reset the in-memory store. Test-only — never call from production code.
+ */
+export function __resetRateLimitForTest(): void {
+  store.clear();
+}

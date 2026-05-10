@@ -6,6 +6,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { Mail, Loader2 } from "lucide-react";
+import { TalibWordmark } from "@/components/brand/talib-wordmark";
+import { LegalFooter } from "@/components/layout/legal-footer";
 
 type UserOption = {
   id: string;
@@ -113,14 +115,13 @@ function LoginPage() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.4 }}
+            className="flex flex-col items-center"
           >
-            <Image src="/logo.png" alt="An Nisaa' Sekolahku" width={64} height={64} className="mx-auto mb-4 rounded-2xl" />
+            <Image src="/logo.png" alt="An Nisaa' Sekolahku" width={64} height={64} className="mb-4 rounded-2xl" />
+            <TalibWordmark size="lg" showSublabel className="items-center text-white" />
           </motion.div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            An Nisaa&apos; Sekolahku
-          </h1>
-          <p className="text-sidebar-foreground mt-2 text-sm">
-            Sistem Kehadiran &amp; Penggajian
+          <p className="text-sidebar-foreground mt-3 text-sm">
+            Sahabat belajar anak — kehadiran, jurnal, tagihan dalam satu pintu.
           </p>
         </div>
 
@@ -258,8 +259,9 @@ function LoginPage() {
         </div>
 
         <p className="text-center text-sidebar-foreground text-xs mt-6">
-          {isSupabaseConfigured ? "Powered by An Nisaa' ERP" : "Demo mode — Supabase Auth belum dikonfigurasi"}
+          {isSupabaseConfigured ? "Talib by An Nisaa' Sekolahku" : "Demo mode — Supabase Auth belum dikonfigurasi"}
         </p>
+        <LegalFooter />
       </motion.div>
     </main>
   );

@@ -37,12 +37,12 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateShort } from "@/lib/format";
 
-type LeaveBalance = {
+export type LeaveBalance = {
   annual: { total: number; used: number; remaining: number };
   sick: { total: number; used: number; remaining: number };
 };
 
-type LeaveRequest = {
+export type LeaveRequest = {
   id: string;
   leaveType: string;
   startDate: string;
@@ -77,10 +77,40 @@ function countWeekdays(start: string, end: string): number {
   return count;
 }
 
-export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [balance, setBalance] = useState<LeaveBalance | null>(null);
-  const [requests, setRequests] = useState<LeaveRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+type LeaveSheetProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Data prefetched by the parent page on mount. When provided and loaded, the sheet renders content instantly. */
+  prefetchedBalance?: LeaveBalance | null;
+  /** Requests prefetched by the parent page on mount. */
+  prefetchedRequests?: LeaveRequest[] | null;
+  /** True while the parent's prefetch is in-flight (shows skeleton until resolved). */
+  prefetchLoading?: boolean;
+  /** Callback to re-trigger the parent's prefetch after a mutation (submit / cancel). */
+  onRefetch?: () => void;
+};
+
+export function LeaveSheet({
+  open,
+  onOpenChange,
+  prefetchedBalance,
+  prefetchedRequests,
+  prefetchLoading = false,
+  onRefetch,
+}: LeaveSheetProps) {
+  // Local state is used only when prefetch data is absent (cold open before prefetch resolves,
+  // or fallback when the parent page didn't pass props).
+  const hasPrefetch = prefetchedBalance !== undefined && prefetchedRequests !== undefined;
+
+  const [localBalance, setLocalBalance] = useState<LeaveBalance | null>(null);
+  const [localRequests, setLocalRequests] = useState<LeaveRequest[]>([]);
+  const [localLoading, setLocalLoading] = useState(false);
+
+  const balance = hasPrefetch ? prefetchedBalance : localBalance;
+  const requests = hasPrefetch ? (prefetchedRequests ?? []) : localRequests;
+  // Show skeleton while: prefetch in-flight OR (no prefetch + local fetch in-flight on open).
+  const loading = hasPrefetch ? prefetchLoading : localLoading;
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -92,7 +122,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
 
   async function fetchData() {
-    setLoading(true);
+    setLocalLoading(true);
     try {
       const [balRes, reqRes] = await Promise.all([
         fetch("/api/leave/balance"),
@@ -100,22 +130,33 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
       ]);
       if (!balRes.ok || !reqRes.ok) {
         toast.error("Data cuti tidak bisa dimuat. Coba lagi sebentar ya.");
-        setLoading(false);
+        setLocalLoading(false);
         return;
       }
-      setBalance(await balRes.json());
-      setRequests(await reqRes.json());
+      setLocalBalance(await balRes.json());
+      setLocalRequests(await reqRes.json());
     } catch {
       toast.error("Data cuti tidak bisa dimuat. Coba lagi sebentar ya.");
     }
-    setLoading(false);
+    setLocalLoading(false);
   }
 
   useEffect(() => {
-    if (!open) return;
+    // Only run the local fetch when there is no prefetch wiring from the parent.
+    if (!open || hasPrefetch) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
-  }, [open]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, hasPrefetch]);
+
+  /** Refresh data after a mutation — uses parent refetch when wired, otherwise local fetch. */
+  function refetchAfterMutation() {
+    if (onRefetch) {
+      onRefetch();
+    } else {
+      fetchData();
+    }
+  }
 
   async function handleSubmit() {
     if (!form.startDate || !form.endDate || !form.reason.trim()) {
@@ -132,7 +173,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
       toast.success("Pengajuan cuti terkirim");
       setDialogOpen(false);
       setForm({ leaveType: "ANNUAL", startDate: "", endDate: "", reason: "" });
-      fetchData();
+      refetchAfterMutation();
     } else {
       const d = await res.json().catch(() => ({}));
       toast.error(d.error || "Pengajuan tidak terkirim. Coba lagi sebentar ya.");
@@ -147,7 +188,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
     });
     if (res.ok) {
       toast.success("Pengajuan dibatalkan");
-      fetchData();
+      refetchAfterMutation();
     } else {
       toast.error("Pembatalan tidak tersimpan. Coba lagi ya.");
     }
@@ -177,7 +218,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
                 <div className="w-full h-1.5 bg-muted rounded-full mt-2">
                   <div
                     className="h-full bg-primary rounded-full"
-                    style={{ width: `${(balance.annual.remaining / balance.annual.total) * 100}%` }}
+                    style={{ width: `${balance.annual.total > 0 ? (balance.annual.remaining / balance.annual.total) * 100 : 0}%` }}
                   />
                 </div>
               </Card>
@@ -190,7 +231,7 @@ export function LeaveSheet({ open, onOpenChange }: { open: boolean; onOpenChange
                 <div className="w-full h-1.5 bg-muted rounded-full mt-2">
                   <div
                     className="h-full bg-status-leave rounded-full"
-                    style={{ width: `${(balance.sick.remaining / balance.sick.total) * 100}%` }}
+                    style={{ width: `${balance.sick.total > 0 ? (balance.sick.remaining / balance.sick.total) * 100 : 0}%` }}
                   />
                 </div>
               </Card>

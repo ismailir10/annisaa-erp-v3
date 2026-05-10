@@ -104,7 +104,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     select: { name: true },
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://annisaa-erp-v3.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
 
   const fmtIdDate = (d: Date | string) =>
     new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });

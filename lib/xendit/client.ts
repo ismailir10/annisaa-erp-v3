@@ -256,7 +256,7 @@ export async function createXenditSession(
   const data = await response.json();
   if (process.env.XENDIT_DEBUG === "1") {
     // One-off shape probing. Only enabled when operator opts in.
-    console.log("[XENDIT DEBUG] Session response:", JSON.stringify(data));
+    console.info("[XENDIT DEBUG] Session response:", JSON.stringify(data));
   }
   const paymentUrl: string | undefined =
     data.payment_link_url ?? data.checkout?.url;
