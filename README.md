@@ -64,6 +64,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-10 | Tighten `_getParentWithChildren` invariants (require tenantId + parentId-or-email; throw on contract violation); reuse existing `scripts/backfill-pending-payment-links.ts` for U2 backlog | Closes UAT U10 latent fan-out (200 staging null-email Parent rows would leak via a session with both `parentId` and `email` null); U2 surfaced as 25 stale test artifacts (plan's 364 was pre-rollback) — see [cycle](docs/cycles/2026-05-10-phase0-finance-backlog-drain.md) |
 | 2026-05-10 | Explicit `Cache-Control: no-store` on `POST /api/auth/logout`; portal trees rely on Next.js dynamic-route default | Closes UAT U6 sign-out bfcache leak. Portals already inherit `no-store` because `getSession()` marks routes dynamic; logout was the gap. UAT U1 healed by rollback to PR #177 — see [cycle](docs/cycles/2026-05-10-phase0-admin-hydration-and-bfcache.md) |
 | 2026-05-03 | Supabase SSR auth + tenant filter via app layer; RLS for SELECT only | Service-role writes need explicit `tenantId` filter; SSR side-steps PKCE cookie issues — see [ADR](docs/adrs/2026-05-03-supabase-ssr-auth.md) |
 | 2026-05-03 | Role split `SUPER_ADMIN` vs `SCHOOL_ADMIN`; permission-based RBAC for HR | `hasPermission()` replaces role-string checks; salary/payroll gated by `hr.*` — see [ADR](docs/adrs/2026-05-03-role-split-super-admin-school-admin.md) |

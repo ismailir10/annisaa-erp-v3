@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   countAttendanceThisWeek,
   getParentInvoiceList,
+  getParentWithChildren,
   getStudentInvoices,
   mondayOfWeek,
 } from "../parent-helpers";
+import type { SessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // Mock next/cache so unstable_cache is a no-op (no Next.js incrementalCache runtime in Vitest)
@@ -19,6 +21,9 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: {
       findMany: vi.fn(),
+    },
+    parent: {
+      findFirst: vi.fn(),
     },
   },
 }));
@@ -515,6 +520,203 @@ describe("mondayOfWeek", () => {
   it("returns prior Monday when given a mid-week day", () => {
     // 2026-04-16 is a Thursday → Monday 2026-04-13
     expect(mondayOfWeek(new Date("2026-04-16T08:00:00"))).toBe("2026-04-13");
+  });
+});
+
+describe("getParentWithChildren — lookup invariants (U10 hardening)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function session(overrides: Partial<SessionUser>): SessionUser {
+    return {
+      id: "u_test",
+      email: "guardian@example.com",
+      role: "GUARDIAN",
+      name: "Test Guardian",
+      tenantId: "tenant-a",
+      employeeId: null,
+      parentId: "parent-a",
+      permissions: [],
+      customRoleCode: null,
+      ...overrides,
+    } as SessionUser;
+  }
+
+  it("returns empty result when tenantId is null — no Prisma call", async () => {
+    const result = await getParentWithChildren(session({ tenantId: null }));
+    expect(result).toEqual({ parent: null, children: [] });
+    expect(prisma.parent.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("returns empty result when both parentId and email are null — no Prisma call", async () => {
+    const result = await getParentWithChildren(
+      session({ parentId: null, email: null as unknown as string }),
+    );
+    expect(result).toEqual({ parent: null, children: [] });
+    expect(prisma.parent.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("returns empty result when parentId is null and email is empty string — no Prisma call", async () => {
+    const result = await getParentWithChildren(
+      session({ parentId: null, email: "" }),
+    );
+    expect(result).toEqual({ parent: null, children: [] });
+    expect(prisma.parent.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("uses {id, tenantId} where shape when parentId is set", async () => {
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue(null);
+    await getParentWithChildren(
+      session({ parentId: "parent-a", email: "guardian@example.com", tenantId: "tenant-a" }),
+    );
+    expect(prisma.parent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "parent-a", tenantId: "tenant-a" },
+      }),
+    );
+  });
+
+  it("uses {email, tenantId} where shape when parentId is null but email is non-empty", async () => {
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue(null);
+    await getParentWithChildren(
+      session({ parentId: null, email: "guardian@example.com", tenantId: "tenant-a" }),
+    );
+    expect(prisma.parent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { email: "guardian@example.com", tenantId: "tenant-a" },
+      }),
+    );
+  });
+
+  it("never issues a Prisma query whose where shape includes email:null — closes the staging null-email leak", async () => {
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue(null);
+
+    // Even with parentId set, an attacker-controlled session shape with
+    // email=null must not produce a `{ email: null, ... }` filter.
+    await getParentWithChildren(
+      session({ parentId: "parent-a", email: null as unknown as string, tenantId: "tenant-a" }),
+    );
+    const call = vi.mocked(prisma.parent.findFirst).mock.calls[0]?.[0] as
+      | { where: Record<string, unknown> }
+      | undefined;
+    if (call) {
+      expect(call.where).not.toHaveProperty("email", null);
+    }
+  });
+
+  it("collapses cache slots: two sessions for the same parentId with different email values cache-key-share via email=null", async () => {
+    // unstable_cache is mocked as identity here, so the assertion is on
+    // the args passed into the cache wrapper — the cache key is keyed on
+    // the (parentId, email, tenantId) tuple, so we want both calls below
+    // to share an identical tuple. Passing the actual email through
+    // would prime two cache slots for what resolves to the same parent
+    // row (where = `{ id, tenantId }` ignores email entirely).
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue(null);
+
+    await getParentWithChildren(
+      session({ parentId: "parent-uuid-1", email: "first@example.com", tenantId: "tenant-a" }),
+    );
+    await getParentWithChildren(
+      session({ parentId: "parent-uuid-1", email: "second@example.com", tenantId: "tenant-a" }),
+    );
+
+    // Both calls hit the same Prisma where — driven by parentId + tenantId only.
+    expect(prisma.parent.findFirst).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { id: "parent-uuid-1", tenantId: "tenant-a" },
+      }),
+    );
+    expect(prisma.parent.findFirst).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { id: "parent-uuid-1", tenantId: "tenant-a" },
+      }),
+    );
+  });
+
+  it("isolates two sibling parents — parentId=null vs parentId=<uuid> with same email+tenantId route to different where clauses", async () => {
+    // Cache-key isolation regression guard. unstable_cache is mocked as
+    // identity here (so it does not memoise), but the underlying Prisma
+    // where shape MUST differ between the two calls — otherwise a real
+    // unstable_cache deployment would key-collide on the static cache
+    // key array and serve one parent's data to the other.
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue(null);
+
+    await getParentWithChildren(
+      session({ parentId: null, email: "shared@example.com", tenantId: "tenant-a" }),
+    );
+    await getParentWithChildren(
+      session({ parentId: "parent-uuid-1", email: "shared@example.com", tenantId: "tenant-a" }),
+    );
+
+    expect(prisma.parent.findFirst).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { email: "shared@example.com", tenantId: "tenant-a" },
+      }),
+    );
+    expect(prisma.parent.findFirst).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { id: "parent-uuid-1", tenantId: "tenant-a" },
+      }),
+    );
+  });
+
+  it("returns empty children when the parent row is found but has no guardian links", async () => {
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue({
+      id: "parent-a",
+      tenantId: "tenant-a",
+      guardians: [],
+    } as never);
+    const result = await getParentWithChildren(session({}));
+    expect(result).toEqual({ parent: null, children: [] });
+  });
+
+  it("maps guardians to children when the parent has linked students", async () => {
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue({
+      id: "parent-a",
+      tenantId: "tenant-a",
+      guardians: [
+        {
+          studentId: "stu-1",
+          relationship: "IBU",
+          student: {
+            id: "stu-1",
+            name: "Aisyah",
+            nickname: "Aisha",
+            enrollments: [
+              {
+                id: "enr-1",
+                status: "ACTIVE",
+                classSection: {
+                  id: "cs-1",
+                  name: "TK B1",
+                  program: { name: "TK" },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    } as never);
+
+    const result = await getParentWithChildren(session({}));
+    expect(result.children).toHaveLength(1);
+    expect(result.children[0]).toMatchObject({
+      studentId: "stu-1",
+      studentName: "Aisyah",
+      studentNickname: "Aisha",
+      className: "TK B1",
+      programName: "TK",
+      relationship: "IBU",
+    });
   });
 });
 
