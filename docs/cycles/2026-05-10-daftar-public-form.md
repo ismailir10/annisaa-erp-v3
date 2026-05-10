@@ -167,6 +167,32 @@ Files changed (1): `proxy.ts`. No new dependencies. No env var changes.
 
 Files changed (2): `lib/admission/submit-validation.ts` (new), `lib/admission/submit-validation.test.ts` (new). No new dependencies (Zod already at `^4.3.6`).
 
+### Task 4 — `admission-submitted` email template + sender
+
+`lib/email/templates/admission-submitted.ts`: exports `admissionSubmittedEmailHtml({ childName, parentName, appUrl })` returning a plain HTML string. Inline-styled (Gmail/Outlook safe), `<table>`-wrapped, brand palette mirrors the existing `salary-slip` template (`#0C5C3F` primary green on `#f4f4f4` page background). All user-supplied strings (`childName`, `parentName`, `appUrl`) are HTML-escaped via the existing `lib/email/escape.ts` helper before interpolation — defends against a malicious applicant typing `<script>` into the form (Resend would deliver the email but the recipient's mail client would render the script tag if unescaped). Copy is Indonesian Bu Sari voice: `Assalamu'alaikum warahmatullahi wabarakatuh`, names the parent + child explicitly, sets the 1–3-business-day expectation, closes with `Wassalamu'alaikum`. NO links, NO tracking pixels, NO unsubscribe footer (per cycle Spec AC3).
+
+`lib/email/admission-submitted.ts`: exports `sendAdmissionSubmittedEmail({ to, childName, parentName })` returning `Promise<{ sent: boolean; error?: string }>`. Module-scope `new Resend(process.env.RESEND_API_KEY)` instantiation matches `lib/email/send-slip.ts` pattern verbatim — when key absent, log + return `{ sent: false }` (dev / e2e). Subject: `Pendaftaran ananda diterima — Talib`. Sender: `RESEND_FROM_EMAIL` env (`Talib by An Nisaa' <noreply@annisaasekolahku.com>` per README:57); throws if env unset (defensive — same shape as `send-slip.ts`). On Resend error returns `{ sent: false, error }` for caller to log; on exception returns same shape with the exception message.
+
+Files changed (2): `lib/email/templates/admission-submitted.ts` (new), `lib/email/admission-submitted.ts` (new). No new dependencies (`resend` already a runtime dependency via `lib/email/send-slip.ts`).
+
+### Task 3 — `POST /api/admission/submit` route
+
+`app/api/admission/submit/route.ts` (new): public POST handler. Pipeline:
+1. `rateLimit('admission-submit:' + getClientIp(req), 5, 60_000)` from `lib/rate-limit.ts` runs FIRST — cheap, defends against parse cost. On bucket exhaustion returns `429 { error: "rate_limited" }` with `Retry-After: 60`. Per-IP per-Vercel-instance via the in-memory bucket. Soft-limit caveat documented in Spec Assumption 2.
+2. `req.json()` parse — wrapped in try/catch returning `400 { error: "validation_failed", fields: { _root: "Body bukan JSON yang valid" } }` on malformed JSON.
+3. `submitAdmissionSchema.safeParse(raw)` — on failure returns `400 { error: "validation_failed", fields: <flattened errors> }`.
+4. Tenant resolution via `prisma.tenant.findFirst({ where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" }, select: { id: true } })`. Empty result returns `500 { error: "submit_failed" }` with `console.error` (defensive — should never happen in production with the seed data).
+5. `prisma.admission.create({ data: { tenantId, childName, dateOfBirth, childGender, parentName, parentPhone, parentWhatsapp || null, parentEmail || null, programId || null, notes || null, source: "WEBSITE" } })`. `status` defaults to `INQUIRY` via the prisma schema and is NEVER set explicitly. `source` is hard-coded server-side — never read from request even though Zod would strip it anyway. On insert failure returns `500` with `console.error`.
+6. If `data.parentEmail` is set, fires `sendAdmissionSubmittedEmail` synchronously. The route awaits the promise inside try/catch — both `result.sent === false` (Resend error) AND a thrown exception are swallowed + logged loudly (`[admission-submit] Confirmation email failed for admission <id>: <reason>`). Failure does NOT fail the route — user still gets `201`. Per plan §7 q4.
+7. Returns `201 { id: <new admission cuid> }`. NO PII echoed back — only the cuid.
+
+Trust boundary asserts (verified in code):
+- `source` HARD-coded `"WEBSITE"` in the `prisma.create` call (line 76).
+- `tenantId` assigned from `findFirst` result, never from `data.tenantId` (which doesn't exist on the parsed type anyway because the schema omits the field).
+- `status` not in the `create` data → schema default `"INQUIRY"` applies.
+
+Files changed (1): `app/api/admission/submit/route.ts` (new). No new dependencies.
+
 ## Verification
 
 <!-- /build fills this section as Tasks complete; end-of-cycle gate logs land here. -->
