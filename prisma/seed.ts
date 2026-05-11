@@ -34,6 +34,14 @@ async function main() {
   await prisma.assessmentIndicator.deleteMany();
   await prisma.assessmentCategory.deleteMany();
   await prisma.assessmentTemplate.deleteMany();
+  // Curriculum (C1) — children before parents.
+  await prisma.indicatorThemeLink.deleteMany();
+  await prisma.achievementIndicator.deleteMany();
+  await prisma.learningObjective.deleteMany();
+  await prisma.week.deleteMany();
+  await prisma.subTheme.deleteMany();
+  await prisma.theme.deleteMany();
+  await prisma.semester.deleteMany();
   await prisma.studentAttendance.deleteMany();
   await prisma.teachingAssignment.deleteMany();
   await prisma.leaveRequest.deleteMany();
@@ -278,6 +286,93 @@ async function main() {
     },
   });
   console.log(`✅ Academic year: ${academicYear.name}`);
+
+  // 7b-1b. Curriculum example (C1) — one Semester with two Themes, four
+  // SubThemes, eight Weeks. PROMES TPs + IKTPs land in C2/C3. Mon–Fri
+  // ranges at UTC-midnight per the curriculum storage contract.
+  // Re-runnable because `main()` wipes curriculum tables above.
+  const semester = await prisma.semester.create({
+    data: {
+      tenantId: tenant.id,
+      academicYearId: academicYear.id,
+      number: 1,
+      startDate: new Date("2025-07-14T00:00:00Z"),
+      endDate: new Date("2025-12-19T00:00:00Z"),
+      status: "ACTIVE",
+    },
+  });
+  const themesData = [
+    { name: "Saya Anak Sehat", order: 0 },
+    { name: "Lingkunganku", order: 1 },
+  ];
+  const subThemesByTheme: Record<string, { name: string; order: number }[]> = {
+    "Saya Anak Sehat": [
+      { name: "Tubuhku", order: 0 },
+      { name: "Makanan Sehat", order: 1 },
+    ],
+    Lingkunganku: [
+      { name: "Rumahku", order: 0 },
+      { name: "Sekolahku", order: 1 },
+    ],
+  };
+  // 8 weeks, Mon → Fri each, starting 2025-07-14.
+  const weekStarts = [
+    "2025-07-14",
+    "2025-07-21",
+    "2025-07-28",
+    "2025-08-04",
+    "2025-08-11",
+    "2025-08-18",
+    "2025-08-25",
+    "2025-09-01",
+  ];
+  let weekCursor = 0;
+  let themeCount = 0;
+  let subThemeCount = 0;
+  let weekCount = 0;
+  for (const t of themesData) {
+    const theme = await prisma.theme.create({
+      data: {
+        tenantId: tenant.id,
+        semesterId: semester.id,
+        name: t.name,
+        order: t.order,
+      },
+    });
+    themeCount++;
+    for (const st of subThemesByTheme[t.name]) {
+      const subTheme = await prisma.subTheme.create({
+        data: {
+          tenantId: tenant.id,
+          themeId: theme.id,
+          name: st.name,
+          order: st.order,
+        },
+      });
+      subThemeCount++;
+      // Two weeks per SubTheme = 8 total.
+      for (let i = 0; i < 2; i++) {
+        const startYmd = weekStarts[weekCursor];
+        weekCursor++;
+        const start = new Date(`${startYmd}T00:00:00Z`);
+        const end = new Date(start.getTime() + 4 * 24 * 60 * 60 * 1000); // Fri
+        await prisma.week.create({
+          data: {
+            tenantId: tenant.id,
+            subThemeId: subTheme.id,
+            number: weekCount + 1,
+            startDate: start,
+            endDate: end,
+            status: "ACTIVE",
+          },
+        });
+        weekCount++;
+      }
+    }
+  }
+  console.log(
+    `✅ Curriculum: 1 semester, ${themeCount} themes, ${subThemeCount} subthemes, ${weekCount} weeks`,
+  );
 
   // 7b-2. Programs
   const programDefs = [

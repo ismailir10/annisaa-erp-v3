@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-05-12 (cycle admission-lifecycle-simplification — seed status string changed REGISTERED → ADMITTED; adapter unchanged).
+// Last verified: 2026-05-12 (cycle curriculum-schema-and-admin — seed adds Semester/Theme/SubTheme/Week creation; adapter unchanged).
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
