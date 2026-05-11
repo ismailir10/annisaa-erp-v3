@@ -28,6 +28,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const parsed = updateAdmissionSchema.safeParse(await req.json());
   if (!parsed.success) {
+    // Log the rejection shape so Vercel runtime logs surface the actual reason
+    // (issues array, not just the 400 envelope). Bodies are not captured by
+    // default; this line is what makes 400s diagnosable without DevTools.
+    console.error(
+      `[admin-admissions PUT] validation failed id=${id}`,
+      JSON.stringify(parsed.error.issues),
+    );
     return NextResponse.json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
   }
   const body = parsed.data;
@@ -35,6 +42,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.status && body.status !== existing.status) {
     const allowed = VALID_TRANSITIONS[existing.status] ?? [];
     if (!allowed.includes(body.status)) {
+      console.error(
+        `[admin-admissions PUT] invalid transition id=${id} from=${existing.status} to=${body.status}`,
+      );
       return NextResponse.json(
         { error: `Invalid status transition from ${existing.status} to ${body.status}` },
         { status: 400 },
