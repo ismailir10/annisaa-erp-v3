@@ -207,7 +207,11 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
       (res) => res.url().includes("/api/admissions") && res.status() === 200,
     );
     const matchedRow = page.locator("tr", { hasText: MATCH_CHILD });
-    // Open the row actions menu and click Edit.
+    // Marathon-resilience: when many admissions exist (cycle 1.1 + retries
+    // can deepen the list past initial viewport) the row-action button is
+    // off-screen and Playwright's click auto-scroll occasionally times out
+    // on cold CI. Force scroll-into-view first, then click.
+    await matchedRow.scrollIntoViewIfNeeded();
     await matchedRow.getByRole("button", { name: /buka menu/i }).click();
     await page.getByRole("menuitem", { name: /edit/i }).click();
     // Banner inside the Sheet/Dialog body.
