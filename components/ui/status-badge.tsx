@@ -80,7 +80,6 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   VISIT_SCHEDULED: { label: "Kunjungan", className: "bg-status-late-subtle text-status-late-text" },
   VISITED: { label: "Sudah Kunjungan", className: "bg-status-holiday-subtle text-status-holiday-text" },
   ADMITTED: { label: "Diterima", className: "bg-status-present-subtle text-status-present-text" },
-  REGISTERED: { label: "Terdaftar", className: "bg-primary/10 text-primary" },
   ENROLLED: { label: "Terdaftar di Kelas", className: "bg-status-present-subtle text-status-present-text" },
   GRADUATED: { label: "Lulus", className: "bg-status-holiday-subtle text-status-holiday-text" },
   WITHDRAWN: { label: "Keluar", className: "bg-muted text-muted-foreground" },
@@ -150,7 +149,6 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   // Verified milestones
   VISITED: BadgeCheck,
   ADMITTED: BadgeCheck,
-  REGISTERED: BadgeCheck,
   GRADUATED: BadgeCheck,
   SLIPS_SENT: BadgeCheck,
   EXPORTED: BadgeCheck,

@@ -5,14 +5,16 @@ import { updateAdmissionSchema } from "@/lib/validations/admission";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Allowed status transitions for the Admission state machine.
-// Terminal states (REGISTERED, CANCELLED) have no outgoing transitions.
+// Terminal state CANCELLED has no outgoing transitions. ADMITTED is terminal
+// in the next-action surface (no NEXT_STATUS entry) but retains the ADMITTED
+// → CANCELLED escape hatch; "converted vs not" is encoded by `studentId`
+// (cycle 2026-05-12 — REGISTERED state dropped, see docs/cycles/2026-05-12-admission-lifecycle-simplification.md).
 // Kept in sync with the ⋮ menu on /admin/admissions.
 const VALID_TRANSITIONS: Record<string, string[]> = {
   INQUIRY: ["VISIT_SCHEDULED", "CANCELLED"],
   VISIT_SCHEDULED: ["VISITED", "CANCELLED"],
   VISITED: ["ADMITTED", "CANCELLED"],
-  ADMITTED: ["REGISTERED", "CANCELLED"],
-  REGISTERED: [],
+  ADMITTED: ["CANCELLED"],
   CANCELLED: [],
 };
 

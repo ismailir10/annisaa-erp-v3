@@ -566,7 +566,7 @@ model Admission {
   programId        String? // Program of interest
   campusPreference String? // Campus ID
   source           String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER
-  status           String   @default("INQUIRY") // INQUIRY | VISIT_SCHEDULED | VISITED | ADMITTED | REGISTERED | CANCELLED
+  status           String   @default("INQUIRY") // INQUIRY | VISIT_SCHEDULED | VISITED | ADMITTED | CANCELLED — "converted" encoded by studentId IS NOT NULL (cycle 2026-05-12 dropped REGISTERED)
   notes            String?
   followUpDate     String? // YYYY-MM-DD
   studentId        String?  @unique // Linked when converted to student

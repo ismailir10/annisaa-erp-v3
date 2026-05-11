@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -123,16 +124,19 @@ const SOURCE_LABELS: Record<string, string> = {
 
 // Happy-path transitions for the Admission state machine.
 // Mirrors VALID_TRANSITIONS in `app/api/admissions/[id]/route.ts`.
-// Terminal states (REGISTERED, CANCELLED) have no next step.
+// Terminal state CANCELLED has no next step. ADMITTED is terminal in the
+// next-action surface (no entry below) but retains ADMITTED → CANCELLED via
+// VALID_TRANSITIONS. ADMITTED-with-studentId hides via the row-action
+// early-return (see actions column cell). Cycle 2026-05-12 dropped REGISTERED
+// — converted vs not is encoded by `studentId`.
 const NEXT_STATUS: Record<string, { status: string; label: string } | undefined> = {
   INQUIRY: { status: "VISIT_SCHEDULED", label: "Jadwalkan Kunjungan" },
   VISIT_SCHEDULED: { status: "VISITED", label: "Tandai Sudah Kunjungan" },
   VISITED: { status: "ADMITTED", label: "Terima" },
-  ADMITTED: { status: "REGISTERED", label: "Daftarkan" },
 };
 
 // Terminal states — hide "Batalkan" when already at one of these.
-const TERMINAL_STATUSES = new Set(["REGISTERED", "CANCELLED"]);
+const TERMINAL_STATUSES = new Set(["CANCELLED"]);
 
 // ------------------------------------------------------------------
 // Form body (shared between Dialog on desktop and Sheet on mobile)
@@ -381,19 +385,17 @@ export default function AdmissionsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [stats, setStats] = useState({ total: 0, inquiry: 0, admitted: 0, registered: 0 });
+  const [stats, setStats] = useState({ total: 0, inquiry: 0, admitted: 0 });
 
   // Stats fetch once
   useEffect(() => {
     Promise.all([
       fetch("/api/admissions?pageSize=1&status=INQUIRY").then(r => r.json()),
       fetch("/api/admissions?pageSize=1&status=ADMITTED").then(r => r.json()),
-      fetch("/api/admissions?pageSize=1&status=REGISTERED").then(r => r.json()),
-    ]).then(([inquiry, admitted, registered]) => {
+    ]).then(([inquiry, admitted]) => {
       const i = inquiry.pagination?.total ?? 0;
       const a = admitted.pagination?.total ?? 0;
-      const r = registered.pagination?.total ?? 0;
-      setStats({ total: i + a + r, inquiry: i, admitted: a, registered: r });
+      setStats({ total: i + a, inquiry: i, admitted: a });
     }).catch((err) => console.error("[admissions] stats fetch failed", err));
   }, []);
 
@@ -636,7 +638,13 @@ export default function AdmissionsPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Status" />
       ),
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => {
+        const a = row.original;
+        if (a.status === "ADMITTED" && a.studentId) {
+          return <Badge variant="secondary" className="bg-primary/10 text-primary">Terdaftar</Badge>;
+        }
+        return <StatusBadge status={a.status} />;
+      },
     },
     {
       id: "sibling",
@@ -741,7 +749,6 @@ export default function AdmissionsPage() {
         <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Inquiry" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
         <StatCard label="Diterima" value={stats.admitted} icon={CheckCircle} color="success" index={2} />
-        <StatCard label="Terdaftar" value={stats.registered} icon={UserPlus} color="primary" index={3} />
       </StatsCardsRow>
 
       <DataTableToolbar
@@ -762,7 +769,6 @@ export default function AdmissionsPage() {
               { value: "VISIT_SCHEDULED", label: "Kunjungan" },
               { value: "VISITED", label: "Sudah Kunjungan" },
               { value: "ADMITTED", label: "Diterima" },
-              { value: "REGISTERED", label: "Terdaftar" },
               { value: "CANCELLED", label: "Dibatalkan" },
             ],
           },

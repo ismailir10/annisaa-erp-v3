@@ -99,7 +99,7 @@ The v1 Admission table ships with a 6-state status vocabulary: `INQUIRY | VISIT_
 
 - [ ] **AC5. Admin list page trimmed.**
   - `NEXT_STATUS` map [page.tsx:85-90](../../app/admin/admissions/page.tsx) drops the `ADMITTED: { status: "REGISTERED", label: "Daftarkan" }` entry. ADMITTED becomes terminal in the next-action button surface.
-  - `TERMINAL_STATUSES` [page.tsx:93](../../app/admin/admissions/page.tsx) becomes `new Set(["ADMITTED", "CANCELLED"])`. "Batalkan" button hides on ADMITTED rows (admin uses the convert-to-student button instead, which gates on `!admission.studentId`).
+  - `TERMINAL_STATUSES` [page.tsx:93](../../app/admin/admissions/page.tsx) becomes `new Set(["CANCELLED"])`. **ADMITTED is NOT added to TERMINAL** — `VALID_TRANSITIONS[ADMITTED]=["CANCELLED"]` (AC3) keeps ADMITTED→CANCELLED live, so "Batalkan" must stay available on ADMITTED rows. The existing L603 early-return (`if (a.studentId) return "Sudah jadi siswa"`) hides the actions menu on converted rows; ADMITTED-without-studentId retains both "Konversi ke Siswa" + "Batalkan". Adding ADMITTED to TERMINAL would also hide "Konversi ke Siswa" at L615, breaking the convert flow's UI entry-point. Comment on L84 updates to `// Terminal states (CANCELLED) have no next step. ADMITTED-with-studentId hides via the row-action early-return.`
   - Dashboard `stats` useState shape [page.tsx:342](../../app/admin/admissions/page.tsx) trims the `registered: 0` key — becomes `useState({ total: 0, inquiry: 0, admitted: 0 })`. Fetcher [page.tsx:346-354](../../app/admin/admissions/page.tsx) drops the third `fetch(...?status=REGISTERED)` Promise.all entry; destructure becomes `([inquiry, admitted])`; `r` constant removed; `total: i + a + r` recomputes as `total: i + a`; `setStats` body drops the `registered: r` field. **StatCard tile at [page.tsx:660](../../app/admin/admissions/page.tsx) (`<StatCard label="Terdaftar" value={stats.registered} icon={UserPlus} … />`) is REMOVED** — dashboard renders 3 tiles (Total Calon / Inquiry / Diterima) instead of 4. `UserPlus` import at L34 STAYS (still consumed by the row-action icon at L618 — verified).
   - Filter chip options [page.tsx:677-683](../../app/admin/admissions/page.tsx) drops the `{ value: "REGISTERED", label: "Terdaftar" }` entry. Filter retains 5 + `all`.
   - Display label: rows with `status === "ADMITTED" && studentId` render the badge label as "Terdaftar" (post-convert) instead of "Diterima" — derived at render time via the existing `studentId` field on the admission row; no schema or query change. Falls back to "Diterima" when `studentId` is null. Render-time derivation lives in `app/admin/admissions/page.tsx` table cell, NOT inside `<StatusBadge>` (component stays domain-agnostic).
@@ -160,6 +160,34 @@ Cycle 1.2 commit cadence: per-task `chore(lifecycle):`/`docs(lifecycle):` + sing
   - Post-state: 56 INQUIRY / 4 VS / 2 V / **1 ADMITTED** (id=`cmoz7j4ip01y218x741g2tzs6`, `childName="Ahmad Zafran Hidayat"`, `studentId="cmoz7hs2500d318x7l7bmwyvi"` — preserved) / 0 REGISTERED / 0 CANCELLED.
 - `studentId` FK preserved on the backfilled row → "converted" signal travels intact.
 - Migration registered in `_prisma_migrations` table; idempotent re-apply is a no-op (WHERE clause matches 0 rows on post-backfill DB).
+
+### T2 — Atomic code cleanup
+
+- `lib/validations/admission.ts` (L36): zod enum drops `"REGISTERED"`. Now `["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED", "CANCELLED"]`.
+- `app/api/admissions/[id]/route.ts` (L8-16): `VALID_TRANSITIONS` trims `ADMITTED: ["REGISTERED", "CANCELLED"]` → `ADMITTED: ["CANCELLED"]`; `REGISTERED: []` row removed. Header comment rewritten to record the cycle + the rationale for keeping the `ADMITTED → CANCELLED` escape hatch.
+- `app/api/admissions/[id]/convert/route.ts` (L85): convert txn no longer writes `status: "REGISTERED"`; only `studentId: student.id`. Gate at L27 stays `status === "ADMITTED"`. Already-converted guard (L21-26, `admission.studentId` non-null) unchanged.
+- `app/admin/admissions/page.tsx`:
+  - L10 — adds `import { Badge } from "@/components/ui/badge";`.
+  - L82-93 — `NEXT_STATUS` map drops the `ADMITTED → REGISTERED` entry; comment block rewritten to explain ADMITTED's terminal-in-next-action behaviour. `TERMINAL_STATUSES` becomes `new Set(["CANCELLED"])` (NOT `["ADMITTED", "CANCELLED"]` as initial AC5 draft suggested — ADMITTED retains the `Batalkan` button via `VALID_TRANSITIONS[ADMITTED]=["CANCELLED"]`, and the `Konversi ke Siswa` button at L615 must stay reachable for ADMITTED rows).
+  - L342 — `stats` useState shape drops `registered: 0`.
+  - L346-353 — fetcher drops the third `Promise.all` entry (`status=REGISTERED`); destructure becomes `[inquiry, admitted]`; `total: i + a`; `setStats({ total, inquiry, admitted })`.
+  - L597-603 — status column cell wraps `<StatusBadge>` in a render-time check: when `status === "ADMITTED" && studentId` non-null, render an inline `<Badge variant="secondary" className="bg-primary/10 text-primary">Terdaftar</Badge>` (preserves the visual identity of the dropped REGISTERED chip); otherwise delegate to `<StatusBadge status={a.status} />`.
+  - Old L660 — `<StatCard label="Terdaftar" value={stats.registered} icon={UserPlus} … />` deleted. Dashboard now renders 3 tiles. `UserPlus` import at L34 stays (still used at the row-action icon).
+  - Old L681 — filter chip option `{ value: "REGISTERED", label: "Terdaftar" }` deleted. Filter retains 5 status + `all`.
+- `components/ui/status-badge.tsx`:
+  - L83 — `REGISTERED: { label: "Terdaftar", className: "bg-primary/10 text-primary" }` row deleted from `STATUS_MAP`.
+  - L153 — `REGISTERED: BadgeCheck` row deleted from `STATUS_ICON_MAP`.
+  - `STATUS_LEFT_BORDER_MAP` had no REGISTERED entry pre-cycle — confirmed; no change.
+- `app/api/admin/seed/route.ts` (L307): the `"Gibran Alfarizi"` seed row's `status` becomes `"ADMITTED"` (no `studentId` set — the API seed-route does not couple to the student-create loop; this row demonstrates the "ADMITTED + studentId=null" shape).
+- `prisma/seed.ts`:
+  - L1130 — comment updates to `INQUIRY + ADMITTED linked to converted student`.
+  - L1160 — `status: "REGISTERED"` becomes `status: "ADMITTED"` (`studentId: convertedStudent.id` already set; preserved).
+  - L1165 — log line updates: `"1 INQUIRY + 1 ADMITTED (converted)"`.
+- `prisma/schema.prisma` (L568): comment annotation on `Admission.status` updates to the new 5-state vocab + records that "converted" is encoded by `studentId IS NOT NULL`.
+- `e2e/admin.spec.ts` (L314-320): illegal-jump target swaps `"REGISTERED"` → `"ADMITTED"`. Comment at L314 updates to explain why the swap preserves the same error path (zod accepts ADMITTED; `VALID_TRANSITIONS["VISIT_SCHEDULED"]` rejects it). Assertion at L320 (`/Invalid status transition/i`) unchanged.
+- `README.md`: ADR row added at L68 (date-descending order); both cells well under 400-char pre-commit limit.
+
+**Design-system cross-check:** verified `.claude/standards/design-system.html` admission status-chip palette — removing REGISTERED preserves all five remaining chips (INQUIRY=info-blue, VISIT_SCHEDULED=warn-amber, VISITED=neutral-holiday, ADMITTED=present-green, CANCELLED=muted). No new color tokens introduced. The render-time "Terdaftar" badge reuses the existing `bg-primary/10 text-primary` token (the same one the deleted `STATUS_MAP[REGISTERED]` entry held), so the visual identity is conserved.
 
 ## Verification
 
