@@ -76,6 +76,7 @@ Cycle ships as `chore:`/`docs:` (no `app/**` or `lib/**` runtime code touched).
 - `npm run build` green.
 - Playwright not run (no UI surface affected).
 - Post-revert `npm run typecheck` surfaced one staging-baseline regression — `lib/admission/submit-validation.test.ts:41` carried an unused `@ts-expect-error` directive (TS2578). Hidden until the public-repo flip restored CI billing and re-ran typecheck on PRs #241 / #245 / #246, all of which failed against the same baseline. Fixed in this PR; #241 + #245 inherit the fix via rebase post-merge.
+- Post-typecheck CI re-run also surfaced one ESLint `prefer-const` error at `lib/admission/age.ts:44` (`let days` never reassigned). Same baseline-regression class as the typecheck issue; fixed in this PR alongside the TS2578 directive.
 
 ## Ship Notes
 
