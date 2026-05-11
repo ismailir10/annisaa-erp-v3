@@ -1,21 +1,35 @@
 import { z } from "zod";
+import { optionalTrimmed } from "./zod-helpers";
 
+/**
+ * Admin-side create/update schemas for Admission rows.
+ *
+ * Every optional string field uses `optionalTrimmed` so an empty-string
+ * payload from an unfilled HTML input (e.g. `parentEmail: ""`) is coerced
+ * to `undefined` before the inner validator runs. Without this, `.email()`
+ * on `""` returns "Email tidak valid" and admin edits 400 — see
+ * `docs/cycles/2026-05-11-admin-admissions-empty-string-fix.md`.
+ *
+ * `childAge` is NOT exposed here — it is auto-derived from `dateOfBirth`
+ * via `lib/admission/age.ts:formatAgeFromDob` at display time. The schema
+ * column stays in `prisma/schema.prisma` for backward compatibility with
+ * legacy rows, but new writes never set it.
+ */
 export const createAdmissionSchema = z.object({
   childName: z.string().min(1, "Nama anak wajib diisi"),
-  childAge: z.string().optional().nullable(),
   childGender: z.enum(["L", "P"]).optional().nullable(),
-  dateOfBirth: z.string().optional().nullable(),
+  dateOfBirth: optionalTrimmed(z.string()),
   parentName: z.string().min(1, "Nama orang tua wajib diisi"),
-  parentPhone: z.string().optional().nullable(),
-  parentEmail: z.string().email("Email tidak valid").optional().nullable(),
-  parentWhatsapp: z.string().optional().nullable(),
-  parentEducation: z.string().optional().nullable(),
-  parentOccupation: z.string().optional().nullable(),
-  parentIncome: z.string().optional().nullable(),
-  programId: z.string().optional().nullable(),
+  parentPhone: optionalTrimmed(z.string()),
+  parentEmail: optionalTrimmed(z.string().email("Email tidak valid")),
+  parentWhatsapp: optionalTrimmed(z.string()),
+  parentEducation: optionalTrimmed(z.string()),
+  parentOccupation: optionalTrimmed(z.string()),
+  parentIncome: optionalTrimmed(z.string()),
+  programId: optionalTrimmed(z.string()),
   source: z.enum(["WHATSAPP", "WALK_IN", "WEBSITE", "REFERRAL", "OTHER"]).default("WALK_IN"),
-  notes: z.string().optional().nullable(),
-  followUpDate: z.string().optional().nullable(),
+  notes: optionalTrimmed(z.string()),
+  followUpDate: optionalTrimmed(z.string()),
 });
 
 export const updateAdmissionSchema = createAdmissionSchema.partial().extend({
