@@ -35,5 +35,5 @@ export const createAdmissionSchema = z.object({
 });
 
 export const updateAdmissionSchema = createAdmissionSchema.partial().extend({
-  status: z.enum(["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED", "REGISTERED", "CANCELLED"]).optional(),
+  status: z.enum(["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED", "CANCELLED"]).optional(),
 });

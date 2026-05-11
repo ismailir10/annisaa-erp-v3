@@ -1127,7 +1127,9 @@ async function main() {
   }
   console.log(`✅ Invoices: ${invoiceCount} (paid/partial/overdue/sent/xendit) + ${paymentCount} payments`);
 
-  // 11e. ADMISSIONS — INQUIRY + REGISTERED linked to converted student.
+  // 11e. ADMISSIONS — INQUIRY + ADMITTED linked to converted student (studentId
+  // is the "converted" signal; status stays ADMITTED post-conversion per cycle
+  // 2026-05-12 — REGISTERED state dropped).
   const convertedStudent = studentsAll.find((s) => s.status === "ACTIVE");
   await prisma.admission.create({
     data: {
@@ -1157,12 +1159,12 @@ async function main() {
         parentPhone: "081200000002",
         programId: programMap["TKIT"],
         source: "WALK_IN",
-        status: "REGISTERED",
+        status: "ADMITTED",
         studentId: convertedStudent.id,
       },
     });
   }
-  console.log(`✅ Admissions: 1 INQUIRY + 1 REGISTERED`);
+  console.log(`✅ Admissions: 1 INQUIRY + 1 ADMITTED (converted)`);
 
   // 11f. LEAVE REQUESTS — 3 statuses across 3 employees.
   const empForLeave = Object.values(employeeIds).slice(0, 3);

@@ -82,7 +82,7 @@ export async function POST(
 
     await tx.admission.update({
       where: { id },
-      data: { studentId: student.id, status: "REGISTERED" },
+      data: { studentId: student.id },
     });
 
     return { student };

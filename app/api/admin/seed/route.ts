@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
     { childName: "Lina Maharani", childAge: "5 tahun", childGender: "P", parentName: "Dewi Maharani", parentPhone: "081234500007", source: "REFERRAL", status: "VISITED", programCode: "TKIT" },
     { childName: "Farel Putra", childAge: "3 tahun", childGender: "L", parentName: "Andi Putra", parentPhone: "081234500008", source: "WALK_IN", status: "ADMITTED", programCode: "KB" },
     { childName: "Salsabila Aulia", childAge: "5 tahun", childGender: "P", parentName: "Yuni Aulia", parentPhone: "081234500009", source: "WHATSAPP", status: "ADMITTED", programCode: "TKIT" },
-    { childName: "Gibran Alfarizi", childAge: "4 tahun", childGender: "L", parentName: "Tono Alfarizi", parentPhone: "081234500010", source: "WEBSITE", status: "REGISTERED", programCode: "KB" },
+    { childName: "Gibran Alfarizi", childAge: "4 tahun", childGender: "L", parentName: "Tono Alfarizi", parentPhone: "081234500010", source: "WEBSITE", status: "ADMITTED", programCode: "KB" },
     { childName: "Maya Safitri", childAge: "3 tahun", childGender: "P", parentName: "Eko Safitri", parentPhone: "081234500011", source: "WALK_IN", status: "CANCELLED", programCode: "DCARE" },
   ] as const;
 

@@ -311,9 +311,12 @@ test.describe("Admin flows", () => {
     const advanced = await advance.json();
     expect(advanced.status).toBe("VISIT_SCHEDULED");
 
-    // Negative: VISIT_SCHEDULED → REGISTERED skips states and must return 400
+    // Negative: VISIT_SCHEDULED → ADMITTED skips the VISITED step and must return 400.
+    // (Post-cycle-2026-05-12 the REGISTERED state was dropped; ADMITTED is still a
+    // valid enum value but is not in VALID_TRANSITIONS["VISIT_SCHEDULED"], so the
+    // server's transition gate rejects with the same "Invalid status transition" error.)
     const skip = await page.request.put(`/api/admissions/${target.id}`, {
-      data: { status: "REGISTERED" },
+      data: { status: "ADMITTED" },
     });
     expect(skip.status()).toBe(400);
     const skipJson = await skip.json();
