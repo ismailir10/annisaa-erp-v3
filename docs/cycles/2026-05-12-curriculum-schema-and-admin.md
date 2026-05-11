@@ -102,8 +102,41 @@ Tasks are ordered. Dependency arrows (`→`) indicate hard ordering; **parallel*
 - Task 5: gates passed (`npm run build` clean, `npx vitest run` → 142 files, 1207 tests, +14 from T8). `scripts/verify-api-auth.sh` → "143 / 143 routes have session helper or @public sentinel". Dual review (feature-dev + superpowers security): 5 issues raised, all addressed; defense-in-depth note (tenantId on `update` where clause) deferred as not-exploitable today — recorded as a follow-up in Ship Notes for a separate hardening cycle.
 - Task 6: gates passed (`npm run build` clean, `npx vitest run` unchanged — page is new, no unit-test surface beyond the existing route tests; Playwright spec lives in T7). Reviewer round 1 surfaced 3 issues; all addressed in-task. Frontend gate satisfied (cycle doc carries the `design-system` token, see T6 Implementation bullet).
 - Task 7: gates passed (`npm run build` clean, `npx vitest run` unchanged from T5, `npx playwright test e2e/curriculum-admin.spec.ts` → 3/3 green). Reviewer round 1 caught Playwright test 3 hardcoding seed strings + dates → switched to API discovery; `useList` had loose dep typing → narrowed to `DependencyList` with explicit contract comment; drive-by migration/seed fixes were extracted into a separate `fix:` commit before this feat commit per repo discipline.
+- End-of-cycle full Playwright pass: 95/103 tests green, 4 pre-existing failures + 1 flaky, none touched by this cycle. Verified independently:
+  - Failing: 4 cases in `e2e/admin.spec.ts:476/527/578/631` (Admin tagihan Xendit-fallback flows). `git diff origin/staging...HEAD e2e/admin.spec.ts` is empty — this cycle did not touch the spec. All four assert on `paymentLinkError` state that requires a specific demo DB state; CI re-creates that state via `prisma db push --force-reset` + `prisma db seed`, local staging DB has drifted from that baseline.
+  - Flaky: `e2e/sibling-detect.spec.ts:66` recovered on retry (CI retries=1 absorbs this).
+  - Curriculum cycle's own three Playwright cases pass cleanly on both first attempt and a verifying re-run.
 - Drive-by fix (separate commit, type `fix:` per reviewer Q5/Q6): stripped the accidental Prisma CLI banner from `prisma/migrations/20260512100000_add_curriculum_models/migration.sql` (would have broken `prisma migrate deploy` against an empty DB) and added `invoiceNumberSequence`, `auditLog`, `webhookEvent` to the seed's deleteMany sweep so re-seeding a non-empty DB does not hit `InvoiceNumberSequence_tenantId_fkey` P2003. CI's `db push --force-reset` masked both bugs.
 - Task 7: Themes/SubThemes/Weeks page — `app/admin/curriculum/semesters/[id]/themes/page.tsx` (server `assertPermission("curriculum.read")`, Prisma fetch of Semester for the page-header context) + `app/admin/curriculum/semesters/[id]/themes/client.tsx` (3-column grid with `ThemeCard`, `SubThemeCard`, `WeekCard`; shared `useList` hook with strict `DependencyList` typing per reviewer; Week dialog surfaces 409 overlap inline via `conflictingWeekId` from the API; status flip via `DeactivateConfirmDialog` / `ConfirmDialog`). Cross-checked against `.claude/standards/design-system.html` §Card + §Dialog + §ConfirmDialog. Playwright spec `e2e/curriculum-admin.spec.ts` covers the list+sidebar, full Theme→SubTheme→Week create chain, and week-overlap 409 (test 3 discovers seed names + dates via API per reviewer to defeat seed-name drift).
 
 ## Ship Notes
-<!-- /ship fills this — Prisma migration name, RLS policy file, env var changes (none expected), seed re-run instructions, rollback plan -->
+
+**Migrations**
+
+- One new Prisma migration: `prisma/migrations/20260512100000_add_curriculum_models/migration.sql`. Creates 7 tables (`Semester`, `Theme`, `SubTheme`, `Week`, `LearningObjective`, `AchievementIndicator`, `IndicatorThemeLink`) + 3 enums (`CurriculumElement`, `AgeGroup`, `AchievementLevel`) + 13 FKs + 14 indexes + 5 composite unique constraints + ENABLE RLS + service-role policy on 6 tenant-scoped tables. Migration prefix `100000` avoids the 2026-04-24 `YYYYMMDD000000` collision ADR (today's `000000` slot is `admission_drop_registered`).
+- Pre-deploy: nothing manual. `prisma migrate deploy` runs in `scripts/vercel-build.sh`.
+- Post-deploy on staging: run `npx prisma db seed` to materialise the demo Semester / 2 Themes / 4 SubThemes / 8 Weeks (idempotent via the wipe-and-rebuild block in `prisma/seed.ts`).
+
+**Env vars** — none. `curriculum.read` + `curriculum.write` are runtime constants in `lib/permissions.ts`; the legacy role mapper grants them automatically per design doc §3.2.
+
+**Smoke-test on preview**
+1. Open `/admin/curriculum/semesters` as SUPER_ADMIN — expect the seeded `2025/2026 · Semester 1` row + 3 stat cards (active / total / themes).
+2. Click "Kelola tema" → `/admin/curriculum/semesters/[id]/themes` — three cards render with seeded `Saya Anak Sehat` + `Lingkunganku` themes; selecting a theme reveals 2 subthemes; selecting a subtheme reveals 2 Mon-Fri weeks.
+3. Sidebar entry "Kurikulum → Semester" appears for SUPER_ADMIN + SCHOOL_ADMIN + TEACHER; hidden for GUARDIAN.
+4. Tambah Semester / Theme / SubTheme / Week dialogs all succeed against demo data; Week dialog rejects an overlapping range inline with the message "Pekan bertumpang tindih dengan pekan lain pada subtema ini."
+5. As `school-admin@demo.local` (SCHOOL_ADMIN) — table renders but no Tambah / Edit / Deactivate affordances; the row action menu still surfaces "Lihat" (onView).
+
+**Rollback**
+- Schema rollback: revert the merge commit. The migration `down` is not generated by Prisma; if a hot rollback is needed, run the inverse SQL manually:
+  ```sql
+  DROP TABLE "IndicatorThemeLink", "AchievementIndicator", "LearningObjective", "Week", "SubTheme", "Theme", "Semester" CASCADE;
+  DROP TYPE "AchievementLevel", "AgeGroup", "CurriculumElement";
+  ```
+  No data depends on these tables in production yet (cycle introduces them); zero-row drop is safe.
+- App rollback: removing `app/admin/curriculum/**`, `app/api/admin/curriculum/**`, and the `curriculum` group in `config/admin-nav.ts` reverts the surface. `lib/permissions.ts` curriculum codes are safe to leave in place (no enforcement reads from custom-role JSON arrays that would dangle).
+
+**Known follow-ups (not blockers)**
+- Tenant-on-`update` defense-in-depth: every PUT runs `findFirst({ id, tenantId })` first then `update({ where: { id } })`. Reviewer flagged this as a TOCTOU gap; not exploitable today (the read screens the row), but a future cycle should convert to `updateMany({ where: { id, tenantId } })` with `count === 1` assertion for belt-and-suspenders.
+- C4 walas predicate: `TeachingAssignment.role === "HOMEROOM"` is the predicate Pekanan UI will route on. No new `isHomeroom` boolean introduced — string-role is sufficient.
+- Design doc §4 line 163 footnote ("soft-delete via `deletedAt`") drifts from repo standard (`status` per `.claude/standards/crud.md`). Out of scope for this cycle; a doc-fix cycle should land before C2.
+- Pre-existing Xendit-stub Playwright failures in `e2e/admin.spec.ts` (4 cases) reproduced locally; require a clean `db push --force-reset` baseline that CI provides.
