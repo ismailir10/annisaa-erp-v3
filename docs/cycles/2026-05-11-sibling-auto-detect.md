@@ -355,6 +355,23 @@ Cross-checked `.claude/standards/design-system.html` admin-list-row pattern (Bad
 
 Files changed (2): `app/api/admissions/route.ts` (modified), `app/admin/admissions/page.tsx` (modified). No new dependencies.
 
+### Task 5 — `e2e/sibling-detect.spec.ts`
+
+`e2e/sibling-detect.spec.ts` (NEW, 192 lines): four Playwright tests under `Phase 1.2 — Sibling auto-detect`. Configured `serial` mode so the `beforeAll` POST-inserted MATCH/NO-MATCH rows are available to the admin tests in order. Uses the same `school-erp-session=u_super_admin` demo cookie pattern as `e2e/admin.spec.ts`. Match target = seeded Parent `Siti Nurhaliza Hidayat` (phone `08129876543`); applicant input `"+62 812-9876-543"` exercises the +62→0 normalisation through the route + detect + persist pipeline.
+
+1. **`applicant-facing /daftar UX unchanged when match exists`** — clears cookies; drives the three-step /daftar form with the matching phone; asserts 201 + response shape is exactly `{ id }` (no extra keys echoed); asserts the confirmation page text contains neither "saudara" nor "sibling" (case-insensitive). Confirms plan §7 q6 admin-only invariant from the applicant's perspective.
+2. **`admin sees chip on matched row + dash on unmatched row`** — admin cookie; navigates `/admin/admissions`; waits for `/api/admissions` 200; asserts the matched row carries `[data-testid="admission-row-sibling-chip"]` while the unmatched row's chip count is 0.
+3. **`hover chip reveals matched parent name + at least one student`** — hovers the chip; asserts the matched parent's name renders in the HoverCard popover content.
+4. **`edit-sheet banner renders matched parent context`** — opens the row's actions menu, clicks Edit, asserts `[data-testid="admission-edit-sibling-banner"]` is visible and contains the matched parent's name.
+
+Two implementation gotchas caught and resolved during this task:
+- `page.locator("text=Pendaftaran")` triggered strict-mode locator collision (sidebar nav link + breadcrumb + h1) — replaced with `page.getByRole("heading", { name: "Pendaftaran" })`.
+- The admin page is a fully client component; the `tr.hasText(MATCH_CHILD)` lookup races the data-table hydration on the initial load — added an explicit `page.waitForResponse(/api/admissions ... 200)` before the row search to anchor on the data fetch instead of the initial HTML response.
+
+Verification — `npx playwright test e2e/sibling-detect.spec.ts` → 4/4 passed in 9.6s on Chromium, single worker, against `DEMO_MODE=true npm run start`. Build-cache caveat applied (`pkill -f "next-server"; sleep 2; DEMO_MODE=true npm run start &` before each rerun when source changed).
+
+Files changed (1): `e2e/sibling-detect.spec.ts` (new). No new dependencies.
+
 ## Verification
 
 _Filled at end-of-cycle: AC-by-AC checkmarks, end-of-cycle gate output (npm run build + npx vitest run + npx playwright test), manual smoke (curl + browser), carry-over caveats. Matches cycle 1.1 + 0.3 shape._
