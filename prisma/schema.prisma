@@ -107,15 +107,15 @@ model Campus {
 // Per-tenant working hours / payroll-period config is operationally
 // load-bearing; admin must explicitly remove it before deleting the tenant.
 model OrgConfig {
-  id                    String @id @default(cuid())
-  tenantId              String @unique
+  id                    String  @id @default(cuid())
+  tenantId              String  @unique
   workingDays           String
-  workStartTime         String @default("07:00")
-  workEndTime           String @default("16:00")
-  gracePeriodMinutes    Int    @default(15)
-  timezone              String @default("Asia/Jakarta")
-  payrollPeriodStartDay Int    @default(21)
-  payrollPeriodEndDay   Int    @default(20)
+  workStartTime         String  @default("07:00")
+  workEndTime           String  @default("16:00")
+  gracePeriodMinutes    Int     @default(15)
+  timezone              String  @default("Asia/Jakarta")
+  payrollPeriodStartDay Int     @default(21)
+  payrollPeriodEndDay   Int     @default(20)
   // F-14: When true, overtime (lembur) calculation follows UU 13/2003 §78(4)
   // tiered rates (1.5× first hour, 2× thereafter). Defaults false to preserve
   // the historical flat per-hour calculation until tenants explicitly opt in.
@@ -455,6 +455,19 @@ model Student {
   kkNumber   String? // No. Kartu Keluarga
   livingWith String? // ORANG_TUA | WALI | LAINNYA
 
+  // Structured residence address (Section 3.5 of spec)
+  // Legacy `address` field kept for backward-compat backfill.
+  // No @default — picker initial state in app layer per reviewer m3.
+  addressLine         String?
+  addressVillageCode  String?
+  addressVillageName  String?
+  addressDistrictCode String?
+  addressDistrictName String?
+  addressRegencyCode  String?
+  addressRegencyName  String?
+  addressProvinceCode String?
+  addressProvinceName String?
+
   // Lifecycle tracking
   withdrawalReason String?
   withdrawalDate   String? // YYYY-MM-DD
@@ -494,6 +507,32 @@ model Parent {
   employerCity    String? // Kota/Kab
   incomeRange     String? // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
   childrenTotal   Int? // Total anak (including non-students at this school)
+
+  // Structured home address (prefix `home`)
+  homeAddressLine  String?
+  homeVillageCode  String?
+  homeVillageName  String?
+  homeDistrictCode String?
+  homeDistrictName String?
+  homeRegencyCode  String?
+  homeRegencyName  String?
+  homeProvinceCode String?
+  homeProvinceName String?
+
+  // Structured employer address (prefix `employer`)
+  employerAddressLine  String?
+  employerVillageCode  String?
+  employerVillageName  String?
+  employerDistrictCode String?
+  employerDistrictName String?
+  employerRegencyCode  String?
+  employerRegencyName  String?
+  employerProvinceCode String?
+  employerProvinceName String?
+
+  // Parent portal invite tracking (Section 2.8 of spec)
+  portalInviteSentAt DateTime?
+  portalInviteSentBy String?
 
   tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   guardians StudentGuardian[]
