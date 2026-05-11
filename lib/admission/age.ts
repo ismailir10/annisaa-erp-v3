@@ -41,7 +41,7 @@ export function formatAgeFromDob(
 
   let years = today.getUTCFullYear() - birth.getUTCFullYear();
   let months = today.getUTCMonth() - birth.getUTCMonth();
-  let days = today.getUTCDate() - birth.getUTCDate();
+  const days = today.getUTCDate() - birth.getUTCDate();
 
   if (days < 0) months -= 1;
   if (months < 0) {

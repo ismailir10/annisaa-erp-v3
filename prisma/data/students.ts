@@ -1,3 +1,11 @@
+// Synthetic demo dataset. Every name, date of birth, address, phone number,
+// and guardian record below is fabricated for demo and E2E purposes. No real
+// student or family appears in this file. Real records are kept locally and
+// NEVER committed to this repo. See CONTRIBUTING / README for how to use a
+// real dataset in a private deployment.
+//
+// Shape mirrors the production dataset so seed.ts works unchanged.
+
 type Student = {
   name: string;
   nickname: string;

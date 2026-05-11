@@ -1,3 +1,4 @@
+// @public — intentionally unauthenticated public admission entry; rate-limited (5/min/IP).
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";

@@ -38,7 +38,6 @@ describe("submitAdmissionSchema", () => {
   });
 
   it("rejects missing dateOfBirth", () => {
-    // @ts-expect-error — testing missing required field at runtime
     const result = submitAdmissionSchema.safeParse({ ...VALID, dateOfBirth: undefined });
     expect(result.success).toBe(false);
   });
