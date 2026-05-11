@@ -284,6 +284,24 @@ Verification — `npx prisma validate` reports "The schema at prisma/schema.pris
 
 Files changed (3): `prisma/schema.prisma` (modified), `prisma/migrations/20260511000000_admission_detected_parent/migration.sql` (new), `prisma/migrations/20260511000000_admission_detected_parent/` (new dir). No new dependencies.
 
+### Task 2 — `lib/admission/sibling-detect.ts` + vitest
+
+`lib/admission/sibling-detect.ts` (NEW, 83 lines): exports `detectSibling({ tenantId, parentEmail, parentPhone }, prisma): Promise<{ parentId, matchReason: "email" | "phone" } | null>` + the `normalisePhone(s): string` helper (exported for vitest unit coverage in isolation) + `DetectSiblingInput` / `DetectSiblingResult` / `MatchReason` types. Implementation matches AC2 verbatim:
+
+1. Email path (precedence first): if `parentEmail` is set, normalise via `.trim().toLowerCase()`; query `prisma.parent.findFirst({ where: { tenantId, status: "ACTIVE", email: <normEmail> }, select: { id: true } })`. The schema's `@@unique([tenantId, email])` guarantees at most one row.
+2. Phone path (fallback): if `parentPhone` is set, normalise via `normalisePhone()` (strip non-digits via `/\D/g`; then `62`→`0` prefix swap when length ≥ 11); fetch the active phone-non-null parents via `findMany` with `orderBy: { createdAt: "asc" }` + select `id/phone/createdAt`; JS-side filter on `normalisePhone(stored) === normApplicant`; first hit wins.
+3. No match anywhere → `null`.
+
+The lib accepts a structurally-typed `ParentTable = Pick<PrismaClient, "parent">` shape so the test can swap a mock without needing the full Prisma client — the real route handler passes `prisma` from `@/lib/db` which satisfies the shape naturally.
+
+`lib/admission/sibling-detect.test.ts` (NEW, 207 lines): 13 cases total — 3 `normalisePhone` unit cases (+62 prefix strip + canonicalisation + bare 08xxx passthrough) and 10 `detectSibling` cases covering AC3 (a)–(j): no-match, email-only, phone-only, both-match-same, email>phone precedence, tenant scoping, phone normalisation E2E, email normalisation E2E, INACTIVE skipped, and the (j) tie-break case (two parents share a phone — older `createdAt` wins).
+
+The test uses an in-process mock `prisma` (`makeMockPrisma(parents: ParentRow[])`) matching the `ParentTable` shape — no real DB hits, follows the existing repo convention (`lib/__tests__/parent-helpers-tz.test.ts` precedent). Cycle doc AC3's "transactional vitest fixture" phrasing maps to the in-repo mock-prisma pattern; real-DB validation lives in the e2e spec (Task 5) which exercises the full pipeline against the demo Postgres.
+
+Verification — `npx vitest run lib/admission/sibling-detect.test.ts` → 13/13 green in 1.18s. `npm run build` typechecks the full surface green (the structural `ParentTable` shape resolves cleanly against `PrismaClient`).
+
+Files changed (2): `lib/admission/sibling-detect.ts` (new), `lib/admission/sibling-detect.test.ts` (new). No new dependencies.
+
 ## Verification
 
 _Filled at end-of-cycle: AC-by-AC checkmarks, end-of-cycle gate output (npm run build + npx vitest run + npx playwright test), manual smoke (curl + browser), carry-over caveats. Matches cycle 1.1 + 0.3 shape._
