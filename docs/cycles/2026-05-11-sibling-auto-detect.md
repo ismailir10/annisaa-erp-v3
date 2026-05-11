@@ -447,6 +447,7 @@ $ curl /api/admissions?status=INQUIRY -H "cookie: school-erp-session=u_super_adm
 - **GitHub Actions billing failure (since 2026-05-10)**: CI red until billing restored outside Claude. Local gates canonical for THIS cycle. PR description records "CI red due to billing — local gates green" per cycle 0.2 / 0.3 / 1.1 precedent.
 - **Phase 0 closure /uat reports (cycle 0.3 AC10)** STILL pending — independent of this cycle. Run `/uat teacher` + `/uat parent` against staging URL post-merge.
 - **`preview_start` MCP harness EPERM `uv_cwd` against `.claude/worktrees/<slug>`** (cycle 1.1 finding) — used Bash-launched server + curl for HTML smoke; full browser semantics covered by Task 5 e2e through `playwright.config.ts` webServer.
+- **Post-rebase typecheck fix (2026-05-11)**: after rebasing on staging post-PR-246 merge, CI surfaced `lib/admission/sibling-detect.test.ts` TS2345 errors against Prisma's generic `ParentDelegate` interface. `ParentTable` type alias was structurally narrowed (`Pick<PrismaClient, "parent">`) but the test mock's simple `findFirst({where}) => Promise<...>` signature doesn't satisfy Prisma's `<T extends ParentFindFirstArgs>(args?: SelectSubset<T, ...>)` generic. Resolved by exporting `ParentTable` from `lib/admission/sibling-detect.ts` and casting the test mock via `as unknown as ParentTable`. Production callers (route handler) pass full PrismaClient which satisfies the Pick narrowing directly. Tests still pass: 14/14.
 
 ## Ship Notes
 

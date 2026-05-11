@@ -36,7 +36,10 @@ function normaliseEmail(input: string): string {
   return input.trim().toLowerCase();
 }
 
-type ParentTable = Pick<PrismaClient, "parent">;
+// Narrowed prisma surface. Tests construct a structural mock and cast to this
+// type via `as unknown as ParentTable` so they don't need to satisfy Prisma's
+// full generic ParentDelegate signature (findUnique, create, etc.).
+export type ParentTable = Pick<PrismaClient, "parent">;
 
 /**
  * Detect whether a /daftar applicant matches an existing Parent in the same

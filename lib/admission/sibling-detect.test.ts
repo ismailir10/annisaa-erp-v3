@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { detectSibling, normalisePhone } from "./sibling-detect";
+import {
+  detectSibling,
+  normalisePhone,
+  type ParentTable,
+} from "./sibling-detect";
 
 type ParentRow = {
   id: string;
@@ -10,8 +14,8 @@ type ParentRow = {
   createdAt: Date;
 };
 
-function makeMockPrisma(parents: ParentRow[]) {
-  return {
+function makeMockPrisma(parents: ParentRow[]): ParentTable {
+  const mock = {
     parent: {
       findFirst: vi.fn(
         async ({
@@ -66,6 +70,7 @@ function makeMockPrisma(parents: ParentRow[]) {
       ),
     },
   };
+  return mock as unknown as ParentTable;
 }
 
 const T1 = "tenant-1";
