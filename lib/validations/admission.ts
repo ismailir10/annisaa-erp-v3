@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { optionalTrimmed } from "./zod-helpers";
+import { optionalTrimmed, optionalEnum } from "./zod-helpers";
 
 /**
  * Admin-side create/update schemas for Admission rows.
@@ -17,7 +17,9 @@ import { optionalTrimmed } from "./zod-helpers";
  */
 export const createAdmissionSchema = z.object({
   childName: z.string().min(1, "Nama anak wajib diisi"),
-  childGender: z.enum(["L", "P"]).optional().nullable(),
+  // optionalEnum: form `<Select>` whose value is "" must coerce to undefined
+  // before z.enum() runs; .optional() alone only allows undefined, not "".
+  childGender: optionalEnum(z.enum(["L", "P"])),
   dateOfBirth: optionalTrimmed(z.string()),
   parentName: z.string().min(1, "Nama orang tua wajib diisi"),
   parentPhone: optionalTrimmed(z.string()),
