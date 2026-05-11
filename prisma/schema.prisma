@@ -35,6 +35,12 @@ model Tenant {
   invoiceNumberSequences InvoiceNumberSequence[]
   emailLogs              EmailLog[]
   auditLogs              AuditLog[]
+  semesters              Semester[]
+  themes                 Theme[]
+  subThemes              SubTheme[]
+  weeks                  Week[]
+  learningObjectives     LearningObjective[]
+  achievementIndicators  AchievementIndicator[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -107,15 +113,15 @@ model Campus {
 // Per-tenant working hours / payroll-period config is operationally
 // load-bearing; admin must explicitly remove it before deleting the tenant.
 model OrgConfig {
-  id                    String @id @default(cuid())
-  tenantId              String @unique
+  id                    String  @id @default(cuid())
+  tenantId              String  @unique
   workingDays           String
-  workStartTime         String @default("07:00")
-  workEndTime           String @default("16:00")
-  gracePeriodMinutes    Int    @default(15)
-  timezone              String @default("Asia/Jakarta")
-  payrollPeriodStartDay Int    @default(21)
-  payrollPeriodEndDay   Int    @default(20)
+  workStartTime         String  @default("07:00")
+  workEndTime           String  @default("16:00")
+  gracePeriodMinutes    Int     @default(15)
+  timezone              String  @default("Asia/Jakarta")
+  payrollPeriodStartDay Int     @default(21)
+  payrollPeriodEndDay   Int     @default(20)
   // F-14: When true, overtime (lembur) calculation follows UU 13/2003 §78(4)
   // tiered rates (1.5× first hour, 2× thereafter). Defaults false to preserve
   // the historical flat per-hour calculation until tenants explicitly opt in.
@@ -382,6 +388,7 @@ model AcademicYear {
   tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   classSections ClassSection[]
   feeStructures ProgramFeeStructure[]
+  semesters     Semester[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -980,4 +987,166 @@ model WebhookEvent {
 
   @@index([provider, createdAt])
   @@index([invoiceId])
+}
+
+// ── CURRICULUM ───────────────────────────────────────────────
+// Pack 1 / Cycle 1: structured Curriculum schema replacing 60+ weekly xlsx.
+// All tenant-scoped, soft-delete via `status` (Category A per .claude/standards/crud.md).
+// Field names English; user-facing display copy stays Indonesian.
+// AchievementLevel enum is declared here even though its first use is C4
+// (AssessmentEntry) — declaring now prevents enum collision later.
+
+enum CurriculumElement {
+  RELIGIOUS_MORAL // Nilai Agama dan Budi Pekerti
+  IDENTITY // Jati Diri
+  STEAM // STEAM / Literasi
+  MOTOR_SKILLS // Motorik
+  ART // Seni
+}
+
+enum AgeGroup {
+  A // 4-5 years (TK A)
+  B // 5-6 years (TK B)
+}
+
+enum AchievementLevel {
+  CONSISTENT // Konsisten — first use C4 (AssessmentEntry); declared here to lock the enum name
+  EMERGING // Berkembang / Belum konsisten
+  NEEDS_REINFORCEMENT // Perlu penguatan
+}
+
+model Semester {
+  id             String   @id @default(cuid())
+  tenantId       String
+  academicYearId String
+  number         Int // 1 or 2
+  startDate      DateTime // UTC midnight of the Jakarta-tz day
+  endDate        DateTime // UTC midnight of the Jakarta-tz day
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  themes       Theme[]
+  objectives   LearningObjective[]
+
+  @@unique([tenantId, academicYearId, number])
+  @@index([tenantId])
+  @@index([tenantId, academicYearId])
+}
+
+model Theme {
+  id         String   @id @default(cuid())
+  tenantId   String
+  semesterId String
+  name       String // Indonesian, e.g. "Saya Anak Sehat"
+  order      Int
+  status     String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  semester  Semester             @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  subThemes SubTheme[]
+  links     IndicatorThemeLink[]
+
+  @@unique([tenantId, semesterId, name])
+  @@index([tenantId])
+  @@index([tenantId, semesterId])
+}
+
+model SubTheme {
+  id        String   @id @default(cuid())
+  tenantId  String
+  themeId   String
+  name      String // Indonesian
+  order     Int
+  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  theme  Theme  @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  weeks  Week[]
+
+  @@unique([tenantId, themeId, name])
+  @@index([tenantId])
+  @@index([tenantId, themeId])
+}
+
+model Week {
+  id         String   @id @default(cuid())
+  tenantId   String
+  subThemeId String
+  number     Int // 1..N within semester (validated app-side, not enforced by unique constraint alone)
+  startDate  DateTime // Monday (UTC midnight of Jakarta-tz day)
+  endDate    DateTime // Friday (UTC midnight of Jakarta-tz day)
+  status     String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subTheme SubTheme @relation(fields: [subThemeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, subThemeId, number])
+  @@index([tenantId])
+  @@index([tenantId, subThemeId])
+  @@index([tenantId, startDate, endDate])
+}
+
+model LearningObjective {
+  id             String            @id @default(cuid())
+  tenantId       String
+  semesterId     String
+  ageGroup       AgeGroup
+  element        CurriculumElement
+  number         Int // 1..N within element+ageGroup
+  competencyText String // CAPAIAN PERKEMBANGAN DIRI
+  content        String // Tujuan Pembelajaran narrative
+  status         String            @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  semester   Semester               @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  indicators AchievementIndicator[]
+
+  @@unique([tenantId, semesterId, ageGroup, element, number])
+  @@index([tenantId])
+  @@index([tenantId, semesterId])
+}
+
+model AchievementIndicator {
+  id          String   @id @default(cuid())
+  tenantId    String
+  objectiveId String
+  content     String // IKTP text, Indonesian
+  order       Int
+  status      String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  objective  LearningObjective    @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  themeLinks IndicatorThemeLink[]
+
+  @@index([tenantId])
+  @@index([tenantId, objectiveId])
+}
+
+// Junction: which Themes a given AchievementIndicator is exercised under.
+// No tenantId; tenant boundary enforced by the parent indicator + theme rows.
+// Service-role-only writes; no RLS policy required (no tenantId column for the
+// rls-coverage script to flag).
+model IndicatorThemeLink {
+  indicatorId String
+  themeId     String
+  createdAt   DateTime @default(now())
+
+  indicator AchievementIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  theme     Theme                @relation(fields: [themeId], references: [id], onDelete: Cascade)
+
+  @@id([indicatorId, themeId])
+  @@index([themeId])
 }
