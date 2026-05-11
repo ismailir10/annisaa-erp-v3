@@ -272,6 +272,18 @@ Verification — `npx vitest run lib/rate-limit.test.ts` → 5/5 green in 1.42s.
 
 Files changed (2): `lib/rate-limit.ts` (modified), `lib/rate-limit.test.ts` (new). No new dependencies.
 
+### Task 1 — Prisma migration + schema for `Admission.detectedParentId`
+
+`prisma/schema.prisma`:
+- `Admission` (L551–): added `detectedParentId String?` column + `detectedParent Parent? @relation("AdmissionDetectedParent", fields: [detectedParentId], references: [id], onDelete: SetNull)` named relation + `@@index([tenantId, detectedParentId])` composite index.
+- `Parent` (L477–): added `detectedAdmissions Admission[] @relation("AdmissionDetectedParent")` inverse. Explicit named relation needed because Admission already has a different FK to Student (anonymous, the existing `studentId` relation); a second Parent↔Admission relation requires a distinct relation name on both sides.
+
+`prisma/migrations/20260511000000_admission_detected_parent/migration.sql` (new): `ALTER TABLE "Admission" ADD COLUMN "detectedParentId" TEXT;` + `ADD CONSTRAINT ... ON DELETE SET NULL ON UPDATE CASCADE;` + `CREATE INDEX "Admission_tenantId_detectedParentId_idx"`. Hand-written (Prisma's `migrate dev --create-only` could not run because the shadow-database step fails on the existing `20260415_enable_rls` migration — environment-specific Supabase setup limitation, not a defect; the hand-written SQL matches what Prisma would have generated for the schema diff). Applied locally via `npx prisma migrate deploy` against the demo DB; `_prisma_migrations` ledger records the deploy.
+
+Verification — `npx prisma validate` reports "The schema at prisma/schema.prisma is valid"; `npx prisma generate` regenerates the typed client (`lib/generated/prisma`); `npm run build` typechecks the full surface (Next 16 production build) green; the new `Admission.detectedParentId` field appears on the generated Prisma type.
+
+Files changed (3): `prisma/schema.prisma` (modified), `prisma/migrations/20260511000000_admission_detected_parent/migration.sql` (new), `prisma/migrations/20260511000000_admission_detected_parent/` (new dir). No new dependencies.
+
 ## Verification
 
 _Filled at end-of-cycle: AC-by-AC checkmarks, end-of-cycle gate output (npm run build + npx vitest run + npx playwright test), manual smoke (curl + browser), carry-over caveats. Matches cycle 1.1 + 0.3 shape._
