@@ -248,19 +248,26 @@ export function inferAgeGroup(
 }
 
 export async function parsePromesWorkbook(
-  buffer: Buffer,
+  buffer: Uint8Array | Buffer,
   options: { filename?: string } = {},
 ): Promise<ParsedPromes> {
   const workbook = new ExcelJS.Workbook();
   try {
     // exceljs.xlsx.load accepts Buffer | ArrayBuffer at runtime, but
     // Node's current `Buffer<ArrayBufferLike>` typing trips the build
-    // against exceljs's older `Buffer` shape. Copy bytes into a fresh
-    // ArrayBuffer so the call type-checks AND the slice (which can
-    // surface a SharedArrayBuffer when readFileSync feeds us the
+    // against exceljs's older `Buffer` shape (CI's stricter tsc
+    // rejects what local tsc happens to accept). Copy bytes into a
+    // fresh ArrayBuffer so the call type-checks AND the slice (which
+    // can surface a SharedArrayBuffer when readFileSync feeds us the
     // pooled Node Buffer) doesn't trip JSZip at runtime.
-    const ab = new ArrayBuffer(buffer.byteLength);
-    new Uint8Array(ab).set(buffer);
+    const view =
+      buffer instanceof Uint8Array
+        ? buffer
+        : new Uint8Array(
+            buffer as unknown as ArrayBuffer,
+          );
+    const ab = new ArrayBuffer(view.byteLength);
+    new Uint8Array(ab).set(view);
     await workbook.xlsx.load(ab);
   } catch (err) {
     throw new PromesParseError(

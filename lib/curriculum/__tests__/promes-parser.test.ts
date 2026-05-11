@@ -57,7 +57,12 @@ describe("detectElementHeader", () => {
 describe("inferAgeGroup", () => {
   async function loadWorkbook(buf: Buffer): Promise<ExcelJS.Workbook> {
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buf);
+    // exceljs's `xlsx.load` typing accepts a narrower Buffer shape than
+    // Node's current `Buffer<ArrayBufferLike>` — copy into a fresh
+    // ArrayBuffer to satisfy CI's stricter tsc without changing runtime.
+    const ab = new ArrayBuffer(buf.byteLength);
+    new Uint8Array(ab).set(buf);
+    await wb.xlsx.load(ab);
     return wb;
   }
 
