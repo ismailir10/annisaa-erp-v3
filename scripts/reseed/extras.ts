@@ -3,6 +3,7 @@ import { holidays } from "../../prisma/data/holidays";
 import { createRng } from "./rng";
 import type { SeedOrgResult } from "./org";
 import type { SeedPeopleResult, EmployeePlan, StudentPlan } from "./people";
+import { OWNER_EMAIL } from "./users";
 
 export type SeedExtrasResult = {
   orgConfig: 1;
@@ -89,8 +90,7 @@ export async function seedExtras(
     reviewedBy: string | null;
     reviewedAt: Date | null;
   }> = [];
-  const supervisorUserId =
-    people.userIdByPreservedEmail["ismailir10@gmail.com"];
+  const supervisorUserId = people.userIdByPreservedEmail[OWNER_EMAIL];
 
   for (const e of teacherEmployees) {
     const employeeId = people.employeeIdByKode[e.kode];

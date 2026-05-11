@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   ensurePreservedAuthUsers,
+  OWNER_EMAIL,
   PRESERVED_USERS,
   type AdminAuthLike,
   type PreservedUser,
@@ -56,26 +57,26 @@ describe("ensurePreservedAuthUsers", () => {
     expect(res.reusedEmails).toHaveLength(6);
     expect(res.createdEmails).toHaveLength(0);
     expect(calls.createUser).toHaveLength(0);
-    expect(res.uuidByEmail["ismailir10@gmail.com"]).toBe("existing-0");
+    expect(res.uuidByEmail[OWNER_EMAIL]).toBe("existing-0");
   });
 
   it("matches emails case-insensitively against existing auth rows", async () => {
-    const existing = [{ id: "cap-id", email: "IsmailIR10@Gmail.com" }];
+    const existing = [{ id: "cap-id", email: OWNER_EMAIL.toUpperCase() }];
     const user: PreservedUser = {
-      email: "ismailir10@gmail.com",
+      email: OWNER_EMAIL,
       role: "SUPER_ADMIN",
       name: "Test",
     };
     const { admin, calls } = makeAdmin(existing);
     const res = await ensurePreservedAuthUsers(admin, [user]);
-    expect(res.reusedEmails).toEqual(["ismailir10@gmail.com"]);
-    expect(res.uuidByEmail["ismailir10@gmail.com"]).toBe("cap-id");
+    expect(res.reusedEmails).toEqual([OWNER_EMAIL]);
+    expect(res.uuidByEmail[OWNER_EMAIL]).toBe("cap-id");
     expect(calls.createUser).toHaveLength(0);
   });
 
   it("mixes: creates missing, reuses existing", async () => {
     const existing = [
-      { id: "e-0", email: "ismailir10@gmail.com" },
+      { id: "e-0", email: OWNER_EMAIL },
       { id: "e-3", email: "wirarajaism@gmail.com" },
     ];
     const { admin, calls } = makeAdmin(existing);
@@ -83,7 +84,7 @@ describe("ensurePreservedAuthUsers", () => {
       passwordGenerator: () => "pw",
     });
     expect(res.reusedEmails.sort()).toEqual(
-      ["ismailir10@gmail.com", "wirarajaism@gmail.com"].sort(),
+      [OWNER_EMAIL, "wirarajaism@gmail.com"].sort(),
     );
     expect(res.createdEmails).toHaveLength(4);
     expect(calls.createUser).toHaveLength(4);
@@ -130,7 +131,7 @@ describe("ensurePreservedAuthUsers", () => {
 
   it("passes user_metadata on create", async () => {
     const createUser = vi.fn().mockResolvedValue({
-      data: { user: { id: "new-1", email: "ismailir10@gmail.com" } },
+      data: { user: { id: "new-1", email: OWNER_EMAIL } },
       error: null,
     });
     const admin: AdminAuthLike = {
@@ -153,7 +154,7 @@ describe("PRESERVED_USERS constant", () => {
   it("contains exactly six users with the expected roles", () => {
     expect(PRESERVED_USERS).toHaveLength(6);
     const emails = PRESERVED_USERS.map((u) => u.email);
-    expect(emails).toContain("ismailir10@gmail.com");
+    expect(emails).toContain(OWNER_EMAIL);
     expect(emails).toContain("wirarajaisme@gmail.com");
     expect(emails).toContain("ismail10rabbanii@gmail.com");
     expect(emails).toContain("wirarajaism@gmail.com");
@@ -161,7 +162,7 @@ describe("PRESERVED_USERS constant", () => {
     expect(emails).toContain("commandprompt.adhan@gmail.com");
 
     const superAdmin = PRESERVED_USERS.find(
-      (u) => u.email === "ismailir10@gmail.com",
+      (u) => u.email === OWNER_EMAIL,
     );
     expect(superAdmin?.role).toBe("SUPER_ADMIN");
 

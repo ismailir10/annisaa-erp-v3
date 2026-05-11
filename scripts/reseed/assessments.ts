@@ -2,6 +2,7 @@ import type { PrismaClient } from "../../lib/generated/prisma/client";
 import { createRng } from "./rng";
 import type { SeedOrgResult } from "./org";
 import type { SeedPeopleResult, StudentPlan } from "./people";
+import { OWNER_EMAIL } from "./users";
 
 // PAUD curriculum: 6 categories × 4 indicators = 24 indicators per template.
 export const ASSESSMENT_CATEGORIES: Array<{
@@ -91,10 +92,10 @@ export async function seedAssessments(
   opts: { seed?: number } = {},
 ): Promise<SeedAssessmentsResult> {
   const rng = createRng(opts.seed ?? 312);
-  const recordedBy = people.userIdByPreservedEmail["ismailir10@gmail.com"];
+  const recordedBy = people.userIdByPreservedEmail[OWNER_EMAIL];
   if (!recordedBy) {
     throw new Error(
-      "seedAssessments: missing SUPER_ADMIN preserved User (ismailir10@gmail.com)",
+      `seedAssessments: missing SUPER_ADMIN preserved User (${OWNER_EMAIL})`,
     );
   }
 

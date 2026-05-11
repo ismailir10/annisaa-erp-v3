@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// Owner email is driven by OWNER_EMAIL env so the literal address isn't
+// committed to the public repo. Default keeps reseed runs deterministic.
+export const OWNER_EMAIL = process.env.OWNER_EMAIL ?? "owner@example.test";
+
 export type PreservedRole =
   | "SUPER_ADMIN"
   | "SCHOOL_ADMIN"
@@ -20,9 +24,9 @@ export type PreservedUser = {
 
 export const PRESERVED_USERS: PreservedUser[] = [
   {
-    email: "ismailir10@gmail.com",
+    email: OWNER_EMAIL,
     role: "SUPER_ADMIN",
-    name: "Ismail Rabbani (Super Admin)",
+    name: "Owner (Super Admin)",
   },
   {
     email: "wirarajaisme@gmail.com",

@@ -4,6 +4,7 @@ import { createRng } from "./rng";
 import type { SeedOrgResult } from "./org";
 import type { SeedPeopleResult, StudentPlan, EmployeePlan } from "./people";
 import { sectionKey } from "./org";
+import { OWNER_EMAIL } from "./users";
 
 /** Iterate Mon–Fri dates between start..end (inclusive), excluding holidays. */
 export function enumerateSchoolDays(opts: {
@@ -232,7 +233,7 @@ export async function seedOperations(
   }
   const recordedByUserId =
     people.userIdByPreservedEmail["ismail10rabbanii@gmail.com"] ??
-    people.userIdByPreservedEmail["ismailir10@gmail.com"];
+    people.userIdByPreservedEmail[OWNER_EMAIL];
   if (!recordedByUserId) {
     throw new Error("seedOperations: no preserved teacher User to attribute journal entries");
   }

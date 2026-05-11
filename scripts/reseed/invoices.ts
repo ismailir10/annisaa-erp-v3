@@ -13,6 +13,7 @@ import {
   sectionKey,
 } from "./org";
 import type { SeedPeopleResult, StudentPlan, ParentPlan } from "./people";
+import { OWNER_EMAIL } from "./users";
 
 export type InvoicePeriod = {
   /** "Jul-2025" style for periodLabel snapshot. */
@@ -172,7 +173,7 @@ export async function seedInvoices(
   const concurrency = opts.xenditConcurrency ?? 2;
 
   const periods = buildInvoicePeriods();
-  const recordedBy = people.userIdByPreservedEmail["ismailir10@gmail.com"];
+  const recordedBy = people.userIdByPreservedEmail[OWNER_EMAIL];
   if (!recordedBy) {
     throw new Error("seedInvoices: missing SUPER_ADMIN preserved user");
   }
