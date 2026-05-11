@@ -75,6 +75,7 @@ Cycle ships as `chore:`/`docs:` (no `app/**` or `lib/**` runtime code touched).
 - `npx vitest run` → 136 files / 1144 tests passed, 0 failed.
 - `npm run build` green.
 - Playwright not run (no UI surface affected).
+- Post-revert `npm run typecheck` surfaced one staging-baseline regression — `lib/admission/submit-validation.test.ts:41` carried an unused `@ts-expect-error` directive (TS2578). Hidden until the public-repo flip restored CI billing and re-ran typecheck on PRs #241 / #245 / #246, all of which failed against the same baseline. Fixed in this PR; #241 + #245 inherit the fix via rebase post-merge.
 
 ## Ship Notes
 
