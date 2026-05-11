@@ -63,6 +63,13 @@ async function main() {
   await prisma.user.deleteMany();
   await prisma.role.deleteMany();
   await prisma.employee.deleteMany();
+  // Tenant-scoped tables that don't appear above — silently allowed when
+  // running against a pristine CI DB (zero rows), but block tenant delete
+  // when the local DB has been used by integration tests or production
+  // staging data. Listed here so re-seeding from any state is idempotent.
+  await prisma.invoiceNumberSequence.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.webhookEvent.deleteMany();
   await prisma.orgConfig.deleteMany();
   await prisma.campus.deleteMany();
   await prisma.tenant.deleteMany();

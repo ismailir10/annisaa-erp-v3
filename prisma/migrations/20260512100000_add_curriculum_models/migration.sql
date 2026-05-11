@@ -1,5 +1,3 @@
-Loaded Prisma config from prisma.config.ts.
-
 -- CreateEnum
 CREATE TYPE "CurriculumElement" AS ENUM ('RELIGIOUS_MORAL', 'IDENTITY', 'STEAM', 'MOTOR_SKILLS', 'ART');
 
