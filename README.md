@@ -34,7 +34,7 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 | **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
 | **hr** | Staff lifecycle: employees, attendance, leave, payroll, salary components — gated by `hr.*` permissions |
 | **academic** | School structure: academic year, programs, class sections, teaching assignments |
-| **students** | Student lifecycle: students, guardians, enrollments, admissions |
+| **students** | Student lifecycle: students, guardians, enrollments, admissions (admin CRM + public `/daftar` entry) |
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
 | **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |
 | **student-journal** | Buku Penghubung — bi-directional school + home indicators with audit trail |
@@ -45,6 +45,7 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 
 | Portal | Route | Role | Layout | Access |
 |---|---|---|---|---|
+| Public (applicant) | `/daftar` | (none — public) | Mobile-first vertical | Public admission entry — three-step form (applicant → parent → preference) |
 | Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop sidebar | Everything incl. payroll, salary, bank |
 | Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions, academics, attendance, invoices, employees (no salary/payroll) |
 | Teacher | `/teacher` | `TEACHER` | Mobile-first `max-w-md` | Own attendance + leave; assigned classes only |
@@ -64,6 +65,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-10 | Public `/daftar` admission entry — three-step form (applicant → parent → preference) writes `Admission` rows in `INQUIRY` status; `POST /api/admission/submit` rate-limited 5/min/IP via in-memory bucket; Resend confirmation email best-effort | First Phase 1 feature post v2 rollback. Reuses v1 single-parent `Admission` schema (no migration); admin `/admin/admissions` flow unchanged — see [cycle](docs/cycles/2026-05-10-daftar-public-form.md) |
 | 2026-05-10 | Phase 0 perf sweep — `e2e/perf-budget.spec.ts` 4-s page-load regression guard; `data-testid="roster-row"` + `data-empty-state` anchors on `/teacher/class-attendance` | All 4 UAT perf findings (U3 / U7 / U8 / U9) healed by rollback alone (medians 119–541 ms vs UAT figures 2.1–15 s); guard locks the post-rollback envelope. Closes Phase 0 — see [cycle](docs/cycles/2026-05-10-phase0-perf-sweep.md) |
 | 2026-05-10 | Tighten `_getParentWithChildren` invariants (require tenantId + parentId-or-email; throw on contract violation); reuse existing `scripts/backfill-pending-payment-links.ts` for U2 backlog | Closes UAT U10 latent fan-out (200 staging null-email Parent rows would leak via a session with both `parentId` and `email` null); U2 surfaced as 25 stale test artifacts (plan's 364 was pre-rollback) — see [cycle](docs/cycles/2026-05-10-phase0-finance-backlog-drain.md) |
 | 2026-05-10 | Explicit `Cache-Control: no-store` on `POST /api/auth/logout`; portal trees rely on Next.js dynamic-route default | Closes UAT U6 sign-out bfcache leak. Portals already inherit `no-store` because `getSession()` marks routes dynamic; logout was the gap. UAT U1 healed by rollback to PR #177 — see [cycle](docs/cycles/2026-05-10-phase0-admin-hydration-and-bfcache.md) |
