@@ -24,7 +24,7 @@ The plan §5 cycle 1.2 closes the next gap: when a new applicant's contact detai
 
 4. **No `/admin/admissions/[id]` detail page.** Verified — `app/admin/admissions/` contains only `loading.tsx` + `page.tsx` (735 lines). The admin works through the list page + an edit `Sheet` (mobile) / `Dialog` (desktop) opened on row click via `setEditingAdmission(a)`. Plan §137's "Admission detail page" badge surface maps to: **a new list-column chip** (visible on every row) + **a banner inside the existing edit Sheet/Dialog** when the admin opens a matched admission.
 
-5. **No `/admin/parents` profile page exists** (verified — `app/admin/parents/` does not exist). The chip cannot deep-link to a parent profile. Instead, the chip carries a **tooltip / hovercard** listing the matched parent's name + the names of their currently-linked students (resolved via `StudentGuardian.parent.guardians[].student.fullName`). This gives the admin enough context to decide whether the detected match is the right family. Deep-linking to a parent profile lands in a future cycle (cycle 2.x's accept-transition wires merge UX; this cycle only surfaces the match).
+5. **No `/admin/parents` profile page exists** (verified — `app/admin/parents/` does not exist). The chip cannot deep-link to a parent profile. Instead, the chip carries a **tooltip / hovercard** listing the matched parent's name + the names of their currently-linked students (resolved via `StudentGuardian.parent.guardians[].student.name`). This gives the admin enough context to decide whether the detected match is the right family. Deep-linking to a parent profile lands in a future cycle (cycle 2.x's accept-transition wires merge UX; this cycle only surfaces the match).
 
 **v2 archived shape:** `lib/admission/sibling-detect.ts` is recoverable via `git show v1-final-2026-05-04:lib/admission/sibling-detect.ts` if the tag still resolves. The plan §5 cycle 1.2 calls for a verbatim lift; in practice the v2 shape was built against v2's `Household` model which doesn't exist in v1, so the algorithm is lifted (email-first, then phone, with tenant scoping + multi-match precedence) and rewired to v1's `Parent` table. The lifted shape stays pure-library — NO DB writes inside the lib; the caller (`/api/admission/submit`) decides whether to persist the match via `prisma.admission.update`.
 
@@ -72,14 +72,14 @@ The plan §5 cycle 1.2 closes the next gap: when a new applicant's contact detai
 - [ ] **AC4.** `POST /api/admission/submit` (cycle 1.1 surface) wires the detection AFTER `prisma.admission.create` succeeds and BEFORE the email send. Flow: create admission → call `detectSibling({ tenantId, parentEmail: data.parentEmail, parentPhone: data.parentPhone }, prisma)` → on match, `prisma.admission.update({ where: { id }, data: { detectedParentId: match.parentId } })`. Failure path: `try/catch` around the detect + update; on throw, log `[admission-submit] sibling-detect failed for admission <id>: <err>` to `console.error` and CONTINUE — admission stays created, applicant sees 201 unchanged, email still sends. The `201 { id }` response shape is unchanged — NO match info echoed back to the applicant (per plan §7 q6 — admin-only surface).
 
 - [ ] **AC5.** `/admin/admissions` list page surfaces the match:
-  - **New table column "Saudara"** (after the existing Source/Status columns; before the row-actions column) — renders a Shadcn `<Badge variant="secondary">` chip with the label "Saudara terdeteksi" when `detectedParentId` is non-null; renders `—` otherwise. Chip wrapped in a Shadcn `<HoverCard>` (desktop) / `<Popover>`-on-tap (mobile via `data-state="open"`); hover content shows: the matched parent's name (bold) + an `<ul>` of linked-student `fullName`s (resolved server-side via the existing list-query enrichment — see Task 4 Implementation). If the parent has 0 linked students (edge case — admission row pointed at a parent without StudentGuardian links yet), show "Tidak ada siswa tertaut".
+  - **New table column "Saudara"** (after the existing Source/Status columns; before the row-actions column) — renders a Shadcn `<Badge variant="secondary">` chip with the label "Saudara terdeteksi" when `detectedParentId` is non-null; renders `—` otherwise. Chip wrapped in a Shadcn `<HoverCard>` (desktop) / `<Popover>`-on-tap (mobile via `data-state="open"`); hover content shows: the matched parent's name (bold) + an `<ul>` of linked-student `name`s (resolved server-side via the existing list-query enrichment — see Task 4 Implementation). If the parent has 0 linked students (edge case — admission row pointed at a parent without StudentGuardian links yet), show "Tidak ada siswa tertaut".
   - **Banner inside the existing edit `Sheet`/`Dialog`** — when admin opens an admission row whose `detectedParentId` is non-null, render a `<Alert>` block at the top of the form body: "Pendaftar ini terdeteksi sebagai saudara dari keluarga **<parent name>** (<student names comma-joined>). Verifikasi sebelum mengonversi ke siswa." (Indonesian, Bu Sari-light register per voice standard). Alert is purely informational — no merge button (that's cycle 2.x's accept-transition).
   - **NO change to the applicant-facing `/daftar` surface.** Verified absent — cycle 1.1's `app/daftar/client.tsx` is not touched in this cycle.
-  - **NO new admin route, no new API endpoint, no detail page.** The chip + banner render off the existing `/api/admissions` list-query response shape (extended to include `detectedParent: { id, name, guardians: [{ student: { fullName } }] } | null`).
+  - **NO new admin route, no new API endpoint, no detail page.** The chip + banner render off the existing `/api/admissions` list-query response shape (extended to include `detectedParent: { id, name, guardians: [{ student: { name } }] } | null`).
 
 - [ ] **AC6. Task 0 — `lib/rate-limit.ts:getClientIp` hardening.** Fix shape: read the FIRST (leftmost) entry of `x-forwarded-for` — Vercel **overwrites** this header with the client IP at index 0 (per Vercel platform docs: header is platform-controlled, not client-spoofable). Fall back to `x-real-ip` (Vercel alias of the same value — harmless redundancy). Fall back to `"anonymous"` (already present). Update the docstring/inline comment to reflect Vercel's actual behavior: "Vercel overwrites x-forwarded-for with the client IP at index 0 (spoofing-safe; Vercel controls the header). Falls back to x-real-ip (Vercel alias), then 'anonymous'." Vitest coverage in `lib/rate-limit.test.ts`: (a) `x-forwarded-for: "1.2.3.4"` (single entry) returns `"1.2.3.4"`; (b) `x-forwarded-for: "1.2.3.4, 5.6.7.8, 9.10.11.12"` (Vercel-shaped multi-entry) returns `"1.2.3.4"` (client at index 0), NOT `"9.10.11.12"`; (c) no `x-forwarded-for`, with `x-real-ip: "1.2.3.4"` returns `"1.2.3.4"`; (d) neither header present returns `"anonymous"`; (e) `x-forwarded-for: " 1.2.3.4 , 5.6.7.8 "` (whitespace-padded) returns trimmed `"1.2.3.4"`. The auth rate-limit (`lib/security/auth-rate-limit.ts`) and the admission submit rate-limit both inherit the fix automatically — both call `getClientIp(request)` without owning their own header parsing.
 
-- [ ] **AC7.** New e2e spec `e2e/sibling-detect.spec.ts` covers: (a) **applicant-facing /daftar UX unchanged** — clears cookies, navigates `/daftar`, fills the form with a parentEmail that MATCHES a seeded parent, submits, asserts the same confirmation state as cycle 1.1's happy path (NO sibling info echoed to the applicant); (b) **admin sees chip on the matched row** — admin auth, navigates `/admin/admissions`, finds the row by inserted childName, asserts the "Saudara terdeteksi" badge is visible on that row's "Saudara" column AND the unmatched control row's column shows "—"; (c) **hover/click chip reveals matched parent name + student list** — hovers (desktop) or taps (mobile) the chip, asserts the popover content shows the seeded parent's name + at least one linked student fullName; (d) **edit-sheet banner renders** — clicks the row to open the edit Sheet/Dialog, asserts the `<Alert>` banner with the matched parent name renders at the top of the form body. Test runs against `DEMO_MODE=true npm run start` (production build, single warm-server run — matches cycle 1.1 pattern). Seed parent for the test is one of the 100 seeded students' guardians (`prisma/seed.ts` already seeds this).
+- [ ] **AC7.** New e2e spec `e2e/sibling-detect.spec.ts` covers: (a) **applicant-facing /daftar UX unchanged** — clears cookies, navigates `/daftar`, fills the form with a parentEmail that MATCHES a seeded parent, submits, asserts the same confirmation state as cycle 1.1's happy path (NO sibling info echoed to the applicant); (b) **admin sees chip on the matched row** — admin auth, navigates `/admin/admissions`, finds the row by inserted childName, asserts the "Saudara terdeteksi" badge is visible on that row's "Saudara" column AND the unmatched control row's column shows "—"; (c) **hover/click chip reveals matched parent name + student list** — hovers (desktop) or taps (mobile) the chip, asserts the popover content shows the seeded parent's name + at least one linked student name; (d) **edit-sheet banner renders** — clicks the row to open the edit Sheet/Dialog, asserts the `<Alert>` banner with the matched parent name renders at the top of the form body. Test runs against `DEMO_MODE=true npm run start` (production build, single warm-server run — matches cycle 1.1 pattern). Seed parent for the test is one of the 100 seeded students' guardians (`prisma/seed.ts` already seeds this).
 
 - [ ] **AC8.** Existing 12 e2e specs (including cycle 1.1's `e2e/daftar-public.spec.ts`) stay green via end-of-cycle gate (`npm run build && npx vitest run && npx playwright test`). The 4 pre-existing admin-tagihan flakes (`admin.spec.ts:473 / 524 / 575 / 628`) may persist on local marathon runs — moderate-subset re-run confirms cycle-touch surface clean.
 
@@ -99,7 +99,7 @@ The plan §5 cycle 1.2 closes the next gap: when a new applicant's contact detai
 
 5. **Admin badge surface = list-column chip + edit-sheet banner; NO new detail page.** Verified — `app/admin/admissions/` has no `[id]` route, only `loading.tsx` + `page.tsx`. The list page IS the admin's working surface; the edit Sheet/Dialog opened on row click is where the admin spends their time inside an admission. Both surfaces get the match info. NO deep-link to a parent profile (no parent profile route exists; tooltip provides enough context for the admin to recognise the family). Deep-linking lands in a future cycle.
 
-6. **The `/api/admissions` list query needs to include the detected parent + their student names.** The existing list endpoint already does `prisma.admission.findMany({ ... })` — extending the `include`/`select` to pull `detectedParent: { name, guardians: { include: { student: { select: { fullName: true } } } } }` is a single-query enrichment (no N+1). Worst case is the seeded demo's typical list of 20–50 admissions, each with 0–1 matched parents and each matched parent with 1–4 students. Query cost stays well under 100ms.
+6. **The `/api/admissions` list query needs to include the detected parent + their student names.** The existing list endpoint already does `prisma.admission.findMany({ ... })` — extending the `include`/`select` to pull `detectedParent: { name, guardians: { include: { student: { select: { name: true } } } } }` is a single-query enrichment (no N+1). Worst case is the seeded demo's typical list of 20–50 admissions, each with 0–1 matched parents and each matched parent with 1–4 students. Query cost stays well under 100ms.
 
 7. **Phone normalisation handles the `"+62"` vs `"0"` Indonesian prefix shift.** Indonesian phone numbers arrive in many shapes — `"+62 812-3456-7890"`, `"081234567890"`, `"+6281234567890"`, `"0812 3456 7890"`. The lib's `normalisePhone(s)` (a) strips ALL non-digit characters via `s.replace(/\D/g, "")` (covers `+`, spaces, dashes, parens, dots), then (b) if the result starts with `"62"` and has ≥ 11 digits, swaps the leading `"62"` for `"0"` to land on canonical `08xxx`. After normalisation, exact string equality drives the match. NOT full E.164 normalisation (would require a country-code library — overkill for v1; future polish if multi-country lands). NOT `prisma.parent.findFirst({ where: { phone: { contains: normalisedTail } } })` — substring matches risk false positives (e.g., applicant types "3456 7890" matching any parent whose phone ends in those digits). The strip-and-prefix-canonicalise approach is the minimum that handles the two dominant real-world shapes without a dependency.
 
@@ -216,9 +216,9 @@ Commit subject: `chore(siblings): wire detectSibling into POST /api/admission/su
 ### Task 4 — Admin badge surface (list-column chip + edit-sheet banner)
 
 `app/admin/admissions/page.tsx` (modified):
-- Extend the inline `Admission` type (around L54) with `detectedParent: { id: string; name: string; guardians: Array<{ student: { fullName: string } }> } | null`.
-- Extend the list-fetch query string at L391–402 OR (cleaner) the API route `app/api/admissions/route.ts` GET handler's `prisma.admission.findMany` `include` to add `detectedParent: { select: { id: true, name: true, guardians: { select: { student: { select: { fullName: true } } } } } }`. (If `/api/admissions` is the right surface — verify during Task 4 implementation; the page may fetch directly.) NO N+1 — single nested `include`.
-- Add a new column to the `columns` array (L520+) between "Status" (L579) and the row-actions column (around L601+). Column header: "Saudara". Cell: when `row.original.detectedParent` is set, render `<HoverCard>` (Shadcn) with `<HoverCardTrigger>` wrapping `<Badge variant="secondary">Saudara terdeteksi</Badge>` and `<HoverCardContent>` showing the parent name in bold + an `<ul>` of student fullNames (or "Tidak ada siswa tertaut" if guardians is empty). When `detectedParent` is null, render plain `—`.
+- Extend the inline `Admission` type (around L54) with `detectedParent: { id: string; name: string; guardians: Array<{ student: { name: string } }> } | null`.
+- Extend the list-fetch query string at L391–402 OR (cleaner) the API route `app/api/admissions/route.ts` GET handler's `prisma.admission.findMany` `include` to add `detectedParent: { select: { id: true, name: true, guardians: { select: { student: { select: { name: true } } } } } }`. (If `/api/admissions` is the right surface — verify during Task 4 implementation; the page may fetch directly.) NO N+1 — single nested `include`.
+- Add a new column to the `columns` array (L520+) between "Status" (L579) and the row-actions column (around L601+). Column header: "Saudara". Cell: when `row.original.detectedParent` is set, render `<HoverCard>` (Shadcn) with `<HoverCardTrigger>` wrapping `<Badge variant="secondary">Saudara terdeteksi</Badge>` and `<HoverCardContent>` showing the parent name in bold + an `<ul>` of student names (or "Tidak ada siswa tertaut" if guardians is empty). When `detectedParent` is null, render plain `—`.
 - Inside the existing edit `Sheet` (mobile) / `Dialog` (desktop) at L692/L709, when `editingAdmission?.detectedParent` is set, render a `<Alert>` block at the top of the form body (above the existing inputs): "Pendaftar ini terdeteksi sebagai saudara dari keluarga **{parent name}** ({student names comma-joined}). Verifikasi sebelum mengonversi ke siswa." Uses Shadcn `<Alert>` + `<AlertDescription>` from `@/components/ui/alert` if available (verify during Task 4); else use `<Card>` with appropriate styling per `.claude/standards/design-system.html`.
 - Add `data-testid="admission-row-sibling-chip"` to the chip + `data-testid="admission-edit-sibling-banner"` to the banner for e2e.
 
@@ -238,7 +238,7 @@ Commit subject: `chore(siblings): add Saudara chip column + edit-sheet banner on
 
 1. **`applicant-facing /daftar UX unchanged when match exists`** — clears cookies, navigates `/daftar`, fills the form with a parentEmail matching one of the 100 seeded students' guardians (e.g., looked up from `prisma.parent.findFirst` in test setup). Submits. Asserts the same confirmation state as cycle 1.1's happy path — no sibling info on the page, no extra UI surface.
 2. **`admin sees chip on matched row + plain dash on unmatched row`** — admin auth via demo cookie, navigates `/admin/admissions`. Asserts the row inserted in test 1 shows `[data-testid="admission-row-sibling-chip"]`; asserts a control row (an existing admission with NULL detect — pre-seeded or just-inserted with a non-matching parentEmail) shows `—`.
-3. **`hover chip reveals matched parent name + student list`** — hovers the chip; asserts the popover content contains the matched parent's name + at least one student fullName.
+3. **`hover chip reveals matched parent name + student list`** — hovers the chip; asserts the popover content contains the matched parent's name + at least one student name.
 4. **`edit-sheet banner renders matched parent context`** — clicks the matched row; asserts `[data-testid="admission-edit-sibling-banner"]` visible inside the Sheet/Dialog + contains the parent name.
 
 `npx playwright test e2e/sibling-detect.spec.ts` → 4/4 green expected. Build-cache caveat applies: `pkill -f "next-server"; sleep 1; DEMO_MODE=true npm run start &` before the run.
@@ -374,8 +374,121 @@ Files changed (1): `e2e/sibling-detect.spec.ts` (new). No new dependencies.
 
 ## Verification
 
-_Filled at end-of-cycle: AC-by-AC checkmarks, end-of-cycle gate output (npm run build + npx vitest run + npx playwright test), manual smoke (curl + browser), carry-over caveats. Matches cycle 1.1 + 0.3 shape._
+### Acceptance criteria
+
+- **AC1 (`Admission.detectedParentId` FK + migration)** — satisfied. Schema adds nullable `detectedParentId` + named relation `AdmissionDetectedParent` to `Parent` (SetNull on delete) + composite `@@index([tenantId, detectedParentId])`. Migration `20260511000000_admission_detected_parent` applied locally via `npx prisma migrate deploy`; ledger row recorded. Build green; generated client carries the new field.
+- **AC2 (`detectSibling` lib shape)** — satisfied. Pure-library; email-first precedence; phone fallback with digit-only normalisation + `62`→`0` AND bare-`8xx` prefix swap (AC2 hardened post-review #2 to catch the dominant Indonesian bare-dialling form); deterministic tie-break via `orderBy: createdAt asc` + first-JS-filter-hit-wins.
+- **AC3 (vitest coverage)** — satisfied. `lib/admission/sibling-detect.test.ts` runs 14 cases (3 `normalisePhone` units + 10 `detectSibling` cases incl. the (j) phone tie-break + 1 added post-review #2 covering bare-`8xx` prefix-prepend). All green via `npx vitest run lib/admission/sibling-detect.test.ts`.
+- **AC4 (route wiring)** — satisfied. `app/api/admission/submit/route.ts` runs `detectSibling` AFTER `prisma.admission.create` succeeds and BEFORE `sendAdmissionSubmittedEmail`. Try/catch swallows; failure logged. Smoke verified both branches (matched seed phone → `detectedParentId` populated; non-matching phone → NULL).
+- **AC5 (admin badge surface)** — satisfied. New "Saudara" column shows `<Badge>Saudara terdeteksi</Badge>` chip wrapped in `<HoverCard>` with parent name + linked-student `name`s; plain `—` when null. `<SiblingDetectBanner>` renders inside both Sheet and Dialog edit forms when `editingAdmission.detectedParent` is set. NO change to `app/daftar/`. NO new API endpoint or detail page.
+- **AC6 (`getClientIp` hardening)** — satisfied. Reads `x-forwarded-for[0]` (Vercel overwrites the header — spoofing-safe) with `x-real-ip` + anonymous fallbacks. 5 vitest cases green. Both call sites (auth-rate-limit + admission-submit) inherit automatically.
+- **AC7 (e2e spec)** — satisfied. `e2e/sibling-detect.spec.ts` 4/4 green in 10.6s. Test 1 restructured post-review #2 to assert trust-boundary shape via retry-tolerant `request.post` (always runs even in marathon) + UX-shape via in-page navigation (no second POST; no rate-limit interaction).
+- **AC8 (no regression on existing 12 e2e specs)** — partial-as-cycle-1.1. End-of-cycle marathon: 92 passed | 4 failed | 1 flaky-but-passing | 3 skipped. The 4 failures are EXACTLY the pre-existing `admin.spec.ts:473 / 524 / 575 / 628` admin-tagihan flake set carried over from cycles 0.1 + 0.2 + 0.3 + 1.1 (filed as `phase0-admin-tagihan-flake-fix` follow-up). The 1 flaky entry is `sibling-detect.spec.ts:66` test 1 (rate-limit collision with daftar-public's bucket); now flaky-but-passing thanks to the retry pattern. Cycle's own surface (`e2e/sibling-detect.spec.ts`) is 4/4 green in isolation and 4/4 (after retry) in marathon.
+- **AC9 (README delta)** — Task 6 (wrap commit) lands this; tracked in Wrap delta below after the wrap commit ships.
+- **AC10 (design-system cross-check)** — satisfied. Cross-checked `.claude/standards/design-system.html` admin-list-row pattern for the Badge + HoverCard primitive composition. Cross-checked `.claude/standards/voice.md` Bu Sari-light register on banner copy ("Verifikasi sebelum mengonversi ke siswa"). Frontend-gate `design-system` token present in this cycle doc (Context paragraph + Task 4 Implementation + this AC).
+
+### End-of-cycle gate (canonical surface)
+
+```
+$ npm run build
+✓ Compiled successfully in 14.7s
+
+$ npx vitest run
+Test Files  136 passed | 2 skipped (138)
+     Tests  1143 passed | 42 todo (1185)
+  Duration  54.30s
+
+$ pkill -f "next-server"; sleep 2
+$ npx playwright test
+92 passed | 1 flaky | 3 skipped | 4 failed
+  4 failures: e2e/admin.spec.ts:473 / 524 / 575 / 628
+  (admin-tagihan flake set — pre-existing, carry-over from cycles 0.1 + 0.2 + 0.3 + 1.1,
+   filed as phase0-admin-tagihan-flake-fix follow-up, not blocking)
+  1 flaky: e2e/sibling-detect.spec.ts:66 (passes on retry — marathon rate-limit
+   collision tolerated by retry pattern; in-isolation always 4/4 green)
+
+$ npx playwright test e2e/sibling-detect.spec.ts
+4 passed (10.6s)
+  ✓ applicant-facing /daftar UX unchanged when match exists
+  ✓ admin sees chip on matched row + dash on unmatched row
+  ✓ hover chip reveals matched parent name + at least one student
+  ✓ edit-sheet banner renders matched parent context
+```
+
+### Manual smoke (local prod build)
+
+```
+$ DEMO_MODE=true npm run start &
+$ # matched phone — +62→0 normalisation
+$ curl -X POST /api/admission/submit -d '{"childName":"Smoke Sibling 1","dateOfBirth":"2020-06-15","childGender":"P","parentName":"Smoke Parent","parentPhone":"+62 812 9876 543"}'
+{"id":"cmp0uzi3p00003bx785t08tox"}
+$ # detectedParentId populated to seeded Siti Nurhaliza Hidayat
+{"id":"cmp0uzi3p00003bx785t08tox","detectedParentId":"cmoz7hs5d00d518x7vdttepxg"}
+
+$ # non-matching phone
+$ curl -X POST /api/admission/submit -d '{"childName":"Smoke NoMatch 1",...,"parentPhone":"+62 999 0000 1234"}'
+{"id":"cmp0uzpok00013bx7sezscho4"}
+$ # detectedParentId stays NULL
+{"id":"cmp0uzpok00013bx7sezscho4","detectedParentId":null}
+
+$ # admin GET enrichment
+$ curl /api/admissions?status=INQUIRY -H "cookie: school-erp-session=u_super_admin"
+{"data":[{...,"detectedParent":{"id":"cmoz7hs5d00d518x7vdttepxg","name":"Siti Nurhaliza Hidayat","guardians":[{"student":{"name":"Ahmad Zafran Hidayat"}},{"student":{"name":"Aisyah Putri Ramadhani"}},{"student":{"name":"Fatimah Az-Zahra Hidayat"}}]}}, ...]}
+```
+
+### Code review record
+
+- **Review #1 (pre-/build, cycle-doc).** 2 MAJOR + 1 MINOR: phone normalisation `+62` vs `0` prefix swap (fixed in Spec Assumption 7 + AC2 + AC3(g)); phone tie-break determinism via `orderBy: createdAt asc` (added to AC2 + AC3(j)); `getClientIp` comment accuracy (Vercel overwrites header — spoofing-safe; reflected in AC6 wording).
+- **Review #2 (pre-wrap, cumulative diff).** 1 CRITICAL + 3 MAJOR + 1 noop: bare-`8xx` phone false-negative (CRITICAL, fixed by extending `normalisePhone` to prepend `0` for 9–11-digit strings starting with `8`; new vitest case landed); HoverCardTrigger keyboard accessibility on a `<div>`-Badge (MAJOR, filed as `sibling-chip-keyboard-a11y` follow-up — admin-only surface, not a data correctness defect); cycle-doc `student.fullName` vs schema `student.name` mismatch (MAJOR, fixed in cycle doc); marathon test 1 short-circuit on 429 leaving trust-boundary unasserted (MAJOR, restructured to assert shape via retry-tolerant `request.post` so the trust-boundary check ALWAYS runs).
+
+### Carry-over caveats
+
+- **Admin-tagihan flake set** (`admin.spec.ts:473 / 524 / 575 / 628`): pre-existing carry-over from cycles 0.1 + 0.2 + 0.3 + 1.1; `phase0-admin-tagihan-flake-fix` follow-up.
+- **GitHub Actions billing failure (since 2026-05-10)**: CI red until billing restored outside Claude. Local gates canonical for THIS cycle. PR description records "CI red due to billing — local gates green" per cycle 0.2 / 0.3 / 1.1 precedent.
+- **Phase 0 closure /uat reports (cycle 0.3 AC10)** STILL pending — independent of this cycle. Run `/uat teacher` + `/uat parent` against staging URL post-merge.
+- **`preview_start` MCP harness EPERM `uv_cwd` against `.claude/worktrees/<slug>`** (cycle 1.1 finding) — used Bash-launched server + curl for HTML smoke; full browser semantics covered by Task 5 e2e through `playwright.config.ts` webServer.
 
 ## Ship Notes
 
-_Filled before `/ship`: migrations (Task 1's `<ts>_admission_detected_parent`), env vars (none new), rollback, ops steps, follow-ups filed during this cycle, wrap delta._
+### Migrations
+
+`prisma/migrations/20260511000000_admission_detected_parent` — additive. Adds nullable `Admission.detectedParentId` TEXT + FK constraint to `Parent("id")` ON DELETE SET NULL ON UPDATE CASCADE + composite `(tenantId, detectedParentId)` index. Every existing row gets NULL on apply. Re-deploy lands via `npx prisma migrate deploy` as part of the standard staging/main release flow.
+
+### Env vars
+
+No new env vars introduced. The cycle reuses existing infra:
+- `RESEND_API_KEY` / `RESEND_FROM_EMAIL` (cycle 1.1) — unchanged.
+- `DATABASE_URL` (existing) — used by the new `prisma.parent.findFirst` / `findMany` calls inside `lib/admission/sibling-detect.ts`.
+
+### Rollback
+
+Revert the merge commit. Reverts:
+- `lib/rate-limit.ts:getClientIp` to the prior `at(-1)` behavior (re-introduces the per-Vercel-edge-node bucket pooling).
+- The detection wiring in `app/api/admission/submit/route.ts` (post-create detect+update no-ops; admissions still create normally).
+- The admin badge column + edit-sheet banner in `app/admin/admissions/page.tsx` (admin sees admissions without sibling info).
+- The list-include enrichment in `app/api/admissions/route.ts`.
+
+`Admission.detectedParentId` column STAYS in the DB (revert can leave the additive migration — no FK forces deletion). New admissions created post-revert have NULL `detectedParentId`. **Existing admissions written during the cycle's staging window keep their populated `detectedParentId`** — the column data is harmless without the consuming code; cycle 2.x's accept-transition can pick up where cycle 1.2 left off when re-shipped. No data loss on rollback.
+
+If a future revert wants to drop the column entirely, generate a follow-up `down`-migration: `ALTER TABLE "Admission" DROP CONSTRAINT "Admission_detectedParentId_fkey"; DROP INDEX "Admission_tenantId_detectedParentId_idx"; ALTER TABLE "Admission" DROP COLUMN "detectedParentId";`.
+
+### Ops steps
+
+1. **Author watches CI** (`gh pr checks <number> --watch`). Per cycle 1.1 carry-over: GitHub Actions billing has been failing since 2026-05-10. CI checks (`Lint, Typecheck & Test`, `Build`, `Playwright E2E`) will be RED due to billing, NOT due to code defects. Local gates run by `/build` are canonical until billing is restored outside Claude.
+2. **Manual merge after CI green (or CI red + billing-blocker note):** `gh pr merge <number> --squash --delete-branch`.
+3. **DO NOT prepare `/ship --to-main` in this cycle.** Per plan §7 q7: this cycle's merge to staging completes Phase 1 (1.1 + 1.2 = 2 cycles) on top of Phase 0 (3 cycles) = 5 cycles accumulated since rollback. The first staging→main promotion since rollback becomes valid AFTER this cycle merges. The promotion is its own cycle (plan §5 calls 4.2) — separate doc-only PR per cycle 0.3 precedent: `gh pr create --base main --head staging`. **User decision after this cycle merges:** prep `/ship --to-main` immediately as the next cycle, OR interleave another Phase 1.x feature first.
+4. **Pre-publicised-launch checklist before `/ship --to-main`:** the `daftar-rate-limit-ip-extraction-hardening` follow-up filed in cycle 1.1 is **closed** by this cycle's Task 0 — `getClientIp` now reads the correct index on Vercel. The publicised launch of `/daftar` no longer has the per-edge-node bucket-pooling defect.
+
+### Follow-ups filed during this cycle
+
+- `sibling-chip-keyboard-a11y` (MAJOR, filed by review #2 Item 2) — `<HoverCardTrigger render={<Badge.../>} />` on `app/admin/admissions/page.tsx` Saudara column wraps a non-focusable `<div>` Badge. Keyboard-only admin users cannot reach the popover. Admin-only surface — not a data correctness defect; deferred for a dedicated a11y polish cycle. Fix shape: change Badge to render as `<button>` (or wrap the trigger in `<button>`) with `aria-label="Lihat detail saudara"`.
+- `sibling-detect-form-driven-marathon-flake` (MINOR, optional polish) — the e2e form-driven submission path no longer asserts trust-boundary in marathon (the trust-boundary check moved to a `request.post` retry path that always runs). The form-driven UX-shape check still exercises in marathon since it doesn't POST. Future polish: a global-setup or retry-tolerant page.fill+submit harness if Phase 4 wants tighter marathon coverage. Not blocking.
+- **CLOSED in this cycle:** `daftar-rate-limit-ip-extraction-hardening` (cycle 1.1 follow-up) — Task 0 landed the `getClientIp` index-0 read with 5 vitest cases.
+
+### Wrap delta (AC9 — README + cycle-doc Implementation/Verification/Ship-Notes)
+
+- README ADR row (top of active table, dated 2026-05-11) added — see Task 6 commit.
+- README Modules table — `students` row mentions "+ sibling auto-detect on admission submit".
+- Cycle-doc Implementation section: 6 task summaries (Task 0–5).
+- Cycle-doc Verification section: 10 ACs + end-of-cycle gate output + manual smoke + code-review record + carry-over caveats.
+- Cycle-doc Ship Notes section: this section.

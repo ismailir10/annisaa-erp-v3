@@ -34,7 +34,7 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 | **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
 | **hr** | Staff lifecycle: employees, attendance, leave, payroll, salary components — gated by `hr.*` permissions |
 | **academic** | School structure: academic year, programs, class sections, teaching assignments |
-| **students** | Student lifecycle: students, guardians, enrollments, admissions (admin CRM + public `/daftar` entry) |
+| **students** | Student lifecycle: students, guardians, enrollments, admissions (admin CRM + public `/daftar` entry + sibling auto-detect on submit) |
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
 | **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |
 | **student-journal** | Buku Penghubung — bi-directional school + home indicators with audit trail |
@@ -65,6 +65,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-11 | Sibling auto-detect on admission submit — tenant-scoped email > phone match against `Parent`; persists `Admission.detectedParentId` (additive nullable FK); `/admin/admissions` shows "Saudara terdeteksi" chip + edit-sheet banner. `getClientIp` now reads `x-forwarded-for[0]` (Vercel-correct) | Phase 1.2. Applicant-facing `/daftar` UX unchanged (admin-only per plan §7 q6). Closes cycle 1.1 `daftar-rate-limit-ip-extraction-hardening` before publicised launch — see [cycle](docs/cycles/2026-05-11-sibling-auto-detect.md) |
 | 2026-05-11 | Public-repo prep: `prisma/data/students.ts` marked synthetic-only; `.env.example` aligned with README (XENDIT_SECRET_KEY corrected, SUPABASE_SERVICE_ROLE_KEY + STAGING_EMAIL_OVERRIDE + CRON_SECRET documented); README `Next.js 15`→`16`; CLAUDE.md file-structure counts updated | Light-touch hygiene ahead of repo public-flip. Owner-email scrub skipped — same email already in migration SQL + git history forever, so source-tip scrub is cosmetic — see [cycle](docs/cycles/2026-05-11-public-repo-prep.md) |
 | 2026-05-10 | Public `/daftar` admission entry — three-step form (applicant → parent → preference) writes `Admission` rows in `INQUIRY` status; `POST /api/admission/submit` rate-limited 5/min/IP via in-memory bucket; Resend confirmation email best-effort | First Phase 1 feature post v2 rollback. Reuses v1 single-parent `Admission` schema (no migration); admin `/admin/admissions` flow unchanged — see [cycle](docs/cycles/2026-05-10-daftar-public-form.md) |
 | 2026-05-10 | Phase 0 perf sweep — `e2e/perf-budget.spec.ts` 4-s page-load regression guard; `data-testid="roster-row"` + `data-empty-state` anchors on `/teacher/class-attendance` | All 4 UAT perf findings (U3 / U7 / U8 / U9) healed by rollback alone (medians 119–541 ms vs UAT figures 2.1–15 s); guard locks the post-rollback envelope. Closes Phase 0 — see [cycle](docs/cycles/2026-05-10-phase0-perf-sweep.md) |

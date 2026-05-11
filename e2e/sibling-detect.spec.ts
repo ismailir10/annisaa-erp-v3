@@ -65,66 +65,64 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
 
   test("applicant-facing /daftar UX unchanged when match exists", async ({
     page,
+    request,
     context,
   }) => {
     await context.clearCookies();
 
-    const submitResponse = page.waitForResponse(
-      (res) =>
-        res.url().endsWith("/api/admission/submit") &&
-        res.request().method() === "POST",
-    );
-
-    await page.goto("/daftar");
-    await expect(
-      page.getByRole("heading", { name: "Pendaftaran Siswa Baru" }),
-    ).toBeVisible();
-
-    // Step 1
-    await page
-      .getByTestId("field-child-name")
-      .fill(`E2E Form Match ${Date.now()}`);
-    await page.getByTestId("field-date-of-birth").fill("2020-03-15");
-    await page.getByText("Perempuan", { exact: true }).click();
-    await page.getByTestId("daftar-next").click();
-
-    // Step 2 — use the seeded-parent-matching phone
-    await expect(page.getByTestId("daftar-step-2")).toBeVisible();
-    await page.getByTestId("field-parent-name").fill("E2E Form Applicant");
-    await page
-      .getByTestId("field-parent-phone")
-      .fill(APPLICANT_PARENT_PHONE_INPUT);
-    await page.getByTestId("daftar-next").click();
-
-    // Step 3
-    await expect(page.getByTestId("daftar-step-3")).toBeVisible();
-    await page.getByTestId("daftar-submit").click();
-
-    const res = await submitResponse;
-    // Marathon-mode tolerance: e2e/daftar-public.spec.ts runs earlier in
-    // the same suite and exhausts the per-anonymous-IP rate-limit bucket
-    // (5/min). When this test runs before the bucket resets, the submit
-    // returns 429 — annotate and skip the post-submit assertions rather
-    // than fail. The shape we'd verify (no sibling info echoed) is
-    // already covered server-side by lib/admission/sibling-detect.test.ts
-    // and the route smoke in Task 3. In-isolation runs of this spec
-    // exercise the full UX path.
+    // ----- Trust-boundary assertion (rate-limit-tolerant via retry) -----
+    // Critical invariant from plan §7 q6: a matched submission must NOT
+    // echo any sibling info to the applicant. Use request.post with the
+    // same 429-retry pattern as beforeAll so this assertion ALWAYS runs
+    // even in marathon orchestration where the per-anonymous-IP bucket
+    // can be exhausted by daftar-public.spec.ts.
+    let res = await request.post("/api/admission/submit", {
+      data: {
+        childName: `E2E Trust Boundary ${Date.now()}`,
+        dateOfBirth: "2020-03-15",
+        childGender: "P",
+        parentName: "E2E Trust Applicant",
+        parentPhone: APPLICANT_PARENT_PHONE_INPUT,
+      },
+    });
     if (res.status() === 429) {
-      test.info().annotations.push({
-        type: "skip-reason",
-        description:
-          "marathon rate-limit collision with daftar-public.spec.ts — passes in isolation",
+      await new Promise((r) => setTimeout(r, 61_000));
+      res = await request.post("/api/admission/submit", {
+        data: {
+          childName: `E2E Trust Boundary ${Date.now()}`,
+          dateOfBirth: "2020-03-15",
+          childGender: "P",
+          parentName: "E2E Trust Applicant",
+          parentPhone: APPLICANT_PARENT_PHONE_INPUT,
+        },
       });
-      return;
     }
     expect(res.status()).toBe(201);
     const body = (await res.json()) as Record<string, unknown>;
     // Response is plain { id } — NO sibling info echoed to the applicant.
     expect(Object.keys(body)).toEqual(["id"]);
 
-    // Confirmation state is identical to cycle 1.1 — no sibling chrome.
-    await expect(page.getByTestId("daftar-confirmation")).toBeVisible();
-    // The page does NOT contain any "saudara" copy at all.
+    // ----- UX-shape assertion (no submit; no rate-limit interaction) -----
+    // /daftar must not surface any sibling-related copy at any step. This
+    // assertion exercises the static UX shape without a second POST.
+    await page.goto("/daftar");
+    await expect(
+      page.getByRole("heading", { name: "Pendaftaran Siswa Baru" }),
+    ).toBeVisible();
+
+    await page.getByTestId("field-child-name").fill(`E2E UX ${Date.now()}`);
+    await page.getByTestId("field-date-of-birth").fill("2020-03-15");
+    await page.getByText("Perempuan", { exact: true }).click();
+    await page.getByTestId("daftar-next").click();
+    await expect(page.getByTestId("daftar-step-2")).toBeVisible();
+    await page.getByTestId("field-parent-name").fill("E2E UX Applicant");
+    await page
+      .getByTestId("field-parent-phone")
+      .fill(APPLICANT_PARENT_PHONE_INPUT);
+    await page.getByTestId("daftar-next").click();
+    await expect(page.getByTestId("daftar-step-3")).toBeVisible();
+
+    // The /daftar page (across all 3 steps) must never carry sibling copy.
     const pageText = (await page.textContent("body")) ?? "";
     expect(pageText.toLowerCase()).not.toContain("saudara");
     expect(pageText.toLowerCase()).not.toContain("sibling");

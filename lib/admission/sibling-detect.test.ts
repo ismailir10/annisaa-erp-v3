@@ -100,6 +100,11 @@ describe("normalisePhone", () => {
   it("leaves bare 08xxx unchanged", () => {
     expect(normalisePhone("081234567890")).toBe("081234567890");
   });
+
+  it("prepends 0 for bare 8xx (no prefix)", () => {
+    expect(normalisePhone("81234567890")).toBe("081234567890");
+    expect(normalisePhone("812 3456 7890")).toBe("081234567890");
+  });
 });
 
 describe("detectSibling", () => {
