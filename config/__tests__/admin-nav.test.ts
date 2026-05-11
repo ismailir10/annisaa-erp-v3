@@ -37,8 +37,16 @@ describe("getActiveItem — longest-prefix wins", () => {
 describe("adminNav IA — ordering + grouping", () => {
   const groupIds = adminNav.groups.map((g) => g.id);
 
-  it("orders groups: hr → academic → learning → finance", () => {
-    expect(groupIds).toEqual(["hr", "academic", "learning", "finance"]);
+  it("orders groups: hr → academic → curriculum → learning → finance", () => {
+    expect(groupIds).toEqual(["hr", "academic", "curriculum", "learning", "finance"]);
+  });
+
+  it("curriculum group is gated by curriculum.read and contains Semester", () => {
+    const group = adminNav.groups.find((g) => g.id === "curriculum")!;
+    expect(group.permission).toBe("curriculum.read");
+    expect(group.items.map((i) => i.label)).toEqual(["Semester"]);
+    expect(group.items[0].href).toBe("/admin/curriculum/semesters");
+    expect(group.items[0].permission).toBe("curriculum.read");
   });
 
   it("academic group follows student funnel order", () => {
