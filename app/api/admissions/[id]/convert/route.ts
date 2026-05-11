@@ -19,9 +19,15 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (admission.studentId) {
+    console.error(
+      `[admin-admissions CONVERT] already converted id=${id} studentId=${admission.studentId}`,
+    );
     return NextResponse.json({ error: "Pendaftaran ini sudah dikonversi menjadi siswa" }, { status: 400 });
   }
   if (admission.status !== "ADMITTED") {
+    console.error(
+      `[admin-admissions CONVERT] wrong status id=${id} status=${admission.status} (expected ADMITTED)`,
+    );
     return NextResponse.json({ error: "Hanya pendaftaran dengan status ADMITTED yang bisa dikonversi" }, { status: 400 });
   }
 

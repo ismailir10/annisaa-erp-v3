@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
-import { validateBody } from "@/lib/api/validate";
 import { createAdmissionSchema } from "@/lib/validations/admission";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -59,9 +58,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const result = await validateBody(createAdmissionSchema, await req.json());
-  if (result.error) return result.error;
-  const body = result.data;
+  const parsed = createAdmissionSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    // Log issues so Vercel runtime logs surface the actual reason (issues
+    // array) — request bodies are not captured by default; this is what
+    // makes admin 400s diagnosable without DevTools. Mirrors PUT route shape.
+    console.error(
+      "[admin-admissions POST] validation failed",
+      JSON.stringify(parsed.error.issues),
+    );
+    const errors = parsed.error.issues.map((e) => ({ field: e.path.join("."), message: e.message }));
+    return NextResponse.json({ error: "Validasi gagal", errors }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const admission = await prisma.admission.create({
     data: {
