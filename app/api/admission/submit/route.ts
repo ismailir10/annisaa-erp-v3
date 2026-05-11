@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { submitAdmissionSchema, flattenSubmitErrors } from "@/lib/admission/submit-validation";
+import { detectSibling } from "@/lib/admission/sibling-detect";
 import { sendAdmissionSubmittedEmail } from "@/lib/email/admission-submitted";
 
 const RATE_LIMIT_PER_MIN = 5;
@@ -88,6 +89,32 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[admission-submit] Insert failed", err);
     return NextResponse.json({ error: "submit_failed" }, { status: 500 });
+  }
+
+  // Sibling auto-detect (cycle 1.2). Runs AFTER admission.create succeeds.
+  // Failure swallowed — admission stays created, applicant sees 201 unchanged,
+  // admin sees the row without a "Saudara terdeteksi" chip. Per plan §7 q6
+  // the surface is admin-only — no match info echoed back to the applicant.
+  try {
+    const match = await detectSibling(
+      {
+        tenantId,
+        parentEmail: data.parentEmail,
+        parentPhone: data.parentPhone,
+      },
+      prisma,
+    );
+    if (match) {
+      await prisma.admission.update({
+        where: { id: admissionId },
+        data: { detectedParentId: match.parentId },
+      });
+    }
+  } catch (err) {
+    console.error(
+      `[admission-submit] sibling-detect failed for admission ${admissionId}:`,
+      err,
+    );
   }
 
   // Best-effort confirmation email. Failure is swallowed (per plan §7 q4):

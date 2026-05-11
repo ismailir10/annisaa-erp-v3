@@ -302,6 +302,37 @@ Verification — `npx vitest run lib/admission/sibling-detect.test.ts` → 13/13
 
 Files changed (2): `lib/admission/sibling-detect.ts` (new), `lib/admission/sibling-detect.test.ts` (new). No new dependencies.
 
+### Task 3 — Wire `detectSibling` into `POST /api/admission/submit`
+
+`app/api/admission/submit/route.ts` (modified, ~25-line insertion): imports `detectSibling` from `@/lib/admission/sibling-detect`. After the existing `admission.create` block (line 85 area) and BEFORE the email send (line 95 area), runs the detection inside a `try/catch`:
+
+```
+try {
+  const match = await detectSibling(
+    { tenantId, parentEmail: data.parentEmail, parentPhone: data.parentPhone },
+    prisma,
+  );
+  if (match) {
+    await prisma.admission.update({
+      where: { id: admissionId },
+      data: { detectedParentId: match.parentId },
+    });
+  }
+} catch (err) {
+  console.error(`[admission-submit] sibling-detect failed for admission ${admissionId}:`, err);
+}
+```
+
+Failure swallowed — admission stays created, applicant sees 201 unchanged, admin sees the row without a chip. Match info NEVER echoed to the applicant. Trust boundary preserved.
+
+Verification — local prod build + 2 curl smokes against `DEMO_MODE=true npm run start`:
+- POST with `parentPhone: "+62 812 9876 543"` (matches seeded Parent `Siti Nurhaliza Hidayat`, phone `"08129876543"`): returned `201 { id: "cmp0uzi3p00003bx785t08tox" }`; DB shows `detectedParentId = "cmoz7hs5d00d518x7vdttepxg"` (the matched seeded parent). +62→0 prefix swap exercised end-to-end.
+- POST with `parentPhone: "+62 999 0000 1234"` (no seeded parent matches): returned `201`; DB shows `detectedParentId = null`.
+
+`npm run build` typechecks green; the new import + the `prisma.admission.update` shape compile cleanly against the migration-extended Prisma client.
+
+Files changed (1): `app/api/admission/submit/route.ts` (modified). No new dependencies.
+
 ## Verification
 
 _Filled at end-of-cycle: AC-by-AC checkmarks, end-of-cycle gate output (npm run build + npx vitest run + npx playwright test), manual smoke (curl + browser), carry-over caveats. Matches cycle 1.1 + 0.3 shape._
