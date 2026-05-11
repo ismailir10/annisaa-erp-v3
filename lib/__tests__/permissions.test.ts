@@ -120,12 +120,13 @@ describe("getSystemRolePermissions", () => {
     expect(perms).toContain("users.edit");
   });
 
-  it("TEACHER → self-service set: attendance.view, attendance.checkin, leave.submit, students.view", () => {
+  it("TEACHER → self-service set: attendance.view, attendance.checkin, leave.submit, students.view, curriculum.read", () => {
     expect(getSystemRolePermissions("TEACHER")).toEqual([
       "attendance.view",
       "attendance.checkin",
       "leave.submit",
       "students.view",
+      "curriculum.read",
     ]);
   });
 
@@ -152,5 +153,45 @@ describe("getSystemRolePermissions", () => {
 describe("ALL_PERMISSIONS", () => {
   it("includes hr.view (new entry added in Task 2)", () => {
     expect(ALL_PERMISSIONS).toContain("hr.view");
+  });
+
+  it("includes curriculum.read + curriculum.write (C1/T2)", () => {
+    expect(ALL_PERMISSIONS).toContain("curriculum.read");
+    expect(ALL_PERMISSIONS).toContain("curriculum.write");
+  });
+});
+
+describe("curriculum permissions (C1/T2)", () => {
+  it("SUPER_ADMIN owner escape hatch grants curriculum.write without explicit listing", () => {
+    expect(
+      hasPermission({ role: "SUPER_ADMIN", permissions: [] }, "curriculum.write"),
+    ).toBe(true);
+  });
+
+  it("SCHOOL_ADMIN defaults → curriculum.read allowed, curriculum.write denied", () => {
+    const perms = getSystemRolePermissions("SCHOOL_ADMIN");
+    expect(
+      hasPermission({ role: "SCHOOL_ADMIN", permissions: perms }, "curriculum.read"),
+    ).toBe(true);
+    expect(
+      hasPermission({ role: "SCHOOL_ADMIN", permissions: perms }, "curriculum.write"),
+    ).toBe(false);
+  });
+
+  it("TEACHER defaults → curriculum.read allowed, curriculum.write denied", () => {
+    const perms = getSystemRolePermissions("TEACHER");
+    expect(
+      hasPermission({ role: "TEACHER", permissions: perms }, "curriculum.read"),
+    ).toBe(true);
+    expect(
+      hasPermission({ role: "TEACHER", permissions: perms }, "curriculum.write"),
+    ).toBe(false);
+  });
+
+  it("GUARDIAN defaults → curriculum.read denied", () => {
+    const perms = getSystemRolePermissions("GUARDIAN");
+    expect(
+      hasPermission({ role: "GUARDIAN", permissions: perms }, "curriculum.read"),
+    ).toBe(false);
   });
 });
