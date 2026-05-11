@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalTrimmed } from "@/lib/validations/zod-helpers";
 
 // Phone shape: digits, +, spaces, dashes, parens. 6–20 chars.
 // Permissive on purpose — Indonesian families type numbers in many shapes
@@ -15,21 +16,6 @@ const CUID_REGEX = /^c[a-z0-9]{24,}$/i;
 // We do NOT accept full ISO 8601 timestamps — the existing Admission.dateOfBirth
 // is a string column treated as a date-only value.
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * Optional-string preprocessor: trim, treat empty as undefined.
- * Form fields that are not filled in arrive as `""` from the JSON payload —
- * we treat that as "field omitted" rather than running the inner validator
- * against the empty string (which would produce false-positive errors like
- * "Email tidak valid" on an unfilled optional email).
- */
-function optionalTrimmed<T extends z.ZodType<string>>(inner: T) {
-  return z.preprocess((v) => {
-    if (typeof v !== "string") return v;
-    const t = v.trim();
-    return t === "" ? undefined : t;
-  }, inner.optional());
-}
 
 /**
  * Public-admission submit schema. Subset of `createAdmissionSchema`

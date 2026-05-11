@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     data: {
       tenantId: session.tenantId,
       childName: body.childName.trim(),
-      childAge: body.childAge?.trim() || null,
+      // childAge is auto-derived at display time from dateOfBirth — never written.
       childGender: body.childGender || null,
       dateOfBirth: body.dateOfBirth || null,
       parentName: body.parentName.trim(),

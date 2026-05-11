@@ -56,8 +56,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     where: { id },
     data: {
       childName: body.childName?.trim() ?? existing.childName,
-      childAge: body.childAge?.trim() ?? existing.childAge,
+      // childAge no longer client-writable — derived from dateOfBirth at display time.
+      // Legacy column value preserved on update (passes through existing.childAge for back-compat).
+      childAge: existing.childAge,
       childGender: body.childGender ?? existing.childGender,
+      dateOfBirth: body.dateOfBirth ?? existing.dateOfBirth,
       parentName: body.parentName?.trim() ?? existing.parentName,
       parentPhone: body.parentPhone?.trim() ?? existing.parentPhone,
       parentWhatsapp: body.parentWhatsapp?.trim() ?? existing.parentWhatsapp,

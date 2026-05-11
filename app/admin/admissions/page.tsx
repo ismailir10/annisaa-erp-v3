@@ -34,6 +34,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import { formatAgeFromDob } from "@/lib/admission/age";
 
 // ------------------------------------------------------------------
 // Types
@@ -42,7 +43,8 @@ import { formatDateShort } from "@/lib/format";
 type Admission = {
   id: string;
   childName: string;
-  childAge: string | null;
+  childAge: string | null; // legacy free-text; auto-derived from dateOfBirth on new rows
+  dateOfBirth: string | null; // YYYY-MM-DD — source of truth for age display
   childGender: string | null;
   parentName: string;
   parentPhone: string | null;
@@ -96,7 +98,7 @@ const TERMINAL_STATUSES = new Set(["REGISTERED", "CANCELLED"]);
 
 type AdmissionForm = {
   childName: string;
-  childAge: string;
+  dateOfBirth: string; // YYYY-MM-DD — age is auto-derived from this
   childGender: string;
   parentName: string;
   parentPhone: string;
@@ -130,12 +132,17 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           />
         </Field>
         <Field>
-          <FieldLabel>Usia</FieldLabel>
+          <FieldLabel>Tanggal Lahir</FieldLabel>
           <Input
-            value={form.childAge}
-            onChange={(e) => setForm({ ...form, childAge: e.target.value })}
-            placeholder="4 tahun"
+            type="date"
+            value={form.dateOfBirth}
+            onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
           />
+          {form.dateOfBirth && (
+            <span className="text-xs text-muted-foreground">
+              Usia: {formatAgeFromDob(form.dateOfBirth) ?? "—"}
+            </span>
+          )}
         </Field>
       </div>
       <Field>
@@ -355,7 +362,7 @@ export default function AdmissionsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     childName: "",
-    childAge: "",
+    dateOfBirth: "",
     childGender: "",
     parentName: "",
     parentPhone: "",
@@ -496,7 +503,7 @@ export default function AdmissionsPage() {
     setEditingAdmission(null);
     setForm({
       childName: "",
-      childAge: "",
+      dateOfBirth: "",
       childGender: "",
       parentName: "",
       parentPhone: "",
@@ -529,9 +536,16 @@ export default function AdmissionsPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{a.childName}</span>
-              {a.childAge && (
-                <span className="text-xs text-muted-foreground">{a.childAge}</span>
-              )}
+              {(() => {
+                // Prefer derived age from dateOfBirth (new rows); fall back to
+                // the legacy childAge free-text column for rows created before
+                // the DOB-only switch (cycle 2026-05-11).
+                const derived = formatAgeFromDob(a.dateOfBirth);
+                const display = derived ?? a.childAge;
+                return display ? (
+                  <span className="text-xs text-muted-foreground">{display}</span>
+                ) : null;
+              })()}
             </div>
             <p className="text-xs text-muted-foreground">
               {a.parentName}
@@ -610,7 +624,7 @@ export default function AdmissionsPage() {
             onEdit={() => {
               setEditingAdmission(a);
               setForm({
-                childName: a.childName, childAge: a.childAge ?? "", childGender: a.childGender ?? "",
+                childName: a.childName, dateOfBirth: a.dateOfBirth ?? "", childGender: a.childGender ?? "",
                 parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
                 parentEmail: "", parentEducation: a.parentEducation ?? "",
                 parentOccupation: a.parentOccupation ?? "",
