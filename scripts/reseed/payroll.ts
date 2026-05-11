@@ -2,7 +2,6 @@ import type { PrismaClient } from "../../lib/generated/prisma/client";
 import { salaryComponents } from "../../prisma/data/salary-components";
 import type { SeedOrgResult } from "./org";
 import type { SeedPeopleResult, EmployeePlan } from "./people";
-import { OWNER_EMAIL } from "./users";
 
 /** Realistic IDR salary by jabatan + tenure. */
 function baseSalaryFor(jabatan: string, hireYear: number): number {
@@ -103,7 +102,8 @@ export async function seedPayroll(
 
   // ── PayrollRun + PayrollItem + PayrollItemLine.
   const periods = buildPayrollPeriods();
-  const approvedByUserId = people.userIdByPreservedEmail[OWNER_EMAIL];
+  const approvedByUserId =
+    people.userIdByPreservedEmail["ismailir10@gmail.com"];
   if (!approvedByUserId) {
     throw new Error("seedPayroll: missing SUPER_ADMIN preserved User");
   }

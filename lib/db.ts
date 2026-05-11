@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-05-11 (public-repo-prep — seed.ts swaps owner email to OWNER_EMAIL env-driven; adapter unchanged).
+// Last verified: 2026-05-04 (D4 teacher-uat-fixes — seed adds KB-Aster parent journal note via dedicated u_kbaster_parent_d4 User row; adapter unchanged).
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

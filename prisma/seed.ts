@@ -157,20 +157,17 @@ async function main() {
   });
   console.log(`✅ School admin user: schooladmin@annisaa.sch.id`);
 
-  // Owner — SUPER_ADMIN. Email driven by OWNER_EMAIL env so the literal owner
-  // address isn't committed to the public repo. Default keeps demo/E2E flows
-  // working without configuration.
-  const ownerEmail = process.env.OWNER_EMAIL ?? "owner@example.test";
+  // Owner — SUPER_ADMIN (real owner email, always seeded)
   await prisma.user.create({
     data: {
       id: "u_owner",
       tenantId: tenant.id,
-      email: ownerEmail,
+      email: "ismailir10@gmail.com",
       role: "SUPER_ADMIN",
-      name: "Owner",
+      name: "Ismail Rabbani",
     },
   });
-  console.log(`✅ Owner user: ${ownerEmail}`);
+  console.log(`✅ Owner user: ismailir10@gmail.com`);
 
   // Additional SCHOOL_ADMIN tester (opaque cuid — not referenced by e2e)
   await prisma.user.create({
