@@ -225,6 +225,9 @@ Cross-checked `.claude/standards/design-system.html` §Status-chip set — admis
 
 Five states (+1 derived) covered. No new color tokens introduced. The render-time "Terdaftar" badge reuses the existing `bg-primary/10 text-primary` token (same one the deleted `STATUS_MAP[REGISTERED]` entry held), so the visual identity is conserved at 3m glance per `design-system.html` severity-family guidance.
 
+### Post-rebase merge artifact (2026-05-11)
+Rebasing onto post-PR-241-merge staging surfaced a duplicate `import { Badge } from "@/components/ui/badge"` line in `app/admin/admissions/page.tsx` — both PR 241's sibling chip block and this cycle's status-badge wiring added the same import. Deduped to a single import; tsc + vitest both clean (1163 passed).
+
 ## Ship Notes
 
 ### Migration apply order
