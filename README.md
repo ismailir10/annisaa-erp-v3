@@ -12,7 +12,7 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Next.js 15 (App Router) + TypeScript strict |
+| Framework | Next.js 16 (App Router) + TypeScript strict |
 | Database | Supabase Postgres (prod + staging Singapore `ap-southeast-1`) / SQLite (local dev) |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
