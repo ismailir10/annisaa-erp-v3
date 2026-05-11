@@ -152,7 +152,14 @@ Cycle 1.2 commit cadence: per-task `chore(lifecycle):`/`docs(lifecycle):` + sing
 
 ## Implementation
 
-<!-- filled by /build -->
+### T1 — Backfill migration
+
+- `prisma/migrations/20260512000000_admission_drop_registered/migration.sql` (NEW): single `UPDATE "Admission" SET status = 'ADMITTED' WHERE status = 'REGISTERED';`. Header comments document idempotence + production-safety claim.
+- Verified on demo DB via `npx prisma migrate deploy`:
+  - Pre-state: 56 INQUIRY / 4 VS / 2 V / **0 ADMITTED / 1 REGISTERED** / 0 CANCELLED.
+  - Post-state: 56 INQUIRY / 4 VS / 2 V / **1 ADMITTED** (id=`cmoz7j4ip01y218x741g2tzs6`, `childName="Ahmad Zafran Hidayat"`, `studentId="cmoz7hs2500d318x7l7bmwyvi"` — preserved) / 0 REGISTERED / 0 CANCELLED.
+- `studentId` FK preserved on the backfilled row → "converted" signal travels intact.
+- Migration registered in `_prisma_migrations` table; idempotent re-apply is a no-op (WHERE clause matches 0 rows on post-backfill DB).
 
 ## Verification
 
