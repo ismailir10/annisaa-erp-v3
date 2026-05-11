@@ -112,6 +112,143 @@ export type WeekCreateInput = z.infer<typeof weekCreateSchema>;
 export type WeekUpdateInput = z.infer<typeof weekUpdateSchema>;
 
 /**
+ * PROMES import validators — C2/T4.
+ *
+ * Two halves:
+ *   1. `promesImportRequestSchema` — multipart-form-derived request
+ *      shape carrying `semesterId` + `ageGroup`. The xlsx itself is a
+ *      File on the multipart payload, validated separately at the route
+ *      layer (size cap + content-type guard) before parsing begins.
+ *   2. `objectiveCreateSchema` + `indicatorCreateSchema` — row-level
+ *      shape every parsed PROMES row passes through before the
+ *      `prisma.$transaction` opens. A Zod-fail rolls back the whole
+ *      import with the failing row coordinates surfaced in the 400
+ *      response payload, so the admin can spot which TP / IKTP needs
+ *      authoring fixup before retry.
+ *
+ * Element + AgeGroup string unions mirror the Prisma enums declared
+ * in C1. Kept inline here (not imported from the Prisma client) so
+ * `lib/validations/**` stays free of any generated-client dependency
+ * per repo convention.
+ */
+export const ageGroupSchema = z.enum(["A", "B"]);
+
+export const curriculumElementSchema = z.enum([
+  "RELIGIOUS_MORAL",
+  "IDENTITY",
+  "STEAM",
+  "MOTOR_SKILLS",
+  "ART",
+]);
+
+export const promesImportRequestSchema = z.object({
+  semesterId: z.string().min(1, "Semester wajib dipilih"),
+  ageGroup: ageGroupSchema,
+});
+
+export const objectiveCreateSchema = z.object({
+  semesterId: z.string().min(1),
+  ageGroup: ageGroupSchema,
+  element: curriculumElementSchema,
+  number: z
+    .number()
+    .int()
+    .min(1, "Nomor tujuan pembelajaran harus ≥ 1")
+    .max(999, "Nomor tujuan pembelajaran tidak realistis"),
+  competencyText: z
+    .string()
+    .trim()
+    .min(1, "Capaian perkembangan diri wajib diisi")
+    .max(2000, "Capaian perkembangan diri terlalu panjang"),
+  content: z
+    .string()
+    .trim()
+    .min(1, "Tujuan pembelajaran wajib diisi")
+    .max(2000, "Tujuan pembelajaran terlalu panjang"),
+});
+
+export const indicatorCreateSchema = z.object({
+  // `objectiveId` is resolved server-side after the LearningObjective
+  // createMany completes — the parser-derived input shape carries the
+  // parent coordinates instead so the route layer can stitch the ids.
+  semesterId: z.string().min(1),
+  ageGroup: ageGroupSchema,
+  element: curriculumElementSchema,
+  objectiveNumber: z.number().int().min(1),
+  content: z
+    .string()
+    .trim()
+    .min(1, "Indikator (IKTP) wajib diisi")
+    .max(2000, "Indikator (IKTP) terlalu panjang"),
+  order: z.number().int().min(1, "Urutan indikator harus ≥ 1"),
+});
+
+export type AgeGroupInput = z.infer<typeof ageGroupSchema>;
+export type CurriculumElementInput = z.infer<typeof curriculumElementSchema>;
+export type PromesImportRequestInput = z.infer<
+  typeof promesImportRequestSchema
+>;
+export type ObjectiveCreateInput = z.infer<typeof objectiveCreateSchema>;
+export type IndicatorCreateInput = z.infer<typeof indicatorCreateSchema>;
+
+/** Response shape for the preview endpoint (no DB writes). */
+export interface PromesPreviewPayload {
+  semesterId: string;
+  ageGroup: AgeGroupInput;
+  inferredAgeGroup: AgeGroupInput | null;
+  filename: string;
+  byElement: Partial<
+    Record<
+      CurriculumElementInput,
+      Array<{
+        number: number;
+        competencyText: string;
+        content: string;
+        indicators: Array<{
+          order: number;
+          content: string;
+          themeNames: string[];
+        }>;
+      }>
+    >
+  >;
+  counts: {
+    objectives: number;
+    indicators: number;
+  };
+  /**
+   * Per-row conflict report. Each entry identifies an existing
+   * LearningObjective row that would collide on the
+   * (tenantId, semesterId, ageGroup, element, number) unique key.
+   * Preview returns 409 when this list is non-empty; commit refuses
+   * to write while any conflict is unresolved.
+   */
+  conflicts: Array<{
+    // ageGroup carried explicitly per row — the LearningObjective
+    // unique key is (tenantId, semesterId, ageGroup, element, number),
+    // so two objectives can share (element, number) if they differ by
+    // ageGroup. The admin UI must surface which ageGroup the existing
+    // row belongs to so a "TK A re-import" colliding with "TK B" prior
+    // data reads correctly.
+    ageGroup: AgeGroupInput;
+    element: CurriculumElementInput;
+    number: number;
+    existingContent: string;
+  }>;
+}
+
+/** Response shape for the commit endpoint. */
+export interface PromesCommitPayload {
+  semesterId: string;
+  ageGroup: AgeGroupInput;
+  filename: string;
+  counts: {
+    objectives: number;
+    indicators: number;
+  };
+}
+
+/**
  * Parse a Jakarta-tz YYYY-MM-DD string into a UTC-midnight Date. Use this in
  * the API layer when persisting validated dates to the curriculum tables so
  * the schema's TIMESTAMP columns line up with Jakarta calendar days.
