@@ -333,6 +333,28 @@ Verification — local prod build + 2 curl smokes against `DEMO_MODE=true npm ru
 
 Files changed (1): `app/api/admission/submit/route.ts` (modified). No new dependencies.
 
+### Task 4 — Admin badge surface (list-column chip + edit-sheet banner)
+
+`app/api/admissions/route.ts` (GET handler L40–): extended the `findMany` `include` to pull `detectedParent: { select: { id, name, guardians: { where: { status: "ACTIVE" }, select: { student: { select: { name: true } } } } } }`. Single nested include — no N+1. `Student.name` (not `fullName` — schema convention; AC5's `fullName` phrasing was a doc-vocabulary slip caught at implementation; the type in the page mirrors `name`).
+
+`app/admin/admissions/page.tsx`:
+- Imports added: `Badge` (Shadcn), `HoverCard` / `HoverCardTrigger` / `HoverCardContent` (Shadcn — backed by `@base-ui/react/preview-card`), `Alert` / `AlertDescription` (Shadcn), `Users2` (lucide-react).
+- `Admission` type extended with `detectedParentId: string | null` + `detectedParent: { id, name, guardians: Array<{ student: { name: string } }> } | null`.
+- `SiblingDetectBanner` component (NEW, top of file): renders a Shadcn `<Alert>` with the matched parent name (bolded) + comma-joined linked-student names + the Indonesian directive copy "Verifikasi sebelum mengonversi ke siswa." `data-testid="admission-edit-sibling-banner"`. Reused inside both the mobile `Sheet` and the desktop `Dialog` edit form bodies.
+- New "Saudara" column inserted between Status and Actions (around L585): renders `<HoverCard>` wrapping `<HoverCardTrigger render={<Badge variant="secondary">…</Badge>} />` (Base UI uses `render` prop, not Radix's `asChild`) with `<HoverCardContent>` showing parent name + linked-student `<ul>`. Plain `—` when `detectedParent` is null. `data-testid="admission-row-sibling-chip"`.
+- Banner inserted inside both Sheet and Dialog form bodies — gated on `editingAdmission?.detectedParent`. Same `SiblingDetectBanner` instance.
+
+Smoke against `DEMO_MODE=true npm run start`:
+- `GET /api/admissions?status=INQUIRY` with `cookie: school-erp-session=u_super_admin` returned the Smoke Sibling 1 row from Task 3 with full `detectedParent` payload: `{ id: "cmoz7hs5d00d518x7vdttepxg", name: "Siti Nurhaliza Hidayat", guardians: [{ student: { name: "Ahmad Zafran Hidayat" } }, { student: { name: "Aisyah Putri Ramadhani" } }, { student: { name: "Fatimah Az-Zahra Hidayat" } }] }` — three linked students enumerated correctly.
+- Smoke NoMatch 1 row returned with `detectedParent: null`.
+- `GET /admin/admissions` returns 200 OK; the page is `"use client"` so the chip/banner render after client hydration — full browser semantics covered by Task 5 e2e (Playwright through `playwright.config.ts` webServer, which bypasses the cycle 1.1-documented `preview_start` MCP harness EPERM `uv_cwd` on `.claude/worktrees/<slug>` paths).
+
+`npm run build` typechecks the full surface green. Initial type errors caught during Task 4 (`HoverCard openDelay`/`asChild`) reflected Base UI's API surface (different from Radix); the `render` prop pattern matches Shadcn-on-Base-UI convention.
+
+Cross-checked `.claude/standards/design-system.html` admin-list-row pattern (Badge + HoverCard tooltip primitive) — frontend-gate `design-system` token satisfied via cycle-doc Context paragraph + this Implementation note + AC10. Cross-checked `.claude/standards/voice.md` — banner copy uses Bu Sari-light register (directive but courteous: "Verifikasi sebelum mengonversi ke siswa").
+
+Files changed (2): `app/api/admissions/route.ts` (modified), `app/admin/admissions/page.tsx` (modified). No new dependencies.
+
 ## Verification
 
 _Filled at end-of-cycle: AC-by-AC checkmarks, end-of-cycle gate output (npm run build + npx vitest run + npx playwright test), manual smoke (curl + browser), carry-over caveats. Matches cycle 1.1 + 0.3 shape._
