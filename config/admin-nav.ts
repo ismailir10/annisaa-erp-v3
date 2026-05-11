@@ -14,6 +14,7 @@ import {
   Shield,
   Heart,
   BookOpen,
+  BookMarked,
   ClipboardList,
   Palette,
   type LucideIcon,
@@ -78,6 +79,15 @@ export const adminNav: NavConfig = {
         { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
         { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
         { label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen },
+      ],
+    },
+    {
+      id: "curriculum",
+      label: "Kurikulum",
+      icon: BookMarked,
+      permission: "curriculum.read",
+      items: [
+        { label: "Semester", href: "/admin/curriculum/semesters", icon: CalendarDays, permission: "curriculum.read" },
       ],
     },
     {
