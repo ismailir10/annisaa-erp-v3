@@ -38,6 +38,8 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
 | **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |
 | **student-journal** | Buku Penghubung — bi-directional school + home indicators with audit trail |
+| **curriculum** *(planned 2026-07)* | PROMES spine: Semester → Theme → Week, LearningObjective → AchievementIndicator — see [design spec](docs/superpowers/specs/2026-05-12-curriculum-penilaian-raport-design.md) |
+| **reportCard** *(planned 2026-09)* | Term + narrative template + per-student bucket assignment + PDF/docx — same spec |
 
 ---
 
@@ -65,6 +67,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-12 | Pedagogy stack (Curriculum + Penilaian + Raport) designed: PROMES-canonical IKTP, 3-level scale (Konsisten/Belum/Penguatan), template-driven Raport with PDF+docx | Replaces 60+ weekly xlsx; July cutover for Curriculum+Penilaian, Sept ship for Raport — see [spec](docs/superpowers/specs/2026-05-12-curriculum-penilaian-raport-design.md) |
 | 2026-05-12 | Drop `REGISTERED` admission state — 5-state vocab (`INQUIRY` \| `VISIT_SCHEDULED` \| `VISITED` \| `ADMITTED` \| `CANCELLED`); `Admission.studentId` nullable FK is the single "converted" signal | Cycle 2.1 first-principles audit replaced the planned v2 8-state lift as overcomplicated for the Indonesian school workflow; backfill `UPDATE` migrates 1 demo row, 0 prod rows; convert-flow gate stays `status="ADMITTED"`, status no longer flips — see [cycle](docs/cycles/2026-05-12-admission-lifecycle-simplification.md) |
 | 2026-05-11 | Sibling auto-detect on admission submit — tenant-scoped email > phone match against `Parent`; persists `Admission.detectedParentId` (additive nullable FK); `/admin/admissions` shows "Saudara terdeteksi" chip + edit-sheet banner. `getClientIp` now reads `x-forwarded-for[0]` (Vercel-correct) | Phase 1.2. Applicant-facing `/daftar` UX unchanged (admin-only per plan §7 q6). Closes cycle 1.1 `daftar-rate-limit-ip-extraction-hardening` before publicised launch — see [cycle](docs/cycles/2026-05-11-sibling-auto-detect.md) |
 | 2026-05-11 | Public-repo prep: `prisma/data/students.ts` marked synthetic-only; `.env.example` aligned with README (XENDIT_SECRET_KEY corrected, SUPABASE_SERVICE_ROLE_KEY + STAGING_EMAIL_OVERRIDE + CRON_SECRET documented); README `Next.js 15`→`16`; CLAUDE.md file-structure counts updated | Light-touch hygiene ahead of repo public-flip. Owner-email scrub skipped — same email already in migration SQL + git history forever, so source-tip scrub is cosmetic — see [cycle](docs/cycles/2026-05-11-public-repo-prep.md) |
