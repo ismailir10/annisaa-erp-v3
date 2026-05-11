@@ -9,6 +9,11 @@ import {
   parseJakartaYmd,
   formatJakartaYmd,
   findWeekOverlap,
+  promesImportRequestSchema,
+  objectiveCreateSchema,
+  indicatorCreateSchema,
+  type ObjectiveCreateInput,
+  type IndicatorCreateInput,
 } from "@/lib/validations/curriculum";
 
 describe("semesterCreateSchema", () => {
@@ -236,5 +241,142 @@ describe("findWeekOverlap", () => {
       { startDate: "2026-07-14", endDate: "2026-07-15" },
     );
     expect(r?.id).toBe("w1");
+  });
+});
+
+describe("promesImportRequestSchema", () => {
+  it("accepts a valid (semesterId, ageGroup=A) pair", () => {
+    const r = promesImportRequestSchema.safeParse({
+      semesterId: "sem_123",
+      ageGroup: "A",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts ageGroup=B", () => {
+    const r = promesImportRequestSchema.safeParse({
+      semesterId: "sem_123",
+      ageGroup: "B",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects empty semesterId", () => {
+    const r = promesImportRequestSchema.safeParse({
+      semesterId: "",
+      ageGroup: "A",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects unknown ageGroup", () => {
+    const r = promesImportRequestSchema.safeParse({
+      semesterId: "sem_123",
+      ageGroup: "C",
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("objectiveCreateSchema", () => {
+  const valid: ObjectiveCreateInput = {
+    semesterId: "sem_123",
+    ageGroup: "A",
+    element: "RELIGIOUS_MORAL",
+    number: 1,
+    competencyText: "Mengenal Allah melalui ciptaan-Nya",
+    content: "Anak mengenal rukun iman dan rukun Islam dasar",
+  };
+
+  it("accepts the canonical happy-path objective row", () => {
+    expect(objectiveCreateSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("trims whitespace on text fields before length checks", () => {
+    const parsed = objectiveCreateSchema.parse({
+      ...valid,
+      competencyText: "   Mengenal Allah   ",
+      content: "  Anak ibadah  ",
+    });
+    expect(parsed.competencyText).toBe("Mengenal Allah");
+    expect(parsed.content).toBe("Anak ibadah");
+  });
+
+  it("rejects empty competencyText after trim", () => {
+    const r = objectiveCreateSchema.safeParse({
+      ...valid,
+      competencyText: "    ",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects non-positive number", () => {
+    expect(
+      objectiveCreateSchema.safeParse({ ...valid, number: 0 }).success,
+    ).toBe(false);
+    expect(
+      objectiveCreateSchema.safeParse({ ...valid, number: -3 }).success,
+    ).toBe(false);
+  });
+
+  it("rejects non-integer number", () => {
+    expect(
+      objectiveCreateSchema.safeParse({ ...valid, number: 1.5 }).success,
+    ).toBe(false);
+  });
+
+  it("rejects unknown element", () => {
+    const r = objectiveCreateSchema.safeParse({
+      ...valid,
+      element: "UNKNOWN_ELEMENT",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects unrealistically large numbers", () => {
+    expect(
+      objectiveCreateSchema.safeParse({ ...valid, number: 1000 }).success,
+    ).toBe(false);
+  });
+});
+
+describe("indicatorCreateSchema", () => {
+  const valid: IndicatorCreateInput = {
+    semesterId: "sem_123",
+    ageGroup: "A",
+    element: "RELIGIOUS_MORAL",
+    objectiveNumber: 1,
+    content: "Menyebutkan rukun iman dengan urutan benar",
+    order: 1,
+  };
+
+  it("accepts the canonical happy-path indicator row", () => {
+    expect(indicatorCreateSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("rejects empty content after trim", () => {
+    expect(
+      indicatorCreateSchema.safeParse({ ...valid, content: "   " }).success,
+    ).toBe(false);
+  });
+
+  it("rejects order < 1", () => {
+    expect(
+      indicatorCreateSchema.safeParse({ ...valid, order: 0 }).success,
+    ).toBe(false);
+  });
+
+  it("rejects objectiveNumber < 1", () => {
+    expect(
+      indicatorCreateSchema.safeParse({ ...valid, objectiveNumber: 0 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects non-integer objectiveNumber", () => {
+    expect(
+      indicatorCreateSchema.safeParse({ ...valid, objectiveNumber: 1.5 })
+        .success,
+    ).toBe(false);
   });
 });

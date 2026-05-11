@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
-import { ArrowLeft, ChevronRight, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, ChevronRight, FileUp, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -116,7 +116,19 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
       <PageHeader
         title={`${semester.academicYearName} · Semester ${semester.number}`}
         description={`Periode ${formatDateShort(toYmd(semester.startDate))} – ${formatDateShort(toYmd(semester.endDate))}. Atur tema, subtema, dan pekan.`}
-        actions={<StatusBadge status={semester.status} />}
+        actions={
+          <div className="flex items-center gap-2">
+            {canWrite && (
+              <Link
+                href={`/admin/curriculum/semesters/${semester.id}/import`}
+                className="inline-flex items-center gap-2 h-9 rounded-md border border-input bg-background px-3 text-small font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <FileUp className="size-4" /> Impor PROMES
+              </Link>
+            )}
+            <StatusBadge status={semester.status} />
+          </div>
+        }
       />
 
       <div className="grid gap-card lg:grid-cols-3">
