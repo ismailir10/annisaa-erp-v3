@@ -495,10 +495,11 @@ model Parent {
   incomeRange     String? // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
   childrenTotal   Int? // Total anak (including non-students at this school)
 
-  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  guardians StudentGuardian[]
-  invoices  Invoice[]
-  users     User[]
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  guardians          StudentGuardian[]
+  invoices           Invoice[]
+  users              User[]
+  detectedAdmissions Admission[]       @relation("AdmissionDetectedParent")
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
@@ -569,13 +570,16 @@ model Admission {
   notes            String?
   followUpDate     String? // YYYY-MM-DD
   studentId        String?  @unique // Linked when converted to student
+  detectedParentId String? // Sibling-detect match (cycle 1.2) — nullable FK to Parent
   createdAt        DateTime @default(now())
 
-  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  program Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
-  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  program        Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  student        Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  detectedParent Parent?  @relation("AdmissionDetectedParent", fields: [detectedParentId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status])
+  @@index([tenantId, detectedParentId])
 }
 
 // ══════════════════════════════════════════════════════════════

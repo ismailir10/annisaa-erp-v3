@@ -26,6 +26,10 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { Badge } from "@/components/ui/badge";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Users2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
@@ -35,6 +39,38 @@ import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight } from "lucid
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import { formatAgeFromDob } from "@/lib/admission/age";
+
+// ------------------------------------------------------------------
+// Sibling-detect edit-form banner (cycle 1.2)
+// ------------------------------------------------------------------
+
+function SiblingDetectBanner({
+  detectedParent,
+}: {
+  detectedParent: {
+    name: string;
+    guardians: Array<{ student: { name: string } }>;
+  } | null;
+}) {
+  if (!detectedParent) return null;
+  const names = detectedParent.guardians
+    .map((g) => g.student.name)
+    .filter(Boolean)
+    .join(", ");
+  return (
+    <Alert
+      className="border-amber-300 bg-amber-50 text-amber-900"
+      data-testid="admission-edit-sibling-banner"
+    >
+      <Users2 className="size-4" />
+      <AlertDescription>
+        Pendaftar ini terdeteksi sebagai saudara dari keluarga{" "}
+        <strong>{detectedParent.name}</strong>
+        {names ? ` (${names})` : ""}. Verifikasi sebelum mengonversi ke siswa.
+      </AlertDescription>
+    </Alert>
+  );
+}
 
 // ------------------------------------------------------------------
 // Types
@@ -60,6 +96,12 @@ type Admission = {
   studentId: string | null;
   createdAt: string;
   program: { name: string } | null;
+  detectedParentId: string | null;
+  detectedParent: {
+    id: string;
+    name: string;
+    guardians: Array<{ student: { name: string } }>;
+  } | null;
 };
 
 type Program = { id: string; name: string };
@@ -597,6 +639,48 @@ export default function AdmissionsPage() {
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
+      id: "sibling",
+      header: "Saudara",
+      cell: ({ row }) => {
+        const dp = row.original.detectedParent;
+        if (!dp) return <span className="text-xs text-muted-foreground">—</span>;
+        const studentNames = dp.guardians
+          .map((g) => g.student.name)
+          .filter((n): n is string => Boolean(n));
+        return (
+          <HoverCard>
+            <HoverCardTrigger
+              render={
+                <Badge
+                  variant="secondary"
+                  className="cursor-help gap-1"
+                  data-testid="admission-row-sibling-chip"
+                >
+                  <Users2 size={12} />
+                  Saudara terdeteksi
+                </Badge>
+              }
+            />
+
+            <HoverCardContent className="w-64 text-sm" side="left">
+              <p className="font-semibold">{dp.name}</p>
+              {studentNames.length > 0 ? (
+                <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                  {studentNames.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-muted-foreground italic">
+                  Tidak ada siswa tertaut
+                </p>
+              )}
+            </HoverCardContent>
+          </HoverCard>
+        );
+      },
+    },
+    {
       id: "actions",
       cell: ({ row }) => {
         const a = row.original;
@@ -706,6 +790,9 @@ export default function AdmissionsPage() {
               <SheetTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</SheetTitle>
             </SheetHeader>
             <div className="p-card space-y-field">
+              {editingAdmission?.detectedParent && (
+                <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
+              )}
               <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
               <div className="flex flex-col-reverse gap-2 pt-2">
                 <Button onClick={handleSubmit} disabled={saving}>
@@ -723,6 +810,9 @@ export default function AdmissionsPage() {
               <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
             </DialogHeader>
             <div className="p-card space-y-field">
+              {editingAdmission?.detectedParent && (
+                <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
+              )}
               <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
             </div>
             <DialogFooter>

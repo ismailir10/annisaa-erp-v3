@@ -40,7 +40,19 @@ export async function GET(req: NextRequest) {
       where,
       skip,
       take,
-      include: { program: { select: { name: true } } },
+      include: {
+        program: { select: { name: true } },
+        detectedParent: {
+          select: {
+            id: true,
+            name: true,
+            guardians: {
+              where: { status: "ACTIVE" },
+              select: { student: { select: { name: true } } },
+            },
+          },
+        },
+      },
       orderBy,
     }),
     prisma.admission.count({ where }),
