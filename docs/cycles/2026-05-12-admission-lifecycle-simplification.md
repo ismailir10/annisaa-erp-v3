@@ -191,8 +191,74 @@ Cycle 1.2 commit cadence: per-task `chore(lifecycle):`/`docs(lifecycle):` + sing
 
 ## Verification
 
-<!-- filled by /build -->
+### Local gates (2026-05-12, post-T2)
+
+- **Build:** `npm run build` — green. All 134 routes compile; admin/admissions surface + convert route + status-badge re-emit without TS errors.
+- **Vitest:** `npx vitest run` — 1133 passed / 42 todo / 0 failed (135 test files, 2 skipped). 50.02s wall. No vitest regression. No vitest fixtures hard-coded REGISTERED literals in assertions — the existing `submit-validation.test.ts:138` reference to `status: "ADMITTED"` is unrelated (tests the submit-validation rejection path).
+- **Playwright admin block (`npx playwright test e2e/admin.spec.ts`):** 21 passed / 5 skipped / 0 failed (1.5 min wall). Skips are pre-existing carry-overs (4× admin-tagihan flake set L473/524/575/628 — `phase0-admin-tagihan-flake-fix` follow-up; 1× invoice-void L332 — no DRAFT invoice available in the seeded demo).
+  - **The admission-transitions test at admin.spec.ts:295 PASSED with the swapped illegal-jump target.** Server runtime log captured during the test confirms the rewritten error path: `[admin-admissions PUT] invalid transition id=… from=VISIT_SCHEDULED to=ADMITTED` — i.e. the trimmed `VALID_TRANSITIONS["VISIT_SCHEDULED"]=["VISITED","CANCELLED"]` rejects ADMITTED via the same code path that previously rejected REGISTERED. The `/Invalid status transition/i` regex assertion at L320 matches the actual error string.
+
+### Database backfill
+
+- Pre-migrate (demo DB): 56 INQUIRY / 4 VS / 2 V / 0 ADMITTED / 1 REGISTERED / 0 CANCELLED.
+- Post-migrate: 56 INQUIRY / 4 VS / 2 V / **1 ADMITTED** (id=`cmoz7j4ip01y218x741g2tzs6`, `childName="Ahmad Zafran Hidayat"`, `studentId="cmoz7hs2500d318x7l7bmwyvi"`) / 0 REGISTERED / 0 CANCELLED.
+- `studentId` FK preserved on the backfilled row → "converted" signal travels intact. Admin list page renders the row with the new "Terdaftar" badge (status=ADMITTED && studentId non-null), preserving the visual identity that the deleted `STATUS_MAP[REGISTERED]` chip provided.
+- Migration is idempotent: re-running `npx prisma migrate deploy` is a no-op once the row has been backfilled (UPDATE WHERE clause matches 0 rows).
+
+### Code-reviews
+
+- **Review #1 (cycle doc pre-build, completed 2026-05-12):** 3 findings (B1/M2/M3); all 3 addressed in commit `docs(lifecycle): cycle 2.1 AC fixes from review #1` (`2213cbf`). Fixes: AC5 expanded with the `stats` useState shape + dashboard tile removal detail; AC6 corrected (no REGISTERED row in `STATUS_LEFT_BORDER_MAP`); AC7 clarified (API seed row gets ADMITTED + studentId UNSET; coupling deferred).
+- **Review #2 (cumulative diff pre-wrap, completed 2026-05-12):** 0 blockers. 1 Major + 1 Minor — both pre-existing surface that the cycle preserves; documented in Ship Notes for handoff.
+
+### Design-system cross-check (frontend gate Rule 4)
+
+Cross-checked `.claude/standards/design-system.html` §Status-chip set — admission funnel chip palette after REGISTERED deletion:
+
+| State | Chip className | Severity tone |
+|---|---|---|
+| `INQUIRY` | `bg-status-leave-subtle text-status-leave-text` | info-blue (transit) |
+| `VISIT_SCHEDULED` | `bg-status-late-subtle text-status-late-text` | warn-amber (in-progress) |
+| `VISITED` | `bg-status-holiday-subtle text-status-holiday-text` | neutral-holiday (verified milestone) |
+| `ADMITTED` | `bg-status-present-subtle text-status-present-text` | present-green (positive confirm) |
+| `CANCELLED` | (default fallback in `<StatusBadge>` — `bg-muted text-muted-foreground`) | muted (terminal-dormant) |
+| `ADMITTED + studentId` (derived "Terdaftar" badge in row cell) | `bg-primary/10 text-primary` | primary-tint (preserved from deleted REGISTERED chip) |
+
+Five states (+1 derived) covered. No new color tokens introduced. The render-time "Terdaftar" badge reuses the existing `bg-primary/10 text-primary` token (same one the deleted `STATUS_MAP[REGISTERED]` entry held), so the visual identity is conserved at 3m glance per `design-system.html` severity-family guidance.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+### Migration apply order
+
+- New migration: `prisma/migrations/20260512000000_admission_drop_registered/migration.sql`. Runs forward via `npx prisma migrate deploy` (the standard Vercel deploy hook + Supabase CI step). Single `UPDATE` — no DDL — completes in <100ms on demo. No application downtime; the column is TEXT, no column-add or enum-extend lock.
+- The migration is the FIRST thing that must run before the new code lands serving traffic. Order: prisma migrate deploy → app build → cut-over. If a deploy attempts the new code against a DB still holding REGISTERED rows, those rows render the default `<StatusBadge>` fallback (raw status string, muted background) — visible but not broken; admin can manually fix via PUT. Migration-first ordering avoids that interim.
+
+### Env vars
+
+- None new. `DATABASE_URL` already configured.
+
+### Rollback
+
+- Revert the merge commit on staging. The column is TEXT — no DDL to undo. `prisma migrate resolve --rolled-back 20260512000000_admission_drop_registered` removes the entry from `_prisma_migrations`. Any rows that landed at `status="ADMITTED" + studentId=<id>` from the old REGISTERED pathway STAY at that shape (the rollback DOES NOT auto-restore them to REGISTERED — manual `UPDATE` required if the rollback wants the old vocab back). Demo DB has 1 such row pre-merge; production has 0.
+- Code rollback: standard `git revert <merge-commit>` on staging. The reverted commits restore the 6-state vocab in `lib/validations/admission.ts`, `app/api/admissions/[id]/route.ts`, `app/admin/admissions/page.tsx`, etc. No data migration required for code rollback alone — the TEXT column accepts both vocabularies; the validation enum rejects REGISTERED post-cleanup but accepts it pre-cleanup. Rolled-back DB rows that landed under the new code (status=ADMITTED + studentId set, formerly REGISTERED) will read fine under the rolled-back code (which still has REGISTERED in its enum + display maps).
+
+### Carry-over caveats from review #2 (NOT introduced by this cycle)
+
+1. **Convert double-tap race.** `app/api/admissions/[id]/convert/route.ts` reads `admission.studentId` outside the atomic transaction (L17-26) before entering the txn at L35. Two rapid POST clicks against the same admission could BOTH pass the L21-26 already-converted guard before either txn commits — resulting in two students materialised from one admission. The L83-86 `tx.admission.update({ where: { id }, data: { studentId: student.id } })` would still race: whichever update commits last wins, and the loser's Student + Parent + StudentGuardian rows orphan with no Admission FK. **Pre-existing bug** — not introduced by cycle 2.1; the same race existed before the cycle. Filing as a follow-up: `admission-convert-double-tap-race-toctou-guard` — hoist the studentId check INTO the txn (`tx.admission.update({ where: { id, studentId: null }, … })` with `recordsAffected === 0` interpreted as "already converted by a concurrent request"). Out of scope for cycle 2.1 (vocab cleanup only); cycle 2.2 picks it up when refactoring the convert flow into the `accept` transition's side-effect.
+
+2. **ADMITTED-without-studentId row offers BOTH "Konversi ke Siswa" + "Batalkan".** `app/admin/admissions/page.tsx` row-actions cell (L600+) shows both buttons on an ADMITTED row whose `studentId` is null. This is by-design — `VALID_TRANSITIONS[ADMITTED]=["CANCELLED"]` keeps the cancel escape hatch live; the convert button is the happy path. No UX ordering hint is offered. Admin uses judgment. If this becomes a support pain (admins canceling rows they meant to convert), the fix is small: re-order the row-actions menu or add a confirm-step on cancel-of-ADMITTED. Out of scope for cycle 2.1; mention here so cycle 2.2 (or a UX polish cycle) can choose to wire it.
+
+### What cycle 2.2 picks up
+
+Per the revised plan §5 Phase 2.2:
+1. Extract the inline `VALID_TRANSITIONS` map from `app/api/admissions/[id]/route.ts` into `lib/admission/state-machine.ts` (pure algebra, no DB; vitest covers every legal/illegal transition).
+2. Refactor `convert-to-student` into the `accept` transition's side-effect with the TOCTOU guard above. Gate stays `status="ADMITTED" && studentId IS NULL`.
+3. Add transition server actions (`scheduleVisit`, `markVisited`, `accept`, `cancel`) — each wraps `assertTransition` + writes an `AuditLog` row + sends email (visit-scheduled / accepted / cancelled templates via Resend).
+4. (Optional, defer unless user asks) Add `?status=ADMITTED&hasStudent=true|false` filter on `GET /api/admissions` to give the admin dashboard a richer "converted vs unconverted" tile split.
+
+### /ship --to-main posture
+
+**DEFERRED** per user 2026-05-11 decision. The first `/ship --to-main` since rollback waits for ALL Phase 1 + Phase 2 features to land on staging. Cycle 2.1 ships to staging only; production main stays at `d507662` (post-rollback baseline). Cycle 2.2 will likely be the trigger for the staging→main PR — CTO initiates explicitly when the time comes.
+
+### PR open-state at session start
+
+PR #241 (cycle 1.2 — sibling auto-detect) was OPEN at session start (head `feat/sibling-auto-detect`). CI billing failure (since 2026-05-10) blocks the standard PR-green-merge path. Cycle 2.1 shipped against `origin/staging` without PR #241's changes; the two cycles touch `app/admin/admissions/page.tsx` in different regions (cycle 1.2 adds a Saudara column; cycle 2.1 trims NEXT_STATUS + dashboard + filter chip + status cell). Mechanical merge conflict likely when both land. Recommended order: merge cycle 2.1 first (this PR), then rebase PR #241 against the new staging tip.
