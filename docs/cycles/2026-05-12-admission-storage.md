@@ -19,7 +19,7 @@ Spec: [docs/superpowers/specs/2026-05-12-admission-student-domain-design.md](../
 
 - [x] Task 1: Migration N+5 — `admission-documents` bucket + deny-anon RLS policy
 - [x] Task 2: Service-role Supabase client factory
-- [ ] Task 3: `lib/supabase/storage.ts` SDK wrapper + path builder + validation + tests
+- [x] Task 3: `lib/supabase/storage.ts` SDK wrapper + path builder + validation + tests
 - [ ] Task 4: `POST /api/public/admissions/upload-token` route + tests
 - [ ] Task 5: Smoke + ship
 
@@ -39,10 +39,21 @@ Bucket created idempotently via `INSERT ... ON CONFLICT DO UPDATE`. RLS policy d
 
 No existing service-role helper found in `lib/supabase/` or anywhere in `lib/`. Both `@supabase/supabase-js` (^2.102.1) and `server-only` are already present in `package.json` — no new deps needed. Created singleton factory `getServiceClient()` with `persistSession: false` and `autoRefreshToken: false`. `server-only` import enforces build-time rejection from client components.
 
+### Task 3 — Storage SDK wrapper + path builder + validation (2026-05-12)
+
+**Files:**
+- `lib/supabase/storage.ts` — SDK wrapper exporting `ADMISSION_FILE_KINDS`, `ALLOWED_EXTENSIONS`, `buildAdmissionFilePath`, `createSignedUploadUrl`, `createSignedDownloadUrl`, `deleteFile`, `validateUploadedFile`
+- `lib/supabase/__tests__/storage.test.ts` — 13 vitest cases (12 spec + 1 edge), all passing
+- `vitest.config.ts` — added `server-only` alias to `next/dist/compiled/server-only/empty.js` so test environment can import server-only modules without throwing
+
+**Notes:** Real Supabase SDK `info()` returns `FileObjectV2` camelized — `data.contentType` and `data.size` at root (not `data.metadata.mimetype`). Mocks and implementation aligned to real SDK shape. `server-only` not in `node_modules` (not a direct dep); resolved via Next.js bundled copy alias in vitest config.
+
 ## Verification
 
 - [x] `npm run build && npx vitest run` — 137 test files passed, 0 errors (Task 2 between-task gate)
-- [ ] End-of-cycle Playwright gate pending (Tasks 3–5 remaining)
+- [x] `npx vitest run lib/supabase/__tests__/storage.test.ts` — 13/13 passed (Task 3 between-task gate)
+- [x] `npm run build` — green after Task 3
+- [ ] End-of-cycle Playwright gate pending (Tasks 4–5 remaining)
 
 ## Ship Notes
 
