@@ -30,7 +30,7 @@ Status is a state machine, not a binary flag — `Deactivate` doesn't apply. The
 
 | Entity | States | Terminal action | UI label | API |
 |--------|--------|-----------------|----------|-----|
-| Admission | `INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → REGISTERED` · `CANCELLED` | Cancel | "Batalkan" | `PUT /api/admissions/[id]` with `{ status: "CANCELLED" }` |
+| Admission | `INQUIRY → VISITED → APPLIED → PAID → ADMITTED → REGISTERED` · `CANCELLED` | Cancel | "Batalkan" | `PUT /api/admissions/[id]` with `{ status: "CANCELLED" }` (Pack 4 will introduce `POST /api/admissions/[id]/reject` with `{ reason }` per spec [2026-05-12-admission-student-domain-design.md §2.1](../../docs/superpowers/specs/2026-05-12-admission-student-domain-design.md)) |
 | Invoice | `DRAFT → SENT → PARTIALLY_PAID → PAID` · `OVERDUE` · `CANCELLED` | Void | "Batalkan" | `POST /api/invoices/[id]/void` |
 | PayrollRun | `DRAFT → APPROVED → SLIPS_SENT` | (none — workflow-only) | — | `POST /api/payroll/[id]/{approve,send-slips,export/bsi}` |
 
