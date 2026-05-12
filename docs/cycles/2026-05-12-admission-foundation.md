@@ -16,8 +16,8 @@ No UAT report stale-check needed — this is a pure schema + infrastructure cycl
 ## Tasks
 
 - [x] Task 1+2 (bundled): Add address geo cols to `Student` (9 cols) and `Parent` (9 home + 9 employer + 2 portalInvite = 20 cols) — migration N+1
-- [ ] Task 3: Create `AdmissionApplication` + `AdmissionGuardian` tables + add cols + new status enum values on `Admission` — migration N+2
-- [ ] Task 4: Alter `Invoice` — nullable `studentId`, add `admissionId`, CHECK constraint — migration N+3
+- [x] Task 3+4 (bundled): Create `AdmissionApplication` + `AdmissionGuardian` tables; add 8 new fields + updated status enum + relations to `Admission`; placeholder back-relation on `Invoice` — migration N+2
+- [ ] Task 5 (renumbered from 4): Alter `Invoice` — nullable `studentId`, add `admissionId`, CHECK constraint — migration N+3
 - [ ] Task 5: Backfill `addressLine` from legacy `address` (idempotent SQL) — migration N+4
 - [ ] Task 6: `lib/constants/income.ts` + `lib/constants/__tests__/income.test.ts`
 - [ ] Task 7: `lib/scripts/canonicalize-income.ts` + tests
@@ -43,6 +43,14 @@ No UAT report stale-check needed — this is a pure schema + infrastructure cycl
 
 Migration applied via `npx prisma migrate deploy` (shadow DB skipped — pre-existing RLS migration blocks shadow DB apply on this project; `migrate deploy` is equivalent for non-destructive additive changes).
 
+### Task 3+4 (bundled) — 2026-05-12
+
+**Files changed:**
+- `prisma/schema.prisma` — added `AdmissionApplication` model (23 fields, 3 relations, 2 indexes); added `AdmissionGuardian` model (27 fields, 3 relations, 4 indexes); added `admissionGuardians` back-relation on `Parent`; added `admissionApplications` + `admissionGuardians` back-relations on `Tenant`; added 8 new fields to `Admission` (`mergeCandidateId`, `submittedAt`, `submissionSource`, `registrationInvoiceId`, `paidAt`, `admittedAt`, `admittedById`, `cancellationReason`); updated `Admission.status` enum comment (dropped `VISIT_SCHEDULED`, added `APPLIED` + `PAID`); added `application` + `registrationInvoice` back-relations on `Admission`; added Path A placeholder back-relation `admissionsForRegistration` on `Invoice`
+- `prisma/migrations/20260512000001_create_admission_application_and_guardian/migration.sql` — data migration (UPDATE VISIT_SCHEDULED → INQUIRY), 8 `ALTER TABLE Admission ADD COLUMN`, `CREATE TABLE AdmissionApplication` + `CREATE TABLE AdmissionGuardian` with all indexes and foreign keys
+
+Migration applied via `npx prisma migrate deploy`. Prisma Client (7.6.0) regenerated.
+
 ## Verification
 
 - `npx prisma format` — passed, no errors
@@ -51,7 +59,16 @@ Migration applied via `npx prisma migrate deploy` (shadow DB skipped — pre-exi
 - `npm run build` — TypeScript passed, all 123 pages compiled (exit 0)
 - SQL inspection: 9 Student `ALTER TABLE` + 18 Parent address `ALTER TABLE` + 2 Parent portalInvite `ALTER TABLE` = 29 statements, all ending `TEXT` or `TIMESTAMP(3)`, no `NOT NULL`, no destructive ops
 
-Tasks 3–10 not yet run — between-task gate above covers Tasks 1+2 only.
+### Task 3+4 verification (2026-05-12)
+
+- `npx prisma format` — passed, no errors
+- `npx prisma migrate deploy` — `20260512000001_create_admission_application_and_guardian` applied cleanly
+- `npx prisma generate` — Prisma Client (7.6.0) generated successfully
+- `npm run build` — TypeScript passed, all 123 pages compiled (exit 0)
+- No `DROP`, no `NOT NULL` on new columns; data migration for VISIT_SCHEDULED is defensive
+- psql not available in this environment — deploy success is the verification
+
+Tasks 5–10 not yet run — between-task gate above covers Tasks 1+2 and 3+4.
 
 ## Ship Notes
 
