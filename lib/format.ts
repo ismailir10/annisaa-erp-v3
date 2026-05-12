@@ -7,6 +7,27 @@ export function formatRupiah(amount: number | string): string {
 }
 
 /**
+ * Mask a bank account number, revealing only the last 4 digits.
+ * Use everywhere a bank account is rendered to the employee — slip detail,
+ * profile page, payroll receipt, PDF. Single source of truth.
+ *
+ * - "1234567890" → "******7890"
+ * - "1234"       → "****"     (≤ 4 chars: full mask — never reveal a short
+ *                              value; real Indonesian accounts are 10–16
+ *                              digits so this branch is unreachable in
+ *                              normal data, but the function is a security
+ *                              primitive and must fail closed)
+ * - ""           → ""         (caller decides empty-state copy)
+ */
+export function maskBankAccount(accountNo: string): string {
+  if (accountNo.length === 0) return accountNo;
+  if (accountNo.length <= 4) return "*".repeat(accountNo.length);
+  const visible = accountNo.slice(-4);
+  const masked = "*".repeat(accountNo.length - 4);
+  return `${masked}${visible}`;
+}
+
+/**
  * Format date string (YYYY-MM-DD) to Indonesian locale.
  */
 export function formatDate(dateStr: string, options?: Intl.DateTimeFormatOptions): string {

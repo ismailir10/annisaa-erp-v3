@@ -12,7 +12,7 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Next.js 15 (App Router) + TypeScript strict |
+| Framework | Next.js 16 (App Router) + TypeScript strict |
 | Database | Supabase Postgres (prod + staging Singapore `ap-southeast-1`) / SQLite (local dev) |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
@@ -34,10 +34,12 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 | **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
 | **hr** | Staff lifecycle: employees, attendance, leave, payroll, salary components — gated by `hr.*` permissions |
 | **academic** | School structure: academic year, programs, class sections, teaching assignments |
-| **students** | Student lifecycle: students, guardians, enrollments, admissions |
+| **students** | Student lifecycle: students, guardians, enrollments, admissions (admin CRM + public `/daftar` entry + sibling auto-detect on submit) |
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
 | **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |
 | **student-journal** | Buku Penghubung — bi-directional school + home indicators with audit trail |
+| **curriculum** *(in flight — C2 of 11)* | PROMES spine: Semester → Theme → SubTheme → Week, LearningObjective → AchievementIndicator → IndicatorThemeLink. C1 (merged) lands schema + admin CRUD APIs (`/api/admin/curriculum/{semesters,themes,subthemes,weeks}`) + admin pages at `/admin/curriculum/semesters` (list/create) and `/admin/curriculum/semesters/[id]/themes` (nested Theme/SubTheme/Week CRUD). C2 (this cycle) adds the PROMES xlsx import pipeline at `POST /api/admin/curriculum/import-promes` (multipart, 5 MiB cap, preview/commit, atomic transaction + audit) — admin import page at `/admin/curriculum/semesters/[id]/import` UI lands in the same cycle. Objective/IKTP CRUD is C3, AssessmentEntry is C4. Permissions: `curriculum.read` (TEACHER + SCHOOL_ADMIN + SUPER_ADMIN), `curriculum.write` (SUPER_ADMIN). See [design spec](docs/superpowers/specs/2026-05-12-curriculum-penilaian-raport-design.md). |
+| **reportCard** *(planned 2026-09)* | Term + narrative template + per-student bucket assignment + PDF/docx — same spec |
 
 ---
 
@@ -45,6 +47,7 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 
 | Portal | Route | Role | Layout | Access |
 |---|---|---|---|---|
+| Public (applicant) | `/daftar` | (none — public) | Mobile-first vertical | Public admission entry — three-step form (applicant → parent → preference) |
 | Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop sidebar | Everything incl. payroll, salary, bank |
 | Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions, academics, attendance, invoices, employees (no salary/payroll) |
 | Teacher | `/teacher` | `TEACHER` | Mobile-first `max-w-md` | Own attendance + leave; assigned classes only |
@@ -64,6 +67,15 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-12 | Curriculum C2 — PROMES xlsx import: `lib/curriculum/promes-parser.ts` (exceljs) + `POST /api/admin/curriculum/import-promes` (multipart preview/commit, prisma.$transaction + audit, 409 on collision, 413 row-cap) + 3-stage admin page at `/admin/curriculum/semesters/[id]/import` | Parser dep `xlsx` → `exceljs` over CVE-2023-30533. Conflict policy locked hard-reject; C3 CRUD UI handles surgical edits — see [cycle](docs/cycles/2026-05-12-curriculum-promes-import.md) |
+| 2026-05-12 | Curriculum schema + admin landing (C1 of 11) — Prisma adds Semester / Theme / SubTheme / Week / LearningObjective / AchievementIndicator / IndicatorThemeLink; admin CRUD APIs + Semester page; sidebar gains "Kurikulum" group; permissions `curriculum.read` + `curriculum.write` | First cycle of July 2026 PROMES cutover. Soft-delete via `status` per crud.md (overrides design-doc §4 `deletedAt` footnote); date fields are `DateTime` per design doc; junction `IndicatorThemeLink` mirrors StudentGuardian (no tenantId) — see [cycle](docs/cycles/2026-05-12-curriculum-schema-and-admin.md) |
+| 2026-05-12 | Pedagogy stack (Curriculum + Penilaian + Raport) designed: PROMES-canonical IKTP, 3-level scale (Konsisten/Belum/Penguatan), template-driven Raport with PDF+docx | Replaces 60+ weekly xlsx; July cutover for Curriculum+Penilaian, Sept ship for Raport — see [spec](docs/superpowers/specs/2026-05-12-curriculum-penilaian-raport-design.md) |
+| 2026-05-12 | Drop `REGISTERED` admission state — 5-state vocab (`INQUIRY` \| `VISIT_SCHEDULED` \| `VISITED` \| `ADMITTED` \| `CANCELLED`); `Admission.studentId` nullable FK is the single "converted" signal | Cycle 2.1 first-principles audit replaced the planned v2 8-state lift as overcomplicated for the Indonesian school workflow; backfill `UPDATE` migrates 1 demo row, 0 prod rows; convert-flow gate stays `status="ADMITTED"`, status no longer flips — see [cycle](docs/cycles/2026-05-12-admission-lifecycle-simplification.md) |
+| 2026-05-11 | Sibling auto-detect on admission submit — tenant-scoped email > phone match against `Parent`; persists `Admission.detectedParentId` (additive nullable FK); `/admin/admissions` shows "Saudara terdeteksi" chip + edit-sheet banner. `getClientIp` now reads `x-forwarded-for[0]` (Vercel-correct) | Phase 1.2. Applicant-facing `/daftar` UX unchanged (admin-only per plan §7 q6). Closes cycle 1.1 `daftar-rate-limit-ip-extraction-hardening` before publicised launch — see [cycle](docs/cycles/2026-05-11-sibling-auto-detect.md) |
+| 2026-05-11 | Public-repo prep: `prisma/data/students.ts` marked synthetic-only; `.env.example` aligned with README (XENDIT_SECRET_KEY corrected, SUPABASE_SERVICE_ROLE_KEY + STAGING_EMAIL_OVERRIDE + CRON_SECRET documented); README `Next.js 15`→`16`; CLAUDE.md file-structure counts updated | Light-touch hygiene ahead of repo public-flip. Owner-email scrub skipped — same email already in migration SQL + git history forever, so source-tip scrub is cosmetic — see [cycle](docs/cycles/2026-05-11-public-repo-prep.md) |
+| 2026-05-10 | Public `/daftar` admission entry — three-step form (applicant → parent → preference) writes `Admission` rows in `INQUIRY` status; `POST /api/admission/submit` rate-limited 5/min/IP via in-memory bucket; Resend confirmation email best-effort | First Phase 1 feature post v2 rollback. Reuses v1 single-parent `Admission` schema (no migration); admin `/admin/admissions` flow unchanged — see [cycle](docs/cycles/2026-05-10-daftar-public-form.md) |
+| 2026-05-10 | Phase 0 perf sweep — `e2e/perf-budget.spec.ts` 4-s page-load regression guard; `data-testid="roster-row"` + `data-empty-state` anchors on `/teacher/class-attendance` | All 4 UAT perf findings (U3 / U7 / U8 / U9) healed by rollback alone (medians 119–541 ms vs UAT figures 2.1–15 s); guard locks the post-rollback envelope. Closes Phase 0 — see [cycle](docs/cycles/2026-05-10-phase0-perf-sweep.md) |
+| 2026-05-10 | Tighten `_getParentWithChildren` invariants (require tenantId + parentId-or-email; throw on contract violation); reuse existing `scripts/backfill-pending-payment-links.ts` for U2 backlog | Closes UAT U10 latent fan-out (200 staging null-email Parent rows would leak via a session with both `parentId` and `email` null); U2 surfaced as 25 stale test artifacts (plan's 364 was pre-rollback) — see [cycle](docs/cycles/2026-05-10-phase0-finance-backlog-drain.md) |
 | 2026-05-10 | Explicit `Cache-Control: no-store` on `POST /api/auth/logout`; portal trees rely on Next.js dynamic-route default | Closes UAT U6 sign-out bfcache leak. Portals already inherit `no-store` because `getSession()` marks routes dynamic; logout was the gap. UAT U1 healed by rollback to PR #177 — see [cycle](docs/cycles/2026-05-10-phase0-admin-hydration-and-bfcache.md) |
 | 2026-05-03 | Supabase SSR auth + tenant filter via app layer; RLS for SELECT only | Service-role writes need explicit `tenantId` filter; SSR side-steps PKCE cookie issues — see [ADR](docs/adrs/2026-05-03-supabase-ssr-auth.md) |
 | 2026-05-03 | Role split `SUPER_ADMIN` vs `SCHOOL_ADMIN`; permission-based RBAC for HR | `hasPermission()` replaces role-string checks; salary/payroll gated by `hr.*` — see [ADR](docs/adrs/2026-05-03-role-split-super-admin-school-admin.md) |

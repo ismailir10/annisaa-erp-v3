@@ -37,10 +37,30 @@ export type ParentChild = {
   };
 };
 
-async function _getParentWithChildren(parentId: string | null, email: string, tenantId: string | null) {
+/**
+ * Lookup parent + linked children. Caller-side preconditions enforce no
+ * unscoped fan-out — `tenantId` is required, and at least one of
+ * `parentId` / `email` must be a non-empty string. Without these guards
+ * (i.e. the prior `tenantId ?? undefined` escape + bare `email` arg
+ * shape), a session whose Parent row carries `email = null` could land
+ * a `findFirst({ where: { email: null } })` query, returning the first
+ * null-email parent globally. Staging today carries 200 such rows; one
+ * leaked session would fan out to a foreign parent's guardians.
+ */
+async function _getParentWithChildren(parentId: string | null, email: string | null, tenantId: string) {
+    // Loud contract enforcement instead of a non-null assertion: a future
+    // caller landing here with both args null would otherwise produce
+    // `findFirst({ where: { email: undefined, tenantId } })`, which Prisma
+    // silently treats as an unfiltered tenant-only lookup (the staging
+    // fan-out shape this cycle is closing).
+    if (!parentId && (email === null || email.length === 0)) {
+      throw new Error(
+        "_getParentWithChildren: at least one of `parentId` / non-empty `email` is required",
+      );
+    }
     const whereClause = parentId
-      ? { id: parentId, tenantId: tenantId ?? undefined }
-      : { email, tenantId: tenantId ?? undefined };
+      ? { id: parentId, tenantId }
+      : { email: email as string, tenantId };
 
     const parent = await prisma.parent.findFirst({
       where: whereClause,
@@ -91,15 +111,36 @@ const _cachedGetParentWithChildren = unstable_cache(
   { revalidate: 60, tags: ["parent-children"] }
 );
 
+const EMPTY_PARENT_RESULT = { parent: null, children: [] as ParentChild[] };
+
 /**
  * Find a parent record from session (parentId or email fallback).
  * Returns the parent with all linked children via StudentGuardian.
- * Cached 60s per parent — keyed by parentId or email + tenantId.
+ * Cached 60s per parent — keyed by (parentId, email, tenantId) tuple.
+ *
+ * Guard contract: the underlying lookup requires `tenantId` AND at least
+ * one of `parentId` / non-empty `email`. Sessions that fail the contract
+ * short-circuit to an empty result here rather than risking an unscoped
+ * Prisma query (see `_getParentWithChildren` for the leak shape).
+ *
+ * Cache invalidation note: the static cache tag is `"parent-children"`,
+ * so a `revalidateTag("parent-children")` call evicts every tenant's
+ * cached entry — Next.js tags are global, not per-tuple. Per-parent
+ * isolation applies to entry CREATION (the runtime args distinguish
+ * entries) but NOT to invalidation. Coarse-grain eviction is the known
+ * Next.js 14+ behaviour and is acceptable given the 60-s TTL.
  */
 export async function getParentWithChildren(session: SessionUser) {
+  if (!session.tenantId) return EMPTY_PARENT_RESULT;
+  const hasEmail = typeof session.email === "string" && session.email.length > 0;
+  if (!session.parentId && !hasEmail) return EMPTY_PARENT_RESULT;
+  // Cache-key shape: when `parentId` is set, the lookup ignores `email`
+  // (where = `{ id, tenantId }`). Pass `null` for email so two sessions
+  // for the same parent — one with email, one without — share a single
+  // cache entry rather than priming two slots for identical data.
   return _cachedGetParentWithChildren(
     session.parentId,
-    session.email,
+    session.parentId ? null : (hasEmail ? session.email : null),
     session.tenantId
   );
 }

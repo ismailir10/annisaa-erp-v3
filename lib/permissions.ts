@@ -61,6 +61,13 @@ export const PERMISSION_GROUPS = {
       "users.edit": "Kelola pengguna & peran",
     },
   },
+  curriculum: {
+    label: "Kurikulum",
+    permissions: {
+      "curriculum.read": "Lihat kurikulum (semester, tema, subtema, pekan)",
+      "curriculum.write": "Kelola kurikulum (buat / ubah / nonaktifkan)",
+    },
+  },
 } as const;
 
 // Flatten all permission codes
@@ -125,17 +132,23 @@ export function getSystemRolePermissions(role: string): string[] {
         "settings.edit",
         "users.view",
         "users.edit",
+        // curriculum — SCHOOL_ADMIN can READ but not WRITE curriculum.
+        // Authoring is SUPER_ADMIN-only per design doc §3.2.
+        "curriculum.read",
       ];
     case "TEACHER":
       // Self-service permissions: a TEACHER can see their own attendance
       // (`attendance.view`), clock in/out (`attendance.checkin`), and submit
       // their own leave requests (`leave.submit`). Reading admin-side leave
       // listings (`leave.view`) is NOT included — that's an admin permission.
+      // `curriculum.read` lets the teacher portal surface the active semester
+      // → theme → week tree they will assess against (C5+ teacher Pekanan UI).
       return [
         "attendance.view",
         "attendance.checkin",
         "leave.submit",
         "students.view",
+        "curriculum.read",
       ];
     case "GUARDIAN":
       return ["students.view", "invoices.view"];

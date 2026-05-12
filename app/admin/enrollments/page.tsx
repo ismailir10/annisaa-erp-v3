@@ -255,7 +255,7 @@ export default function EnrollmentsPage() {
 
   return (
     <>
-      <PageHeader title="Penempatan Siswa" description={`${pagination.total} pendaftaran`} />
+      <PageHeader title="Penempatan Siswa" description={`${pagination.total} penempatan`} />
 
       <StatsCardsRow cols={3}>
         <StatCard label="Total" value={stats.total} icon={Users} color="primary" index={0} />

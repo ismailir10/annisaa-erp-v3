@@ -79,6 +79,11 @@ The school is Islamic PAUD/TKIT. Arabic greetings and honorifics are first-class
 | Wali | Guardian, Parent (Wali = registered guardian; Parent = audience) |
 | Kelas | Class, Classroom |
 | Ustadz / Ustadzah | Pak Guru / Bu Guru (Islamic-school context uses Ustadz/ah) |
+| Catatan (data row, log entry, journal note) | Record |
+| Pertanyaan (admission lifecycle: first contact) | Inquiry (StatusBadge already maps `INQUIRY → "Pertanyaan"` — keep button labels consistent) |
+| Perencanaan (academic-year status pre-launch) | Planning |
+| Templat (assessment / journal template) | Template (the `t` at the end softens Indonesian — both are acceptable but Templat is the canonical loanword form) |
+| Timpa (override an attendance / data entry) | Override, Timpa (Override) (the bilingual gloss is redundant once Timpa is established) |
 
 ## Cross-cutting copy rules
 

@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
-import { validateBody } from "@/lib/api/validate";
 import { createAdmissionSchema } from "@/lib/validations/admission";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -41,7 +40,19 @@ export async function GET(req: NextRequest) {
       where,
       skip,
       take,
-      include: { program: { select: { name: true } } },
+      include: {
+        program: { select: { name: true } },
+        detectedParent: {
+          select: {
+            id: true,
+            name: true,
+            guardians: {
+              where: { status: "ACTIVE" },
+              select: { student: { select: { name: true } } },
+            },
+          },
+        },
+      },
       orderBy,
     }),
     prisma.admission.count({ where }),
@@ -59,15 +70,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const result = await validateBody(createAdmissionSchema, await req.json());
-  if (result.error) return result.error;
-  const body = result.data;
+  const parsed = createAdmissionSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    // Log issues so Vercel runtime logs surface the actual reason (issues
+    // array) — request bodies are not captured by default; this is what
+    // makes admin 400s diagnosable without DevTools. Mirrors PUT route shape.
+    console.error(
+      "[admin-admissions POST] validation failed",
+      JSON.stringify(parsed.error.issues),
+    );
+    const errors = parsed.error.issues.map((e) => ({ field: e.path.join("."), message: e.message }));
+    return NextResponse.json({ error: "Validasi gagal", errors }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const admission = await prisma.admission.create({
     data: {
       tenantId: session.tenantId,
       childName: body.childName.trim(),
-      childAge: body.childAge?.trim() || null,
+      // childAge is auto-derived at display time from dateOfBirth — never written.
       childGender: body.childGender || null,
       dateOfBirth: body.dateOfBirth || null,
       parentName: body.parentName.trim(),

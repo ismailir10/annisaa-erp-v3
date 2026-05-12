@@ -68,10 +68,14 @@ async function proxyImpl(request: NextRequest): Promise<NextResponse> {
   const limited = enforceAuthRateLimit(request);
   if (limited) return limited;
 
-  // Fully public routes — NO auth check at all (external webhooks, payment pages)
+  // Fully public routes — NO auth check at all (external webhooks, payment pages,
+  // public admission entry per Phase 1.1 / cycle 2026-05-10-daftar-public-form).
   if (
     pathname.startsWith("/api/xendit/webhook") ||
-    pathname.startsWith("/payment/")
+    pathname.startsWith("/payment/") ||
+    pathname === "/daftar" ||
+    pathname.startsWith("/daftar/") ||
+    pathname === "/api/admission/submit"
   ) {
     return NextResponse.next();
   }

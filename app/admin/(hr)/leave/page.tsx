@@ -132,7 +132,7 @@ function LeaveReviewBody({
           </Field>
           {reviewAction === "approve" && (
             <p className="text-xs text-muted-foreground">
-              Menyetujui akan otomatis membuat record kehadiran LEAVE untuk tanggal
+              Menyetujui akan otomatis membuat catatan kehadiran LEAVE untuk tanggal
               tersebut.
             </p>
           )}
