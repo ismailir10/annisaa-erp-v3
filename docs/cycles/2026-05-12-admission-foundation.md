@@ -163,6 +163,20 @@ Manual upgrade only (CTO-gated). Build gate fails if raw > 12 MB.
 
 **Verification:** 8 tests pass; full suite green (1119 passed, 42 todo, 2 skipped); `npm run build` exits 0.
 
+### Task 11 — AddressPicker component (2026-05-12)
+
+**Files:**
+- `components/ui/address-picker.tsx` — controlled cascading picker; 5 inputs (textarea + 4 selects); auto-defaults province to Jabar when value empty; village fetched lazily on district selection
+- `components/ui/__tests__/address-picker.test.tsx` — 4 vitest cases (rendered labels, Jabar default, addressLine emit, lazy fetchVillages)
+
+**Combobox API discovered (Step 11.0):** The existing `Combobox` component (`components/ui/combobox.tsx`) wraps `@base-ui/react` Combobox — a multi-part search/autocomplete primitive (`Combobox.Root` + `ComboboxInput` + `ComboboxContent` + `ComboboxItem`). It does NOT accept a simple `value`/`onValueChange` prop pair at the root level suitable for single-value region selects. The `Select` component (`components/ui/select.tsx`) wraps `@base-ui/react/select` and provides: `Select` root with `value: string` + `onValueChange: (value: string | null, ...) => void`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem value={id}`. `Select` was used for all four region selects.
+
+**Field/FieldLabel API confirmed:** `Field` = `<div role="group">` wrapper; `FieldLabel` = `<label>` with optional `required` asterisk and optional `htmlFor` passed through. Both work as expected.
+
+**Verification:** 4 tests pass; full suite green (1123 passed, 42 todo, 2 skipped); `npm run build` exits 0.
+
+Cross-checked design-system.html §forms for cascading select pattern + Field/FieldLabel composition.
+
 ## Ship Notes
 
 No env vars. No seed changes. No rollback needed — additive migration only; columns can be dropped if rolled back. Migration: `20260512000000_add_address_geo_cols_to_student_parent`.
