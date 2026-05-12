@@ -86,7 +86,7 @@ Three UAT walkthroughs ran on 2026-05-12 (admin, teacher, parent portals) and su
 - **Acceptance:** Read-only salary values use Rp format; zero-value slip rows hidden.
 - **Dependencies:** none
 
-### T4. Teacher personalization + bank-account security
+### T4. Teacher personalization + bank-account security ✅
 
 - **Files:** [app/teacher/home-client.tsx:154](app/teacher/home-client.tsx:154), [app/teacher/profile/page.tsx:28](app/teacher/profile/page.tsx:28)
 - **Change:**
@@ -174,12 +174,14 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T1 — extracted banner-decision to `lib/parent-attendance-banner.ts` (pure helper) with 7-case vitest; `app/parent/attendance/page.tsx` now renders 3 banner branches (all-present gold / warm orange / neutral sky) via `attendanceBannerState({hadir,sakit,alpa,izin,logged})`. Reviewer flagged pre-existing inline-style anti-pattern on the all-present banner (colors.md §NEVER); my T1 diff fixed the warm + new neutral branches but left the all-present block as-is to keep scope discipline — recommend follow-up cleanup cycle. Cross-checked design-system.html §Cards for status-leave tone choice.
 - T2 — extracted `ROLE_LABELS` + `getRoleLabel` to `app/admin/settings/users/role-labels.ts` (avoid importing `"use client"` page in vitest). Added `SUPER_ADMIN: "Super Admin"`. Pengguna page: added 5th stats fetch for SUPER_ADMIN ACTIVE count, folded into Admin stat card (`stats.admin = sa + a`, `stats.total = sa + a + t + g`). Subtitle now `${stats.total} aktif · ${stats.inactive} tidak aktif` (single source of truth). Added "Super Admin" to role-filter dropdown (reviewer caught this functional gap). Seed: `${id}@parent.seed.local` → `parent-${id.slice(-6)}@demo.talib.id`. Cross-checked design-system.html §Stats for stat-card grid layout.
 - T3 — Karyawan Gaji tab: `<Input>` unchanged; added `<p class="text-xs text-muted-foreground font-currency">{formatRupiah(sv.value)}</p>` rendered only when `sv.value > 0` (reviewer caught the "Rp 0" noise case). Slip detail: `incomeLines` + `deductionLines` filters add `finalAmount > 0` predicate; server-side totals unaffected. Cycle doc spec was inconsistent (`formatCurrency` ↔ `formatRupiah`) — corrected to `formatRupiah` (the canonical exporter in `lib/format.ts`). Cross-checked design-system.html §Forms for helper-text styling.
+- T4 — Extracted `maskBankAccount` from `app/teacher/slips/[id]/page.tsx` to `lib/format.ts` (single source of truth). Applied to: (a) teacher profile page; (b) PDF data builder in `app/api/slips/[payrollItemId]/pdf/route.ts` (security reviewer caught — raw account was being rendered to PDF bytes; defense-in-depth = mask at route boundary). Hardened the masking primitive: ≤4-char inputs now return all-asterisks (was returning unmasked — reviewer flagged as security footgun). Added `Cache-Control: private, no-store` to PDF response to keep payroll PDFs out of shared caches. Teacher dashboard greeting: removed `.split(" ")[0]` so "Guru Satu" renders fully (was "Guru"). Both `superpowers:code-reviewer` and `feature-dev:code-reviewer` dispatched per build skill §security-sensitive rule. Cross-checked design-system.html §Profile + voice.md (Ustadzah Sari persona) for greeting tone.
 
 ## Verification
 
 - T1: `npm run build` ✓ + `npx vitest run` ✓ (1284 pass, 42 todo, 0 fail). Helper test file `parent-attendance-banner.test.ts` adds 7 cases. Cross-checked design-system.html §Cards for `status-leave` neutral-tone banner.
 - T2: `npm run build` ✓ + `npx vitest run` ✓ (1289 pass, 42 todo). Test file `app/admin/settings/users/__tests__/role-label.test.ts` adds 5 cases. Cross-checked design-system.html §Stats for stat-card grid (5-col lg).
 - T3: `npm run build` ✓ + `npx vitest run` ✓ (1289 pass). No new test — changes are trivial JSX render expressions (formatRupiah helper text + filter predicate) covered transitively by build. Cross-checked design-system.html §Forms for helper-text typography.
+- T4: `npm run build` ✓ + `npx vitest run` ✓ (1293 pass). `lib/__tests__/format.test.ts` gained 4 maskBankAccount cases (10-digit normal, zero-padded, ≤4-char all-mask hardening, empty). Cross-checked design-system.html §Profile and voice.md Ustadzah Sari persona. Security-sensitive reviewers cleared (`feature-dev` + `superpowers`).
 
 Per CLAUDE.md frontend gate Rule 4: T1, T2, T3, T4, T5, T6, T7, T8 touch frontend → Verification will include "Cross-checked design-system.html §Stats / §DataTable / §Dialog / §Toast for [task scope]" lines.
 

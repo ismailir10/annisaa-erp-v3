@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatRupiah } from "@/lib/format";
+import { formatRupiah, maskBankAccount } from "@/lib/format";
 
 describe("formatRupiah", () => {
   it("formats integer amount with Indonesian thousand separators", () => {
@@ -25,6 +25,26 @@ describe("formatRupiah", () => {
     const total = amounts.reduce<number>((s, v) => s + (Number(v) || 0), 0);
     expect(total).toBe(3_300_000);
     expect(formatRupiah(total)).toBe("Rp 3.300.000");
+  });
+});
+
+describe("maskBankAccount", () => {
+  it("masks all but the last 4 digits", () => {
+    expect(maskBankAccount("1234567890")).toBe("******7890");
+  });
+
+  it("masks a longer real account number", () => {
+    expect(maskBankAccount("0000000001")).toBe("******0001");
+  });
+
+  it("fully masks a ≤4-char account (security primitive — never reveal short values)", () => {
+    expect(maskBankAccount("1234")).toBe("****");
+    expect(maskBankAccount("12")).toBe("**");
+    expect(maskBankAccount("1")).toBe("*");
+  });
+
+  it("returns an empty string unchanged (caller decides empty-state)", () => {
+    expect(maskBankAccount("")).toBe("");
   });
 });
 

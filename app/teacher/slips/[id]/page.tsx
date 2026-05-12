@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatRupiah, formatDate } from "@/lib/format";
+import { formatRupiah, formatDate, maskBankAccount } from "@/lib/format";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -103,14 +103,6 @@ async function fetchSlipDetail(id: string, tenantId: string): Promise<SlipDetail
 /** Format "2026-03-01 s/d 2026-03-31" → "Maret 2026" */
 function formatPeriodHeader(periodStart: string): string {
   return formatDate(periodStart, { month: "long", year: "numeric" });
-}
-
-/** Mask bank account number — show last 4 digits only. */
-function maskBankAccount(accountNo: string): string {
-  if (accountNo.length <= 4) return accountNo;
-  const visible = accountNo.slice(-4);
-  const masked = "*".repeat(accountNo.length - 4);
-  return `${masked}${visible}`;
 }
 
 /** Today's date formatted for the footer. */
