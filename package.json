@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "reseed:staging": "tsx --env-file-if-exists=.env.staging scripts/reseed-staging.ts",
-    "canonicalize-income": "npx tsx lib/scripts/canonicalize-income.ts"
+    "canonicalize-income": "npx tsx lib/scripts/canonicalize-income.ts",
+    "seed:address": "npx tsx scripts/seed-address-dataset.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

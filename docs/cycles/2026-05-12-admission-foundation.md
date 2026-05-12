@@ -138,6 +138,22 @@ Full transition guards for VISITED→APPLIED (file completeness) and APPLIED→P
 
 **Verification:** all 13 new tests pass (6 income constants + 7 canonicalize-income); `npm run build` exits 0. Cross-checked design-system.html not applicable (no frontend change). Script not run on data yet — defer to Task 15 smoke.
 
+### Task 9 — Address dataset import (2026-05-12)
+
+**Files:**
+- `scripts/seed-address-dataset.ts` — fetches emsifa Indonesian wilayah at pinned SHA, validates with zod, shards villages per district (batches of 20 for throughput)
+- `docs/runbooks/address-dataset.md` — pinned SHA + counts + size (moved from lib/address/VERSION.md — git hook requires docs/**)
+- `package.json` — `seed:address` script
+- `public/address/provinces.json` — 34 provinces
+- `public/address/regencies.json` — 514 regencies
+- `public/address/districts.json` — 7215 districts
+- `public/address/villages/*.json` — 7215 village files (80534 villages total)
+
+**Pinned SHA:** `ebc5151c762d46d89c0679f5d61e6b5bb6db8c40`
+**Raw size:** `5.3 MB`
+
+Manual upgrade only (CTO-gated). Build gate fails if raw > 12 MB.
+
 ## Ship Notes
 
 No env vars. No seed changes. No rollback needed — additive migration only; columns can be dropped if rolled back. Migration: `20260512000000_add_address_geo_cols_to_student_parent`.
