@@ -177,6 +177,23 @@ Manual upgrade only (CTO-gated). Build gate fails if raw > 12 MB.
 
 Cross-checked design-system.html §forms for cascading select pattern + Field/FieldLabel composition.
 
+### Tasks 12+13 — Wire AddressPicker on Student + Guardian edit (2026-05-12)
+
+**Files:**
+- `app/admin/students/[id]/page.tsx` — Student form replaces single `address` Textarea with AddressPicker (prefix `address`); Guardian inline edit dialog gains 2 AddressPicker instances (home + employer); `Student` type extended with 9 new address geo cols; `Guardian.parent` type extended with 18 new cols; `editForm` state gains 9 fields; `guardianForm` state gains 18 fields
+- `lib/validations/student.ts` — `createStudentSchema` gains 9 address geo cols (all optional/nullable); `updateStudentSchema` inherits via `.partial()`
+- `lib/validations/guardian.ts` — both `createGuardianSchema` and `updateGuardianSchema` extended with 9 home + 9 employer cols
+- `app/api/students/[id]/route.ts` — PUT data block extended with 9 new address fields; GET uses `include: { parent: true }` (all parent cols already returned)
+- `app/api/students/[id]/guardians/[guardianId]/route.ts` — PUT parent update extended with 18 home + employer cols
+- `app/api/guardians/[id]/route.ts` — PUT parent update extended with 18 home + employer cols (standalone route used by deactivate toggle UI)
+
+**Verification:**
+- `npx vitest run` — 1123 passed, 0 failed, 42 todo, 2 skipped — no regression
+- `npm run build` — exits 0, 123 pages compiled, TypeScript clean
+- Manual smoke pending Task 15 (preview server walkthrough)
+
+Cross-checked design-system.html §forms for cascading select pattern + address composition.
+
 ## Ship Notes
 
 No env vars. No seed changes. No rollback needed — additive migration only; columns can be dropped if rolled back. Migration: `20260512000000_add_address_geo_cols_to_student_parent`.

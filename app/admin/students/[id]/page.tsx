@@ -24,14 +24,38 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import { AddressPicker } from "@/components/ui/address-picker";
+import { AddressValue } from "@/lib/address/types";
 
-type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; education: string | null; occupation: string | null; employer: string | null; incomeRange: string | null; childrenTotal: number | null } };
+type Guardian = {
+  id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string;
+  parent: {
+    id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null;
+    education: string | null; occupation: string | null; employer: string | null;
+    incomeRange: string | null; childrenTotal: number | null;
+    homeAddressLine: string | null;
+    homeVillageCode: string | null; homeVillageName: string | null;
+    homeDistrictCode: string | null; homeDistrictName: string | null;
+    homeRegencyCode: string | null; homeRegencyName: string | null;
+    homeProvinceCode: string | null; homeProvinceName: string | null;
+    employerAddressLine: string | null;
+    employerVillageCode: string | null; employerVillageName: string | null;
+    employerDistrictCode: string | null; employerDistrictName: string | null;
+    employerRegencyCode: string | null; employerRegencyName: string | null;
+    employerProvinceCode: string | null; employerProvinceName: string | null;
+  };
+};
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
   gender: string | null; address: string | null; notes: string | null; metadata: string | null; status: string;
   nis: string | null; nisn: string | null; birthPlace: string | null;
   nik: string | null; kkNumber: string | null; livingWith: string | null;
+  addressLine: string | null;
+  addressVillageCode: string | null; addressVillageName: string | null;
+  addressDistrictCode: string | null; addressDistrictName: string | null;
+  addressRegencyCode: string | null; addressRegencyName: string | null;
+  addressProvinceCode: string | null; addressProvinceName: string | null;
   guardians: Guardian[]; enrollments: Enrollment[];
 };
 function parseStudentMetadata(raw: string | null | undefined): Record<string, unknown> | null {
@@ -58,7 +82,7 @@ export default function StudentDetailPage() {
 
   // Edit toggle
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", nickname: "", dateOfBirth: "", gender: "", address: "", notes: "", nis: "", nisn: "", birthPlace: "", nik: "", kkNumber: "", livingWith: "" });
+  const [editForm, setEditForm] = useState({ name: "", nickname: "", dateOfBirth: "", gender: "", address: "", notes: "", nis: "", nisn: "", birthPlace: "", nik: "", kkNumber: "", livingWith: "", addressLine: "", addressVillageCode: "", addressVillageName: "", addressDistrictCode: "", addressDistrictName: "", addressRegencyCode: "", addressRegencyName: "", addressProvinceCode: "", addressProvinceName: "" });
   const [savingStudent, setSavingStudent] = useState(false);
 
   // Enroll dialog
@@ -70,7 +94,7 @@ export default function StudentDetailPage() {
   // Guardian dialog
   const [guardianDialog, setGuardianDialog] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<Guardian | null>(null);
-  const [guardianForm, setGuardianForm] = useState({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "" });
+  const [guardianForm, setGuardianForm] = useState({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "", homeAddressLine: "", homeVillageCode: "", homeVillageName: "", homeDistrictCode: "", homeDistrictName: "", homeRegencyCode: "", homeRegencyName: "", homeProvinceCode: "", homeProvinceName: "", employerAddressLine: "", employerVillageCode: "", employerVillageName: "", employerDistrictCode: "", employerDistrictName: "", employerRegencyCode: "", employerRegencyName: "", employerProvinceCode: "", employerProvinceName: "" });
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
 
@@ -130,6 +154,11 @@ export default function StudentDetailPage() {
       address: student.address ?? "", notes: student.notes ?? "",
       nis: student.nis ?? "", nisn: student.nisn ?? "", birthPlace: student.birthPlace ?? "",
       nik: student.nik ?? "", kkNumber: student.kkNumber ?? "", livingWith: student.livingWith ?? "",
+      addressLine: student.addressLine ?? "",
+      addressVillageCode: student.addressVillageCode ?? "", addressVillageName: student.addressVillageName ?? "",
+      addressDistrictCode: student.addressDistrictCode ?? "", addressDistrictName: student.addressDistrictName ?? "",
+      addressRegencyCode: student.addressRegencyCode ?? "", addressRegencyName: student.addressRegencyName ?? "",
+      addressProvinceCode: student.addressProvinceCode ?? "", addressProvinceName: student.addressProvinceName ?? "",
     });
     setIsEditing(true);
   }
@@ -149,13 +178,17 @@ export default function StudentDetailPage() {
   // --- Guardian CRUD ---
   function openAddGuardian() {
     setEditingGuardian(null);
-    setGuardianForm({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "" });
+    setGuardianForm({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "", homeAddressLine: "", homeVillageCode: "", homeVillageName: "", homeDistrictCode: "", homeDistrictName: "", homeRegencyCode: "", homeRegencyName: "", homeProvinceCode: "", homeProvinceName: "", employerAddressLine: "", employerVillageCode: "", employerVillageName: "", employerDistrictCode: "", employerDistrictName: "", employerRegencyCode: "", employerRegencyName: "", employerProvinceCode: "", employerProvinceName: "" });
     setGuardianDialog(true);
   }
 
   function openEditGuardian(g: Guardian) {
     setEditingGuardian(g);
-    setGuardianForm({ name: g.parent.name, relationship: g.relationship, phone: g.parent.phone ?? "", email: g.parent.email ?? "", whatsapp: g.parent.whatsapp ?? "", parentNik: "", education: g.parent.education ?? "", occupation: g.parent.occupation ?? "", employer: g.parent.employer ?? "", employerAddress: "", employerCity: "", incomeRange: g.parent.incomeRange ?? "" });
+    setGuardianForm({
+      name: g.parent.name, relationship: g.relationship, phone: g.parent.phone ?? "", email: g.parent.email ?? "", whatsapp: g.parent.whatsapp ?? "", parentNik: "", education: g.parent.education ?? "", occupation: g.parent.occupation ?? "", employer: g.parent.employer ?? "", employerAddress: "", employerCity: "", incomeRange: g.parent.incomeRange ?? "",
+      homeAddressLine: g.parent.homeAddressLine ?? "", homeVillageCode: g.parent.homeVillageCode ?? "", homeVillageName: g.parent.homeVillageName ?? "", homeDistrictCode: g.parent.homeDistrictCode ?? "", homeDistrictName: g.parent.homeDistrictName ?? "", homeRegencyCode: g.parent.homeRegencyCode ?? "", homeRegencyName: g.parent.homeRegencyName ?? "", homeProvinceCode: g.parent.homeProvinceCode ?? "", homeProvinceName: g.parent.homeProvinceName ?? "",
+      employerAddressLine: g.parent.employerAddressLine ?? "", employerVillageCode: g.parent.employerVillageCode ?? "", employerVillageName: g.parent.employerVillageName ?? "", employerDistrictCode: g.parent.employerDistrictCode ?? "", employerDistrictName: g.parent.employerDistrictName ?? "", employerRegencyCode: g.parent.employerRegencyCode ?? "", employerRegencyName: g.parent.employerRegencyName ?? "", employerProvinceCode: g.parent.employerProvinceCode ?? "", employerProvinceName: g.parent.employerProvinceName ?? "",
+    });
     setGuardianDialog(true);
   }
 
@@ -363,7 +396,30 @@ export default function StudentDetailPage() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field className="sm:col-span-2"><FieldLabel>Alamat</FieldLabel><Textarea value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} rows={2} /></Field>
+            <div className="sm:col-span-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Alamat Tempat Tinggal</p>
+              <AddressPicker
+                prefix="address"
+                value={{
+                  addressLine: editForm.addressLine,
+                  villageCode: editForm.addressVillageCode, villageName: editForm.addressVillageName,
+                  districtCode: editForm.addressDistrictCode, districtName: editForm.addressDistrictName,
+                  regencyCode: editForm.addressRegencyCode, regencyName: editForm.addressRegencyName,
+                  provinceCode: editForm.addressProvinceCode, provinceName: editForm.addressProvinceName,
+                }}
+                onChange={(v: AddressValue) => setEditForm({
+                  ...editForm,
+                  addressLine: v.addressLine,
+                  addressVillageCode: v.villageCode, addressVillageName: v.villageName,
+                  addressDistrictCode: v.districtCode, addressDistrictName: v.districtName,
+                  addressRegencyCode: v.regencyCode, addressRegencyName: v.regencyName,
+                  addressProvinceCode: v.provinceCode, addressProvinceName: v.provinceName,
+                })}
+              />
+              {editForm.address && (
+                <p className="text-xs text-muted-foreground mt-1">Alamat lama: {editForm.address}</p>
+              )}
+            </div>
             <Field className="sm:col-span-2"><FieldLabel>Catatan</FieldLabel><Textarea value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></Field>
 
             <div className="sm:col-span-2 mt-2"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Identitas Resmi</p></div>
@@ -634,6 +690,46 @@ export default function StudentDetailPage() {
               <Field><FieldLabel>NIK</FieldLabel><Input value={guardianForm.parentNik} onChange={e => setGuardianForm({ ...guardianForm, parentNik: e.target.value })} placeholder="NIK orang tua" /></Field>
             </div>
             <Field><FieldLabel>Tempat Kerja</FieldLabel><Input value={guardianForm.employer} onChange={e => setGuardianForm({ ...guardianForm, employer: e.target.value })} placeholder="Nama perusahaan / instansi" /></Field>
+
+            <div className="pt-2 border-t"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Alamat Rumah</p></div>
+            <AddressPicker
+              prefix="home"
+              value={{
+                addressLine: guardianForm.homeAddressLine,
+                villageCode: guardianForm.homeVillageCode, villageName: guardianForm.homeVillageName,
+                districtCode: guardianForm.homeDistrictCode, districtName: guardianForm.homeDistrictName,
+                regencyCode: guardianForm.homeRegencyCode, regencyName: guardianForm.homeRegencyName,
+                provinceCode: guardianForm.homeProvinceCode, provinceName: guardianForm.homeProvinceName,
+              }}
+              onChange={(v: AddressValue) => setGuardianForm({
+                ...guardianForm,
+                homeAddressLine: v.addressLine,
+                homeVillageCode: v.villageCode, homeVillageName: v.villageName,
+                homeDistrictCode: v.districtCode, homeDistrictName: v.districtName,
+                homeRegencyCode: v.regencyCode, homeRegencyName: v.regencyName,
+                homeProvinceCode: v.provinceCode, homeProvinceName: v.provinceName,
+              })}
+            />
+
+            <div className="pt-2 border-t"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Alamat Kantor</p></div>
+            <AddressPicker
+              prefix="employer"
+              value={{
+                addressLine: guardianForm.employerAddressLine,
+                villageCode: guardianForm.employerVillageCode, villageName: guardianForm.employerVillageName,
+                districtCode: guardianForm.employerDistrictCode, districtName: guardianForm.employerDistrictName,
+                regencyCode: guardianForm.employerRegencyCode, regencyName: guardianForm.employerRegencyName,
+                provinceCode: guardianForm.employerProvinceCode, provinceName: guardianForm.employerProvinceName,
+              }}
+              onChange={(v: AddressValue) => setGuardianForm({
+                ...guardianForm,
+                employerAddressLine: v.addressLine,
+                employerVillageCode: v.villageCode, employerVillageName: v.villageName,
+                employerDistrictCode: v.districtCode, employerDistrictName: v.districtName,
+                employerRegencyCode: v.regencyCode, employerRegencyName: v.regencyName,
+                employerProvinceCode: v.provinceCode, employerProvinceName: v.provinceName,
+              })}
+            />
           </div>
         );
         const guardianTitle = editingGuardian ? "Edit Wali" : "Tambah Wali";
