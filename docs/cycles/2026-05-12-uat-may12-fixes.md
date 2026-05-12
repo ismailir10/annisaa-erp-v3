@@ -202,6 +202,27 @@ End-of-cycle Playwright run targets: portal smoke (e2e/teacher.spec.ts, e2e/pare
 
 ## Ship Notes
 
-<filled by /ship — migrations, env vars, manual steps, rollback plan>
+### Migrations
+None. This cycle is pure code + docs + seed-fixture rename (`prisma/seed.ts` line 1505 only — no schema change).
 
-Expected manual step: CTO runs staging E2E-pollution purge SQL from T10 runbook against staging Supabase after merge.
+### Env vars
+None. T6 Design-System nav gate uses `process.env.NODE_ENV` which is already set by `next start` in every environment.
+
+### Manual smoke checks (post-deploy on staging)
+1. `/parent/attendance` for a child with an Izin-only week renders the new sky-blue summary banner.
+2. `/admin/settings/users` "PERAN" column shows "Super Admin" for the SUPER_ADMIN row; subtitle equals stat-card totals.
+3. `/admin/(hr)/employees/{id}` Gaji tab shows "Rp" formatted helper line below each non-zero salary component.
+4. `/teacher/profile` bank account renders as `Bank Demo ******0001` (matches `/teacher/slips/{id}`).
+5. PDF slip downloads via the link icon — open the file and confirm bank account is `******0001` (masked), not `0000000001`.
+6. Login with an unprovisioned email → callback redirects to `/?error=access_denied` and the page now shows the "Akun belum terdaftar. Hubungi admin sekolah" banner.
+7. Tap header logout icon → ConfirmDialog opens; "Ya, Keluar" signs out, "Batal" stays.
+8. `/admin/admissions` primary button reads "Catat Pertanyaan"; status filter dropdown has "Super Admin" + role column shows "Super Admin"; Tagihan stat-card row has no orphan.
+
+### Manual cleanup (CTO, post-merge)
+Run the queries in [docs/runbooks/staging-data-cleanup.md](../runbooks/staging-data-cleanup.md) against staging Supabase to drop the 8 `E2E PROMES Import …` polluted `AcademicYear` + child `Semester` rows. Captures admin M1 + B1 from the UAT report.
+
+### Local Playwright vs CI
+Running `npx playwright test` against the **local** Supabase staging DB produced 13 pre-existing failures (parent.spec.ts × 6, parent-attendance-scoping.spec.ts × 3, curriculum-admin.spec.ts × 2, sibling-detect.spec.ts × 1, admin.spec.ts × 1). All trace back to staging Supabase data drift (Fatimah's parent user has no linked child; "E2E Sibling Match" test rows from prior runs accumulate). These specs target a fresh-seed Postgres in CI (`.github/workflows/ci.yml`), so CI is the source of truth — the local result is not a regression introduced by this cycle. None of the failing files were touched by these 10 commits (verified via `git log origin/staging..HEAD -- e2e/`). The one test I did break (`e2e/admin-dialogs.spec.ts:54` admissions-create — depended on "Catat Inquiry") was fixed in the follow-up commit before tagging this cycle complete.
+
+### Rollback plan
+This cycle ships behavior changes, not destructive ones. Revert any of the 11 commits individually — they are independent. The seed-email change (commit `a9eda7ff`) is the only one that touches DB-derived state; if a regression appears in parent demo seeding, revert that commit and run `prisma db seed` against staging.
