@@ -127,6 +127,17 @@ Full transition guards for VISITED→APPLIED (file completeness) and APPLIED→P
 - Post-migration count query: 0 rows with legacy address set but new addressLine null
 - Re-running migration on same DB is safe (WHERE NULL guard)
 
+### Tasks 7+8 — Income canonical module + script (2026-05-12)
+
+**Files:**
+- `lib/constants/income.ts` — `INCOME_RANGES` const (5 keys), `IncomeRangeKey` type, `isIncomeRangeKey`, `formatIncomeRange`
+- `lib/constants/__tests__/income.test.ts` — 7 vitest cases
+- `lib/scripts/canonicalize-income.ts` — `mapIncomeFreeText` pure function + `run()` CLI that updates `Parent.incomeRange` and `Admission.parentIncome` rows
+- `lib/scripts/__tests__/canonicalize-income.test.ts` — 7 regex-mapping cases
+- `package.json` — added `canonicalize-income` npm script
+
+**Verification:** all 13 new tests pass (6 income constants + 7 canonicalize-income); `npm run build` exits 0. Cross-checked design-system.html not applicable (no frontend change). Script not run on data yet — defer to Task 15 smoke.
+
 ## Ship Notes
 
 No env vars. No seed changes. No rollback needed — additive migration only; columns can be dropped if rolled back. Migration: `20260512000000_add_address_geo_cols_to_student_parent`.
