@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatRupiah, formatDate } from "@/lib/format";
+import { formatRupiah, formatDate, maskBankAccount } from "@/lib/format";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -105,14 +105,6 @@ function formatPeriodHeader(periodStart: string): string {
   return formatDate(periodStart, { month: "long", year: "numeric" });
 }
 
-/** Mask bank account number — show last 4 digits only. */
-function maskBankAccount(accountNo: string): string {
-  if (accountNo.length <= 4) return accountNo;
-  const visible = accountNo.slice(-4);
-  const masked = "*".repeat(accountNo.length - 4);
-  return `${masked}${visible}`;
-}
-
 /** Today's date formatted for the footer. */
 function todayFormatted(): string {
   return new Date().toLocaleDateString("id-ID", {
@@ -143,9 +135,15 @@ export default async function SlipDetailPage({
   // Draft block: DRAFT slips are not available yet
   if (slip.payrollRun.status === "DRAFT") notFound();
 
-  const incomeLines = slip.lines.filter((l) => l.categorySnapshot === "INCOME");
+  // Filter zero-value lines: UAT 2026-05-12 minor — Rp 0 entries (e.g. unused
+  // Insentif/Tunjangan slots) added visual clutter without information value.
+  // Totals (slip.grossAmount, slip.deductions) are computed server-side, so
+  // hiding rows here does not affect the headline numbers.
+  const incomeLines = slip.lines.filter(
+    (l) => l.categorySnapshot === "INCOME" && l.finalAmount > 0,
+  );
   const deductionLines = slip.lines.filter(
-    (l) => l.categorySnapshot === "DEDUCTION",
+    (l) => l.categorySnapshot === "DEDUCTION" && l.finalAmount > 0,
   );
 
   const employeeName = slip.employee.formalName ?? slip.employee.nama;

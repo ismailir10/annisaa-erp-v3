@@ -179,7 +179,7 @@ export default function AttendancePage() {
         <DataTableRowActions
           extraActions={[
             {
-              label: "Timpa (Override)",
+              label: "Timpa",
               icon: <Replace size={14} />,
               onClick: () => openOverride(row.original),
             },

@@ -1502,7 +1502,7 @@ async function main() {
             create: {
               id: "u_kbaster_parent_d4",
               tenantId: tenant.id,
-              email: `${kbAsterParent.id}@parent.seed.local`,
+              email: `parent-${kbAsterParent.id.slice(-6)}@demo.talib.id`,
               role: "GUARDIAN",
               name: kbAsterParent.name,
               parentId: kbAsterParent.id,

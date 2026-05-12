@@ -50,14 +50,35 @@ describe("PortalHeader", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it("fires onLogout when the logout button is clicked", async () => {
+  it("opens confirm dialog then fires onLogout on Konfirmasi", async () => {
     const onLogout = vi.fn();
     const user = userEvent.setup();
     render(
       <PortalHeader userName="Budi" avatarFallback="B" onLogout={onLogout} />,
     );
+
+    // First click opens the dialog without firing onLogout.
     await user.click(screen.getByRole("button", { name: "Keluar" }));
+    expect(onLogout).not.toHaveBeenCalled();
+    expect(screen.getByText("Yakin ingin keluar?")).toBeInTheDocument();
+
+    // Clicking the dialog's "Ya, Keluar" button fires onLogout.
+    await user.click(screen.getByRole("button", { name: "Ya, Keluar" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire onLogout when the confirm dialog is cancelled", async () => {
+    const onLogout = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PortalHeader userName="Budi" avatarFallback="B" onLogout={onLogout} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Keluar" }));
+    expect(screen.getByText("Yakin ingin keluar?")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Batal" }));
+    expect(onLogout).not.toHaveBeenCalled();
   });
 
   it("prefers avatarUrl over fallback initials when provided", () => {

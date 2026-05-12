@@ -739,14 +739,14 @@ export default function AdmissionsPage() {
         description={`${pagination.total} calon siswa`}
         actions={
           <Button size="sm" onClick={openDialog}>
-            <Plus size={14} className="mr-1.5" /> Catat Inquiry
+            <Plus size={14} className="mr-1.5" /> Catat Pertanyaan
           </Button>
         }
       />
 
       <StatsCardsRow cols={4}>
         <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
-        <StatCard label="Inquiry" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
+        <StatCard label="Pertanyaan" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
         <StatCard label="Diterima" value={stats.admitted} icon={CheckCircle} color="success" index={2} />
       </StatsCardsRow>
 
@@ -784,7 +784,7 @@ export default function AdmissionsPage() {
         defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
         emptyTitle="Tidak ada pendaftaran"
-        emptyDescription="Catat inquiry baru ketika orang tua menghubungi sekolah"
+        emptyDescription="Catat pertanyaan baru ketika orang tua menghubungi sekolah"
       />
 
       {/* Add/Edit Admission — Sheet on mobile (bottom, form is narrow when grids collapse), Dialog on desktop */}
@@ -792,7 +792,7 @@ export default function AdmissionsPage() {
         <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
           <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
             <SheetHeader>
-              <SheetTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</SheetTitle>
+              <SheetTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}</SheetTitle>
             </SheetHeader>
             <div className="p-card space-y-field">
               {editingAdmission?.detectedParent && (
@@ -801,7 +801,7 @@ export default function AdmissionsPage() {
               <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
               <div className="flex flex-col-reverse gap-2 pt-2">
                 <Button onClick={handleSubmit} disabled={saving}>
-                  {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Inquiry"}
+                  {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
                 </Button>
                 <SheetClose render={<Button variant="ghost">Batal</Button>} />
               </div>
@@ -812,7 +812,7 @@ export default function AdmissionsPage() {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="p-card sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Inquiry Baru"}</DialogTitle>
+              <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}</DialogTitle>
             </DialogHeader>
             <div className="p-card space-y-field">
               {editingAdmission?.detectedParent && (
@@ -825,7 +825,7 @@ export default function AdmissionsPage() {
                 <Button variant="ghost">Batal</Button>
               </DialogClose>
               <Button onClick={handleSubmit} disabled={saving}>
-                {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Inquiry"}
+                {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
               </Button>
             </DialogFooter>
           </DialogContent>

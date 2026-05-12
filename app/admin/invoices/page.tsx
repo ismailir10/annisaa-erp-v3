@@ -730,7 +730,7 @@ export default function InvoicesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <StatsCardsRow>
+      <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
         <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />
         <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
         <StatCard label="Lunas" value={stats.paid} icon={CheckCircle} color="success" index={2} />

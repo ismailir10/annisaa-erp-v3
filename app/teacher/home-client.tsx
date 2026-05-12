@@ -140,7 +140,6 @@ export function TeacherHomeClient({
   });
 
   const greeting = time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam";
-  const firstName = userName.split(" ")[0];
 
   return (
     <div>
@@ -151,7 +150,7 @@ export function TeacherHomeClient({
         transition={{ duration: 0.4 }}
       >
         <PageHeader
-          title={`Selamat ${greeting}, Ustadz/Ustadzah ${firstName}`}
+          title={`Selamat ${greeting}, Ustadz/Ustadzah ${userName}`}
           subtitle={dateStr}
           className="mb-0"
         />

@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/portal/page-header";
 import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helpers";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
+import { attendanceBannerState } from "@/lib/parent-attendance-banner";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 
@@ -115,8 +116,7 @@ export default async function ParentAttendancePage({
     else if (s === "ABSENT") alpa += 1;
     else if (s === "PERMISSION") izin += 1;
   }
-  const allPresent = logged === 5 && hadir === 5;
-  const hasAttention = sakit > 0 || alpa > 0;
+  const bannerState = attendanceBannerState({ hadir, sakit, alpa, izin, logged });
 
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
@@ -134,7 +134,7 @@ export default async function ParentAttendancePage({
       <PageHeader title="Kehadiran" subtitle="Pantau kehadiran harian anak" />
 
       {/* Summary card — varies by week state */}
-      {allPresent ? (
+      {bannerState?.kind === "all-present" ? (
         <section
           className="rounded-xl border p-4"
           style={{
@@ -165,25 +165,34 @@ export default async function ParentAttendancePage({
             </div>
           </div>
         </section>
-      ) : hasAttention ? (
-        <section
-          className="rounded-xl border p-4"
-          style={{
-            background: "var(--status-late-subtle)",
-            borderColor: "var(--status-late)",
-          }}
-        >
+      ) : bannerState?.kind === "attention" && bannerState.tone === "warm" ? (
+        <section className="rounded-xl border border-status-late bg-status-late-subtle p-4">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-lg bg-status-late-subtle text-status-late-text">
               <Thermometer size={18} />
             </div>
             <div>
               <p className="text-sm font-semibold text-status-late-text">
-                Hadir {hadir} · Sakit {sakit} · Alpa {alpa}
-                {izin > 0 ? ` · Izin ${izin}` : ""}
+                {bannerState.line}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {childName} istirahat dulu, semoga lekas sehat.
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : bannerState?.kind === "attention" && bannerState.tone === "neutral" ? (
+        <section className="rounded-xl border border-status-leave bg-status-leave-subtle p-4">
+          <div className="flex items-center gap-3">
+            <div className="grid size-10 place-items-center rounded-lg bg-status-leave-subtle text-status-leave-text">
+              <CalendarClock size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-status-leave-text">
+                {bannerState.line}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {childName} sedang izin pekan ini. InsyaAllah segera kembali.
               </p>
             </div>
           </div>

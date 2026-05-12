@@ -51,9 +51,9 @@ const DIALOG_CHECKS: DialogCheck[] = [
   {
     name: "admissions-create",
     path: "/admin/admissions",
-    triggerLabel: "Catat Inquiry",
-    expectedTitle: /Catat Inquiry/i,
-    expectedSubmit: /Catat Inquiry/i,
+    triggerLabel: "Catat Pertanyaan",
+    expectedTitle: /Catat Pertanyaan/i,
+    expectedSubmit: /Catat Pertanyaan/i,
   },
   {
     name: "settings-campuses-create",
