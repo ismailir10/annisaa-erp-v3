@@ -154,6 +154,15 @@ Full transition guards for VISITED→APPLIED (file completeness) and APPLIED→P
 
 Manual upgrade only (CTO-gated). Build gate fails if raw > 12 MB.
 
+### Task 10 — Address resolve module (2026-05-12)
+
+**Files:**
+- `lib/address/types.ts` — `Province`, `Regency`, `District`, `Village`, `AddressValue`, `EMPTY_ADDRESS`, `DEFAULT_PROVINCE_CODE`, `DEFAULT_PROVINCE_NAME`
+- `lib/address/resolve.ts` — `getProvinces`, `getRegencies(provinceCode)`, `getDistricts(regencyCode)`, `fetchVillages(districtCode)` (lazy `force-cache` fetch from `/address/villages/{code}.json`)
+- `lib/address/__tests__/resolve.test.ts` — 8 vitest cases (static lookups + fetch mock)
+
+**Verification:** 8 tests pass; full suite green (1119 passed, 42 todo, 2 skipped); `npm run build` exits 0.
+
 ## Ship Notes
 
 No env vars. No seed changes. No rollback needed — additive migration only; columns can be dropped if rolled back. Migration: `20260512000000_add_address_geo_cols_to_student_parent`.
