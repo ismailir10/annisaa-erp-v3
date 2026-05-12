@@ -99,13 +99,18 @@ export default function ClassAttendancePage() {
   useEffect(() => { if (selectedClass) loadStudents(); }, [selectedClass, date, loadStudents]);
 
   // Cycle-tap: PRESENT → ABSENT → SICK → PERMISSION. Optimistic save on every tap.
+  // Save status confirmation lives next to the row so silent failures can't hide
+  // behind unrelated toasts (e.g. a stale Cuti notification stuck on screen).
+  const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
+
   async function cycleStatus(studentId: string) {
     const current = statuses[studentId] ?? "PRESENT";
     const next = ROTATION[(ROTATION.indexOf(current) + 1) % ROTATION.length];
     const previous = current;
 
-    // Optimistic update
+    // Optimistic update + per-row pending marker
     setStatuses((prev) => ({ ...prev, [studentId]: next }));
+    setSaveState((prev) => ({ ...prev, [studentId]: "saving" }));
 
     try {
       const res = await fetch("/api/student-attendance/mark", {
@@ -120,10 +125,23 @@ export default function ClassAttendancePage() {
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         setStatuses((prev) => ({ ...prev, [studentId]: previous }));
+        setSaveState((prev) => ({ ...prev, [studentId]: "error" }));
         toast.error(d?.error || "Absensi tidak tersimpan. Coba ketuk ulang ya.");
+        return;
       }
+      const body = await res.json().catch(() => ({ saved: 0 }));
+      // Guard against a successful HTTP status but zero rows persisted —
+      // mark route returns { saved, total }; treat saved < total as failure.
+      if (typeof body.saved === "number" && body.saved < 1) {
+        setStatuses((prev) => ({ ...prev, [studentId]: previous }));
+        setSaveState((prev) => ({ ...prev, [studentId]: "error" }));
+        toast.error("Absensi tidak tersimpan. Coba ketuk ulang ya.");
+        return;
+      }
+      setSaveState((prev) => ({ ...prev, [studentId]: "saved" }));
     } catch {
       setStatuses((prev) => ({ ...prev, [studentId]: previous }));
+      setSaveState((prev) => ({ ...prev, [studentId]: "error" }));
       toast.error("Koneksi terputus. Coba lagi sebentar ya.");
     }
   }

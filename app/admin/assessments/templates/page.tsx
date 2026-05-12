@@ -316,7 +316,7 @@ export default function AssessmentTemplatesPage() {
         title="Template Penilaian"
         description={`${stats.total} template`}
         actions={
-          <Button size="sm" onClick={() => { setCreateForm({ name: "", programId: "", type: "SEMESTER", categories: [{ ...EMPTY_CATEGORY }] }); setCreateDialog(true); }}>
+          <Button size="sm" onClick={() => { setCreateForm({ name: "", programId: programs[0]?.id ?? "", type: "SEMESTER", categories: [{ ...EMPTY_CATEGORY }] }); setCreateDialog(true); }}>
             <Plus size={14} className="mr-1.5" /> Buat Template
           </Button>
         }

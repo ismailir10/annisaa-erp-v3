@@ -395,7 +395,7 @@ function ManualInvoiceFormBody({
   function addLine() {
     setForm({
       ...form,
-      lines: [...form.lines, { feeComponentId: "", amount: "" }],
+      lines: [...form.lines, { feeComponentId: feeComponents[0]?.id ?? "", amount: "" }],
     });
   }
 
@@ -552,9 +552,22 @@ export function ManualInvoiceDialog({
       .then((json) => {
         if (cancelled) return;
         const list: FeeComponent[] = Array.isArray(json) ? json : [];
-        setFeeComponents(
-          list.filter((fc) => fc.isEnabled && fc.status === "ACTIVE"),
-        );
+        const active = list.filter((fc) => fc.isEnabled && fc.status === "ACTIVE");
+        setFeeComponents(active);
+        // Pre-fill the first line's component so single-click submit works.
+        // Base UI Select shows the highlighted option in the trigger when value
+        // is empty, but doesn't fire onValueChange until the user actually
+        // clicks the row — that mismatch caused "Pilih komponen biaya" errors
+        // for users who only opened the dropdown without clicking an option.
+        if (active.length > 0) {
+          setForm((prev) => {
+            if (prev.lines.length === 0) return prev;
+            if (prev.lines[0]!.feeComponentId) return prev;
+            const lines = [...prev.lines];
+            lines[0] = { ...lines[0]!, feeComponentId: active[0]!.id };
+            return { ...prev, lines };
+          });
+        }
       })
       .catch((err) => {
         console.error("[manual-invoice] fee components fetch failed", err);

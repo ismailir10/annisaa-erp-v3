@@ -41,6 +41,23 @@ export async function POST(req: NextRequest) {
 
   const { studentId, date, body: noteBody } = parsed.data;
 
+  // Note tenantId must match the student's record, not the author's session.
+  // Otherwise a multi-tenant deployment where a teacher in tenant A is reading
+  // a student in tenant B (e.g. a guru pengganti) saves the note tagged to
+  // tenant A — and the guardian in tenant B never sees it via their week
+  // queries which filter by their own tenantId. The bug surfaced as
+  // "catatan visible on /parent/attendance but missing on /parent/student-journal"
+  // because the two surfaces had subtly different filters; locking the note's
+  // tenantId to the student removes the ambiguity.
+  const studentForTenant = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { tenantId: true },
+  });
+  if (!studentForTenant) {
+    return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
+  }
+  const noteTenantId = studentForTenant.tenantId;
+
   // Role-based authorization
   if (isAdminRole(session.role)) {
     // Admin (SUPER_ADMIN | SCHOOL_ADMIN) writes notes on behalf of staff —
@@ -99,7 +116,7 @@ export async function POST(req: NextRequest) {
   // Create note
   const note = await prisma.studentJournalNote.create({
     data: {
-      tenantId: session.tenantId!,
+      tenantId: noteTenantId,
       studentId,
       date,
       authorUserId: session.id,
