@@ -41,7 +41,7 @@ No existing service-role helper found in `lib/supabase/` or anywhere in `lib/`. 
 
 ## Verification
 
-- [ ] `npm run build && npx vitest run` (between-task gate — run after Task 2 commit)
+- [x] `npm run build && npx vitest run` — 137 test files passed, 0 errors (Task 2 between-task gate)
 - [ ] End-of-cycle Playwright gate pending (Tasks 3–5 remaining)
 
 ## Ship Notes
