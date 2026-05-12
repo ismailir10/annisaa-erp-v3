@@ -20,7 +20,7 @@ Spec: [docs/superpowers/specs/2026-05-12-admission-student-domain-design.md](../
 - [x] Task 1: Migration N+5 — `admission-documents` bucket + deny-anon RLS policy
 - [x] Task 2: Service-role Supabase client factory
 - [x] Task 3: `lib/supabase/storage.ts` SDK wrapper + path builder + validation + tests
-- [ ] Task 4: `POST /api/public/admissions/upload-token` route + tests
+- [x] Task 4: `POST /api/public/admissions/upload-token` route + tests
 - [ ] Task 5: Smoke + ship
 
 ## Implementation
@@ -46,14 +46,24 @@ No existing service-role helper found in `lib/supabase/` or anywhere in `lib/`. 
 - `lib/supabase/__tests__/storage.test.ts` — 13 vitest cases (12 spec + 1 edge), all passing
 - `vitest.config.ts` — added `server-only` alias to `next/dist/compiled/server-only/empty.js` so test environment can import server-only modules without throwing
 
-**Notes:** Real Supabase SDK `info()` returns `FileObjectV2` camelized — `data.contentType` and `data.size` at root (not `data.metadata.mimetype`). Mocks and implementation aligned to real SDK shape. `server-only` not in `node_modules` (not a direct dep); resolved via Next.js bundled copy alias in vitest config.
+**Notes:** Real Supabase SDK `info()` returns `FileObjectV2` camelized — `data.contentType` and `data.size` at root (not `data.metadata.mimetype`). Mocks and implementation aligned to real SDK shape. `server-only` not in `node_modules` (not a direct dep); resolved via Next.js bundled copy alias in vitest config. Also fixed `lib/supabase/service-client.ts` to defer env-var checks from module-load time to `getServiceClient()` call time — prevents build failure in demo/SQLite environment where Supabase vars are empty.
+
+### Task 4 — Upload-token API route (2026-05-12)
+
+**Files:**
+- `app/api/public/admissions/upload-token/route.ts` — `POST` endpoint: rate-limit (10 req/min/IP), body validation via Zod, admission lookup + status guard (INQUIRY/VISITED/APPLIED only), signed upload URL generation
+- `app/api/public/admissions/upload-token/__tests__/route.test.ts` — 6 vitest cases, all passing
+
+**Notes:** `z.enum()` with `readonly` const tuple resolved via spread `[...ADMISSION_FILE_KINDS]`. Route is fully public (no session required) — guarded by rate-limit + admission-status check.
 
 ## Verification
 
 - [x] `npm run build && npx vitest run` — 137 test files passed, 0 errors (Task 2 between-task gate)
 - [x] `npx vitest run lib/supabase/__tests__/storage.test.ts` — 13/13 passed (Task 3 between-task gate)
 - [x] `npm run build` — green after Task 3
-- [ ] End-of-cycle Playwright gate pending (Tasks 4–5 remaining)
+- [x] `npx vitest run app/api/public/admissions/upload-token/__tests__/route.test.ts` — 6/6 passed (Task 4 between-task gate)
+- [x] `npm run build && npx vitest run` — build green, 1142 tests passed (139 files, 2 skipped) after Task 4
+- [ ] End-of-cycle Playwright gate pending (Task 5 remaining)
 
 ## Ship Notes
 
