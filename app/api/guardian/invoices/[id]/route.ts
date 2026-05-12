@@ -88,7 +88,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     },
   });
 
-  if (!invoice || !childIds.has(invoice.studentId) || invoice.tenantId !== session.tenantId) {
+  if (!invoice || !invoice.studentId || !invoice.student || !childIds.has(invoice.studentId) || invoice.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

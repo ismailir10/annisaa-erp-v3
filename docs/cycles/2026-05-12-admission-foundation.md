@@ -17,7 +17,7 @@ No UAT report stale-check needed — this is a pure schema + infrastructure cycl
 
 - [x] Task 1+2 (bundled): Add address geo cols to `Student` (9 cols) and `Parent` (9 home + 9 employer + 2 portalInvite = 20 cols) — migration N+1
 - [x] Task 3+4 (bundled): Create `AdmissionApplication` + `AdmissionGuardian` tables; add 8 new fields + updated status enum + relations to `Admission`; placeholder back-relation on `Invoice` — migration N+2
-- [ ] Task 5 (renumbered from 4): Alter `Invoice` — nullable `studentId`, add `admissionId`, CHECK constraint — migration N+3
+- [x] Task 5 (renumbered from 4): Alter `Invoice` — nullable `studentId`, real `admission` back-ref, CHECK constraint documented — migration N+3
 - [ ] Task 5: Backfill `addressLine` from legacy `address` (idempotent SQL) — migration N+4
 - [ ] Task 6: `lib/constants/income.ts` + `lib/constants/__tests__/income.test.ts`
 - [ ] Task 7: `lib/scripts/canonicalize-income.ts` + tests
@@ -68,7 +68,29 @@ Migration applied via `npx prisma migrate deploy`. Prisma Client (7.6.0) regener
 - No `DROP`, no `NOT NULL` on new columns; data migration for VISIT_SCHEDULED is defensive
 - psql not available in this environment — deploy success is the verification
 
-Tasks 5–10 not yet run — between-task gate above covers Tasks 1+2 and 3+4.
+### Task 5 verification (2026-05-12)
+
+- `npx prisma format` — initial errors due to both relation sides providing `fields`/`references`; resolved by keeping FK solely on `Admission` side and using pure back-ref on `Invoice`
+- `npx prisma migrate deploy` — `20260512000002_alter_invoice_for_admission_link` applied cleanly
+- `npx prisma generate` — Prisma Client regenerated
+- `npm run build` — 5 TypeScript null-safety errors surfaced and fixed (guardian invoice/PDF routes, xendit create-session, xendit helpers, xendit-retry types, parent-helpers outstanding); build exits 0
+- `npx vitest run` — 1097 passed, 1 pre-existing failure (enum-conformance for Admission.status from Task 3+4), no regressions introduced
+
+Tasks 6–10 not yet run — between-task gate above covers Tasks 1+2, 3+4, and 5.
+
+### Task 5 — Invoice nullable studentId + admission back-ref (2026-05-12)
+
+**Files changed:**
+- `prisma/schema.prisma` — `Invoice.studentId`: `String` → `String?`; `Invoice.student` relation: `Student` → `Student?`; placeholder `admissionsForRegistration Admission[]` replaced with `admission Admission? @relation("AdmissionRegistrationInvoice")` (pure back-ref; FK lives on `Admission.registrationInvoiceId`)
+- `prisma/migrations/20260512000002_alter_invoice_for_admission_link/migration.sql` — `ALTER TABLE "Invoice" ALTER COLUMN "studentId" DROP NOT NULL`; CHECK invariant documented (FK is on Admission side, cannot express as row-level CHECK on Invoice)
+- `app/api/guardian/invoices/[id]/route.ts` — added `!invoice.studentId || !invoice.student` to 404 guard (null-safety for admission invoices)
+- `app/api/guardian/invoices/[id]/pdf/route.ts` — same guard pattern for PDF endpoint
+- `app/api/xendit/create-session/route.ts` — introduced `displayName` with `invoice.student?.name ?? \`Tagihan ${invoice.invoiceNumber}\`` fallback
+- `lib/finance/xendit-retry.ts` — `RetryResultRow.studentId` type updated to `string | null`
+- `lib/parent-helpers.ts` — added `!r.studentId` skip guard in outstanding items loop (admission invoices are not parent-portal items)
+- `lib/xendit/helpers.ts` — `invoice.student` accesses changed to optional chain; `customerName` uses `guardianParent?.name ?? invoice.student?.name ?? invoice.invoiceNumber` fallback
+
+**Design decision:** The FK for the 1:1 Admission↔Invoice relation lives on `Admission.registrationInvoiceId` (set in Tasks 3+4). Invoice carries only the pure Prisma back-reference. No `admissionId` column was added to Invoice — it is not needed.
 
 ## Ship Notes
 

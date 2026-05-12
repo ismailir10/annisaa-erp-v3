@@ -59,7 +59,10 @@ export async function createXenditSessionForInvoice(
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
   if (remaining <= 0) return null;
 
-  const guardianParent = invoice.student.guardians[0]?.parent;
+  // For student invoices, use the primary guardian as the customer.
+  // For admission invoices (student is null), fall back to invoice-level fields.
+  const guardianParent = invoice.student?.guardians[0]?.parent;
+  const customerName = guardianParent?.name ?? invoice.student?.name ?? invoice.invoiceNumber;
   const appOrigin = resolveAppOrigin(requestOrigin);
   const successReturnUrl = `${appOrigin}/parent/invoices?invoice=${invoice.id}&xenditStatus=paid`;
   const cancelReturnUrl = `${appOrigin}/parent/invoices?invoice=${invoice.id}&xenditStatus=cancel`;
@@ -74,8 +77,8 @@ export async function createXenditSessionForInvoice(
       createXenditSession({
         referenceId: invoice.id,
         amount: remaining,
-        description: `${invoice.invoiceNumber} — ${invoice.student.name} — ${invoice.periodLabel}`,
-        customerName: guardianParent?.name ?? invoice.student.name,
+        description: `${invoice.invoiceNumber} — ${invoice.student?.name ?? "Calon Siswa"} — ${invoice.periodLabel}`,
+        customerName,
         customerEmail: guardianParent?.email ?? undefined,
         customerPhone: guardianParent?.whatsapp ?? guardianParent?.phone ?? undefined,
         successReturnUrl,

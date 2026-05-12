@@ -7,7 +7,7 @@ export type RetryResultRow =
   | {
       invoiceId: string;
       invoiceNumber: string;
-      studentId: string;
+      studentId: string | null;
       studentName: string;
       status: "SENT";
       paymentUrl: string;
@@ -15,7 +15,7 @@ export type RetryResultRow =
   | {
       invoiceId: string;
       invoiceNumber: string;
-      studentId: string;
+      studentId: string | null;
       studentName: string;
       status: "PENDING_PAYMENT_LINK";
       error: string;

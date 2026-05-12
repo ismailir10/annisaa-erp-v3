@@ -795,7 +795,7 @@ model InvoiceNumberSequence {
 model Invoice {
   id               String    @id @default(cuid())
   tenantId         String
-  studentId        String
+  studentId        String?
   invoiceNumber    String // Auto-generated: INV-2026-0001
   periodLabel      String // "April 2026" or "Semester 1 2025/2026"
   dueDate          String // YYYY-MM-DD
@@ -811,13 +811,12 @@ model Invoice {
   paymentLinkError String? // Diagnostic msg when Xendit session creation failed (status=PENDING_PAYMENT_LINK)
   createdAt        DateTime  @default(now())
 
-  tenant                    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  student                   Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  parent                    Parent?       @relation(fields: [parentId], references: [id], onDelete: SetNull)
-  lines                     InvoiceLine[]
-  payments                  Payment[]
-  // Placeholder back-relation — Task 5 will expand this
-  admissionsForRegistration Admission[]   @relation("AdmissionRegistrationInvoice")
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student   Student?      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  parent    Parent?       @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  admission Admission?    @relation("AdmissionRegistrationInvoice")
+  lines     InvoiceLine[]
+  payments  Payment[]
 
   @@unique([tenantId, invoiceNumber])
   @@index([studentId, status])

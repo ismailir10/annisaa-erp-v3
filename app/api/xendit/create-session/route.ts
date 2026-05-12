@@ -49,6 +49,9 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    // Admission-linked invoices have no student; use a safe display fallback.
+    const displayName = invoice.student?.name ?? `Tagihan ${invoice.invoiceNumber}`;
+
     if (invoice.status === "PAID" || invoice.status === "CANCELLED") {
       failed++;
       continue;
@@ -71,7 +74,7 @@ export async function POST(req: NextRequest) {
       });
 
       results.push({
-        studentName: invoice.student.name,
+        studentName: displayName,
         invoiceNumber: invoice.invoiceNumber,
         paymentUrl: invoice.xenditPaymentUrl,
       });
@@ -92,7 +95,7 @@ export async function POST(req: NextRequest) {
         if (invoice.status !== "SENT") statusChanged = true;
 
         results.push({
-          studentName: invoice.student.name,
+          studentName: displayName,
           invoiceNumber: invoice.invoiceNumber,
           paymentUrl: result.paymentUrl,
         });
@@ -101,7 +104,7 @@ export async function POST(req: NextRequest) {
         // Helper returns null on TOCTOU-reachable guard conditions (status flipped
         // to PAID/CANCELLED between our pre-check and the helper's re-check, or
         // remaining went to 0). Surface a diagnostic so admin sees why.
-        errors.push(`${invoice.student.name}: Gagal membuat sesi pembayaran`);
+        errors.push(`${displayName}: Gagal membuat sesi pembayaran`);
         failed++;
       }
     } catch (e) {
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest) {
         // Swallow write-back failure — the original Xendit error is still surfaced
         // to the admin via errors[], counts are still correct.
       }
-      errors.push(`${invoice.student.name}: ${msg}`);
+      errors.push(`${displayName}: ${msg}`);
       failed++;
     }
   }

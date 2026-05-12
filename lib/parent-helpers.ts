@@ -396,6 +396,7 @@ export async function getParentOutstandingForStudents(
     const paid = Number(r.totalPaid);
     const remaining = Math.max(0, due - paid);
     if (remaining <= 0) continue;
+    if (!r.studentId) continue; // admission invoices are not outstanding items for parent portal
     items.push({ studentId: r.studentId, dueDate: r.dueDate, remaining });
     total += remaining;
     if (!nearestDue || r.dueDate < nearestDue) nearestDue = r.dueDate;
