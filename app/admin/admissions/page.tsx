@@ -739,7 +739,7 @@ export default function AdmissionsPage() {
         description={`${pagination.total} calon siswa`}
         actions={
           <Button size="sm" onClick={openDialog}>
-            <Plus size={14} className="mr-1.5" /> Catat Inquiry
+            <Plus size={14} className="mr-1.5" /> Catat Pertanyaan
           </Button>
         }
       />

@@ -194,6 +194,7 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T8: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). No new tests — CSS class removal + standard documentation. Cross-checked design-system.html §DataTable.
 - T9: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). No new tests — copy-only diff. Cross-checked voice.md glossary and design-system.html §Voice.
 - T10: `npm run build` ✓ (no test gate — runbook is markdown). Manual: ran the dry-run SELECT against staging Supabase via Supabase MCP (deferred to post-merge per Ship Notes; not exercised inside the cycle worktree to avoid mutating staging mid-build).
+- T9 follow-up: Playwright surfaced one missed occurrence of "Catat Inquiry" (the JSX text node at `app/admin/admissions/page.tsx:742`, not in quotes, escaped the original `replace_all`) plus the matching `e2e/admin-dialogs.spec.ts` admissions-create check. Both fixed in a follow-up commit; snapshots regenerated.
 
 Per CLAUDE.md frontend gate Rule 4: T1, T2, T3, T4, T5, T6, T7, T8 touch frontend → Verification will include "Cross-checked design-system.html §Stats / §DataTable / §Dialog / §Toast for [task scope]" lines.
 
