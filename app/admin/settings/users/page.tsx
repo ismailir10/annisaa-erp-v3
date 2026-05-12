@@ -30,6 +30,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Users, ShieldCheck, GraduationCap, UserX } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 import { toast } from "sonner";
+import { getRoleLabel } from "./role-labels";
 
 // ------------------------------------------------------------------
 // Types
@@ -58,21 +59,6 @@ type Pagination = {
   total: number;
   totalPages: number;
 };
-
-// ------------------------------------------------------------------
-// Role label mapping
-// ------------------------------------------------------------------
-
-const ROLE_LABELS: Record<string, string> = {
-  SCHOOL_ADMIN: "Admin",
-  TEACHER: "Guru",
-  GUARDIAN: "Wali Murid",
-};
-
-function getRoleLabel(user: UserRow): string {
-  if (user.customRole) return user.customRole.name;
-  return ROLE_LABELS[user.role] ?? user.role;
-}
 
 // ------------------------------------------------------------------
 // Columns
@@ -200,6 +186,9 @@ export default function UsersPage() {
   // Stats fetch
   useEffect(() => {
     Promise.all([
+      fetch("/api/users?pageSize=1&status=ACTIVE&role=SUPER_ADMIN").then((r) =>
+        r.json()
+      ),
       fetch("/api/users?pageSize=1&status=ACTIVE&role=SCHOOL_ADMIN").then((r) =>
         r.json()
       ),
@@ -211,14 +200,15 @@ export default function UsersPage() {
       ),
       fetch("/api/users?pageSize=1&status=INACTIVE").then((r) => r.json()),
     ])
-      .then(([admin, teacher, guardian, inactive]) => {
-        const a = admin.pagination?.total ?? 0;
+      .then(([superAdmin, schoolAdmin, teacher, guardian, inactive]) => {
+        const sa = superAdmin.pagination?.total ?? 0;
+        const a = schoolAdmin.pagination?.total ?? 0;
         const t = teacher.pagination?.total ?? 0;
         const g = guardian.pagination?.total ?? 0;
         const i = inactive.pagination?.total ?? 0;
         setStats({
-          total: a + t + g,
-          admin: a,
+          total: sa + a + t + g,
+          admin: sa + a,
           teacher: t,
           guardian: g,
           inactive: i,
@@ -358,7 +348,7 @@ export default function UsersPage() {
     <>
       <PageHeader
         title="Pengguna"
-        description={`${pagination.total} pengguna terdaftar`}
+        description={`${stats.total} aktif · ${stats.inactive} tidak aktif`}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
@@ -410,6 +400,7 @@ export default function UsersPage() {
             onChange: handleRoleFilterChange,
             options: [
               { value: "all", label: "Semua Peran" },
+              { value: "SUPER_ADMIN", label: "Super Admin" },
               { value: "SCHOOL_ADMIN", label: "Admin" },
               { value: "TEACHER", label: "Guru" },
               { value: "GUARDIAN", label: "Wali Murid" },

@@ -65,7 +65,7 @@ Three UAT walkthroughs ran on 2026-05-12 (admin, teacher, parent portals) and su
 - **Acceptance:** Parent attendance week with PRESENT + PERMISSION only shows summary banner.
 - **Dependencies:** none
 
-### T2. Admin Pengguna table — SUPER_ADMIN label + count alignment + seed email cleanup
+### T2. Admin Pengguna table — SUPER_ADMIN label + count alignment + seed email cleanup ✅
 
 - **Files:** [app/admin/settings/users/page.tsx](app/admin/settings/users/page.tsx) (ROLE_LABELS + subtitle), [prisma/seed.ts:1401](prisma/seed.ts:1401)
 - **Change:**
@@ -172,10 +172,12 @@ T2 → T6 → T8                  (sequential, admin tables)
 
 - Subagent plan: tasks executed sequentially in single worktree (shared admin-table surface across T2/T6/T8; shared portal-header tests across T5; safer git ops than parallel writes to same worktree). `feature-dev:code-reviewer` agent dispatched per task before commit per `/build` Step 6.
 - T1 — extracted banner-decision to `lib/parent-attendance-banner.ts` (pure helper) with 7-case vitest; `app/parent/attendance/page.tsx` now renders 3 banner branches (all-present gold / warm orange / neutral sky) via `attendanceBannerState({hadir,sakit,alpa,izin,logged})`. Reviewer flagged pre-existing inline-style anti-pattern on the all-present banner (colors.md §NEVER); my T1 diff fixed the warm + new neutral branches but left the all-present block as-is to keep scope discipline — recommend follow-up cleanup cycle. Cross-checked design-system.html §Cards for status-leave tone choice.
+- T2 — extracted `ROLE_LABELS` + `getRoleLabel` to `app/admin/settings/users/role-labels.ts` (avoid importing `"use client"` page in vitest). Added `SUPER_ADMIN: "Super Admin"`. Pengguna page: added 5th stats fetch for SUPER_ADMIN ACTIVE count, folded into Admin stat card (`stats.admin = sa + a`, `stats.total = sa + a + t + g`). Subtitle now `${stats.total} aktif · ${stats.inactive} tidak aktif` (single source of truth). Added "Super Admin" to role-filter dropdown (reviewer caught this functional gap). Seed: `${id}@parent.seed.local` → `parent-${id.slice(-6)}@demo.talib.id`. Cross-checked design-system.html §Stats for stat-card grid layout.
 
 ## Verification
 
 - T1: `npm run build` ✓ + `npx vitest run` ✓ (1284 pass, 42 todo, 0 fail). Helper test file `parent-attendance-banner.test.ts` adds 7 cases. Cross-checked design-system.html §Cards for `status-leave` neutral-tone banner.
+- T2: `npm run build` ✓ + `npx vitest run` ✓ (1289 pass, 42 todo). Test file `app/admin/settings/users/__tests__/role-label.test.ts` adds 5 cases. Cross-checked design-system.html §Stats for stat-card grid (5-col lg).
 
 Per CLAUDE.md frontend gate Rule 4: T1, T2, T3, T4, T5, T6, T7, T8 touch frontend → Verification will include "Cross-checked design-system.html §Stats / §DataTable / §Dialog / §Toast for [task scope]" lines.
 

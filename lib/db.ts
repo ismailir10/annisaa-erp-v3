@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-05-12 (cycle curriculum-schema-and-admin — seed gains InvoiceNumberSequence/AuditLog/WebhookEvent deletes; adapter unchanged).
+// Last verified: 2026-05-12 (cycle uat-may12-fixes — seed parent email pattern changed; adapter unchanged).
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
