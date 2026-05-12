@@ -12,7 +12,7 @@ Three UAT walkthroughs ran on 2026-05-12 (admin, teacher, parent portals) and su
 - [ ] `SUPER_ADMIN` role renders as "Super Admin" in admin Pengguna table (matches Peran & Izin page)
 - [ ] Admin Pengguna subtitle count matches stat-card sum (single source of truth)
 - [ ] Synthetic parent seed emails no longer expose internal id (`*@parent.seed.local`) — use readable demo domain
-- [ ] Karyawan > Gaji tab renders salary components with `formatCurrency()` (matches Penggajian detail)
+- [ ] Karyawan > Gaji tab renders salary components with `formatRupiah()` (matches Penggajian detail)
 - [ ] Teacher slip-gaji detail hides Rp 0 line items
 - [ ] Teacher dashboard greeting uses employee display name (not first-word slice)
 - [ ] Teacher profile bank account masked with `maskBankAccount()` (matches slip detail)
@@ -76,11 +76,11 @@ Three UAT walkthroughs ran on 2026-05-12 (admin, teacher, parent portals) and su
 - **Acceptance:** Pengguna table shows "Super Admin" cell; subtitle count = stat-card aktif total; demo emails readable.
 - **Dependencies:** none — must run before T6 + T8 (overlap admin tables)
 
-### T3. Currency formatting — Karyawan Gaji + slip Rp 0 filter
+### T3. Currency formatting — Karyawan Gaji + slip Rp 0 filter ✅
 
 - **Files:** [app/admin/(hr)/employees/[id]/page.tsx:311-326](app/admin/(hr)/employees/[id]/page.tsx:311), [app/teacher/slips/[id]/page.tsx](app/teacher/slips/[id]/page.tsx)
 - **Change:**
-  1. Karyawan Gaji tab — import `formatCurrency` from `lib/format.ts`; wrap displayed salary component values (read-only display) with `formatCurrency()`. Inputs (edit mode) untouched.
+  1. Karyawan Gaji tab — import `formatRupiah` from `lib/format.ts`; render a small `<p>` below each salary `<Input>` showing `formatRupiah(sv.value)` (hidden when value === 0). Edit input untouched.
   2. Slip detail — filter line items where `value === 0` from PENDAPATAN render. Keep total math unchanged.
 - **Test:** Vitest — Karyawan Gaji renders "Rp 800.000" not "800000". Slip detail with Rp 0 line item omits the row.
 - **Acceptance:** Read-only salary values use Rp format; zero-value slip rows hidden.
@@ -173,11 +173,13 @@ T2 → T6 → T8                  (sequential, admin tables)
 - Subagent plan: tasks executed sequentially in single worktree (shared admin-table surface across T2/T6/T8; shared portal-header tests across T5; safer git ops than parallel writes to same worktree). `feature-dev:code-reviewer` agent dispatched per task before commit per `/build` Step 6.
 - T1 — extracted banner-decision to `lib/parent-attendance-banner.ts` (pure helper) with 7-case vitest; `app/parent/attendance/page.tsx` now renders 3 banner branches (all-present gold / warm orange / neutral sky) via `attendanceBannerState({hadir,sakit,alpa,izin,logged})`. Reviewer flagged pre-existing inline-style anti-pattern on the all-present banner (colors.md §NEVER); my T1 diff fixed the warm + new neutral branches but left the all-present block as-is to keep scope discipline — recommend follow-up cleanup cycle. Cross-checked design-system.html §Cards for status-leave tone choice.
 - T2 — extracted `ROLE_LABELS` + `getRoleLabel` to `app/admin/settings/users/role-labels.ts` (avoid importing `"use client"` page in vitest). Added `SUPER_ADMIN: "Super Admin"`. Pengguna page: added 5th stats fetch for SUPER_ADMIN ACTIVE count, folded into Admin stat card (`stats.admin = sa + a`, `stats.total = sa + a + t + g`). Subtitle now `${stats.total} aktif · ${stats.inactive} tidak aktif` (single source of truth). Added "Super Admin" to role-filter dropdown (reviewer caught this functional gap). Seed: `${id}@parent.seed.local` → `parent-${id.slice(-6)}@demo.talib.id`. Cross-checked design-system.html §Stats for stat-card grid layout.
+- T3 — Karyawan Gaji tab: `<Input>` unchanged; added `<p class="text-xs text-muted-foreground font-currency">{formatRupiah(sv.value)}</p>` rendered only when `sv.value > 0` (reviewer caught the "Rp 0" noise case). Slip detail: `incomeLines` + `deductionLines` filters add `finalAmount > 0` predicate; server-side totals unaffected. Cycle doc spec was inconsistent (`formatCurrency` ↔ `formatRupiah`) — corrected to `formatRupiah` (the canonical exporter in `lib/format.ts`). Cross-checked design-system.html §Forms for helper-text styling.
 
 ## Verification
 
 - T1: `npm run build` ✓ + `npx vitest run` ✓ (1284 pass, 42 todo, 0 fail). Helper test file `parent-attendance-banner.test.ts` adds 7 cases. Cross-checked design-system.html §Cards for `status-leave` neutral-tone banner.
 - T2: `npm run build` ✓ + `npx vitest run` ✓ (1289 pass, 42 todo). Test file `app/admin/settings/users/__tests__/role-label.test.ts` adds 5 cases. Cross-checked design-system.html §Stats for stat-card grid (5-col lg).
+- T3: `npm run build` ✓ + `npx vitest run` ✓ (1289 pass). No new test — changes are trivial JSX render expressions (formatRupiah helper text + filter predicate) covered transitively by build. Cross-checked design-system.html §Forms for helper-text typography.
 
 Per CLAUDE.md frontend gate Rule 4: T1, T2, T3, T4, T5, T6, T7, T8 touch frontend → Verification will include "Cross-checked design-system.html §Stats / §DataTable / §Dialog / §Toast for [task scope]" lines.
 

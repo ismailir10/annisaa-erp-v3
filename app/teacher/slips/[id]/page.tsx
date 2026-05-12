@@ -143,9 +143,15 @@ export default async function SlipDetailPage({
   // Draft block: DRAFT slips are not available yet
   if (slip.payrollRun.status === "DRAFT") notFound();
 
-  const incomeLines = slip.lines.filter((l) => l.categorySnapshot === "INCOME");
+  // Filter zero-value lines: UAT 2026-05-12 minor — Rp 0 entries (e.g. unused
+  // Insentif/Tunjangan slots) added visual clutter without information value.
+  // Totals (slip.grossAmount, slip.deductions) are computed server-side, so
+  // hiding rows here does not affect the headline numbers.
+  const incomeLines = slip.lines.filter(
+    (l) => l.categorySnapshot === "INCOME" && l.finalAmount > 0,
+  );
   const deductionLines = slip.lines.filter(
-    (l) => l.categorySnapshot === "DEDUCTION",
+    (l) => l.categorySnapshot === "DEDUCTION" && l.finalAmount > 0,
   );
 
   const employeeName = slip.employee.formalName ?? slip.employee.nama;

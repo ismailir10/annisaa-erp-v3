@@ -19,7 +19,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { toast } from "sonner";
 import { ArrowLeft, Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield } from "lucide-react";
-import { formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
+import { formatDateShort, formatMonthLabel, formatTime, formatRupiah } from "@/lib/format";
 import Link from "next/link";
 
 type Employee = {
@@ -323,7 +323,12 @@ export default function EmployeeDetailPage() {
                         <span className="text-xs text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
                       </div>
                     </div>
-                    <div className="w-40"><Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" /></div>
+                    <div className="w-40">
+                      <Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" />
+                      {sv.value > 0 && (
+                        <p className="mt-1 text-right text-xs text-muted-foreground font-currency">{formatRupiah(sv.value)}</p>
+                      )}
+                    </div>
                   </div>
                 ))}
                 <Button onClick={handleSaveSalary} disabled={savingSalary} className="mt-2"><Save size={14} className="mr-1.5" /> {savingSalary ? "Menyimpan..." : "Simpan Semua Nilai"}</Button>
