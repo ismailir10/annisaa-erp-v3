@@ -793,10 +793,12 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     const period = `E2E Combobox ${Date.now()}`;
     await dialog.getByPlaceholder("April 2026").fill(period);
 
-    const feeSelect = dialog
-      .getByRole("combobox")
-      .filter({ hasText: /Pilih komponen/ })
-      .first();
+    // The fee-component combobox is the 2nd combobox in the dialog (1st = siswa).
+    // We no longer filter by "Pilih komponen" placeholder text because the form
+    // now pre-fills line[0].feeComponentId with the first ACTIVE component
+    // (fixes a two-click-to-commit bug in Base UI Select). Open the dropdown
+    // and click the desired fee option to lock in the test's specific choice.
+    const feeSelect = dialog.getByRole("combobox").nth(1);
     await feeSelect.click();
     await page.getByRole("option", { name: fee.label }).first().click();
 

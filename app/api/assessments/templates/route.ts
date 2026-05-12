@@ -107,6 +107,26 @@ export async function POST(req: NextRequest) {
       programId: parsed.data.programId,
       name,
       type: parsed.data.type,
+      categories: parsed.data.categories.length
+        ? {
+            create: parsed.data.categories.map((cat, ci) => ({
+              name: cat.name.trim(),
+              sortOrder: ci,
+              indicators: {
+                create: cat.indicators.map((desc, ii) => ({
+                  description: desc.trim(),
+                  sortOrder: ii,
+                })),
+              },
+            })),
+          }
+        : undefined,
+    },
+    include: {
+      categories: {
+        orderBy: { sortOrder: "asc" },
+        include: { indicators: { orderBy: { sortOrder: "asc" } } },
+      },
     },
   });
 

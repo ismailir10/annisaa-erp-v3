@@ -161,23 +161,25 @@ export default function AdminLeavePage() {
   // F-21: single stats endpoint replaces the prior 3-call pattern. The old
   // code fired three sequential `pageSize=1` list queries just to read
   // `pagination.total` — wasteful when one `groupBy` returns all buckets.
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/leave/stats");
-        if (!res.ok) return; // Stats stay at default zeros — non-critical
-        const json = await res.json();
-        setStats({
-          total: json.total ?? 0,
-          pending: json.pending ?? 0,
-          approved: json.approved ?? 0,
-          rejected: json.rejected ?? 0,
-        });
-      } catch {
-        // Stats stay at default zeros — non-critical
-      }
-    })();
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/leave/stats");
+      if (!res.ok) return; // Stats stay at default zeros — non-critical
+      const json = await res.json();
+      setStats({
+        total: json.total ?? 0,
+        pending: json.pending ?? 0,
+        approved: json.approved ?? 0,
+        rejected: json.rejected ?? 0,
+      });
+    } catch {
+      // Stats stay at default zeros — non-critical
+    }
   }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   // Review dialog
   const [reviewTarget, setReviewTarget] = useState<LeaveRequest | null>(null);
@@ -263,6 +265,7 @@ export default function AdminLeavePage() {
       toast.success(reviewAction === "approve" ? "Cuti disetujui" : "Cuti ditolak");
       setReviewTarget(null);
       fetchRequests();
+      fetchStats();
     } else {
       const d = await res.json();
       toast.error(d.error || "Gagal memproses");
