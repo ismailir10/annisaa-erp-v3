@@ -227,3 +227,6 @@ Running `npx playwright test` against the **local** Supabase staging DB produced
 
 ### Rollback plan
 This cycle ships behavior changes, not destructive ones. Revert any of the 11 commits individually — they are independent. The seed-email change (commit `a9eda7ff`) is the only one that touches DB-derived state; if a regression appears in parent demo seeding, revert that commit and run `prisma db seed` against staging.
+
+### Post-merge follow-up
+On staging verification with Google sign-in (`ismailir10@gmail.com`), spotted that the T6 enrollments subtitle change ("N pendaftaran" → "N penempatan") had been described in the commit message but the file edit was dropped from the staged set during the cycle's stash/pop sequence. Filed as a one-line follow-up commit (`app/admin/enrollments/page.tsx:258`).
