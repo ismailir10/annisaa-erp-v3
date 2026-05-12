@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export type PortalHeaderProps = {
   /** Display name for the user (full name). First word becomes the visible label. */
@@ -41,6 +43,7 @@ export function PortalHeader({
   className,
 }: PortalHeaderProps) {
   const firstName = userName.split(" ")[0] ?? userName;
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const avatar = (
     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
@@ -87,9 +90,7 @@ export function PortalHeader({
           )}
           <button
             type="button"
-            onClick={() => {
-              void onLogout();
-            }}
+            onClick={() => setConfirmOpen(true)}
             className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Keluar"
           >
@@ -97,6 +98,16 @@ export function PortalHeader({
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Yakin ingin keluar?"
+        description="Anda perlu masuk lagi untuk mengakses akun setelah keluar."
+        confirmLabel="Ya, Keluar"
+        cancelLabel="Batal"
+        onConfirm={onLogout}
+        destructive
+      />
     </header>
   );
 }
