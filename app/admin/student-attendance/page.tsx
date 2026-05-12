@@ -68,8 +68,12 @@ export default function StudentAttendancePage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [classSectionFilter, setClassSectionFilter] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  // Default both ends of the range to today so the table renders something on
+  // first load (UAT 2026-05-12 admin m8 — blank dd/mm/yyyy placeholders left
+  // the admin staring at a "Tidak ada catatan" empty state before they could
+  // figure out the filter was required).
+  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [stats, setStats] = useState({ present: 0, absent: 0, sick: 0, permission: 0 });
 
   // Override dialog (Category C — event-log override, not a destructive edit)
