@@ -113,6 +113,20 @@ Tasks 3+4 changed the `Admission.status` enum comment but missed downstream surf
 
 Full transition guards for VISITED→APPLIED (file completeness) and APPLIED→PAID (Xendit webhook side-effect) land in Pack 4 (admin detail page + payment integration) per implementation plan.
 
+### Task 6 — Backfill addressLine (2026-05-12)
+
+**Migration:** `prisma/migrations/20260512000003_backfill_address_line_from_existing/migration.sql`
+
+3 idempotent UPDATEs:
+- Student.addressLine ← Student.address
+- Parent.homeAddressLine ← Parent.address
+- Parent.employerAddressLine ← Parent.employerAddress
+
+**Verification:**
+- `npx prisma migrate deploy` — applied clean
+- Post-migration count query: 0 rows with legacy address set but new addressLine null
+- Re-running migration on same DB is safe (WHERE NULL guard)
+
 ## Ship Notes
 
 No env vars. No seed changes. No rollback needed — additive migration only; columns can be dropped if rolled back. Migration: `20260512000000_add_address_geo_cols_to_student_parent`.
