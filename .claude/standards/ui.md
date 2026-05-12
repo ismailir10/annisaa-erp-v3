@@ -106,6 +106,19 @@ Any list >10 items: use `<DataTable>` with server-side pagination, column sortin
 3. Status filter (Aktif/Tidak Aktif at minimum)
 4. Action column with: **View button** + **⋮ dropdown** (Edit, Deactivate)
 
+### Column header casing — title case
+
+All admin-table column headers render in **title case**, never ALL CAPS or lowercase. This applies to the *display* string — pass `"Kampus"`, `"Status Akun"`, etc. as the literal title, and the table will render exactly that. `DataTable` itself no longer applies CSS `uppercase` (removed 2026-05-12 cycle `uat-may12-fixes`); the source string is the source of truth.
+
+Rules:
+- One word → initial capital: `Kampus`, `Status`, `Peran`, `Kelas`, `Rekening`, `Pulang`.
+- Multi-word → each significant word capitalized: `Login Terakhir`, `Status Akun`, `No. Rekening`, `Total Hadir`.
+- Established Indonesian abbreviations stay all-caps in their natural form: `NIK`, `NIP`, `NPSN`, `BPJS`, `DPLK`.
+- Brand/loanwords keep their canonical casing: `Xendit`, `PDF`, `BCA`.
+- Cell content uses the same convention via a `formatXxx()` helper (`formatRupiah`, `getRoleLabel`, `formatDate`, etc.) — never render raw database enums directly.
+
+If a future page needs an emphasised section heading inside a card (not a table column), use `SectionHeading` (which intentionally keeps `uppercase` for that distinct visual role).
+
 ## DataTable Action Column Standard
 
 Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx`). The prop you pass for the terminal action depends on the entity's CRUD category (see `.claude/standards/crud.md`):

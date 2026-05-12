@@ -128,7 +128,7 @@ Three UAT walkthroughs ran on 2026-05-12 (admin, teacher, parent portals) and su
 - **Acceptance:** Stale missing-link invoices direct parent to admin; fresh ones keep optimistic copy.
 - **Dependencies:** none
 
-### T8. Codify column-header casing rule + sweep admin tables
+### T8. Codify column-header casing rule + sweep admin tables ✅
 
 - **Files:** [.claude/standards/ui.md](.claude/standards/ui.md), all admin table headers under `app/admin/**` + `components/admin/**`
 - **Change:**
@@ -178,6 +178,7 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T5 — Login error: added `LOGIN_ERROR_MESSAGES` map to `app/page.tsx` covering `auth_failed` + `access_denied` (new) → "Akun belum terdaftar. Hubungi admin sekolah untuk akses." Portal header logout: wrapped icon button in `ConfirmDialog` ("Yakin ingin keluar?", `destructive` per voice.md irreversible-action rule, confirm label "Ya, Keluar" to disambiguate from icon button `aria-label="Keluar"` in tests). Updated `components/portal/__tests__/portal-header.test.tsx` to walk through confirm AND cancel flows (was a single-click test). Reviewer caught two E2E specs (`e2e/parent.spec.ts:156`, `e2e/teacher.spec.ts:131`) that would time out — both updated to click "Ya, Keluar" after opening the dialog. Cross-checked design-system.html §AlertDialog + voice.md §Dialog tone.
 - T6 — Four small admin polish fixes: (a) `app/admin/enrollments/page.tsx` subtitle "pendaftaran" → "penempatan"; (b) `config/admin-nav.ts` Design System link gated behind `process.env.NODE_ENV !== "production"` (build-time inline → dead-code-eliminated from prod bundle); used `satisfies NavItem` per reviewer; (c) `app/admin/student-attendance/page.tsx` dateFrom + dateTo default to today (was empty string causing "no data" until user picks); (d) extended `components/admin/stats-cards-row.tsx` to support 5/6 cols and updated Tagihan page to `cols={pendingPaymentLink > 0 ? 6 : 5}` (was orphan row on default 4-col). Cross-checked design-system.html §Stats and §Filters.
 - T7 — Extracted `paymentLinkState(hasPaymentLink, sentAt, now?)` helper to `lib/parent-invoice-link.ts` returning `"ready" | "pending" | "stale"`. Sheet at `app/parent/invoices/invoice-detail-sheet.tsx` renders three branches: ready (live CTA link), pending (disabled CTA + optimistic copy), stale (no CTA, orange status-late callout + "Hubungi admin sekolah"). Stale fires when `sentAt` is null OR > 24h ago. Reviewer added boundary test (exact 24h → pending; 24h + 1s → stale). Cross-checked design-system.html §Callouts and voice.md Ibu Nur persona for actionable-not-alarming tone.
+- T8 — Root cause of admin "ALL CAPS column headers" was a CSS `uppercase` class on `<TableHead>` in `components/ui/data-table.tsx`; sources were already title case. Removed the class — all admin tables now render title case in one shot. Added "Column header casing — title case" subsection to `.claude/standards/ui.md` codifying the rule with examples (one-word, multi-word, allowed abbreviations like NIK/NIP/NPSN/BPJS, brand loanwords). Reviewer confirmed no E2E or other component depended on the uppercased rendering (the `text=PULANG` matcher in teacher e2e points at the check-in button label, not a DataTable header). Cross-checked design-system.html §DataTable.
 
 ## Verification
 
@@ -188,6 +189,7 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T5: `npm run build` ✓ + `npx vitest run` ✓ (1294 pass). `portal-header.test.tsx` extended with confirm-fires + cancel-no-fire flows. E2E `parent.spec.ts` + `teacher.spec.ts` "logout works" tests updated for new dialog step (verified end-of-cycle Playwright run). Cross-checked design-system.html §AlertDialog and voice.md §Dialog for `destructive` styling on session-ending action.
 - T6: `npm run build` ✓ + `npx vitest run` ✓ (1294 pass). No new unit tests — changes are pure copy/render/grid-cols literals. Cross-checked design-system.html §Stats (5/6-col variants) and §Filters (date picker defaults).
 - T7: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). `lib/__tests__/parent-invoice-link.test.ts` adds 6 cases including the 24h boundary. Cross-checked design-system.html §Callouts (status-late tone) and voice.md Ibu Nur persona.
+- T8: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). No new tests — CSS class removal + standard documentation. Cross-checked design-system.html §DataTable.
 
 Per CLAUDE.md frontend gate Rule 4: T1, T2, T3, T4, T5, T6, T7, T8 touch frontend → Verification will include "Cross-checked design-system.html §Stats / §DataTable / §Dialog / §Toast for [task scope]" lines.
 
