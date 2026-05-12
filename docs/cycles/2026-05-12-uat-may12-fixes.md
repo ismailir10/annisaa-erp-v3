@@ -138,7 +138,7 @@ Three UAT walkthroughs ran on 2026-05-12 (admin, teacher, parent portals) and su
 - **Acceptance:** ui.md has rule; no all-caps header strings in admin tables.
 - **Dependencies:** T2, T6 (must run last among admin-table tasks to avoid conflicts)
 
-### T9. Codify i18n glossary + replace English fragments
+### T9. Codify i18n glossary + replace English fragments ✅
 
 - **Files:** [.claude/standards/voice.md](.claude/standards/voice.md), multi-file copy across `app/admin/**`, `app/teacher/**`, `app/parent/**`, `lib/email/**`
 - **Change:**
@@ -179,6 +179,7 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T6 — Four small admin polish fixes: (a) `app/admin/enrollments/page.tsx` subtitle "pendaftaran" → "penempatan"; (b) `config/admin-nav.ts` Design System link gated behind `process.env.NODE_ENV !== "production"` (build-time inline → dead-code-eliminated from prod bundle); used `satisfies NavItem` per reviewer; (c) `app/admin/student-attendance/page.tsx` dateFrom + dateTo default to today (was empty string causing "no data" until user picks); (d) extended `components/admin/stats-cards-row.tsx` to support 5/6 cols and updated Tagihan page to `cols={pendingPaymentLink > 0 ? 6 : 5}` (was orphan row on default 4-col). Cross-checked design-system.html §Stats and §Filters.
 - T7 — Extracted `paymentLinkState(hasPaymentLink, sentAt, now?)` helper to `lib/parent-invoice-link.ts` returning `"ready" | "pending" | "stale"`. Sheet at `app/parent/invoices/invoice-detail-sheet.tsx` renders three branches: ready (live CTA link), pending (disabled CTA + optimistic copy), stale (no CTA, orange status-late callout + "Hubungi admin sekolah"). Stale fires when `sentAt` is null OR > 24h ago. Reviewer added boundary test (exact 24h → pending; 24h + 1s → stale). Cross-checked design-system.html §Callouts and voice.md Ibu Nur persona for actionable-not-alarming tone.
 - T8 — Root cause of admin "ALL CAPS column headers" was a CSS `uppercase` class on `<TableHead>` in `components/ui/data-table.tsx`; sources were already title case. Removed the class — all admin tables now render title case in one shot. Added "Column header casing — title case" subsection to `.claude/standards/ui.md` codifying the rule with examples (one-word, multi-word, allowed abbreviations like NIK/NIP/NPSN/BPJS, brand loanwords). Reviewer confirmed no E2E or other component depended on the uppercased rendering (the `text=PULANG` matcher in teacher e2e points at the check-in button label, not a DataTable header). Cross-checked design-system.html §DataTable.
+- T9 — Added 5 entries to the voice.md cross-portal glossary: Catatan / Pertanyaan / Perencanaan / Templat / Timpa with rationale for each. Sweep applied: added `PLANNING → "Perencanaan"` to `components/ui/status-badge.tsx`; `app/admin/admissions/page.tsx` — "Catat Inquiry" + "Catat Inquiry Baru" + "Inquiry" stat label + empty-state copy → Pertanyaan-based equivalents (4 occurrences); `app/admin/(hr)/attendance/page.tsx` — "Timpa (Override)" → "Timpa"; `app/admin/assessments/page.tsx` — "Template" → "Templat" (2 occurrences); `app/admin/student-attendance/page.tsx` + `app/admin/(hr)/leave/page.tsx` — "record kehadiran" → "catatan kehadiran". `StatusBadge` keeps `INQUIRY → "Pertanyaan"` (unchanged — already canonical). Cross-checked design-system.html §Voice.
 
 ## Verification
 
@@ -190,6 +191,7 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T6: `npm run build` ✓ + `npx vitest run` ✓ (1294 pass). No new unit tests — changes are pure copy/render/grid-cols literals. Cross-checked design-system.html §Stats (5/6-col variants) and §Filters (date picker defaults).
 - T7: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). `lib/__tests__/parent-invoice-link.test.ts` adds 6 cases including the 24h boundary. Cross-checked design-system.html §Callouts (status-late tone) and voice.md Ibu Nur persona.
 - T8: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). No new tests — CSS class removal + standard documentation. Cross-checked design-system.html §DataTable.
+- T9: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). No new tests — copy-only diff. Cross-checked voice.md glossary and design-system.html §Voice.
 
 Per CLAUDE.md frontend gate Rule 4: T1, T2, T3, T4, T5, T6, T7, T8 touch frontend → Verification will include "Cross-checked design-system.html §Stats / §DataTable / §Dialog / §Toast for [task scope]" lines.
 

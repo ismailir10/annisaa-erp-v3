@@ -67,6 +67,7 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   // Employee
   ACTIVE: { label: "Aktif", className: "bg-status-present-subtle text-status-present-text" },
   INACTIVE: { label: "Tidak Aktif", className: "bg-muted text-muted-foreground" },
+  PLANNING: { label: "Perencanaan", className: "bg-status-leave-subtle text-status-leave-text" },
 
   // Invoice (future)
   SENT: { label: "Terkirim", className: "bg-status-leave-subtle text-status-leave-text" },

@@ -346,7 +346,7 @@ export default function StudentAttendancePage() {
         onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
         onPageSizeChange={(pageSize) => setPagination((p) => ({ ...p, page: 1, pageSize }))}
         loading={loading}
-        emptyTitle="Tidak ada record kehadiran"
+        emptyTitle="Tidak ada catatan kehadiran"
         emptyDescription="Record kehadiran siswa akan tampil di sini setelah guru mencatat kehadiran."
       />
 
