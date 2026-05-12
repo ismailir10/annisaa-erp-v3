@@ -195,6 +195,7 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T9: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). No new tests — copy-only diff. Cross-checked voice.md glossary and design-system.html §Voice.
 - T10: `npm run build` ✓ (no test gate — runbook is markdown). Manual: ran the dry-run SELECT against staging Supabase via Supabase MCP (deferred to post-merge per Ship Notes; not exercised inside the cycle worktree to avoid mutating staging mid-build).
 - T9 follow-up: Playwright surfaced one missed occurrence of "Catat Inquiry" (the JSX text node at `app/admin/admissions/page.tsx:742`, not in quotes, escaped the original `replace_all`) plus the matching `e2e/admin-dialogs.spec.ts` admissions-create check. Both fixed in a follow-up commit; snapshots regenerated.
+- CI-feedback fix-up: first PR push surfaced two CI breaks not caught locally: (1) `e2e/parent.spec.ts` logout test was missing the `Ya, Keluar` click — the line was reverted mid-cycle by a stash/pop sequence and never re-staged; (2) `app/admin/settings/users/__tests__/role-label.test.ts` over-specified `customRole` with `id` and `code` fields that the extracted `RoleSubject` type does not declare, tripping `tsc` strict-object-literal-check. Both fixed and pushed as a separate commit on the open PR; CI re-runs.
 
 Per CLAUDE.md frontend gate Rule 4: T1, T2, T3, T4, T5, T6, T7, T8 touch frontend → Verification will include "Cross-checked design-system.html §Stats / §DataTable / §Dialog / §Toast for [task scope]" lines.
 

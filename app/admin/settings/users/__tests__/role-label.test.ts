@@ -19,7 +19,7 @@ describe("getRoleLabel", () => {
     expect(
       getRoleLabel({
         role: "TEACHER",
-        customRole: { id: "r1", name: "Wali Kelas", code: "WK" },
+        customRole: { name: "Wali Kelas" },
       }),
     ).toBe("Wali Kelas");
   });
