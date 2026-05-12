@@ -92,6 +92,27 @@ Tasks 6–10 not yet run — between-task gate above covers Tasks 1+2, 3+4, and 
 
 **Design decision:** The FK for the 1:1 Admission↔Invoice relation lives on `Admission.registrationInvoiceId` (set in Tasks 3+4). Invoice carries only the pure Prisma back-reference. No `admissionId` column was added to Invoice — it is not needed.
 
+### State machine surface alignment — follow-up to Tasks 3+4 (2026-05-12)
+
+Tasks 3+4 changed the `Admission.status` enum comment but missed downstream surfaces. Controller verified the "pre-existing" enum-conformance test failure was actually caused by Tasks 3+4 leaving stale references — fixed inline:
+
+**Files changed:**
+- `lib/validations/admission.ts` — zod enum aligned to `INQUIRY | VISITED | APPLIED | PAID | ADMITTED | REGISTERED | CANCELLED`
+- `app/api/admissions/[id]/route.ts` — `VALID_TRANSITIONS` reflects new linear flow with APPLIED/PAID phases; doc comment references spec §2.1
+- `app/admin/admissions/page.tsx` — `NEXT_STATUS` dict + status filter dropdown updated (drops VISIT_SCHEDULED, adds APPLIED + PAID)
+- `components/ui/status-badge.tsx` — drops VISIT_SCHEDULED entries from label/icon/border maps, adds APPLIED row
+- `app/api/admin/seed/route.ts` — demo seed rows use `VISITED` (was `VISIT_SCHEDULED`)
+- `scripts/reseed/extras.ts` — `ADMISSION_STATUSES` array updated to new 7-value set
+- `e2e/admin.spec.ts` — admission status transition test uses `INQUIRY → VISITED` (was `INQUIRY → VISIT_SCHEDULED`)
+
+**Verification:**
+- `npx vitest run` — 1098 passed, 0 failed, 42 todo, 2 skipped
+- `npm run build` — exits 0
+- `grep -rn "VISIT_SCHEDULED" --include="*.ts" --include="*.tsx"` — no matches
+- Cross-checked design-system.html §status-chip for APPLIED amber border + label — matches "in-progress" severity family used by SENT/PARTIALLY_PAID
+
+Full transition guards for VISITED→APPLIED (file completeness) and APPLIED→PAID (Xendit webhook side-effect) land in Pack 4 (admin detail page + payment integration) per implementation plan.
+
 ## Ship Notes
 
 No env vars. No seed changes. No rollback needed — additive migration only; columns can be dropped if rolled back. Migration: `20260512000000_add_address_geo_cols_to_student_parent`.

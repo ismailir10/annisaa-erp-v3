@@ -303,15 +303,15 @@ test.describe("Admin flows", () => {
       return;
     }
 
-    // Happy-path: INQUIRY → VISIT_SCHEDULED is allowed
+    // Happy-path: INQUIRY → VISITED is allowed (spec §2.1 state machine)
     const advance = await page.request.put(`/api/admissions/${target.id}`, {
-      data: { status: "VISIT_SCHEDULED" },
+      data: { status: "VISITED" },
     });
     expect(advance.ok()).toBeTruthy();
     const advanced = await advance.json();
-    expect(advanced.status).toBe("VISIT_SCHEDULED");
+    expect(advanced.status).toBe("VISITED");
 
-    // Negative: VISIT_SCHEDULED → REGISTERED skips states and must return 400
+    // Negative: VISITED → REGISTERED skips states (APPLIED, PAID, ADMITTED) and must return 400
     const skip = await page.request.put(`/api/admissions/${target.id}`, {
       data: { status: "REGISTERED" },
     });
@@ -319,11 +319,8 @@ test.describe("Admin flows", () => {
     const skipJson = await skip.json();
     expect(String(skipJson.error)).toMatch(/Invalid status transition/i);
 
-    // Restore original status so subsequent runs stay idempotent.
-    // INQUIRY is not in allowed[VISIT_SCHEDULED], so we go VISIT_SCHEDULED → CANCELLED
-    // only as a last resort; prefer idempotent restore via direct DB is unavailable.
-    // Instead, leave the row at VISIT_SCHEDULED — the test seeks "an INQUIRY row"
-    // and the seed ships multiple; subsequent runs will pick the next INQUIRY row.
+    // Leave the row at VISITED — the test seeks "an INQUIRY row" and the seed ships
+    // multiple; subsequent runs will pick the next INQUIRY row.
   });
 
   test("invoice void flips status to CANCELLED", async ({ page }) => {

@@ -5,12 +5,15 @@ import { updateAdmissionSchema } from "@/lib/validations/admission";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Allowed status transitions for the Admission state machine.
+// Reflects spec docs/superpowers/specs/2026-05-12-admission-student-domain-design.md §2.1.
+// Pack 1 (foundation) aligns the enum + minimal guard surface; APPLIED/PAID transition
+// guards (file completeness, invoice paid) are gated by route handlers added in Pack 4.
 // Terminal states (REGISTERED, CANCELLED) have no outgoing transitions.
-// Kept in sync with the ⋮ menu on /admin/admissions.
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  INQUIRY: ["VISIT_SCHEDULED", "CANCELLED"],
-  VISIT_SCHEDULED: ["VISITED", "CANCELLED"],
-  VISITED: ["ADMITTED", "CANCELLED"],
+  INQUIRY: ["VISITED", "CANCELLED"],
+  VISITED: ["APPLIED", "CANCELLED"],
+  APPLIED: ["PAID", "CANCELLED"],
+  PAID: ["ADMITTED", "CANCELLED"],
   ADMITTED: ["REGISTERED", "CANCELLED"],
   REGISTERED: [],
   CANCELLED: [],

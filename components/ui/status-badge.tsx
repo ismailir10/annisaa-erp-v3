@@ -75,10 +75,11 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   PARTIALLY_PAID: { label: "Sebagian", className: "bg-status-late-subtle text-status-late-text" },
   PENDING_PAYMENT_LINK: { label: "Link Gagal", className: "bg-status-late-subtle text-status-late-text" },
 
-  // Admission (future)
+  // Admission (spec docs/superpowers/specs/2026-05-12-admission-student-domain-design.md §2.1)
   INQUIRY: { label: "Pertanyaan", className: "bg-status-leave-subtle text-status-leave-text" },
-  VISIT_SCHEDULED: { label: "Kunjungan", className: "bg-status-late-subtle text-status-late-text" },
   VISITED: { label: "Sudah Kunjungan", className: "bg-status-holiday-subtle text-status-holiday-text" },
+  APPLIED: { label: "Form Terisi", className: "bg-status-late-subtle text-status-late-text" },
+  // (PAID label/className inherited from invoice section above — same semantic)
   ADMITTED: { label: "Diterima", className: "bg-status-present-subtle text-status-present-text" },
   REGISTERED: { label: "Terdaftar", className: "bg-primary/10 text-primary" },
   ENROLLED: { label: "Terdaftar di Kelas", className: "bg-status-present-subtle text-status-present-text" },
@@ -142,7 +143,7 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   // Transit / sent
   SENT: ArrowRight,
   INQUIRY: ArrowRight,
-  VISIT_SCHEDULED: ArrowRight,
+  APPLIED: ArrowRight,
 
   // Celebration
   PUBLISHED: Sparkles,
@@ -188,7 +189,7 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   PENDING: "border-l-status-late",
   HALF_DAY: "border-l-status-late",
   PRESENT_NO_CHECKOUT: "border-l-status-late",
-  VISIT_SCHEDULED: "border-l-status-late",
+  APPLIED: "border-l-status-late",
 
   // Blue / info
   PERMISSION: "border-l-status-leave",

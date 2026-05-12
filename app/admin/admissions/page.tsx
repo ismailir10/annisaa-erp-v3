@@ -80,10 +80,13 @@ const SOURCE_LABELS: Record<string, string> = {
 // Happy-path transitions for the Admission state machine.
 // Mirrors VALID_TRANSITIONS in `app/api/admissions/[id]/route.ts`.
 // Terminal states (REGISTERED, CANCELLED) have no next step.
+// Pack 1 alignment with the new state machine (spec §2.1). APPLIED/PAID phases
+// gain dedicated CTAs in Pack 4 (admin detail page); for now they advance manually.
 const NEXT_STATUS: Record<string, { status: string; label: string } | undefined> = {
-  INQUIRY: { status: "VISIT_SCHEDULED", label: "Jadwalkan Kunjungan" },
-  VISIT_SCHEDULED: { status: "VISITED", label: "Tandai Sudah Kunjungan" },
-  VISITED: { status: "ADMITTED", label: "Terima" },
+  INQUIRY: { status: "VISITED", label: "Tandai Sudah Kunjungan" },
+  VISITED: { status: "APPLIED", label: "Tandai Form Terisi" },
+  APPLIED: { status: "PAID", label: "Tandai Pembayaran Diterima" },
+  PAID: { status: "ADMITTED", label: "Terima" },
   ADMITTED: { status: "REGISTERED", label: "Daftarkan" },
 };
 
@@ -661,8 +664,9 @@ export default function AdmissionsPage() {
             options: [
               { value: "all", label: "Semua Status" },
               { value: "INQUIRY", label: "Pertanyaan" },
-              { value: "VISIT_SCHEDULED", label: "Kunjungan" },
               { value: "VISITED", label: "Sudah Kunjungan" },
+              { value: "APPLIED", label: "Form Terisi" },
+              { value: "PAID", label: "Sudah Bayar" },
               { value: "ADMITTED", label: "Diterima" },
               { value: "REGISTERED", label: "Terdaftar" },
               { value: "CANCELLED", label: "Dibatalkan" },
