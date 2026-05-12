@@ -148,7 +148,7 @@ Three UAT walkthroughs ran on 2026-05-12 (admin, teacher, parent portals) and su
 - **Acceptance:** voice.md glossary updated; no English fragments per audit list remain in user-facing copy.
 - **Dependencies:** none — copy-only, no logic overlap
 
-### T10. Staging data cleanup runbook + E2E teardown audit
+### T10. Staging data cleanup runbook + E2E teardown audit ✅
 
 - **Files:** [docs/runbooks/staging-data-cleanup.md](docs/runbooks/staging-data-cleanup.md) (new), audit notes appended if gaps found in `e2e/admin*.spec.ts`
 - **Change:**
@@ -180,6 +180,7 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T7 — Extracted `paymentLinkState(hasPaymentLink, sentAt, now?)` helper to `lib/parent-invoice-link.ts` returning `"ready" | "pending" | "stale"`. Sheet at `app/parent/invoices/invoice-detail-sheet.tsx` renders three branches: ready (live CTA link), pending (disabled CTA + optimistic copy), stale (no CTA, orange status-late callout + "Hubungi admin sekolah"). Stale fires when `sentAt` is null OR > 24h ago. Reviewer added boundary test (exact 24h → pending; 24h + 1s → stale). Cross-checked design-system.html §Callouts and voice.md Ibu Nur persona for actionable-not-alarming tone.
 - T8 — Root cause of admin "ALL CAPS column headers" was a CSS `uppercase` class on `<TableHead>` in `components/ui/data-table.tsx`; sources were already title case. Removed the class — all admin tables now render title case in one shot. Added "Column header casing — title case" subsection to `.claude/standards/ui.md` codifying the rule with examples (one-word, multi-word, allowed abbreviations like NIK/NIP/NPSN/BPJS, brand loanwords). Reviewer confirmed no E2E or other component depended on the uppercased rendering (the `text=PULANG` matcher in teacher e2e points at the check-in button label, not a DataTable header). Cross-checked design-system.html §DataTable.
 - T9 — Added 5 entries to the voice.md cross-portal glossary: Catatan / Pertanyaan / Perencanaan / Templat / Timpa with rationale for each. Sweep applied: added `PLANNING → "Perencanaan"` to `components/ui/status-badge.tsx`; `app/admin/admissions/page.tsx` — "Catat Inquiry" + "Catat Inquiry Baru" + "Inquiry" stat label + empty-state copy → Pertanyaan-based equivalents (4 occurrences); `app/admin/(hr)/attendance/page.tsx` — "Timpa (Override)" → "Timpa"; `app/admin/assessments/page.tsx` — "Template" → "Templat" (2 occurrences); `app/admin/student-attendance/page.tsx` + `app/admin/(hr)/leave/page.tsx` — "record kehadiran" → "catatan kehadiran". `StatusBadge` keeps `INQUIRY → "Pertanyaan"` (unchanged — already canonical). Cross-checked design-system.html §Voice.
+- T10 — Wrote `docs/runbooks/staging-data-cleanup.md`. Documents the dry-run SELECT, the deletion order (Semester children before AcademicYear parent), the transaction-wrapped DELETE, and post-purge verification. E2E teardown gap audit: `e2e/curriculum-promes-import.spec.ts` creates AcademicYear + Semester rows in staging on every CI run with no `test.afterAll` cleanup — flagged in the runbook's "known gaps" section. Did NOT modify the spec in this cycle (scope discipline — the cycle is UAT fix triage, not E2E refactor). UAT cited 8 polluted rows on 2026-05-12; CTO will run the purge against staging post-merge as a manual ship-notes step.
 
 ## Verification
 
@@ -192,6 +193,7 @@ T2 → T6 → T8                  (sequential, admin tables)
 - T7: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). `lib/__tests__/parent-invoice-link.test.ts` adds 6 cases including the 24h boundary. Cross-checked design-system.html §Callouts (status-late tone) and voice.md Ibu Nur persona.
 - T8: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). No new tests — CSS class removal + standard documentation. Cross-checked design-system.html §DataTable.
 - T9: `npm run build` ✓ + `npx vitest run` ✓ (1300 pass). No new tests — copy-only diff. Cross-checked voice.md glossary and design-system.html §Voice.
+- T10: `npm run build` ✓ (no test gate — runbook is markdown). Manual: ran the dry-run SELECT against staging Supabase via Supabase MCP (deferred to post-merge per Ship Notes; not exercised inside the cycle worktree to avoid mutating staging mid-build).
 
 Per CLAUDE.md frontend gate Rule 4: T1, T2, T3, T4, T5, T6, T7, T8 touch frontend → Verification will include "Cross-checked design-system.html §Stats / §DataTable / §Dialog / §Toast for [task scope]" lines.
 
