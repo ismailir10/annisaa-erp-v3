@@ -43,10 +43,8 @@ const achievementIndicatorCreate = vi.fn();
 const achievementIndicatorUpdate = vi.fn();
 const achievementIndicatorAggregate = vi.fn();
 
-const themeFindFirstForLink = vi.fn();
-const indicatorThemeLinkFindFirst = vi.fn();
-const indicatorThemeLinkCreate = vi.fn();
-const indicatorThemeLinkDelete = vi.fn();
+const indicatorThemeLinkUpsert = vi.fn();
+const indicatorThemeLinkDeleteMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -94,9 +92,8 @@ vi.mock("@/lib/db", () => ({
       aggregate: achievementIndicatorAggregate,
     },
     indicatorThemeLink: {
-      findFirst: indicatorThemeLinkFindFirst,
-      create: indicatorThemeLinkCreate,
-      delete: indicatorThemeLinkDelete,
+      upsert: indicatorThemeLinkUpsert,
+      deleteMany: indicatorThemeLinkDeleteMany,
     },
   },
 }));
@@ -816,6 +813,209 @@ describe("PUT /indicators/[id] — C3", () => {
     );
     expect(res.status).toBe(403);
     expect(achievementIndicatorUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /indicator-theme-links — C3 idempotent toggle", () => {
+  const indicatorRow = {
+    id: "ind1",
+    objective: { semesterId: "sem1" },
+  };
+  const themeRow = { id: "thm1", semesterId: "sem1" };
+
+  it("linked:true upserts + audits action=link", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/indicator-theme-links/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    achievementIndicatorFindFirst.mockResolvedValue(indicatorRow);
+    themeFindFirst.mockResolvedValue(themeRow);
+    indicatorThemeLinkUpsert.mockResolvedValue({
+      indicatorId: "ind1",
+      themeId: "thm1",
+    });
+
+    const res = await POST(
+      jsonReq({
+        indicatorId: "ind1",
+        themeId: "thm1",
+        linked: true,
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(indicatorThemeLinkUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { indicatorId_themeId: { indicatorId: "ind1", themeId: "thm1" } },
+        create: { indicatorId: "ind1", themeId: "thm1" },
+        update: {},
+      }),
+    );
+    expect(auditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entity: "IndicatorThemeLink",
+          action: "link",
+        }),
+      }),
+    );
+  });
+
+  it("linked:false deleteMany + audits action=unlink", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/indicator-theme-links/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    achievementIndicatorFindFirst.mockResolvedValue(indicatorRow);
+    themeFindFirst.mockResolvedValue(themeRow);
+    indicatorThemeLinkDeleteMany.mockResolvedValue({ count: 1 });
+
+    const res = await POST(
+      jsonReq({
+        indicatorId: "ind1",
+        themeId: "thm1",
+        linked: false,
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(indicatorThemeLinkDeleteMany).toHaveBeenCalledWith({
+      where: { indicatorId: "ind1", themeId: "thm1" },
+    });
+    expect(auditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entity: "IndicatorThemeLink",
+          action: "unlink",
+        }),
+      }),
+    );
+  });
+
+  it("idempotent linked:true on already-linked pair (upsert update:{} no-op)", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/indicator-theme-links/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    achievementIndicatorFindFirst.mockResolvedValue(indicatorRow);
+    themeFindFirst.mockResolvedValue(themeRow);
+    indicatorThemeLinkUpsert.mockResolvedValue({
+      indicatorId: "ind1",
+      themeId: "thm1",
+    });
+
+    const res = await POST(
+      jsonReq({
+        indicatorId: "ind1",
+        themeId: "thm1",
+        linked: true,
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    // Upsert is the idempotent operation — passes when called with empty update.
+    expect(indicatorThemeLinkUpsert.mock.calls[0][0].update).toEqual({});
+  });
+
+  it("idempotent linked:false on already-unlinked pair (deleteMany count:0)", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/indicator-theme-links/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    achievementIndicatorFindFirst.mockResolvedValue(indicatorRow);
+    themeFindFirst.mockResolvedValue(themeRow);
+    indicatorThemeLinkDeleteMany.mockResolvedValue({ count: 0 });
+
+    const res = await POST(
+      jsonReq({
+        indicatorId: "ind1",
+        themeId: "thm1",
+        linked: false,
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 404 when indicator is in a different tenant", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/indicator-theme-links/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    achievementIndicatorFindFirst.mockResolvedValue(null);
+    themeFindFirst.mockResolvedValue(themeRow);
+
+    const res = await POST(
+      jsonReq({
+        indicatorId: "ind-other",
+        themeId: "thm1",
+        linked: true,
+      }) as never,
+    );
+    expect(res.status).toBe(404);
+    expect(indicatorThemeLinkUpsert).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when theme is in a different tenant", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/indicator-theme-links/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    achievementIndicatorFindFirst.mockResolvedValue(indicatorRow);
+    themeFindFirst.mockResolvedValue(null);
+
+    const res = await POST(
+      jsonReq({
+        indicatorId: "ind1",
+        themeId: "thm-other",
+        linked: true,
+      }) as never,
+    );
+    expect(res.status).toBe(404);
+    expect(indicatorThemeLinkUpsert).not.toHaveBeenCalled();
+  });
+
+  it("returns 422 when indicator + theme are in different semesters", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/indicator-theme-links/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    achievementIndicatorFindFirst.mockResolvedValue({
+      id: "ind1",
+      objective: { semesterId: "sem1" },
+    });
+    themeFindFirst.mockResolvedValue({ id: "thm-other-sem", semesterId: "sem2" });
+
+    const res = await POST(
+      jsonReq({
+        indicatorId: "ind1",
+        themeId: "thm-other-sem",
+        linked: true,
+      }) as never,
+    );
+    expect(res.status).toBe(422);
+    expect(indicatorThemeLinkUpsert).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when caller lacks curriculum.write", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/indicator-theme-links/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(teacher);
+
+    const res = await POST(
+      jsonReq({
+        indicatorId: "ind1",
+        themeId: "thm1",
+        linked: true,
+      }) as never,
+    );
+    expect(res.status).toBe(403);
+    expect(indicatorThemeLinkUpsert).not.toHaveBeenCalled();
   });
 });
 
