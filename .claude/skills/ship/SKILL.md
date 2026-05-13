@@ -27,7 +27,20 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
    - All tasks in `## Tasks` are checked.
    - `## Implementation`, `## Verification`, `## Ship Notes` are filled.
    If not, stop and tell the user to finish `/build`.
-6. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
+6. **Doc-staleness check (A-scope, blocking).** Invoke `/audit-docs` against the current branch. Treat any `fail` finding in the produced report as a `/ship` precondition failure — print the failing rows and tell the user:
+
+   ```
+   /ship precondition failed: /audit-docs reports N stale claim(s) in
+   README.md or CLAUDE.md that contradict the current cycle.
+
+   Fix the listed docs (or, for a numeric drift that the cycle introduced,
+   update the relevant claim) and commit the change to the cycle branch
+   before re-running /ship. Use `--no-verify` is forbidden.
+   ```
+
+   Treat `warn` findings as informational — print them but do not block. Cycle doc Verification already records the `/audit-docs` output if `/build` ran it as part of the end-of-cycle gate (Task 10); this preflight invocation reruns the same audit to catch any drift since.
+
+7. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
 
 ## Step 1: Re-run the end-of-cycle gate
 

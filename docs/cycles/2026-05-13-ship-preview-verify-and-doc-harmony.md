@@ -70,7 +70,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 
 5. [x] **[seq, depends 4] Add fix-loop orchestration to `/ship`** — Same file, new section "Step 4: Fix loop". Algorithm: while blockers > 0, edit code, commit `fix(<scope>): <one-line>` with hooks active, push, re-run Step 3. Every 3 iterations, AskUserQuestion to escalate. Acceptance: pseudocode shows the loop, escalation trigger, and clean-exit handoff.
 
-6. **[indep] Add A-scope doc-staleness check to `/ship` preflight** — Same file, new check inserted into existing Preflight (between hooks check and cycle-doc check). Diff cycle Implementation against README portal table + CLAUDE.md file-structure + README ADR table. Hard-fail with `gh pr create` blocked + actionable diff printed. Acceptance: when README claims "Foo module" but cycle Implementation deletes the only Foo route, check fires with diff.
+6. [x] **[indep] Add A-scope doc-staleness check to `/ship` preflight** — Same file, new check inserted into existing Preflight (placed after cycle-doc check, before JTBD — `/audit-docs` needs the cycle doc parsed first). Implementation invokes `/audit-docs`; any `fail` finding blocks PR open with the report inline, `warn` is informational. Acceptance: when README claims "Foo module" but cycle Implementation deletes the only Foo route, check fires with diff.
 
 7. **[indep] Add harmony rule to CLAUDE.md** — Edit CLAUDE.md `One-File-Per-Cycle Rule` section. Add subsection "Superpowers skill output redirect": brainstorming/writing-plans must write into the active cycle doc's `## Context` / `## Spec` / `## Tasks`. Project rule overrides skill defaults. Reference: this cycle is the precedent. Acceptance: rule readable; new section is the canonical place for this constraint.
 
@@ -89,6 +89,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Task 3: Seed-via-CRUD playbook — appended new "Seed-via-CRUD playbook" section to `.claude/skills/ship/SKILL.md` — 9-row table mapping cycle scope keywords (invoice/billing, assessment/raport, salary/payroll, attendance, admission, teaching-assignment, parent-portal, teacher-portal, auth, branding) → fixture chains → admin pages to walk; rules forbid escalation and prefer reusing existing fixtures.
 - Task 4: C+ preview-verify Step 3 — added new "Step 3: Preview verification (C+ via Chrome MCP)" to `.claude/skills/ship/SKILL.md`; modified Step 2 to defer hand-off; renamed legacy Step 3 → Step 5. Subsections: 3a wait for preview ready (Vercel MCP preferred, scripts/wait-preview-ready.sh fallback); 3b derive 2-4 flows from cycle Implementation; 3c seed via UI CRUD; 3d walk flows + capture (Chrome MCP navigate/click/screenshot/console/network); 3e classify findings (blocker vs minor with explicit rules); 3f emit results to cycle doc Verification + PR comment.
 - Task 5: Fix loop Step 4 — added new "Step 4: Fix loop" to `.claude/skills/ship/SKILL.md` between Step 3 and Step 5. Subsections: 4a triage each blocker (read screenshot+console+network+route → identify file → smallest fix); 4b commit (`fix(<scope>): …`, hooks active, no `--no-verify`); 4c push + re-verify (returns to Step 3 with new SHA); 4d soft escalation every 3 iterations via AskUserQuestion (continue/pause/abort); 4e clean exit appends convergence bullet to cycle doc Verification.
+- Task 6: A-scope doc-staleness preflight — added new Preflight check #6 in `.claude/skills/ship/SKILL.md` that invokes `/audit-docs`; any `fail` finding blocks PR open and is printed inline. JTBD check shifted to #7.
 
 ## Verification
 
@@ -97,6 +98,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Task 3: Playbook covers 9 scope categories (≥5 acceptance met); admin paths cross-checked against `ls app/admin/` snapshot — all 9 admin route prefixes referenced exist on disk.
 - Task 4: Step 3 algorithm references explicit Chrome MCP tool names (`navigate`, `read_console_messages`, `read_network_requests`, `read_page`, `left_click`, `form_input`, `screenshot`) and the Vercel MCP `get_deployment` tool name with the fallback script path; renumber and Step 2 deferral verified by reading the updated file end-to-end.
 - Task 5: Loop spec carries the no-cap + soft-escalate-every-3 rule, with three branch options (continue / pause / abort) routed back into Step 3 or out of `/ship`; clean-exit bullet schema fixed so the cycle doc Verification accumulates `Preview-verify iteration N` lines deterministically.
+- Task 6: Wraps `/audit-docs` from T1 — preflight gate reuses one skill rather than reimplementing parsing. Numbering bumped (JTBD: 6 → 7) verified by reading the Preflight section end-to-end.
 
 ## Ship Notes
 
