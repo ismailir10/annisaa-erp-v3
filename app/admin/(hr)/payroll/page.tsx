@@ -145,7 +145,17 @@ export default function PayrollListPage() {
       router.push(`/admin/payroll/${d.id}`);
     } else {
       const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal membuat draft");
+      // F-10: 422 with `employees` array lists offenders missing Rekening.
+      // Surface each one in a separate toast so the admin can click into
+      // each Karyawan to fix the data, then retry.
+      if (res.status === 422 && Array.isArray(d.employees) && d.employees.length > 0) {
+        toast.error(
+          `${d.error}: ${d.employees.map((e: { kode: string; nama: string }) => `${e.kode} ${e.nama}`).join(", ")}`,
+          { duration: 8000 },
+        );
+      } else {
+        toast.error(d.error || "Gagal membuat draft");
+      }
     }
     setGenerating(false);
   }

@@ -73,10 +73,10 @@ Standards consulted: `.claude/standards/design-system.html` for the employee for
   Files: `lib/validations/employee.ts`, `lib/validations/__tests__/employee.test.ts`, `app/admin/(hr)/employees/page.tsx`, `app/admin/(hr)/employees/[id]/page.tsx`.
   Independent of T1, T3.
 
-- [ ] **T6 — Payroll-run pre-flight refuses bank-no-rekening employees.**
-  Acceptance: `POST /api/payroll` validates the employee set; if any included employee has `bank IS NOT NULL AND rekening IS NULL`, return 422 with `errors.employees: [{ id, code, name, reason: "rekening missing" }]`. UI (`app/admin/(hr)/payroll/page.tsx` Buat Penggajian dialog) shows an inline alert listing the offenders + "Tambahkan Rekening pada Karyawan" CTA linking to that Karyawan detail. Vitest exercises the API; manual smoke covers the UI.
-  Files: `app/api/payroll/route.ts`, `app/admin/(hr)/payroll/*.tsx`, `lib/validations/payroll.ts`.
-  Depends on T5 (uses the same validator).
+- [x] **T6 — Payroll-run pre-flight refuses bank-no-rekening employees.**
+  Acceptance: `POST /api/payroll/generate` adds a pre-flight scan after the parallel data fetch: any ACTIVE employee with `bankName` non-empty and `bankAccountNo` blank (including whitespace-only) triggers a 422 with `{ error, employees: [{ id, kode, nama, reason: "rekening missing" }] }`. The guard runs BEFORE `calculatePayroll` and before the `$transaction`, so no half-state is written. UI (`app/admin/(hr)/payroll/page.tsx`) reads the 422 + `employees` array and surfaces a long-duration toast listing the offenders by `kode` and `nama`. Vitest in `app/api/__tests__/payroll-generate-rekening-guard.test.ts` covers: offender rejection with `$transaction` never called; whitespace-only as empty; clean roster passes the guard (downstream branches are out of scope of this test).
+  Files: `app/api/payroll/generate/route.ts`, `app/admin/(hr)/payroll/page.tsx`, `app/api/__tests__/payroll-generate-rekening-guard.test.ts`.
+  Depends on T5 (same invariant, enforced on a different code path).
 
 - [ ] **T7 — End-of-cycle gate + report.**
   Acceptance: `npm run build && npx vitest run && npx playwright test` all green. Append per-task summary to `## Implementation`. Cross-checked `.claude/standards/design-system.html` §Form-Field for T5 (note in Verification — frontend-gate token). Manual staging smoke after deploy (in `/ship` Phase): re-open `/admin/academic-years` Kelas table → TKIT B reads ≤ capacity after T2 runs; re-open `/admin/guardians` → Siti Nurhaliza Hidayat has email populated; re-open `/admin/employees` Ismail Teacher Test edit form → Rekening field rejects empty save when Bank is set.
