@@ -183,6 +183,59 @@ export const indicatorCreateSchema = z.object({
   order: z.number().int().min(1, "Urutan indikator harus ≥ 1"),
 });
 
+/**
+ * Admin CRUD validators — C3.
+ *
+ * Identity fields (`semesterId`, `ageGroup`, `element`, `number` on
+ * LearningObjective; `objectiveId` on AchievementIndicator) are intentionally
+ * omitted: those are the primary handles for cross-referencing rows and
+ * editing them silently breaks PROMES re-import diffing + walas-side
+ * theme-filtered indicator lookups. Move semantics = deactivate + recreate
+ * under the target parent.
+ */
+export const objectiveUpdateSchema = z.object({
+  competencyText: z
+    .string()
+    .trim()
+    .min(1, "Capaian perkembangan diri wajib diisi")
+    .max(2000, "Capaian perkembangan diri terlalu panjang")
+    .optional(),
+  content: z
+    .string()
+    .trim()
+    .min(1, "Tujuan pembelajaran wajib diisi")
+    .max(2000, "Tujuan pembelajaran terlalu panjang")
+    .optional(),
+  status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+});
+
+export const indicatorAdminCreateSchema = z.object({
+  objectiveId: z.string().min(1, "Tujuan pembelajaran wajib dipilih"),
+  content: z
+    .string()
+    .trim()
+    .min(1, "Indikator (IKTP) wajib diisi")
+    .max(2000, "Indikator (IKTP) terlalu panjang"),
+  order: z.number().int().min(1, "Urutan indikator harus ≥ 1"),
+});
+
+export const indicatorUpdateSchema = z.object({
+  content: z
+    .string()
+    .trim()
+    .min(1, "Indikator (IKTP) wajib diisi")
+    .max(2000, "Indikator (IKTP) terlalu panjang")
+    .optional(),
+  order: z.number().int().min(1, "Urutan indikator harus ≥ 1").optional(),
+  status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+});
+
+export const indicatorThemeLinkToggleSchema = z.object({
+  indicatorId: z.string().min(1, "Indikator wajib dipilih"),
+  themeId: z.string().min(1, "Tema wajib dipilih"),
+  linked: z.boolean(),
+});
+
 export type AgeGroupInput = z.infer<typeof ageGroupSchema>;
 export type CurriculumElementInput = z.infer<typeof curriculumElementSchema>;
 export type PromesImportRequestInput = z.infer<
@@ -190,6 +243,14 @@ export type PromesImportRequestInput = z.infer<
 >;
 export type ObjectiveCreateInput = z.infer<typeof objectiveCreateSchema>;
 export type IndicatorCreateInput = z.infer<typeof indicatorCreateSchema>;
+export type ObjectiveUpdateInput = z.infer<typeof objectiveUpdateSchema>;
+export type IndicatorAdminCreateInput = z.infer<
+  typeof indicatorAdminCreateSchema
+>;
+export type IndicatorUpdateInput = z.infer<typeof indicatorUpdateSchema>;
+export type IndicatorThemeLinkToggleInput = z.infer<
+  typeof indicatorThemeLinkToggleSchema
+>;
 
 /** Response shape for the preview endpoint (no DB writes). */
 export interface PromesPreviewPayload {
