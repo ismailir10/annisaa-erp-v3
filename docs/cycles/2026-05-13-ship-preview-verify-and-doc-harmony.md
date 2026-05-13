@@ -134,6 +134,14 @@ Initial run (against tip of `feat/ship-preview-verify-and-doc-harmony` before fi
 
 - This first-real run **demonstrates the value loop of the cycle**: `/audit-docs` caught CLAUDE.md drift that pre-commit hooks could not see (the broad doc-sync rule only checks that *some* doc is staged, not that the staged doc is still true). The follow-on `/ship` preflight wraps the same audit, so this kind of drift now blocks ship at the doc-staleness gate.
 
+### /ship dogfood — 2026-05-13 (PR #256)
+
+- Preflight: role=cto, hooks installed, working tree clean, cycle doc complete.
+- Preflight 6 (`/audit-docs`): re-ran inline — 0 fail, 0 warn. Passed.
+- Step 1: end-of-cycle gate re-run — `npm run build` green, `npx vitest run` 1300 passed / 42 todo / 0 fail, Playwright skipped per pure-docs rule.
+- Step 2: PR opened — [#256](https://github.com/ismailir10/annisaa-erp-v3/pull/256). Branch `feat/ship-preview-verify-and-doc-harmony`, 10 commits ahead of `origin/staging`.
+- **Preview-verify skipped — pure-docs cycle, no UI surface** (diff vs `origin/staging..HEAD`: 0 files under `app/**`, `components/**`, `lib/**`, `prisma/**`). Per Step 3b, go straight to Step 5.
+
 ## Ship Notes
 
 - **Migrations:** none.
