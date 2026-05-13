@@ -88,7 +88,7 @@ export default function MonthlyAttendancePage() {
   return (
     <>
       <div className="mb-4">
-        <Link href="/admin/attendance" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+        <Link href="/admin/employee-attendance" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
           <ArrowLeft size={14} /> Kembali ke Harian
         </Link>
       </div>

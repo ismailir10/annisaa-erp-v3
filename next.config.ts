@@ -31,6 +31,31 @@ const nextConfig: NextConfig = {
         destination: "/admin/assessment-templates",
         permanent: true,
       },
+      {
+        source: "/admin/attendance",
+        destination: "/admin/employee-attendance",
+        permanent: true,
+      },
+      {
+        source: "/admin/attendance/:path*",
+        destination: "/admin/employee-attendance/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/leave",
+        destination: "/admin/leave-requests",
+        permanent: true,
+      },
+      {
+        source: "/admin/settings/salary-components",
+        destination: "/admin/salary-components",
+        permanent: true,
+      },
+      {
+        source: "/admin/settings/config",
+        destination: "/admin/settings/work-hours",
+        permanent: true,
+      },
     ];
   },
   async headers() {

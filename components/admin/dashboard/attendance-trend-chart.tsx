@@ -53,7 +53,7 @@ export function AttendanceTrendChart({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold">Tren Kehadiran (7 Hari Terakhir)</h3>
         <Link
-          href="/admin/attendance"
+          href="/admin/employee-attendance"
           className="text-xs text-primary hover:underline flex items-center gap-1"
         >
           Lihat detail <ArrowRight size={12} />

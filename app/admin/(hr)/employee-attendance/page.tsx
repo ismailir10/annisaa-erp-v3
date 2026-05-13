@@ -199,7 +199,7 @@ export default function AttendancePage() {
             <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
               <Download size={14} className="mr-1.5" /> Ekspor CSV
             </Button>
-            <Link href="/admin/attendance/monthly">
+            <Link href="/admin/employee-attendance/monthly">
               <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
             </Link>
           </div>

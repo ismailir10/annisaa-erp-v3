@@ -25,8 +25,8 @@ Cross-checked design-system.html — sidebar IA pattern (group label + nested it
   - Penilaian → assessment-templates, assessments (with reserved future raport slot)
   - Kelas Harian → student-attendance, student-journal
   - Keuangan → fees, invoices
-  - SDM → employees, employee-attendance, leave-requests, work-hours, salary-components, payroll
-  - Settings → campuses, holidays, users, roles (+ design-system in dev)
+  - SDM → employees, employee-attendance, leave-requests, salary-components, payroll
+  - Settings → campuses, work-hours, holidays, users, roles (+ design-system in dev)
 - [ ] Sidebar item order matches the order above.
 - [ ] All 7 URL renames live with permanent (308) redirects in `next.config.ts`:
   - `/admin/academic` → `/admin/academic-years`
@@ -35,7 +35,7 @@ Cross-checked design-system.html — sidebar IA pattern (group label + nested it
   - `/admin/attendance` → `/admin/employee-attendance`
   - `/admin/leave` → `/admin/leave-requests`
   - `/admin/settings/salary-components` → `/admin/salary-components`
-  - `/admin/settings/config` → `/admin/work-hours`
+  - `/admin/settings/config` → `/admin/settings/work-hours`
 - [ ] Empty `app/admin/curriculum/` folder removed after `semesters/` move.
 - [ ] `getBreadcrumbs()` returns correct trail for every renamed route (group label + item label + sub-segment crumbs).
 - [ ] Internal references (`<Link>`, `router.push`, `redirect()`, e2e specs, fixtures, README) sweep clean of old paths.
@@ -44,7 +44,7 @@ Cross-checked design-system.html — sidebar IA pattern (group label + nested it
 - [ ] Permission gating:
   - Kurikulum group keeps `curriculum.read`.
   - SDM group keeps `hr.view`.
-  - Jam Kerja nav item gets explicit `hr.view` (now inside SDM, parity with Komponen Gaji).
+  - Jam Kerja stays in Settings nav (gated by `isAdminRole` only) — SCHOOL_ADMIN access preserved.
 - [ ] API namespace untouched: `/api/config/{holidays,org,campuses}` paths preserved (data ownership ≠ page navigation).
 - [ ] README.md admin portal section reflects new groupings + paths.
 
@@ -61,7 +61,7 @@ Cross-checked design-system.html — sidebar IA pattern (group label + nested it
 
 ### Assumptions
 
-1. **School-admin role already has `hr.view`** — adding explicit `hr.view` to the Jam Kerja nav item does not lock anyone out who currently sees `/admin/settings/config`. Verified during T3 (perm check before adding `hr.view`).
+1. ~~School-admin role already has `hr.view`~~ — **disproven during T2 review.** `lib/permissions.ts` `getSystemRolePermissions("SCHOOL_ADMIN")` does NOT include `hr.view`. Moving Jam Kerja into the `(hr)` route group would block SCHOOL_ADMIN. **Spec corrected mid-T2:** Jam Kerja stays in Settings (path `/admin/settings/work-hours`); only Komponen Gaji moves to SDM (it was already `hr.view`-gated pre-cycle, so no access regression).
 2. **No external bookmarks rely on `/admin/curriculum/semesters` deep links** beyond what the 308 redirect catches. Production analytics not consulted.
 3. **`/admin/assessments/templates` has no children** today — flattening to `/admin/assessment-templates` does not orphan sub-routes. Verified by `ls app/admin/assessments/templates/`.
 4. **`(hr)` route group is the correct home for `work-hours/` and `salary-components/`** after they leave `app/admin/settings/`. Matches existing `app/admin/(hr)/{attendance,leave,employees,payroll}/`.
@@ -77,8 +77,8 @@ T1 + T2 are independent of each other (different folders, different redirects); 
 - [x] **T1 — Rename academic-area folders + redirects.** Move `app/admin/academic/` → `app/admin/academic-years/`; `app/admin/curriculum/semesters/` → `app/admin/semesters/` (and `rmdir app/admin/curriculum`); `app/admin/assessments/templates/` → `app/admin/assessment-templates/`. Add 3 entries to `next.config.ts` `redirects()` (308). Sweep `app/**`, `components/**`, `lib/**` for old paths in `<Link>`, `router.push`, `redirect()`, string literals — update to new paths.
   - Acceptance: `grep -rln "/admin/academic[^-]\|/admin/curriculum/semesters\|/admin/assessments/templates" app components lib | wc -l` → 0; visiting an old URL in dev redirects (308) to the new URL; new URL renders the page.
 
-- [ ] **T2 — Rename HR/settings folders into `(hr)` + redirects.** Move `app/admin/(hr)/attendance/` → `app/admin/(hr)/employee-attendance/`; `app/admin/(hr)/leave/` → `app/admin/(hr)/leave-requests/`; `app/admin/settings/salary-components/` → `app/admin/(hr)/salary-components/`; `app/admin/settings/config/` → `app/admin/(hr)/work-hours/`. Add 4 entries to `next.config.ts` `redirects()` (308). Sweep `app/**`, `components/**`, `lib/**`, `scripts/**`. (Independent of T1 — different files.)
-  - Acceptance: `grep -rln "/admin/attendance\b\|/admin/leave\b\|/admin/settings/salary-components\|/admin/settings/config" app components lib scripts | wc -l` → 0; all 4 old URLs 308-redirect to new URLs; new URLs render.
+- [x] **T2 — Rename HR/settings folders + redirects.** Move `app/admin/(hr)/attendance/` → `app/admin/(hr)/employee-attendance/`; `app/admin/(hr)/leave/` → `app/admin/(hr)/leave-requests/`; `app/admin/settings/salary-components/` → `app/admin/(hr)/salary-components/`; `app/admin/settings/config/` → `app/admin/settings/work-hours/` (kept under settings — see Assumption 1 correction). Add 5 entries to `next.config.ts` `redirects()` (308). Sweep `app/**`, `components/**`, `lib/**`, `scripts/**`. Delete redundant `salary-components/layout.tsx` (its `hr.view` gate is now provided by `(hr)/layout.tsx`).
+  - Acceptance: `grep -rn "/admin/attendance\b\|/admin/leave\b\|/admin/settings/salary-components\|/admin/settings/config" app components lib scripts | grep -v node_modules | grep -v '/api/' | wc -l` → 0; all 4 old URLs 308-redirect to new URLs; new URLs render; SCHOOL_ADMIN still reaches `/admin/settings/work-hours`.
 
 - [ ] **T3 — Rewrite `config/admin-nav.ts`.** Replace `groups` array with 7 new groups + Dashboard standalone + Settings. New group ids: `students`, `curriculum`, `assessment`, `classroom`, `finance`, `hr`. Order in sidebar: Dashboard → Kesiswaan → Kurikulum → Penilaian → Kelas Harian → Keuangan → SDM → Settings. Move Komponen Gaji + Jam Kerja into SDM. Add explicit `permission: "hr.view"` to Jam Kerja nav item. Update Settings to 4 items (+ dev-only design-system). Depends on T1 + T2 (paths must exist).
   - Acceptance: sidebar renders new structure; `getActiveGroup()` resolves correctly for every renamed path; `getBreadcrumbs()` returns 2-crumb trail for every renamed page.
@@ -96,10 +96,12 @@ T1 + T2 are independent of each other (different folders, different redirects); 
 
 - Subagent plan: all tasks executed sequentially inline. T1+T2 both touch `next.config.ts` (redirects array), so cannot dispatch in parallel without merge risk. T4/T5/T6 are small enough that inline sequential beats subagent dispatch overhead.
 - Task 1: academic-area renames — moved 3 folders (`academic`, `curriculum/semesters`, `assessments/templates`) to new homes, removed empty `app/admin/curriculum/`, flipped the prior reverse-direction assessment-templates redirect, added 3 new entries (4 total redirect lines including `semesters/:path*` wildcard) to `next.config.ts`, swept 6 page-path self-refs in `app/admin/semesters/{client.tsx,[id]/themes/client.tsx,[id]/import/client.tsx}`. `/api/admin/curriculum/semesters` namespace preserved.
+- Task 2: HR/settings renames — moved `attendance` → `employee-attendance` (inside `(hr)`), `leave` → `leave-requests` (inside `(hr)`), `settings/salary-components` → `(hr)/salary-components`, `settings/config` → `settings/work-hours` (kept under `settings/` after spec correction — see Assumption 1). Deleted redundant `salary-components/layout.tsx` (its `hr.view` gate is now provided by `(hr)/layout.tsx`). Updated `(hr)/layout.tsx` comment to list new occupants. Added 6 redirect entries (`attendance` + `attendance/:path*`, `leave`, `settings/salary-components`, `settings/config`). Swept 8 internal page-path refs across `app/admin/(hr)/employee-attendance/{page.tsx,monthly/page.tsx}`, `components/admin/dashboard/{quick-actions,attendance-trend-chart,pending-actions}.tsx`, `lib/dashboard/{activity-feed.ts,__tests__/activity-feed.test.ts}`.
 
 ## Verification
 
 - Task 1: `npm run build` green; `npx vitest run` green (145 files, 1300 tests passed, 42 todo, 2 skipped, 75s). Renamed routes confirmed in build output: `/admin/academic-years`, `/admin/semesters`, `/admin/semesters/[id]/import`, `/admin/semesters/[id]/themes`, `/admin/assessment-templates`. `feature-dev:code-reviewer` agent pass: clean (only deferred-to-T5 e2e issues flagged, as expected). Frontend gate: cycle doc references design-system in Context section.
+- Task 2: `npm run build` green; `npx vitest run` green (145 files, 1300 tests passed). Renamed routes confirmed: `/admin/employee-attendance`, `/admin/employee-attendance/monthly`, `/admin/leave-requests`, `/admin/salary-components`, `/admin/settings/work-hours`. `feature-dev:code-reviewer` agent pass surfaced redundant `salary-components/layout.tsx` after move into `(hr)/` — fixed by deletion. Also surfaced an unverified Assumption 1 (SCHOOL_ADMIN lacks `hr.view`) — spec corrected mid-task: work-hours kept under `app/admin/settings/` to preserve SCHOOL_ADMIN access; Jam Kerja stays in Settings nav.
 
 ## Ship Notes
 
