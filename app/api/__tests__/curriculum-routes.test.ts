@@ -32,6 +32,20 @@ const weekUpdate = vi.fn();
 const academicYearFindFirst = vi.fn();
 const auditLogCreate = vi.fn();
 
+const learningObjectiveFindFirst = vi.fn();
+const learningObjectiveUpdate = vi.fn();
+const learningObjectiveCreate = vi.fn();
+
+const achievementIndicatorFindFirst = vi.fn();
+const achievementIndicatorCreate = vi.fn();
+const achievementIndicatorUpdate = vi.fn();
+const achievementIndicatorAggregate = vi.fn();
+
+const themeFindFirstForLink = vi.fn();
+const indicatorThemeLinkFindFirst = vi.fn();
+const indicatorThemeLinkCreate = vi.fn();
+const indicatorThemeLinkDelete = vi.fn();
+
 vi.mock("@/lib/db", () => ({
   prisma: {
     semester: {
@@ -64,6 +78,22 @@ vi.mock("@/lib/db", () => ({
     },
     academicYear: { findFirst: academicYearFindFirst },
     auditLog: { create: auditLogCreate },
+    learningObjective: {
+      findFirst: learningObjectiveFindFirst,
+      update: learningObjectiveUpdate,
+      create: learningObjectiveCreate,
+    },
+    achievementIndicator: {
+      findFirst: achievementIndicatorFindFirst,
+      create: achievementIndicatorCreate,
+      update: achievementIndicatorUpdate,
+      aggregate: achievementIndicatorAggregate,
+    },
+    indicatorThemeLink: {
+      findFirst: indicatorThemeLinkFindFirst,
+      create: indicatorThemeLinkCreate,
+      delete: indicatorThemeLinkDelete,
+    },
   },
 }));
 
@@ -364,6 +394,151 @@ describe("PUT /weeks/[id] — reactivation overlap", () => {
     const body = await res.json();
     expect(body.conflictingWeekId).toBe("w-current");
     expect(weekUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("PUT /objectives/[id] — C3", () => {
+  it("updates competencyText + content; audits action=update", async () => {
+    const { PUT } = await import(
+      "@/app/api/admin/curriculum/objectives/[id]/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    learningObjectiveFindFirst.mockResolvedValue({
+      id: "obj1",
+      competencyText: "Lama",
+      content: "Lama TP",
+      status: "ACTIVE",
+    });
+    learningObjectiveUpdate.mockResolvedValue({
+      id: "obj1",
+      semesterId: "sem1",
+      ageGroup: "A",
+      element: "RELIGIOUS_MORAL",
+      number: 1,
+      competencyText: "Baru",
+      content: "Baru TP",
+      status: "ACTIVE",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const res = await PUT(
+      jsonReq(
+        { competencyText: "Baru", content: "Baru TP" },
+        "PUT",
+      ) as never,
+      { params: Promise.resolve({ id: "obj1" }) } as never,
+    );
+    expect(res.status).toBe(200);
+    expect(learningObjectiveUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          competencyText: "Baru",
+          content: "Baru TP",
+        }),
+      }),
+    );
+    expect(auditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entity: "LearningObjective",
+          action: "update",
+        }),
+      }),
+    );
+  });
+
+  it("status-only deactivate emits action=status:INACTIVE", async () => {
+    const { PUT } = await import(
+      "@/app/api/admin/curriculum/objectives/[id]/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    learningObjectiveFindFirst.mockResolvedValue({
+      id: "obj1",
+      competencyText: "X",
+      content: "Y",
+      status: "ACTIVE",
+    });
+    learningObjectiveUpdate.mockResolvedValue({
+      id: "obj1",
+      semesterId: "sem1",
+      ageGroup: "A",
+      element: "RELIGIOUS_MORAL",
+      number: 1,
+      competencyText: "X",
+      content: "Y",
+      status: "INACTIVE",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const res = await PUT(
+      jsonReq({ status: "INACTIVE" }, "PUT") as never,
+      { params: Promise.resolve({ id: "obj1" }) } as never,
+    );
+    expect(res.status).toBe(200);
+    expect(auditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entity: "LearningObjective",
+          action: "status:INACTIVE",
+        }),
+      }),
+    );
+  });
+
+  it("returns 404 when row belongs to a different tenant", async () => {
+    const { PUT } = await import(
+      "@/app/api/admin/curriculum/objectives/[id]/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    learningObjectiveFindFirst.mockResolvedValue(null);
+
+    const res = await PUT(
+      jsonReq({ content: "X" }, "PUT") as never,
+      { params: Promise.resolve({ id: "obj-other" }) } as never,
+    );
+    expect(res.status).toBe(404);
+    expect(learningObjectiveUpdate).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when caller lacks curriculum.write", async () => {
+    const { PUT } = await import(
+      "@/app/api/admin/curriculum/objectives/[id]/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(teacher);
+
+    const res = await PUT(
+      jsonReq({ content: "X" }, "PUT") as never,
+      { params: Promise.resolve({ id: "obj1" }) } as never,
+    );
+    expect(res.status).toBe(403);
+    expect(learningObjectiveUpdate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 on empty patch body", async () => {
+    const { PUT } = await import(
+      "@/app/api/admin/curriculum/objectives/[id]/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    learningObjectiveFindFirst.mockResolvedValue({
+      id: "obj1",
+      competencyText: "X",
+      content: "Y",
+      status: "ACTIVE",
+    });
+
+    const res = await PUT(
+      jsonReq({}, "PUT") as never,
+      { params: Promise.resolve({ id: "obj1" }) } as never,
+    );
+    expect(res.status).toBe(400);
+    expect(learningObjectiveUpdate).not.toHaveBeenCalled();
   });
 });
 

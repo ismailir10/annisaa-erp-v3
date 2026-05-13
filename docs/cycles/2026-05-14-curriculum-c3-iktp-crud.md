@@ -47,7 +47,7 @@ Spec §5.4 lists `POST /indicators` + `PATCH /indicators/[id]` only, and a singl
 - [x] **T1 — Validation schemas** *(independent)*
   Acceptance: `lib/validations/curriculum.ts` exports `objectiveUpdateSchema`, `indicatorUpdateSchema`, `indicatorThemeLinkToggleSchema` (body: `{ indicatorId, themeId, linked: boolean }`). Vitest covers happy path + invalid input for all three schemas. Reuse: `themeUpdateSchema` export as shape template. No migration — `AchievementIndicator.status` already in schema.
 
-- [ ] **T2 — API: `PUT /api/admin/curriculum/objectives/[id]`** *(depends T1)*
+- [x] **T2 — API: `PUT /api/admin/curriculum/objectives/[id]`** *(depends T1)*
   Acceptance: Updates `competencyText` + `content` on `LearningObjective`. 403 if !`curriculum.write`. 404 if `objective.tenantId !== session.tenantId`. Vitest covers happy path + tenant-leak guard + permission gate. Reuse: `app/api/admin/curriculum/themes/[id]/route.ts` (74 lines) as scaffold. Commit prefix: `chore(curriculum)`.
 
 - [ ] **T3 — API: indicator create + update** *(depends T1)*
@@ -69,6 +69,7 @@ Spec §5.4 lists `POST /indicators` + `PATCH /indicators/[id]` only, and a singl
 
 - Subagent plan: T1 sequential (foundation); T2/T3/T4 mutually independent post-T1 but executed inline sequentially (each ~74 lines — orchestration overhead would exceed savings); T5/T6/T7 sequential per dependency graph.
 - T1: Validation schemas — `lib/validations/curriculum.ts` + `lib/validations/__tests__/curriculum.test.ts` — added `objectiveUpdateSchema`, `indicatorAdminCreateSchema` (admin-direct variant carrying `objectiveId` vs PROMES-coordinate `indicatorCreateSchema`), `indicatorUpdateSchema`, `indicatorThemeLinkToggleSchema` with idempotent `linked: boolean` toggle. Identity fields (semesterId/ageGroup/element/number on objective; objectiveId on indicator update) omitted by design.
+- T2: Objective PUT — `app/api/admin/curriculum/objectives/[id]/route.ts` (new) + `_helpers.ts` (added `learningObjectiveListSelect` + `achievementIndicatorListSelect`) + 5 vitest cases. Follows themes/[id] idiom: auth → rate-limit → tenant-scoped findFirst → validate → empty-body 400 → update → audit. Try/catch omitted with inline rationale (mutable surface doesn't cover the unique key).
 
 ## Verification
 
@@ -76,6 +77,7 @@ Spec §5.4 lists `POST /indicators` + `PATCH /indicators/[id]` only, and a singl
 
 - [ ] Cross-check `design-system.html` §accordion + §matrix patterns for objective + theme-link grid
 - T1: gates passed (`npm run build` ✓ 47s, `npx vitest run lib/validations/__tests__/curriculum.test.ts` ✓ 66/66). Reviewer (feature-dev:code-reviewer) flagged one 82-confidence gap (missing `.max(2000)` boundary test on `indicatorAdminCreateSchema.content` + symmetric gap on `indicatorUpdateSchema.content`) — both added before commit.
+- T2: gates passed (`npm run build` ✓, `npx vitest run app/api/__tests__/curriculum-routes.test.ts` ✓ 19/19 incl. 5 new T2 cases). feature-dev + superpowers code-reviewers both ship-it. One 83-confidence pattern-divergence flag (missing try/catch vs themes/[id]) addressed via inline justification comment — P2002 cannot fire from the mutable surface.
 
 ## Ship Notes
 

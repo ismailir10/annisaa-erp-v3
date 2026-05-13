@@ -125,3 +125,26 @@ export const weekListSelect = {
   createdAt: true,
   updatedAt: true,
 } as const;
+
+export const learningObjectiveListSelect = {
+  id: true,
+  semesterId: true,
+  ageGroup: true,
+  element: true,
+  number: true,
+  competencyText: true,
+  content: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export const achievementIndicatorListSelect = {
+  id: true,
+  objectiveId: true,
+  content: true,
+  order: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
