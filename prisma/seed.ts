@@ -407,7 +407,8 @@ async function main() {
   // 7b-3. Class Sections
   const classSectionDefs = [
     { name: "TKIT A", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
-    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
+    // TKIT B capacity 21 (not 20): seed inserts 20 base students + Fatimah as rightjetParent's third child.
+    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 21 },
     { name: "KB Aster", programCode: "KB", campusSlug: "taman-aster", capacity: 15 },
     { name: "KB Metland", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15 },
     { name: "D'Care Aster", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10 },
@@ -1553,6 +1554,26 @@ async function main() {
         create: { tenantId: t.id, year, lastNumber },
       });
     }
+  }
+
+  // Invariant: no class section may exceed its capacity. Fails the seed loudly
+  // if a future edit silently introduces another over-enrollment (F-4 from the
+  // 2026-05-13 staging sweep — Fatimah Az-Zahra's third-child insert into TKIT_B
+  // had bypassed the API capacity guard).
+  const sections = await prisma.classSection.findMany({
+    select: {
+      id: true,
+      name: true,
+      capacity: true,
+      _count: { select: { enrollments: { where: { status: "ACTIVE" } } } },
+    },
+  });
+  const overCapacity = sections.filter((s) => s._count.enrollments > s.capacity);
+  if (overCapacity.length > 0) {
+    const detail = overCapacity
+      .map((s) => `${s.name}: ${s._count.enrollments}/${s.capacity}`)
+      .join(", ");
+    throw new Error(`Seed invariant failed — class section(s) over capacity: ${detail}`);
   }
 
   console.log("\n🎉 Seed complete!");
