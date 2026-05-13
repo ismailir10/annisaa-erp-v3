@@ -58,9 +58,9 @@ Standards consulted: `.claude/standards/design-system.html` for the employee for
   Files: `scripts/fix-overcapacity-classes.ts`, `scripts/__tests__/fix-overcapacity-classes.test.ts`.
   Independent of T1, T3, T5.
 
-- [ ] **T3 — Parent.email backfill migration.**
-  Acceptance: Prisma migration `<timestamp>_backfill_parent_email_from_user` runs SQL `UPDATE "Parent" SET email = u.email FROM "User" u WHERE u."parentId" = "Parent".id AND "Parent".email IS NULL AND u.email IS NOT NULL;`. Idempotent — re-running is a no-op. Add a seed fixture (`prisma/seed.ts`) with one Parent (email NULL) linked to one User (email set) so `npx prisma migrate dev` exercises the path locally.
-  Files: `prisma/migrations/<timestamp>_backfill_parent_email_from_user/migration.sql`, `prisma/seed.ts`.
+- [x] **T3 — Parent.email backfill migration.**
+  Acceptance: Prisma migration `20260513000000_backfill_parent_email_from_user/migration.sql` runs the SQL `UPDATE "Parent" SET email = u.email FROM "User" u WHERE u."parentId" = "Parent".id AND "Parent".email IS NULL AND u.email IS NOT NULL;`. Idempotent — re-running is a no-op because the WHERE clause requires `email IS NULL`. SQL verified by inspection; local `prisma migrate dev` deliberately not run because the dev `.env` `DATABASE_URL` points at the staging Supabase pooler, and running migrate against staging belongs to `/ship`, not `/build`. Spec assumption to add a seed fixture is dropped: migrations run before seed in `prisma migrate dev`, so a seed fixture can never exercise the migration anyway.
+  Files: `prisma/migrations/20260513000000_backfill_parent_email_from_user/migration.sql`.
   Independent of T1, T5.
 
 - [ ] **T4 — OAuth login hook: self-heal Parent.email.**
