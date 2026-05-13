@@ -177,6 +177,30 @@ Print (don't execute — just remind the user):
 - [ ] Reclaim disk + reduce next-session noise: `bash scripts/cleanup-merged.sh --yes` from the main checkout. Removes the worktree + local branch for any feat/* PR that was squash-merged. SessionStart already prints the same candidates in `--report` mode on every new session.
 - [ ] Staging → main promotion is a separate `/ship --to-main` call, CTO-initiated
 
+## Seed-via-CRUD playbook
+
+Reference for the preview-verification step. When the cycle's flows need fixtures, the AI uses Chrome MCP to create them **through the admin UI** — never via `/api/admin/seed` or direct DB writes. The table below maps cycle scope (keyword in the cycle's `## Implementation` section) to the fixture chain.
+
+| Cycle scope keyword(s) | Fixtures needed (in order) | Admin pages to walk |
+|---|---|---|
+| `invoice`, `billing`, `fee`, `xendit`, `payment` | academic year → fee structure → student → guardian → enrollment → invoice | `/admin/academic` → `/admin/fees` → `/admin/students` → `/admin/guardians` → `/admin/enrollments` → `/admin/invoices` |
+| `assessment`, `raport`, `score`, `grade`, `curriculum` | academic year → class → curriculum → student → enrollment → assessment session → score | `/admin/academic` → `/admin/curriculum` → `/admin/students` → `/admin/enrollments` → `/admin/assessments` |
+| `salary`, `payroll`, `employee` | employee → position → salary structure → payroll run | `/admin/(hr)/employees` → `/admin/(hr)/positions` → `/admin/(hr)/salary` → `/admin/(hr)/payroll` |
+| `attendance`, `journal` | academic year → class → student → enrollment → attendance entry | `/admin/academic` → `/admin/students` → `/admin/enrollments` → `/admin/student-attendance` (or `/admin/student-journal`) |
+| `admission`, `applicant`, `daftar` | open admission cycle → applicant submission → decision | `/admin/admissions` (admin) + public `/daftar` (applicant flow if cycle touches the public path) |
+| `teaching-assignment`, `homeroom` | teacher employee → academic year → class → assignment | `/admin/(hr)/employees` → `/admin/academic` → `/admin/teaching-assignments` |
+| `parent`, `parent-portal`, `household` | guardian → student → enrollment → invoice or attendance (whichever the flow exercises) | `/admin/guardians` → `/admin/students` → `/admin/enrollments` → [domain page] |
+| `teacher`, `teacher-portal` | teacher employee → teaching assignment → class roster | `/admin/(hr)/employees` → `/admin/teaching-assignments` → walk teacher portal |
+| `auth`, `role`, `permission`, `super-admin`, `school-admin` | (no fixtures — switch active demo identity via the demo-role picker) | demo-role picker in admin shell header |
+| `branding`, `design-system`, `theme`, `voice` | (no fixtures — visual / copy verification only) | walk pages mentioned in Implementation directly |
+
+**Rules**
+
+- **Use existing fixtures where possible.** Re-running the chain on every iteration is wasteful — check the admin lists first; only create what's missing.
+- **Clean up on a clean-pass loop only when the cycle's scope is destructive** (e.g., a soft-delete cycle); otherwise leave fixtures in place — they aid the next cycle's preview-verify.
+- **Never escalate scope.** If the playbook for the cycle's scope keyword doesn't exist, fall back to: walk every admin page mentioned in `## Implementation`, create minimum fixtures inline. Do not invent new fixture chains.
+- **Authoritative source on entities.** When the chain references entities not yet documented here, consult `prisma/schema.prisma` for required fields, never the CRUD form's optional fields.
+
 ## Rules
 
 - **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them — that hook is the only real safety net on this plan (see next bullet). All shipping is PR-based.

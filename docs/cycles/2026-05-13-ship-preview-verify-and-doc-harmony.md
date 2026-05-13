@@ -64,7 +64,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 
 2. [x] **[indep] Add Vercel preview-ready wait helper** — Create `scripts/wait-preview-ready.sh <PR>`. Polls `gh pr view <PR> --json comments,statusCheckRollup` every 10s for ≤5min. Returns Vercel preview URL on stdout. AI within /ship prefers Vercel MCP `get_deployment` and falls back to this script. Acceptance: against a known-good staging SHA, script returns URL in <3min.
 
-3. **[indep] Wire seed-via-CRUD playbook** — Append a section to `.claude/skills/ship/SKILL.md` titled "Seed-via-CRUD playbook". Table: cycle scope keyword → required fixtures → admin pages to walk. Examples: invoice/billing → create student → enroll → generate invoice; assessment/raport → create class → enroll students → enter scores. Acceptance: section exists, table covers at least 5 common scopes.
+3. [x] **[indep] Wire seed-via-CRUD playbook** — Append a section to `.claude/skills/ship/SKILL.md` titled "Seed-via-CRUD playbook". Table: cycle scope keyword → required fixtures → admin pages to walk. Examples: invoice/billing → create student → enroll → generate invoice; assessment/raport → create class → enroll students → enter scores. Acceptance: section exists, table covers at least 5 common scopes.
 
 4. **[seq, depends 2,3] Add C+ preview-verify step to `/ship`** — Edit `.claude/skills/ship/SKILL.md`. New section "Step 3: Preview verification (C+)" inserted between current Step 2 (open PR) and current hand-off step. Algorithm: call `wait-preview-ready.sh`, then Chrome MCP login, then seed-via-CRUD per playbook, then walk Implementation-derived flows, then classify findings. Acceptance: section reads as runnable algorithm with explicit Chrome MCP tool names.
 
@@ -86,11 +86,13 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Between-task gate skipped per task for pure-docs/skill edits (no TS source touched). End-of-cycle gate (T10) is the single source of test signal.
 - Task 1: Add `/audit-docs` standalone skill — created `.claude/skills/audit-docs/SKILL.md` — 8 checks (route count, portal pages, components, e2e specs, standards-table file existence, ADR 60d cutoff, File Structure paths, workflow refs); report written to active cycle doc Verification or stdout; read-only against git.
 - Task 2: Vercel preview-ready wait helper — created `scripts/wait-preview-ready.sh` — polls `gh pr view <PR>` for Vercel bot comment + deployment status; 10s interval, 5min cap; AI within /ship prefers Vercel MCP `get_deployment`, this script is the CLI fallback.
+- Task 3: Seed-via-CRUD playbook — appended new "Seed-via-CRUD playbook" section to `.claude/skills/ship/SKILL.md` — 9-row table mapping cycle scope keywords (invoice/billing, assessment/raport, salary/payroll, attendance, admission, teaching-assignment, parent-portal, teacher-portal, auth, branding) → fixture chains → admin pages to walk; rules forbid escalation and prefer reusing existing fixtures.
 
 ## Verification
 
 - Task 1: between-task gate skipped (pure-docs/skill task — no TS or test files touched); manual lint of `.claude/skills/audit-docs/SKILL.md` confirms frontmatter valid + bash blocks syntactically correct.
 - Task 2: `bash -n scripts/wait-preview-ready.sh` → syntax ok; executable bit set; smoke against a live PR deferred to /ship-time invocation (T10 dogfood).
+- Task 3: Playbook covers 9 scope categories (≥5 acceptance met); admin paths cross-checked against `ls app/admin/` snapshot — all 9 admin route prefixes referenced exist on disk.
 
 ## Ship Notes
 
