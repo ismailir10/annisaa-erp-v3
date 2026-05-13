@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function POST(
   req: NextRequest,
@@ -41,7 +42,7 @@ export async function POST(
   }
 
   // Atomic capacity check + duplicate enrollment guard
-  const today = new Date().toISOString().split("T")[0];
+  const today = getTodayInTimezone("Asia/Jakarta");
   try {
     const enrollment = await prisma.$transaction(async (tx) => {
       // Check for existing ACTIVE enrollment in any class

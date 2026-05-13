@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ------------------------------------------------------------------
 // Types
@@ -40,7 +41,7 @@ type ClassRow = {
 // ------------------------------------------------------------------
 
 function currentMonday(): string {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayInTimezone("Asia/Jakarta");
   return weekStart(today);
 }
 

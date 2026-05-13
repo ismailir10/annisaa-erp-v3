@@ -25,6 +25,7 @@ import { NoteThread } from "@/components/student-journal/note-thread";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { formatDateShort } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ export default function ParentStudentJournalPage() {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
   const [currentWeek, setCurrentWeek] = useState<string>(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayInTimezone("Asia/Jakarta");
     return weekStart(today);
   });
   const [data, setData] = useState<WeekData | null>(null);

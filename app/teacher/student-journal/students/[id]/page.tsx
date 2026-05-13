@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
 import { JOURNAL_FORBIDDEN_MSG } from "@/lib/student-journal/messages";
 import { formatDate } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type Indicator = { id: string; label: string; order: number };
 type Category = { id: string; name: string; scope: string; indicators: Indicator[] };
@@ -94,7 +95,7 @@ export default function TeacherStudentWeekPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayInTimezone("Asia/Jakarta");
   // Honor `?week=YYYY-MM-DD` from the entry-grid chevron so the week view
   // opens scoped to the picker's selected date (UAT 2026-05-01 cycle T2).
   const initialAnchor = searchParams.get("week") ?? today;

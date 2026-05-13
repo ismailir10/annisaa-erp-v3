@@ -18,6 +18,7 @@ import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
 import { computeAbsentCount } from "./absent-stat";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type EmployeeAttendance = {
   employee: { id: string; kode: string; nama: string; jabatan: string; campusName: string };
@@ -35,7 +36,7 @@ type Holiday = { date: string };
 // clocked in YET should still count as "tidak hadir" so the dashboard can
 // nudge them). For past dates we want a clean stat — weekends and holidays
 // are not absences.
-const TODAY_ISO = new Date().toISOString().split("T")[0];
+const TODAY_ISO = getTodayInTimezone("Asia/Jakarta");
 
 export default function AttendancePage() {
   const [date, setDate] = useState(TODAY_ISO);
