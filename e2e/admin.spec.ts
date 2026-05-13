@@ -46,13 +46,13 @@ test.describe("Admin flows", () => {
   });
 
   test("attendance page loads", async ({ page }) => {
-    await page.goto("/admin/attendance");
-    await page.waitForURL("**/admin/attendance");
+    await page.goto("/admin/employee-attendance");
+    await page.waitForURL("**/admin/employee-attendance");
     await expect(page.locator("text=Kehadiran Hari Ini")).toBeVisible();
   });
 
   test("monthly attendance grid loads", async ({ page }) => {
-    await page.goto("/admin/attendance/monthly");
+    await page.goto("/admin/employee-attendance/monthly");
     await expect(page.locator("text=Kehadiran Bulanan")).toBeVisible({ timeout: 15_000 });
   });
 
@@ -71,8 +71,8 @@ test.describe("Admin flows", () => {
     await page.waitForURL("**/admin/settings/holidays");
     await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 15_000 });
 
-    await page.goto("/admin/settings/salary-components");
-    await page.waitForURL("**/admin/settings/salary-components");
+    await page.goto("/admin/salary-components");
+    await page.waitForURL("**/admin/salary-components");
     await expect(page.locator("text=Gaji Pokok")).toBeVisible({ timeout: 15_000 });
   });
 
@@ -83,9 +83,9 @@ test.describe("Admin flows", () => {
     await expect(page.getByRole("dialog").getByRole("heading", { name: "Tambah Karyawan" })).toBeVisible({ timeout: 15_000 });
   });
 
-  test("deleted flat assessment-templates URL redirects to nested", async ({ page }) => {
-    await page.goto("/admin/assessment-templates");
-    await expect(page).toHaveURL("/admin/assessments/templates");
+  test("legacy nested assessments/templates URL redirects to flat path", async ({ page }) => {
+    await page.goto("/admin/assessments/templates");
+    await expect(page).toHaveURL("/admin/assessment-templates");
     await expect(page.getByRole("heading", { name: /Template Penilaian/i })).toBeVisible();
   });
 

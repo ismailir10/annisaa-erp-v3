@@ -21,7 +21,7 @@ test.describe("Admin curriculum", () => {
   });
 
   test("semester list shows seeded row + sidebar Kurikulum entry", async ({ page }) => {
-    await page.goto("/admin/curriculum/semesters");
+    await page.goto("/admin/semesters");
     await expect(page.getByRole("heading", { name: /Kurikulum.*Semester/i })).toBeVisible({
       timeout: 15_000,
     });
@@ -42,7 +42,7 @@ test.describe("Admin curriculum", () => {
     const semesterId = semJson.data?.[0]?.id;
     test.skip(!semesterId, "seed produced no semester — skipping");
 
-    await page.goto(`/admin/curriculum/semesters/${semesterId}/themes`);
+    await page.goto(`/admin/semesters/${semesterId}/themes`);
     await expect(page.getByText(/2025\/2026 · Semester 1/i)).toBeVisible({ timeout: 15_000 });
 
     const themeName = `E2E Tema ${Date.now()}`;
@@ -106,7 +106,7 @@ test.describe("Admin curriculum", () => {
     const startYmd: string = existingWeek.startDate.slice(0, 10);
     const endYmd: string = existingWeek.endDate.slice(0, 10);
 
-    await page.goto(`/admin/curriculum/semesters/${semesterId}/themes`);
+    await page.goto(`/admin/semesters/${semesterId}/themes`);
 
     await page
       .locator('[data-testid="theme-row"]')

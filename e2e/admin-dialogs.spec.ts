@@ -70,8 +70,8 @@ const DIALOG_CHECKS: DialogCheck[] = [
     expectedSubmit: /Tambah Hari Libur/i,
   },
   {
-    name: "settings-salary-components-create",
-    path: "/admin/settings/salary-components",
+    name: "salary-components-create",
+    path: "/admin/salary-components",
     triggerLabel: "Tambah Komponen",
     expectedTitle: /Tambah Komponen/i,
     expectedSubmit: /Tambah Komponen/i,
