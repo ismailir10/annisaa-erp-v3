@@ -53,9 +53,9 @@ Standards consulted: `.claude/standards/design-system.html` for the employee for
   Files: `prisma/seed.ts`.
   Independent of T3, T5.
 
-- [ ] **T2 — TKIT B remediation script.**
-  Acceptance: `scripts/fix-overcapacity-classes.ts` (idempotent, default `--dry-run`) lists every section where `active_enrollment_count > capacity`. With `--apply --bump`, bumps each offending section's `capacity` to `active_enrollment_count` inside a `$transaction` + writes an `AuditLog` entry tagged `class.capacity.bump` with before/after JSON. Runs against staging in Phase 5 of `/ship`, not during `/build`.
-  Files: `scripts/fix-overcapacity-classes.ts`.
+- [x] **T2 — Over-capacity remediation script.**
+  Acceptance: `scripts/fix-overcapacity-classes.ts` (default = dry-run) lists every section where `_count(active enrollments) > capacity`. With `--apply --bump`, bumps each offending section's `capacity` up to the active count inside a `$transaction` and writes an `AuditLog` row tagged `class.capacity.bump` carrying before/after JSON. Actor resolves to the first ACTIVE `SUPER_ADMIN` of the tenant when `--actor` is omitted; fails loudly if none. Unit tests in `scripts/__tests__/fix-overcapacity-classes.test.ts` cover: no-offenders, dry-run reports without mutating, apply+bump writes capacity + audit, missing-actor throws, --actor override skips the User lookup. Runs against staging in `/ship` Phase 5, not during `/build`.
+  Files: `scripts/fix-overcapacity-classes.ts`, `scripts/__tests__/fix-overcapacity-classes.test.ts`.
   Independent of T1, T3, T5.
 
 - [ ] **T3 — Parent.email backfill migration.**
