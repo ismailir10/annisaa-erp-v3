@@ -158,4 +158,7 @@ export const achievementIndicatorListSelect = {
   status: true,
   createdAt: true,
   updatedAt: true,
+  // Include link rows so client can hydrate theme-link checkbox state on
+  // initial load — required for the admin objectives page (C3/T5).
+  themeLinks: { select: { themeId: true } },
 } as const;
