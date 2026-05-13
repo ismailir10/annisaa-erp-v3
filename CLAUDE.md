@@ -153,6 +153,16 @@ Any other staged `.md` is rejected by `pre-commit`.
 - [ ] Verification section filled
 - [ ] **README.md updated** if cycle adds/changes modules, routes, or entities
 - [ ] Ship Notes filled
+- [ ] `/audit-docs` reports zero `fail` findings (A-scope doc-staleness gate — runs as `/ship` preflight check #6)
+
+### Superpowers skill output redirect
+
+The `superpowers:brainstorming` and `superpowers:writing-plans` skills default to writing artifacts at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` and `docs/superpowers/plans/...`. **The project rule overrides that default.** When invoked inside this repo, both skills must write their output into the **active cycle doc**:
+
+- `superpowers:brainstorming` → `## Context` (problem framing) + `## Spec` (acceptance + non-goals + assumptions)
+- `superpowers:writing-plans` → `## Tasks` (ordered atomic tasks)
+
+Per the priority order in `superpowers:using-superpowers`, *"User's explicit instructions (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority"* — this rule wins. Do not create `docs/superpowers/*` files in this repo. The legacy files that predate this rule are archived under `docs/archive/superpowers-legacy/`.
 
 ---
 

@@ -72,7 +72,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 
 6. [x] **[indep] Add A-scope doc-staleness check to `/ship` preflight** — Same file, new check inserted into existing Preflight (placed after cycle-doc check, before JTBD — `/audit-docs` needs the cycle doc parsed first). Implementation invokes `/audit-docs`; any `fail` finding blocks PR open with the report inline, `warn` is informational. Acceptance: when README claims "Foo module" but cycle Implementation deletes the only Foo route, check fires with diff.
 
-7. **[indep] Add harmony rule to CLAUDE.md** — Edit CLAUDE.md `One-File-Per-Cycle Rule` section. Add subsection "Superpowers skill output redirect": brainstorming/writing-plans must write into the active cycle doc's `## Context` / `## Spec` / `## Tasks`. Project rule overrides skill defaults. Reference: this cycle is the precedent. Acceptance: rule readable; new section is the canonical place for this constraint.
+7. [x] **[indep] Add harmony rule to CLAUDE.md** — Edit CLAUDE.md `One-File-Per-Cycle Rule` section. Add subsection "Superpowers skill output redirect": brainstorming/writing-plans must write into the active cycle doc's `## Context` / `## Spec` / `## Tasks`. Project rule overrides skill defaults. Reference: this cycle is the precedent. Acceptance: rule readable; new section is the canonical place for this constraint.
 
 8. **[indep, depends 7] Archive legacy superpowers docs** — `git mv docs/superpowers/specs/* docs/archive/superpowers-legacy/specs/` and same for `docs/superpowers/plans/*`. Create `docs/archive/superpowers-legacy/README.md` with cutoff date (2026-05-13), reason ("pre-harmony, files written by skill before the project rule was added"), and instruction not to add new files here. Remove empty `docs/superpowers/` tree. Acceptance: `docs/superpowers/` empty or removed; archive README present.
 
@@ -90,6 +90,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Task 4: C+ preview-verify Step 3 — added new "Step 3: Preview verification (C+ via Chrome MCP)" to `.claude/skills/ship/SKILL.md`; modified Step 2 to defer hand-off; renamed legacy Step 3 → Step 5. Subsections: 3a wait for preview ready (Vercel MCP preferred, scripts/wait-preview-ready.sh fallback); 3b derive 2-4 flows from cycle Implementation; 3c seed via UI CRUD; 3d walk flows + capture (Chrome MCP navigate/click/screenshot/console/network); 3e classify findings (blocker vs minor with explicit rules); 3f emit results to cycle doc Verification + PR comment.
 - Task 5: Fix loop Step 4 — added new "Step 4: Fix loop" to `.claude/skills/ship/SKILL.md` between Step 3 and Step 5. Subsections: 4a triage each blocker (read screenshot+console+network+route → identify file → smallest fix); 4b commit (`fix(<scope>): …`, hooks active, no `--no-verify`); 4c push + re-verify (returns to Step 3 with new SHA); 4d soft escalation every 3 iterations via AskUserQuestion (continue/pause/abort); 4e clean exit appends convergence bullet to cycle doc Verification.
 - Task 6: A-scope doc-staleness preflight — added new Preflight check #6 in `.claude/skills/ship/SKILL.md` that invokes `/audit-docs`; any `fail` finding blocks PR open and is printed inline. JTBD check shifted to #7.
+- Task 7: Harmony rule — added subsection "Superpowers skill output redirect" to CLAUDE.md One-File-Per-Cycle Rule section; brainstorming → cycle Context+Spec, writing-plans → cycle Tasks; project rule overrides skill defaults per superpowers:using-superpowers priority order. Added `/audit-docs` reports zero `fail` bullet to /ship preflight checklist.
 
 ## Verification
 
@@ -99,6 +100,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Task 4: Step 3 algorithm references explicit Chrome MCP tool names (`navigate`, `read_console_messages`, `read_network_requests`, `read_page`, `left_click`, `form_input`, `screenshot`) and the Vercel MCP `get_deployment` tool name with the fallback script path; renumber and Step 2 deferral verified by reading the updated file end-to-end.
 - Task 5: Loop spec carries the no-cap + soft-escalate-every-3 rule, with three branch options (continue / pause / abort) routed back into Step 3 or out of `/ship`; clean-exit bullet schema fixed so the cycle doc Verification accumulates `Preview-verify iteration N` lines deterministically.
 - Task 6: Wraps `/audit-docs` from T1 — preflight gate reuses one skill rather than reimplementing parsing. Numbering bumped (JTBD: 6 → 7) verified by reading the Preflight section end-to-end.
+- Task 7: Override anchored in `superpowers:using-superpowers` priority order (user instructions > skills > defaults); pointer to archive path included so future agents can find the legacy files.
 
 ## Ship Notes
 
