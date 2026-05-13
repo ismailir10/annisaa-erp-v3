@@ -78,7 +78,9 @@ Intended outcome: admin can author + repair templates from one UI, the Create/Ed
 
 - **T1** — Added `components/admin/assessments/KategoriIndikatorBuilder.tsx`. Replaced inline builder in `app/admin/assessments/templates/page.tsx` Create dialog and added it to the Edit dialog. Edit hydrates `categories` from `editTarget.categories`, sends `categories` in PUT payload, and is locked client-side when `_count.assessments > 0`. Extended `updateAssessmentTemplateSchema` to accept optional `categories`. `PUT /api/assessments/templates/[id]` now checks the existing assessment count and returns 409 if a `categories` payload arrives for a template with scores; otherwise it does a transactional `deleteMany` → recreate of `AssessmentCategory` (FK-cascades indicators). Cross-checked `design-system.html` § dialogs — no new variants introduced. Also restored missing `exceljs` dep (was absent from the symlinked node_modules; pre-existing build break unrelated to this cycle).
 
-<!-- T2/T3 below appended by /build -->
+- **T2** — `components/ui/dialog.tsx` `DialogContent` switched from `grid gap-4` (no height cap) to `flex flex-col max-h-[90vh] min-h-0 gap-4`. `components/ui/responsive-form-dialog.tsx` desktop body wrapper gained `flex-1 min-h-0 overflow-y-auto pr-2`; header and footer marked `shrink-0`. Removed the now-redundant `<ScrollArea max-h-[60vh]>` wrapper from the Create dialog body in `app/admin/assessments/templates/page.tsx` and the unused `ScrollArea` import. Sampled three other consumers (`app/admin/academic/page.tsx`, `app/admin/fees/page.tsx`, `app/admin/teaching-assignments/page.tsx`) — all use the dialog the standard way, no body wrappers that conflict with `overflow-y-auto`. Cross-checked `design-system.html` § dialogs — layout pattern matches the standard shadcn dialog spec.
+
+<!-- T3 below appended by /build -->
 
 ## Verification
 

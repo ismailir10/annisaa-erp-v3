@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   KategoriIndikatorBuilder,
   EMPTY_CATEGORY,
@@ -386,8 +385,7 @@ export default function AssessmentTemplatesPage() {
           </>
         }
       >
-        <ScrollArea className="max-h-[60vh] pr-2">
-          <div className="space-y-field">
+        <div className="space-y-field">
             <Field><FieldLabel required>Nama Template</FieldLabel><Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field>
@@ -414,8 +412,7 @@ export default function AssessmentTemplatesPage() {
               value={createForm.categories}
               onChange={(cats) => setCreateForm({ ...createForm, categories: cats })}
             />
-          </div>
-        </ScrollArea>
+        </div>
       </ResponsiveFormDialog>
 
       {/* Edit Dialog */}

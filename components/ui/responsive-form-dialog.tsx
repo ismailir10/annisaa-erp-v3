@@ -79,12 +79,15 @@ export function ResponsiveFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(SIZE_CLASS[size], contentClassName)}>
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        <div className="space-y-field py-2">{children}</div>
-        <DialogFooter>{footer}</DialogFooter>
+        {/* body is the only scrolling region — header/footer stay docked */}
+        <div className="space-y-field py-2 flex-1 min-h-0 overflow-y-auto pr-2">
+          {children}
+        </div>
+        <DialogFooter className="shrink-0">{footer}</DialogFooter>
       </DialogContent>
     </Dialog>
   );

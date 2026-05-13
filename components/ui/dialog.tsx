@@ -53,7 +53,13 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover pt-4 pr-10 pb-4 pl-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // flex-column layout so a tall body can scroll while header and
+          // footer stay docked. max-h-[90vh] caps the whole dialog so the
+          // body slot (`flex-1 min-h-0 overflow-y-auto` in ResponsiveFormDialog)
+          // gets a bounded height to scroll within. Was `grid gap-4`, which
+          // had no height cap and let the body push the docked footer out
+          // of (or on top of) the visible area on tight viewports.
+          "fixed top-1/2 left-1/2 z-50 flex w-full max-w-[calc(100%-2rem)] max-h-[90vh] min-h-0 -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl bg-popover pt-4 pr-10 pb-4 pl-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
