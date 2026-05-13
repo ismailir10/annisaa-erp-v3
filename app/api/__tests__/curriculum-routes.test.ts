@@ -398,6 +398,117 @@ describe("PUT /weeks/[id] — reactivation overlap", () => {
   });
 });
 
+describe("POST /objectives — C3", () => {
+  it("rejects 400 when parent semester missing / wrong tenant / INACTIVE", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/objectives/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    semesterFindFirst.mockResolvedValue(null);
+
+    const res = await POST(
+      jsonReq({
+        semesterId: "sem-missing",
+        ageGroup: "A",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        competencyText: "X",
+        content: "Y",
+      }) as never,
+    );
+    expect(res.status).toBe(400);
+    expect(learningObjectiveCreate).not.toHaveBeenCalled();
+  });
+
+  it("creates + audits action=create on happy path", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/objectives/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    semesterFindFirst.mockResolvedValue({ id: "sem1" });
+    learningObjectiveCreate.mockResolvedValue({
+      id: "obj-new",
+      semesterId: "sem1",
+      ageGroup: "A",
+      element: "RELIGIOUS_MORAL",
+      number: 1,
+      competencyText: "X",
+      content: "Y",
+      status: "ACTIVE",
+    });
+
+    const res = await POST(
+      jsonReq({
+        semesterId: "sem1",
+        ageGroup: "A",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        competencyText: "X",
+        content: "Y",
+      }) as never,
+    );
+    expect(res.status).toBe(201);
+    expect(auditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entity: "LearningObjective",
+          action: "create",
+        }),
+      }),
+    );
+  });
+
+  it("returns 409 on P2002 unique-constraint violation", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/objectives/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    semesterFindFirst.mockResolvedValue({ id: "sem1" });
+    learningObjectiveCreate.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Unique", {
+        code: "P2002",
+        clientVersion: "test",
+      }),
+    );
+
+    const res = await POST(
+      jsonReq({
+        semesterId: "sem1",
+        ageGroup: "A",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        competencyText: "X",
+        content: "Y",
+      }) as never,
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("returns 403 when caller lacks curriculum.write", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/objectives/route"
+    );
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(teacher);
+
+    const res = await POST(
+      jsonReq({
+        semesterId: "sem1",
+        ageGroup: "A",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        competencyText: "X",
+        content: "Y",
+      }) as never,
+    );
+    expect(res.status).toBe(403);
+    expect(learningObjectiveCreate).not.toHaveBeenCalled();
+  });
+});
+
 describe("PUT /objectives/[id] — C3", () => {
   it("updates competencyText + content; audits action=update", async () => {
     const { PUT } = await import(
