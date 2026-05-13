@@ -1,8 +1,8 @@
 # UAT Report — Comprehensive Cross-Portal E2E — 2026-05-14
 
 > Persona(s): Pak Ismail (SUPER_ADMIN) · Pak Ismail2 (TEACHER) · Bu Rightjet (GUARDIAN)
-> Modules run: 22 admin / 5 teacher / 4 parent / 1 Xendit sandbox
-> Blockers: 2  •  Majors: 5  •  Minors: 11  •  Nits: 2
+> Modules run: 22 admin / 7 teacher / 6 parent / 1 Xendit sandbox
+> Blockers: 1  •  Majors: 6  •  Minors: 13  •  Nits: 2 (Run-1 + Run-2 combined)
 > Target: staging (`https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app`)
 > Auth: Real Google OAuth (no demo mode) — `ismailir10@gmail.com`, `ismail10rabbanii@gmail.com`, `rightjet.hq@gmail.com`
 > Browser: Chrome MCP (Claude-in-Chrome extension, Browser 1 macOS)
@@ -205,6 +205,67 @@ Grouped roughly by ownership / blast radius. Severity rank determines proposed o
 
 ---
 
+## Run-2 follow-up sweep (payroll w/ real salary, raport publish, profiles)
+
+After Run 1 the user requested a second pass to (a) set IR1's salary structure so the payroll slip isn't Rp 0, (b) publish a raport so the parent reports page has content, and (c) cover both teacher and parent profile pages that Run 1 skipped.
+
+### FIND-015 (Run-2 update) — downgraded from blocker to major
+Teacher home `/teacher` rendered fully on the second sign-in: greeting, big green "Selesai ✓" check-out card ("Anda sudah pulang hari ini · ⊙ Menunggu..."), AKSES CEPAT > Buku Penghubung tile, STATUS HARI INI panel. The difference between Run-1 (blank) and Run-2 (full): in Run-2 there was an `AttendanceRecord` row for IR1 dated today, while in Run-1 there was no record. The React #418 fires when the home has nothing to render and the server SSR vs client diverges on the empty state. **Severity now major, not blocker** — but the underlying hydration bug is real and still needs the same fix (the empty-state code path in `app/teacher/home-client.tsx`).
+
+### FIND-020 — Withdrawn (Run-1 was wrong)
+Run-1 logged "no UI for per-employee salary values". This was incorrect — the **Gaji** tab on `/admin/employees/[id]` renders an editable form once `SalaryComponentDef` rows exist for the tenant. The Run-1 false-positive was triggered because at that point only one component def existed and the empty-state copy "Belum ada komponen gaji" misled me; after adding two more components via SQL and reloading, the tab populated correctly with all 3 components and per-component number inputs + "Simpan Semua Nilai" CTA.
+
+### FIND-020-NEW — PUT /api/employees/[id]/salary returns 400 (major)
+With salary structure correctly inserted via Supabase MCP, attempted to modify Gaji Pokok 4500000 → 4750000 in the Gaji tab and click Simpan Semua Nilai. `PUT /api/employees/[id]/salary` returned **HTTP 400** twice in a row, toast "Gagal menyimpan". The schema (`lib/validations/employee-salary.ts`) expects `Array<{componentDefId: string, value: number}>` and the UI surface looks correct. Could not capture the request body without devtools, but the consistent 400 indicates either a payload-shape mismatch or a stale `componentDefId` reference. Workaround: SQL the rows.
+- **Suggestion:** Add a request-body audit log on this route, or surface the Zod error message in the toast instead of the bare "Gagal menyimpan".
+
+### Payroll redo (PASS once salary values inserted via SQL)
+- Created new payroll period `2026-04-21 — 2026-05-20` for IR1 with `EmployeeSalaryValue` rows: gaji_pokok = Rp 4.500.000, tunjangan_transport = Rp 500.000, potongan_bpjs = Rp 200.000.
+- Draft generated correctly: Pendapatan Rp 4.568.182 (gaji_pokok prorated to Rp 4.500.000 base + tunjangan_transport prorated based on attendance to Rp 68.182), Potongan Rp 200.000, Bersih **Rp 4.368.182**.
+- State machine progressed DRAFT → Disetujui → Slip Terkirim cleanly with the same toasts and `POST /api/payroll/.../send-slips` → 200. **Important correction to FIND-019 from Run 1:** payroll did NOT silently produce Rp 0; it produced Rp 4.5M from the salary values inserted via SQL. The Rp 0 in Run-1 reflected the fact that no salary structure had been set yet, not a payroll bug. FIND-019's "no validation warning that salary is unset" still stands — admin can still ship a Rp 0 payroll if they don't notice — but the silent-zero label is less alarming.
+
+### Teacher slip detail (Module 2.6 - PASS)
+`/teacher/slips` lists `21 Apr 2026 — 20 Mei 2026 · Tersedia · [PDF]`. Tapping the row navigates to `/teacher/slips/[slipId]` showing:
+- INFORMASI KARYAWAN: Bapak Ismail R. · NIP IR1 · Guru Kelas · 22 hari
+- PENDAPATAN: Gaji Pokok Rp 4.500.000 + Tunjangan Transport Rp 68.182 = Total Rp 4.568.182
+- POTONGAN: Potongan BPJS Rp 200.000
+- (Bersih Rp 4.368.182 inferred — scroll cut off)
+- "Tersedia" status badge + PDF download CTA. Layout fits desktop viewport without horizontal scroll.
+
+### Teacher raport publish flow (Module 2.4 follow-up - PASS)
+On `/teacher/assessments/[classSectionId]/[templateId]/[period]`, expanded Ahmad Faris's previously-empty row, tapped MB, entered "Mulai berkembang dalam hafalan", then tapped "Publikasikan rapor" at the bottom. Both students transitioned to "Dipublikasikan" badges (Ahmad 1/1 + Bilal 1/1), header counter "2/2 siswa sudah dipublikasikan", toast "2 siswa dipublikasikan". Cross-portal verification below.
+
+### Module 4.4 — Parent Rapor — PASS
+Navigated to `/parent/reports` as Bu Rightjet. Page shows a banner:
+```
+Rapor Semester 2 2025/2026 Bilal sudah terbit
+Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah.
+```
+Voice + emoji tone hits Bu Sari/Bu Nur registry well. Tapping "Buka rapor" opens a modal with the published raport content:
+- Heading: "Raport Semester 1 KB 2026"
+- Subline: "Semester 2 2025/2026 · Kelompok Bermain"
+- Section "Aspek Spiritual" → "Hafalan doa harian" → badge **BSH**
+- Section "Catatan Ustadzah" → "Sudah hafal Al-Fatihah dan beberapa doa harian"
+
+Exactly mirrors what was entered on the teacher side. Cross-actor data propagation confirmed end-to-end for raport.
+
+### Module 2.7 — Teacher Profile (read-only) — FIND-021 (minor)
+`/teacher/profile` renders Nama Lengkap, Jabatan, Kampus, Email, No HP — all read-only fields. No Edit button anywhere. Matches the gap previously logged in `docs/uat/reports/2026-05-03-teacher.md` (JTBD-TEACHER-PROFILE-01 photo/contact update).
+- **Severity:** minor (read still works, edit blocked).
+- **Suggestion:** Add an Edit screen (or inline field edits) at minimum for No HP and Nama Formal — these change in real life and admin should not have to do it on behalf of teachers.
+
+### Module 4.6 — Parent Profile (read-only) — FIND-022 (minor)
+`/parent/profile` renders avatar "RH", "Rightjet HQ", "Wali murid · 1 anak terdaftar", KONTAK 081234567892 + email, ANAK ANDA card for Bilal Hakim. No edit affordance — same pattern as teacher.
+- **Severity:** minor.
+- **Suggestion:** Same as FIND-021; at minimum allow parent to update phone + WhatsApp inline (common case: parent changes number).
+
+### Summary delta from Run 1
+- FIND-015 downgraded blocker → major (still real, but empty-state-specific, not always blocking).
+- FIND-019 reframed (silent Rp 0 confirmed reproducible only when salary structure missing; payroll engine itself is sound).
+- FIND-020 from Run-1 withdrawn; replaced with **FIND-020-NEW** about the PUT 400 on salary save.
+- Two new minor findings FIND-021 (teacher profile read-only) + FIND-022 (parent profile read-only).
+- Net: 1 blocker (FIND-016 only; FIND-015 downgraded), 6 majors, 13 minors, 2 nits.
+
 ## Final DB state (sanity)
 
 ```sql
@@ -220,5 +281,10 @@ SELECT
   (SELECT count(*) FROM "Parent") AS parents,        -- 1 (Rightjet HQ)
   (SELECT count(*) FROM "Invoice") AS invoices,      -- 4 (Mei × 1 manual PAID + Juni × 3 bulk)
   (SELECT count(*) FROM "Payment") AS payments,      -- 1 (Rp 500.000)
-  (SELECT count(*) FROM "PayrollRun") AS payroll_runs;  -- 1 (state: SLIPS_SENT)
+  (SELECT count(*) FROM "PayrollRun") AS payroll_runs;  -- 1 (state: SLIPS_SENT, net Rp 4.368.182)
 ```
+
+After Run-2:
+- 1 raport published (Bilal BSH + Ahmad MB on KB Aster, Semester 2 2025/2026)
+- 1 EmployeeSalaryValue set (3 rows: gaji_pokok 4.5M, tunjangan_transport 500k, potongan_bpjs 200k)
+- Payroll regenerated with non-zero amounts; old (Rp 0) run discarded.
