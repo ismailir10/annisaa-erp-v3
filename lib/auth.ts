@@ -3,6 +3,37 @@ import { createClient } from "./supabase/server";
 import { prisma } from "./db";
 import { getSystemRolePermissions } from "./permissions";
 
+/**
+ * Backfill Parent.email from a known User.email at session-resolve time.
+ *
+ * Background: F-7 from the 2026-05-13 staging E2E sweep — `Parent.email` is
+ * NULL for every Parent row on staging, while every signed-in guardian has
+ * a non-NULL `User.email`. Auth resolves via User.email; any feature that
+ * reads Parent.email silently breaks for these guardians. T3 ships a one-shot
+ * migration; this hook keeps newly-created or rolled-back records self-healing.
+ *
+ * Invariants:
+ *   - Only writes when `Parent.email IS NULL`. `updateMany` returns count=0
+ *     for already-healed rows; we never overwrite a non-NULL email.
+ *   - Never throws: a failed heal must not block session resolution. Errors
+ *     log to `[AUTH]` and the next signed request retries opportunistically.
+ *   - Caller filters role + presence of `parentId` + presence of `userEmail`,
+ *     so this helper does not re-validate them.
+ */
+export async function selfHealParentEmail(
+  parentId: string,
+  userEmail: string,
+): Promise<void> {
+  try {
+    await prisma.parent.updateMany({
+      where: { id: parentId, email: null },
+      data: { email: userEmail },
+    });
+  } catch (err) {
+    console.error("[AUTH] Parent.email self-heal failed", err);
+  }
+}
+
 // User row shape we cache — includes the optional customRole relation because
 // session resolution needs the role's permission JSON and code on every hit.
 type CachedUser = NonNullable<
@@ -301,6 +332,12 @@ async function _getSession(): Promise<SessionUser | null> {
     if (user.role === "GUARDIAN" && !parentId) {
       const parent = await prisma.parent.findFirst({ where: { email: user.email } });
       parentId = parent?.id ?? null;
+    }
+
+    // Self-heal F-7 (cycle 2026-05-13 staging-sweep-majors-cycle1). See
+    // selfHealParentEmail() docstring for behaviour + invariants.
+    if (parentId && user.role === "GUARDIAN" && user.email) {
+      await selfHealParentEmail(parentId, user.email);
     }
 
     // Fallback derivation in the rare case the cache entry wasn't populated

@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-05-12 (cycle uat-may12-fixes — seed parent email pattern changed; adapter unchanged).
+// Last verified: 2026-05-13 (cycle 2026-05-13-staging-sweep-majors-cycle1 — seed gained over-capacity invariant; adapter unchanged).
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

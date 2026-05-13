@@ -217,7 +217,11 @@ export default function EmployeesPage() {
       router.push(`/admin/employees/${emp.id}`);
     } else {
       const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal menambahkan");
+      // Surface the first field-level message from validateBody's `errors`
+      // array so users see "No. Rekening wajib diisi jika bank dipilih"
+      // instead of the generic "Validasi gagal" wrapper (F-10).
+      const fieldMessage = Array.isArray(d.errors) && d.errors[0]?.message;
+      toast.error(fieldMessage || d.error || "Gagal menambahkan");
     }
     setSaving(false);
   }

@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
       where: { tenantId: session.tenantId, status: "ACTIVE" },
       select: {
         id: true,
+        kode: true,
+        nama: true,
+        bankName: true,
+        bankAccountNo: true,
         salaryValues: { select: { componentDefId: true, value: true } },
         attendanceRecords: {
           where: { date: { gte: periodStart, lte: periodEnd } },
@@ -58,6 +62,32 @@ export async function POST(req: NextRequest) {
 
   if (!orgConfig) {
     return NextResponse.json({ error: "Org config not set" }, { status: 400 });
+  }
+
+  // F-10 (cycle 2026-05-13 staging-sweep-majors-cycle1) — pre-flight refuse
+  // payroll runs that would include any employee with bankName set but
+  // bankAccountNo blank, because that row would be emitted into the BSI
+  // bulk-export with an invalid/empty rekening. T5 stops new authoring at
+  // the form layer; this guard catches anyone already in that state from a
+  // pre-T5 record. Returns the offenders so the admin form can render an
+  // inline list with a CTA to fix each Karyawan.
+  const missingRekening = employees.filter(
+    (e) => typeof e.bankName === "string" && e.bankName.trim().length > 0 &&
+           (e.bankAccountNo === null || e.bankAccountNo.trim().length === 0),
+  );
+  if (missingRekening.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Beberapa karyawan belum memiliki No. Rekening lengkap",
+        employees: missingRekening.map((e) => ({
+          id: e.id,
+          kode: e.kode,
+          nama: e.nama,
+          reason: "rekening missing",
+        })),
+      },
+      { status: 422 },
+    );
   }
 
   const workingDays = parseWorkingDays(orgConfig.workingDays);
