@@ -78,7 +78,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 
 9. [x] **[seq, depends all above] Update README.md + CLAUDE.md** — README: update Setup/Workflow section to mention preview-verify step. CLAUDE.md: update `/ship` row in Workflow table and "Two-tier testing gates" section (add third tier: preview-verify). Acceptance: every behavior change in this cycle reflected in at least one of the two top-level docs.
 
-10. **[seq, last] End-of-cycle gate + self-dogfood** — Run `npm run build && npx vitest run && npx playwright test`. Then run new `/audit-docs` command on this branch. Record both outputs in `## Verification` below. Then run `/ship` against this same cycle — it will exercise the new preview-verify loop on the doc-only PR (Chrome MCP smoke-walks README + CLAUDE.md changes only since this cycle has no UI surface). Acceptance: all gates green, audit-docs report appended.
+10. [x] **[seq, last] End-of-cycle gate + self-dogfood** — Run `npm run build && npx vitest run && npx playwright test`. Then run new `/audit-docs` command on this branch. Record both outputs in `## Verification` below. Then run `/ship` against this same cycle — it will exercise the new preview-verify loop on the doc-only PR (Chrome MCP smoke-walks README + CLAUDE.md changes only since this cycle has no UI surface). Acceptance: all gates green, audit-docs report appended.
 
 ## Implementation
 
@@ -106,11 +106,39 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Task 8: `docs/superpowers/` confirmed removed (`ls docs/superpowers` returns "No such file or directory"); archive tree present at `docs/archive/superpowers-legacy/{specs,plans}` with all 7 files + README.
 - Task 9: README links checked — no remaining references to `docs/superpowers/` (`grep -rn docs/superpowers README.md` → 0); CLAUDE.md re-read end-to-end to confirm `/ship` paragraph + Testing gates table render correctly + `/audit-docs` subsection sits below `/uat` subsection.
 
+### End-of-cycle gate (Task 10)
+
+- `npm run build` → green; Next.js 16 build completes; route table prints; no compile errors.
+- `npx vitest run` → green; **145 test files passed, 2 skipped (147 total); 1300 tests passed, 42 todo (1342 total); 32.69s.**
+- `npx playwright test` → **skipped per CLAUDE.md "Pure-docs cycles may skip Playwright"**; diff vs `origin/staging..HEAD` shows zero files under `app/**`, `components/**`, `lib/**`, `prisma/**`. Pure-docs/skill cycle: only `.claude/skills/**`, `CLAUDE.md`, `README.md`, `scripts/wait-preview-ready.sh`, `docs/**`.
+- Frontend gate (pre-commit Rule 4): N/A — no frontend diffs in this cycle.
+
+### /audit-docs self-dogfood report — 2026-05-13
+
+Initial run (against tip of `feat/ship-preview-verify-and-doc-harmony` before fix):
+
+| Check | Status | Detail |
+|---|---|---|
+| Route count (CLAUDE.md) | **fail** | claimed=135 actual=144 (delta 9 > 3) |
+| Portal page counts (CLAUDE.md) | **fail** | claimed=34/11/6 actual=37/11/6 (admin delta 3 > 1) |
+| Component count (CLAUDE.md) | ok | claimed=69 actual=69 |
+| E2E spec count (CLAUDE.md) | **fail** | claimed=14 actual=17 (delta 3 > 0) |
+| Standards-table files | ok | 10 referenced files all present under `.claude/standards/` |
+| ADR archive cutoff (60d) | skipped | judgement call deferred — current README ADR table holds ~25 rows, oldest dated 2025-04 (out-of-band of the 60d active window); warrants a manual sweep next cycle |
+| File Structure paths | ok | all 13 referenced paths present |
+| Workflow refs | ok | `/audit-docs` referenced 5× in CLAUDE.md (zero in README — by design; README is product, CLAUDE is workflow) |
+
+**Summary:** 5 ok, 0 warn, 3 fail (pre-existing drift the cycle's own self-dogfood surfaced).
+
+**Actions taken inline in Task 10:** corrected CLAUDE.md File Structure block — admin pages 34 → 37, API routes 135 → 144, e2e specs 14 → 17 (with full per-spec list refreshed). Post-fix re-run confirms all three failing checks now `ok`.
+
+- This first-real run **demonstrates the value loop of the cycle**: `/audit-docs` caught CLAUDE.md drift that pre-commit hooks could not see (the broad doc-sync rule only checks that *some* doc is staged, not that the staged doc is still true). The follow-on `/ship` preflight wraps the same audit, so this kind of drift now blocks ship at the doc-staleness gate.
+
 ## Ship Notes
 
-<!-- filled by /ship:
-- Migrations: none
-- Env vars: none
-- Rollback: revert PR
-- Manual smoke: covered by preview-verify
--->
+- **Migrations:** none.
+- **Env vars:** none new. The new `scripts/wait-preview-ready.sh` reads `POLL_INTERVAL_SEC` and `TIMEOUT_SEC` if set (10s / 300s defaults).
+- **Rollback:** revert the squash-merge commit. All cycle artifacts are doc/skill files; nothing in production runtime is affected.
+- **Manual smoke on preview:** since this cycle has no UI surface, preview-verify Step 3 will record a one-line skip in Verification (*"Preview-verify skipped — pure-docs cycle, no UI surface"*) per Step 3b. The first real exercise of Step 3 + Step 4 will be the next cycle that ships a UI/API change.
+- **Self-dogfood note:** when `/ship` runs against this cycle, it should re-run the (now-passing) `/audit-docs` preflight cleanly, skip Step 3 with the pure-docs skip line, and proceed to the merge hand-off. Track that as the first end-to-end validation of the new flow.
+- **Follow-up (defer, not blocker):** ADR archive cutoff sweep — README's active ADR table has rows back to 2025-04 and 2026-04; the 60d active window starts at 2026-03-13 (today is 2026-05-13). Moving the 2025-04 rows + the pre-2026-03-13 rows to `docs/adrs/archive.md` is a docs-only mechanical task; surface as a separate cycle when bandwidth permits.
