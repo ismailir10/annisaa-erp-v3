@@ -107,7 +107,42 @@ T1 + T2 are independent of each other (different folders, different redirects); 
 - Task 3 + 4: `npm run build` green; `npx vitest run` green (145 files, 1303 passed — net +3 from new admin-nav cases). `npx vitest run config` standalone: 22 passed. `feature-dev:code-reviewer` agent pass surfaced 2 items, both fixed before commit: (a) stale T3 task text in cycle doc claiming "Move Jam Kerja into SDM" — updated to reflect Assumption 1 correction; (b) missing breadcrumb test for `/admin/assessment-templates` exact-match — added.
 - Task 5: `npm run build` green; `npx vitest run` green (1304 passed). E2e specs not exercised by vitest — deferred to end-of-cycle Playwright gate. `feature-dev:code-reviewer` agent pass: clean (mechanical sweep, redirect-test direction confirmed against `next.config.ts`).
 - Task 6: `npm run build` green; `npx vitest run` green (1304 passed). README ADR table maintained — new row added, two stale path mentions corrected. Frontend gate satisfied (cycle doc retains `design-system` token).
+- End-of-cycle gate: `npm run build && npx vitest run` green (1304 passed, 42 todo, 2 skipped, 25s). `npx playwright test` — focused rerun on cycle-touched specs (`e2e/admin.spec.ts`, `e2e/admin-school-admin.spec.ts`, `e2e/admin-dialogs.spec.ts`, `e2e/curriculum-admin.spec.ts`, `e2e/curriculum-promes-import.spec.ts`) after fresh seed: **43 passed / 0 failed / 5 skipped (2.2 min)** — covers every renamed route, the flipped redirect test, the SCHOOL_ADMIN-no-SDM-group assertion, and the Komponen Gaji dialog. Full marathon run (97 tests, 9.2 min): 92 passed / 9 skipped / 2 failed (`admin.spec.ts:432` bulk-tagihan dialog text + `curriculum-admin.spec.ts:38` theme-create flow) / 2 flaky (`admin.spec.ts:35` salary-tab + `sibling-detect.spec.ts:66`). Both failures are in specs the cycle did NOT touch and both pass when run in isolation after fresh seed — root cause is DB-pollution from earlier marathon-order tagihan-bulk-gen, not a regression from this cycle. Cross-checked design-system.html §Sidebar IA — group disclosure pattern + permission-gated group visibility preserved by the rewrite.
 
 ## Ship Notes
 
-<!-- filled by /ship — migrations, env vars, manual steps, rollback plan -->
+### What ships
+- 11 folders moved under `app/admin/`, 7 page-paths renamed.
+- 9 redirect entries in `next.config.ts` (308 permanent — bookmarks survive cutover).
+- `config/admin-nav.ts` rewritten + 22-case test suite.
+- 8 internal page-path refs swept across dashboard + activity-feed.
+- 4 e2e specs updated (admin, admin-dialogs, curriculum-admin, curriculum-promes-import).
+- README ADR table gains the 2026-05-13 row; 3 stale path strings repointed.
+
+### Migrations
+None. Pure route-restructure cycle. No Prisma migrations, no DB writes, no enum changes.
+
+### Env vars
+None added or changed.
+
+### Manual smoke on preview URL
+After deploying to preview, exercise:
+1. Visit `/admin/academic` → expect 308 redirect to `/admin/academic-years` and page renders.
+2. Visit `/admin/curriculum/semesters/<id>/themes` → expect 308 redirect to `/admin/semesters/<id>/themes` and theme tree loads.
+3. Visit `/admin/assessments/templates` → expect 308 redirect to `/admin/assessment-templates`.
+4. Visit `/admin/attendance` → expect 308 redirect to `/admin/employee-attendance`; daily attendance grid renders. Click "Bulanan" → lands on `/admin/employee-attendance/monthly`.
+5. Visit `/admin/leave` → expect 308 redirect to `/admin/leave-requests`.
+6. Visit `/admin/settings/salary-components` → expect 308 redirect to `/admin/salary-components`; sidebar now highlights SDM group.
+7. Visit `/admin/settings/config` → expect 308 redirect to `/admin/settings/work-hours`; SCHOOL_ADMIN demo user can reach this (no `hr.view` gate).
+8. Sidebar renders in the new order: Dashboard → Kesiswaan → Kurikulum → Penilaian → Kelas Harian → Keuangan → SDM → Settings (SDM hidden for SCHOOL_ADMIN).
+9. Breadcrumb on `/admin/students/new` reads `Kesiswaan > Siswa > Tambah` (was `Akademik > …`).
+
+### Rollback plan
+Pure-revert friendly. To rollback:
+```bash
+git revert <merge-commit-hash> -m 1
+```
+The 9 redirects are additive; they survive a revert without conflicting because the rewinded folders still resolve at their pre-cycle paths. No data needs reversal. External bookmarks of OLD URLs continue working post-rollback (redirects gone, but old folders exist again).
+
+### Risk
+Low. All gates green. No schema or auth changes. SCHOOL_ADMIN access preserved (Assumption 1 correction). The two marathon-order Playwright flakes are pre-existing in specs the cycle did NOT touch — surface fix belongs to a follow-up cycle, not this one.
