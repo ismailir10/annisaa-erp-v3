@@ -17,9 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  KategoriIndikatorBuilder,
+  EMPTY_CATEGORY,
+  type CategoryForm,
+} from "@/components/admin/assessments/KategoriIndikatorBuilder";
 import { toast } from "sonner";
-import { Plus, ClipboardList, Trash2, Power, PowerOff } from "lucide-react";
+import { Plus, ClipboardList, Power, PowerOff } from "lucide-react";
 
 // ------------------------------------------------------------------
 // Types
@@ -53,10 +57,6 @@ type Pagination = { page: number; pageSize: number; total: number; totalPages: n
 // ------------------------------------------------------------------
 
 const TYPE_LABELS: Record<string, string> = { SEMESTER: "Semester", QUARTERLY: "Kuartal", MONTHLY: "Bulanan" };
-
-type CategoryForm = { name: string; indicators: string[] };
-
-const EMPTY_CATEGORY: CategoryForm = { name: "", indicators: [""] };
 
 // ------------------------------------------------------------------
 // Columns
@@ -128,8 +128,13 @@ export default function AssessmentTemplatesPage() {
     categories: [{ ...EMPTY_CATEGORY }] as CategoryForm[],
   });
 
-  // Edit form (top-level only)
-  const [editForm, setEditForm] = useState({ name: "", type: "SEMESTER" });
+  // Edit form — categories included; the builder is locked client-side
+  // when the template already has assessments (see editLockNotice below).
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    type: string;
+    categories: CategoryForm[];
+  }>({ name: "", type: "SEMESTER", categories: [] });
 
   // ── Fetch programs once ────────────────────────────────────
   useEffect(() => {
@@ -228,13 +233,37 @@ export default function AssessmentTemplatesPage() {
   }
 
   // ── Edit ────────────────────────────────────────────────
+  const editLocked = (editTarget?._count.assessments ?? 0) > 0;
+
   async function handleEditSave() {
     if (!editTarget) return;
+    // Validate categories only when the builder is unlocked. Locked templates
+    // only send name + type.
+    if (!editLocked) {
+      for (const cat of editForm.categories) {
+        if (!cat.name.trim()) { toast.error("Nama kategori wajib diisi"); return; }
+        if (cat.indicators.length === 0) { toast.error("Minimal satu indikator per kategori"); return; }
+        for (const ind of cat.indicators) {
+          if (!ind.trim()) { toast.error("Deskripsi indikator wajib diisi"); return; }
+        }
+      }
+    }
     setSaving(true);
+    const payload: {
+      name: string;
+      type: string;
+      categories?: { name: string; indicators: string[] }[];
+    } = { name: editForm.name, type: editForm.type };
+    if (!editLocked) {
+      payload.categories = editForm.categories.map((cat) => ({
+        name: cat.name.trim(),
+        indicators: cat.indicators.map((i) => i.trim()),
+      }));
+    }
     const res = await fetch(`/api/assessments/templates/${editTarget.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) { const e = await res.json().catch(() => ({})); toast.error(e.error || "Gagal menyimpan"); setSaving(false); return; }
     toast.success("Template diperbarui");
@@ -258,36 +287,6 @@ export default function AssessmentTemplatesPage() {
     refreshAll();
   }
 
-  // ── Form helpers ────────────────────────────────────────
-  function addCategory() {
-    setCreateForm({ ...createForm, categories: [...createForm.categories, { ...EMPTY_CATEGORY }] });
-  }
-  function removeCategory(index: number) {
-    setCreateForm({ ...createForm, categories: createForm.categories.filter((_, i) => i !== index) });
-  }
-  function updateCategory(index: number, name: string) {
-    const cats = [...createForm.categories];
-    cats[index] = { ...cats[index], name };
-    setCreateForm({ ...createForm, categories: cats });
-  }
-  function addIndicator(catIndex: number) {
-    const cats = [...createForm.categories];
-    cats[catIndex] = { ...cats[catIndex], indicators: [...cats[catIndex].indicators, ""] };
-    setCreateForm({ ...createForm, categories: cats });
-  }
-  function removeIndicator(catIndex: number, indIndex: number) {
-    const cats = [...createForm.categories];
-    cats[catIndex] = { ...cats[catIndex], indicators: cats[catIndex].indicators.filter((_, i) => i !== indIndex) };
-    setCreateForm({ ...createForm, categories: cats });
-  }
-  function updateIndicator(catIndex: number, indIndex: number, value: string) {
-    const cats = [...createForm.categories];
-    const inds = [...cats[catIndex].indicators];
-    inds[indIndex] = value;
-    cats[catIndex] = { ...cats[catIndex], indicators: inds };
-    setCreateForm({ ...createForm, categories: cats });
-  }
-
   const columnsWithActions = useMemo<ColumnDef<AssessmentTemplate>[]>(
     () => [
       ...columns,
@@ -298,7 +297,19 @@ export default function AssessmentTemplatesPage() {
           const t = row.original;
           return (
             <DataTableRowActions
-              onEdit={() => { setEditTarget(t); setEditForm({ name: t.name, type: t.type }); }}
+              onEdit={() => {
+                setEditTarget(t);
+                setEditForm({
+                  name: t.name,
+                  type: t.type,
+                  categories: t.categories.length
+                    ? t.categories.map((c) => ({
+                        name: c.name,
+                        indicators: c.indicators.map((i) => i.description),
+                      }))
+                    : [{ ...EMPTY_CATEGORY }],
+                });
+              }}
               onDeactivate={t.isActive ? () => setDeactivateTarget(t) : undefined}
               onActivate={!t.isActive ? () => setDeactivateTarget(t) : undefined}
               isActive={t.isActive}
@@ -374,8 +385,7 @@ export default function AssessmentTemplatesPage() {
           </>
         }
       >
-        <ScrollArea className="max-h-[60vh] pr-2">
-          <div className="space-y-field">
+        <div className="space-y-field">
             <Field><FieldLabel required>Nama Template</FieldLabel><Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field>
@@ -398,33 +408,11 @@ export default function AssessmentTemplatesPage() {
               </Field>
             </div>
 
-            <div className="border-t pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Kategori & Indikator</span>
-                <Button size="sm" variant="outline" onClick={addCategory}><Plus size={12} className="mr-1" /> Kategori</Button>
-              </div>
-              {createForm.categories.map((cat, ci) => (
-                <div key={ci} className="border rounded-lg p-3 mb-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input className="flex-1" placeholder="Nama kategori" value={cat.name} onChange={(e) => updateCategory(ci, e.target.value)} />
-                    {createForm.categories.length > 1 && (
-                      <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => removeCategory(ci)}><Trash2 size={14} /></Button>
-                    )}
-                  </div>
-                  {cat.indicators.map((ind, ii) => (
-                    <div key={ii} className="flex items-center gap-2 pl-4">
-                      <Input className="flex-1 text-sm" placeholder={`Indikator ${ii + 1}`} value={ind} onChange={(e) => updateIndicator(ci, ii, e.target.value)} />
-                      {cat.indicators.length > 1 && (
-                        <Button size="sm" variant="ghost" className="text-destructive h-7 w-7 p-0" onClick={() => removeIndicator(ci, ii)}><Trash2 size={12} /></Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button size="sm" variant="ghost" className="ml-4 text-xs" onClick={() => addIndicator(ci)}>+ Indikator</Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </ScrollArea>
+            <KategoriIndikatorBuilder
+              value={createForm.categories}
+              onChange={(cats) => setCreateForm({ ...createForm, categories: cats })}
+            />
+        </div>
       </ResponsiveFormDialog>
 
       {/* Edit Dialog */}
@@ -453,11 +441,18 @@ export default function AssessmentTemplatesPage() {
           </Select>
         </Field>
         {editTarget && (
-          <div className="text-xs text-muted-foreground">
-            <p>Program: {editTarget.program.name}</p>
-            <p>{editTarget.categories.length} kategori, {editTarget.categories.reduce((s, c) => s + c.indicators.length, 0)} indikator</p>
-          </div>
+          <p className="text-xs text-muted-foreground">Program: {editTarget.program.name}</p>
         )}
+        <KategoriIndikatorBuilder
+          value={editForm.categories}
+          onChange={(cats) => setEditForm({ ...editForm, categories: cats })}
+          disabled={editLocked}
+          lockNotice={
+            editLocked
+              ? `Template ini sudah dipakai ${editTarget?._count.assessments ?? 0} penilaian. Nama dan tipe bisa diubah; struktur kategori dikunci untuk menjaga riwayat nilai.`
+              : undefined
+          }
+        />
       </ResponsiveFormDialog>
 
       {/* Confirm Dialog */}
