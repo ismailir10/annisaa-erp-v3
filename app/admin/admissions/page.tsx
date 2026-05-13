@@ -386,8 +386,11 @@ export default function AdmissionsPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, inquiry: 0, admitted: 0 });
 
-  // Stats fetch once
-  useEffect(() => {
+  // FIND-011: stat-cards were a one-shot useEffect on mount, so creating /
+  // converting / cancelling an admission left the KPI cards stale until the
+  // admin reloaded. Extract into a callable so every mutation handler can
+  // call it alongside `fetchAdmissions()`.
+  const fetchStats = useCallback(() => {
     Promise.all([
       fetch("/api/admissions?pageSize=1&status=INQUIRY").then(r => r.json()),
       fetch("/api/admissions?pageSize=1&status=ADMITTED").then(r => r.json()),
@@ -397,6 +400,7 @@ export default function AdmissionsPage() {
       setStats({ total: i + a, inquiry: i, admitted: a });
     }).catch((err) => console.error("[admissions] stats fetch failed", err));
   }, []);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -482,7 +486,7 @@ export default function AdmissionsPage() {
     const res = await fetch(`/api/admissions/${admissionId}/convert`, { method: "POST" });
     if (res.ok) {
       toast.success("Dikonversi menjadi siswa");
-      fetchAdmissions();
+      fetchAdmissions(); fetchStats();
     } else {
       const d = await res.json();
       toast.error(d.error || "Gagal konversi");
@@ -506,7 +510,7 @@ export default function AdmissionsPage() {
       toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran tercatat");
       setDialogOpen(false);
       setEditingAdmission(null);
-      fetchAdmissions();
+      fetchAdmissions(); fetchStats();
     } else {
       const d = await res.json();
       toast.error(d.error || "Gagal");
@@ -524,7 +528,7 @@ export default function AdmissionsPage() {
     });
     if (res.ok) {
       toast.success(`Status diubah ke ${next.label}`);
-      fetchAdmissions();
+      fetchAdmissions(); fetchStats();
     } else {
       const d = await res.json().catch(() => ({}));
       toast.error(d.error || "Gagal mengubah status");
@@ -538,7 +542,7 @@ export default function AdmissionsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "CANCELLED" }),
     });
-    if (res.ok) { toast.success("Pendaftaran dibatalkan"); setCancelTarget(null); fetchAdmissions(); }
+    if (res.ok) { toast.success("Pendaftaran dibatalkan"); setCancelTarget(null); fetchAdmissions(); fetchStats(); }
     else toast.error("Gagal membatalkan");
   }
 

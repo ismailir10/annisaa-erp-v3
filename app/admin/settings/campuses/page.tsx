@@ -18,7 +18,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Building2, MapPin, Plus, Pencil, Trash2, LocateFixed } from "lucide-react";
+import { Building2, MapPin, Plus, Pencil, Trash2, LocateFixed, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -31,6 +31,8 @@ type Campus = {
   _count: { employees: number };
 };
 
+type StatusFilter = "ACTIVE" | "INACTIVE";
+
 export default function CampusesPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,15 +41,34 @@ export default function CampusesPage() {
   const [form, setForm] = useState({ name: "", address: "", lat: "", lng: "" });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Campus | null>(null);
+  // FIND-004: surface deactivated campuses via an explicit filter so the
+  // admin can reactivate them without dropping into SQL.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
 
-  async function fetchCampuses() {
-    const res = await fetch("/api/config/campuses");
+  async function fetchCampuses(filter: StatusFilter = statusFilter) {
+    setLoading(true);
+    const res = await fetch(`/api/config/campuses?status=${filter}`);
     setCampuses(await res.json());
     setLoading(false);
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { fetchCampuses(); }, []);
+  useEffect(() => { fetchCampuses(statusFilter); }, [statusFilter]);
+
+  async function handleReactivate(c: Campus) {
+    const res = await fetch(`/api/config/campuses/${c.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ACTIVE" }),
+    });
+    if (res.ok) {
+      toast.success("Kampus diaktifkan kembali");
+      fetchCampuses(statusFilter);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || "Gagal mengaktifkan");
+    }
+  }
 
   function openNew() {
     setEditing(null);
@@ -127,6 +148,27 @@ export default function CampusesPage() {
         }
       />
 
+      {/* FIND-004: status filter — pre-fix deactivated campuses were
+          invisible + non-reactivatable from the UI. */}
+      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5 bg-muted/40">
+        <button
+          onClick={() => setStatusFilter("ACTIVE")}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+            statusFilter === "ACTIVE" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Aktif
+        </button>
+        <button
+          onClick={() => setStatusFilter("INACTIVE")}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+            statusFilter === "INACTIVE" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Tidak Aktif
+        </button>
+      </div>
+
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[1, 2].map((i) => (
@@ -134,13 +176,21 @@ export default function CampusesPage() {
           ))}
         </div>
       ) : campuses.length === 0 ? (
-        <EmptyState
-          icon={Building2}
-          title="Belum ada kampus"
-          description="Tambahkan lokasi kampus/cabang untuk mulai mengelola karyawan per kampus."
-          actionLabel="Tambah Kampus"
-          onAction={openNew}
-        />
+        statusFilter === "ACTIVE" ? (
+          <EmptyState
+            icon={Building2}
+            title="Belum ada kampus"
+            description="Tambahkan lokasi kampus/cabang untuk mulai mengelola karyawan per kampus."
+            actionLabel="Tambah Kampus"
+            onAction={openNew}
+          />
+        ) : (
+          <EmptyState
+            icon={Building2}
+            title="Tidak ada kampus nonaktif"
+            description="Semua kampus saat ini aktif."
+          />
+        )
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {campuses.map((c, i) => (
@@ -169,12 +219,22 @@ export default function CampusesPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={() => setDeleteTarget(c)} aria-label={`Nonaktifkan ${c.name}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+                    {statusFilter === "ACTIVE" ? (
+                      <>
+                        <button onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => setDeleteTarget(c)} aria-label={`Nonaktifkan ${c.name}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      // FIND-004: inactive rows expose a single reactivate
+                      // action; edit + delete don't apply to deactivated rows.
+                      <button onClick={() => handleReactivate(c)} aria-label={`Aktifkan kembali ${c.name}`} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors">
+                        <RotateCcw size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </Card>
