@@ -180,7 +180,11 @@ export const indicatorCreateSchema = z.object({
     .trim()
     .min(1, "Indikator (IKTP) wajib diisi")
     .max(2000, "Indikator (IKTP) terlalu panjang"),
-  order: z.number().int().min(1, "Urutan indikator harus ≥ 1"),
+  order: z
+    .number()
+    .int()
+    .min(1, "Urutan indikator harus ≥ 1")
+    .max(9999, "Urutan indikator tidak realistis"),
 });
 
 /**
@@ -216,7 +220,11 @@ export const indicatorAdminCreateSchema = z.object({
     .trim()
     .min(1, "Indikator (IKTP) wajib diisi")
     .max(2000, "Indikator (IKTP) terlalu panjang"),
-  order: z.number().int().min(1, "Urutan indikator harus ≥ 1"),
+  order: z
+    .number()
+    .int()
+    .min(1, "Urutan indikator harus ≥ 1")
+    .max(9999, "Urutan indikator tidak realistis"),
 });
 
 export const indicatorUpdateSchema = z.object({
@@ -226,7 +234,12 @@ export const indicatorUpdateSchema = z.object({
     .min(1, "Indikator (IKTP) wajib diisi")
     .max(2000, "Indikator (IKTP) terlalu panjang")
     .optional(),
-  order: z.number().int().min(1, "Urutan indikator harus ≥ 1").optional(),
+  order: z
+    .number()
+    .int()
+    .min(1, "Urutan indikator harus ≥ 1")
+    .max(9999, "Urutan indikator tidak realistis")
+    .optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 

@@ -461,6 +461,12 @@ describe("indicatorAdminCreateSchema", () => {
     ).toBe(false);
   });
 
+  it("rejects order > 9999", () => {
+    expect(
+      indicatorAdminCreateSchema.safeParse({ ...valid, order: 10000 }).success,
+    ).toBe(false);
+  });
+
   it("rejects content > 2000 chars", () => {
     expect(
       indicatorAdminCreateSchema.safeParse({
