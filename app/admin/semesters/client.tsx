@@ -214,6 +214,17 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
           >
             Kelola tema
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            render={
+              <Link
+                href={`/admin/semesters/${row.original.id}/objectives`}
+              />
+            }
+          >
+            Kelola IKTP
+          </Button>
           <DataTableRowActions
             onView={() => router.push(`/admin/semesters/${row.original.id}/themes`)}
             onEdit={canWrite ? () => openEdit(row.original) : undefined}
