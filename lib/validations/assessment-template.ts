@@ -21,6 +21,20 @@ export const updateAssessmentTemplateSchema = z.object({
   name: z.string().min(1, "Nama template wajib diisi").max(200).optional(),
   type: z.enum(["SEMESTER", "QUARTERLY", "MONTHLY"]).optional(),
   isActive: z.boolean().optional(),
+  // Categories are accepted only when the template has no published/draft
+  // student assessments — the PUT route rejects the field server-side
+  // otherwise to protect score history (StudentAssessmentScore cascades
+  // from AssessmentIndicator).
+  categories: z
+    .array(
+      z.object({
+        name: z.string().min(1, "Nama kategori wajib diisi").max(200),
+        indicators: z
+          .array(z.string().min(1, "Deskripsi indikator wajib diisi").max(500))
+          .min(1, "Minimal satu indikator per kategori"),
+      }),
+    )
+    .optional(),
 });
 
 // Score enum matches Kemendikbud PAUD grading: BB (Belum Berkembang),
