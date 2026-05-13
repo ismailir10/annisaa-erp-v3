@@ -60,6 +60,12 @@ export function TeacherHomeClient({
 
   // Live clock + mounted flag — both need the client to be active first.
   useEffect(() => {
+    // Intentional: flips `mounted` exactly once after first render so the
+    // time-derived rendering below produces stable HTML matching the SSR
+    // output (which had `mounted=false`). Without this flag, the FIND-015
+    // hydration mismatch fires on the empty-state path. This is the
+    // canonical React "wait for hydration" pattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
