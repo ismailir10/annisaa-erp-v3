@@ -38,18 +38,19 @@ Invoke `/caveman` and `/using-superpowers` by default. The `SessionStart` hook (
 - Commit (one commit per task, not per cycle)
 - After the **last task**: run the **end-of-cycle gate** + request code review, then fill Ship Notes
 
-**`/ship`** — opens a PR from `feat/*` → `staging` and stops. The author watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all three checks are green. **Both `cto` and `product-builder` use this — no direct pushes to `staging` or `main`.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only). Playwright must have passed (recorded in cycle doc Verification) before `/ship`.
+**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP with the user's signed-in Google session to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` print the merge hand-off — the author watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all checks are green. **Both `cto` and `product-builder` use this — no direct pushes to `staging` or `main`.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it. Playwright must have passed (recorded in cycle doc Verification) before `/ship`.
 
 ### Testing gates
 
-Two-tier — fast unit gate between every task, Playwright smoke once per cycle:
+Three-tier — fast unit gate between every task, Playwright smoke once per cycle, preview-verify on the open PR before merge hand-off:
 
-| Gate | Command | When |
+| Gate | Command / mechanism | When |
 |------|---------|------|
 | Between-task | `npm run build && npx vitest run` | Before every commit during `/build` |
 | End-of-cycle | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
+| Preview-verify | `/ship` Step 3 — Chrome MCP walks the Vercel preview against the user's Google session, classifies findings, fix-commits + re-verifies until clean | After `/ship` opens the PR, before the merge hand-off |
 
-**Why two tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches UI regressions without slowing iteration. **Pure-docs cycles may skip Playwright** — record the skip explicitly in Verification. Tests live in `e2e/` (7 specs); demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
+**Why three tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches headless UI regressions but cannot reach Google-OAuth-gated staging — preview-verify covers that surface with the user's real authenticated session. **Pure-docs cycles may skip Playwright + preview-verify** — record each skip explicitly in Verification. Tests live in `e2e/`; demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
 
 ### Standalone: `/uat` — heuristic user-acceptance testing
 
@@ -60,6 +61,14 @@ The command role-plays a fixed persona (Pak Budi, Bu Sari, Ibu Nur) through scri
 Reports are committed alongside the cycle that produced or consumed them. `/spec` reads the latest relevant report (60-day staleness rule) and surfaces blocker/major findings into the cycle Context. `/build` updates `docs/uat/jobs/<portal>.md` after any task that changes user-facing capability. Heuristic, not real UAT — an LLM persona cannot replicate thumb reach, sunlight glare, or emotional distrust.
 
 Personas: `.claude/personas/{pak-budi,bu-sari,ibu-nur}.md`. Skill: `.claude/skills/uat/SKILL.md`. Jobs library: [`docs/uat/jobs/{admin,teacher,parent}.md`](docs/uat/jobs/).
+
+### Standalone: `/audit-docs` — doc-staleness sweep
+
+`/audit-docs` is **not** part of the 3-step loop. Run on demand to catch long-tail drift the per-cycle pre-commit doc-sync gate cannot see: README route count, portal page counts, components count, e2e spec count, standards-table file existence, ADR 60d cutoff, File Structure paths, workflow refs.
+
+`/ship` invokes it automatically as preflight check #6 — any `fail` finding blocks PR open. The standalone invocation is useful between cycles to surface accumulated drift.
+
+Read-only against git. Output is appended to the active cycle doc's `## Verification` if one is open, else printed to stdout. Skill: `.claude/skills/audit-docs/SKILL.md`.
 
 ---
 
