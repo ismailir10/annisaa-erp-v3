@@ -63,10 +63,10 @@ Standards consulted: `.claude/standards/design-system.html` for the employee for
   Files: `prisma/migrations/20260513000000_backfill_parent_email_from_user/migration.sql`.
   Independent of T1, T5.
 
-- [ ] **T4 — OAuth login hook: self-heal Parent.email.**
-  Acceptance: in the existing `_getParentWithChildren` helper (`lib/auth.ts`), when a parent user signs in and the linked `Parent` row has `email IS NULL`, perform `prisma.parent.update({ where: { id: parentId, email: null }, data: { email: userEmail } })` within the existing tenant filter. Unit test in `lib/__tests__/auth-parent-email-heal.test.ts` covers the NULL→filled case + the already-filled case (no-op) + the no-User-email case (no-op, no throw).
+- [x] **T4 — OAuth login hook: self-heal Parent.email.**
+  Acceptance: extracted `selfHealParentEmail(parentId, userEmail)` from `lib/auth.ts` (`getSession` flow) — calls `prisma.parent.updateMany({ where: { id: parentId, email: null }, data: { email: userEmail } })` so already-healed rows are no-ops via `count=0` and never overwrite a non-NULL email. Helper swallows prisma errors and logs `[AUTH] Parent.email self-heal failed` — a failed heal must never break session resolution. Called once per GUARDIAN session resolve when `parentId && user.email` both set; the cheaper non-GUARDIAN paths skip it entirely. Tests in `lib/__tests__/auth-parent-email-heal.test.ts` cover write, no-op, throw-swallow.
   Files: `lib/auth.ts`, `lib/__tests__/auth-parent-email-heal.test.ts`.
-  Depends on T3 (the migration must have run before the helper can rely on the column being writable in production).
+  Depends on T3 (column behaviour relies on the migration having run).
 
 - [ ] **T5 — Karyawan form: Rekening required when Bank set, both layers.**
   Acceptance: `lib/validations/employee.ts` schema uses zod `superRefine` to reject `bank: string, rekening: empty`. Client form (`components/admin/employees/employee-form.tsx` — or wherever it lives) surfaces the error inline under the Rekening field. Server route `POST/PATCH /api/employees/[id]` returns 422 with `errors.rekening`. Vitest in `lib/validations/__tests__/employee.test.ts` covers both directions: bank-only fails, bank+rekening passes, rekening-only fails. Cross-checks `.claude/standards/design-system.html §Form-Field` for error placement.
