@@ -19,8 +19,8 @@ export function QuickActions({
       : []),
     ...(canSeeHr
       ? [
-          { label: "Lihat Kehadiran", href: "/admin/attendance", icon: ClipboardList },
-          { label: "Pengajuan Cuti", href: "/admin/leave", icon: CalendarOff },
+          { label: "Lihat Kehadiran", href: "/admin/employee-attendance", icon: ClipboardList },
+          { label: "Pengajuan Cuti", href: "/admin/leave-requests", icon: CalendarOff },
           { label: "Tambah Karyawan", href: "/admin/employees?create=1", icon: UserPlus },
         ]
       : []),

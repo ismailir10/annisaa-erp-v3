@@ -108,7 +108,7 @@ test.describe("Admin curriculum — PROMES import", () => {
     const filename = "PROMES TK A SMT 1.xlsx";
 
     await page.goto(
-      `/admin/curriculum/semesters/${semesterId}/import`,
+      `/admin/semesters/${semesterId}/import`,
     );
 
     // Stage 1 — upload form.
@@ -152,7 +152,7 @@ test.describe("Admin curriculum — PROMES import", () => {
     ).toBeVisible({ timeout: 15_000 });
     // Redirect lands on the /themes page.
     await expect(page).toHaveURL(
-      new RegExp(`/admin/curriculum/semesters/${semesterId}/themes`),
+      new RegExp(`/admin/semesters/${semesterId}/themes`),
     );
   });
 
@@ -165,7 +165,7 @@ test.describe("Admin curriculum — PROMES import", () => {
     const filename = "PROMES TK A SMT 1.xlsx";
 
     await page.goto(
-      `/admin/curriculum/semesters/${semesterId}/import`,
+      `/admin/semesters/${semesterId}/import`,
     );
     await expect(
       page.getByRole("heading", { name: /Impor PROMES/i }),

@@ -386,5 +386,5 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
 Add these once Bu Lina (`SCHOOL_ADMIN`) persona exists. They verify the role split holds — they are **access-control smoke tests**, not timed JTBDs, and `/uat` grades them on "expected 403 received" rather than page-load thresholds.
 
 - **`JTBD-ADMIN-PAY-02`** — `SCHOOL_ADMIN` → `/admin/payroll` returns 403; sidebar does not show Payroll; `GET /api/employees` response has salary fields stripped
-- **`JTBD-ADMIN-SET-SALCOMP-02`** — `SCHOOL_ADMIN` → `/admin/settings/salary-components` returns 403
+- **`JTBD-ADMIN-SET-SALCOMP-02`** — `SCHOOL_ADMIN` → `/admin/salary-components` returns 403
 - **`JTBD-ADMIN-EMP-SAL-02`** — `SCHOOL_ADMIN` opens employee detail; salary section is absent (not just hidden via CSS)

@@ -25,7 +25,7 @@ export function PendingActions({
       <div className="flex-1 space-y-3">
         {canSeeLeave && (
           <Link
-            href="/admin/leave"
+            href="/admin/leave-requests"
             className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors"
           >
             <div className="flex items-center gap-3">

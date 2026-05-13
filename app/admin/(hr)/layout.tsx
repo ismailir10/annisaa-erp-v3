@@ -3,7 +3,8 @@ import { assertPermission } from "@/lib/auth-guards";
 /**
  * HR route-group gate.
  *
- * Wraps `employees`, `payroll`, `attendance`, and `leave` admin pages.
+ * Wraps `employees`, `payroll`, `employee-attendance`, `leave-requests`,
+ * and `salary-components` admin pages.
  * `(hr)` is a route group (parentheses) — it is invisible in the URL, so
  * `/admin/employees` still resolves. The single `assertPermission("hr.view")`
  * call here replaces per-page role checks: users lacking `hr.view` are

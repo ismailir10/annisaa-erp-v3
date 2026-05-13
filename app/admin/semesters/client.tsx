@@ -210,12 +210,12 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
           <Button
             size="sm"
             variant="outline"
-            render={<Link href={`/admin/curriculum/semesters/${row.original.id}/themes`} />}
+            render={<Link href={`/admin/semesters/${row.original.id}/themes`} />}
           >
             Kelola tema
           </Button>
           <DataTableRowActions
-            onView={() => router.push(`/admin/curriculum/semesters/${row.original.id}/themes`)}
+            onView={() => router.push(`/admin/semesters/${row.original.id}/themes`)}
             onEdit={canWrite ? () => openEdit(row.original) : undefined}
             onDeactivate={
               canWrite && row.original.status === "ACTIVE"

@@ -206,7 +206,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       toast.success(
         `PROMES berhasil diimpor: ${objectives} tujuan pembelajaran, ${indicators} indikator.`,
       );
-      router.push(`/admin/curriculum/semesters/${semester.id}/themes`);
+      router.push(`/admin/semesters/${semester.id}/themes`);
       router.refresh();
     } catch (err) {
       setFormError(
@@ -229,7 +229,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
     <div className="space-y-section">
       <div>
         <Link
-          href={`/admin/curriculum/semesters/${semester.id}/themes`}
+          href={`/admin/semesters/${semester.id}/themes`}
           className="inline-flex items-center gap-1 text-small text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" /> Kembali ke{" "}

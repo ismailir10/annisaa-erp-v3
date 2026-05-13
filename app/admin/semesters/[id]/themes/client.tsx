@@ -106,7 +106,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
     <div className="space-y-section">
       <div>
         <Link
-          href="/admin/curriculum/semesters"
+          href="/admin/semesters"
           className="inline-flex items-center gap-1 text-small text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" /> Kembali ke daftar semester
@@ -120,7 +120,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
           <div className="flex items-center gap-2">
             {canWrite && (
               <Link
-                href={`/admin/curriculum/semesters/${semester.id}/import`}
+                href={`/admin/semesters/${semester.id}/import`}
                 className="inline-flex items-center gap-2 h-9 rounded-md border border-input bg-background px-3 text-small font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
               >
                 <FileUp className="size-4" /> Impor PROMES
