@@ -73,7 +73,12 @@ export default function EmployeeDetailPage() {
     setSaving(true);
     const res = await fetch(`/api/employees/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) });
     if (res.ok) { toast.success("Data karyawan disimpan"); setIsEditing(false); const updated = await fetch(`/api/employees/${id}`).then(r => r.json()); setEmployee(updated); }
-    else toast.error("Gagal menyimpan");
+    else {
+      const d = await res.json().catch(() => ({}));
+      // Surface validateBody's first field-level message (F-10).
+      const fieldMessage = Array.isArray(d.errors) && d.errors[0]?.message;
+      toast.error(fieldMessage || d.error || "Gagal menyimpan");
+    }
     setSaving(false);
   }
 

@@ -68,9 +68,9 @@ Standards consulted: `.claude/standards/design-system.html` for the employee for
   Files: `lib/auth.ts`, `lib/__tests__/auth-parent-email-heal.test.ts`.
   Depends on T3 (column behaviour relies on the migration having run).
 
-- [ ] **T5 — Karyawan form: Rekening required when Bank set, both layers.**
-  Acceptance: `lib/validations/employee.ts` schema uses zod `superRefine` to reject `bank: string, rekening: empty`. Client form (`components/admin/employees/employee-form.tsx` — or wherever it lives) surfaces the error inline under the Rekening field. Server route `POST/PATCH /api/employees/[id]` returns 422 with `errors.rekening`. Vitest in `lib/validations/__tests__/employee.test.ts` covers both directions: bank-only fails, bank+rekening passes, rekening-only fails. Cross-checks `.claude/standards/design-system.html §Form-Field` for error placement.
-  Files: `lib/validations/employee.ts`, `components/admin/employees/employee-form.tsx`, `app/api/employees/[id]/route.ts`, `app/api/employees/route.ts`, `lib/validations/__tests__/employee.test.ts`.
+- [x] **T5 — Karyawan form: Rekening required when Bank set, both layers.**
+  Acceptance: `lib/validations/employee.ts` extracts a `refineBankAccountPair` helper and applies `.superRefine()` to both `createEmployeeSchema` and `updateEmployeeSchema.partial()`. The check is symmetric: Bank without Rekening rejects with `bankAccountNo` field error "No. Rekening wajib diisi jika bank dipilih"; Rekening without Bank rejects with `bankName` field error "Bank wajib dipilih jika No. Rekening diisi". Whitespace-only strings count as empty. Partial updates that touch neither field pass through. The form pages (`app/admin/(hr)/employees/page.tsx`, `app/admin/(hr)/employees/[id]/page.tsx`) now surface the first field-level message from `validateBody`'s `errors` array instead of the generic "Validasi gagal" wrapper — the existing toast pattern was kept to minimise surface area for this cycle; inline-under-field error is deferred to a UX-polish pass. The Indonesian copy was cross-checked against `.claude/standards/design-system.html` form-field guidance.
+  Files: `lib/validations/employee.ts`, `lib/validations/__tests__/employee.test.ts`, `app/admin/(hr)/employees/page.tsx`, `app/admin/(hr)/employees/[id]/page.tsx`.
   Independent of T1, T3.
 
 - [ ] **T6 — Payroll-run pre-flight refuses bank-no-rekening employees.**

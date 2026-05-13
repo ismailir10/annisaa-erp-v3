@@ -12,6 +12,88 @@ import {
   employeeStatusReasonSchema,
 } from "@/lib/validations/employee";
 
+const baseCreate = {
+  nama: "Ismail Teacher Test",
+  email: "ismail10rabbanii@gmail.com",
+  jabatan: "Guru Kelas",
+  campusId: "c1",
+  hireDate: "2026-05-13",
+};
+
+describe("createEmployeeSchema — F-10 bank/rekening pair invariant", () => {
+  it("accepts both fields empty", () => {
+    expect(createEmployeeSchema.safeParse(baseCreate).success).toBe(true);
+  });
+
+  it("accepts both fields populated", () => {
+    expect(
+      createEmployeeSchema.safeParse({
+        ...baseCreate,
+        bankName: "Bank BSI",
+        bankAccountNo: "1234567890",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects Bank without Rekening with field-level error on bankAccountNo", () => {
+    const result = createEmployeeSchema.safeParse({
+      ...baseCreate,
+      bankName: "Bank BSI",
+      bankAccountNo: "",
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issue = result.error.issues.find((i) => i.path.join(".") === "bankAccountNo");
+    expect(issue?.message).toBe("No. Rekening wajib diisi jika bank dipilih");
+  });
+
+  it("rejects Rekening without Bank with field-level error on bankName", () => {
+    const result = createEmployeeSchema.safeParse({
+      ...baseCreate,
+      bankName: null,
+      bankAccountNo: "1234567890",
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issue = result.error.issues.find((i) => i.path.join(".") === "bankName");
+    expect(issue?.message).toBe("Bank wajib dipilih jika No. Rekening diisi");
+  });
+
+  it("treats whitespace-only strings as empty (Bank set, Rekening blank)", () => {
+    const result = createEmployeeSchema.safeParse({
+      ...baseCreate,
+      bankName: "Bank BSI",
+      bankAccountNo: "   ",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateEmployeeSchema — F-10 bank/rekening pair invariant on partial updates", () => {
+  it("accepts a partial update that touches neither field", () => {
+    expect(updateEmployeeSchema.safeParse({ nama: "Renamed" }).success).toBe(true);
+  });
+
+  it("accepts a partial update setting both fields together", () => {
+    expect(
+      updateEmployeeSchema.safeParse({
+        bankName: "Bank BSI",
+        bankAccountNo: "1234567890",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects a partial update setting Bank without Rekening", () => {
+    expect(updateEmployeeSchema.safeParse({ bankName: "Bank BSI" }).success).toBe(false);
+  });
+
+  it("rejects a partial update setting Rekening without Bank", () => {
+    expect(
+      updateEmployeeSchema.safeParse({ bankAccountNo: "1234567890" }).success,
+    ).toBe(false);
+  });
+});
+
 describe("updateEmployeeSchema — F-13 status guard", () => {
   it("strips a `status` field from the parsed output", () => {
     const r = updateEmployeeSchema.safeParse({
