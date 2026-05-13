@@ -1,13 +1,14 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { TeacherHomeClient } from "./home-client";
 
 export default async function TeacherHome() {
   const session = await getSession();
   if (!session || session.role !== "TEACHER") redirect("/");
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getTodayInTimezone("Asia/Jakarta");
 
   const todayRecord = session.employeeId
     ? await prisma.attendanceRecord.findUnique({

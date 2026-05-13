@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
   const toPromote = enrollments.filter((e) => !excluded.has(e.studentId));
   const skipped = enrollments.length - toPromote.length;
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getTodayInTimezone("Asia/Jakarta");
 
   // Transaction: lock target section, re-check capacity, graduate old
   // enrollments, upsert new ones. `SELECT … FOR UPDATE OF cs` on ClassSection

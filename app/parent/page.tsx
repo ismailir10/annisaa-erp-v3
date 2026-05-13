@@ -8,28 +8,42 @@ import { getParentOutstandingForStudents, getParentWithChildren } from "@/lib/pa
 import { prisma } from "@/lib/db";
 import { formatRupiah, formatDate } from "@/lib/format";
 import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
+import { getYmdInTimezone } from "@/lib/attendance/timezone";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
-}
+const JAKARTA_TZ = "Asia/Jakarta";
 
 function ymd(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return getYmdInTimezone(d, JAKARTA_TZ);
 }
 
-/** Mon-Fri YYYY-MM-DD strings for the local week containing `now`. */
+/**
+ * Mon-Fri YYYY-MM-DD strings for the Jakarta-local week containing `now`.
+ * Anchored on the WIB calendar day, not the server's UTC day — without this
+ * a request arriving between 17:00-23:59 UTC (= 00:00-06:59 WIB next day)
+ * would compute Monday off the wrong base date.
+ */
 function thisWeekDates(now: Date = new Date()): string[] {
-  const day = now.getDay(); // 0=Sun..6=Sat
+  // Anchor to WIB-local midnight by parsing the YMD string back through Date.
+  const todayYmd = getYmdInTimezone(now, JAKARTA_TZ); // e.g. "2026-05-14"
+  const [yearStr, monthStr, dayStr] = todayYmd.split("-");
+  // Construct a UTC date for the WIB calendar day at noon — noon avoids
+  // both DST boundaries (n/a here) and any sub-day timezone-shift surprises.
+  const anchor = new Date(Date.UTC(
+    Number(yearStr),
+    Number(monthStr) - 1,
+    Number(dayStr),
+    12, 0, 0,
+  ));
+  const day = anchor.getUTCDay(); // 0=Sun..6=Sat — same in any TZ because anchor is at noon UTC
   const offsetToMon = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + offsetToMon);
+  const monday = new Date(anchor);
+  monday.setUTCDate(anchor.getUTCDate() + offsetToMon);
   const out: string[] = [];
   for (let i = 0; i < 5; i += 1) {
     const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    out.push(ymd(d));
+    d.setUTCDate(monday.getUTCDate() + i);
+    out.push(getYmdInTimezone(d, JAKARTA_TZ));
   }
   return out;
 }

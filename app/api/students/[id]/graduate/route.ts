@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function POST(
   req: NextRequest,
@@ -39,7 +40,7 @@ export async function POST(
     return NextResponse.json({ error: "Siswa tidak memiliki enrollment aktif" }, { status: 400 });
   }
 
-  const effectiveDate = graduationDate || new Date().toISOString().split("T")[0];
+  const effectiveDate = graduationDate || getTodayInTimezone("Asia/Jakarta");
 
   // Transaction: update student status + graduate all active enrollments
   const updatedStudent = await prisma.$transaction(async (tx) => {

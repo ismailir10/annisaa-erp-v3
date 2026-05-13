@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireGuardianForStudent } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function GET(
   req: NextRequest,
@@ -26,7 +27,7 @@ export async function GET(
     }
     ws = weekStartParam;
   } else {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayInTimezone("Asia/Jakarta");
     ws = weekStart(today);
   }
 
