@@ -16,6 +16,8 @@ import {
   BookOpen,
   BookMarked,
   ClipboardList,
+  ClipboardCheck,
+  NotebookPen,
   Palette,
   type LucideIcon,
 } from "lucide-react";
@@ -55,30 +57,14 @@ export const adminNav: NavConfig = {
 
   groups: [
     {
-      id: "hr",
-      label: "SDM",
-      icon: Users,
-      permission: "hr.view",
-      items: [
-        { label: "Karyawan", href: "/admin/employees", icon: Users },
-        { label: "Kehadiran", href: "/admin/attendance", icon: CalendarCheck },
-        { label: "Pengajuan Cuti", href: "/admin/leave", icon: CalendarOff },
-        { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
-      ],
-    },
-    {
-      id: "academic",
-      label: "Akademik",
+      id: "students",
+      label: "Kesiswaan",
       icon: GraduationCap,
       items: [
-        { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
         { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
-        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
-        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
-        { label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen },
       ],
     },
     {
@@ -87,16 +73,27 @@ export const adminNav: NavConfig = {
       icon: BookMarked,
       permission: "curriculum.read",
       items: [
-        { label: "Semester", href: "/admin/curriculum/semesters", icon: CalendarDays, permission: "curriculum.read" },
+        { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
+        { label: "Semester", href: "/admin/semesters", icon: CalendarDays, permission: "curriculum.read" },
+        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
       ],
     },
     {
-      id: "learning",
+      id: "assessment",
       label: "Penilaian",
       icon: ClipboardList,
       items: [
-        { label: "Template Penilaian", href: "/admin/assessments/templates", icon: ClipboardList },
-        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
+        { label: "Template Penilaian", href: "/admin/assessment-templates", icon: ClipboardList },
+        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardCheck },
+      ],
+    },
+    {
+      id: "classroom",
+      label: "Kelas Harian",
+      icon: NotebookPen,
+      items: [
+        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
+        { label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen },
       ],
     },
     {
@@ -108,21 +105,28 @@ export const adminNav: NavConfig = {
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
       ],
     },
+    {
+      id: "hr",
+      label: "SDM",
+      icon: Users,
+      permission: "hr.view",
+      items: [
+        { label: "Karyawan", href: "/admin/employees", icon: Users },
+        { label: "Kehadiran", href: "/admin/employee-attendance", icon: CalendarCheck },
+        { label: "Pengajuan Cuti", href: "/admin/leave-requests", icon: CalendarOff },
+        { label: "Komponen Gaji", href: "/admin/salary-components", icon: Coins, permission: "hr.view" },
+        { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
+      ],
+    },
   ],
 
   settings: [
     { label: "Kampus", href: "/admin/settings/campuses", icon: Building2 },
-    { label: "Jam Kerja", href: "/admin/settings/config", icon: Clock },
+    { label: "Jam Kerja", href: "/admin/settings/work-hours", icon: Clock },
     {
       label: "Hari Libur",
       href: "/admin/settings/holidays",
       icon: CalendarDays,
-    },
-    {
-      label: "Komponen Gaji",
-      href: "/admin/settings/salary-components",
-      icon: Coins,
-      permission: "hr.view",
     },
     { label: "Pengguna", href: "/admin/settings/users", icon: Users },
     { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield },
