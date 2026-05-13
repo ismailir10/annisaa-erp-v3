@@ -66,7 +66,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 
 3. [x] **[indep] Wire seed-via-CRUD playbook** — Append a section to `.claude/skills/ship/SKILL.md` titled "Seed-via-CRUD playbook". Table: cycle scope keyword → required fixtures → admin pages to walk. Examples: invoice/billing → create student → enroll → generate invoice; assessment/raport → create class → enroll students → enter scores. Acceptance: section exists, table covers at least 5 common scopes.
 
-4. **[seq, depends 2,3] Add C+ preview-verify step to `/ship`** — Edit `.claude/skills/ship/SKILL.md`. New section "Step 3: Preview verification (C+)" inserted between current Step 2 (open PR) and current hand-off step. Algorithm: call `wait-preview-ready.sh`, then Chrome MCP login, then seed-via-CRUD per playbook, then walk Implementation-derived flows, then classify findings. Acceptance: section reads as runnable algorithm with explicit Chrome MCP tool names.
+4. [x] **[seq, depends 2,3] Add C+ preview-verify step to `/ship`** — Edit `.claude/skills/ship/SKILL.md`. New section "Step 3: Preview verification (C+)" inserted between current Step 2 (open PR) and current hand-off step. Algorithm: call `wait-preview-ready.sh`, then Chrome MCP login, then seed-via-CRUD per playbook, then walk Implementation-derived flows, then classify findings. Acceptance: section reads as runnable algorithm with explicit Chrome MCP tool names.
 
 5. **[seq, depends 4] Add fix-loop orchestration to `/ship`** — Same file, new section "Step 4: Fix loop". Algorithm: while blockers > 0, edit code, commit `fix(<scope>): <one-line>` with hooks active, push, re-run Step 3. Every 3 iterations, AskUserQuestion to escalate. Acceptance: pseudocode shows the loop, escalation trigger, and clean-exit handoff.
 
@@ -87,12 +87,14 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Task 1: Add `/audit-docs` standalone skill — created `.claude/skills/audit-docs/SKILL.md` — 8 checks (route count, portal pages, components, e2e specs, standards-table file existence, ADR 60d cutoff, File Structure paths, workflow refs); report written to active cycle doc Verification or stdout; read-only against git.
 - Task 2: Vercel preview-ready wait helper — created `scripts/wait-preview-ready.sh` — polls `gh pr view <PR>` for Vercel bot comment + deployment status; 10s interval, 5min cap; AI within /ship prefers Vercel MCP `get_deployment`, this script is the CLI fallback.
 - Task 3: Seed-via-CRUD playbook — appended new "Seed-via-CRUD playbook" section to `.claude/skills/ship/SKILL.md` — 9-row table mapping cycle scope keywords (invoice/billing, assessment/raport, salary/payroll, attendance, admission, teaching-assignment, parent-portal, teacher-portal, auth, branding) → fixture chains → admin pages to walk; rules forbid escalation and prefer reusing existing fixtures.
+- Task 4: C+ preview-verify Step 3 — added new "Step 3: Preview verification (C+ via Chrome MCP)" to `.claude/skills/ship/SKILL.md`; modified Step 2 to defer hand-off; renamed legacy Step 3 → Step 5. Subsections: 3a wait for preview ready (Vercel MCP preferred, scripts/wait-preview-ready.sh fallback); 3b derive 2-4 flows from cycle Implementation; 3c seed via UI CRUD; 3d walk flows + capture (Chrome MCP navigate/click/screenshot/console/network); 3e classify findings (blocker vs minor with explicit rules); 3f emit results to cycle doc Verification + PR comment.
 
 ## Verification
 
 - Task 1: between-task gate skipped (pure-docs/skill task — no TS or test files touched); manual lint of `.claude/skills/audit-docs/SKILL.md` confirms frontmatter valid + bash blocks syntactically correct.
 - Task 2: `bash -n scripts/wait-preview-ready.sh` → syntax ok; executable bit set; smoke against a live PR deferred to /ship-time invocation (T10 dogfood).
 - Task 3: Playbook covers 9 scope categories (≥5 acceptance met); admin paths cross-checked against `ls app/admin/` snapshot — all 9 admin route prefixes referenced exist on disk.
+- Task 4: Step 3 algorithm references explicit Chrome MCP tool names (`navigate`, `read_console_messages`, `read_network_requests`, `read_page`, `left_click`, `form_input`, `screenshot`) and the Vercel MCP `get_deployment` tool name with the fallback script path; renumber and Step 2 deferral verified by reading the updated file end-to-end.
 
 ## Ship Notes
 

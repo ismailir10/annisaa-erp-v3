@@ -93,19 +93,11 @@ BODY
    PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
    ```
 
-4. **Stop and hand off to the user.** Do not invoke `gh pr merge`. Print the PR URL followed by exactly these two commands, with the real PR number substituted:
+4. **Announce, then proceed to preview verification.** Do not print the merge hand-off here — that lives in **Step 5** after the preview-verify loop clears. Print one line so the user can follow the PR while verification runs:
    ```
-   PR opened: $PR_URL
-
-   Watch CI live:
-     gh pr checks $PR_NUMBER --watch
-
-   Merge when all four checks (build, typecheck, test, e2e) are green:
-     gh pr merge $PR_NUMBER --squash --delete-branch
-
-   Staging auto-deploys to the Vercel preview within ~60s of merge.
+   PR opened: $PR_URL — proceeding to preview verification (Step 3).
    ```
-   Exit after printing. The user is responsible for waiting for green and running the merge command themselves.
+   Then fall through to **Step 3**. (For `--to-main`, skip Steps 3 and 4 entirely and go straight to Step 5: staging → main is already verified by the individual feat → staging PRs that built it.)
 
 ## Step 2 (--to-main): promote staging → main
 
@@ -167,9 +159,104 @@ BODY
    ```
    Exit after printing. Do not proceed past Step 2. The CTO is responsible for waiting for green and running the merge command themselves.
 
-## Step 3: Post-ship checklist
+## Step 3: Preview verification (C+ via Chrome MCP)
 
-Print (don't execute — just remind the user):
+`/ship --to-main` skips this entire step — go to Step 5. For the default flow, run every check here before the merge hand-off in Step 5.
+
+**Goal:** catch ugliness or bugs on the Vercel preview before the user merges. Headless Playwright in CI cannot exercise the preview because staging gates on Google sign-in; Chrome MCP can, because it operates the user's already-signed-in Chrome profile.
+
+### 3a. Wait for preview ready
+
+Prefer the Vercel MCP tool over the CLI fallback:
+
+1. **Vercel MCP preferred:** call `mcp__2037f9b7-455d-46a1-965a-fe464b218823__get_deployment` with the feature branch (`$FEAT_BRANCH`) or the head SHA. Loop with 10s sleep until `state == READY` (or terminal-fail). Cap at 5 minutes. Capture `url` (the preview URL).
+2. **CLI fallback:** `bash scripts/wait-preview-ready.sh $PR_NUMBER`. Exit 0 prints the URL on stdout.
+
+If both fail after 5 minutes, stop and tell the user: *"Preview did not become ready in 5 minutes — investigate `vercel deployments list` or the Vercel dashboard."* Do not proceed.
+
+### 3b. Derive flows from the cycle doc
+
+Read the current cycle's `## Implementation` section. Extract every distinct page route, API route, or admin module referenced in task bullets. Build a flow list:
+
+- **For each user-facing page** mentioned: open it, screenshot, verify primary CTAs render, click each visible primary CTA once, capture results.
+- **For each admin module** mentioned: walk list → detail → edit → save, observing console + network at every step.
+- **For each portal** mentioned (teacher/parent): switch demo identity (or sign in as the relevant user) and walk the same flow a real user would.
+
+Cap the flow list at 2-4 per cycle. If `## Implementation` references >4 distinct surfaces, pick the highest-blast-radius ones (mutations > reads, portal > admin only if portal is touched, billing/payroll > everything else).
+
+If the cycle is pure-docs (no `app/**`, `components/**`, `lib/**` in the staged diff between `origin/staging..HEAD`), **record a one-line skip** in the cycle doc Verification (*"Preview-verify skipped — pure-docs cycle, no UI surface"*), then go to Step 5.
+
+### 3c. Seed via UI CRUD
+
+For each flow, identify the fixtures it needs. Use the **Seed-via-CRUD playbook** table above to choose the admin pages to walk.
+
+**Never call `/api/admin/seed` or `npx prisma db seed` against the preview.** Use Chrome MCP to create fixtures the same way a real user would — list page → "New" button → form → save.
+
+Reuse existing fixtures where possible: list the admin entity first; only create what's missing.
+
+### 3d. Walk flows + capture
+
+For each flow, use Chrome MCP to:
+
+1. `mcp__Claude_in_Chrome__navigate` — go to the page.
+2. `mcp__Claude_in_Chrome__read_console_messages` — drain console; record errors + warnings separately.
+3. `mcp__Claude_in_Chrome__read_network_requests` — capture all requests since last call; tag 4xx + 5xx.
+4. `mcp__Claude_in_Chrome__get_page_text` or `read_page` — verify expected content is rendered.
+5. For each interaction in the flow: `mcp__Claude_in_Chrome__left_click` / `form_input` / `navigate`, then re-read console + network.
+6. `mcp__Claude_in_Chrome__screenshot` at each meaningful step (post-load, post-mutation). Save the screenshot path.
+
+Sign-in: when the preview prompts for Google auth, use Chrome MCP to click the account picker and pick the user's already-signed-in Google account. Do **not** type credentials — fail if the user's profile is not already signed in (surface to the user with `AskUserQuestion`).
+
+### 3e. Classify findings
+
+For every observation, classify as **blocker** or **minor**.
+
+**Blocker** — fix in Step 4:
+
+- Any console message at severity `error` (red).
+- Any HTTP response with status ≥ 500.
+- A primary CTA click that produces no DOM change AND no network request within 2 seconds.
+- A form submit that produces no network request.
+- A screenshot showing visibly broken layout — overlapping text, content cut off the viewport, missing primary buttons, blank-page-where-content-expected.
+- Navigation that loops back to sign-in unexpectedly.
+
+**Minor** — PR comment, no fix attempt:
+
+- Console warnings (yellow).
+- 4xx responses on optional/probe endpoints (favicon, `/api/auth/session` on first paint, etc.).
+- Copy nits, spacing nits the screenshot reveals but which do not break understanding.
+- Performance observations that aren't covered by `/uat`.
+
+### 3f. Emit results
+
+After all flows are walked:
+
+1. **Append to cycle doc `## Verification`** a sub-block:
+   ```markdown
+   - Preview-verify iteration N (<PREVIEW_URL>): flows=[...], blockers=N, minors=M
+     - Screenshots: docs/cycles/screenshots/<slug>/iter-N/*.png
+   ```
+2. **If blockers > 0**, fall through to **Step 4** (fix loop). Do NOT post the minors-comment yet — wait until the fix loop converges.
+3. **If blockers == 0 and minors > 0**, post a single PR comment via `gh pr comment $PR_NUMBER --body "<markdown>"`. Subject the comment with `[preview-verify]` so humans can filter. List minors with screenshots referenced.
+4. **If blockers == 0**, go to **Step 5** (hand off).
+
+## Step 5: Hand off + post-ship checklist
+
+Reached only when Step 3 exits clean (no blockers). Print the merge hand-off (deferred from Step 2) followed by the post-ship reminders:
+
+```
+PR opened: $PR_URL — preview verified clean over $ITER iteration(s).
+
+Watch CI live:
+  gh pr checks $PR_NUMBER --watch
+
+Merge when all four checks (build, typecheck, test, e2e) are green:
+  gh pr merge $PR_NUMBER --squash --delete-branch
+
+Staging auto-deploys to the Vercel preview within ~60s of merge.
+```
+
+Then print the post-ship checklist (don't execute — just remind the user):
 
 - [ ] Wait for all four CI checks green via `gh pr checks <number> --watch`, then run `gh pr merge <number> --squash --delete-branch` yourself
 - [ ] Once merged, check the Vercel preview deploy on staging succeeded
