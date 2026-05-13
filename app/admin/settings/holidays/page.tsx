@@ -89,7 +89,7 @@ export default function HolidaysPage() {
   async function handleDelete() {
     if (!deleteTarget) return;
     const res = await fetch(`/api/config/holidays/${deleteTarget.id}`, { method: "DELETE" });
-    if (res.ok) { toast.success("Dihapus"); setDeleteTarget(null); fetchHolidays(); }
+    if (res.ok) { toast.success("Hari libur dihapus"); setDeleteTarget(null); fetchHolidays(); }
     else toast.error("Gagal menghapus");
   }
 

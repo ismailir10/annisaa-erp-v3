@@ -63,6 +63,15 @@ export async function proxy(request: NextRequest) {
 async function proxyImpl(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
+  // FIND-003: Next.js RSC prefetch issues background HEAD requests against
+  // admin/teacher/parent routes; under load updateSession() occasionally
+  // returns 503, polluting Vercel logs. HEAD has no body so the auth chain
+  // adds no value — let it through unconditionally. GET still goes through
+  // the full chain a sentence later.
+  if (request.method === "HEAD") {
+    return NextResponse.next();
+  }
+
   // Rate limit /api/auth/* — credential-stuffing defense.
   // Skip non-auth paths instantly (returns null, near-zero overhead).
   const limited = enforceAuthRateLimit(request);

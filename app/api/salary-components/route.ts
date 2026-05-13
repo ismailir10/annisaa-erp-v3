@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { createSalaryComponentSchema } from "@/lib/validations/payroll";
 
 // Cache salary components for 1 hour (static data)
 export const revalidate = 3600;
@@ -27,18 +28,30 @@ export async function POST(req: NextRequest) {
   if ("error" in auth) return auth.error;
   const { session } = auth;
 
-  const body = await req.json();
-  const { code, label, category, calcType, isProRated, sortOrder } = body;
-
-  if (!code?.trim() || !label?.trim() || !category || !calcType) {
-    return NextResponse.json({ error: "Code, label, category, and calcType required" }, { status: 400 });
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
+
+  const parsed = createSalaryComponentSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: parsed.error.issues[0]?.message ?? "Validasi gagal",
+        issues: parsed.error.issues,
+      },
+      { status: 400 },
+    );
+  }
+  const { code, label, category, calcType, isProRated, sortOrder } = parsed.data;
 
   const component = await prisma.salaryComponentDef.create({
     data: {
       tenantId: session.tenantId,
-      code: code.trim().toLowerCase(),
-      label: label.trim(),
+      code: code.toLowerCase(),
+      label,
       category,
       calcType,
       isProRated: isProRated ?? false,

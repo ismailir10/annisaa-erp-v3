@@ -62,13 +62,21 @@ export async function POST(
     });
   }
 
+  // FIND-010: auto-default isPrimary=true when this is the student's first
+  // active guardian. The Zod schema leaves isPrimary optional and the API
+  // owns the default because it needs to count siblings, not a static value.
+  const priorGuardianCount = await prisma.studentGuardian.count({
+    where: { studentId, status: "ACTIVE" },
+  });
+  const resolvedIsPrimary = isPrimary ?? priorGuardianCount === 0;
+
   // Create the StudentGuardian link
   const guardian = await prisma.studentGuardian.create({
     data: {
       studentId,
       parentId: parent.id,
       relationship,
-      isPrimary,
+      isPrimary: resolvedIsPrimary,
     },
     include: { parent: true },
   });

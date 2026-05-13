@@ -102,11 +102,15 @@ describe("POST /api/payroll/generate — F-10 rekening pre-flight", () => {
     vi.mocked(getSession).mockResolvedValue(makeSession());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(prisma.orgConfig.findUnique).mockResolvedValue({ workingDays: "1,2,3,4,5", lemburCompliant: false } as any);
+    // FIND-019: the route now also refuses 422 when an employee has no
+    // EmployeeSalaryValue rows. This test exercises the rekening-guard pass
+    // branch in isolation, so we mock at least one salaryValue per employee
+    // so the salary guard doesn't pre-empt the assertion below.
     vi.mocked(prisma.employee.findMany).mockResolvedValue([
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { id: "e1", kode: "E001", nama: "Guru Satu", bankName: "Bank BSI", bankAccountNo: "0001", salaryValues: [], attendanceRecords: [] } as any,
+      { id: "e1", kode: "E001", nama: "Guru Satu", bankName: "Bank BSI", bankAccountNo: "0001", salaryValues: [{ componentDefId: "c1", value: 1 }], attendanceRecords: [] } as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { id: "e2", kode: "E002", nama: "Guru Dua", bankName: null, bankAccountNo: null, salaryValues: [], attendanceRecords: [] } as any,
+      { id: "e2", kode: "E002", nama: "Guru Dua", bankName: null, bankAccountNo: null, salaryValues: [{ componentDefId: "c1", value: 1 }], attendanceRecords: [] } as any,
     ]);
 
     let res: Response;

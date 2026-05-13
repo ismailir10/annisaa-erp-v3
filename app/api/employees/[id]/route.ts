@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
@@ -92,6 +93,12 @@ export async function PUT(
       bpjsEnrolled: body.bpjsEnrolled ?? false,
     },
   });
+
+  // FIND-001: dashboard `TOTAL KARYAWAN` / `HADIR HARI INI` / `TIDAK HADIR`
+  // KPI cards read from a cached query tagged "employees-count". Without
+  // invalidation here the dashboard would show stale counts after an
+  // Employee edit until the next deploy.
+  revalidateTag("employees-count", { expire: 0 });
 
   return NextResponse.json(employee);
 }

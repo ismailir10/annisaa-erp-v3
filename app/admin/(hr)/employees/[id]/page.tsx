@@ -84,10 +84,32 @@ export default function EmployeeDetailPage() {
 
   async function handleSaveSalary() {
     setSavingSalary(true);
-    if (!salaryValues) return;
-    const payload = salaryValues.map(sv => ({ componentDefId: sv.componentDefId, value: sv.value }));
-    const res = await fetch(`/api/employees/${id}/salary`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (res.ok) toast.success("Nilai gaji disimpan"); else toast.error("Gagal menyimpan");
+    if (!salaryValues) { setSavingSalary(false); return; }
+    // FIND-020-NEW: Prisma serialises Decimal columns as strings in JSON, so
+    // unedited rows arrive with `sv.value` as a string. The PUT schema
+    // requires `z.number()`, so we coerce here before submit — pre-fix this
+    // produced an opaque HTTP 400 "Gagal menyimpan" toast.
+    const payload = salaryValues.map(sv => ({
+      componentDefId: sv.componentDefId,
+      value: Number(sv.value),
+    }));
+    const res = await fetch(`/api/employees/${id}/salary`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      toast.success("Nilai gaji disimpan");
+    } else {
+      // Surface the Zod field error (validateBody returns `{ error, errors: [{ field, message }] }`)
+      // so admins see *why* the save failed instead of a bare "Gagal menyimpan".
+      let detail: string | undefined;
+      try {
+        const d = await res.json();
+        detail = d?.errors?.[0]?.message ?? d?.error;
+      } catch { /* non-JSON body — fall back to generic */ }
+      toast.error(detail ?? "Gagal menyimpan");
+    }
     setSavingSalary(false);
   }
 

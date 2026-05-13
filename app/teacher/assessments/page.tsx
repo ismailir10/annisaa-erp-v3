@@ -26,7 +26,18 @@ export default async function TeacherAssessmentsPage() {
     );
   }
 
-  const period = getCurrentPeriod();
+  // FIND-017: derive the periode subheader from the active AcademicYear in
+  // the DB, not from a wall-clock calendar bracket. Pre-fix the calendar
+  // helper hardcoded "Semester 2 2025/2026" even when the active AY was
+  // 2026/2027. The semester half still tracks the calendar month (Jul-Dec
+  // = Sem 1, Jan-Jun = Sem 2) but anchored on the active AY's `name`.
+  const activeAy = await prisma.academicYear.findFirst({
+    where: { tenantId: session.tenantId, status: "ACTIVE" },
+    select: { name: true },
+  });
+  const month = new Date().getMonth() + 1;
+  const semester = month >= 7 ? "Semester 1" : "Semester 2";
+  const period = activeAy ? `${semester} ${activeAy.name}` : getCurrentPeriod();
 
   // Fetch teacher's active class sections
   const assignments = await prisma.teachingAssignment.findMany({
