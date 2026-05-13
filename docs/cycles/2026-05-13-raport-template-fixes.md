@@ -80,7 +80,7 @@ Intended outcome: admin can author + repair templates from one UI, the Create/Ed
 
 - **T2** — `components/ui/dialog.tsx` `DialogContent` switched from `grid gap-4` (no height cap) to `flex flex-col max-h-[90vh] min-h-0 gap-4`. `components/ui/responsive-form-dialog.tsx` desktop body wrapper gained `flex-1 min-h-0 overflow-y-auto pr-2`; header and footer marked `shrink-0`. Removed the now-redundant `<ScrollArea max-h-[60vh]>` wrapper from the Create dialog body in `app/admin/assessments/templates/page.tsx` and the unused `ScrollArea` import. Sampled three other consumers (`app/admin/academic/page.tsx`, `app/admin/fees/page.tsx`, `app/admin/teaching-assignments/page.tsx`) — all use the dialog the standard way, no body wrappers that conflict with `overflow-y-auto`. Cross-checked `design-system.html` § dialogs — layout pattern matches the standard shadcn dialog spec.
 
-<!-- T3 below appended by /build -->
+- **T3** — `app/api/assessments/student/[id]/route.ts` now imports `revalidateTag` + `revalidatePath` from `next/cache` and, after the publish transaction commits, calls `revalidateTag("parent-published-assessments", { expire: 0 })` plus `revalidatePath("/parent/reports")` only when `newStatus === "PUBLISHED"`. Per-keystroke autosaves leave the cache alone. Tag profile signature matches the existing pattern from `app/api/invoices/**/route.ts`. Added a comment in `lib/parent-helpers.ts` pointing future hands to the publish handler so the tag string doesn't drift.
 
 ## Verification
 

@@ -273,6 +273,8 @@ export const getPublishedAssessmentsForStudent = unstable_cache(
     }));
   },
   ["parent-published-assessments"],
+  // Tag string must stay in sync with the revalidateTag call in
+  // app/api/assessments/student/[id]/route.ts (publish handler).
   { revalidate: 120, tags: ["parent-published-assessments"] },
 );
 

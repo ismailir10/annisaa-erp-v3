@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -139,6 +140,15 @@ export async function PUT(
       );
     }
     throw e;
+  }
+
+  // Bust the parent-rapor cache only on publish transitions — every score
+  // autosave (newStatus === undefined) leaves the tag alone so we don't
+  // hammer revalidation on each keystroke. Tag must stay in sync with
+  // lib/parent-helpers.ts `getPublishedAssessmentsForStudent`.
+  if (newStatus === "PUBLISHED") {
+    revalidateTag("parent-published-assessments", { expire: 0 });
+    revalidatePath("/parent/reports");
   }
 
   return NextResponse.json({ ok: true });
