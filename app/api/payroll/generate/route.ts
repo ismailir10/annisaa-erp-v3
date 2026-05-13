@@ -90,6 +90,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // FIND-019: refuse payroll generation when any included employee has no
+  // EmployeeSalaryValue rows — otherwise the engine silently produces Rp 0
+  // and the admin can ship empty slips by accident.
+  const missingSalary = employees.filter((e) => e.salaryValues.length === 0);
+  if (missingSalary.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Beberapa karyawan belum memiliki struktur gaji",
+        employees: missingSalary.map((e) => ({
+          id: e.id,
+          kode: e.kode,
+          nama: e.nama,
+          reason: "salary structure missing",
+        })),
+      },
+      { status: 422 },
+    );
+  }
+
   const workingDays = parseWorkingDays(orgConfig.workingDays);
   const actualWorkDays = calculateWorkingDays(periodStart, periodEnd, workingDays, holidays);
 

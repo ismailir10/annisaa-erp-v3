@@ -1,5 +1,25 @@
 import { z } from "zod";
 
+/**
+ * SalaryComponentDef.category — canonical enum. The payroll engine filters
+ * lines on these exact values; the pre-2026-05-14 regression (FIND-006)
+ * accepted any string so a typo like "EARNING" silently disappeared from
+ * payroll calc. Tightening at the API boundary catches it server-side.
+ */
+export const salaryCategorySchema = z.enum(["INCOME", "DEDUCTION"]);
+export const salaryCalcTypeSchema = z.enum(["FIXED", "ATTENDANCE_BASED"]);
+
+export const createSalaryComponentSchema = z.object({
+  code: z.string().trim().min(1, "Code wajib diisi"),
+  label: z.string().trim().min(1, "Label wajib diisi"),
+  category: salaryCategorySchema,
+  calcType: salaryCalcTypeSchema,
+  isProRated: z.boolean().optional(),
+  sortOrder: z.number().int().nonnegative().optional(),
+});
+
+export type CreateSalaryComponentInput = z.infer<typeof createSalaryComponentSchema>;
+
 // PayrollRun.periodStart / periodEnd are stored as String (YYYY-MM-DD) per
 // prisma schema — validate as ISO date-only strings, not coerced Date objects.
 const isoDateString = z

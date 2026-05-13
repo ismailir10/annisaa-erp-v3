@@ -465,6 +465,21 @@ export default function AdminLeavePage() {
                   setReviewNote={setReviewNote}
                 />
                 <div className="flex flex-col-reverse gap-2 pt-2">
+                  {/* FIND-018: mirror row-kebab Setujui/Tolak in detail view. */}
+                  {viewOnly && reviewTarget.status === "PENDING" && (
+                    <>
+                      <Button onClick={() => { setReviewAction("approve"); setViewOnly(false); }}>
+                        Setujui
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => { setReviewAction("reject"); setViewOnly(false); }}
+                        className="text-destructive hover:bg-destructive/10"
+                      >
+                        Tolak
+                      </Button>
+                    </>
+                  )}
                   {!viewOnly && (
                     <Button
                       onClick={handleReview}
@@ -517,6 +532,26 @@ export default function AdminLeavePage() {
                 <DialogClose>
                   <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
                 </DialogClose>
+                {/* FIND-018: mirror the row-kebab Setujui/Tolak actions in the
+                    detail dialog footer when the leave is still PENDING. Pre-fix
+                    the detail view only offered Tutup, forcing admins to close
+                    and re-open via the kebab to act. */}
+                {viewOnly && reviewTarget.status === "PENDING" && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => { setReviewAction("reject"); setViewOnly(false); }}
+                      className="text-destructive hover:bg-destructive/10"
+                    >
+                      Tolak
+                    </Button>
+                    <Button
+                      onClick={() => { setReviewAction("approve"); setViewOnly(false); }}
+                    >
+                      Setujui
+                    </Button>
+                  </>
+                )}
                 {!viewOnly && (
                   <Button
                     onClick={handleReview}
