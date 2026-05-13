@@ -161,6 +161,23 @@ export function TeacherHomeClient({
     ? time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam"
     : "Datang";
 
+  // FIND-015 (full fix): render an empty shell on the server pass and on the
+  // client's first hydration pass. Only after `mounted` flips true (inside
+  // the live-clock useEffect) does the real UI render. This is heavier-handed
+  // than the prior partial mounted-guard but is the only way to guarantee
+  // SSR↔hydration produce identical HTML when (a) the body depends on a
+  // server-vs-client divergent `new Date()` and (b) framer-motion's initial
+  // values (`opacity: 0`, `y: 10`) emit slightly different DOM during the
+  // initial render than after one animation tick.
+  if (!mounted) {
+    return (
+      <div className="min-h-[60vh]" aria-busy="true" suppressHydrationWarning>
+        {/* Reserve vertical space so the layout doesn't jump when the real
+            content mounts; the bottom-tab nav is the only persistent UI. */}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Greeting */}
