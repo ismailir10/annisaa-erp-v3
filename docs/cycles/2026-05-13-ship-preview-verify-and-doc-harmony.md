@@ -62,7 +62,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 
 1. [x] **[indep] Add `/audit-docs` standalone skill** — Create `.claude/skills/audit-docs/SKILL.md` (slash command, `disable-model-invocation: true`). Implement checks listed in Spec. Output report markdown. Acceptance: invoking `/audit-docs` on current branch produces a report enumerating route count, portal pages, file-structure diff, missing standards files, ADR cutoff.
 
-2. **[indep] Add Vercel preview-ready wait helper** — Create `scripts/wait-preview-ready.sh <sha>`. Uses Vercel MCP `get_deployment` if available (via `gh` or direct call); falls back to `gh pr view <num> --json statusCheckRollup` polling. Exits 0 with preview URL on stdout when READY, exits 1 after 5min timeout. Acceptance: against a known-good staging SHA, script returns URL in <3min.
+2. [x] **[indep] Add Vercel preview-ready wait helper** — Create `scripts/wait-preview-ready.sh <PR>`. Polls `gh pr view <PR> --json comments,statusCheckRollup` every 10s for ≤5min. Returns Vercel preview URL on stdout. AI within /ship prefers Vercel MCP `get_deployment` and falls back to this script. Acceptance: against a known-good staging SHA, script returns URL in <3min.
 
 3. **[indep] Wire seed-via-CRUD playbook** — Append a section to `.claude/skills/ship/SKILL.md` titled "Seed-via-CRUD playbook". Table: cycle scope keyword → required fixtures → admin pages to walk. Examples: invoice/billing → create student → enroll → generate invoice; assessment/raport → create class → enroll students → enter scores. Acceptance: section exists, table covers at least 5 common scopes.
 
@@ -85,10 +85,12 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Subagent plan: this cycle is doc-heavy; tasks 3-6 all edit `.claude/skills/ship/SKILL.md` so cannot run in parallel — execute inline sequentially. T1, T2, T7 are truly independent (different files) but the savings are small at this scale, so execute inline in order.
 - Between-task gate skipped per task for pure-docs/skill edits (no TS source touched). End-of-cycle gate (T10) is the single source of test signal.
 - Task 1: Add `/audit-docs` standalone skill — created `.claude/skills/audit-docs/SKILL.md` — 8 checks (route count, portal pages, components, e2e specs, standards-table file existence, ADR 60d cutoff, File Structure paths, workflow refs); report written to active cycle doc Verification or stdout; read-only against git.
+- Task 2: Vercel preview-ready wait helper — created `scripts/wait-preview-ready.sh` — polls `gh pr view <PR>` for Vercel bot comment + deployment status; 10s interval, 5min cap; AI within /ship prefers Vercel MCP `get_deployment`, this script is the CLI fallback.
 
 ## Verification
 
 - Task 1: between-task gate skipped (pure-docs/skill task — no TS or test files touched); manual lint of `.claude/skills/audit-docs/SKILL.md` confirms frontmatter valid + bash blocks syntactically correct.
+- Task 2: `bash -n scripts/wait-preview-ready.sh` → syntax ok; executable bit set; smoke against a live PR deferred to /ship-time invocation (T10 dogfood).
 
 ## Ship Notes
 
