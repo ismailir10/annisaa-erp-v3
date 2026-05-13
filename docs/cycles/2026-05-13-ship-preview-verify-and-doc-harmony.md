@@ -68,7 +68,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 
 4. [x] **[seq, depends 2,3] Add C+ preview-verify step to `/ship`** — Edit `.claude/skills/ship/SKILL.md`. New section "Step 3: Preview verification (C+)" inserted between current Step 2 (open PR) and current hand-off step. Algorithm: call `wait-preview-ready.sh`, then Chrome MCP login, then seed-via-CRUD per playbook, then walk Implementation-derived flows, then classify findings. Acceptance: section reads as runnable algorithm with explicit Chrome MCP tool names.
 
-5. **[seq, depends 4] Add fix-loop orchestration to `/ship`** — Same file, new section "Step 4: Fix loop". Algorithm: while blockers > 0, edit code, commit `fix(<scope>): <one-line>` with hooks active, push, re-run Step 3. Every 3 iterations, AskUserQuestion to escalate. Acceptance: pseudocode shows the loop, escalation trigger, and clean-exit handoff.
+5. [x] **[seq, depends 4] Add fix-loop orchestration to `/ship`** — Same file, new section "Step 4: Fix loop". Algorithm: while blockers > 0, edit code, commit `fix(<scope>): <one-line>` with hooks active, push, re-run Step 3. Every 3 iterations, AskUserQuestion to escalate. Acceptance: pseudocode shows the loop, escalation trigger, and clean-exit handoff.
 
 6. **[indep] Add A-scope doc-staleness check to `/ship` preflight** — Same file, new check inserted into existing Preflight (between hooks check and cycle-doc check). Diff cycle Implementation against README portal table + CLAUDE.md file-structure + README ADR table. Hard-fail with `gh pr create` blocked + actionable diff printed. Acceptance: when README claims "Foo module" but cycle Implementation deletes the only Foo route, check fires with diff.
 
@@ -88,6 +88,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Task 2: Vercel preview-ready wait helper — created `scripts/wait-preview-ready.sh` — polls `gh pr view <PR>` for Vercel bot comment + deployment status; 10s interval, 5min cap; AI within /ship prefers Vercel MCP `get_deployment`, this script is the CLI fallback.
 - Task 3: Seed-via-CRUD playbook — appended new "Seed-via-CRUD playbook" section to `.claude/skills/ship/SKILL.md` — 9-row table mapping cycle scope keywords (invoice/billing, assessment/raport, salary/payroll, attendance, admission, teaching-assignment, parent-portal, teacher-portal, auth, branding) → fixture chains → admin pages to walk; rules forbid escalation and prefer reusing existing fixtures.
 - Task 4: C+ preview-verify Step 3 — added new "Step 3: Preview verification (C+ via Chrome MCP)" to `.claude/skills/ship/SKILL.md`; modified Step 2 to defer hand-off; renamed legacy Step 3 → Step 5. Subsections: 3a wait for preview ready (Vercel MCP preferred, scripts/wait-preview-ready.sh fallback); 3b derive 2-4 flows from cycle Implementation; 3c seed via UI CRUD; 3d walk flows + capture (Chrome MCP navigate/click/screenshot/console/network); 3e classify findings (blocker vs minor with explicit rules); 3f emit results to cycle doc Verification + PR comment.
+- Task 5: Fix loop Step 4 — added new "Step 4: Fix loop" to `.claude/skills/ship/SKILL.md` between Step 3 and Step 5. Subsections: 4a triage each blocker (read screenshot+console+network+route → identify file → smallest fix); 4b commit (`fix(<scope>): …`, hooks active, no `--no-verify`); 4c push + re-verify (returns to Step 3 with new SHA); 4d soft escalation every 3 iterations via AskUserQuestion (continue/pause/abort); 4e clean exit appends convergence bullet to cycle doc Verification.
 
 ## Verification
 
@@ -95,6 +96,7 @@ This cycle solves all three: PR-time preview verification via Chrome MCP (using 
 - Task 2: `bash -n scripts/wait-preview-ready.sh` → syntax ok; executable bit set; smoke against a live PR deferred to /ship-time invocation (T10 dogfood).
 - Task 3: Playbook covers 9 scope categories (≥5 acceptance met); admin paths cross-checked against `ls app/admin/` snapshot — all 9 admin route prefixes referenced exist on disk.
 - Task 4: Step 3 algorithm references explicit Chrome MCP tool names (`navigate`, `read_console_messages`, `read_network_requests`, `read_page`, `left_click`, `form_input`, `screenshot`) and the Vercel MCP `get_deployment` tool name with the fallback script path; renumber and Step 2 deferral verified by reading the updated file end-to-end.
+- Task 5: Loop spec carries the no-cap + soft-escalate-every-3 rule, with three branch options (continue / pause / abort) routed back into Step 3 or out of `/ship`; clean-exit bullet schema fixed so the cycle doc Verification accumulates `Preview-verify iteration N` lines deterministically.
 
 ## Ship Notes
 

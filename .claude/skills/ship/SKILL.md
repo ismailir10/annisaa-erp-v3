@@ -240,6 +240,84 @@ After all flows are walked:
 3. **If blockers == 0 and minors > 0**, post a single PR comment via `gh pr comment $PR_NUMBER --body "<markdown>"`. Subject the comment with `[preview-verify]` so humans can filter. List minors with screenshots referenced.
 4. **If blockers == 0**, go to **Step 5** (hand off).
 
+## Step 4: Fix loop
+
+Reached only when Step 3 reports blockers > 0. The cycle's branch is on `feat/<slug>`; this step pushes additional `fix(...)` commits to it until preview-verify is clean. **No iteration cap** — but soft-escalate to the user every 3 iterations.
+
+### 4a. Triage each blocker
+
+For each blocker observation captured in Step 3:
+
+1. Read the screenshot + console message + network trace + the page route.
+2. Identify the offending source file. Common shapes:
+   - Console `error` referencing `app/...` or `components/...` → that file.
+   - 5xx on `/api/<route>` → `app/api/<route>/route.ts` or the handler it imports.
+   - Layout break → the page's `client.tsx` / the component it renders.
+   - Broken interaction → wire up the missing handler / state update.
+3. Bound the fix to the **smallest** change that turns the blocker green. Do not refactor adjacent code; do not "while I'm here" cleanups. The fix loop is not a place to redesign.
+
+### 4b. Fix + commit
+
+For each blocker (or grouped commit per file where multiple blockers share one file):
+
+```bash
+git add <files-touched>
+git commit -m "$(cat <<EOF
+fix(<scope>): <one-line description of what was broken on preview>
+
+Found by preview-verify iteration $ITER. See cycle doc Verification.
+
+Cycle: docs/cycles/<current-cycle>.md
+EOF
+)"
+```
+
+The `prepare-commit-msg` hook appends `Model-Trailer`, `Role`, `Co-Authored-By` automatically — do not include them in the HEREDOC.
+
+**Hooks must pass.** Never use `--no-verify`. If `pre-commit` rejects the change (e.g., frontend gate, doc-sync), edit the staged set until it accepts — usually means staging the cycle doc with an updated Verification bullet.
+
+Update the cycle doc's `## Verification` section with the iteration's findings before the commit so the doc-sync rule is satisfied and the iteration log is preserved.
+
+### 4c. Push + re-verify
+
+```bash
+git push origin "$FEAT_BRANCH"
+```
+
+The push triggers a new Vercel preview build. Increment the iteration counter, then **return to Step 3** with the new commit SHA. Step 3a will wait for the new preview, 3b-3f will re-walk the same flows.
+
+### 4d. Soft escalation every 3 iterations
+
+After every third iteration that did NOT converge (i.e., Step 3 still reports blockers), pause the loop and use `AskUserQuestion`:
+
+```
+Preview-verify is on iteration $ITER and still reports $N blocker(s) on
+PR #$PR_NUMBER ($PREVIEW_URL).
+
+Summary of attempts:
+  - Iter 1: fixed <X>; result <Y>
+  - Iter 2: fixed <X>; result <Y>
+  - Iter 3: fixed <X>; result <Y>
+
+Current hypothesis: <one-line of what looks load-bearing>
+
+Continue, pause for manual inspection, or abort the ship?
+```
+
+Answer routing:
+
+- **Continue** → resume the loop (next iteration starts immediately).
+- **Pause** → exit `/ship` and tell the user: *"Loop paused. Inspect $PREVIEW_URL manually. When ready, run `/ship` again — it will re-enter Step 3 against the current head."*
+- **Abort** → exit `/ship` and tell the user: *"Aborted. The feat branch is at $FEAT_SHA with $ITER iterations of fixes. Use `git reset --hard origin/staging` to discard, or open the PR manually and continue investigation."* Do not auto-close the PR.
+
+### 4e. Clean exit
+
+When Step 3 returns `blockers == 0`, post the minors-comment (if any) and proceed to **Step 5**. Append a final `## Verification` bullet to the cycle doc:
+
+```markdown
+- Preview-verify converged on iteration N (clean): $ITER iteration(s), $TOTAL_FIX_COMMITS fix commit(s), final preview $PREVIEW_URL.
+```
+
 ## Step 5: Hand off + post-ship checklist
 
 Reached only when Step 3 exits clean (no blockers). Print the merge hand-off (deferred from Step 2) followed by the post-ship reminders:
