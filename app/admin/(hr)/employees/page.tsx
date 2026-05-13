@@ -234,7 +234,18 @@ export default function EmployeesPage() {
       .catch((err) => console.error("[employees] campuses fetch failed", err));
     fetch("/api/employees/positions")
       .then((r) => r.json())
-      .then((p) => setPositions(Array.isArray(p) ? p : []))
+      .then((p) => {
+        const arr = Array.isArray(p) ? p : [];
+        // FIND-007: on a fresh tenant `Employee` has zero rows so the
+        // `distinct jabatan` query returns []. The Karyawan create dialog
+        // then offered only "+ Tambah jabatan baru" with no presets, which
+        // looked broken even though inline-add worked. Lazy-bootstrap a
+        // sensible default list so the first admin sees actionable options
+        // immediately. Custom values they add still flow through the inline
+        // path and become real `Employee.jabatan` strings.
+        const DEFAULT_POSITIONS = ["Guru Kelas", "Guru Pendamping", "Kepala Sekolah", "Admin Sekolah"];
+        setPositions(arr.length === 0 ? DEFAULT_POSITIONS : arr);
+      })
       .catch((err) => console.error("[employees] positions fetch failed", err));
     // Quick stats — fetch all with minimal data
     Promise.all([

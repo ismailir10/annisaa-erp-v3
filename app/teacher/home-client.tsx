@@ -51,9 +51,16 @@ export function TeacherHomeClient({
   const [success, setSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [gpsStatus, setGpsStatus] = useState<string>("Menunggu...");
+  // FIND-015: defer time-dependent rendering until after client mount.
+  // Pre-fix, `time = new Date()` initialised differently server-vs-client
+  // (UTC vs WIB), producing the date string mismatch on the greeting line
+  // and tripping React error #418 (text content mismatch) when no
+  // AttendanceRecord existed to mask the divergence with a checked-in card.
+  const [mounted, setMounted] = useState(false);
 
-  // Live clock
+  // Live clock + mounted flag — both need the client to be active first.
   useEffect(() => {
+    setMounted(true);
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
@@ -131,15 +138,22 @@ export function TeacherHomeClient({
     setLoading(false);
   }
 
-  const timeStr = formatTime(time.toISOString());
-  const dateStr = formatDate(time.toISOString().split("T")[0], {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  // Until mounted, render placeholders for time-derived strings so server
+  // SSR and client first-render produce identical HTML. Once `mounted` flips
+  // true via the useEffect above, the real clock takes over.
+  const timeStr = mounted ? formatTime(time.toISOString()) : "";
+  const dateStr = mounted
+    ? formatDate(time.toISOString().split("T")[0], {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : "";
 
-  const greeting = time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam";
+  const greeting = mounted
+    ? time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam"
+    : "Datang";
 
   return (
     <div>
