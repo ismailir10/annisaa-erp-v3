@@ -108,10 +108,52 @@ Per design [docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaia
   - Each card links to `/parent/perkembangan/[studentId]`.
   - Build clean. 1493 vitest pass.
 
+- **T5 — Bottom-nav + Playwright e2e** *(commit `feat(curriculum): C6 T5 — bottom-nav Capaian entry + parent perkembangan e2e`)*
+  - [components/parent/bottom-nav.tsx](components/parent/bottom-nav.tsx): added "Capaian" tab routing to `/parent/perkembangan` between "Beranda" and "Kehadiran". Short label "Capaian" (not "Perkembangan") chosen to fit the 6-tab bottom nav at mobile widths; URL slug + page title stay "Perkembangan" so the surface name matches the design spec + the in-page header text "Capaian per elemen". Documented inline.
+  - New [e2e/parent-perkembangan.spec.ts](e2e/parent-perkembangan.spec.ts) — 5 chromium tests via the GUARDIAN demo cookie:
+    1. Bottom-nav exposes the Capaian link pointing to `/parent/perkembangan`.
+    2. `/parent/perkembangan` resolves (list OR auto-redirected detail).
+    3. Detail page renders 5 element rows.
+    4. `GET /api/parent/perkembangan/[studentId]` returns the design-locked payload shape end-to-end.
+    5. `GET /api/parent/perkembangan/[studentId]` returns 404 with neutral copy for a wrong-child id.
+  - 5/5 pass locally. Full Playwright suite: 108 passed, 2 pre-existing failures carried (admin-tagihan + curriculum-admin AY-name drift), 1 flaky (sibling-detect).
+
 ## Verification
 
-<!-- filled by /build -->
+- **End-of-cycle gates:**
+  - `npm run build` ✓ clean
+  - `npx vitest run` ✓ 1493/1535 (42 pre-existing todos)
+  - `DEMO_MODE=true npx playwright test` — 108 passed / 9 skipped / 1 flaky / **2 pre-existing failures** carried from C4+C5 (curriculum-admin AY-name drift + admin-tagihan flow). Both unrelated to C6.
+  - `e2e/parent-perkembangan.spec.ts` (new) — 5/5 pass.
+- **RLS:** `bash scripts/verify-rls-coverage.sh` ✓ 32/32 (no new tenant-scoped models).
+- **API auth:** `bash scripts/verify-api-auth.sh` ✓ 154/154 (1 new route added).
+- **Cross-checked design-system.html** §portal-shells + §dashboard for the 5-row element block + "Pekan ini" preview list + parent-home card.
+- **Manual smoke:** preview-verify against staging Vercel after PR merge — Chrome MCP using `ismailir10@gmail.com` Google SSO (per CTO authorization).
+- **Follow-ups (post-merge):**
+  - C8 — Term model + flip the perkembangan loader from "active Semester" to "active Term".
+  - Schema column on `ClassSection.ageGroup` (carried from C4).
+  - Refresh `e2e/curriculum-admin.spec.ts:38` AY-name assertion (carried from C4).
+  - Investigate `e2e/admin.spec.ts:432` demo-DB pollution (carried from C4).
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migration:** none — entirely on top of C4's `AssessmentEntry`.
+- **Env vars:** none.
+- **New permissions:** `assessments.read` granted to GUARDIAN default (route layer enforces per-child scope via `getParentChildById`).
+- **New routes:**
+  - `GET /api/parent/perkembangan/[studentId]` — payload `{ child, semester, elements, latestThisWeek, hasActiveWeek }`.
+  - `/parent/perkembangan` — list page with single-kid auto-redirect.
+  - `/parent/perkembangan/[studentId]` — detail page with 5-element rollup + Pekan-ini preview.
+  - Parent home gains "Perkembangan minggu ini" card section per kid.
+  - Parent bottom-nav gains "Capaian" tab.
+- **Manual smoke recipe (post-deploy):**
+  - Login as a GUARDIAN whose linked child has at least one `AssessmentEntry` row in the active Semester.
+  - `/parent` → "Perkembangan minggu ini" section visible (only if entries exist this week).
+  - `/parent/perkembangan` → either child list OR auto-redirect to detail.
+  - `/parent/perkembangan/<studentId>` → 5-row element bars + Pekan-ini preview.
+  - `/parent/perkembangan/stu-not-mine` → "Anak tidak ditemukan." (404, no leak).
+- **Rollback:** revert PR. No DB changes to undo.
+- **Follow-up cycles:**
+  - **C7** — TA 26/27 SMT 1 PROMES seed + ClassSection audit.
+  - **C8** — Raport schema + admin (introduces `Term` model; the perkembangan loader flips from "active Semester" to "active Term" with no UI change).
+  - **C11** — Raport PDF + docx + parent sign workflow (replaces the legacy `/parent/reports` AssessmentTemplate readout).
