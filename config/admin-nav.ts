@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   NotebookPen,
   Palette,
+  School,
   type LucideIcon,
 } from "lucide-react";
 import type { PermissionCode } from "@/lib/permissions";
@@ -76,6 +77,20 @@ export const adminNav: NavConfig = {
         { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
         { label: "Semester", href: "/admin/semesters", icon: CalendarDays, permission: "curriculum.read" },
         { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
+      ],
+    },
+    {
+      // Academic structure (campus > program > class track) is config, not
+      // curriculum authoring. Gated by `academic.view` to match the page's
+      // own `assertPermission("academic.view")` — keeping it in the
+      // curriculum group would invisibly hide it from roles that hold
+      // `academic.view` but not `curriculum.read`.
+      id: "academic",
+      label: "Struktur Akademik",
+      icon: School,
+      permission: "academic.view",
+      items: [
+        { label: "Rombongan Belajar", href: "/admin/class-tracks", icon: School, permission: "academic.view" },
       ],
     },
     {
