@@ -1,0 +1,74 @@
+# Academic Hierarchy Refactor — ClassTrack + ClassSession + Pickup L1
+
+## Context
+
+Today's schema places `Campus`, `Program`, and `AcademicYear` as siblings under `Tenant`. `ClassSection` carries three independent FKs (`campusId`, `programId`, `academicYearId`) with no structural guarantee they belong together, and multi-year class identity is implicit (matched by name string). Daily class meetings are not modeled at all — `StudentAttendance` hangs directly off `ClassSection` keyed by `(studentId, date)`, which cannot represent shift-based daycare (MORNING + AFTERNOON same day) and provides no substitute-teacher trail. Separately, daycare parents arriving late to pick up children is a recurring operational pain, but pickup tracking is half-built: `checkInTime`/`checkOutTime` columns exist on `StudentAttendance` with no surface to capture them and no pickup-person context.
+
+This cycle introduces a coherent `Campus > Program > AcademicYear > Class > Session` hierarchy with structural integrity, stable multi-year class identity (`ClassTrack`), a daily-meeting model (`ClassSession`) with default-teacher snapshot + substitute reassignment audit, reactive session generation (no admin "Generate" button), and Layer 1 pickup tracking. Outcome: enrollment and attendance become structurally tied to a verifiable academic context; admins roll a year forward in one click; teachers run their day from a single session page; the school gets late-pickup data to act on.
+
+This cycle's design was brainstormed (`superpowers:brainstorming`) and architect-reviewed (`feature-dev:code-architect` — verdict SHIP_WITH_CHANGES, all five findings folded in). Mid-`/spec` re-verification against current `origin/staging` (the worktree had branched 57 commits stale) surfaced a new `Semester` model from the Curriculum initiative; user confirmed `ClassSession` anchors its date range to `Semester`, and the hierarchy does **not** gain an explicit Semester level (Class stays under AcademicYear, sessions carry a `semesterId` FK).
+
+## Spec
+
+### Acceptance criteria
+
+- [ ] `ClassTrack` model exists: stable identity `(tenantId, campusId, programId, name)`, `status` soft-delete (CRUD Category A). `ClassSection` gains `classTrackId` FK; existing `(campusId, programId)` retained for query compat through this cycle.
+- [ ] `ClassSession` model exists: FKs to `ClassSection` + `Semester`, fields `date` (YYYY-MM-DD), `slot` (FULL_DAY|MORNING|AFTERNOON), `teacherId` (effective), `defaultTeacherId` (snapshot), `substituteReason`, `isBackfilled`. Unique `(classSectionId, date, slot)`.
+- [ ] `ClassSection` gains `slotTemplate` (FULL_DAY | MORNING_AND_AFTERNOON).
+- [ ] `StudentAttendance` gains `sessionId` FK, `pickedUpByRelation` enum-coded string (PARENT|GUARDIAN|GRANDPARENT|SIBLING|DRIVER|HOUSEHOLD_HELPER|OTHER), `pickedUpByName` free text. Legacy `@@unique([studentId, date])` dropped (blocks DCARE multi-shift), replaced with non-unique index; primary uniqueness moves to `(studentId, sessionId)`.
+- [ ] `reconcileSessions(classSectionId)` service generates `ClassSession` rows per-`Semester` date range, skipping non-working days (`OrgConfig.workingDays`) and `Holiday` dates; `Holiday.isHalfDay` produces a MORNING-only slot. Idempotent, advisory-locked, 10k-row hard cap, additive-by-default (destructive deletes only empty sessions).
+- [ ] Reconcile fires reactively on: `ClassSection` create, `Semester` startDate/endDate change, `TeachingAssignment` POST/PATCH/DELETE (HOMEROOM derivation), `ClassSection.slotTemplate` change, `Holiday` upsert. No admin "Generate sessions" button.
+- [ ] Admin: `/admin/class-tracks` CRUD; `/admin/academic-years` gains "Roll forward" (clone ACTIVE tracks into target year as new ClassSections + reconcile); class-section detail shows read-only session calendar with teacher-swap drawer.
+- [ ] Teacher: `/teacher/sessions/[id]` page — roster with per-row status, Tap In, Tap Out, pickup relation + name; `/teacher` dashboard lists today's sessions including substitute-day assignments.
+- [ ] Substitute swap: `PATCH /api/admin/class-sessions/[id]` sets `teacherId` + `substituteReason`, leaves `defaultTeacherId` intact; sub teacher sees the session, original homeroom does not.
+- [ ] RLS: `ClassTrack` (direct `tenantId` policy) and `ClassSession` (indirect policy through `ClassSection`) both `ENABLE ROW LEVEL SECURITY` with policies in migration SQL; `scripts/verify-rls-coverage.sh` extended to recognize indirect-tenancy models.
+- [ ] One-time migration backfills `ClassTrack` from existing `ClassSection` rows, generates historical `ClassSession` rows (semester-matched), re-points `StudentAttendance.sessionId`. Verification gate asserts row-count parity + zero un-mapped attendance, with orphan-report exit modes.
+- [ ] Gates green: `npm run build && npx vitest run` between tasks; `+ npx playwright test` end-of-cycle. UAT: `/uat teacher/daily-session` + `/uat admin/class-tracks`.
+- [ ] Frontend changes cross-checked against `design-system.html` (frontend-gate token).
+
+### Non-goals
+
+- Layer 2 (late-pickup alerts / parent notifications) and Layer 3 (late-pickup fees / billing) — separate future cycles.
+- Subject/period scheduling within a day (timetable model) — Talib is early-childhood, single homeroom per day.
+- Strict ownership chain (per-campus Program duplication) — rejected; school-wide single calendar.
+- Explicit Semester level in the hierarchy — Class stays under AcademicYear.
+- Parent-portal pickup-history view — deferred to L2.
+- Re-pointing `StudentJournalEntry.classSectionId` to `ClassSession` — intentional soft reference, stays.
+- Dropping `StudentAttendance.classSectionId` and `ClassSection.campusId/programId` denormalization — deferred to a follow-up cycle after burn-in (128 API routes unaudited).
+- Postgres CHECK constraints for cross-FK tenant invariants — app-layer guards this cycle; DB-hardened in a follow-up.
+
+### Assumptions
+
+1. `Semester` rows exist (and have correct `startDate`/`endDate`) for every `AcademicYear` before `reconcileSessions` runs — reconcile over an AcademicYear with no Semesters generates zero sessions and logs a warning rather than erroring.
+2. `Semester.startDate/endDate` are `DateTime` (UTC midnight Jakarta-tz); `Holiday.date` and `ClassSession.date` are `String` YYYY-MM-DD — reconcile normalizes to Jakarta-tz calendar dates for comparison.
+3. Big-bang migration in one cycle is acceptable; `/ship`'s staging-PR gate + migration verification harness against a prod-shape snapshot is the safety net.
+4. DCARE multi-shift historical attendance (multiple rows per student/date) is rare; migration flags such sections for manual `slotTemplate` review rather than auto-splitting.
+5. `OrgConfig.workingDays` is the authoritative working-day calendar; reconcile treats a missing `Holiday` table as "no holidays."
+6. Teacher permission to read/write a session's attendance derives from `ClassSession.teacherId === me.employeeId` (covers substitutes), not from the `TeachingAssignment` table.
+
+## Tasks
+
+> Ordered, atomic, independently committable. `[dep: N]` marks a hard dependency on task N. Tasks without a dep can be dispatched in parallel by `/build`.
+
+- [ ] **1. Schema + migration foundation.** Add `ClassTrack`, `ClassSession` models; add `classTrackId` + `slotTemplate` to `ClassSection`; add `sessionId` + `pickedUpByRelation` + `pickedUpByName` to `StudentAttendance`; drop legacy `@@unique([studentId, date])`, add non-unique index. Migration SQL includes `ENABLE ROW LEVEL SECURITY` + tenant policies for both new tables (direct for `ClassTrack`, indirect-through-`ClassSection` for `ClassSession`). Extend `scripts/verify-rls-coverage.sh` to recognize indirect-tenancy models via marker comment. _Accept: `npx prisma migrate dev` clean; `verify-rls-coverage.sh` passes with both new tables recognized._
+- [ ] **2. `reconcileSessions` service + unit tests.** `lib/sessions/reconcile.ts` — generate `ClassSession` rows per-`Semester` date range, skip non-working days + `Holiday` dates, `isHalfDay` → MORNING slot, `slotTemplate` → slot count. Idempotent, `pg_advisory_xact_lock(hashtext(classSectionId))`, 10k cap, additive-default with empty-only destructive delete. 10 unit cases per design (working-days, holidays, idempotent, year-extend additive, shorten-deletes-empty, preserves-non-empty, MORNING_AND_AFTERNOON fan-out, batch cap, HOMEROOM backfill, INACTIVE respect). _[dep: 1] Accept: `npx vitest run lib/sessions` green._
+- [ ] **3. `ClassTrack` admin CRUD.** `/api/admin/class-tracks` (GET/POST) + `/api/admin/class-tracks/[id]` (PATCH/DELETE soft-delete); `/admin/class-tracks` page (DataTable + create/edit dialog per `crud.md` Category A). Cross-check `design-system.html`. _[dep: 1] Accept: create/edit/soft-delete a track via UI; build + vitest green._
+- [ ] **4. Reconcile triggers wired into mutation endpoints.** `ClassSection` create → reconcile; `Semester` PATCH (dates) → reconcile each section in year; `TeachingAssignment` POST/PATCH/DELETE → re-derive `defaultTeacherId`/`teacherId` on future sessions; `ClassSection.slotTemplate` PATCH → reconcile; `Holiday` upsert → reconcile affected year's sections. _[dep: 2] Accept: integration test — creating a ClassSection with a Semester present yields ClassSession rows; vitest green._
+- [ ] **5. Roll-forward endpoint + admin UX.** `POST /api/admin/academic-years/[id]/roll-forward` — body `{ sourceYearId, trackIds }`, clone ACTIVE tracks' sections into target year, reconcile each. "Roll forward" button on `/admin/academic-years`. 409 on already-rolled track. Cross-check `design-system.html`. _[dep: 2, 3] Accept: roll-forward clones sections + generates sessions; E2E smoke; build + vitest green._
+- [ ] **6. `ClassSession` swap-teacher endpoint + admin calendar UX.** `PATCH /api/admin/class-sessions/[id]` (teacherId + substituteReason, defaultTeacherId untouched, past-date → isBackfilled). Class-section detail page: read-only session calendar + teacher-swap drawer. Cross-check `design-system.html`. _[dep: 2] Accept: swap a session's teacher; sub sees it, homeroom doesn't; build + vitest green._
+- [ ] **7. Teacher session page + attendance/pickup API.** `GET /api/teacher/sessions?date=` (my sessions incl. sub days); `POST /api/teacher/sessions/[id]/attendance` (bulk upsert: status, checkInTime, checkOutTime, pickedUpByRelation, pickedUpByName; OTHER requires name; checkout<checkin rejected). `/teacher/sessions/[id]` roster page; `/teacher` dashboard lists today's sessions. Cross-check `design-system.html` + `portal.md` + `voice.md`. _[dep: 2] Accept: teacher taps in/out + pickup, persists on reload; build + vitest green._
+- [ ] **8. One-time data migration script + verification harness.** `lib/migrations/backfill-hierarchy.ts` — Phase 2 ClassTrack backfill, Phase 3 historical ClassSession generation (semester-matched, FULL_DAY, best-effort teacher snapshot), Phase 4 `StudentAttendance.sessionId` repoint, Phase 5 verification gate (row-count parity, zero-orphan assertion, orphan-report exit modes with 10-row sample dump), DCARE multi-shift flagging. _[dep: 1, 2] Accept: run against a staging snapshot — attendance row count unchanged, every row mapped or orphan-reported; spot-check 10 rows._
+- [ ] **9. E2E coverage.** Extend `e2e/admin.spec.ts` (roll-forward smoke), `e2e/teacher.spec.ts` (daily flow: view sessions → tap-in → tap-out + pickup → reload-persists), `e2e/admin-school-admin.spec.ts` (substitute swap visibility). _[dep: 5, 6, 7] Accept: `npx playwright test` green._
+- [ ] **10. UAT + Ship Notes prep.** Run `/uat teacher/daily-session` (Bu Sari) + `/uat admin/class-tracks` (Pak Budi); record results in Verification. Confirm README.md updated (new models/routes/entities). _[dep: 9] Accept: UAT reports committed, no unresolved blocker/major; README diff staged._
+
+## Implementation
+
+_Filled by `/build`._
+
+## Verification
+
+_Filled by `/build`._
+
+## Ship Notes
+
+_Filled by `/ship`._
