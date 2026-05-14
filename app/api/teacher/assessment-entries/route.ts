@@ -8,12 +8,10 @@ import { assessmentEntryBulkCreateSchema } from "@/lib/validations/assessment-en
 import { parseJakartaYmd } from "@/lib/validations/curriculum";
 import { getHomeroomClassSection } from "@/lib/curriculum/homeroom";
 import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
-
-// Higher than CURRICULUM_WRITE_BUDGET because the walas weekly UI taps a
-// level → POST per tap. 60/min covers a steady tap of ~1 student/sec
-// without throttling, while still capping runaway clients.
-export const PENILAIAN_WRITE_BUDGET = 60 as const;
-export const PENILAIAN_WRITE_WINDOW_MS = 60_000 as const;
+import {
+  PENILAIAN_WRITE_BUDGET,
+  PENILAIAN_WRITE_WINDOW_MS,
+} from "@/lib/api/rate-limit-budgets";
 
 type Source = "HOMEROOM" | "CENTER";
 

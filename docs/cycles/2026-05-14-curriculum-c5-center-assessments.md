@@ -104,6 +104,14 @@ Approved plan at [/Users/ismailrabbanii/.claude/plans/glowing-mapping-crane.md](
   - Cells hydrate from existing `CENTER` entries on load; activity prefills from server-supplied `lastActivity` when present. Save shows toast + `router.refresh`.
   - 1471 vitest pass.
 
+- **T6 — Playwright e2e + code review pass** *(commits `test(curriculum): C5 T6 — sentra e2e + C4 hub-spec update` + `fix(curriculum): C5 — code review pass`)*
+  - [e2e/teacher-assessments-center.spec.ts](e2e/teacher-assessments-center.spec.ts) — 3 tests via demo `u_teacher`: hub shows all 8 sentra cards by `data-testid="hub-center-<key>"`, clicking the worship card lands on the center session page (chrome assertion via `data-testid` for date / agegroup / activity / save), and `?date=2025-07-15` reaches the active-week branch (poll for picker OR no-link banner).
+  - [e2e/teacher-assessments-weekly.spec.ts](e2e/teacher-assessments-weekly.spec.ts) — updated the C4 hub spec from `hub-center-placeholder` to `hub-center-grid` + `hub-center-worship` to match the C5 hub state.
+  - **Code review (feature-dev:code-reviewer)** raised 3 issues, all fixed in the same cycle:
+    - Schema let `activity` be required even on empty-session no-op → `superRefine` makes activity required only when entries are present. New vitest case + 1 existing case re-labeled. 1472 pass total.
+    - `pickedIndicatorIds` + `cells` not reset on date/ageGroup change → roster grid silently empty. Reset state at the start of the load `useEffect` before fetch.
+    - Cross-route import of `PENILAIAN_WRITE_BUDGET` → extracted to [lib/api/rate-limit-budgets.ts](lib/api/rate-limit-budgets.ts); both POST routes now share one source.
+
 - **T5 — Center selector on assessments hub** *(commit `feat(curriculum): C5 T5 — hub 8 sentra cards`)*
   - [app/teacher/assessments/page.tsx](app/teacher/assessments/page.tsx): replaced the C4 "Sentra Harian (Coming in C5)" placeholder with an 8-card 2-column grid driven by `ALL_LEARNING_CENTERS`. Each card has `data-testid="hub-center-<lowercase-key>"` for e2e assertions and links to `/teacher/assessments/center/<lowercase-key>`.
   - The walas card + new sentra grid share the same hub container so the visual hierarchy stays consistent.
@@ -111,8 +119,39 @@ Approved plan at [/Users/ismailrabbanii/.claude/plans/glowing-mapping-crane.md](
 
 ## Verification
 
-<!-- filled by /build -->
+- **End-of-cycle gates:**
+  - `npm run build` ✓ clean (only the pre-existing turbopack lockfile note)
+  - `npx vitest run` ✓ 1472/1514 (42 pre-existing todos)
+  - `DEMO_MODE=true npx playwright test` — 102 passed / 9 skipped / 1 flaky / **2 pre-existing failures** carried from C4 verification (curriculum-admin.spec.ts:38 AY-name drift, admin.spec.ts:432 tagihan flow). Both unrelated to C5 (no admin curriculum or invoice surface touched).
+  - `e2e/teacher-assessments-center.spec.ts` (new) — 3/3 pass.
+  - `e2e/teacher-assessments-weekly.spec.ts` — 4/4 pass after updating the hub-spec assertion to point at the new `hub-center-grid` selector.
+- **RLS:** `bash scripts/verify-rls-coverage.sh` ✓ 32/32 (no new tenant-scoped models in C5).
+- **API auth:** `bash scripts/verify-api-auth.sh` ✓ 153/153 (2 new routes added).
+- **Manual smoke:** preview MCP cwd issue persists (claude-harness worktree env quirk, same as C4). UI verification via Playwright + the page snapshots in test artifacts confirm the hub grid + sentra session form render correctly.
+- **Cross-checked design-system.html §portal-shells + §forms** for the sentra session form (date input + ageGroup toggle + activity input + indicator multi-select + roster grid).
+- **Follow-ups (post-merge):**
+  - C6: parent `/perkembangan` rollup that aggregates HOMEROOM + CENTER entries.
+  - Schema column on `ClassSection.ageGroup` (carried from C4).
+  - Refresh `e2e/curriculum-admin.spec.ts:38` AY-name assertion (carried from C4).
+  - Investigate `e2e/admin.spec.ts:432` demo-DB pollution (carried from C4).
+  - Optional: replace the manual `LearningCenterKey` type in `lib/format.ts` with an import from the generated Prisma client to drop the duplication.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migration:** none — entirely on top of C4's `AssessmentEntry` table.
+- **Env vars:** none.
+- **No new permissions** — reuses `assessments.read` + `assessments.write` from C4.
+- **New routes:**
+  - `POST /api/teacher/assessment-entries/center` — single-session bulk upsert with `source: CENTER`.
+  - `GET /api/teacher/assessment-entries/center/[center]` — sentra session payload.
+  - `/teacher/assessments/center/[center]` — mobile sentra session page.
+  - `/teacher/assessments` hub now shows 8 sentra cards in place of the C4 placeholder.
+- **Manual smoke recipe (post-deploy):**
+  - Login as any TEACHER. Visit `/teacher/assessments` → 8 sentra cards visible (Sentra Ibadah, Bahan Alam, …).
+  - Click "Sentra Ibadah" → session page renders with date input (default today) + TK A/B toggle + activity input.
+  - Pick `?date=2025-07-15` (or any date inside an active week) + ageGroup → indicator picker + roster appear.
+  - Pick ≤4 indicators → tap levels → Simpan → toast "Tersimpan: N penilaian." → reload → entries pre-fill.
+- **Rollback:** revert PR. No DB changes to undo.
+- **Follow-up cycles:**
+  - C6 — parent `/perkembangan` rollup that aggregates HOMEROOM + CENTER entries for parent visibility.
+  - Pack 2 (C8–C11) — raport templates + PDF/docx generation that consumes the now-populated AssessmentEntry table.

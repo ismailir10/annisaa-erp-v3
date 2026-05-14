@@ -192,12 +192,21 @@ describe("assessmentEntryCenterSessionSchema", () => {
     expect(r.success).toBe(false);
   });
 
-  it("rejects when activity is empty", () => {
+  it("rejects when activity is empty AND entries are present", () => {
     const r = assessmentEntryCenterSessionSchema.safeParse({
       ...baseSession,
       activity: "",
     });
     expect(r.success).toBe(false);
+  });
+
+  it("accepts empty activity when entries are also empty (no-op session)", () => {
+    const r = assessmentEntryCenterSessionSchema.safeParse({
+      ...baseSession,
+      activity: "",
+      entries: [],
+    });
+    expect(r.success).toBe(true);
   });
 
   it("rejects when activity is over 200 chars", () => {

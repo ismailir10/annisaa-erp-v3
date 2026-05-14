@@ -105,6 +105,14 @@ export function CenterSessionClient({
     let cancelled = false;
     async function load() {
       setLoading(true);
+      // Reset session-scoped state before fetching so stale picks from a
+      // previous (date, ageGroup) pair don't bleed into the new payload.
+      // Indicators differ across ageGroups (and across weeks for date
+      // changes); without this reset the roster grid silently goes empty
+      // because the new payload's indicators don't match the old IDs.
+      setPickedIndicatorIds([]);
+      setCells(new Map());
+      setOpenNotes(new Set());
       try {
         const res = await fetch(
           `/api/teacher/assessment-entries/center/${center}?date=${date}&ageGroup=${ageGroup}`,

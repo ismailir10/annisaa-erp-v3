@@ -10,7 +10,7 @@ import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
 import {
   PENILAIAN_WRITE_BUDGET,
   PENILAIAN_WRITE_WINDOW_MS,
-} from "@/app/api/teacher/assessment-entries/route";
+} from "@/lib/api/rate-limit-budgets";
 
 export async function POST(req: NextRequest) {
   const auth = await requirePermission("assessments.write");

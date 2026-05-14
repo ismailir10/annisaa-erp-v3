@@ -103,24 +103,38 @@ export const assessmentEntryUpdateSchema = z.object({
  */
 export const MAX_CENTER_SESSION_ENTRIES = 80;
 
-export const assessmentEntryCenterSessionSchema = z.object({
-  center: learningCenterSchema,
-  date: ymdSchema,
-  activity: z.string().min(1, "Kegiatan wajib diisi").max(200),
-  entries: z
-    .array(
-      z.object({
-        studentId: z.string().min(1, "Siswa wajib dipilih"),
-        indicatorId: z.string().min(1, "IKTP wajib dipilih"),
-        level: achievementLevelSchema,
-        note: z.string().max(500).optional(),
-      }),
-    )
-    .max(
-      MAX_CENTER_SESSION_ENTRIES,
-      `Maksimum ${MAX_CENTER_SESSION_ENTRIES} penilaian per sesi`,
-    ),
-});
+export const assessmentEntryCenterSessionSchema = z
+  .object({
+    center: learningCenterSchema,
+    date: ymdSchema,
+    // Required when there are entries; allowed empty when entries=[] so the
+    // route's no-op audit branch can record "sentra teacher reviewed but
+    // didn't tap" without the validator forcing a placeholder string. The
+    // superRefine below enforces the conditional rule.
+    activity: z.string().max(200).default(""),
+    entries: z
+      .array(
+        z.object({
+          studentId: z.string().min(1, "Siswa wajib dipilih"),
+          indicatorId: z.string().min(1, "IKTP wajib dipilih"),
+          level: achievementLevelSchema,
+          note: z.string().max(500).optional(),
+        }),
+      )
+      .max(
+        MAX_CENTER_SESSION_ENTRIES,
+        `Maksimum ${MAX_CENTER_SESSION_ENTRIES} penilaian per sesi`,
+      ),
+  })
+  .superRefine((value, ctx) => {
+    if (value.entries.length > 0 && value.activity.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Kegiatan wajib diisi saat menyimpan penilaian",
+        path: ["activity"],
+      });
+    }
+  });
 
 export type AssessmentEntryCreateInput = z.infer<
   typeof assessmentEntryCreateSchema
