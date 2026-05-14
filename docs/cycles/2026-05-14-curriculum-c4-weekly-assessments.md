@@ -100,6 +100,10 @@ Naming convention locked (per user instruction): English everywhere for code-sid
   - [lib/permissions.ts](lib/permissions.ts): added `learning` group with `assessments.read` + `assessments.write`; granted both to TEACHER default. Existing permissions test updated to assert the new TEACHER set.
   - Tests: 12 cases for the validator (HOMEROOM/CENTER happy + discriminator violations + bulk size + level enum + length caps), 2 cases each for the two resolvers (happy path + null path). All 1410 vitest cases pass.
 
+- **T3 — POST /api/teacher/assessment-entries** *(commit `feat(curriculum): C4 T3 — POST bulk assessment entries`)*
+  - [app/api/teacher/assessment-entries/route.ts](app/api/teacher/assessment-entries/route.ts): bulk upsert handler. Auth (`assessments.write`) → rate-limit (`PENILAIAN_WRITE_BUDGET = 60/min`) → validate (Zod bulk schema) → resolve active AcademicYear (422 if none) → resolve walas's ClassSection (only required if any HOMEROOM entry) → tenant-scope all referenced students + indicators (403 on mismatch) → enforce HOMEROOM students belong to walas's section via `StudentEnrollment` (403) → resolve weekId per distinct date via `getCurrentWeek` (422 if any date outside an active week) → enforce indicator-theme link against active week's theme (400) → `prisma.$transaction(upserts)` keyed on the design-locked unique → audit `bulk-upsert`.
+  - 12 vitest cases (auth/perm/employeeId, no AY, no week, student-not-in-tenant, student-not-in-section, not-walas, indicator-not-linked-to-theme, source/center mismatch, happy path, idempotent re-submit). 1422 vitest pass.
+
 ## Verification
 
 <!-- filled by /build -->
