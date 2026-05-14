@@ -57,3 +57,13 @@ ALTER TABLE "AssessmentEntry" ADD CONSTRAINT "AssessmentEntry_weekId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "AssessmentEntry" ADD CONSTRAINT "AssessmentEntry_recordedById_fkey" FOREIGN KEY ("recordedById") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- RLS: AssessmentEntry is service-role-only writable from API routes (which
+-- already gate via requirePermission + tenant scoping). Mirror the curriculum
+-- pattern from 20260512100000_add_curriculum_models — service_role bypass
+-- + RLS enabled so authenticated/anon JWT callers can never reach the rows
+-- directly. No tenant-scoped SELECT policy because the app never queries
+-- this table from a JWT-authenticated client; if that changes, add a
+-- `tenantId = current_setting('app.tenant_id')::text` USING clause.
+ALTER TABLE "AssessmentEntry" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY assessmententry_service_all ON "AssessmentEntry" AS PERMISSIVE FOR ALL TO service_role USING (true);

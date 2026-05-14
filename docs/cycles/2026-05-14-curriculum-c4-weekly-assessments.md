@@ -144,6 +144,7 @@ Naming convention locked (per user instruction): English everywhere for code-sid
 - **Manual smoke:** preview server failed locally with `EPERM uv_cwd` (claude-harness worktree env quirk; same issue noted in C3 cycle). UI verification covered by Playwright (see new spec) + page snapshot in test artifacts shows full active-week chrome rendering correctly with header / day chips / IKTP picker / roster.
 - **Cross-checked design-system.html §portal-shells + §forms** for tap UX (T5 acceptance).
 - **RLS coverage:** `bash scripts/verify-rls-coverage.sh` to be run as part of the ship preflight (script not invoked in /build).
+- **RLS:** `bash scripts/verify-rls-coverage.sh` ✓ 32/32 (after RLS clause added to the AssessmentEntry migration in /ship preflight); `bash scripts/verify-api-auth.sh` ✓ 151/151.
 - **Follow-ups (post-merge):**
   - Add `ageGroup` column to `ClassSection` so `deriveAgeGroup(name)` can retire (currently a name-prefix heuristic).
   - Update `e2e/curriculum-admin.spec.ts:38` AY-name assertion to read the active year dynamically rather than hard-code `2025/2026`.
