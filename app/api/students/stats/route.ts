@@ -29,10 +29,12 @@ export async function GET(_req: NextRequest) {
 
   const active = byStatus.ACTIVE ?? 0;
   const graduated = byStatus.GRADUATED ?? 0;
-  // `total` mirrors the prior client behavior (sum of the displayed
-  // buckets). INACTIVE/WITHDRAWN are intentionally excluded so cards stay
-  // aligned with pre-refactor numbers.
-  const total = active + graduated;
+  // `total` is the unfiltered row count — equal to GET /api/students'
+  // pagination.total when no status filter is applied. Previous shape
+  // summed only ACTIVE + GRADUATED, which drifted from the list header
+  // count by the number of INACTIVE + WITHDRAWN rows. E2E session confirmed
+  // users noticed the drift (Finding F-2).
+  const total = Object.values(byStatus).reduce((sum, n) => sum + n, 0);
 
   return NextResponse.json({ total, active, graduated });
 }

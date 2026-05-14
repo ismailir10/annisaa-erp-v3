@@ -391,13 +391,19 @@ export default function AdmissionsPage() {
   // admin reloaded. Extract into a callable so every mutation handler can
   // call it alongside `fetchAdmissions()`.
   const fetchStats = useCallback(() => {
+    // Total Calon must include every status — previously summed only
+    // INQUIRY + ADMITTED, so a Pertanyaan→Kunjungan transition silently
+    // dropped the total by 1 (Finding F-3). Fetch an unfiltered count plus
+    // the two visible buckets in parallel.
     Promise.all([
+      fetch("/api/admissions?pageSize=1").then(r => r.json()),
       fetch("/api/admissions?pageSize=1&status=INQUIRY").then(r => r.json()),
       fetch("/api/admissions?pageSize=1&status=ADMITTED").then(r => r.json()),
-    ]).then(([inquiry, admitted]) => {
+    ]).then(([all, inquiry, admitted]) => {
+      const t = all.pagination?.total ?? 0;
       const i = inquiry.pagination?.total ?? 0;
       const a = admitted.pagination?.total ?? 0;
-      setStats({ total: i + a, inquiry: i, admitted: a });
+      setStats({ total: t, inquiry: i, admitted: a });
     }).catch((err) => console.error("[admissions] stats fetch failed", err));
   }, []);
   useEffect(() => { fetchStats(); }, [fetchStats]);

@@ -170,7 +170,10 @@ export default function GuardiansPage() {
   async function handleEditSave() {
     if (!editTarget) return;
     setSaving(true);
-    const res = await fetch(`/api/guardians/${editTarget.id}`, {
+    // /admin/guardians is a Parent-list page despite its URL; mutations go to
+    // /api/parents/[id]. The /api/guardians/[id] tree edits StudentGuardian
+    // junction rows (used from the Student detail page).
+    const res = await fetch(`/api/parents/${editTarget.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editForm),
@@ -185,8 +188,8 @@ export default function GuardiansPage() {
   async function handleStatusToggle() {
     if (!deactivateTarget) return;
     const newStatus = deactivateTarget.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
-    const res = await fetch(`/api/guardians/${deactivateTarget.id}`, {
-      method: "PUT",
+    const res = await fetch(`/api/parents/${deactivateTarget.id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
