@@ -109,6 +109,13 @@ Naming convention locked (per user instruction): English everywhere for code-sid
   - Response: `{ week: { id, number, startDate, endDate, subTheme, theme }, classSection: { id, name, ageGroup }, students: [], indicators: [], entries: [] }` — dates returned as Jakarta-tz YYYY-MM-DD via `formatJakartaYmd`.
   - 9 vitest cases (401/403, 404 no AY, 404 not_homeroom, 404 no_active_week with classSection echo, 200 happy, 200 ageGroup-filter applied when derivable, 200 ageGroup-filter omitted otherwise, 200 entries scoped to HOMEROOM source + week + roster). 1431 vitest pass.
 
+- **T5 — `/teacher/assessments/weekly` mobile UI** *(commit `feat(curriculum): C4 T5 — walas weekly mobile UI`)*
+  - Refactor: extracted [lib/curriculum/weekly-assessment-loader.ts](lib/curriculum/weekly-assessment-loader.ts) (`loadWeeklyAssessment(...)`) so the SSR page + GET route share one data-load path. `deriveAgeGroup(name)` lives there too. Route handler [app/api/teacher/assessment-entries/weekly/route.ts](app/api/teacher/assessment-entries/weekly/route.ts) now thin-wraps the loader; T4 tests (9 cases) still pass.
+  - [app/teacher/assessments/weekly/page.tsx](app/teacher/assessments/weekly/page.tsx): server component — calls `loadWeeklyAssessment`; renders contextual `<EmptyState>` for `not_homeroom`/`no_active_year`/`no_active_week`; otherwise hands payload to `<WeeklyClient>`.
+  - [app/teacher/assessments/weekly/client.tsx](app/teacher/assessments/weekly/client.tsx): mobile-first (inherits teacher layout `max-w-md`). Header → day chips Mon–Fri (default = today if within week) → indicator dropdown (filtered by week's theme + walas's ageGroup) → vertical roster with 3-button level setter (`bg-status-present`/`bg-status-late`/`bg-status-absent` per [.claude/standards/colors.md](.claude/standards/colors.md)). Optimistic write per tap → `POST /api/teacher/assessment-entries` → toast on error + revert + `router.refresh()` on success.
+  - 4 vitest cases for pure helpers (`weekDays`, `pickInitialDay`). 1435 vitest pass.
+  - Cross-checked design-system.html §portal-shells + §forms for tap UX.
+
 ## Verification
 
 <!-- filled by /build -->
