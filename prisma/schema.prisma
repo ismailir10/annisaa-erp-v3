@@ -41,6 +41,7 @@ model Tenant {
   weeks                  Week[]
   learningObjectives     LearningObjective[]
   achievementIndicators  AchievementIndicator[]
+  assessmentEntries      AssessmentEntry[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -175,6 +176,7 @@ model Employee {
   payrollItems        PayrollItem[]
   leaveRequests       LeaveRequest[]
   teachingAssignments TeachingAssignment[]
+  recordedAssessments AssessmentEntry[]     @relation("AssessmentRecordedBy")
 
   @@unique([tenantId, kode])
   @@index([tenantId, status])
@@ -474,6 +476,7 @@ model Student {
   invoices           Invoice[]
   studentAttendances StudentAttendance[]
   assessments        StudentAssessment[]
+  assessmentEntries  AssessmentEntry[]
 
   @@index([tenantId, status])
   @@index([nis], map: "Student_nis_idx")
@@ -1086,8 +1089,9 @@ model Week {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  subTheme SubTheme @relation(fields: [subThemeId], references: [id], onDelete: Cascade)
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subTheme SubTheme          @relation(fields: [subThemeId], references: [id], onDelete: Cascade)
+  entries  AssessmentEntry[]
 
   @@unique([tenantId, subThemeId, number])
   @@index([tenantId])
@@ -1130,6 +1134,7 @@ model AchievementIndicator {
   tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   objective  LearningObjective    @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
   themeLinks IndicatorThemeLink[]
+  entries    AssessmentEntry[]
 
   @@index([tenantId])
   @@index([tenantId, objectiveId])
@@ -1149,4 +1154,52 @@ model IndicatorThemeLink {
 
   @@id([indicatorId, themeId])
   @@index([themeId])
+}
+
+// ── ASSESSMENT ENTRY ─────────────────────────────────────────
+// Pack 1 / Cycle 4: per-student per-indicator assessment record.
+// Replaces ad-hoc usage of the legacy AssessmentTemplate scoring
+// (BB/MB/BSH/BSB) with the locked 3-level AchievementLevel enum.
+// `source` discriminates HOMEROOM (walas weekly) vs CENTER (sentra daily, C5).
+
+enum AssessmentSource {
+  HOMEROOM // Walas Pekanan
+  CENTER // Sentra Harian
+}
+
+enum LearningCenter {
+  WORSHIP // Sentra Ibadah
+  NATURAL_MATERIALS // Sentra Bahan Alam
+  ART // Sentra Seni
+  COOKING // Sentra Memasak
+  ROLE_PLAY // Sentra Main Peran
+  BLOCKS // Sentra Balok
+  PREPARATION // Sentra Persiapan
+  AREA // AREA
+}
+
+model AssessmentEntry {
+  id           String           @id @default(cuid())
+  tenantId     String
+  studentId    String
+  indicatorId  String
+  date         DateTime         @db.Date // Jakarta-tz date (UTC midnight of the Jakarta day)
+  weekId       String // denormalized for fast roll-up; resolved server-side via getCurrentWeek
+  source       AssessmentSource
+  center       LearningCenter? // required iff source = CENTER (validated app-side)
+  activity     String? // free-text kegiatan (used for sentra context, optional for HOMEROOM)
+  level        AchievementLevel
+  note         String?
+  recordedById String
+  recordedAt   DateTime         @default(now())
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student    Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  indicator  AchievementIndicator @relation(fields: [indicatorId], references: [id], onDelete: Restrict)
+  week       Week                 @relation(fields: [weekId], references: [id], onDelete: Restrict)
+  recordedBy Employee             @relation("AssessmentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, studentId, indicatorId, date, source])
+  @@index([tenantId, weekId, studentId])
+  @@index([tenantId, studentId, date])
 }

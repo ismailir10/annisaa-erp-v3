@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, BookHeart } from "lucide-react";
+import { MapPin, BookHeart, CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/portal/page-header";
@@ -40,9 +40,11 @@ export function nextStateAfterAction(
 export function TeacherHomeClient({
   userName,
   todayRecord: initialRecord,
+  homeroomClassSectionName,
 }: {
   userName: string;
   todayRecord: TodayRecord | null;
+  homeroomClassSectionName?: string | null;
 }) {
   const router = useRouter();
   const [record, setRecord] = useState(initialRecord);
@@ -291,18 +293,37 @@ export function TeacherHomeClient({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
           Akses Cepat
         </p>
-        <Link
-          href="/teacher/student-journal"
-          className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
-        >
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <BookHeart size={20} className="text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-medium">Buku Penghubung</p>
-            <p className="text-xs text-muted-foreground">Isi catatan harian siswa</p>
-          </div>
-        </Link>
+        <div className="space-y-2">
+          <Link
+            href="/teacher/student-journal"
+            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <BookHeart size={20} className="text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Buku Penghubung</p>
+              <p className="text-xs text-muted-foreground">Isi catatan harian siswa</p>
+            </div>
+          </Link>
+          {homeroomClassSectionName && (
+            <Link
+              href="/teacher/assessments/weekly"
+              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+              data-testid="home-weekly-card"
+            >
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <CalendarDays size={20} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Penilaian Pekanan</p>
+                <p className="text-xs text-muted-foreground">
+                  Walas {homeroomClassSectionName}
+                </p>
+              </div>
+            </Link>
+          )}
+        </div>
       </motion.div>
 
       {/* Today status */}

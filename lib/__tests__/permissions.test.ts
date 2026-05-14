@@ -120,13 +120,15 @@ describe("getSystemRolePermissions", () => {
     expect(perms).toContain("users.edit");
   });
 
-  it("TEACHER → self-service set: attendance.view, attendance.checkin, leave.submit, students.view, curriculum.read", () => {
+  it("TEACHER → self-service set: attendance + leave + students + curriculum.read + assessments r/w", () => {
     expect(getSystemRolePermissions("TEACHER")).toEqual([
       "attendance.view",
       "attendance.checkin",
       "leave.submit",
       "students.view",
       "curriculum.read",
+      "assessments.read",
+      "assessments.write",
     ]);
   });
 
