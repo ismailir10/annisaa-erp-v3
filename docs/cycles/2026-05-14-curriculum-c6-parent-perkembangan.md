@@ -130,10 +130,11 @@ Per design [docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaia
 - **Cross-checked design-system.html** §portal-shells + §dashboard for the 5-row element block + "Pekan ini" preview list + parent-home card.
 - **Manual smoke:** preview-verify against staging Vercel after PR merge — Chrome MCP using `ismailir10@gmail.com` Google SSO (per CTO authorization).
 - **Follow-ups (post-merge):**
-  - C8 — Term model + flip the perkembangan loader from "active Semester" to "active Term".
+  - C8 — Term model + flip the perkembangan loader from "active Semester" to "active Term". Also hoist the per-loader semester lookup out of the per-student fan-out (today's home renders `N × 1` redundant `Semester.findFirst` reads for an N-kid household; not a bug, but easy cleanup once Term lands).
   - Schema column on `ClassSection.ageGroup` (carried from C4).
   - Refresh `e2e/curriculum-admin.spec.ts:38` AY-name assertion (carried from C4).
   - Investigate `e2e/admin.spec.ts:432` demo-DB pollution (carried from C4).
+- **Code review pass (feature-dev:code-reviewer):** 1 fix landed pre-ship — progress bar in `components/parent/element-progress-row.tsx` gained `role="img"` + Indonesian `aria-label` summarising the level counts so screen-reader users hear the same data sighted users see. Semester-fan-out N+1 deferred to C8. Naming split (Capaian tab / Perkembangan page) accepted as documented.
 
 ## Ship Notes
 

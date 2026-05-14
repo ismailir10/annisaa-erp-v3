@@ -44,7 +44,15 @@ export function ElementProgressRow({
           {empty ? "—" : `${total} catatan`}
         </span>
       </div>
-      <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+      <div
+        className="flex h-2 w-full overflow-hidden rounded-full bg-muted"
+        role="img"
+        aria-label={
+          empty
+            ? `${label}: belum ada catatan`
+            : `${label}: ${counts.CONSISTENT} Mampu, ${counts.EMERGING} Belum, ${counts.NEEDS_REINFORCEMENT} Perlu dari ${total} catatan`
+        }
+      >
         {empty ? (
           <div className="h-full w-full bg-muted" />
         ) : (
