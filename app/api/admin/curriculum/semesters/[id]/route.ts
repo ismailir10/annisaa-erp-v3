@@ -6,6 +6,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { semesterUpdateSchema, parseJakartaYmd } from "@/lib/validations/curriculum";
 import { auditActionForUpdate, CURRICULUM_WRITE_BUDGET, CURRICULUM_WRITE_WINDOW_MS, semesterListSelect } from "../../_helpers";
+import { reconcileSessions } from "@/lib/sessions/reconcile";
 
 export async function GET(
   _req: NextRequest,
@@ -103,5 +104,50 @@ export async function PUT(
     },
   });
 
-  return NextResponse.json(updated);
+  // Reactive session generation: a semester date-range change shifts which
+  // calendar days every ClassSection in this academic year generates sessions
+  // for. Reconcile each section in the year. allowDestructive is passed ONLY
+  // here — a shrunk semester range should clean up the now-orphaned empty
+  // sessions; reconcile only ever deletes EXPIRED rows with zero attendance,
+  // so this stays safe. The update + audit above have already committed; a
+  // reconcile failure is logged but never rolls back the legitimate semester
+  // edit — reconcile is idempotent and re-runnable.
+  //
+  // The try/catch is PER SECTION: one bad section must not abort the rest of
+  // the fan-out. Failed sections are counted and surfaced in an honest warning
+  // — there is no auto-retry, the admin must re-run reconcile manually.
+  let reconcileWarning: string | undefined;
+  const datesChanged =
+    (data.startDate !== undefined &&
+      data.startDate.getTime() !== before.startDate.getTime()) ||
+    (data.endDate !== undefined &&
+      data.endDate.getTime() !== before.endDate.getTime());
+  if (datesChanged) {
+    const sections = await prisma.classSection.findMany({
+      where: {
+        academicYearId: updated.academicYearId,
+        tenantId: session.tenantId,
+      },
+      select: { id: true },
+    });
+    let failedSections = 0;
+    for (const sec of sections) {
+      try {
+        await reconcileSessions(sec.id, { allowDestructive: true });
+      } catch (err) {
+        failedSections += 1;
+        console.error(
+          `[semesters PUT] reconcileSessions failed for section ${sec.id} (semester ${id}, year ${updated.academicYearId}):`,
+          err,
+        );
+      }
+    }
+    if (failedSections > 0) {
+      reconcileWarning = `Sebagian sesi kelas gagal dibuat ulang (${failedSections} kelas) — jalankan ulang dari pengaturan.`;
+    }
+  }
+
+  return NextResponse.json(
+    reconcileWarning ? { ...updated, reconcileWarning } : updated,
+  );
 }

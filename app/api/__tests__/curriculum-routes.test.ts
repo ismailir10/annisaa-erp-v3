@@ -46,6 +46,16 @@ const achievementIndicatorAggregate = vi.fn();
 const indicatorThemeLinkUpsert = vi.fn();
 const indicatorThemeLinkDeleteMany = vi.fn();
 
+// Semester PUT fans out a reconcile over every ClassSection in the year when
+// dates change — mock the lookup + the reconcile service.
+const classSectionFindMany = vi.fn();
+const reconcileSessions = vi.fn();
+
+vi.mock("@/lib/sessions/reconcile", () => ({
+  reconcileSessions: (...args: unknown[]) => reconcileSessions(...args),
+  SESSION_BATCH_TOO_LARGE: "session_batch_too_large",
+}));
+
 vi.mock("@/lib/db", () => ({
   prisma: {
     semester: {
@@ -77,6 +87,7 @@ vi.mock("@/lib/db", () => ({
       update: weekUpdate,
     },
     academicYear: { findFirst: academicYearFindFirst },
+    classSection: { findMany: classSectionFindMany },
     auditLog: { create: auditLogCreate },
     learningObjective: {
       findFirst: learningObjectiveFindFirst,
@@ -148,6 +159,14 @@ beforeEach(() => {
   // not leak into the next case.
   semesterFindMany.mockResolvedValue([]);
   semesterCount.mockResolvedValue(0);
+  classSectionFindMany.mockResolvedValue([]);
+  reconcileSessions.mockResolvedValue({
+    classSectionId: "cs",
+    added: 0,
+    deletedEmpty: 0,
+    keptNonEmpty: 0,
+    warnings: [],
+  });
   themeFindMany.mockResolvedValue([]);
   themeCount.mockResolvedValue(0);
   subThemeFindMany.mockResolvedValue([]);

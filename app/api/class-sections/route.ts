@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { createClassSectionSchema } from "@/lib/validations/class-section";
+import { reconcileSessions } from "@/lib/sessions/reconcile";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -112,6 +113,25 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Reactive session generation — the new section's ClassSession rows are
+  // generated now, not via an admin "Generate" button. The create above has
+  // already committed and is independently valid; if reconcile throws we log
+  // it and still return 201 — reconcile is idempotent and re-runnable, and a
+  // session fan-out failure must not roll back a legitimate section create.
+  let reconcileWarning: string | undefined;
+  try {
+    await reconcileSessions(section.id);
+  } catch (err) {
+    console.error(
+      `[class-sections POST] reconcileSessions failed for section ${section.id}:`,
+      err,
+    );
+    reconcileWarning = "Sesi kelas akan dibuat ulang otomatis.";
+  }
+
   revalidatePath("/api/class-sections");
-  return NextResponse.json(section, { status: 201 });
+  return NextResponse.json(
+    reconcileWarning ? { ...section, reconcileWarning } : section,
+    { status: 201 },
+  );
 }

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { updateClassSectionSchema } from "@/lib/validations/class-section";
+import { reconcileSessions } from "@/lib/sessions/reconcile";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { success } = rateLimit(`update-class-section:${getClientIp(req)}`, 20, 60_000);
@@ -50,9 +51,40 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const section = await prisma.classSection.update({
     where: { id },
-    data: { name: body.name?.trim(), capacity: body.capacity, campusId: body.campusId, status: body.status },
+    data: {
+      name: body.name?.trim(),
+      capacity: body.capacity,
+      campusId: body.campusId,
+      status: body.status,
+      slotTemplate: body.slotTemplate,
+    },
   });
-  return NextResponse.json(section);
+
+  // Reactive session generation: a slotTemplate change reshapes the per-day
+  // slot fan-out (FULL_DAY ⇄ MORNING_AND_AFTERNOON), so the section's
+  // ClassSession rows must be regenerated. Only reconcile when slotTemplate
+  // actually changed — a name/capacity/campus edit leaves sessions untouched.
+  // (A status flip to INACTIVE needs no reconcile: Task 2 made reconcile a
+  // no-op for INACTIVE sections, so we skip it rather than spend the query.)
+  // The update above has already committed; if reconcile throws we log it and
+  // still return 200 — reconcile is idempotent and re-runnable, and a session
+  // fan-out failure must not roll back a legitimate section update.
+  let reconcileWarning: string | undefined;
+  if (body.slotTemplate !== undefined && body.slotTemplate !== existing.slotTemplate) {
+    try {
+      await reconcileSessions(id);
+    } catch (err) {
+      console.error(
+        `[class-sections PUT] reconcileSessions failed for section ${id}:`,
+        err,
+      );
+      reconcileWarning = "Sesi kelas akan dibuat ulang otomatis.";
+    }
+  }
+
+  return NextResponse.json(
+    reconcileWarning ? { ...section, reconcileWarning } : section,
+  );
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
