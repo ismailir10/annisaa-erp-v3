@@ -68,6 +68,13 @@ export const PERMISSION_GROUPS = {
       "curriculum.write": "Kelola kurikulum (buat / ubah / nonaktifkan)",
     },
   },
+  learning: {
+    label: "Penilaian",
+    permissions: {
+      "assessments.read": "Lihat penilaian siswa",
+      "assessments.write": "Catat penilaian siswa (pekanan + sentra)",
+    },
+  },
 } as const;
 
 // Flatten all permission codes
@@ -149,6 +156,11 @@ export function getSystemRolePermissions(role: string): string[] {
         "leave.submit",
         "students.view",
         "curriculum.read",
+        // Penilaian — TEACHER may record (walas weekly + any teacher sentra)
+        // and read their own writes. Per design §3.2, scoping (walas vs
+        // sentra) is enforced at the route layer, not via separate keys.
+        "assessments.read",
+        "assessments.write",
       ];
     case "GUARDIAN":
       return ["students.view", "invoices.view"];

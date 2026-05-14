@@ -88,7 +88,17 @@ Naming convention locked (per user instruction): English everywhere for code-sid
 
 ## Implementation
 
-<!-- filled by /build -->
+- **T1 — Schema + migration** *(commit `feat(curriculum): C4 T1 — AssessmentEntry schema + migration`)*
+  - [prisma/schema.prisma](prisma/schema.prisma): added `enum AssessmentSource`, `enum LearningCenter`, `model AssessmentEntry` (FK to Tenant/Student/AchievementIndicator/Week/Employee with the design-locked unique + indexes); added back-relations on `Tenant`, `Student`, `Employee`, `Week`, `AchievementIndicator`.
+  - `prisma/migrations/20260514120000_add_assessment_entry/migration.sql`: hand-written DDL matching the schema additions; additive only.
+  - `npx prisma generate` + `npx prisma format` succeeded; `npm run build` + `npx vitest run` (1388 pass) green.
+
+- **T2 — Validation + helpers + permission keys** *(commit `feat(curriculum): C4 T2 — validation + homeroom/week resolvers + assessments perm keys`)*
+  - [lib/validations/assessment-entry.ts](lib/validations/assessment-entry.ts): `assessmentEntryCreateSchema`, `assessmentEntryBulkCreateSchema` (max `MAX_BULK_ENTRIES = 50`), `assessmentEntryUpdateSchema` with HOMEROOM↔CENTER discriminator via `superRefine`.
+  - [lib/curriculum/homeroom.ts](lib/curriculum/homeroom.ts): `getHomeroomClassSection(tenantId, employeeId, academicYearId)`.
+  - [lib/curriculum/week-resolver.ts](lib/curriculum/week-resolver.ts): `getCurrentWeek(tenantId, targetUtcMidnight)`.
+  - [lib/permissions.ts](lib/permissions.ts): added `learning` group with `assessments.read` + `assessments.write`; granted both to TEACHER default. Existing permissions test updated to assert the new TEACHER set.
+  - Tests: 12 cases for the validator (HOMEROOM/CENTER happy + discriminator violations + bulk size + level enum + length caps), 2 cases each for the two resolvers (happy path + null path). All 1410 vitest cases pass.
 
 ## Verification
 
