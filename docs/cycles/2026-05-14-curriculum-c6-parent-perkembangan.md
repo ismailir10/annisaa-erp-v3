@@ -89,6 +89,12 @@ Per design [docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaia
   - [lib/parent-helpers.ts](lib/parent-helpers.ts): exported `getParentChildById(session, studentId)` — thin wrapper over `getParentWithChildren` (60-s cache reused). Returns null when studentId is empty / bogus / belongs to another family / parent has no children. The flat-null contract keeps the route's 404 from leaking studentId existence.
   - 5 new vitest cases for the helper (happy lookup, wrong-family null, no-children null, empty studentId short-circuit, no-tenant short-circuit) + 3 updated for the GUARDIAN permission set. 1479 vitest pass.
 
+- **T2 — perkembangan loader + GET route** *(commit `feat(curriculum): C6 T2 — perkembangan loader + GET route`)*
+  - [lib/curriculum/perkembangan-loader.ts](lib/curriculum/perkembangan-loader.ts): `loadStudentPerkembangan(tenantId, studentId)` resolves active Semester (newest `startDate` if multiple ACTIVE) → fetches all `AssessmentEntry` rows where `indicator.objective.semesterId = semester.id` → groups by `element × level` via pure `aggregateByElement()` helper → fetches latest 3 entries this week (via `getCurrentWeek(today)`) for preview. Returns `{ semester, elements (5 fixed), latestThisWeek (≤3), hasActiveWeek }`. Term substitution documented inline (Term model is C8).
+  - [app/api/parent/perkembangan/[studentId]/route.ts](app/api/parent/perkembangan/[studentId]/route.ts): `requirePermission("assessments.read")` → GUARDIAN gate → `getParentChildById` (flat 404 with neutral "Anak tidak ditemukan." copy) → loader → JSON `{ child, semester, elements, latestThisWeek, hasActiveWeek }`.
+  - 14 new vitest cases: 3 for `aggregateByElement` (empty, counts, unknown-element drop), 4 for `loadStudentPerkembangan` (no semester, semester-scoped findMany, week preview, no-week empty), 7 for the route (401, 403 non-GUARDIAN, 403 missing perm, 404 wrong-child, 404 neutral message, 200 happy, 200 no-week).
+  - 1493 vitest pass total. RLS coverage unchanged (no new tenant-scoped models).
+
 ## Verification
 
 <!-- filled by /build -->
