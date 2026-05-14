@@ -103,6 +103,11 @@ Per design [docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaia
   - Cross-checked design-system.html §portal-shells + §dashboard.
   - Build clean. 1493 vitest pass (no behavior tests for pages — Playwright covers in T5).
 
+- **T4 — Parent home "Perkembangan minggu ini" card** *(commit `feat(curriculum): C6 T4 — home perkembangan-minggu-ini card`)*
+  - [app/parent/page.tsx](app/parent/page.tsx): extended the existing `Promise.all` to fan out `loadStudentPerkembangan` per kid (bounded by `kidIds.length`). Added a `Perkembangan minggu ini` section between "Anak Anda" and "Tagihan" that surfaces a card per kid showing up to 3 latest-week entries (element label + indicator content + level chip + sentra name if CENTER). Section is hidden entirely when no kid has entries this week, so the home stays calm on quiet days.
+  - Each card links to `/parent/perkembangan/[studentId]`.
+  - Build clean. 1493 vitest pass.
+
 ## Verification
 
 <!-- filled by /build -->
