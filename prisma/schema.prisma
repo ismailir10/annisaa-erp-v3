@@ -27,6 +27,7 @@ model Tenant {
   academicYears          AcademicYear[]
   programs               Program[]
   classSections          ClassSection[]
+  classTracks            ClassTrack[]
   students               Student[]
   admissions             Admission[]
   feeDefs                FeeComponentDef[]
@@ -105,6 +106,7 @@ model Campus {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   employees     Employee[]
   classSections ClassSection[]
+  classTracks   ClassTrack[]
 
   @@index([tenantId])
 }
@@ -168,15 +170,17 @@ model Employee {
   leaveBalanceAnnual Int @default(12)
   leaveBalanceSick   Int @default(14)
 
-  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  campus              Campus                @relation(fields: [campusId], references: [id], onDelete: Restrict)
-  user                User?
-  salaryValues        EmployeeSalaryValue[]
-  attendanceRecords   AttendanceRecord[]
-  payrollItems        PayrollItem[]
-  leaveRequests       LeaveRequest[]
-  teachingAssignments TeachingAssignment[]
-  recordedAssessments AssessmentEntry[]     @relation("AssessmentRecordedBy")
+  tenant                   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campus                   Campus                @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  user                     User?
+  salaryValues             EmployeeSalaryValue[]
+  attendanceRecords        AttendanceRecord[]
+  payrollItems             PayrollItem[]
+  leaveRequests            LeaveRequest[]
+  teachingAssignments      TeachingAssignment[]
+  recordedAssessments      AssessmentEntry[]     @relation("AssessmentRecordedBy")
+  sessionsAsTeacher        ClassSession[]        @relation("SessionTeacher")
+  sessionsAsDefaultTeacher ClassSession[]        @relation("SessionDefaultTeacher")
 
   @@unique([tenantId, kode])
   @@index([tenantId, status])
@@ -410,6 +414,7 @@ model Program {
 
   tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   classSections       ClassSection[]
+  classTracks         ClassTrack[]
   admissions          Admission[]
   feeStructures       ProgramFeeStructure[]
   assessmentTemplates AssessmentTemplate[]
@@ -418,27 +423,85 @@ model Program {
   @@index([tenantId])
 }
 
+// ── CLASS TRACK ──────────────────────────────────────────────
+// Stable multi-year class identity (e.g. "TKIT A" persists across
+// academic years). ClassSection is the per-year instance of a track.
+// All FKs Restrict — a track is configuration, not a leaf row; never
+// auto-drop it when a tenant/campus/program is removed.
+model ClassTrack {
+  id        String @id @default(cuid())
+  tenantId  String
+  campusId  String
+  programId String
+  name      String // "TKIT A", "KB Aster"
+  status    String @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campus   Campus         @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  program  Program        @relation(fields: [programId], references: [id], onDelete: Restrict)
+  sections ClassSection[]
+
+  @@unique([tenantId, campusId, programId, name])
+  @@index([tenantId, status])
+}
+
 // ── CLASS SECTION ────────────────────────────────────────────
 model ClassSection {
   id             String @id @default(cuid())
   tenantId       String
+  classTrackId   String
   programId      String
   academicYearId String
   name           String // "TKIT A", "KB Aster", "D'Care Metland"
   capacity       Int    @default(20)
   campusId       String
+  slotTemplate   String @default("FULL_DAY") // FULL_DAY | MORNING_AND_AFTERNOON
   status         String @default("ACTIVE") // ACTIVE | INACTIVE
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  classTrack          ClassTrack           @relation(fields: [classTrackId], references: [id], onDelete: Restrict)
   program             Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
   academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
   campus              Campus               @relation(fields: [campusId], references: [id], onDelete: Restrict)
   enrollments         StudentEnrollment[]
   teachingAssignments TeachingAssignment[]
   studentAttendances  StudentAttendance[]
+  sessions            ClassSession[]
 
   @@unique([tenantId, academicYearId, name])
   @@index([tenantId])
+}
+
+// ── CLASS SESSION ────────────────────────────────────────────
+// A daily class meeting. Tenancy is indirect through ClassSection
+// (no tenantId column). Cascade from ClassSection (sessions follow
+// the class); Restrict on Semester (the anchoring date range is
+// configuration); SetNull on both teacher FKs so removing an
+// employee leaves the historical session row intact.
+// @rls-indirect: via ClassSection
+model ClassSession {
+  id               String   @id @default(cuid())
+  classSectionId   String
+  semesterId       String // anchors the session's date range to a Semester
+  date             String // YYYY-MM-DD (Jakarta-tz calendar date)
+  slot             String   @default("FULL_DAY") // FULL_DAY | MORNING | AFTERNOON
+  teacherId        String? // the EFFECTIVE teacher (may be a substitute)
+  defaultTeacherId String? // snapshot of the class homeroom at session creation; preserved across substitute swaps for audit
+  substituteReason String?
+  isBackfilled     Boolean  @default(false) // true if the session row was created or edited for a past date
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  classSection   ClassSection        @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+  semester       Semester            @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  teacher        Employee?           @relation("SessionTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  defaultTeacher Employee?           @relation("SessionDefaultTeacher", fields: [defaultTeacherId], references: [id], onDelete: SetNull)
+  attendances    StudentAttendance[]
+
+  @@unique([classSectionId, date, slot])
+  @@index([teacherId, date])
+  @@index([date])
+  @@index([semesterId])
 }
 
 // ── STUDENT ──────────────────────────────────────────────────
@@ -737,26 +800,39 @@ model Payment {
 // Cascade on Student (logs follow the child); Restrict on ClassSection
 // so a class can't be deleted out from under outstanding attendance.
 model StudentAttendance {
-  id             String    @id @default(cuid())
-  studentId      String
-  classSectionId String
-  date           String // YYYY-MM-DD
-  status         String    @default("PRESENT") // PRESENT | ABSENT | SICK | PERMISSION
-  checkInTime    DateTime?
-  checkOutTime   DateTime?
-  checkedInBy    String? // Employee ID who marked attendance
-  notes          String?
-  isVoided       Boolean   @default(false) // soft-delete; voided = admin marked incorrect
-  createdAt      DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  studentId          String
+  classSectionId     String
+  sessionId          String? // ClassSession this attendance belongs to (primary linkage going forward)
+  date               String // YYYY-MM-DD
+  status             String    @default("PRESENT") // PRESENT | ABSENT | SICK | PERMISSION
+  checkInTime        DateTime?
+  checkOutTime       DateTime?
+  checkedInBy        String? // Employee ID who marked attendance
+  pickedUpByRelation String? // PARENT | GUARDIAN | GRANDPARENT | SIBLING | DRIVER | HOUSEHOLD_HELPER | OTHER
+  pickedUpByName     String? // free text; required app-side when pickedUpByRelation = OTHER
+  notes              String?
+  isVoided           Boolean   @default(false) // soft-delete; voided = admin marked incorrect
+  createdAt          DateTime  @default(now())
 
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Restrict)
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSection ClassSection  @relation(fields: [classSectionId], references: [id], onDelete: Restrict)
+  session      ClassSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  @@unique([studentId, date])
+  @@unique([studentId, sessionId])
   @@index([studentId, date])
   @@index([classSectionId, date])
   @@index([date])
   @@index([isVoided])
+
+  /// NOTE: @@unique([studentId, sessionId]) does NOT constrain rows where
+  /// sessionId IS NULL (Postgres treats NULLs as distinct). A raw partial
+  /// unique index — "StudentAttendance_studentId_date_legacy_key" ON
+  /// (studentId, date) WHERE sessionId IS NULL — lives in migration
+  /// 20260515000000_academic_hierarchy_refactor to keep the legacy
+  /// session-agnostic marking path atomic. Prisma can't express partial
+  /// indexes, so it exists in SQL only. Dropped by Task 7's follow-up cycle
+  /// once every attendance row carries a non-NULL sessionId.
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1029,10 +1105,11 @@ model Semester {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  academicYear AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  themes       Theme[]
-  objectives   LearningObjective[]
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYear  AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  themes        Theme[]
+  objectives    LearningObjective[]
+  classSessions ClassSession[]
 
   @@unique([tenantId, academicYearId, number])
   @@index([tenantId])

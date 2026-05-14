@@ -62,12 +62,51 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Block writes targeting a cross-tenant program — body.programId is written
+  // directly into ClassTrack + ClassSection below, so it must belong to the
+  // caller's tenant.
+  const tenantProgram = await prisma.program.findFirst({
+    where: { id: body.programId, tenantId: session.tenantId },
+    select: { id: true },
+  });
+  if (!tenantProgram) {
+    return NextResponse.json(
+      { error: "Program tidak ditemukan." },
+      { status: 400 },
+    );
+  }
+
+  // Every ClassSection belongs to a stable multi-year ClassTrack
+  // (cycle 2026-05-15 academic-hierarchy-refactor). Resolve-or-create
+  // the track for this (campus, program, name) tuple — the dedicated
+  // /admin/class-tracks CRUD manages tracks explicitly, but a section
+  // created here without a pre-existing track still needs one.
+  const sectionName = body.name.trim();
+  const classTrack = await prisma.classTrack.upsert({
+    where: {
+      tenantId_campusId_programId_name: {
+        tenantId: session.tenantId,
+        campusId: body.campusId,
+        programId: body.programId,
+        name: sectionName,
+      },
+    },
+    update: {},
+    create: {
+      tenantId: session.tenantId,
+      campusId: body.campusId,
+      programId: body.programId,
+      name: sectionName,
+    },
+  });
+
   const section = await prisma.classSection.create({
     data: {
       tenantId: session.tenantId,
+      classTrackId: classTrack.id,
       programId: body.programId,
       academicYearId: body.academicYearId,
-      name: body.name.trim(),
+      name: sectionName,
       capacity: body.capacity,
       campusId: body.campusId,
     },

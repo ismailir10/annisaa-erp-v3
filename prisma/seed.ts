@@ -50,6 +50,7 @@ async function main() {
   await prisma.parent.deleteMany();
   await prisma.student.deleteMany();
   await prisma.classSection.deleteMany();
+  await prisma.classTrack.deleteMany();
   await prisma.program.deleteMany();
   await prisma.academicYear.deleteMany();
   await prisma.emailLog.deleteMany();
@@ -418,9 +419,20 @@ async function main() {
   const classSectionKeys = ["TKIT_A", "TKIT_B", "KB_ASTER", "KB_METLAND", "DCARE", "POPUP"];
   for (let i = 0; i < classSectionDefs.length; i++) {
     const cs = classSectionDefs[i];
+    // Each section belongs to a stable multi-year ClassTrack
+    // (cycle 2026-05-15 academic-hierarchy-refactor).
+    const classTrack = await prisma.classTrack.create({
+      data: {
+        tenantId: tenant.id,
+        campusId: campusMap[cs.campusSlug],
+        programId: programMap[cs.programCode],
+        name: cs.name,
+      },
+    });
     const created = await prisma.classSection.create({
       data: {
         tenantId: tenant.id,
+        classTrackId: classTrack.id,
         programId: programMap[cs.programCode],
         academicYearId: academicYear.id,
         name: cs.name,

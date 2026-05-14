@@ -6,7 +6,7 @@ vi.mock("@/lib/db", () => ({
     teachingAssignment: { findFirst: vi.fn() },
     classSection: { findFirst: vi.fn() },
     studentEnrollment: { findMany: vi.fn() },
-    studentAttendance: { upsert: vi.fn() },
+    studentAttendance: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -117,8 +117,13 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
         studentEnrollment: {
           findMany: vi.fn().mockResolvedValue([{ studentId: "s-1" }]),
         },
+        // Route swapped upsert → findFirst + create/update after the
+        // @@unique([studentId, date]) drop (cycle 2026-05-15
+        // academic-hierarchy-refactor). findFirst → null → create path.
         studentAttendance: {
-          upsert: vi.fn().mockResolvedValue({}),
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockResolvedValue({}),
+          update: vi.fn().mockResolvedValue({}),
         },
       };
       return cb(tx);
