@@ -95,6 +95,14 @@ Per design [docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaia
   - 14 new vitest cases: 3 for `aggregateByElement` (empty, counts, unknown-element drop), 4 for `loadStudentPerkembangan` (no semester, semester-scoped findMany, week preview, no-week empty), 7 for the route (401, 403 non-GUARDIAN, 403 missing perm, 404 wrong-child, 404 neutral message, 200 happy, 200 no-week).
   - 1493 vitest pass total. RLS coverage unchanged (no new tenant-scoped models).
 
+- **T3 — Perkembangan list + detail pages** *(commit `feat(curriculum): C6 T3 — perkembangan list + detail pages`)*
+  - [lib/format.ts](lib/format.ts): added `formatCurriculumElement(element)` Indonesian map (Nilai Agama & Budi Pekerti / Jati Diri / STEAM / Literasi / Motorik / Seni) + `CurriculumElementKey` type. Same fallback pattern as `formatLearningCenter`.
+  - [components/parent/element-progress-row.tsx](components/parent/element-progress-row.tsx): pure server component. 3-segment proportional bar (`bg-status-{present,late,absent}` per [.claude/standards/colors.md](.claude/standards/colors.md)) + numeric "N Mampu · N Belum · N Perlu". Empty-row branch shows "Belum ada catatan untuk semester ini." instead of a misleading bar.
+  - [app/parent/perkembangan/page.tsx](app/parent/perkembangan/page.tsx): server component. Lists `getParentWithChildren`. Single-kid → auto-redirect to detail page. Multi-kid → card grid linking to each.
+  - [app/parent/perkembangan/[studentId]/page.tsx](app/parent/perkembangan/[studentId]/page.tsx): server component. Calls `getParentChildById` → `notFound()` on null. Calls `loadStudentPerkembangan` directly (DRY with the API route via the loader). Renders header (child name + class) + "Capaian per elemen" 5-row block + "Pekan ini" preview list with level chip + element label + center label (when CENTER source).
+  - Cross-checked design-system.html §portal-shells + §dashboard.
+  - Build clean. 1493 vitest pass (no behavior tests for pages — Playwright covers in T5).
+
 ## Verification
 
 <!-- filled by /build -->
