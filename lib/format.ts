@@ -139,3 +139,30 @@ export const ALL_LEARNING_CENTERS: ReadonlyArray<LearningCenterKey> = [
   "PREPARATION",
   "AREA",
 ];
+
+/**
+ * Indonesian display label for the `CurriculumElement` Prisma enum.
+ * Used by the C6 parent perkembangan rollup (5-row element progress
+ * block) and any future surface that displays element names. Falls
+ * back to the raw enum value when an unknown key is passed.
+ */
+export type CurriculumElementKey =
+  | "RELIGIOUS_MORAL"
+  | "IDENTITY"
+  | "STEAM"
+  | "MOTOR_SKILLS"
+  | "ART";
+
+const CURRICULUM_ELEMENT_LABELS: Record<CurriculumElementKey, string> = {
+  RELIGIOUS_MORAL: "Nilai Agama & Budi Pekerti",
+  IDENTITY: "Jati Diri",
+  STEAM: "STEAM / Literasi",
+  MOTOR_SKILLS: "Motorik",
+  ART: "Seni",
+};
+
+export function formatCurriculumElement(element: string): string {
+  return (
+    CURRICULUM_ELEMENT_LABELS[element as CurriculumElementKey] ?? element
+  );
+}

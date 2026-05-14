@@ -1,14 +1,38 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Receipt, AlertCircle, ChevronRight } from "lucide-react";
+import {
+  Sparkles,
+  Receipt,
+  AlertCircle,
+  ChevronRight,
+  LineChart,
+} from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { KidCard, type KidCardDay, type KidCardFoot } from "@/components/parent/kid-card";
 import { getParentOutstandingForStudents, getParentWithChildren } from "@/lib/parent-helpers";
 import { prisma } from "@/lib/db";
-import { formatRupiah, formatDate } from "@/lib/format";
+import {
+  formatRupiah,
+  formatDate,
+  formatCurriculumElement,
+  formatLearningCenter,
+} from "@/lib/format";
 import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
+import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
+
+const LEVEL_LABEL: Record<string, string> = {
+  CONSISTENT: "Mampu",
+  EMERGING: "Belum",
+  NEEDS_REINFORCEMENT: "Perlu",
+};
+
+const LEVEL_BG: Record<string, string> = {
+  CONSISTENT: "bg-status-present-subtle text-status-present-text",
+  EMERGING: "bg-status-late/10 text-status-late",
+  NEEDS_REINFORCEMENT: "bg-status-absent/10 text-status-absent",
+};
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 const JAKARTA_TZ = "Asia/Jakarta";
@@ -121,7 +145,12 @@ export default async function ParentDashboard() {
   const week = thisWeekDates(now);
   const kidIds = children.map((c) => c.studentId);
 
-  const [weekAttendance, latestNotes, outstanding] = await Promise.all([
+  const [
+    weekAttendance,
+    latestNotes,
+    outstanding,
+    perkembanganByKid,
+  ] = await Promise.all([
     prisma.studentAttendance.findMany({
       where: {
         studentId: { in: kidIds },
@@ -141,6 +170,18 @@ export default async function ParentDashboard() {
       select: { studentId: true, body: true, createdAt: true },
     }),
     getParentOutstandingForStudents(kidIds, session.tenantId),
+    // Per-kid perkembangan rollup — drives the "Perkembangan minggu ini"
+    // card section below. Fan out across children in parallel; the
+    // loader itself is two cheap queries per kid (semester + entries
+    // joined on indicator.objective.semesterId), so the round-trip
+    // count stays bounded by the active-children count.
+    Promise.all(
+      kidIds.map((id) =>
+        loadStudentPerkembangan(session.tenantId as string, id).then(
+          (data) => [id, data] as const,
+        ),
+      ),
+    ).then((rows) => new Map(rows)),
   ]);
 
   // Index attendance: studentId → (date → status)
@@ -239,6 +280,88 @@ export default async function ParentDashboard() {
           ))}
         </div>
       </section>
+
+      {(() => {
+        // Per-kid perkembangan cards — hidden when no kid has any
+        // entries this week so the home stays calm on quiet days.
+        const perkembanganKids = children
+          .map((c) => ({
+            child: c,
+            data: perkembanganByKid.get(c.studentId),
+          }))
+          .filter(
+            (row): row is { child: typeof row.child; data: NonNullable<typeof row.data> } =>
+              !!row.data &&
+              row.data.hasActiveWeek &&
+              row.data.latestThisWeek.length > 0,
+          );
+        if (perkembanganKids.length === 0) return null;
+        return (
+          <section data-testid="home-perkembangan-section">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Perkembangan minggu ini
+            </p>
+            <div className="space-y-3">
+              {perkembanganKids.map(({ child, data }) => {
+                const displayName =
+                  child.studentNickname ??
+                  child.studentName.split(" ").slice(0, 2).join(" ");
+                return (
+                  <Link
+                    key={child.studentId}
+                    href={`/parent/perkembangan/${child.studentId}`}
+                    data-testid={`home-perkembangan-card-${child.studentId}`}
+                    className="block rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40 md:p-6"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                        <LineChart size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold truncate">
+                          {displayName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {data.latestThisWeek.length} catatan pekan ini
+                        </p>
+                      </div>
+                      <ChevronRight
+                        size={18}
+                        className="shrink-0 text-muted-foreground"
+                      />
+                    </div>
+                    <ul className="mt-3 space-y-1.5">
+                      {data.latestThisWeek.slice(0, 3).map((entry, idx) => (
+                        <li
+                          key={`${entry.date}-${entry.indicatorContent}-${idx}`}
+                          className="flex items-start justify-between gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs text-muted-foreground">
+                              {formatCurriculumElement(entry.element)}
+                              {entry.source === "CENTER" && entry.center && (
+                                <> · {formatLearningCenter(entry.center)}</>
+                              )}
+                            </p>
+                            <p className="text-xs text-foreground truncate">
+                              {entry.indicatorContent}
+                            </p>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium ${LEVEL_BG[entry.level] ?? ""}`}
+                          >
+                            {LEVEL_LABEL[entry.level] ?? entry.level}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       <section>
         {unpaidTotal > 0 ? (

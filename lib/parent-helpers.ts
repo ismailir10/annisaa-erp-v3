@@ -163,6 +163,29 @@ export function resolveSelectedChild(
 }
 
 /**
+ * Look up a single guardian-linked child by studentId — used by
+ * `/parent/perkembangan/[studentId]` and the matching API route to enforce
+ * "GUARDIAN may only read their own children" without leaking which
+ * studentIds exist on the tenant.
+ *
+ * Returns null when the student is not linked to the session's parent
+ * (whether because the studentId is bogus, belongs to another family in
+ * the same tenant, or — defense in depth — the parent has no children
+ * at all). Callers respond with a flat 404 in either case.
+ *
+ * Reuses the 60-s `getParentWithChildren` cache so screens that load
+ * several children's perkembangan in parallel hit prisma at most once.
+ */
+export async function getParentChildById(
+  session: SessionUser,
+  studentId: string,
+): Promise<ParentChild | null> {
+  if (!studentId) return null;
+  const { children } = await getParentWithChildren(session);
+  return children.find((c) => c.studentId === studentId) ?? null;
+}
+
+/**
  * Fetch invoices for a specific student.
  * Only fetches unpaid/partially paid/overdue invoices, ordered by creation date.
  * Cached for 2 minutes, tagged for revalidation on payment mutations.
