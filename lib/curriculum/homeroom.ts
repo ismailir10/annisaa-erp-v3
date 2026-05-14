@@ -27,6 +27,12 @@ export async function getHomeroomClassSection(
   const assignment = await prisma.teachingAssignment.findFirst({
     where: {
       employeeId,
+      // Defense in depth — caller already trusts session.tenantId from the
+      // JWT, but tenant-scoping the employee row too closes a structural
+      // gap if a cross-tenant employeeId ever collides (CUIDs make this
+      // negligible but the .claude/standards/security.md Rule 3 still asks
+      // for it). The classSection clause below is the primary tenant gate.
+      employee: { tenantId },
       role: "HOMEROOM",
       classSection: {
         tenantId,

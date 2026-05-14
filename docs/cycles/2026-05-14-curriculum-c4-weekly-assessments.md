@@ -152,4 +152,29 @@ Naming convention locked (per user instruction): English everywhere for code-sid
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migration:** 1 (additive only).
+  - `prisma/migrations/20260514120000_add_assessment_entry/migration.sql`
+  - Creates `AssessmentEntry` table + `AssessmentSource` + `LearningCenter` enums + 5 FKs + 1 unique + 2 indexes + RLS service-role policy.
+  - No backfill, no destructive ALTER on existing tables. Safe to apply on staging concurrently.
+- **Env vars:** none.
+- **New permissions:** `assessments.read`, `assessments.write` (added under `learning` group). Granted to TEACHER default automatically by `getSystemRolePermissions`.
+- **New routes:**
+  - `POST /api/teacher/assessment-entries` — bulk upsert (≤50/req).
+  - `GET /api/teacher/assessment-entries/weekly` — walas weekly payload.
+  - `/teacher/assessments/weekly` — mobile walas page.
+  - `/teacher/assessments` hub now leads with Penilaian Pekanan + Sentra (placeholder for C5) cards above the legacy AssessmentTemplate list.
+- **Manual smoke recipe (post-deploy):**
+  - Login as a TEACHER who has `TeachingAssignment.role = "HOMEROOM"` against an ACTIVE ClassSection in the active AcademicYear.
+  - `/teacher` → "Penilaian Pekanan" quick card visible.
+  - `/teacher/assessments` → walas + sentra cards visible.
+  - `/teacher/assessments/weekly?date=<inside-active-week>` → header + day chips + IKTP picker + roster render.
+  - Tap a level → returns 200 → reload → level persisted.
+  - Login as a non-walas TEACHER → no walas card on home or hub; sentra placeholder still visible.
+- **Rollback:**
+  1. Revert PR (`git revert <merge-sha>`).
+  2. `npx prisma migrate resolve --rolled-back 20260514120000_add_assessment_entry` on staging/prod DB.
+  3. Drop the table manually if AssessmentEntry rows exist that block re-add: `DROP TABLE "AssessmentEntry"; DROP TYPE "AssessmentSource"; DROP TYPE "LearningCenter";` (only if blocking re-application of the next forward migration).
+- **Follow-up cycles:**
+  - **C5** — sentra (`source = CENTER`) UI on the same `AssessmentEntry` table. Already scaffolded in the assessments hub via the "Coming in C5" placeholder.
+  - **C6** — parent `/perkembangan` rollup that consumes HOMEROOM entries.
+  - Schema column on `ClassSection.ageGroup` to retire the `deriveAgeGroup(name)` heuristic (out of C4 scope).

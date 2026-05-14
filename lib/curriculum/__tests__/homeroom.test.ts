@@ -33,6 +33,7 @@ describe("getHomeroomClassSection", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           employeeId: "emp1",
+          employee: { tenantId: "t1" },
           role: "HOMEROOM",
           classSection: expect.objectContaining({
             tenantId: "t1",

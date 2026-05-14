@@ -143,27 +143,27 @@ export function WeeklyClient({
 
   async function setLevel(student: Student, level: Level): Promise<void> {
     if (!activeIndicatorId) return;
-    const previous = entries;
-    // Optimistic update — replace any existing entry for (student, indicator, day).
+    const indicatorId = activeIndicatorId;
+    const day = activeDay;
+    const matchesCell = (e: Entry): boolean =>
+      e.studentId === student.id &&
+      e.indicatorId === indicatorId &&
+      e.date === day;
+    // Capture the prior cell BEFORE the optimistic write so a rollback can
+    // restore exactly that cell — never the whole entries array. Two rapid
+    // taps on the same cell each capture their own "prior" + replacement;
+    // a failure on one undoes only its own delta and never blasts the
+    // sibling tap's optimistic update away.
+    const priorCell = entries.find(matchesCell) ?? null;
     const provisional: Entry = {
-      id: `optimistic-${student.id}-${activeIndicatorId}-${activeDay}`,
+      id: `optimistic-${student.id}-${indicatorId}-${day}`,
       studentId: student.id,
-      indicatorId: activeIndicatorId,
-      date: activeDay,
+      indicatorId,
+      date: day,
       level,
-      note: entryByStudent.get(student.id)?.note ?? null,
+      note: priorCell?.note ?? null,
     };
-    setEntries((curr) => [
-      ...curr.filter(
-        (e) =>
-          !(
-            e.studentId === student.id &&
-            e.indicatorId === activeIndicatorId &&
-            e.date === activeDay
-          ),
-      ),
-      provisional,
-    ]);
+    setEntries((curr) => [...curr.filter((e) => !matchesCell(e)), provisional]);
     try {
       const res = await fetch("/api/teacher/assessment-entries", {
         method: "POST",
@@ -172,8 +172,8 @@ export function WeeklyClient({
           entries: [
             {
               studentId: student.id,
-              indicatorId: activeIndicatorId,
-              date: activeDay,
+              indicatorId,
+              date: day,
               source: "HOMEROOM",
               level,
             },
@@ -191,7 +191,13 @@ export function WeeklyClient({
         err instanceof Error
           ? err.message
           : "Gagal menyimpan penilaian. Coba lagi sebentar ya.";
-      setEntries(previous);
+      // Restore only this cell — never blast the array. A concurrent tap
+      // on a different cell stays applied; a concurrent tap on THIS cell
+      // wins or rolls back independently in its own setLevel call.
+      setEntries((curr) => {
+        const without = curr.filter((e) => !matchesCell(e));
+        return priorCell ? [...without, priorCell] : without;
+      });
       toast.error(message);
     }
   }
