@@ -5,9 +5,10 @@ import { getCurrentPeriod } from "@/lib/academic-period";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, ChevronRight } from "lucide-react";
+import { ClipboardList, ChevronRight, CalendarDays, Building2 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/portal/page-header";
+import { getHomeroomClassSection } from "@/lib/curriculum/homeroom";
 
 export default async function TeacherAssessmentsPage() {
   const session = await getSession();
@@ -33,8 +34,17 @@ export default async function TeacherAssessmentsPage() {
   // = Sem 1, Jan-Jun = Sem 2) but anchored on the active AY's `name`.
   const activeAy = await prisma.academicYear.findFirst({
     where: { tenantId: session.tenantId, status: "ACTIVE" },
-    select: { name: true },
+    select: { id: true, name: true },
   });
+  // Walas detection — gates the "Penilaian Pekanan" card. Sentra card is
+  // visible to every teacher (sentra rotation deferred per design §3.1).
+  const homeroom = activeAy
+    ? await getHomeroomClassSection(
+        session.tenantId,
+        session.employeeId,
+        activeAy.id,
+      )
+    : null;
   const month = new Date().getMonth() + 1;
   const semester = month >= 7 ? "Semester 1" : "Semester 2";
   const period = activeAy ? `${semester} ${activeAy.name}` : getCurrentPeriod();
@@ -143,6 +153,46 @@ export default async function TeacherAssessmentsPage() {
     <div>
       <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
 
+      <div className="space-y-3 mb-6">
+        {homeroom && (
+          <Link
+            href="/teacher/assessments/weekly"
+            className="flex items-center gap-3 p-card bg-card border border-border rounded-lg hover:border-primary/30 transition-colors"
+            data-testid="hub-weekly-card"
+          >
+            <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <CalendarDays className="size-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold">Penilaian Pekanan</p>
+              <p className="text-xs text-muted-foreground truncate">
+                Walas {homeroom.name} · catat per pekan terhadap IKTP
+              </p>
+            </div>
+            <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+          </Link>
+        )}
+        <div
+          className="flex items-center gap-3 p-card bg-muted/30 border border-dashed border-border rounded-lg"
+          data-testid="hub-center-placeholder"
+        >
+          <div className="size-10 rounded-full bg-muted flex items-center justify-center">
+            <Building2 className="size-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-muted-foreground">
+              Sentra Harian
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Akan tersedia di Cycle C5
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <h2 className="text-sm font-medium text-muted-foreground mb-2">
+        Penilaian lama (template)
+      </h2>
       <div className="space-y-4">
         {classSections.map((cs) => {
           const studentsTotal = studentsByClass.get(cs.id)?.size ?? 0;

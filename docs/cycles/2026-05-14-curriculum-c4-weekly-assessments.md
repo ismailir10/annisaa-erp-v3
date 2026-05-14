@@ -116,6 +116,13 @@ Naming convention locked (per user instruction): English everywhere for code-sid
   - 4 vitest cases for pure helpers (`weekDays`, `pickInitialDay`). 1435 vitest pass.
   - Cross-checked design-system.html §portal-shells + §forms for tap UX.
 
+- **T6 — Assessment hub + nav entries** *(commit `feat(curriculum): C4 T6 — assessments hub + walas home card`)*
+  - [app/teacher/assessments/page.tsx](app/teacher/assessments/page.tsx): adds walas-only "Penilaian Pekanan" card (active-AY → `getHomeroomClassSection`) + "Sentra Harian (Coming in C5)" placeholder above the existing AssessmentTemplate list (now under "Penilaian lama (template)" heading).
+  - [app/teacher/page.tsx](app/teacher/page.tsx): server-side walas check passes `homeroomClassSectionName` to `<TeacherHomeClient>`.
+  - [app/teacher/home-client.tsx](app/teacher/home-client.tsx): renders Penilaian Pekanan quick card under "Akses Cepat" only when `homeroomClassSectionName` is set.
+  - bottom-nav unchanged — the Penilaian icon still routes to `/teacher/assessments` (now the hub).
+  - 1435 vitest pass, build clean.
+
 ## Verification
 
 <!-- filled by /build -->
