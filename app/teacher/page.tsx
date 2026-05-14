@@ -22,6 +22,45 @@ export default async function TeacherHome() {
       })
     : null;
 
+  // Today's ClassSessions for this teacher — same query the GET
+  // /api/teacher/sessions endpoint uses (teacherId === employeeId naturally
+  // includes substitute-day assignments). Server-fetched so the dashboard
+  // card paints with the first render, no client round-trip.
+  let todaySessions: {
+    id: string;
+    slot: string;
+    className: string;
+    rosterCount: number;
+  }[] = [];
+  if (session.tenantId && session.employeeId) {
+    const sessions = await prisma.classSession.findMany({
+      where: {
+        date: today,
+        teacherId: session.employeeId,
+        classSection: { tenantId: session.tenantId },
+      },
+      select: {
+        id: true,
+        slot: true,
+        classSection: {
+          select: {
+            name: true,
+            _count: {
+              select: { enrollments: { where: { status: "ACTIVE" } } },
+            },
+          },
+        },
+      },
+      orderBy: { slot: "asc" },
+    });
+    todaySessions = sessions.map((s) => ({
+      id: s.id,
+      slot: s.slot,
+      className: s.classSection.name,
+      rosterCount: s.classSection._count.enrollments,
+    }));
+  }
+
   // Walas detection — feeds the Penilaian Pekanan quick card. Skip the
   // active-AY lookup when no employeeId so demo accounts without staff
   // links don't trip the homeroom branch.
@@ -54,6 +93,7 @@ export default async function TeacherHome() {
           : null
       }
       homeroomClassSectionName={homeroomClassSectionName}
+      todaySessions={todaySessions}
     />
   );
 }

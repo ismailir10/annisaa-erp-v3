@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, BookHeart, CalendarDays } from "lucide-react";
+import {
+  MapPin,
+  BookHeart,
+  CalendarDays,
+  ClipboardList,
+  ChevronRight,
+} from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/portal/page-header";
@@ -13,6 +19,19 @@ type TodayRecord = {
   status: string;
   checkInTime: string | null;
   checkOutTime: string | null;
+};
+
+type TodaySession = {
+  id: string;
+  slot: string;
+  className: string;
+  rosterCount: number;
+};
+
+const SLOT_LABEL: Record<string, string> = {
+  FULL_DAY: "Sehari penuh",
+  MORNING: "Pagi",
+  AFTERNOON: "Siang",
 };
 
 /** Pure helper: derive optimistic next state for the status card.
@@ -41,10 +60,12 @@ export function TeacherHomeClient({
   userName,
   todayRecord: initialRecord,
   homeroomClassSectionName,
+  todaySessions = [],
 }: {
   userName: string;
   todayRecord: TodayRecord | null;
   homeroomClassSectionName?: string | null;
+  todaySessions?: TodaySession[];
 }) {
   const router = useRouter();
   const [record, setRecord] = useState(initialRecord);
@@ -324,6 +345,50 @@ export function TeacherHomeClient({
             </Link>
           )}
         </div>
+      </motion.div>
+
+      {/* Today's class sessions — additive card (academic-hierarchy-refactor
+          Task 7). Each row links to the session roster page. */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.28, duration: 0.4 }}
+        className="mt-6"
+      >
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Sesi Hari Ini
+        </p>
+        {todaySessions.length > 0 ? (
+          <div className="space-y-2">
+            {todaySessions.map((s) => (
+              <Link
+                key={s.id}
+                href={`/teacher/sessions/${s.id}`}
+                className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <ClipboardList size={20} className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{s.className}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {SLOT_LABEL[s.slot] ?? s.slot} • {s.rosterCount} siswa
+                  </p>
+                </div>
+                <ChevronRight
+                  size={16}
+                  className="text-muted-foreground shrink-0"
+                />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <Card className="p-card">
+            <p className="text-sm text-muted-foreground text-center">
+              Belum ada sesi kelas terjadwal hari ini.
+            </p>
+          </Card>
+        )}
       </motion.div>
 
       {/* Today status */}
