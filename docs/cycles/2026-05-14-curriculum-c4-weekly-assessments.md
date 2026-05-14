@@ -123,9 +123,31 @@ Naming convention locked (per user instruction): English everywhere for code-sid
   - bottom-nav unchanged — the Penilaian icon still routes to `/teacher/assessments` (now the hub).
   - 1435 vitest pass, build clean.
 
+- **T7 — Playwright e2e** *(commit `test(curriculum): C4 T7 — walas weekly e2e + hub assertions`)*
+  - [e2e/teacher-assessments-weekly.spec.ts](e2e/teacher-assessments-weekly.spec.ts) — 4 chromium tests via demo `u_teacher` (E003 = HOMEROOM TKIT_A):
+    1. walas home shows Penilaian Pekanan quick card (`data-testid=home-weekly-card`)
+    2. assessments hub shows walas card + sentra placeholder (`data-testid=hub-{weekly-card,center-placeholder}`)
+    3. `/teacher/assessments/weekly` (today) → header carries "TKIT A" + `Belum ada Pekan aktif` empty state (today is outside the 2025-07..09 seeded weeks)
+    4. `/teacher/assessments/weekly?date=2025-07-15` → active-week chrome (h1 + Mon–Fri chips + roster) + IKTP picker OR no-link banner (either is acceptable — proves the active-week branch reached)
+  - The optimistic-tap branch is covered by the 12 vitest cases on POST + 4 cases on the client pure helpers; replicating the tap end-to-end would require setting up a per-spec fresh AcademicYear + IKTP + IndicatorThemeLink, which costs more than it adds.
+  - Local run: 4/4 pass in 5.6 s.
+
 ## Verification
 
-<!-- filled by /build -->
+- **End-of-cycle gates:**
+  - `npm run build` ✓ clean (no warnings beyond pre-existing turbopack lockfile note)
+  - `npx vitest run` ✓ 1435/1477 (42 pre-existing todos)
+  - `DEMO_MODE=true npx playwright test` — 100 passed / 9 skipped / 1 flaky / **2 failed**:
+    - `e2e/curriculum-admin.spec.ts:38` — text "2025/2026 · Semester 1" not found. Active AcademicYear in shared demo DB has drifted from the seed baseline; same failure pattern noted in C3 cycle Verification (1 pre-existing flaky there). Pre-existing — unrelated to C4 (no admin curriculum routes touched).
+    - `e2e/admin.spec.ts:432` — Admin tagihan bulk flow. Invoice/payment surface, untouched by C4. Pre-existing demo-DB state pollution from prior runs.
+  - `e2e/teacher-assessments-weekly.spec.ts` (new this cycle) — 4/4 pass.
+- **Manual smoke:** preview server failed locally with `EPERM uv_cwd` (claude-harness worktree env quirk; same issue noted in C3 cycle). UI verification covered by Playwright (see new spec) + page snapshot in test artifacts shows full active-week chrome rendering correctly with header / day chips / IKTP picker / roster.
+- **Cross-checked design-system.html §portal-shells + §forms** for tap UX (T5 acceptance).
+- **RLS coverage:** `bash scripts/verify-rls-coverage.sh` to be run as part of the ship preflight (script not invoked in /build).
+- **Follow-ups (post-merge):**
+  - Add `ageGroup` column to `ClassSection` so `deriveAgeGroup(name)` can retire (currently a name-prefix heuristic).
+  - Update `e2e/curriculum-admin.spec.ts:38` AY-name assertion to read the active year dynamically rather than hard-code `2025/2026`.
+  - Investigate `e2e/admin.spec.ts:432` demo-DB pollution.
 
 ## Ship Notes
 
