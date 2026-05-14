@@ -83,7 +83,16 @@ Spec §5.4 lists `POST /indicators` + `PATCH /indicators/[id]` only, and a singl
   - `npm run build` ✓ (Next.js 16.2.3 / Turbopack)
   - `npx vitest run` ✓ 1390+ pass (full suite; 42 pre-existing todos)
   - `DEMO_MODE=true npx playwright test` ✓ 100/108 — 7 pre-existing skipped, 1 pre-existing flaky `sibling-detect` (unrelated to C3)
-- Preview server: launch FAILED with `EPERM: uv_cwd` (claude-harness worktree env quirk, NOT code). UI smoke proven via Playwright e2e end-to-end instead.
+- Preview server: local launch FAILED with `EPERM: uv_cwd` (claude-harness worktree env quirk, NOT code). **Vercel preview verified via Chrome MCP** — see preview-verify block below.
+- **Preview-verify iteration 1** (`https://annisaa-erp-v3-git-feat-curric-73486e-ismails-projects-196d40d3.vercel.app`): flows=[`/admin/semesters` → "Kelola IKTP" link, `/admin/semesters/[id]/objectives` filter chips × accordion × Tambah-IKTP dialog × theme-link toggle × status filter], blockers=0, minors=0
+  - `/admin/semesters` row gained "Kelola IKTP" button per semester (T7) ✓
+  - Objectives page: filter chips (Kelompok / Elemen / Status) all interactive; "Seni" filter correctly shows empty-state copy ✓
+  - Accordion expands; "Detail Tujuan Pembelajaran" card with Edit + Nonaktifkan buttons renders ✓
+  - "Tambah IKTP" dialog opens; submit creates indicator (`POST /api/admin/curriculum/indicators` → 201); toast "IKTP ditambahkan" surfaces; count reflects (`Indikator Ketercapaian (0)` → `(1)`) ✓
+  - Network log confirms **14 parallel `GET /indicators?objectiveId=...`** requests (T5 reviewer `Promise.all` fix verified — no sequential waterfall) ✓
+  - Theme-link checkbox: `POST /api/admin/curriculum/indicator-theme-links` → 200; checkbox flips to checked; **hydration from initial GET works** (other indicators' links rendered correctly on first paint) ✓
+  - Status filter "Tidak Aktif" reveals INACTIVE rows from prior test runs ✓
+  - No console errors / warnings observed; no 4xx or 5xx on the C3 surface
 - RLS coverage: ✓ 31/31 tenant-scoped models (IndicatorThemeLink correctly excluded — no tenantId column by design).
 - T1: gates passed (`npm run build` ✓ 47s, `npx vitest run lib/validations/__tests__/curriculum.test.ts` ✓ 66/66). Reviewer (feature-dev:code-reviewer) flagged one 82-confidence gap (missing `.max(2000)` boundary test on `indicatorAdminCreateSchema.content` + symmetric gap on `indicatorUpdateSchema.content`) — both added before commit.
 - T2: gates passed (`npm run build` ✓, `npx vitest run app/api/__tests__/curriculum-routes.test.ts` ✓ 19/19 incl. 5 new T2 cases). feature-dev + superpowers code-reviewers both ship-it. One 83-confidence pattern-divergence flag (missing try/catch vs themes/[id]) addressed via inline justification comment — P2002 cannot fire from the mutable surface.
