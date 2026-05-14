@@ -46,7 +46,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     ).toContainText("Penilaian Pekanan");
   });
 
-  test("assessments hub shows walas Penilaian Pekanan card + sentra placeholder", async ({
+  test("assessments hub shows walas Penilaian Pekanan card + sentra grid (C5 replaces the placeholder)", async ({
     page,
   }) => {
     await page.goto("/teacher/assessments");
@@ -54,12 +54,12 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     await expect(page.locator('[data-testid="hub-weekly-card"]')).toBeVisible({
       timeout: 10_000,
     });
+    // C5 replaced the "Coming in C5" placeholder with the live 8-card
+    // sentra grid — assert the grid is visible instead.
+    await expect(page.locator('[data-testid="hub-center-grid"]')).toBeVisible();
     await expect(
-      page.locator('[data-testid="hub-center-placeholder"]'),
+      page.locator('[data-testid="hub-center-worship"]'),
     ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="hub-center-placeholder"]'),
-    ).toContainText("Sentra Harian");
   });
 
   test("/teacher/assessments/weekly resolves walas + classSection (today renders no_active_week branch)", async ({
