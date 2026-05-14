@@ -7,15 +7,15 @@ Pack 1 / Cycle 3 of the 11-cycle pedagogy initiative (spec: `docs/archive/superp
 ## Spec
 
 ### Acceptance criteria
-- [ ] New page at `/admin/semesters/[id]/objectives` lists `LearningObjective` rows filtered by semester + `ageGroup` + `element` (filter-chip interaction verified by e2e)
-- [ ] Per objective: inline edit of `competencyText` + `content` (Indonesian text)
-- [ ] Per objective: list its `AchievementIndicator` children with inline edit of `content` + reorder via `order`
-- [ ] Add new `AchievementIndicator` under any objective via dialog
-- [ ] Deactivate / reactivate `AchievementIndicator` via `status` field (`ACTIVE` | `INACTIVE` per `.claude/standards/crud.md`); deactivated rows hidden from default list, surfaced under "Tidak Aktif" filter, reactivable via the same `PUT` route with `{ status: "ACTIVE" }`
-- [ ] Per indicator: theme-link checkbox matrix showing all `Theme` rows in the semester; check/uncheck toggles `IndicatorThemeLink` via a single idempotent endpoint
-- [ ] All write endpoints gated on `curriculum.write` permission (SUPER_ADMIN only per spec §3.2)
-- [ ] All reads gated on `curriculum.read` (TEACHER, SUPER_ADMIN, SCHOOL_ADMIN)
-- [ ] Vitest covers Zod schema validation + permission gate; Playwright covers the happy path (edit objective → add indicator → toggle theme link → deactivate indicator → reactivate)
+- [x] New page at `/admin/semesters/[id]/objectives` lists `LearningObjective` rows filtered by semester + `ageGroup` + `element` (filter-chip interaction verified by e2e)
+- [x] Per objective: inline edit of `competencyText` + `content` (Indonesian text)
+- [x] Per objective: list its `AchievementIndicator` children with inline edit of `content` + reorder via `order`
+- [x] Add new `AchievementIndicator` under any objective via dialog
+- [x] Deactivate / reactivate `AchievementIndicator` via `status` field (`ACTIVE` | `INACTIVE` per `.claude/standards/crud.md`); deactivated rows hidden from default list, surfaced under "Tidak Aktif" filter, reactivable via the same `PUT` route with `{ status: "ACTIVE" }`
+- [x] Per indicator: theme-link checkbox matrix showing all `Theme` rows in the semester; check/uncheck toggles `IndicatorThemeLink` via a single idempotent endpoint
+- [x] All write endpoints gated on `curriculum.write` permission (SUPER_ADMIN only per spec §3.2)
+- [x] All reads gated on `curriculum.read` (TEACHER, SUPER_ADMIN, SCHOOL_ADMIN)
+- [x] Vitest covers Zod schema validation + permission gate; Playwright covers the happy path (edit objective → add indicator → toggle theme link → deactivate indicator → reactivate)
 
 ### Non-goals (deferred)
 - Bulk import-merge UX (re-import already supported via PROMES import)
