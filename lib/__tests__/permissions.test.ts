@@ -144,11 +144,22 @@ describe("getSystemRolePermissions", () => {
     expect(getSystemRolePermissions("TEACHER")).not.toContain("leave.view");
   });
 
-  it("GUARDIAN → students.view + invoices.view only", () => {
+  it("GUARDIAN → students.view + invoices.view + assessments.read", () => {
     expect(getSystemRolePermissions("GUARDIAN")).toEqual([
       "students.view",
       "invoices.view",
+      "assessments.read",
     ]);
+  });
+
+  it("GUARDIAN → has assessments.read (C6 perkembangan rollup)", () => {
+    expect(getSystemRolePermissions("GUARDIAN")).toContain("assessments.read");
+  });
+
+  it("GUARDIAN → does NOT have assessments.write (read-only)", () => {
+    expect(getSystemRolePermissions("GUARDIAN")).not.toContain(
+      "assessments.write",
+    );
   });
 });
 

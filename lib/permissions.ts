@@ -163,7 +163,11 @@ export function getSystemRolePermissions(role: string): string[] {
         "assessments.write",
       ];
     case "GUARDIAN":
-      return ["students.view", "invoices.view"];
+      // Penilaian — GUARDIAN may READ their own children's assessments;
+      // child-scope is enforced at the route layer via getParentChildById
+      // (resolves studentId against StudentGuardian links). No write perm:
+      // recording assessments is teacher-only.
+      return ["students.view", "invoices.view", "assessments.read"];
     default:
       return [];
   }
