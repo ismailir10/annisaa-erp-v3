@@ -104,6 +104,11 @@ Naming convention locked (per user instruction): English everywhere for code-sid
   - [app/api/teacher/assessment-entries/route.ts](app/api/teacher/assessment-entries/route.ts): bulk upsert handler. Auth (`assessments.write`) → rate-limit (`PENILAIAN_WRITE_BUDGET = 60/min`) → validate (Zod bulk schema) → resolve active AcademicYear (422 if none) → resolve walas's ClassSection (only required if any HOMEROOM entry) → tenant-scope all referenced students + indicators (403 on mismatch) → enforce HOMEROOM students belong to walas's section via `StudentEnrollment` (403) → resolve weekId per distinct date via `getCurrentWeek` (422 if any date outside an active week) → enforce indicator-theme link against active week's theme (400) → `prisma.$transaction(upserts)` keyed on the design-locked unique → audit `bulk-upsert`.
   - 12 vitest cases (auth/perm/employeeId, no AY, no week, student-not-in-tenant, student-not-in-section, not-walas, indicator-not-linked-to-theme, source/center mismatch, happy path, idempotent re-submit). 1422 vitest pass.
 
+- **T4 — GET /api/teacher/assessment-entries/weekly** *(commit `feat(curriculum): C4 T4 — GET weekly homeroom payload`)*
+  - [app/api/teacher/assessment-entries/weekly/route.ts](app/api/teacher/assessment-entries/weekly/route.ts): `requirePermission("assessments.read")` → resolve active AY → `getHomeroomClassSection` (404 `not_homeroom`) → `getCurrentWeek` (404 `no_active_week`, payload still includes classSection so client can show contextual empty state) → `deriveAgeGroup(classSection.name)` (last token A/B; null for KB/D'Care — documented heuristic, schema column tracked as follow-up) → roster (ACTIVE enrolments) → indicators linked to active week's theme (filtered by ageGroup when derivable) → existing HOMEROOM entries for week × roster.
+  - Response: `{ week: { id, number, startDate, endDate, subTheme, theme }, classSection: { id, name, ageGroup }, students: [], indicators: [], entries: [] }` — dates returned as Jakarta-tz YYYY-MM-DD via `formatJakartaYmd`.
+  - 9 vitest cases (401/403, 404 no AY, 404 not_homeroom, 404 no_active_week with classSection echo, 200 happy, 200 ageGroup-filter applied when derivable, 200 ageGroup-filter omitted otherwise, 200 entries scoped to HOMEROOM source + week + roster). 1431 vitest pass.
+
 ## Verification
 
 <!-- filled by /build -->
