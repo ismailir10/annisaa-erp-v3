@@ -135,6 +135,7 @@ Per design [docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaia
   - Refresh `e2e/curriculum-admin.spec.ts:38` AY-name assertion (carried from C4).
   - Investigate `e2e/admin.spec.ts:432` demo-DB pollution (carried from C4).
 - **Code review pass (feature-dev:code-reviewer):** 1 fix landed pre-ship — progress bar in `components/parent/element-progress-row.tsx` gained `role="img"` + Indonesian `aria-label` summarising the level counts so screen-reader users hear the same data sighted users see. Semester-fan-out N+1 deferred to C8. Naming split (Capaian tab / Perkembangan page) accepted as documented.
+- **CI typecheck fix:** stale `@ts-expect-error` in `lib/__tests__/parent-helpers.get-child-by-id.test.ts` mock literal failed `tsc --noEmit` on CI (TS2578 unused directive). Removed the directive + added the required `customRoleCode: null` field so the mock matches `SessionUser` exactly.
 
 ## Ship Notes
 

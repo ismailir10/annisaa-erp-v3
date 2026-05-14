@@ -25,7 +25,6 @@ const baseSession: SessionUser = {
   employeeId: null,
   parentId: "p1",
   permissions: ["assessments.read"],
-  // @ts-expect-error customRoleCode not in narrow type but tolerated
   customRoleCode: null,
 };
 
