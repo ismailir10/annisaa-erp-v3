@@ -12,8 +12,13 @@ import {
   promesImportRequestSchema,
   objectiveCreateSchema,
   indicatorCreateSchema,
+  objectiveUpdateSchema,
+  indicatorAdminCreateSchema,
+  indicatorUpdateSchema,
+  indicatorThemeLinkToggleSchema,
   type ObjectiveCreateInput,
   type IndicatorCreateInput,
+  type IndicatorAdminCreateInput,
 } from "@/lib/validations/curriculum";
 
 describe("semesterCreateSchema", () => {
@@ -377,6 +382,199 @@ describe("indicatorCreateSchema", () => {
     expect(
       indicatorCreateSchema.safeParse({ ...valid, objectiveNumber: 1.5 })
         .success,
+    ).toBe(false);
+  });
+});
+
+describe("objectiveUpdateSchema", () => {
+  it("accepts a competencyText-only patch", () => {
+    expect(
+      objectiveUpdateSchema.safeParse({ competencyText: "Capaian baru" })
+        .success,
+    ).toBe(true);
+  });
+
+  it("accepts a content-only patch", () => {
+    expect(
+      objectiveUpdateSchema.safeParse({ content: "Tujuan baru" }).success,
+    ).toBe(true);
+  });
+
+  it("accepts a status transition to INACTIVE", () => {
+    expect(
+      objectiveUpdateSchema.safeParse({ status: "INACTIVE" }).success,
+    ).toBe(true);
+  });
+
+  it("accepts an empty patch (no-op PUT)", () => {
+    expect(objectiveUpdateSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("rejects blank competencyText after trim", () => {
+    expect(
+      objectiveUpdateSchema.safeParse({ competencyText: "   " }).success,
+    ).toBe(false);
+  });
+
+  it("rejects invalid status enum value", () => {
+    expect(
+      objectiveUpdateSchema.safeParse({ status: "ARCHIVED" }).success,
+    ).toBe(false);
+  });
+
+  it("rejects competencyText > 2000 chars", () => {
+    expect(
+      objectiveUpdateSchema.safeParse({ competencyText: "a".repeat(2001) })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("indicatorAdminCreateSchema", () => {
+  const valid: IndicatorAdminCreateInput = {
+    objectiveId: "obj_123",
+    content: "Hafal doa sebelum makan",
+    order: 1,
+  };
+
+  it("accepts the happy-path admin-create body", () => {
+    expect(indicatorAdminCreateSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("rejects missing objectiveId", () => {
+    expect(
+      indicatorAdminCreateSchema.safeParse({ ...valid, objectiveId: "" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects blank content after trim", () => {
+    expect(
+      indicatorAdminCreateSchema.safeParse({ ...valid, content: "   " })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects order < 1", () => {
+    expect(
+      indicatorAdminCreateSchema.safeParse({ ...valid, order: 0 }).success,
+    ).toBe(false);
+  });
+
+  it("rejects order > 9999", () => {
+    expect(
+      indicatorAdminCreateSchema.safeParse({ ...valid, order: 10000 }).success,
+    ).toBe(false);
+  });
+
+  it("rejects content > 2000 chars", () => {
+    expect(
+      indicatorAdminCreateSchema.safeParse({
+        ...valid,
+        content: "a".repeat(2001),
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("indicatorUpdateSchema", () => {
+  it("accepts a content-only patch", () => {
+    expect(
+      indicatorUpdateSchema.safeParse({ content: "Hafal doa makan" }).success,
+    ).toBe(true);
+  });
+
+  it("accepts an order-only reorder patch", () => {
+    expect(indicatorUpdateSchema.safeParse({ order: 5 }).success).toBe(true);
+  });
+
+  it("accepts a deactivate patch", () => {
+    expect(
+      indicatorUpdateSchema.safeParse({ status: "INACTIVE" }).success,
+    ).toBe(true);
+  });
+
+  it("accepts a reactivate patch", () => {
+    expect(
+      indicatorUpdateSchema.safeParse({ status: "ACTIVE" }).success,
+    ).toBe(true);
+  });
+
+  it("accepts an empty patch", () => {
+    expect(indicatorUpdateSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("rejects blank content after trim", () => {
+    expect(
+      indicatorUpdateSchema.safeParse({ content: "   " }).success,
+    ).toBe(false);
+  });
+
+  it("rejects order < 1", () => {
+    expect(indicatorUpdateSchema.safeParse({ order: 0 }).success).toBe(false);
+  });
+
+  it("rejects invalid status enum", () => {
+    expect(
+      indicatorUpdateSchema.safeParse({ status: "DELETED" }).success,
+    ).toBe(false);
+  });
+
+  it("rejects content > 2000 chars", () => {
+    expect(
+      indicatorUpdateSchema.safeParse({ content: "a".repeat(2001) }).success,
+    ).toBe(false);
+  });
+});
+
+describe("indicatorThemeLinkToggleSchema", () => {
+  it("accepts linked: true", () => {
+    expect(
+      indicatorThemeLinkToggleSchema.safeParse({
+        indicatorId: "ind_1",
+        themeId: "thm_1",
+        linked: true,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("accepts linked: false", () => {
+    expect(
+      indicatorThemeLinkToggleSchema.safeParse({
+        indicatorId: "ind_1",
+        themeId: "thm_1",
+        linked: false,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects missing indicatorId", () => {
+    expect(
+      indicatorThemeLinkToggleSchema.safeParse({
+        indicatorId: "",
+        themeId: "thm_1",
+        linked: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects missing themeId", () => {
+    expect(
+      indicatorThemeLinkToggleSchema.safeParse({
+        indicatorId: "ind_1",
+        themeId: "",
+        linked: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects non-boolean linked", () => {
+    expect(
+      indicatorThemeLinkToggleSchema.safeParse({
+        indicatorId: "ind_1",
+        themeId: "thm_1",
+        linked: "yes",
+      }).success,
     ).toBe(false);
   });
 });

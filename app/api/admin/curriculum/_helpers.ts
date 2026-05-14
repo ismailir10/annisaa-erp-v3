@@ -50,7 +50,12 @@ export const CURRICULUM_WRITE_WINDOW_MS = 60_000 as const;
  * `entityLabel` is included in the user-facing error copy (Indonesian).
  */
 export async function ensureActiveParent(
-  table: "semester" | "theme" | "subTheme" | "academicYear",
+  table:
+    | "semester"
+    | "theme"
+    | "subTheme"
+    | "academicYear"
+    | "learningObjective",
   id: string,
   tenantId: string,
   entityLabel: string,
@@ -69,6 +74,12 @@ export async function ensureActiveParent(
       break;
     case "academicYear":
       row = await prisma.academicYear.findFirst({ where, select: { id: true } });
+      break;
+    case "learningObjective":
+      row = await prisma.learningObjective.findFirst({
+        where,
+        select: { id: true },
+      });
       break;
   }
   if (!row) {
@@ -124,4 +135,30 @@ export const weekListSelect = {
   status: true,
   createdAt: true,
   updatedAt: true,
+} as const;
+
+export const learningObjectiveListSelect = {
+  id: true,
+  semesterId: true,
+  ageGroup: true,
+  element: true,
+  number: true,
+  competencyText: true,
+  content: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export const achievementIndicatorListSelect = {
+  id: true,
+  objectiveId: true,
+  content: true,
+  order: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  // Include link rows so client can hydrate theme-link checkbox state on
+  // initial load — required for the admin objectives page (C3/T5).
+  themeLinks: { select: { themeId: true } },
 } as const;
