@@ -83,6 +83,10 @@ Approved plan at [/Users/ismailrabbanii/.claude/plans/glowing-mapping-crane.md](
   - Extended [lib/validations/assessment-entry.ts](lib/validations/assessment-entry.ts) with `assessmentEntryCenterSessionSchema` + `MAX_CENTER_SESSION_ENTRIES = 80`. Shape: `{ center: LearningCenter, date: ymd, activity: 1-200 chars, entries: [{ studentId, indicatorId, level, note? }] (≤80) }`. Empty entries allowed.
   - 7 new vitest cases (happy, empty entries, missing center, empty activity, oversize activity, oversize entries, malformed center). Total 1442 vitest pass.
 
+- **T2 — POST /api/teacher/assessment-entries/center** *(commit `feat(curriculum): C5 T2 — POST sentra session`)*
+  - New [app/api/teacher/assessment-entries/center/route.ts](app/api/teacher/assessment-entries/center/route.ts). Pattern from C4's POST: auth (`assessments.write`) → rate-limit (reuse `PENILAIAN_WRITE_BUDGET` from sibling) → validate `assessmentEntryCenterSessionSchema` → empty-entries shortcut (audit no-op + 200) → `getCurrentWeek` for the date (422 if absent) → tenant-scope all referenced students (403) + indicators (403) → enforce indicator-theme link against active week's theme (400) → `prisma.$transaction` of upserts with `source: CENTER`, shared `center` + `activity` + `weekId` → `recordAudit({ entity: "AssessmentEntry", action: "CENTER_SESSION", after: { center, date, activity, count } })`.
+  - 11 vitest cases (auth/perm/employeeId, empty session no-op, no week, student-not-in-tenant, indicator-not-in-tenant, indicator-not-linked-to-theme, empty-activity validator path, happy upsert with CENTER source, idempotent re-submit). 1453 vitest pass.
+
 ## Verification
 
 <!-- filled by /build -->
