@@ -23,9 +23,11 @@ export async function POST(
   const student = await prisma.student.findFirst({ where: { id: studentId, tenantId: session.tenantId } });
   if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
 
-  // Check age if student has DOB and program has age limits (pre-validation, before transaction)
-  const sectionInfo = await prisma.classSection.findUnique({
-    where: { id: classSectionId },
+  // Check age if student has DOB and program has age limits (pre-validation, before transaction).
+  // Tenant-guard the section lookup — a caller from tenant A must not be able to enroll into
+  // a tenant B section by passing its id.
+  const sectionInfo = await prisma.classSection.findFirst({
+    where: { id: classSectionId, tenantId: session.tenantId },
     include: { program: true },
   });
   if (!sectionInfo) return NextResponse.json({ error: "Kelas tidak ditemukan" }, { status: 404 });
@@ -53,20 +55,23 @@ export async function POST(
         throw new EnrollError("Siswa sudah terdaftar di kelas lain. Tarik siswa dari kelas sebelumnya terlebih dahulu.");
       }
 
-      // Lock the class section row to prevent concurrent enrollment
-      const section = await tx.$queryRaw<Array<{ id: string; capacity: number; active_count: bigint }>>`
-        SELECT cs.id, cs.capacity, COUNT(se.id)::int as active_count
-        FROM "ClassSection" cs
-        LEFT JOIN "StudentEnrollment" se ON se."classSectionId" = cs.id AND se.status = 'ACTIVE'
-        WHERE cs.id = ${classSectionId}
-        GROUP BY cs.id, cs.capacity
-        FOR UPDATE OF cs
+      // Lock the class section row to prevent concurrent enrollment, then count ACTIVE
+      // enrollments separately. Postgres forbids combining `FOR UPDATE` with `GROUP BY` in
+      // a single SELECT, so the previous single-query form raised 0A000 and surfaced as 500.
+      // Splitting into two statements inside the same transaction preserves the row lock:
+      // row-level locks are held until commit/rollback, so concurrent enrollers block on
+      // the SELECT FOR UPDATE.
+      const section = await tx.$queryRaw<Array<{ id: string; capacity: number }>>`
+        SELECT id, capacity FROM "ClassSection" WHERE id = ${classSectionId} FOR UPDATE
       `;
       if (section.length === 0) {
         throw new EnrollError("Kelas tidak ditemukan", 404);
       }
-      if (Number(section[0].active_count) >= section[0].capacity) {
-        throw new EnrollError(`Kelas penuh (${Number(section[0].active_count)}/${section[0].capacity})`);
+      const activeCount = await tx.studentEnrollment.count({
+        where: { classSectionId, status: "ACTIVE" },
+      });
+      if (activeCount >= section[0].capacity) {
+        throw new EnrollError(`Kelas penuh (${activeCount}/${section[0].capacity})`);
       }
 
       return tx.studentEnrollment.create({
