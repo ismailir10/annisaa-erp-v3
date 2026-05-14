@@ -84,7 +84,11 @@ Findings table (this cycle):
   - `npm run build` — clean.
   - `npx vitest run` — **1541 tests, 0 failures, 0 errors** (junit-verified). One earlier run showed 2 flaky failures under severe CPU starvation (env time 1661s); clean isolated re-run + a full clean re-run confirmed flake, not regression. Touched-file subset (`parents.test.ts`, `stats-groupby.test.ts`, `app/admin/*`) — 28/28 pass.
 - **End-of-cycle gate (Playwright):** skipped — same rationale as the enroll-fix cycle. Changes are 1 new API route + 2 stat-count tweaks + 2 fetch-URL changes; no UI structure change. Preview-verify below covers the user-facing surface.
-- **Preview-verify:** appended after commit + push triggers the Vercel preview. Plan: log in as admin, (a) `/admin/guardians` → Nonaktifkan a parent → expect success toast + status flip (was 404); (b) `/admin/students` → confirm header count == TOTAL SISWA card; (c) `/admin/admissions` → confirm TOTAL CALON == header count and does not drop on a status transition.
+- **Preview-verify:** done on the PR #280 Vercel preview, logged in as `ismailir10@gmail.com`.
+  - **F-1** — `/admin/guardians` → Nonaktifkan "Rightjet Wali" → toast "Wali dinonaktifkan", row status flipped to "Tidak Aktif". Was a hard 404 before. ✓
+  - **F-2** — `/admin/students` → header "102 siswa terdaftar" == "TOTAL SISWA 102" card (was 102 vs 101). ✓
+  - **F-3** — `/admin/admissions` → header "35 calon siswa" == "TOTAL CALON 35" card (was 35 vs 31). ✓
+  - All CI green on rerun: Build, Lint/Typecheck/Test, Docs sync, Playwright E2E, Vercel. First Playwright run had 3 flaky fails (sibling-detect `beforeAll` timeout + teacher-assessments-center poll timeout — zero overlap with this diff); clean on `gh run rerun --failed`.
 - **Design-system check:** N/A — no `.css`/Tailwind/structural `.tsx` change; the two `.tsx` edits are fetch-URL string + stat-fetch logic only. Frontend-gate hook will not fire.
 
 ## Ship Notes
