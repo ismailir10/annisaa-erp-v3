@@ -3,7 +3,9 @@ import {
   assessmentEntryCreateSchema,
   assessmentEntryBulkCreateSchema,
   assessmentEntryUpdateSchema,
+  assessmentEntryCenterSessionSchema,
   MAX_BULK_ENTRIES,
+  MAX_CENTER_SESSION_ENTRIES,
 } from "@/lib/validations/assessment-entry";
 
 const validHomeroom = {
@@ -153,6 +155,79 @@ describe("assessmentEntryUpdateSchema", () => {
 
   it("rejects unknown level on patch", () => {
     const r = assessmentEntryUpdateSchema.safeParse({ level: "BSH" });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("assessmentEntryCenterSessionSchema", () => {
+  const baseSession = {
+    center: "WORSHIP" as const,
+    date: "2026-05-14",
+    activity: "Doa pagi + asmaul husna",
+    entries: [
+      {
+        studentId: "stu1",
+        indicatorId: "ind1",
+        level: "CONSISTENT" as const,
+      },
+    ],
+  };
+
+  it("accepts a valid session", () => {
+    const r = assessmentEntryCenterSessionSchema.safeParse(baseSession);
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a session with empty entries (no-op save)", () => {
+    const r = assessmentEntryCenterSessionSchema.safeParse({
+      ...baseSession,
+      entries: [],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects when center is missing", () => {
+    const { center: _ignored, ...without } = baseSession;
+    const r = assessmentEntryCenterSessionSchema.safeParse(without);
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when activity is empty", () => {
+    const r = assessmentEntryCenterSessionSchema.safeParse({
+      ...baseSession,
+      activity: "",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when activity is over 200 chars", () => {
+    const r = assessmentEntryCenterSessionSchema.safeParse({
+      ...baseSession,
+      activity: "x".repeat(201),
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when entries exceed the cap", () => {
+    const r = assessmentEntryCenterSessionSchema.safeParse({
+      ...baseSession,
+      entries: Array.from(
+        { length: MAX_CENTER_SESSION_ENTRIES + 1 },
+        (_, i) => ({
+          studentId: `stu${i}`,
+          indicatorId: "ind1",
+          level: "CONSISTENT",
+        }),
+      ),
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects malformed center value", () => {
+    const r = assessmentEntryCenterSessionSchema.safeParse({
+      ...baseSession,
+      center: "FOO",
+    });
     expect(r.success).toBe(false);
   });
 });

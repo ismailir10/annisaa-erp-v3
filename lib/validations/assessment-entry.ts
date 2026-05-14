@@ -90,6 +90,38 @@ export const assessmentEntryUpdateSchema = z.object({
   activity: z.string().min(1).max(200).nullable().optional(),
 });
 
+/**
+ * Sentra (center) session schema — C5/T1.
+ *
+ * One sentra teacher fills one session per (center × date × ageGroup):
+ * shared `center` + `activity` text, plus a list of per-(student, indicator)
+ * level + note rows. The route handler upserts each row with
+ * `source: "CENTER"` against the C4 AssessmentEntry table.
+ *
+ * Empty `entries` is allowed (route returns a no-op). Cap at 80 = ~20
+ * students × 4 indicators per session, the design's stated max.
+ */
+export const MAX_CENTER_SESSION_ENTRIES = 80;
+
+export const assessmentEntryCenterSessionSchema = z.object({
+  center: learningCenterSchema,
+  date: ymdSchema,
+  activity: z.string().min(1, "Kegiatan wajib diisi").max(200),
+  entries: z
+    .array(
+      z.object({
+        studentId: z.string().min(1, "Siswa wajib dipilih"),
+        indicatorId: z.string().min(1, "IKTP wajib dipilih"),
+        level: achievementLevelSchema,
+        note: z.string().max(500).optional(),
+      }),
+    )
+    .max(
+      MAX_CENTER_SESSION_ENTRIES,
+      `Maksimum ${MAX_CENTER_SESSION_ENTRIES} penilaian per sesi`,
+    ),
+});
+
 export type AssessmentEntryCreateInput = z.infer<
   typeof assessmentEntryCreateSchema
 >;
@@ -98,4 +130,7 @@ export type AssessmentEntryBulkCreateInput = z.infer<
 >;
 export type AssessmentEntryUpdateInput = z.infer<
   typeof assessmentEntryUpdateSchema
+>;
+export type AssessmentEntryCenterSessionInput = z.infer<
+  typeof assessmentEntryCenterSessionSchema
 >;
