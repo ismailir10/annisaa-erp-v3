@@ -87,6 +87,16 @@ Approved plan at [/Users/ismailrabbanii/.claude/plans/glowing-mapping-crane.md](
   - New [app/api/teacher/assessment-entries/center/route.ts](app/api/teacher/assessment-entries/center/route.ts). Pattern from C4's POST: auth (`assessments.write`) → rate-limit (reuse `PENILAIAN_WRITE_BUDGET` from sibling) → validate `assessmentEntryCenterSessionSchema` → empty-entries shortcut (audit no-op + 200) → `getCurrentWeek` for the date (422 if absent) → tenant-scope all referenced students (403) + indicators (403) → enforce indicator-theme link against active week's theme (400) → `prisma.$transaction` of upserts with `source: CENTER`, shared `center` + `activity` + `weekId` → `recordAudit({ entity: "AssessmentEntry", action: "CENTER_SESSION", after: { center, date, activity, count } })`.
   - 11 vitest cases (auth/perm/employeeId, empty session no-op, no week, student-not-in-tenant, indicator-not-in-tenant, indicator-not-linked-to-theme, empty-activity validator path, happy upsert with CENTER source, idempotent re-submit). 1453 vitest pass.
 
+- **T3 — GET /api/teacher/assessment-entries/center/[center]** *(commit `chore(curriculum): C5 T3 — GET sentra session payload`)*
+  - New [app/api/teacher/assessment-entries/center/[center]/route.ts](app/api/teacher/assessment-entries/center/[center]/route.ts).
+  - Validates `[center]` segment against `learningCenterSchema` (404 unknown). Requires `ageGroup=A|B` query param (400 missing). `date` defaults to today (Jakarta tz).
+  - `getCurrentWeek` for the requested date → 422 if no active week (echoes `center` + `date` + `ageGroup` so the UI can show contextual message).
+  - Roster: ACTIVE enrolments in tenant → filtered via `deriveAgeGroup(classSection.name)` (reuses C4's heuristic).
+  - Indicators: linked to active week's theme + objective.ageGroup matches.
+  - Existing entries: scoped to `source: CENTER`, `center`, this `weekId`, exact `date`.
+  - `lastActivity` convenience field for form prefill (most recent activity at this center+date).
+  - 8 vitest cases. 1461 vitest pass.
+
 ## Verification
 
 <!-- filled by /build -->
