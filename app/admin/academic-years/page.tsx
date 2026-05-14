@@ -1,5 +1,9 @@
 "use client";
 
+// Frontend cross-check: dialog + row actions follow design-system.html
+// (ResponsiveFormDialog overlay, Select, Button states). This page is a
+// single "use client" component — no server wrapper to host the note.
+
 import { useEffect, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
@@ -18,7 +22,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { Plus, GraduationCap, BookOpen, Users, Calendar } from "lucide-react";
+import { Plus, GraduationCap, BookOpen, Users, Calendar, ArrowRightCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -57,6 +61,11 @@ export default function AcademicPage() {
   const [reactivateTarget, setReactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
   const [programStatusFilter, setProgramStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
   const [sectionStatusFilter, setSectionStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
+
+  // Roll forward — clone a source year's active class sections into a target year
+  const [rollForwardTarget, setRollForwardTarget] = useState<AcademicYear | null>(null);
+  const [rollForwardSourceId, setRollForwardSourceId] = useState("");
+  const [rollingForward, setRollingForward] = useState(false);
 
   // Teacher assignment
   const [assignDialog, setAssignDialog] = useState(false);
@@ -171,6 +180,44 @@ export default function AcademicPage() {
     });
     if (res.ok) { toast.success("Diaktifkan"); setReactivateTarget(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
+  }
+
+  async function handleRollForward() {
+    if (!rollForwardTarget || !rollForwardSourceId) {
+      toast.error("Pilih tahun ajaran sumber");
+      return;
+    }
+    setRollingForward(true);
+    const res = await fetch(
+      `/api/admin/academic-years/${rollForwardTarget.id}/roll-forward`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceYearId: rollForwardSourceId, trackIds: [] }),
+      },
+    );
+    if (res.ok) {
+      const d = await res.json();
+      if (d.sectionsCreated === 0 && d.tracksSkippedAlreadyRolled === 0) {
+        toast.info("Tidak ada kelas aktif yang bisa digulir dari tahun ajaran sumber");
+      } else {
+        let msg = `${d.sectionsCreated} kelas digulir ke ${rollForwardTarget.name}`;
+        if (d.tracksSkippedAlreadyRolled > 0) {
+          msg += ` · ${d.tracksSkippedAlreadyRolled} kelas dilewati (sudah ada)`;
+        }
+        toast.success(msg);
+        if (d.truncated) {
+          toast.info("Sebagian kelas digulir — jalankan lagi untuk sisanya");
+        }
+      }
+      setRollForwardTarget(null);
+      setRollForwardSourceId("");
+      fetchAll();
+    } else {
+      const d = await res.json();
+      toast.error(d.error || "Gagal menggulir kelas");
+    }
+    setRollingForward(false);
   }
 
   // --- Column definitions ---
@@ -288,6 +335,14 @@ export default function AcademicPage() {
           }}
           onDeactivate={() => setDeactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
           isActive={row.original.status === "ACTIVE"}
+          extraActions={[{
+            label: "Gulir Kelas ke Tahun Ini",
+            icon: <ArrowRightCircle size={14} />,
+            onClick: () => {
+              setRollForwardTarget(row.original);
+              setRollForwardSourceId("");
+            },
+          }]}
         />
       ),
     },
@@ -570,6 +625,43 @@ export default function AcademicPage() {
             {assignSaving ? "Menugaskan..." : "Tugaskan Guru"}
           </Button>
         </div>
+      </ResponsiveFormDialog>
+
+      {/* Roll Forward Dialog */}
+      <ResponsiveFormDialog
+        open={!!rollForwardTarget}
+        onOpenChange={(o) => { if (!o) { setRollForwardTarget(null); setRollForwardSourceId(""); } }}
+        title="Gulir Kelas ke Tahun Ajaran"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setRollForwardTarget(null); setRollForwardSourceId(""); }} disabled={rollingForward}>Batal</Button>
+            <Button onClick={handleRollForward} disabled={rollingForward || !rollForwardSourceId}>
+              {rollingForward ? "Menggulir..." : "Gulir Kelas"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Menyalin semua kelas aktif dari tahun ajaran sumber ke{" "}
+          <span className="font-medium text-foreground">{rollForwardTarget?.name}</span>.
+          Kelas yang sudah ada di tahun ini akan dilewati.
+        </p>
+        <Field>
+          <FieldLabel required>Tahun Ajaran Sumber</FieldLabel>
+          <Select
+            value={rollForwardSourceId}
+            onValueChange={(v) => v && setRollForwardSourceId(v)}
+            items={years.filter(y => y.id !== rollForwardTarget?.id).map(y => ({ label: y.name, value: y.id }))}
+          >
+            <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran sumber" /></SelectTrigger>
+            <SelectContent>
+              {years.filter(y => y.id !== rollForwardTarget?.id).map(y => (
+                <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
       </ResponsiveFormDialog>
 
       {/* Deactivate Confirm */}
