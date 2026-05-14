@@ -104,6 +104,11 @@ Approved plan at [/Users/ismailrabbanii/.claude/plans/glowing-mapping-crane.md](
   - Cells hydrate from existing `CENTER` entries on load; activity prefills from server-supplied `lastActivity` when present. Save shows toast + `router.refresh`.
   - 1471 vitest pass.
 
+- **T5 — Center selector on assessments hub** *(commit `feat(curriculum): C5 T5 — hub 8 sentra cards`)*
+  - [app/teacher/assessments/page.tsx](app/teacher/assessments/page.tsx): replaced the C4 "Sentra Harian (Coming in C5)" placeholder with an 8-card 2-column grid driven by `ALL_LEARNING_CENTERS`. Each card has `data-testid="hub-center-<lowercase-key>"` for e2e assertions and links to `/teacher/assessments/center/<lowercase-key>`.
+  - The walas card + new sentra grid share the same hub container so the visual hierarchy stays consistent.
+  - 1471 vitest pass.
+
 ## Verification
 
 <!-- filled by /build -->

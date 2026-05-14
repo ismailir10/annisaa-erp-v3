@@ -9,6 +9,10 @@ import { ClipboardList, ChevronRight, CalendarDays, Building2 } from "lucide-rea
 import Link from "next/link";
 import { PageHeader } from "@/components/portal/page-header";
 import { getHomeroomClassSection } from "@/lib/curriculum/homeroom";
+import {
+  ALL_LEARNING_CENTERS,
+  formatLearningCenter,
+} from "@/lib/format";
 
 export default async function TeacherAssessmentsPage() {
   const session = await getSession();
@@ -172,20 +176,26 @@ export default async function TeacherAssessmentsPage() {
             <ChevronRight size={16} className="text-muted-foreground shrink-0" />
           </Link>
         )}
-        <div
-          className="flex items-center gap-3 p-card bg-muted/30 border border-dashed border-border rounded-lg"
-          data-testid="hub-center-placeholder"
-        >
-          <div className="size-10 rounded-full bg-muted flex items-center justify-center">
-            <Building2 className="size-5 text-muted-foreground" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-muted-foreground">
-              Sentra Harian
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Akan tersedia di Cycle C5
-            </p>
+        <div className="space-y-2" data-testid="hub-center-grid">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Sentra Harian
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {ALL_LEARNING_CENTERS.map((center) => (
+              <Link
+                key={center}
+                href={`/teacher/assessments/center/${center.toLowerCase()}`}
+                data-testid={`hub-center-${center.toLowerCase()}`}
+                className="flex items-center gap-2 rounded-lg border border-border bg-card p-3 hover:border-primary/30 transition-colors"
+              >
+                <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <Building2 className="size-4 text-primary" />
+                </div>
+                <span className="text-xs font-medium truncate">
+                  {formatLearningCenter(center)}
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
       </div>
