@@ -33,7 +33,7 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 |--------|--------|
 | **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
 | **hr** | Staff lifecycle: employees, attendance, leave, payroll, salary components — gated by `hr.*` permissions |
-| **academic** | School structure: academic year (with one-click roll-forward), programs, class tracks (stable multi-year class identity), class sections, daily class sessions, teaching assignments |
+| **academic** | School structure: academic year (with one-click roll-forward), programs, class tracks (stable multi-year class identity), class sections, daily class sessions (per-section calendar + substitute-teacher swap), teaching assignments |
 | **students** | Student lifecycle: students, guardians, enrollments, admissions (admin CRM + public `/daftar` entry + sibling auto-detect on submit) |
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
 | **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |

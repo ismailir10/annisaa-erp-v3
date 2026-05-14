@@ -5,6 +5,7 @@
 // single "use client" component — no server wrapper to host the note.
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -40,6 +41,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function AcademicPage() {
+  const router = useRouter();
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [sections, setSections] = useState<ClassSection[]>([]);
@@ -400,15 +402,22 @@ export default function AcademicPage() {
           onDeactivate={() => setDeactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
           onActivate={() => setReactivateTarget({ type: "section", id: row.original.id, name: row.original.name })}
           isActive={row.original.status === "ACTIVE"}
-          extraActions={[{
-            label: "Guru Pengajar",
-            icon: <Users size={14} />,
-            onClick: () => {
-              setAssignForm({ classSectionId: row.original.id, className: row.original.name, employeeId: "" });
-              setAssignDialog(true);
-              loadAssignments(row.original.id);
+          extraActions={[
+            {
+              label: "Guru Pengajar",
+              icon: <Users size={14} />,
+              onClick: () => {
+                setAssignForm({ classSectionId: row.original.id, className: row.original.name, employeeId: "" });
+                setAssignDialog(true);
+                loadAssignments(row.original.id);
+              },
             },
-          }]}
+            {
+              label: "Kalender sesi",
+              icon: <Calendar size={14} />,
+              onClick: () => router.push(`/admin/class-sections/${row.original.id}`),
+            },
+          ]}
         />
       ),
     },

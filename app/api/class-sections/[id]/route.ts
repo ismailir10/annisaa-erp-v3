@@ -5,6 +5,29 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { updateClassSectionSchema } from "@/lib/validations/class-section";
 import { reconcileSessions } from "@/lib/sessions/reconcile";
 
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session?.tenantId || !isAdminRole(session.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { id } = await params;
+
+  // Tenant-scoped — the section must belong to the caller's tenant.
+  // Includes the academic-hierarchy context the detail page header renders.
+  const section = await prisma.classSection.findFirst({
+    where: { id, tenantId: session.tenantId },
+    include: {
+      program: { select: { id: true, code: true, name: true } },
+      campus: { select: { id: true, name: true } },
+      academicYear: { select: { id: true, name: true } },
+      classTrack: { select: { id: true, name: true } },
+    },
+  });
+  if (!section) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+  return NextResponse.json(section);
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { success } = rateLimit(`update-class-section:${getClientIp(req)}`, 20, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
