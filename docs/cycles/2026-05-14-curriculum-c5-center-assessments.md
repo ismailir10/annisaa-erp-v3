@@ -97,6 +97,13 @@ Approved plan at [/Users/ismailrabbanii/.claude/plans/glowing-mapping-crane.md](
   - `lastActivity` convenience field for form prefill (most recent activity at this center+date).
   - 8 vitest cases. 1461 vitest pass.
 
+- **T4 — `/teacher/assessments/center/[center]` mobile UI + `formatLearningCenter`** *(commit `feat(curriculum): C5 T4 — sentra mobile UI`)*
+  - [lib/format.ts](lib/format.ts): added `formatLearningCenter()` Indonesian map for the 8 sentra rooms + `ALL_LEARNING_CENTERS` ordered list. 9 vitest cases.
+  - [app/teacher/assessments/center/[center]/page.tsx](app/teacher/assessments/center/[center]/page.tsx): server component validates `[center]` against the enum (404 on unknown via `notFound()`), then hands the slug + Indonesian label to the client.
+  - [app/teacher/assessments/center/[center]/client.tsx](app/teacher/assessments/center/[center]/client.tsx): mobile-first single session form. Header → date input + ageGroup A/B toggle + activity input → fetch `GET /center/[center]?date&ageGroup` on mount + on every dep change → indicator multi-select (≤4 of theme-linked indicators) → roster × picked-indicators grid (per-cell 3-button level setter via `bg-status-{present,late,absent}`, collapsible note textarea) → sticky "Simpan" CTA POSTs the assembled session.
+  - Cells hydrate from existing `CENTER` entries on load; activity prefills from server-supplied `lastActivity` when present. Save shows toast + `router.refresh`.
+  - 1471 vitest pass.
+
 ## Verification
 
 <!-- filled by /build -->

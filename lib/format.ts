@@ -92,3 +92,50 @@ export function formatTime(iso: string | null): string {
     hour12: false,
   });
 }
+
+/**
+ * Indonesian display label for the `LearningCenter` Prisma enum.
+ *
+ * The enum names are English (per the C4 naming convention); this helper
+ * supplies the user-facing Indonesian label everywhere a sentra room is
+ * named in the UI (assessments hub cards, sentra page header, breadcrumb).
+ *
+ * Falls back to the raw enum value if a new center is added without a
+ * label — a safe default that keeps the UI readable while flagging the
+ * gap to whoever extended `enum LearningCenter` in `prisma/schema.prisma`.
+ */
+export type LearningCenterKey =
+  | "WORSHIP"
+  | "NATURAL_MATERIALS"
+  | "ART"
+  | "COOKING"
+  | "ROLE_PLAY"
+  | "BLOCKS"
+  | "PREPARATION"
+  | "AREA";
+
+const LEARNING_CENTER_LABELS: Record<LearningCenterKey, string> = {
+  WORSHIP: "Sentra Ibadah",
+  NATURAL_MATERIALS: "Sentra Bahan Alam",
+  ART: "Sentra Seni",
+  COOKING: "Sentra Memasak",
+  ROLE_PLAY: "Sentra Main Peran",
+  BLOCKS: "Sentra Balok",
+  PREPARATION: "Sentra Persiapan",
+  AREA: "AREA",
+};
+
+export function formatLearningCenter(center: string): string {
+  return LEARNING_CENTER_LABELS[center as LearningCenterKey] ?? center;
+}
+
+export const ALL_LEARNING_CENTERS: ReadonlyArray<LearningCenterKey> = [
+  "WORSHIP",
+  "NATURAL_MATERIALS",
+  "ART",
+  "COOKING",
+  "ROLE_PLAY",
+  "BLOCKS",
+  "PREPARATION",
+  "AREA",
+];
