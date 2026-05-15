@@ -90,7 +90,7 @@ describe("GET /api/teacher/sessions", () => {
 
   it("returns 403 when caller is neither teacher nor admin", async () => {
     const { getSession } = await import("@/lib/auth");
-    vi.mocked(getSession).mockResolvedValue(makeSession("PARENT"));
+    vi.mocked(getSession).mockResolvedValue(makeSession("GUARDIAN"));
     const res = await GET(getReq() as never);
     expect(res.status).toBe(403);
   });

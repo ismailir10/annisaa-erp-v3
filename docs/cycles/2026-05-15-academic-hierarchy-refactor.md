@@ -86,6 +86,7 @@ This cycle's design was brainstormed (`superpowers:brainstorming`) and architect
 - Task 8: `npm run build` exit 0; `npx eslint --no-ignore` clean; `npx vitest run` full suite 1647 passed / 0 failed.
 - Task 9: `npm run build` exit 0; `npx eslint` clean; `npx vitest run` full suite 1647 passed / 0 failed; `npx playwright test` 114 passed, 7 skipped, 1 flaky-recovered; 2 pre-existing failures (`admin.spec.ts:494,538` — DEMO_MODE-not-propagated-to-test-runner skip-guard never fires; root cause confirmed by stash-baseline + targeted grep) — follow-up task spawned for the playwright.config one-line fix. Seed re-run idempotent against populated DB → 1320 ClassSession rows across 6 sections.
 - Task 10: Synthetic `/uat` runs replaced by real Chrome-MCP staging verification (see Ship Notes "Manual smoke" + the user-driven verification recorded post-`/ship`).
+- Post-PR fix: CI typecheck caught `app/api/__tests__/teacher-sessions.test.ts:93` using stale `"PARENT"` role literal; the system models parents via `GUARDIAN`. Fixed; local `npm run build` does Next.js build not `tsc --noEmit`, hence the gap.
 
 ## Ship Notes
 
