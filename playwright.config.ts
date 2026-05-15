@@ -1,5 +1,17 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Propagate DEMO_MODE to the TEST RUNNER process so `test.skip(process.env.
+// DEMO_MODE === "true", ...)` guards in specs (see admin.spec.ts tagihan
+// failure-path tests) actually fire. The `webServer.env` block below only
+// injects DEMO_MODE into the spawned `npm run start` child process; without
+// this line, the runner never sees it and the skip guards evaluate
+// `undefined === "true"` → `false` → the tests run against a DEMO_MODE
+// server that synthesizes Xendit SENT, breaking PENDING_PAYMENT_LINK
+// assertions. CI sets DEMO_MODE explicitly in .github/workflows/ci.yml step
+// env (line ~124), so this default only matters for local `npx playwright
+// test` runs — but it makes local and CI behavior consistent either way.
+process.env.DEMO_MODE = process.env.DEMO_MODE ?? "true";
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
