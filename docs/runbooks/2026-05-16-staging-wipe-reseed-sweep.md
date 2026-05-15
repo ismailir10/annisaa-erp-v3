@@ -101,6 +101,12 @@ Workaround applied: `UPDATE public."Student" SET gender = CASE gender WHEN 'MALE
 
 Root fix would either (a) constrain the column to a Prisma enum and migrate any production rows, or (b) update the display to canonicalize both formats. Either route is bigger than this sweep.
 
+### F-11 📋 Cross-portal navigate sends users to login instead of their own portal [UX]
+
+Logged-in GUARDIAN navigating directly to `/admin` (or `/teacher`) redirects to `/`, which renders the **login page** even though the session is intact (subsequent navigate to `/parent` works fine). Same pattern for SUPER_ADMIN → `/teacher` and TEACHER → `/admin`. Effectively an "access denied" event looks identical to "logged out" from the user's perspective.
+
+Suggested fix: when the role guard rejects, redirect to the user's home portal (`/admin`, `/teacher`, `/parent`) instead of `/`. Optional: show a transient toast like "Halaman ini hanya untuk staf admin" before the redirect lands.
+
 ### G-1 📋 RLS still disabled on all 49 public tables [SECURITY, KNOWN]
 
 Supabase advisory surfaced this on first `list_tables`. Already documented elsewhere; flagging here for completeness — service-role keys are the only thing protecting `public.*` from the anon key.
@@ -129,7 +135,9 @@ Typecheck on the touched files is clean (pre-existing errors elsewhere are unrel
 - **Invoice manual payment flow:** `/admin/invoices/[id]` → Catat Pembayaran → fills `Jumlah` + `Metode (Tunai/Transfer)` + `Referensi` → row transitions `Terkirim → Lunas`, `Sisa` zeroes out, `Riwayat Pembayaran` populates with the recorded payment. Aiman's invoice (`INV-2026-0001`, Rp 850.000) confirmed via the sweep.
 - **Curriculum hub:** `/admin/semesters/{id}/themes` 3-column Tema / Subtema / Pekan layout renders. `Diriku` tema added cleanly with toast confirmation; the Subtema column activates immediately after selection.
 - **Student journal categories:** `/admin/student-journal` add-category dialog (Sekolah / Rumah tabs) works — `Ibadah` category created with 0 indicators in <2s round-trip.
-- **Permission boundary:** logged-in SUPER_ADMIN navigating to `/teacher` is redirected to `/` (login screen) — role guard fires cleanly without exposing the teacher portal.
+- **Permission boundary:** logged-in SUPER_ADMIN navigating to `/teacher` is redirected to `/` (login screen) — role guard fires cleanly without exposing the teacher portal. Same for GUARDIAN→`/admin` and GUARDIAN→`/teacher`. Session is preserved across the redirect (subsequent navigate back to `/parent` still loads logged-in). See F-11 for the UX nit of redirecting to login instead of the user's own portal.
+- **Xendit demo payment link:** `/admin/invoices/{id}` → Buat Link Xendit synthesizes `https://dev.xen.to/<token>`, surfaces it in the LINK PEMBAYARAN card with a Salin Link button, and copies to clipboard with a "Link disalin ke clipboard — kirim via WhatsApp" toast. Verified against `INV-2026-0003` (Fauzan).
+- **Permission deny resilience:** parent session survives the cross-portal redirect — `/admin` rejection lands on `/`, but `/parent` is still available without a second login. Means the guard is route-level (not session-destroying) — F-11 is purely a landing-page choice, not a session bug.
 
 ## Workflow notes for future reseed runs
 
