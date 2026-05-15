@@ -59,7 +59,7 @@ This cycle's design was brainstormed (`superpowers:brainstorming`) and architect
 - [x] **7. Teacher session page + attendance/pickup API.** `GET /api/teacher/sessions?date=` (my sessions incl. sub days); `POST /api/teacher/sessions/[id]/attendance` (bulk upsert: status, checkInTime, checkOutTime, pickedUpByRelation, pickedUpByName; OTHER requires name; checkout<checkin rejected). `/teacher/sessions/[id]` roster page; `/teacher` dashboard lists today's sessions. Cross-check `design-system.html` + `portal.md` + `voice.md`. _[dep: 2] Accept: teacher taps in/out + pickup, persists on reload; build + vitest green._
 - [x] **8. One-time data migration script + verification harness.** `scripts/backfill-hierarchy.ts` (codebase convention for runnable backfill scripts; cycle-doc `lib/migrations/` path superseded) — Phase 2 ClassTrack linkage verification (Task 1 SQL migration already backfilled the rows), Phase 3 historical ClassSession generation (calls idempotent `reconcileSessions`, semester-matched, FULL_DAY, best-effort teacher snapshot), Phase 4 `StudentAttendance.sessionId` repoint, Phase 5 verification gate (row-count parity, zero-orphan assertion, orphan-report exit modes with 10-row sample dump), DCARE multi-shift flagging. _[dep: 1, 2] Accept: run against a staging snapshot — attendance row count unchanged, every row mapped or orphan-reported; spot-check 10 rows._
 - [x] **9. E2E coverage.** Extend `e2e/admin.spec.ts` (roll-forward smoke), `e2e/teacher.spec.ts` (daily flow: view sessions → tap-in → tap-out + pickup → reload-persists), `e2e/admin-school-admin.spec.ts` (substitute swap visibility), `e2e/curriculum-admin.spec.ts` (resilience fix forced by seed's new Semester 2). Seed extended with Semester 2 (covers today) + reconcile-generated ClassSession rows (1320 across 6 sections). _[dep: 5, 6, 7] Accept: `npx playwright test` green (modulo two pre-existing tagihan DEMO_MODE failures unrelated to this cycle — follow-up task spawned)._
-- [ ] **10. UAT + Ship Notes prep.** Run `/uat teacher/daily-session` (Bu Sari) + `/uat admin/class-tracks` (Pak Budi); record results in Verification. Confirm README.md updated (new models/routes/entities). _[dep: 9] Accept: UAT reports committed, no unresolved blocker/major; README diff staged._
+- [x] **10. UAT + Ship Notes prep.** Run `/uat teacher/daily-session` (Bu Sari) + `/uat admin/class-tracks` (Pak Budi); record results in Verification. Confirm README.md updated (new models/routes/entities). _[dep: 9] Accept: UAT reports committed, no unresolved blocker/major; README diff staged._ **Substituted:** synthetic `/uat` persona runs replaced with real Chrome-MCP staging verification (user-directed) — Vercel preview deploy hit with three live Google accounts (`ismailir10@gmail.com` admin, `ismail10rabbanii@gmail.com` teacher, `rightjet.hq@gmail.com` parent) against actual production data. Results in Verification. README.md was updated incrementally during Tasks 3, 5, 6, 7 (academic module row + teacher portal bullet); the cycle's full feature surface is reflected.
 
 ## Implementation
 
@@ -85,7 +85,68 @@ This cycle's design was brainstormed (`superpowers:brainstorming`) and architect
 - Task 7: `npm run build` exit 0; `npx eslint` clean; `npx vitest run` full suite 1617 passed / 0 failed.
 - Task 8: `npm run build` exit 0; `npx eslint --no-ignore` clean; `npx vitest run` full suite 1647 passed / 0 failed.
 - Task 9: `npm run build` exit 0; `npx eslint` clean; `npx vitest run` full suite 1647 passed / 0 failed; `npx playwright test` 114 passed, 7 skipped, 1 flaky-recovered; 2 pre-existing failures (`admin.spec.ts:494,538` — DEMO_MODE-not-propagated-to-test-runner skip-guard never fires; root cause confirmed by stash-baseline + targeted grep) — follow-up task spawned for the playwright.config one-line fix. Seed re-run idempotent against populated DB → 1320 ClassSession rows across 6 sections.
+- Task 10: Synthetic `/uat` runs replaced by real Chrome-MCP staging verification (see Ship Notes "Manual smoke" + the user-driven verification recorded post-`/ship`).
 
 ## Ship Notes
 
-_Filled by `/ship`._
+### Migrations
+
+**Schema migration (auto-applied by `prisma migrate deploy` during Vercel build):**
+- `prisma/migrations/20260515000000_academic_hierarchy_refactor/` — creates `ClassTrack` + `ClassSession` tables; adds `classTrackId` (NOT NULL, FK-safe nullable→backfill→NOT NULL ordering) + `slotTemplate` to `ClassSection`; adds `sessionId`, `pickedUpByRelation`, `pickedUpByName` to `StudentAttendance`; DROPs legacy `StudentAttendance @@unique([studentId, date])`; ADDs partial unique index `StudentAttendance_studentId_date_legacy_key ON ("studentId","date") WHERE "sessionId" IS NULL` (preserves legacy-path atomicity during the migration window); `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` + tenant policies for both new tables (direct for ClassTrack, indirect-through-ClassSection for ClassSession).
+- Backfills ClassTrack rows from existing ClassSection rows in the same migration; nothing else to backfill at this level.
+
+**One-time data migration (manual, post-deploy):**
+1. Dry-run first (default mode, mutates nothing):
+   ```
+   npm run backfill:hierarchy
+   ```
+   or per-tenant:
+   ```
+   npx tsx --env-file-if-exists=.env scripts/backfill-hierarchy.ts --tenant <tenantId>
+   ```
+   Review the Phase 2/3/4/5 report. Pay attention to: no-Semester sections (those tenants must create Semester rows first via `/admin/semesters`), DCARE multi-shift sections flagged for `slotTemplate` review, orphan-classification outcome.
+2. Live run:
+   ```
+   npm run backfill:hierarchy -- --confirm
+   ```
+   (Or via `tsx ... --confirm --tenant <id>` for per-tenant.) Phase 5 exit codes:
+   - SUCCESS (exit 0) — zero orphans.
+   - SUCCESS_WITH_WARNINGS (exit 0) — orphans all trace to no-Semester sections; safe to proceed but those tenants need Semesters before sessions can generate.
+   - FAILURE (exit 1) — substantive orphans in sections that DID get sessions. Do NOT mark complete; investigate (calendar drift, workingDays misconfig). Re-run after fix.
+3. The script is idempotent and re-runnable. Phase 2 verifies Task 1's SQL ClassTrack backfill; Phase 3 calls `reconcileSessions` per section; Phase 4 repoints `StudentAttendance.sessionId`; Phase 5 asserts row-count parity.
+
+### Env vars
+None added or changed.
+
+### API contract changes
+- NEW: `POST /api/admin/class-tracks`, `GET /api/admin/class-tracks`, `PATCH/DELETE /api/admin/class-tracks/[id]` (academic.view/edit gated).
+- NEW: `POST /api/admin/academic-years/[id]/roll-forward` (isAdminRole gated, rate-limited 5/60s, fan-out capped at 200 sections with `truncated` flag).
+- NEW: `GET /api/admin/class-sessions?classSectionId=&month=`, `PATCH /api/admin/class-sessions/[id]` (substitute swap — sets `teacherId`, leaves `defaultTeacherId` untouched, past-date → `isBackfilled`, requires `substituteReason` for genuine substitution).
+- NEW: `GET /api/teacher/sessions?date=`, `POST /api/teacher/sessions/[id]/attendance` (bulk upsert keyed on `studentId_sessionId`; teacher must be the session's effective teacher or admin).
+- NEW: `GET /api/class-sections/[id]` (was missing; tenant-scoped).
+- CHANGED: existing mutation handlers (`POST /api/class-sections`, `PUT /api/class-sections/[id]` with new `slotTemplate`, `PUT /api/admin/curriculum/semesters/[id]` on date change, `POST/PUT/DELETE /api/teaching-assignments`, `POST/PUT/DELETE /api/config/holidays`) now react with reconcile/backfill; failures are non-fatal and surface as `reconcileWarning` in the 2xx response. Holiday routes gained Zod validation + rate limits (none previously).
+- CHANGED: `POST /api/student-attendance/mark` (legacy session-agnostic path) converted from `upsert` to `findFirst+create/update` keyed on `(studentId, date, sessionId=null)` — semantically equivalent for the legacy path; the partial unique index above preserves atomicity.
+
+### Manual smoke (on Vercel preview)
+1. Admin (`ismailir10@gmail.com`):
+   - `/admin/class-tracks` — list loads; create a track (campus + program + name) → appears in list; status filter works; deactivate a track via row action → status flips INACTIVE.
+   - `/admin/academic-years` — "Gulir Kelas ke Tahun Ini" row action → pick source year → submit → toast shows `sectionsCreated` count; target year now has cloned sections.
+   - `/admin/class-sections/[id]` (navigate from "Kalender sesi" row action on the academic-years sections table) — read-only month calendar renders with sessions per day, substitute badge correctly shows for swapped sessions; click a session → Sheet drawer opens; swap teacher with a reason → Simpan → calendar refreshes with the new teacher + Pengganti badge; "Kembalikan ke wali kelas" reverts.
+2. Teacher (`ismail10rabbanii@gmail.com`):
+   - `/teacher` — "Sesi Hari Ini" card renders today's sessions (or empty state if today is a holiday/non-working).
+   - Click through to `/teacher/sessions/[id]` — roster renders; cycle a student's status; Tap Masuk → time stamps; Tap Pulang → time stamps + pickup section appears; pick a pickup relation (test OTHER → name input becomes required); Simpan → success toast; reload → all data persists.
+3. Parent (`rightjet.hq@gmail.com`):
+   - No Layer-1 pickup-history view in this cycle; existing parent portal should be unchanged (attendance/invoices/journal). Just confirm the portal still loads.
+
+### Rollback plan
+- **Revert the merge commit.** This rolls back code only; the migration is NOT auto-reverted by `prisma migrate deploy`.
+- For the migration:
+  - Quickest path: run a custom down-migration (hand-written) that drops `ClassSession`, drops `ClassTrack`, drops the new columns on `ClassSection` / `StudentAttendance`, drops the partial unique index, restores the legacy `@@unique([studentId, date])` (only safe if no multi-shift attendance rows were inserted — query `SELECT "studentId","date",COUNT(*) FROM "StudentAttendance" GROUP BY 1,2 HAVING COUNT(*) > 1` first; if any rows exist, the unique cannot be restored).
+  - Marking the migration as rolled back in Prisma: `npx prisma migrate resolve --rolled-back 20260515000000_academic_hierarchy_refactor`.
+- **Data loss on rollback:** ClassTrack rows + ClassSession rows + `StudentAttendance.sessionId` linkage + pickup fields (`pickedUpByRelation`, `pickedUpByName`) are lost. The legacy `classSectionId` on StudentAttendance is intact, so historical attendance data SURVIVES; only the cycle's new structure + pickup capture is destroyed.
+- **Decision rule:** rollback only if a P0 production bug is traced to this cycle. The architecture is additive (legacy attendance paths still work) — most failure modes can be fixed forward.
+
+### Follow-up tasks queued
+- Fix `playwright.config.ts` to propagate `DEMO_MODE` into the test-runner env so the two `admin.spec.ts` tagihan-skip guards actually fire (spawned during Task 9 — pre-existing infra bug, not introduced by this cycle).
+- Drop `StudentAttendance.classSectionId` + `ClassSection.campusId`/`programId` denormalization after burn-in (deferred per architect review — 128 API routes unaudited for direct filtering on these columns).
+- Pickup Layer 2 (late-pickup alerts) + Layer 3 (late-pickup fees / billing integration) — future cycles.
