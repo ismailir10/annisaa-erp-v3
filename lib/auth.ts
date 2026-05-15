@@ -327,11 +327,23 @@ async function _getSession(): Promise<SessionUser | null> {
       user = updated;
     }
 
-    // For guardian users, find their parent ID
+    // For guardian users, find their parent ID + sync display name from
+    // the authoritative Parent row (Parent.name is the source of truth for
+    // guardians; User.name may be stale from a pre-wipe seed or manual
+    // invite). Same pattern for teachers — Employee.nama wins over User.name.
     let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
-    if (user.role === "GUARDIAN" && !parentId) {
-      const parent = await prisma.parent.findFirst({ where: { email: user.email } });
-      parentId = parent?.id ?? null;
+    let displayName: string | null = user.name;
+    if (user.role === "GUARDIAN") {
+      const parent = parentId
+        ? await prisma.parent.findFirst({ where: { id: parentId }, select: { id: true, name: true } })
+        : await prisma.parent.findFirst({ where: { email: user.email }, select: { id: true, name: true } });
+      if (parent) {
+        parentId = parent.id;
+        displayName = parent.name;
+      }
+    } else if (user.role === "TEACHER" && user.employeeId) {
+      const employee = await prisma.employee.findFirst({ where: { id: user.employeeId }, select: { nama: true } });
+      if (employee) displayName = employee.nama;
     }
 
     // Self-heal F-7 (cycle 2026-05-13 staging-sweep-majors-cycle1). See
@@ -351,7 +363,7 @@ async function _getSession(): Promise<SessionUser | null> {
       id: user.id,
       email: user.email,
       role: user.role as SessionUser["role"],
-      name: user.name,
+      name: displayName,
       tenantId: user.tenantId,
       employeeId: user.employeeId,
       parentId,
@@ -383,9 +395,18 @@ async function getDemoSession(): Promise<SessionUser | null> {
   if (!user) return null;
 
   let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
-  if (user.role === "GUARDIAN" && !parentId) {
-    const parent = await prisma.parent.findFirst({ where: { email: user.email } });
-    parentId = parent?.id ?? null;
+  let displayName: string | null = user.name;
+  if (user.role === "GUARDIAN") {
+    const parent = parentId
+      ? await prisma.parent.findFirst({ where: { id: parentId }, select: { id: true, name: true } })
+      : await prisma.parent.findFirst({ where: { email: user.email }, select: { id: true, name: true } });
+    if (parent) {
+      parentId = parent.id;
+      displayName = parent.name;
+    }
+  } else if (user.role === "TEACHER" && user.employeeId) {
+    const employee = await prisma.employee.findFirst({ where: { id: user.employeeId }, select: { nama: true } });
+    if (employee) displayName = employee.nama;
   }
 
   const { permissions, customRoleCode } = derivePermissions(user);
@@ -394,7 +415,7 @@ async function getDemoSession(): Promise<SessionUser | null> {
     id: user.id,
     email: user.email,
     role: user.role as SessionUser["role"],
-    name: user.name,
+    name: displayName,
     tenantId: user.tenantId,
     employeeId: user.employeeId,
     parentId,

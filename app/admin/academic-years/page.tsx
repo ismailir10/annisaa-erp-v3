@@ -336,6 +336,7 @@ export default function AcademicPage() {
             setYearDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
+          onActivate={() => setReactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
           isActive={row.original.status === "ACTIVE"}
           extraActions={[{
             label: "Gulir Kelas ke Tahun Ini",
