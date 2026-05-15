@@ -105,3 +105,124 @@ test.describe("SCHOOL_ADMIN role restrictions", () => {
     await expect(page).toHaveURL(/\/admin$/);
   });
 });
+
+// ----------------------------------------------------------------------
+// Substitute-swap visibility (academic-hierarchy-refactor Task 9). Driven
+// through the admin class-session API: discover a ClassSection, list its
+// ClassSession rows, PATCH one to swap the effective teacher to a different
+// employee with a substituteReason. The swap must change `teacherId` while
+// leaving `defaultTeacherId` (the homeroom snapshot) untouched. API-driven —
+// the swap semantics are the assertion, not the calendar UI.
+//
+// Uses a SUPER_ADMIN request context (cookie header) since class-session
+// routes are isAdminRole-gated and the swap needs a 2nd tenant employee.
+// ----------------------------------------------------------------------
+const SUPER_ADMIN_COOKIE = "school-erp-session=u_super_admin";
+
+test.describe("Class-session substitute swap", () => {
+  test("PATCH swaps the effective teacher and preserves the homeroom snapshot", async ({ request }) => {
+    const adminHeaders = { cookie: SUPER_ADMIN_COOKIE };
+
+    // Discover class sections. The demo DB can carry roll-forward-cloned
+    // sections (from this suite's roll-forward test) whose target year has no
+    // Semester and therefore zero ClassSession rows — so we scan every ACTIVE
+    // section until one yields a ClassSession with a homeroom teacher, rather
+    // than blindly trusting the first.
+    const sectionsRes = await request.get("/api/class-sections", { headers: adminHeaders });
+    expect(sectionsRes.ok()).toBeTruthy();
+    const sections = (await sectionsRes.json()) as Array<{ id: string; status: string }>;
+    const activeSections = sections.filter((s) => s.status === "ACTIVE");
+    if (activeSections.length === 0) {
+      test.skip(true, "No ACTIVE class section in demo seed");
+      return;
+    }
+
+    type SessionRow = {
+      id: string;
+      classSectionId: string;
+      teacherId: string | null;
+      defaultTeacherId: string | null;
+    };
+    let target: SessionRow | undefined;
+    for (const section of activeSections) {
+      const sessionsRes = await request.get(
+        `/api/admin/class-sessions?classSectionId=${section.id}`,
+        { headers: adminHeaders },
+      );
+      expect(sessionsRes.ok()).toBeTruthy();
+      const sessions = (await sessionsRes.json()) as SessionRow[];
+      const hit = sessions.find((s) => s.defaultTeacherId);
+      if (hit) {
+        target = hit;
+        break;
+      }
+    }
+    if (!target) {
+      test.skip(true, "No ClassSession with a homeroom teacher in demo seed");
+      return;
+    }
+    // Captured so the re-fetch + restore steps can re-scope to the section.
+    const targetSectionId = target.classSectionId;
+
+    // Find a substitute employee — any tenant employee that is NOT the
+    // session's current default teacher.
+    const empRes = await request.get("/api/employees?status=ACTIVE&pageSize=100", {
+      headers: adminHeaders,
+    });
+    expect(empRes.ok()).toBeTruthy();
+    const { data: employees } = (await empRes.json()) as {
+      data: Array<{ id: string }>;
+    };
+    const substitute = employees.find((e) => e.id !== target.defaultTeacherId);
+    if (!substitute) {
+      test.skip(true, "Fewer than 2 employees — cannot do a meaningful swap");
+      return;
+    }
+
+    // Swap the effective teacher with a substituteReason.
+    const patchRes = await request.patch(`/api/admin/class-sessions/${target.id}`, {
+      headers: adminHeaders,
+      data: {
+        teacherId: substitute.id,
+        substituteReason: "E2E substitute swap — Task 9 coverage",
+      },
+    });
+    expect(patchRes.ok()).toBeTruthy();
+    const swapped = (await patchRes.json()) as {
+      teacherId: string | null;
+      defaultTeacherId: string | null;
+      substituteReason: string | null;
+    };
+    // Effective teacher changed; homeroom snapshot untouched.
+    expect(swapped.teacherId).toBe(substitute.id);
+    expect(swapped.defaultTeacherId).toBe(target.defaultTeacherId);
+    expect(swapped.substituteReason).toBe("E2E substitute swap — Task 9 coverage");
+
+    // Verify the swap is visible on a re-fetch of the session list.
+    const afterRes = await request.get(
+      `/api/admin/class-sessions?classSectionId=${targetSectionId}`,
+      { headers: adminHeaders },
+    );
+    const after = (await afterRes.json()) as SessionRow[];
+    const afterRow = after.find((s) => s.id === target.id);
+    expect(afterRow?.teacherId).toBe(substitute.id);
+    expect(afterRow?.defaultTeacherId).toBe(target.defaultTeacherId);
+
+    // Restore the original effective teacher so re-runs stay idempotent. A
+    // revert to the homeroom snapshot needs no reason (the route clears it).
+    if (target.teacherId === target.defaultTeacherId) {
+      await request.patch(`/api/admin/class-sessions/${target.id}`, {
+        headers: adminHeaders,
+        data: { teacherId: target.defaultTeacherId },
+      });
+    } else {
+      await request.patch(`/api/admin/class-sessions/${target.id}`, {
+        headers: adminHeaders,
+        data: {
+          teacherId: target.teacherId,
+          substituteReason: "E2E restore",
+        },
+      });
+    }
+  });
+});
