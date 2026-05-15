@@ -33,11 +33,21 @@ if [ ! -d "$MIGRATIONS" ]; then
   exit 2
 fi
 
-# Extract tenant-scoped model names: models containing a `tenantId String` field.
+# Extract tenant-scoped model names. A model is collected if EITHER:
+#   1. it contains a literal `tenantId String` field (direct tenancy), OR
+#   2. the line immediately preceding `model X {` carries the marker
+#      `// @rls-indirect:` (indirect tenancy — tenant boundary enforced
+#      through a parent relation, e.g. ClassSession via ClassSection).
+# Both kinds still feed the same ENABLE + CREATE POLICY checks below.
 models=$(awk '
-  /^model /            { name=$2; has_tenant=0; next }
-  /^}/                 { if (has_tenant) print name; name="" }
+  /^model /            { name=$2; has_tenant=indirect_next; indirect_next=0; next }
+  /^}/                 { if (has_tenant) print name; name=""; next }
   /tenantId[[:space:]]+String/ { has_tenant=1 }
+  /\/\/ @rls-indirect:/ { indirect_next=1; next }
+  # Only reset on a real line (non-blank, non-comment) so a blank or
+  # comment line between the marker and the model declaration does not
+  # silently clear the flag and skip the model.
+  !/^[[:space:]]*(\/\/|$)/ { indirect_next=0 }
 ' "$SCHEMA")
 
 if [ -z "$models" ]; then

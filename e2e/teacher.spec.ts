@@ -153,6 +153,121 @@ test.describe("Teacher flows", () => {
     }
   });
 
+  // Today's-sessions card renders (academic-hierarchy-refactor Task 9). Light
+  // smoke — the card heading is always present; the body is either a list of
+  // session rows or the empty-state copy. Both are valid.
+  test("teacher dashboard renders the today's-sessions card", async ({ page }) => {
+    await expect(page.getByText("Sesi Hari Ini")).toBeVisible({ timeout: 15_000 });
+    // Either a session link or the empty-state card body must be present.
+    await expect(
+      page
+        .locator('a[href*="/teacher/sessions/"]')
+        .or(page.getByText("Belum ada sesi kelas terjadwal hari ini."))
+        .first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  // Daily session flow (academic-hierarchy-refactor Task 9). The Part-A seed
+  // change generates ClassSession rows across both semesters of AY 2025/2026.
+  // "Today" can land on a seeded holiday (reconcileSessions correctly skips
+  // those — e.g. 2026-05-15 is "Cuti Bersama"), so this test discovers a
+  // session on ANY recent working day the teacher actually teaches — via the
+  // dated /api/teacher/sessions param — then drives the roster page (which is
+  // date-agnostic): set a status, Tap In, Tap Out, set a pickup relation,
+  // Simpan, then reload and assert the entered data persisted.
+  test("teacher daily session flow: record roster attendance and verify it persists", async ({ page }) => {
+    // Scan back over the last ~21 days for a date on which this teacher has a
+    // session with enrolled students. The dated query param mirrors the
+    // dashboard card's "today" query but lets the test tolerate today being a
+    // holiday / weekend with no generated sessions.
+    let session: { id: string; rosterCount: number } | undefined;
+    const today = new Date();
+    for (let back = 0; back <= 21 && !session; back++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - back);
+      const ymd = d.toISOString().slice(0, 10);
+      const res = await page.request.get(`/api/teacher/sessions?date=${ymd}`);
+      if (!res.ok()) continue;
+      const list = (await res.json()) as Array<{ id: string; rosterCount: number }>;
+      session = list.find((s) => s.rosterCount > 0);
+    }
+    if (!session) {
+      test.skip(
+        true,
+        "teacher has no recent session with enrolled students in demo seed",
+      );
+      return;
+    }
+
+    // Roster page is date-agnostic — navigate straight to it.
+    await page.goto(`/teacher/sessions/${session.id}`);
+    await page.waitForURL(`**/teacher/sessions/${session.id}`, { timeout: 15_000 });
+
+    // The roster page renders one row per ACTIVE-enrolled student. This test
+    // mutates state, so to stay re-runnable we pick the first row whose "Tap
+    // Masuk" button is still ENABLED (i.e. not yet checked in by a prior run).
+    // Once checked in, the button re-labels to "Masuk HH:MM" and disables.
+    await expect(page.getByTestId("roster-row").first()).toBeVisible({ timeout: 15_000 });
+    const rows = page.getByTestId("roster-row");
+    const rowCount = await rows.count();
+    let targetRow: import("@playwright/test").Locator | undefined;
+    for (let i = 0; i < rowCount; i++) {
+      const candidate = rows.nth(i);
+      const tapIn = candidate.getByRole("button", { name: /^Tap Masuk$/ });
+      if (await tapIn.isVisible().catch(() => false)) {
+        targetRow = candidate;
+        break;
+      }
+    }
+    if (!targetRow) {
+      test.skip(
+        true,
+        "every student in this session is already checked in — no fresh row to exercise",
+      );
+      return;
+    }
+
+    // Capture the student name so the row can be re-located after reload.
+    const studentName = (
+      await targetRow.locator("p").first().textContent()
+    )?.trim();
+    expect(studentName).toBeTruthy();
+
+    // Set a status — cycle-tap the status badge once (Hadir → Alpa → ...).
+    await targetRow.getByRole("button", { name: /^Ubah status/ }).click();
+
+    // Tap In — enables Tap Out.
+    await targetRow.getByRole("button", { name: /^Tap Masuk$/ }).click();
+    await expect(targetRow.getByRole("button", { name: /^Masuk \d/ })).toBeVisible();
+
+    // Tap Out — reveals the pickup-relation Select.
+    await targetRow.getByRole("button", { name: /^Tap Pulang$/ }).click();
+    await expect(targetRow.getByRole("button", { name: /^Pulang \d/ })).toBeVisible();
+
+    // Pickup relation — pick "Orang tua" (PARENT), which needs no name.
+    await targetRow.getByRole("combobox").click();
+    await page.getByRole("option", { name: "Orang tua" }).click();
+
+    // Save — success toast confirms the bulk upsert landed.
+    await page.getByRole("button", { name: /^Simpan$/ }).click();
+    await expect(page.getByText(/Absensi tersimpan/)).toBeVisible({ timeout: 15_000 });
+
+    // Reload — re-locate the SAME student row by name; the persisted check-in
+    // time + check-out time + pickup relation must still show.
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    const reloadedRow = page
+      .getByTestId("roster-row")
+      .filter({ hasText: studentName! })
+      .first();
+    await expect(reloadedRow).toBeVisible({ timeout: 15_000 });
+    // Check-in button now reads "Masuk HH:MM" (disabled, persisted value).
+    await expect(reloadedRow.getByRole("button", { name: /^Masuk \d/ })).toBeVisible();
+    // Check-out persisted → pickup Select renders with "Orang tua" selected.
+    await expect(reloadedRow.getByRole("button", { name: /^Pulang \d/ })).toBeVisible();
+    await expect(reloadedRow.getByRole("combobox")).toContainText("Orang tua");
+  });
+
   test("teacher entry grid 'Lihat minggu' affordance navigates to per-student week view", async ({ page }) => {
     // Discover a class via the teacher's assignments. Skip if seed has none.
     await page.goto("/teacher");

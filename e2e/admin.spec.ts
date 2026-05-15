@@ -365,6 +365,68 @@ test.describe("Admin flows", () => {
     await page.waitForURL("**/admin/student-journal/monitoring");
     await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 15_000 });
   });
+
+  // Roll-forward smoke (academic-hierarchy-refactor Task 9). The seed ships a
+  // single academic year ("2025/2026") so a meaningful roll-forward needs a
+  // distinct target year — we create one via the API in setup, then trigger
+  // the "Gulir Kelas ke Tahun Ini" row action on it, picking the seed year as
+  // source. Focused smoke: assert the success toast, not exact counts.
+  test("academic-year roll-forward clones source sections into a fresh target year", async ({ page }) => {
+    // Source year — the seed's ACTIVE year with ACTIVE class sections.
+    const yearsRes = await page.request.get("/api/academic-years");
+    expect(yearsRes.ok()).toBeTruthy();
+    const years = (await yearsRes.json()) as Array<{ id: string; name: string; status: string }>;
+    const sourceYear = years.find((y) => y.status === "ACTIVE") ?? years[0];
+    if (!sourceYear) {
+      test.skip(true, "No academic year in seed");
+      return;
+    }
+
+    // Create a distinct target year via the API. Unique name keyed on Date.now()
+    // so re-runs never collide on the year-name unique constraint.
+    const targetName = `E2E Roll ${Date.now()}`;
+    const createRes = await page.request.post("/api/academic-years", {
+      data: { name: targetName, startDate: "2027-07-01", endDate: "2028-06-30" },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const targetYear = (await createRes.json()) as { id: string; name: string };
+    expect(targetYear.id).toBeTruthy();
+
+    await page.goto("/admin/academic-years");
+    await expect(page.getByRole("heading", { name: "Akademik" })).toBeVisible({ timeout: 15_000 });
+
+    // Wait for the academic-years fetch to settle so the new row is rendered.
+    await page
+      .waitForResponse((res) => res.url().includes("/api/academic-years") && res.ok(), { timeout: 15_000 })
+      .catch(() => undefined);
+
+    // Find the target year's row, open its row-actions menu, click the
+    // roll-forward action.
+    const targetRow = page.getByRole("row").filter({ hasText: targetName });
+    await expect(targetRow).toBeVisible({ timeout: 10_000 });
+    await targetRow.getByRole("button", { name: /Buka menu/i }).click();
+    await page.getByRole("menuitem", { name: /Gulir Kelas ke Tahun Ini/i }).click();
+
+    // Roll-forward dialog: pick the source year, submit.
+    const dialog = page.getByRole("dialog", { name: /Gulir Kelas ke Tahun Ajaran/i });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await dialog.getByRole("combobox").click();
+    await page.getByRole("option", { name: sourceYear.name }).click();
+    await dialog.getByRole("button", { name: /^Gulir Kelas$/ }).click();
+
+    // Outcome toast. The roll-forward POST clones each source section AND
+    // generates its ClassSession rows synchronously (reconcileSessions per
+    // section) — against the live DB that is a multi-second request, so the
+    // toast can take a while to land. Timeout is 60s (mirrors the bulk-retry
+    // orchestration test's ceiling in this file). Copy is one of:
+    //   • "N kelas digulir ke <year>"           — sections cloned (page.tsx:206)
+    //   • "... kelas dilewati (sudah ada)"       — tracks already rolled
+    //   • "Tidak ada kelas aktif yang bisa digulir ..." — nothing to roll
+    // All three confirm the action executed end-to-end; assert on the union.
+    await expect(
+      page.getByText(/kelas digulir ke|kelas dilewati|Tidak ada kelas aktif/i),
+    ).toBeVisible({ timeout: 60_000 });
+  });
 });
 
 // ----------------------------------------------------------------------

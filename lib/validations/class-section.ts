@@ -15,4 +15,7 @@ export const updateClassSectionSchema = z.object({
   capacity: z.number().int().min(1, "Kapasitas minimal 1").max(500).optional(),
   campusId: z.string().min(1).optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+  // slotTemplate drives ClassSession fan-out (FULL_DAY → one slot/day,
+  // MORNING_AND_AFTERNOON → two). Changing it triggers a reconcile.
+  slotTemplate: z.enum(["FULL_DAY", "MORNING_AND_AFTERNOON"]).optional(),
 });

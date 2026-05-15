@@ -37,10 +37,11 @@ describe("getActiveItem — longest-prefix wins", () => {
 describe("adminNav IA — ordering + grouping", () => {
   const groupIds = adminNav.groups.map((g) => g.id);
 
-  it("orders groups: students → curriculum → assessment → classroom → finance → hr", () => {
+  it("orders groups: students → curriculum → academic → assessment → classroom → finance → hr", () => {
     expect(groupIds).toEqual([
       "students",
       "curriculum",
+      "academic",
       "assessment",
       "classroom",
       "finance",
@@ -63,6 +64,15 @@ describe("adminNav IA — ordering + grouping", () => {
     ]);
     const semester = group.items.find((i) => i.label === "Semester")!;
     expect(semester.permission).toBe("curriculum.read");
+  });
+
+  it("academic group is gated by academic.view (matching the page guard) and holds class tracks", () => {
+    const group = adminNav.groups.find((g) => g.id === "academic")!;
+    expect(group.permission).toBe("academic.view");
+    expect(group.items.map((i) => i.label)).toEqual(["Rombongan Belajar"]);
+    expect(group.items.map((i) => i.href)).toEqual(["/admin/class-tracks"]);
+    const classTracks = group.items.find((i) => i.label === "Rombongan Belajar")!;
+    expect(classTracks.permission).toBe("academic.view");
   });
 
   it("students group covers the admission → enrollment funnel", () => {

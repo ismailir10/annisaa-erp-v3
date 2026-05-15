@@ -1,6 +1,7 @@
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { JournalStatus } from "../lib/generated/prisma/enums";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { reconcileSessions } from "@/lib/sessions/reconcile";
 import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
@@ -41,8 +42,12 @@ async function main() {
   await prisma.week.deleteMany();
   await prisma.subTheme.deleteMany();
   await prisma.theme.deleteMany();
-  await prisma.semester.deleteMany();
+  // ClassSession references ClassSection + Semester + Employee, and
+  // StudentAttendance references ClassSession via sessionId — so it must be
+  // wiped before semester / studentAttendance / classSection / employee below.
   await prisma.studentAttendance.deleteMany();
+  await prisma.classSession.deleteMany();
+  await prisma.semester.deleteMany();
   await prisma.teachingAssignment.deleteMany();
   await prisma.leaveRequest.deleteMany();
   await prisma.studentEnrollment.deleteMany();
@@ -50,6 +55,7 @@ async function main() {
   await prisma.parent.deleteMany();
   await prisma.student.deleteMany();
   await prisma.classSection.deleteMany();
+  await prisma.classTrack.deleteMany();
   await prisma.program.deleteMany();
   await prisma.academicYear.deleteMany();
   await prisma.emailLog.deleteMany();
@@ -381,6 +387,23 @@ async function main() {
     `✅ Curriculum: 1 semester, ${themeCount} themes, ${subThemeCount} subthemes, ${weekCount} weeks`,
   );
 
+  // 7b-1c. Semester 2 — same academic year, covers "today" (2026-05-15) so the
+  // teacher today's-sessions page + ClassSession generation below have live
+  // data. UTC-midnight DateTimes per the Semester storage contract; no
+  // curriculum (Themes/Weeks) attached — Semester 1 carries the curriculum
+  // example, Semester 2 exists purely for session-calendar coverage.
+  await prisma.semester.create({
+    data: {
+      tenantId: tenant.id,
+      academicYearId: academicYear.id,
+      number: 2,
+      startDate: new Date("2026-01-05T00:00:00Z"),
+      endDate: new Date("2026-06-20T00:00:00Z"),
+      status: "ACTIVE",
+    },
+  });
+  console.log(`✅ Semester 2: 2026-01-05 → 2026-06-20 (covers today)`);
+
   // 7b-2. Programs
   const programDefs = [
     { code: "DCARE", name: "Day Care", type: "YEAR_ROUND", ageMin: 24, ageMax: 36 },
@@ -418,9 +441,20 @@ async function main() {
   const classSectionKeys = ["TKIT_A", "TKIT_B", "KB_ASTER", "KB_METLAND", "DCARE", "POPUP"];
   for (let i = 0; i < classSectionDefs.length; i++) {
     const cs = classSectionDefs[i];
+    // Each section belongs to a stable multi-year ClassTrack
+    // (cycle 2026-05-15 academic-hierarchy-refactor).
+    const classTrack = await prisma.classTrack.create({
+      data: {
+        tenantId: tenant.id,
+        campusId: campusMap[cs.campusSlug],
+        programId: programMap[cs.programCode],
+        name: cs.name,
+      },
+    });
     const created = await prisma.classSection.create({
       data: {
         tenantId: tenant.id,
+        classTrackId: classTrack.id,
         programId: programMap[cs.programCode],
         academicYearId: academicYear.id,
         name: cs.name,
@@ -581,6 +615,33 @@ async function main() {
     }
   }
   console.log(`✅ Teaching assignments: ${assignmentCount}`);
+
+  // ── 7c-2. CLASS SESSIONS (reactive generation) ─────────────
+  // Generate daily ClassSession rows for every seeded ClassSection across both
+  // Semesters of the academic year. reconcileSessions is idempotent and the
+  // single source of truth for session lifecycle — same call the API routes
+  // use. Run AFTER teaching assignments so it resolves each section's HOMEROOM
+  // teacher onto teacherId/defaultTeacherId. The two ACTIVE semesters
+  // (2025-07-14→2025-12-19 and 2026-01-05→2026-06-20) mean the generated set
+  // spans today (2026-05-15), giving the teacher dashboard + session pages
+  // real data.
+  let classSessionCount = 0;
+  const reconcileErrors: string[] = [];
+  for (const sectionId of Object.values(classSectionMap)) {
+    try {
+      const result = await reconcileSessions(sectionId);
+      classSessionCount += result?.added ?? 0;
+    } catch (error) {
+      console.error(`reconcileSessions failed for section ${sectionId}:`, error);
+      reconcileErrors.push(sectionId);
+    }
+  }
+  const sectionTotal = Object.keys(classSectionMap).length;
+  const successCount = sectionTotal - reconcileErrors.length;
+  const failureSuffix = reconcileErrors.length
+    ? `, ${reconcileErrors.length} sections failed: ${reconcileErrors.join(", ")}`
+    : "";
+  console.log(`✅ Class sessions: ${classSessionCount} generated across ${successCount} sections${failureSuffix}`);
 
   // ── 7d. STUDENT ATTENDANCE (last 5 school days) ───────────
   // Get all students with their enrollments for class linking

@@ -1,8 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 // E2E for the C1 admin curriculum surface. Demo session as SUPER_ADMIN —
-// only role with curriculum.write. Seed places one Semester + 2 Themes +
-// 4 SubThemes + 8 Weeks under tenant "annisaa".
+// only role with curriculum.write. The seed places the curriculum example
+// (2 Themes + 4 SubThemes + 8 Weeks) under Semester 1 of AY "2025/2026";
+// since the academic-hierarchy-refactor cycle the seed also ships a second
+// Semester (number 2) under the SAME academic year for session-calendar
+// coverage. Tests therefore scope to Semester 1 explicitly and use `.first()`
+// where the AY name now renders on more than one row.
 
 const SUPER_ADMIN_ID = "u_super_admin";
 
@@ -25,8 +29,9 @@ test.describe("Admin curriculum", () => {
     await expect(page.getByRole("heading", { name: /Kurikulum.*Semester/i })).toBeVisible({
       timeout: 15_000,
     });
-    // Seeded AY name is "2025/2026".
-    await expect(page.getByText("2025/2026")).toBeVisible();
+    // Seeded AY name is "2025/2026" — now renders once per Semester row
+    // (Semester 1 + Semester 2), so scope to the first match.
+    await expect(page.getByText("2025/2026").first()).toBeVisible();
     // Sidebar entry: scope to the sidebar nav so the breadcrumb's
     // aria-current page (also role="link" + text "Semester") doesn't
     // collide with the strict-mode resolver.
@@ -36,11 +41,22 @@ test.describe("Admin curriculum", () => {
   });
 
   test("theme create + subtheme create + week create end-to-end", async ({ page }) => {
-    // Discover the seeded Semester id via the API to avoid scraping the table.
-    const semRes = await page.request.get("/api/admin/curriculum/semesters?pageSize=1");
+    // Discover the seeded Semester 1 of AY "2025/2026" via the API. The
+    // curriculum example hangs off that specific semester; the seed now also
+    // ships Semester 2 under the same AY, and prior test runs may have left
+    // other `number: 1` semesters under different years — so match BOTH the
+    // AY name and the semester number rather than relying on list order.
+    const semRes = await page.request.get(
+      "/api/admin/curriculum/semesters?pageSize=100",
+    );
     const semJson = await semRes.json();
-    const semesterId = semJson.data?.[0]?.id;
-    test.skip(!semesterId, "seed produced no semester — skipping");
+    const semester = (
+      semJson.data as
+        | Array<{ id: string; number: number; academicYear: { name: string } }>
+        | undefined
+    )?.find((s) => s.number === 1 && s.academicYear.name === "2025/2026");
+    const semesterId = semester?.id;
+    test.skip(!semesterId, "seed produced no Semester 1 for AY 2025/2026 — skipping");
 
     await page.goto(`/admin/semesters/${semesterId}/themes`);
     await expect(page.getByText(/2025\/2026 · Semester 1/i)).toBeVisible({ timeout: 15_000 });
@@ -80,10 +96,18 @@ test.describe("Admin curriculum", () => {
 
   test("week overlap → 409 surfaces inline error", async ({ page }) => {
     // Discover everything via API so renamed seed strings cannot silently
-    // break this test — only structural assertions remain.
-    const semRes = await page.request.get("/api/admin/curriculum/semesters?pageSize=1");
-    const semesterId = (await semRes.json()).data?.[0]?.id;
-    test.skip(!semesterId, "seed produced no semester");
+    // break this test — only structural assertions remain. Target Semester 1
+    // of AY "2025/2026" (the seed now also ships Semester 2 under the same
+    // AY, and prior runs may leave other `number: 1` semesters behind).
+    const semRes = await page.request.get(
+      "/api/admin/curriculum/semesters?pageSize=100",
+    );
+    const semesterId = (
+      (await semRes.json()).data as
+        | Array<{ id: string; number: number; academicYear: { name: string } }>
+        | undefined
+    )?.find((s) => s.number === 1 && s.academicYear.name === "2025/2026")?.id;
+    test.skip(!semesterId, "seed produced no Semester 1 for AY 2025/2026");
 
     const themeRes = await page.request.get(
       `/api/admin/curriculum/themes?semesterId=${semesterId}&status=ACTIVE&pageSize=1`,

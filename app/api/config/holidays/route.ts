@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { holidaySchema } from "@/lib/validations/holiday";
+import { reconcileSectionsForHoliday } from "@/lib/sessions/holiday-fanout";
 
 export async function GET() {
   const session = await getSession();
@@ -15,17 +18,24 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { success } = rateLimit(`create-holiday:${getClientIp(req)}`, 20, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+  }
+
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const { date, name, type, isHalfDay } = body;
-
-  if (!date || !name?.trim() || !type) {
-    return NextResponse.json({ error: "Date, name, and type required" }, { status: 400 });
+  const parsed = holidaySchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Input tidak valid" },
+      { status: 400 },
+    );
   }
+  const { date, name, type, isHalfDay } = parsed.data;
 
   // Check duplicate
   const existing = await prisma.holiday.findUnique({
@@ -39,11 +49,37 @@ export async function POST(req: NextRequest) {
     data: {
       tenantId: session.tenantId,
       date,
-      name: name.trim(),
+      name,
       type,
       isHalfDay: isHalfDay ?? false,
     },
   });
 
-  return NextResponse.json(holiday, { status: 201 });
+  // Reactive session generation: a new holiday changes the working-day set,
+  // so every ClassSection in an academic year whose Semester covers this date
+  // must be reconciled (a full-day holiday removes the now-skipped empty
+  // session; a half-day collapses it to a MORNING slot). The create above has
+  // already committed; a fan-out failure is logged but never rolls back the
+  // holiday — reconcile is idempotent and re-runnable.
+  let reconcileWarning: string | undefined;
+  try {
+    const { sectionsFailed } = await reconcileSectionsForHoliday(
+      session.tenantId,
+      date,
+    );
+    if (sectionsFailed > 0) {
+      reconcileWarning = `Sebagian sesi kelas gagal dibuat ulang (${sectionsFailed} kelas) — jalankan ulang dari pengaturan.`;
+    }
+  } catch (err) {
+    console.error(
+      `[holidays POST] reconcileSectionsForHoliday failed for date ${date}:`,
+      err,
+    );
+    reconcileWarning = "Sebagian sesi kelas gagal dibuat ulang — jalankan ulang dari pengaturan.";
+  }
+
+  return NextResponse.json(
+    reconcileWarning ? { ...holiday, reconcileWarning } : holiday,
+    { status: 201 },
+  );
 }

@@ -79,26 +79,42 @@ export async function POST(req: NextRequest) {
     }
 
     for (const record of records) {
-      await tx.studentAttendance.upsert({
-        where: { studentId_date: { studentId: record.studentId, date } },
-        update: {
-          status: record.status,
-          checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
-          checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
-          notes: record.notes ?? undefined,
-          checkedInBy: session.employeeId!,
-        },
-        create: {
-          studentId: record.studentId,
-          classSectionId,
-          date,
-          status: record.status,
-          checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
-          checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
-          notes: record.notes ?? null,
-          checkedInBy: session.employeeId!,
-        },
+      // The legacy @@unique([studentId, date]) was dropped (cycle
+      // 2026-05-15 academic-hierarchy-refactor) to allow DCARE multi-shift
+      // attendance; uniqueness moved to (studentId, sessionId). This
+      // session-agnostic path still keeps one row per student/date
+      // (sessionId stays NULL here), so find-then-update/create on
+      // [studentId, date] preserves the prior upsert behavior. Task 7
+      // reworks this path onto ClassSession.
+      const existing = await tx.studentAttendance.findFirst({
+        where: { studentId: record.studentId, date, sessionId: null },
+        select: { id: true },
       });
+      if (existing) {
+        await tx.studentAttendance.update({
+          where: { id: existing.id },
+          data: {
+            status: record.status,
+            checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
+            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
+            notes: record.notes ?? undefined,
+            checkedInBy: session.employeeId!,
+          },
+        });
+      } else {
+        await tx.studentAttendance.create({
+          data: {
+            studentId: record.studentId,
+            classSectionId,
+            date,
+            status: record.status,
+            checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
+            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
+            notes: record.notes ?? null,
+            checkedInBy: session.employeeId!,
+          },
+        });
+      }
       saved++;
     }
   });

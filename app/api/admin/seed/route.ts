@@ -79,8 +79,22 @@ export async function POST(req: NextRequest) {
       where: { tenantId, name: cs.name, academicYearId: academicYear.id },
     });
     if (!existing) {
+      // Resolve-or-create the stable ClassTrack for this section
+      // (cycle 2026-05-15 academic-hierarchy-refactor).
+      const classTrack = await prisma.classTrack.upsert({
+        where: {
+          tenantId_campusId_programId_name: {
+            tenantId,
+            campusId: cs.campusId,
+            programId: programMap[cs.programCode],
+            name: cs.name,
+          },
+        },
+        update: {},
+        create: { tenantId, campusId: cs.campusId, programId: programMap[cs.programCode], name: cs.name },
+      });
       existing = await prisma.classSection.create({
-        data: { tenantId, programId: programMap[cs.programCode], academicYearId: academicYear.id, name: cs.name, capacity: cs.capacity, campusId: cs.campusId },
+        data: { tenantId, classTrackId: classTrack.id, programId: programMap[cs.programCode], academicYearId: academicYear.id, name: cs.name, capacity: cs.capacity, campusId: cs.campusId },
       });
     }
     classMap[cs.key] = existing.id;
@@ -155,11 +169,19 @@ export async function POST(req: NextRequest) {
       if (!st.enrollments[0]) continue;
       const rand = Math.random();
       const status = rand < 0.75 ? "PRESENT" : rand < 0.85 ? "ABSENT" : rand < 0.95 ? "SICK" : "PERMISSION";
-      await prisma.studentAttendance.upsert({
-        where: { studentId_date: { studentId: st.id, date: dateStr } },
-        update: {},
-        create: { studentId: st.id, classSectionId: st.enrollments[0].classSectionId, date: dateStr, status },
+      // @@unique([studentId, date]) was dropped (cycle 2026-05-15
+      // academic-hierarchy-refactor); uniqueness moved to
+      // (studentId, sessionId). Seed rows are session-agnostic
+      // (sessionId NULL) — find-then-create keeps idempotency.
+      const existingAtt = await prisma.studentAttendance.findFirst({
+        where: { studentId: st.id, date: dateStr, sessionId: null },
+        select: { id: true },
       });
+      if (!existingAtt) {
+        await prisma.studentAttendance.create({
+          data: { studentId: st.id, classSectionId: st.enrollments[0].classSectionId, date: dateStr, status },
+        });
+      }
       attCount++;
     }
   }
