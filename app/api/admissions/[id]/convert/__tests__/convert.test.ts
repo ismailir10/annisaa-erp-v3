@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 const {
   admissionFindUnique,
@@ -82,7 +83,7 @@ describe("POST /api/admissions/[id]/convert", () => {
   it("copies parentEducation, parentOccupation, parentIncome to Parent", async () => {
     admissionFindUnique.mockResolvedValue(makeAdmission());
 
-    const req = new Request("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
     await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
 
     expect(parentUpsert).toHaveBeenCalledWith(
@@ -104,7 +105,7 @@ describe("POST /api/admissions/[id]/convert", () => {
   it("copies admission.notes to Student.notes", async () => {
     admissionFindUnique.mockResolvedValue(makeAdmission());
 
-    const req = new Request("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
     await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
 
     expect(studentCreate).toHaveBeenCalledWith(
@@ -119,7 +120,7 @@ describe("POST /api/admissions/[id]/convert", () => {
   it("transfers fields when parent has no email (create path)", async () => {
     admissionFindUnique.mockResolvedValue(makeAdmission({ parentEmail: null }));
 
-    const req = new Request("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
     await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
 
     expect(parentCreate).toHaveBeenCalledWith(
@@ -136,7 +137,7 @@ describe("POST /api/admissions/[id]/convert", () => {
   it("uses parentRelationship for StudentGuardian, defaults to IBU", async () => {
     admissionFindUnique.mockResolvedValue(makeAdmission({ parentRelationship: "AYAH" }));
 
-    const req = new Request("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
     await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
 
     expect(studentGuardianCreate).toHaveBeenCalledWith(
@@ -149,7 +150,7 @@ describe("POST /api/admissions/[id]/convert", () => {
   it("defaults relationship to IBU when parentRelationship is null", async () => {
     admissionFindUnique.mockResolvedValue(makeAdmission({ parentRelationship: null }));
 
-    const req = new Request("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
     await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
 
     expect(studentGuardianCreate).toHaveBeenCalledWith(

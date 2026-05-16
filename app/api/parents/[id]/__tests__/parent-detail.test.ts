@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 const { parentFindFirst } = vi.hoisted(() => ({
   parentFindFirst: vi.fn(),
@@ -73,7 +74,7 @@ beforeEach(() => {
 describe("GET /api/parents/[id]", () => {
   it("returns full parent with linked students and invoices", async () => {
     parentFindFirst.mockResolvedValue(makeParent());
-    const req = new Request("http://localhost/api/parents/par-1");
+    const req = new NextRequest("http://localhost/api/parents/par-1");
     const res = await GET(req, { params: Promise.resolve({ id: "par-1" }) });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -85,7 +86,7 @@ describe("GET /api/parents/[id]", () => {
 
   it("returns 404 for wrong tenant", async () => {
     parentFindFirst.mockResolvedValue(null);
-    const req = new Request("http://localhost/api/parents/par-999");
+    const req = new NextRequest("http://localhost/api/parents/par-999");
     const res = await GET(req, { params: Promise.resolve({ id: "par-999" }) });
     expect(res.status).toBe(404);
   });
