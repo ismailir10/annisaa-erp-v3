@@ -34,7 +34,7 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 | **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
 | **hr** | Staff lifecycle: employees, attendance, leave, payroll, salary components — gated by `hr.*` permissions |
 | **academic** | School structure: academic year (with one-click roll-forward), programs, class tracks (stable multi-year class identity), class sections, daily class sessions (per-section calendar + substitute-teacher swap), teaching assignments |
-| **students** | Student lifecycle: students, guardians, enrollments, admissions (admin CRM + public `/daftar` entry + sibling auto-detect on submit) |
+| **students** | Student lifecycle: students, guardians (full 13-field edit + detail page with list row-click nav), enrollments, admissions (admin CRM + public `/daftar` entry + sibling auto-detect on submit) |
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
 | **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |
 | **student-journal** | Buku Penghubung — bi-directional school + home indicators with audit trail |
@@ -67,6 +67,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-16 | CRUD consistency audit: admission conversion copies parent fields + `parentRelationship`; guardian CRUD surfaces expanded | Fix data loss on convert; new guardian detail page; expand list edit form — see [cycle](docs/cycles/2026-05-16-crud-consistency-audit.md) |
 | 2026-05-14 | Curriculum C6 (in flight) — parent perkembangan rollup; `assessments.read` granted to GUARDIAN; `loadStudentPerkembangan` aggregates per-element counts + latest-pekan preview; `/parent/perkembangan` mobile pages + `Perkembangan minggu ini` card on parent home | Closes parent-visibility loop on C4+C5 entries — see [cycle](docs/cycles/2026-05-14-curriculum-c6-parent-perkembangan.md) |
 | 2026-05-14 | Curriculum C5 — sentra (CENTER) daily assessment on top of C4's `AssessmentEntry`; mobile UI at `/teacher/assessments/center/[center]` + POST/GET sentra session APIs (≤80 entries/session, ageGroup-filtered roster) | Reuses C4 schema with `source = CENTER` so 8 sentra rooms feed the same per-student data — see [cycle](docs/cycles/2026-05-14-curriculum-c5-center-assessments.md) |
 | 2026-05-14 | Curriculum C4 — `AssessmentEntry` + `AssessmentSource`/`LearningCenter` enums; walas weekly mobile UI at `/teacher/assessments/weekly` writes via `POST /api/teacher/assessment-entries` | First write path against curriculum indicators; English-only code identifiers (Indonesian only in UI copy) per CTO directive — see [cycle](docs/cycles/2026-05-14-curriculum-c4-weekly-assessments.md) |

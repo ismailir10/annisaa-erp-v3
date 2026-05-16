@@ -636,6 +636,7 @@ model Admission {
   parentEducation  String? // SMA | D1-D3 | S1 | S2 | S3
   parentOccupation String? // Karyawan Swasta | ASN | Guru | Wiraswasta | BUMN | Ibu Rumah Tangga | Lainnya
   parentIncome     String? // < Rp 1 Juta | Rp 1-2 Juta | Rp 3-5 Juta | Rp 5-10 Juta | > Rp 10 Juta
+  parentRelationship String? // AYAH | IBU | WALI | OTHER
   programId        String? // Program of interest
   campusPreference String? // Campus ID
   source           String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER

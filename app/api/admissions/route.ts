@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
       parentEducation: body.parentEducation || null,
       parentOccupation: body.parentOccupation || null,
       parentIncome: body.parentIncome || null,
+      parentRelationship: body.parentRelationship || null,
       programId: body.programId || null,
       source: body.source ?? "WALK_IN",
       notes: body.notes?.trim() || null,

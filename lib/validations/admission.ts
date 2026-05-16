@@ -28,6 +28,7 @@ export const createAdmissionSchema = z.object({
   parentEducation: optionalTrimmed(z.string()),
   parentOccupation: optionalTrimmed(z.string()),
   parentIncome: optionalTrimmed(z.string()),
+  parentRelationship: optionalEnum(z.enum(["AYAH", "IBU", "WALI", "OTHER"])),
   programId: optionalTrimmed(z.string()),
   source: z.enum(["WHATSAPP", "WALK_IN", "WEBSITE", "REFERRAL", "OTHER"]).default("WALK_IN"),
   notes: optionalTrimmed(z.string()),

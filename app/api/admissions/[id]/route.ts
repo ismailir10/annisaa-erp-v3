@@ -72,6 +72,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       status: body.status ?? existing.status,
       notes: body.notes?.trim() ?? existing.notes,
       followUpDate: body.followUpDate ?? existing.followUpDate,
+      parentRelationship: body.parentRelationship ?? existing.parentRelationship,
     },
   });
   return NextResponse.json(admission);
