@@ -336,6 +336,7 @@ export default function AcademicPage() {
             setYearDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
+          onActivate={() => setReactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
           isActive={row.original.status === "ACTIVE"}
           extraActions={[{
             label: "Gulir Kelas ke Tahun Ini",
@@ -566,7 +567,7 @@ export default function AcademicPage() {
           {editingSection ? (
             <div className="text-sm text-muted-foreground py-2">{editingSection.program.name}</div>
           ) : (
-            <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })} items={programs.map(p => ({ label: p.name, value: p.id }))}>
+            <Select value={sectionForm.programId} onValueChange={v => v && setSectionForm({ ...sectionForm, programId: v })}>
               <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
               <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -577,7 +578,7 @@ export default function AcademicPage() {
           {editingSection ? (
             <div className="text-sm text-muted-foreground py-2">{editingSection.academicYear.name}</div>
           ) : (
-            <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })} items={years.map(y => ({ label: y.name, value: y.id }))}>
+            <Select value={sectionForm.academicYearId} onValueChange={v => v && setSectionForm({ ...sectionForm, academicYearId: v })}>
               <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
               <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -585,7 +586,7 @@ export default function AcademicPage() {
         </Field>
         <Field>
           <FieldLabel required>Kampus</FieldLabel>
-          <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
+          <Select value={sectionForm.campusId} onValueChange={v => v && setSectionForm({ ...sectionForm, campusId: v })}>
             <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
             <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
@@ -621,7 +622,7 @@ export default function AcademicPage() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tambah Guru</p>
           <Field>
             <FieldLabel>Pilih Guru</FieldLabel>
-            <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })} items={employees.filter(e => !classAssignments.some(a => a.employee.kode === e.kode)).map(e => ({ label: `${e.nama} (${e.jabatan})`, value: e.id }))}>
+            <Select value={assignForm.employeeId} onValueChange={v => v && setAssignForm({ ...assignForm, employeeId: v })}>
               <SelectTrigger><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
               <SelectContent>
                 {employees

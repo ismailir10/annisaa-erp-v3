@@ -178,3 +178,79 @@ test.describe("FieldLabel required asterisk", () => {
     await expect(namaLabel.locator('span[aria-hidden="true"]')).toHaveText("*");
   });
 });
+
+// Regression coverage for F-3 from docs/runbooks/2026-05-16-staging-wipe-reseed-sweep.md:
+// Tambah Kelas dialog's Program combobox would silently bind the *first*
+// option's programId to the new row even after the operator opened the
+// listbox and Down-arrowed to a later option. The persisted ClassSection
+// pointed to the wrong program; visible select text matched the chosen
+// option but the saved FK did not.
+test.describe("Tambah Kelas — Program combobox writes selected value", () => {
+  test.use({ viewport: DESKTOP });
+
+  test.beforeEach(async ({ page }) => {
+    await loginAsAdmin(page);
+  });
+
+  test("non-default Program selection persists to the new ClassSection", async ({ page }) => {
+    // Need at least two active Programs to detect a "wrote the first one"
+    // miswrite. Skip cleanly when the staging seed is too thin.
+    const progRes = await page.request.get("/api/programs");
+    if (!progRes.ok()) test.skip(true, "Programs API not reachable");
+    const programs = (await progRes.json()) as Array<{ id: string; name: string; status: string }>;
+    const active = programs.filter((p) => p.status === "ACTIVE");
+    if (active.length < 2) test.skip(true, "Need ≥2 active programs to exercise non-default selection");
+
+    // Pick the option that the form would NOT default-select. The bug
+    // collapsed every selection back to the first option, so any non-first
+    // pick reproduces it.
+    const target = active[active.length - 1];
+
+    // Pre-conditions for the Tambah Kelas dialog: at least one Campus and
+    // one ACTIVE AcademicYear must exist; the academic-years page renders them.
+    await page.goto("/admin/academic-years");
+    await page.waitForLoadState("networkidle");
+
+    const uniqueName = `E2E F-3 ${Date.now()}`;
+    await page.getByRole("button", { name: "Tambah Kelas" }).first().click();
+
+    const dialog = page.locator('[data-slot="dialog-content"]').first();
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+
+    // Nama Kelas — FieldLabel isn't htmlFor-bound, target by placeholder
+    // instead of accessible-label association.
+    await dialog.getByPlaceholder("TKIT A").fill(uniqueName);
+
+    // Program select — open and pick the non-default option by visible text
+    // (more robust than positional keyboard navigation, which was the
+    // pattern that masked the bug in manual testing).
+    const programTrigger = dialog.locator('[role="combobox"]').first();
+    await programTrigger.click();
+    await page.getByRole("option", { name: target.name }).click();
+
+    // Tahun Ajaran: take the first available option (only one in our seed)
+    const yearTrigger = dialog.locator('[role="combobox"]').nth(1);
+    await yearTrigger.click();
+    await page.getByRole("option").first().click();
+
+    // Kampus: take the first available option
+    const campusTrigger = dialog.locator('[role="combobox"]').nth(2);
+    await campusTrigger.click();
+    await page.getByRole("option").first().click();
+
+    await dialog.getByRole("button", { name: /Tambah Kelas/i }).click();
+    await expect(dialog).toBeHidden({ timeout: 10_000 });
+
+    // Verify persistence via the API — visual-only text would lie if the
+    // bug recurred, so re-read the row.
+    const listRes = await page.request.get("/api/class-sections");
+    const sections = (await listRes.json()) as Array<{ id: string; name: string; programId: string }>;
+    const created = sections.find((s) => s.name === uniqueName);
+    expect(created, `class section "${uniqueName}" should exist after create`).toBeTruthy();
+    expect(created!.programId, "selected Program must persist to the new ClassSection").toBe(target.id);
+
+    // Cleanup so the test is idempotent against subsequent runs that
+    // would otherwise hit a unique-name collision.
+    await page.request.delete(`/api/class-sections/${created!.id}`).catch(() => {});
+  });
+});

@@ -247,15 +247,20 @@ export default function EmployeesPage() {
         setPositions(arr.length === 0 ? DEFAULT_POSITIONS : arr);
       })
       .catch((err) => console.error("[employees] positions fetch failed", err));
-    // Quick stats — fetch all with minimal data
-    Promise.all([
-      fetch("/api/employees?pageSize=1&status=ACTIVE").then(r => r.json()),
-      fetch("/api/employees?pageSize=1&status=INACTIVE").then(r => r.json()),
-    ]).then(([active, inactive]) => {
-      const a = active.pagination?.total ?? 0;
-      const i = inactive.pagination?.total ?? 0;
-      setStats({ total: a + i, active: a, inactive: i });
-    }).catch((err) => console.error("[employees] stats fetch failed", err));
+    // F-6 collapse: single /api/employees/stats endpoint replaces the
+    // two pageSize=1 filtered list calls that ran full filtered counts
+    // under the hood. Same data, half the round-trips, no full-table
+    // scan repeated per status bucket.
+    fetch("/api/employees/stats")
+      .then((r) => r.json())
+      .then((s) =>
+        setStats({
+          total: s.total ?? 0,
+          active: s.active ?? 0,
+          inactive: s.inactive ?? 0,
+        }),
+      )
+      .catch((err) => console.error("[employees] stats fetch failed", err));
   }, []);
 
   const fetchEmployees = useCallback(async () => {

@@ -72,22 +72,33 @@ describe("<Select> auto-derived items", () => {
     expect(trigger.textContent).toContain("Y label")
   })
 
-  it("prefers an explicitly-passed items prop over derived record", () => {
+  it("prefers child-derived items over an explicitly-passed items prop (F-3 fix)", () => {
+    // F-3 from docs/runbooks/2026-05-16-staging-wipe-reseed-sweep.md:
+    // ~12 callsites in the codebase pass BOTH a derived `items` array
+    // AND SelectItem children with identical content. The previous
+    // "items wins" behaviour caused base-ui to bind selection to the
+    // items array while the popover rendered the children — the
+    // persisted value drifted away from the clicked option.
+    //
+    // The wrapper now flips that: children are the visual source of
+    // truth, so any SelectItem children win over a competing `items`
+    // prop. The genuine items-only case (no children) still works,
+    // covered by the other tests in this suite that pass children.
     const trigger = renderTrigger(
       <Select
         value="k"
-        items={{ k: "Explicit Label" }}
+        items={{ k: "Items Prop Label" }}
       >
         <SelectTrigger>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="k">Derived Label</SelectItem>
+          <SelectItem value="k">Child Label</SelectItem>
         </SelectContent>
       </Select>
     )
-    expect(trigger.textContent).toContain("Explicit Label")
-    expect(trigger.textContent).not.toContain("Derived Label")
+    expect(trigger.textContent).toContain("Child Label")
+    expect(trigger.textContent).not.toContain("Items Prop Label")
   })
 
   it("falls through to rendering the raw value when no matching <SelectItem> exists", () => {

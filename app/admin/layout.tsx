@@ -1,4 +1,4 @@
-import { getSession, isAdminRole } from "@/lib/auth";
+import { getSession, isAdminRole, homePathForRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/admin/sidebar";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
@@ -11,7 +11,8 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  if (!session || !isAdminRole(session.role)) redirect("/");
+  if (!session) redirect("/");
+  if (!isAdminRole(session.role)) redirect(homePathForRole(session.role));
 
   return (
     <SidebarProvider>
