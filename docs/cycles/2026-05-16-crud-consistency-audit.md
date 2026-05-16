@@ -189,10 +189,32 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - Between-task gate: `npm run build` passed, `npx vitest run` — 135 files, 1105 tests passed
 - Cross-checked design-system.html for clickable name column patterns
 
+### Task 9: End-of-cycle gate
+- `npm run build` — passed (exit 0)
+- `npx vitest run` — 135 files, 1105 tests passed (exit 0)
+- `npx playwright test` — 30 passed, 2 skipped, 1 flaky (exit 0)
+- All ACs verified:
+  - AC1 ✅ Parent upsert carries education/occupation/incomeRange (test)
+  - AC2 ✅ parentRelationship field on admission form, used in conversion with "IBU" fallback (test)
+  - AC3 ✅ parentEmail + parentPhone inputs visible on admission form
+  - AC4 ✅ Guardian list edit expanded to 13 fields with "Data Pekerjaan" section
+  - AC5 ✅ employerAddress + employerCity on both guardian surfaces
+  - AC6 ✅ Guardian detail page at /admin/guardians/[id] with view/edit + tabs
+  - AC7 ✅ Guardian list name click navigates to detail page
+  - AC8 ✅ admission.notes → Student.notes (test)
+  - AC9 ✅ GET /api/parents/[id] returns parent with students + invoices (test)
+  - AC10 ✅ All E2E specs pass (30/30 + 2 skipped + 1 flaky)
+  - AC11 ✅ README ADR row present
+
 ---
 
 ## Ship Notes
-<!-- /ship fills this -->
+
+**Migration:** `20260516000000_add_admission_parent_relationship` adds nullable `parentRelationship String?` to Admission model. No backfill needed — existing records default null, conversion route falls back to "IBU".
+
+**No env vars.** No breaking changes. No rollback concerns — all changes are additive (new fields, new page, new API endpoint).
+
+**Commits:** 10 commits on branch (1 per task + 1 persistence fix found in review).
 
 **Follow-up candidates:**
 - Backfill migration: scan Admission records with parentEducation/parentOccupation/parentIncome → update linked Parent records where fields are null
