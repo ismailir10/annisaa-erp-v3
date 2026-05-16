@@ -39,6 +39,7 @@ export async function POST(
         name: admission.childName,
         dateOfBirth: admission.dateOfBirth,
         gender: admission.childGender,
+        notes: admission.notes,
       },
     });
 
@@ -53,11 +54,17 @@ export async function POST(
           email: parentEmail,
           phone: admission.parentPhone,
           whatsapp: admission.parentWhatsapp,
+          education: admission.parentEducation,
+          occupation: admission.parentOccupation,
+          incomeRange: admission.parentIncome,
         },
         update: {
           name: admission.parentName,
           phone: admission.parentPhone,
           whatsapp: admission.parentWhatsapp,
+          education: admission.parentEducation,
+          occupation: admission.parentOccupation,
+          incomeRange: admission.parentIncome,
         },
       });
     } else {
@@ -67,6 +74,9 @@ export async function POST(
           name: admission.parentName,
           phone: admission.parentPhone,
           whatsapp: admission.parentWhatsapp,
+          education: admission.parentEducation,
+          occupation: admission.parentOccupation,
+          incomeRange: admission.parentIncome,
         },
       });
     }
