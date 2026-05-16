@@ -831,14 +831,10 @@ export default function AdmissionsPage() {
               <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
             </div>
             <DialogFooter>
-              {/* F-8 probe: DialogClose previously wrapped a Button as a
-                  child, producing nested <button><button>…</button></button>
-                  which is invalid HTML and could intercept neighboring
-                  clicks via event bubbling. Use the `render` prop so
-                  base-ui Close becomes the Button directly. Matches the
-                  mobile Sheet variant above. */}
-              <DialogClose render={<Button variant="ghost">Batal</Button>} />
-              <Button type="button" onClick={handleSubmit} disabled={saving}>
+              <DialogClose>
+                <Button variant="ghost">Batal</Button>
+              </DialogClose>
+              <Button onClick={handleSubmit} disabled={saving}>
                 {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
               </Button>
             </DialogFooter>

@@ -33,7 +33,7 @@ Each fix is its own commit so failures can be isolated.
 - [x] **T4** — F-4: `getTodayYmdInTz` helper added; teacher Beranda fixed. Broader UTC-truncation cleanup deferred.
 - [x] **T5** — F-7: `getCurrentPeriodFromDb` (DB-backed) replaces calendar-only formula in teacher assessments page + API.
 - [x] **T6** — F-3: Select wrapper now prefers child-derived items over `items` prop. Fixes all ~12 callsites atomically.
-- [x] **T7** — F-8 probe: `DialogClose` switched to `render` prop; explicit `type="button"` on submit. Verification post-deploy.
+- [~] **T7** — F-8 probe: `DialogClose` render-prop swap reverted — risk-tolerance call after CI Playwright run flagged pre-existing flakes in the same area. Deferred for runtime tracing.
 - [x] **T8** — F-6: `/api/employees/stats` endpoint collapses 2 round-trips into 1 grouped query.
 
 ## Implementation
