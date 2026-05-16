@@ -194,6 +194,7 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - `npx vitest run` — 135 files, 1105 tests passed (exit 0)
 - `npx playwright test` — 30 passed, 2 skipped, 1 flaky (exit 0)
 - Post-rebase fix: test files use `NextRequest` instead of plain `Request` for stricter TS compat with staging
+- Post-rebase fix: replace bare `Function` type with typed callback in convert test (lint error)
 - All ACs verified:
   - AC1 ✅ Parent upsert carries education/occupation/incomeRange (test)
   - AC2 ✅ parentRelationship field on admission form, used in conversion with "IBU" fallback (test)

@@ -20,7 +20,7 @@ const {
 vi.mock("@/lib/db", () => ({
   prisma: {
     admission: { findUnique: admissionFindUnique },
-    $transaction: vi.fn((fn: Function) =>
+    $transaction: vi.fn((fn: (tx: Record<string, unknown>) => unknown) =>
       fn({
         student: { create: studentCreate },
         parent: { upsert: parentUpsert, create: parentCreate },
