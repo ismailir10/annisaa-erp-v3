@@ -127,8 +127,9 @@ If breadcrumbs auto-derive from nav config, this is free. Verify.
 ## Verification
 
 - [x] Cross-checked design-system.html §List for page layout compliance (label-only changes, no layout impact)
-- [x] `npm run build` passes
+- [x] `npm run build` passes (post-rebase on staging)
 - [x] `npx vitest run config/__tests__/admin-nav.test.ts` — 23/23 pass
+- [x] Playwright: all 25 admin/curriculum tests fail with blank white page (server timeout in beforeEach) — pre-existing worktree infrastructure issue, not caused by this cycle's changes. Same failures affect unrelated tests (dashboard, payroll, employees). CI Playwright on PR will be authoritative.
 
 ### Task 4 — E2E audit (AC-5)
 - No E2E tests reference "Rombongan Belajar", sidebar text for Kurikulum group, or breadcrumb assertions affected by this reshuffle. No changes needed.
