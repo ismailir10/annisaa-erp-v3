@@ -134,6 +134,8 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - **`lib/validations/admission.ts`** — Added `parentRelationship: z.enum(["AYAH", "IBU", "WALI", "OTHER"]).optional().nullable()` to `createAdmissionSchema`.
 - **`app/admin/admissions/page.tsx`** — Added `parentRelationship` to `Admission` type, `AdmissionForm` type, form body (dropdown: Ayah/Ibu/Wali/Lainnya after parent name/whatsapp grid), and all 3 form initializers (useState default, openDialog, onEdit). Cross-checked design-system.html for Select component patterns.
 - **`app/api/admissions/[id]/convert/route.ts`** — Changed `relationship: "WALI"` to `relationship: admission.parentRelationship || "IBU"`.
+- **`app/api/admissions/route.ts`** — Added `parentRelationship: body.parentRelationship || null` to `prisma.admission.create`.
+- **`app/api/admissions/[id]/route.ts`** — Added `parentRelationship: body.parentRelationship ?? existing.parentRelationship` to `prisma.admission.update`.
 - **`app/api/admissions/[id]/convert/__tests__/convert.test.ts`** — Added `parentRelationship: null` to `makeAdmission` default. 2 new tests: uses parentRelationship "AYAH" for StudentGuardian; defaults to "IBU" when null.
 
 ---
