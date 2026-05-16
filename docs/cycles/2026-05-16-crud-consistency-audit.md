@@ -138,6 +138,9 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - **`app/api/admissions/[id]/route.ts`** — Added `parentRelationship: body.parentRelationship ?? existing.parentRelationship` to `prisma.admission.update`.
 - **`app/api/admissions/[id]/convert/__tests__/convert.test.ts`** — Added `parentRelationship: null` to `makeAdmission` default. 2 new tests: uses parentRelationship "AYAH" for StudentGuardian; defaults to "IBU" when null.
 
+### Task 3: Add parentEmail + parentPhone to admission form UI
+- **`app/admin/admissions/page.tsx`** — Added `parentEmail` to `Admission` response type (was missing despite schema having it). Added email (type="email") + phone inputs in a responsive 2-col grid between parentRelationship dropdown and education/occupation/income grid. Fixed `onEdit` handler to read `a.parentEmail` instead of hardcoding empty string. Cross-checked design-system.html for Input field patterns.
+
 ---
 
 ## Verification
@@ -149,6 +152,16 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 ### Task 2
 - `npx vitest run app/api/admissions/[id]/convert/__tests__/convert.test.ts` — 5/5 passed
 - Between-task gate: `npm run build` passed, `npx vitest run` — 134 files, 1103 tests passed
+
+### Task 3
+- Between-task gate: pending
+
+### Task 5
+- Between-task gate: pending
+
+### Task 6
+- `npx vitest run app/api/parents/[id]/__tests__/parent-detail.test.ts` — 2/2 passed
+- Between-task gate: `npm run build` passed, `npx vitest run` — 135 files, 1105 tests passed
 
 ---
 

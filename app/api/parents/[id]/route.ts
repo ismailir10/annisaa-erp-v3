@@ -8,6 +8,7 @@ import { updateParentSchema, toggleParentStatusSchema } from "@/lib/validations/
  * Parent-level routes — operate on a Parent row by its id, the shape returned
  * by GET /api/guardians (which despite the URL queries `prisma.parent`).
  *
+ * GET   — full parent with linked students + invoices (guardian detail page)
  * PUT   — edit parent contact + government-compliance fields
  * PATCH — toggle Parent.status (ACTIVE ↔ INACTIVE) used by Nonaktifkan
  *
@@ -20,6 +21,53 @@ import { updateParentSchema, toggleParentStatusSchema } from "@/lib/validations/
 
 async function findParent(id: string, tenantId: string) {
   return prisma.parent.findFirst({ where: { id, tenantId } });
+}
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { success } = rateLimit(`parent-detail:${getClientIp(req)}`, 20, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
+  const session = await getSession();
+  if (!session?.tenantId || !isAdminRole(session.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  const parent = await prisma.parent.findFirst({
+    where: { id, tenantId: session.tenantId },
+    include: {
+      guardians: {
+        where: { status: "ACTIVE" },
+        include: {
+          student: {
+            select: { id: true, name: true, status: true, gender: true },
+          },
+        },
+      },
+      invoices: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          periodLabel: true,
+          totalDue: true,
+          totalPaid: true,
+          status: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      },
+    },
+  });
+
+  if (!parent) {
+    return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+  }
+
+  return NextResponse.json(parent);
 }
 
 export async function PUT(
