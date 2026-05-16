@@ -19,6 +19,8 @@ export const createGuardianSchema = z.object({
   employerAddress: z.string().max(500).optional().nullable(),
   employerCity: z.string().max(100).optional().nullable(),
   incomeRange: z.string().max(50).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  childrenTotal: z.coerce.number().int().min(0).optional().nullable(),
 });
 
 export const updateGuardianSchema = z.object({
@@ -35,6 +37,8 @@ export const updateGuardianSchema = z.object({
   employerAddress: z.string().max(500).optional().nullable(),
   employerCity: z.string().max(100).optional().nullable(),
   incomeRange: z.string().max(50).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  childrenTotal: z.coerce.number().int().min(0).optional().nullable(),
 });
 
 export const toggleGuardianStatusSchema = z.object({

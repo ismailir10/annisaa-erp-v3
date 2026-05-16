@@ -59,6 +59,8 @@ export async function PUT(
       employerAddress: d.employerAddress !== undefined ? (d.employerAddress?.trim() || null) : undefined,
       employerCity: d.employerCity !== undefined ? (d.employerCity?.trim() || null) : undefined,
       incomeRange: d.incomeRange !== undefined ? (d.incomeRange?.trim() || null) : undefined,
+      address: d.address !== undefined ? (d.address?.trim() || null) : undefined,
+      childrenTotal: d.childrenTotal !== undefined ? d.childrenTotal : undefined,
     },
   });
 

@@ -141,6 +141,11 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 ### Task 3: Add parentEmail + parentPhone to admission form UI
 - **`app/admin/admissions/page.tsx`** — Added `parentEmail` to `Admission` response type (was missing despite schema having it). Added email (type="email") + phone inputs in a responsive 2-col grid between parentRelationship dropdown and education/occupation/income grid. Fixed `onEdit` handler to read `a.parentEmail` instead of hardcoding empty string. Cross-checked design-system.html for Input field patterns.
 
+### Task 4: Expand guardian list edit form
+- **`app/admin/guardians/page.tsx`** — Expanded `GuardianEditForm` type from 4 to 13 fields (name, email, phone, whatsapp, address, parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange, childrenTotal). Replaced `GuardianEditFormBody` with full form: 2-col grids for email/phone, whatsapp/NIK, education/occupation, income/childrenTotal, alamat kantor/kota; border-top separator for "Data Pekerjaan" section. Added `Select` imports + option constants (EDUCATION_OPTIONS, OCCUPATION_OPTIONS, INCOME_OPTIONS). Added `openEditDialog()` with fetch-on-edit from `GET /api/parents/[id]` to populate all 13 fields + resolve StudentGuardian ID. Fixed pre-existing ID mismatch bug: list returns Parent IDs but PUT expects StudentGuardian IDs — now uses `editGuardianId` from parent detail response. Dialog widened to `sm:max-w-xl`; mobile sheet changed to `side="right"` with scroll. Cross-checked design-system.html for Select component and form layout patterns.
+- **`lib/validations/guardian.ts`** — Added `address: z.string().max(500).optional().nullable()` and `childrenTotal: z.coerce.number().int().min(0).optional().nullable()` to both `createGuardianSchema` and `updateGuardianSchema`.
+- **`app/api/guardians/[id]/route.ts`** — Added `address` and `childrenTotal` to parent update data block in PUT handler.
+
 ---
 
 ## Verification
@@ -159,6 +164,11 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 ### Task 5
 - TypeScript: zero errors in `app/admin/students/[id]/page.tsx`
 - Between-task gate: `npx vitest run` — 135 files, 1105 tests passed. `npm run build` hits pre-existing Turbopack worktree race condition (pages-manifest.json ENOENT) — infrastructure issue unrelated to code changes; TypeScript compilation phase passes cleanly.
+
+### Task 4
+- TypeScript: zero errors after fixing `onValueChange` null-coalescing (`v ?? ""`)
+- Between-task gate: `npm run build` passed, `npx vitest run` — 135 files, 1105 tests passed
+- Cross-checked design-system.html for Select component and form layout patterns
 
 ### Task 6
 - `npx vitest run app/api/parents/[id]/__tests__/parent-detail.test.ts` — 2/2 passed
