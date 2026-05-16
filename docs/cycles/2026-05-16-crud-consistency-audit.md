@@ -181,6 +181,14 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - Between-task gate: `npm run build` passed, `npx vitest run` — 135 files, 1105 tests passed
 - Cross-checked design-system.html for Card and AdminTabs patterns
 
+### Task 8: Wire guardian list row-click to detail page + README ADR
+- **`app/admin/guardians/page.tsx`** — Added `useRouter` import from `next/navigation`. Added `router` instance at component top. Rewrote `columnsWithActions` useMemo to: (1) override name column with clickable `<button>` that navigates to `/admin/guardians/[id]` on click, (2) spread remaining columns via `columns.slice(1)`, (3) add `onView` prop to `DataTableRowActions` for explicit "Lihat" button. Cross-checked design-system.html for clickable name patterns.
+- **`README.md`** — ADR row already present from earlier task (line 67).
+
+### Task 8 Verification
+- Between-task gate: `npm run build` passed, `npx vitest run` — 135 files, 1105 tests passed
+- Cross-checked design-system.html for clickable name column patterns
+
 ---
 
 ## Ship Notes

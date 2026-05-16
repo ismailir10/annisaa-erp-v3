@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -206,6 +207,7 @@ function GuardianEditFormBody({
 }
 
 export default function GuardiansPage() {
+  const router = useRouter();
   const isMobile = useIsMobile();
   const [data, setData] = useState<Guardian[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
@@ -330,7 +332,19 @@ export default function GuardiansPage() {
 
   const columnsWithActions = useMemo<ColumnDef<Guardian>[]>(
     () => [
-      ...columns,
+      {
+        accessorKey: "name",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Nama" />,
+        cell: ({ row }) => (
+          <button
+            className="text-sm font-medium text-left hover:underline"
+            onClick={() => router.push(`/admin/guardians/${row.original.id}`)}
+          >
+            {row.original.name}
+          </button>
+        ),
+      },
+      ...columns.slice(1),
       {
         id: "actions",
         header: "",
@@ -338,6 +352,7 @@ export default function GuardiansPage() {
           const g = row.original;
           return (
             <DataTableRowActions
+              onView={() => router.push(`/admin/guardians/${g.id}`)}
               onEdit={() => openEditDialog(g)}
               onDeactivate={g.status !== "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
               onActivate={g.status === "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
@@ -347,7 +362,7 @@ export default function GuardiansPage() {
         },
       },
     ],
-    [],
+    [router],
   );
 
   if (loading && data.length === 0) return <Skeleton className="h-96 rounded-xl" />;
