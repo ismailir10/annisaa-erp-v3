@@ -32,15 +32,23 @@ function Select<Value, Multiple extends boolean | undefined = false>(
   props: SelectPrimitive.Root.Props<Value, Multiple>
 ) {
   const { items, children } = props
+  // F-3 fix: walk children regardless of whether `items` is also passed.
+  // The codebase has ~12 callsites that pass BOTH a derived `items` array
+  // AND SelectItem children with identical content — the previous "items
+  // wins" branch caused base-ui to bind selection to the items array's
+  // entries while the popover rendered the children, so the persisted
+  // value would silently drift away from the clicked option. Children
+  // are the visual source of truth — derive items from them whenever
+  // they exist, and only fall back to the `items` prop when the caller
+  // is genuinely children-less (the rare valid case).
   const derivedItems = React.useMemo(() => {
-    if (items !== undefined) return undefined
     const acc: Record<string, React.ReactNode> = {}
     walkForItems(children, acc)
     return Object.keys(acc).length > 0 ? acc : undefined
-  }, [items, children])
+  }, [children])
   const mergedProps = {
     ...props,
-    items: items ?? derivedItems,
+    items: derivedItems ?? items,
   } as SelectPrimitive.Root.Props<Value, Multiple>
   return <SelectPrimitive.Root {...mergedProps} />
 }

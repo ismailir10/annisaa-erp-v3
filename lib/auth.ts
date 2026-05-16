@@ -201,6 +201,22 @@ export const isAdminRole = (role: string): boolean =>
   role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN";
 
 /**
+ * Map a session role to its canonical landing route. Used by layout guards
+ * to redirect cross-portal navigations to the user's own home instead of
+ * the login page — "you can't access /admin" should land a teacher on
+ * /teacher, not bounce them through the login form.
+ *
+ * Returns "/" for unknown roles so callers can still fall through to the
+ * login flow when the role isn't recognised.
+ */
+export function homePathForRole(role: string): string {
+  if (role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN") return "/admin";
+  if (role === "TEACHER") return "/teacher";
+  if (role === "GUARDIAN") return "/parent";
+  return "/";
+}
+
+/**
  * Get the current session user.
  * Reads Supabase Auth session, then looks up the Prisma User by email.
  * Auto-creates the Prisma User on first login if employee exists with that email.

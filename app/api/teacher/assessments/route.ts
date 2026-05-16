@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { getCurrentPeriod } from "@/lib/academic-period";
+import { getCurrentPeriodFromDb } from "@/lib/academic-period-db";
 
 /**
  * GET /api/teacher/assessments
@@ -22,7 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const period = getCurrentPeriod();
+  const period = await getCurrentPeriodFromDb(session.tenantId);
 
   // 1. Gather the set of class sections we're reporting on.
   type ClassSectionLite = {

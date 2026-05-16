@@ -139,11 +139,12 @@ export async function POST(req: NextRequest) {
     });
 
     // F-26: role from validated body (defaults to TEACHER for legacy callers).
-    // Upsert by email so HR onboarding can attach an Employee row to a User
-    // that already exists (preserved auth login, manually invited user, etc.)
-    // without hitting the email-unique constraint.
+    // Upsert keyed on the composite (tenantId, email) unique index so HR
+    // onboarding can attach an Employee row to a User that already exists
+    // (preserved auth login, manually invited user, etc.) without hitting
+    // the unique-key conflict.
     await tx.user.upsert({
-      where: { email: body.email.trim() },
+      where: { tenantId_email: { tenantId, email: body.email.trim() } },
       create: {
         tenantId,
         email: body.email.trim(),

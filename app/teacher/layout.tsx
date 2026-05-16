@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getSession, homePathForRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/teacher/bottom-nav";
 import { TeacherHeader } from "@/components/teacher/header";
@@ -9,7 +9,8 @@ export default async function TeacherLayout({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  if (!session || session.role !== "TEACHER") redirect("/");
+  if (!session) redirect("/");
+  if (session.role !== "TEACHER") redirect(homePathForRole(session.role));
 
   return (
     <div className="min-h-screen bg-background pb-20">

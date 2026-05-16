@@ -1,12 +1,13 @@
 import { Suspense } from "react";
-import { getSession } from "@/lib/auth";
+import { getSession, homePathForRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ParentHeader } from "@/components/parent/header";
 import { ParentBottomNav } from "@/components/parent/bottom-nav";
 
 export default async function ParentLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  if (!session || session.role !== "GUARDIAN") redirect("/");
+  if (!session) redirect("/");
+  if (session.role !== "GUARDIAN") redirect(homePathForRole(session.role));
 
   return (
     <div className="min-h-screen bg-background pb-20">

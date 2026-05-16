@@ -51,7 +51,7 @@ Suggested fix: `tx.user.upsert({ where: { email }, create: {…}, update: { empl
 
 **Fix:** [app/api/employees/route.ts:143-160](app/api/employees/route.ts:143) — switched `tx.user.create` to `tx.user.upsert` keyed on email. The create branch keeps existing behaviour for net-new emails; the update branch links the existing User to the new Employee + refreshes `role` and `name`. Auth tests in `lib/__tests__/auth-helpers.test.ts` and `lib/__tests__/auth.permissions.test.ts` still pass (14/14).
 
-### F-3 ✅ ClassSection create dialog Program dropdown selection unreliable [BUG]
+### F-3 ✅✅ ClassSection create dialog Program dropdown selection unreliable [BUG] — regression test + form fix
 
 Tested via Chrome MCP: opening the Program combobox inside the **Tambah Kelas** dialog and pressing `ArrowDown` + `Enter` selects the wrong option. With two programs (PAUD, TKIT) both attempts (`Down Down Enter` and `Down Enter`) wrote `programId` = TKIT. The visible value matched the chosen text but the saved row did not.
 
@@ -61,9 +61,11 @@ This affected my PAUD A row — had to fix with `UPDATE public."ClassSection" SE
 
 Suggested action: add an e2e test that creates a ClassSection for the *second* program in the list (not the default-first), and assert the persisted `programId` matches the selected option's value, not its display text.
 
-**Fix:** e2e regression added at [e2e/admin-dialogs.spec.ts:182-260](e2e/admin-dialogs.spec.ts:182) — "non-default Program selection persists to the new ClassSection". Test picks the last active Program (not the default-first), opens the dialog, selects by option name (not keyboard nav, which is what masked the bug during manual testing), submits, then GETs `/api/class-sections` and asserts the saved `programId` matches the *chosen* program's id, not the default. Cleans up the created row to stay idempotent. The underlying form-state issue is *not* code-fixed yet — the test will fail until the bug is addressed; landing the test alone documents the contract and prevents silent regression on a future fix.
+**Fix:** e2e regression added at [e2e/admin-dialogs.spec.ts:182-260](e2e/admin-dialogs.spec.ts:182) — "non-default Program selection persists to the new ClassSection". Test picks the last active Program (not the default-first), opens the dialog, selects by option name (not keyboard nav, which is what masked the bug during manual testing), submits, then GETs `/api/class-sections` and asserts the saved `programId` matches the *chosen* program's id, not the default. Cleans up the created row to stay idempotent.
 
-### F-4 📋 Teacher/parent home greeting vs calendar TZ mismatch [LIKELY BUG]
+**Form-state root-cause fix:** [components/ui/select.tsx:30-50](components/ui/select.tsx:30) — flipped the wrapper precedence so child-derived items win over an explicitly-passed `items` prop. ~12 callsites in the codebase passed both an `items={array.map(…)}` AND identical SelectItem children — the previous "items wins" branch caused base-ui to bind selection to the items-array index while the popover rendered the children, producing the silent value drift. With children now authoritative, every form using SelectItem children resolves correctly. The companion test [components/ui/__tests__/select.test.tsx:75](components/ui/__tests__/select.test.tsx:75) was inverted to assert the new "children win" contract. Cycle [2026-05-16-staging-sweep-followups.md](../cycles/2026-05-16-staging-sweep-followups.md) T6.
+
+### F-4 ⏳ Teacher/parent home greeting vs calendar TZ mismatch [LIKELY BUG]
 
 Teacher portal `/teacher` Beranda greeting reads `Jumat, 15 Mei 2026` (correct WIB). The `/teacher/attendance` calendar highlights Sabtu 16 as the active day. Today's actual WIB date during sweep was 2026-05-15. Suggests one of the two surfaces is rendering in UTC instead of `Asia/Jakarta`.
 
@@ -79,33 +81,43 @@ After login as `rightjet.hq@gmail.com`, header avatar reads `SH | Siti`. `public
 
 Suggested investigation: fan-out of multiple parallel API calls on mount (stats + positions + main list) — collapse where possible or stream into the page via streaming SSR / `<Suspense>` boundaries.
 
-### F-7 📋 Teacher Penilaian header shows wrong semester [BUG]
+**Partial fix:** `/admin/employees` stats now consolidated to one `groupBy` query via new `/api/employees/stats` endpoint (cycle [2026-05-16-staging-sweep-followups.md](../cycles/2026-05-16-staging-sweep-followups.md) T8). Same pattern available for invoices / fees / payroll list pages — deferred.
+
+### F-7 ✅ Teacher Penilaian header shows wrong semester [BUG]
 
 `/teacher/assessments` header reads `Periode: Semester 2 2026/2027` despite the staging DB containing only `Semester 1` (active, dates 2026-05-01 → 2026-12-31; today 2026-05-15 falls inside that range). Likely the "current semester" selector either falls back to a hard-coded "2" when no exact match is found, or has an off-by-one against `Semester.number`.
 
 Reproduce: log in as teacher with the seed in this runbook, visit `/teacher/assessments`. Expected: `Semester 1 2026/2027`. Actual: `Semester 2 2026/2027`. No downstream impact on the Sentra Harian tiles in this seed (no Weeks defined), but a real semester will start to record assessments under the wrong term.
 
-### F-8 📋 `/admin/admissions` "Catat Pertanyaan" submit silently fails [BUG]
+**Fix:** New [`getCurrentPeriodFromDb(tenantId)`](../../lib/academic-period-db.ts) reads the active `Semester` row joined to `AcademicYear` and formats `Semester ${number} ${academicYear.name}`. Falls back to the calendar formula when no active semester matches. Both callers (`/teacher/assessments` page + `/api/teacher/assessments` route) switched. The original `getCurrentPeriod` is kept as a pure-date helper for tests + non-DB callers. Cycle [2026-05-16-staging-sweep-followups.md](../cycles/2026-05-16-staging-sweep-followups.md) T5.
+
+### F-8 ⏳ `/admin/admissions` "Catat Pertanyaan" submit silently fails [BUG]
 
 Filled the dialog with required `childName=Hafsa Calon`, `parentName=Ibu Fatimah`, WhatsApp, and a Program selection. Clicked the "Catat Pertanyaan" submit. No POST to `/api/admissions` was emitted; no toast; dialog closed back to an empty list. `AdmissionApplication` and `Admission` both still `count = 0`. Client-side `handleSubmit` only requires `childName` + `parentName` (both present), so either the click did not reach the handler or a thrown error was swallowed without surfacing a toast. Worth re-running with devtools to capture the exact failure mode — Vercel runtime logs had no POST entry for the attempt window.
 
-### F-9 📋 `/admin/assessments/scores` collapses to `/admin/assessments` [MINOR]
+**Probe fix:** [app/admin/admissions/page.tsx:715-722](app/admin/admissions/page.tsx:715) — `DialogClose` previously wrapped a `<Button>` as a child, producing nested `<button><button>…</button></button>` (invalid HTML; the inner button's clicks bubble to the outer Close-button which fires the dialog-close intent). Switched to base-ui's `render` prop pattern so DialogClose becomes the Button directly — matches the mobile Sheet variant on line 700. Also added explicit `type="button"` to the submit Button so any future enclosure in a `<form>` doesn't trigger a form-submit fallback path that races with the onClick handler. Probe — root cause not fully reproduced under static review, will verify post-deploy.
 
-Navigating directly to `/admin/assessments/scores` redirects to `/admin/assessments` despite a `page.tsx` existing at `app/admin/assessments/scores/`. Either the parent route shadows the child or the route-group `(…)` collapses. Empty state shown is the parent's, not a scores-specific view. Likely intentional (scores subview deferred) but easy for a future caller to land on the wrong page.
+### F-9 ✅ `/admin/assessments/scores` — not a bug, intentional legacy redirect
 
-### F-10 ⏳ Student `gender` enum format mismatch [DATA / SCHEMA]
+Initial impression: the `scores` route collapsed back to the parent. Re-reading [app/admin/assessments/scores/page.tsx](app/admin/assessments/scores/page.tsx) shows it's a deliberate server-side redirect for bookmarks + shared links from the old flat route (`/admin/assessments/scores?id=<id>` → `/admin/assessments/<id>`). The comment in the file explicitly says "Remove after a grace period." False alarm — closing.
 
-`app/admin/students/[id]/page.tsx:395` renders `gender === "L" ? "Laki-laki" : "Perempuan"`. The bulk SQL seed in this runbook used Prisma-convention `MALE` / `FEMALE`, which the ternary's else-branch silently maps to "Perempuan" for every record. Form-level writes (Tambah Siswa dialog) use `"L"` / `"P"`. The column is `text` with no DB-level enum, so both formats round-trip.
+### F-10 ✅ Student `gender` enum format mismatch [DATA / DEFENSE]
+
+`app/admin/students/[id]/page.tsx:395` previously rendered `gender === "L" ? "Laki-laki" : "Perempuan"`. The bulk SQL seed earlier in this runbook used Prisma-convention `MALE` / `FEMALE`, which the ternary's else-branch silently mapped to "Perempuan" for every record. The actual API validator ([lib/validations/student.ts:7](lib/validations/student.ts:7)) already enforces `z.enum(["L", "P"])`, so the only way drift gets in is direct-DB writes that bypass the API — the SQL seed in this runbook was the offender.
 
 Workaround applied: `UPDATE public."Student" SET gender = CASE gender WHEN 'MALE' THEN 'L' WHEN 'FEMALE' THEN 'P' ELSE gender END` — all four seeded students now render correctly.
 
-Root fix would either (a) constrain the column to a Prisma enum and migrate any production rows, or (b) update the display to canonicalize both formats. Either route is bigger than this sweep.
+**Fix:** [app/admin/students/[id]/page.tsx:395](app/admin/students/[id]/page.tsx:395) — display now renders `"—"` for unexpected gender values instead of falling through to "Perempuan". The Zod enum at the API boundary remains the contract; this is defensive fail-loud rendering for any future direct-DB writes (seed scripts, migrations, manual SQL) that drift again.
 
-### F-11 📋 Cross-portal navigate sends users to login instead of their own portal [UX]
+The SQL seed at the top of this runbook also needs `'L'`/`'P'` in the `Student` insert block — fixed in the wipe SQL section.
+
+### F-11 ✅ Cross-portal navigate sends users to login instead of their own portal [UX]
 
 Logged-in GUARDIAN navigating directly to `/admin` (or `/teacher`) redirects to `/`, which renders the **login page** even though the session is intact (subsequent navigate to `/parent` works fine). Same pattern for SUPER_ADMIN → `/teacher` and TEACHER → `/admin`. Effectively an "access denied" event looks identical to "logged out" from the user's perspective.
 
 Suggested fix: when the role guard rejects, redirect to the user's home portal (`/admin`, `/teacher`, `/parent`) instead of `/`. Optional: show a transient toast like "Halaman ini hanya untuk staf admin" before the redirect lands.
+
+**Fix:** [`homePathForRole`](lib/auth.ts:172) helper maps `SUPER_ADMIN`/`SCHOOL_ADMIN`→`/admin`, `TEACHER`→`/teacher`, `GUARDIAN`→`/parent`. Updated all three layout guards ([app/admin/layout.tsx](app/admin/layout.tsx), [app/teacher/layout.tsx](app/teacher/layout.tsx), [app/parent/layout.tsx](app/parent/layout.tsx)) to redirect to `homePathForRole(session.role)` when the user is logged in but has the wrong role; `redirect("/")` now only fires for truly-unauthenticated requests. Cycle [2026-05-16-staging-sweep-followups.md](../cycles/2026-05-16-staging-sweep-followups.md) T2.
 
 ### G-1 📋 RLS still disabled on all 49 public tables [SECURITY, KNOWN]
 
