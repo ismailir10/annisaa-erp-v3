@@ -130,6 +130,14 @@ If breadcrumbs auto-derive from nav config, this is free. Verify.
 - [x] `npm run build` passes
 - [x] `npx vitest run config/__tests__/admin-nav.test.ts` — 23/23 pass
 
+### Task 4 — E2E audit (AC-5)
+- No E2E tests reference "Rombongan Belajar", sidebar text for Kurikulum group, or breadcrumb assertions affected by this reshuffle. No changes needed.
+
+### Task 5 — README + cycle doc (AC-6)
+- `README.md`: Added ADR row for nav reshuffle.
+- Cycle doc: Filled Implementation + Verification sections.
+
 ## Ship Notes
 
-_(Filled during /ship)_
+- No migrations, no env vars, no URL changes.
+- Rollback: revert 3 commits on this branch.
