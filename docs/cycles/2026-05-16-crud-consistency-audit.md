@@ -174,6 +174,13 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - `npx vitest run app/api/parents/[id]/__tests__/parent-detail.test.ts` — 2/2 passed
 - Between-task gate: `npm run build` passed, `npx vitest run` — 135 files, 1105 tests passed
 
+### Task 7: Create guardian detail page
+- **`app/admin/guardians/[id]/page.tsx`** — New file. Full parent profile view at `/admin/guardians/[id]` following student detail page pattern. Uses `use(params)` for Next.js 16 param unwrapping. Fetches from `GET /api/parents/[id]` (Task 6). Saves via `PUT /api/guardians/[guardianId]` using first StudentGuardian ID. Profile card with view/edit toggle: view mode shows 13 fields with Lucide icons in 2-col grid, separated into Kontak+Identitas and Data Pekerjaan sections. Edit mode uses same field set + Select dropdowns (EDUCATION_OPTIONS, OCCUPATION_OPTIONS, INCOME_OPTIONS matching guardian list page). Two AdminTabs: "Anak Terdaftar" (linked students with relationship badge, isPrimary badge, gender, status, clickable to student detail) and "Tagihan" (invoices with number, period, amount formatted as `Rp toLocaleString("id-ID")`, status, clickable to invoice detail). Cross-checked design-system.html for Card layout and field patterns.
+
+### Task 7 Verification
+- Between-task gate: `npm run build` passed, `npx vitest run` — 135 files, 1105 tests passed
+- Cross-checked design-system.html for Card and AdminTabs patterns
+
 ---
 
 ## Ship Notes
