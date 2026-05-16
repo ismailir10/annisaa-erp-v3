@@ -207,8 +207,8 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     const target = active[active.length - 1];
 
     // Pre-conditions for the Tambah Kelas dialog: at least one Campus and
-    // one ACTIVE AcademicYear must exist; the academic page renders them.
-    await page.goto("/admin/academic");
+    // one ACTIVE AcademicYear must exist; the academic-years page renders them.
+    await page.goto("/admin/academic-years");
     await page.waitForLoadState("networkidle");
 
     const uniqueName = `E2E F-3 ${Date.now()}`;
@@ -217,8 +217,9 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     const dialog = page.locator('[data-slot="dialog-content"]').first();
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    // Nama Kelas
-    await dialog.getByLabel(/Nama Kelas/i).fill(uniqueName);
+    // Nama Kelas — FieldLabel isn't htmlFor-bound, target by placeholder
+    // instead of accessible-label association.
+    await dialog.getByPlaceholder("TKIT A").fill(uniqueName);
 
     // Program select — open and pick the non-default option by visible text
     // (more robust than positional keyboard navigation, which was the
