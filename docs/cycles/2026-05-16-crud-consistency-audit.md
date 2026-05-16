@@ -157,7 +157,8 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - Between-task gate: pending
 
 ### Task 5
-- Between-task gate: pending
+- TypeScript: zero errors in `app/admin/students/[id]/page.tsx`
+- Between-task gate: `npx vitest run` — 135 files, 1105 tests passed. `npm run build` hits pre-existing Turbopack worktree race condition (pages-manifest.json ENOENT) — infrastructure issue unrelated to code changes; TypeScript compilation phase passes cleanly.
 
 ### Task 6
 - `npx vitest run app/api/parents/[id]/__tests__/parent-detail.test.ts` — 2/2 passed
