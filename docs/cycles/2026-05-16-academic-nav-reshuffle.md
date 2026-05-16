@@ -114,11 +114,21 @@ If breadcrumbs auto-derive from nav config, this is free. Verify.
 
 ## Implementation
 
-_(Filled during /build)_
+### Task 1 — Rename ClassTrack page labels (AC-1)
+- `app/admin/class-tracks/client.tsx`: 15 string replacements — page title, description, create/edit dialog titles, button text, stat card label, toast messages, field label, deactivate/reactivate confirmation. Preserved "Rombel terdaftar" stat (refers to ClassSection count) and "Rombel" column header.
+
+### Task 2 — Nav reshuffle (AC-2, AC-3)
+- `config/admin-nav.ts`: Moved Tahun Ajaran + Guru Pengajar from `curriculum` → `academic` group. Renamed nav entry "Rombongan Belajar" → "Identitas Kelas". Reordered groups: academic before curriculum. Breadcrumbs auto-derive — no manual fix needed.
+
+### Task 3 — Teaching Assignments create button (AC-4)
+- `app/admin/teaching-assignments/page.tsx`: Added `+ Tambah Guru Pengajar` button + create dialog (employee, class section, role selects). Updated empty state text. POSTs to existing `/api/teaching-assignments`.
+- `config/__tests__/admin-nav.test.ts`: Updated 3 tests for new group order + item membership.
 
 ## Verification
 
 - [x] Cross-checked design-system.html §List for page layout compliance (label-only changes, no layout impact)
+- [x] `npm run build` passes
+- [x] `npx vitest run config/__tests__/admin-nav.test.ts` — 23/23 pass
 
 ## Ship Notes
 

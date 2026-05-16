@@ -37,11 +37,11 @@ describe("getActiveItem — longest-prefix wins", () => {
 describe("adminNav IA — ordering + grouping", () => {
   const groupIds = adminNav.groups.map((g) => g.id);
 
-  it("orders groups: students → curriculum → academic → assessment → classroom → finance → hr", () => {
+  it("orders groups: students → academic → curriculum → assessment → classroom → finance → hr", () => {
     expect(groupIds).toEqual([
       "students",
-      "curriculum",
       "academic",
+      "curriculum",
       "assessment",
       "classroom",
       "finance",
@@ -49,30 +49,30 @@ describe("adminNav IA — ordering + grouping", () => {
     ]);
   });
 
-  it("curriculum group is gated by curriculum.read and lists year → semester → teaching assignments", () => {
-    const group = adminNav.groups.find((g) => g.id === "curriculum")!;
-    expect(group.permission).toBe("curriculum.read");
+  it("academic group is gated by academic.view and lists structural setup items", () => {
+    const group = adminNav.groups.find((g) => g.id === "academic")!;
+    expect(group.permission).toBe("academic.view");
     expect(group.items.map((i) => i.label)).toEqual([
       "Tahun Ajaran",
-      "Semester",
+      "Identitas Kelas",
       "Guru Pengajar",
     ]);
     expect(group.items.map((i) => i.href)).toEqual([
       "/admin/academic-years",
-      "/admin/semesters",
+      "/admin/class-tracks",
       "/admin/teaching-assignments",
     ]);
-    const semester = group.items.find((i) => i.label === "Semester")!;
-    expect(semester.permission).toBe("curriculum.read");
+    const classTracks = group.items.find((i) => i.label === "Identitas Kelas")!;
+    expect(classTracks.permission).toBe("academic.view");
   });
 
-  it("academic group is gated by academic.view (matching the page guard) and holds class tracks", () => {
-    const group = adminNav.groups.find((g) => g.id === "academic")!;
-    expect(group.permission).toBe("academic.view");
-    expect(group.items.map((i) => i.label)).toEqual(["Rombongan Belajar"]);
-    expect(group.items.map((i) => i.href)).toEqual(["/admin/class-tracks"]);
-    const classTracks = group.items.find((i) => i.label === "Rombongan Belajar")!;
-    expect(classTracks.permission).toBe("academic.view");
+  it("curriculum group is gated by curriculum.read and holds content-authoring items only", () => {
+    const group = adminNav.groups.find((g) => g.id === "curriculum")!;
+    expect(group.permission).toBe("curriculum.read");
+    expect(group.items.map((i) => i.label)).toEqual(["Semester"]);
+    expect(group.items.map((i) => i.href)).toEqual(["/admin/semesters"]);
+    const semester = group.items.find((i) => i.label === "Semester")!;
+    expect(semester.permission).toBe("curriculum.read");
   });
 
   it("students group covers the admission → enrollment funnel", () => {
