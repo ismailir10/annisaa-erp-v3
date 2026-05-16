@@ -138,6 +138,17 @@ If breadcrumbs auto-derive from nav config, this is free. Verify.
 - `README.md`: Added ADR row for nav reshuffle.
 - Cycle doc: Filled Implementation + Verification sections.
 
+### Preview-verify (PR #286)
+
+- [x] Preview-verify iteration 1 (annisaa-erp-v3-lvu5987cm-ismails-projects-196d40d3.vercel.app): flows=[class-tracks, teaching-assignments, academic-years, semesters], blockers=0, minors=0
+  - `/admin/class-tracks`: title "Identitas Kelas", breadcrumb "Struktur Akademik > Identitas Kelas", button "+ Tambah Identitas Kelas", stats card "IDENTITAS KELAS AKTIF" — all correct
+  - `/admin/teaching-assignments`: breadcrumb "Struktur Akademik > Guru Pengajar", button "+ Tambah Guru Pengajar" present, create dialog opens with Guru/Kelas/Peran fields — all correct
+  - `/admin/academic-years`: breadcrumb "Struktur Akademik > Tahun Ajaran" (moved from Kurikulum) — correct
+  - `/admin/semesters`: breadcrumb "Kurikulum > Semester" (unchanged) — correct
+  - Sidebar: Struktur Akademik [Tahun Ajaran, Identitas Kelas, Guru Pengajar], Kurikulum [Semester] — correct
+  - No console errors on any page
+- Preview-verify converged on iteration 1 (clean): 1 iteration, 0 fix commits, final preview annisaa-erp-v3-lvu5987cm-ismails-projects-196d40d3.vercel.app.
+
 ## Ship Notes
 
 - No migrations, no env vars, no URL changes.
