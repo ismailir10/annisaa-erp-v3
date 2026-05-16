@@ -69,28 +69,23 @@ export const adminNav: NavConfig = {
       ],
     },
     {
-      id: "curriculum",
-      label: "Kurikulum",
-      icon: BookMarked,
-      permission: "curriculum.read",
-      items: [
-        { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
-        { label: "Semester", href: "/admin/semesters", icon: CalendarDays, permission: "curriculum.read" },
-        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
-      ],
-    },
-    {
-      // Academic structure (campus > program > class track) is config, not
-      // curriculum authoring. Gated by `academic.view` to match the page's
-      // own `assertPermission("academic.view")` — keeping it in the
-      // curriculum group would invisibly hide it from roles that hold
-      // `academic.view` but not `curriculum.read`.
       id: "academic",
       label: "Struktur Akademik",
       icon: School,
       permission: "academic.view",
       items: [
-        { label: "Rombongan Belajar", href: "/admin/class-tracks", icon: School, permission: "academic.view" },
+        { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
+        { label: "Identitas Kelas", href: "/admin/class-tracks", icon: School, permission: "academic.view" },
+        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
+      ],
+    },
+    {
+      id: "curriculum",
+      label: "Kurikulum",
+      icon: BookMarked,
+      permission: "curriculum.read",
+      items: [
+        { label: "Semester", href: "/admin/semesters", icon: CalendarDays, permission: "curriculum.read" },
       ],
     },
     {

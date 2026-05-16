@@ -70,7 +70,7 @@ export function ClassTracksClient({ canWrite }: { canWrite: boolean }) {
 
     const trackJson = trackRes.ok ? await trackRes.json().catch(() => null) : null;
     setRows(Array.isArray(trackJson?.data) ? trackJson.data : []);
-    if (!trackRes.ok) toast.error("Gagal memuat daftar rombongan belajar");
+    if (!trackRes.ok) toast.error("Gagal memuat daftar identitas kelas");
 
     // Reference data drives the campus/program dropdowns + filters. A non-2xx
     // here (permission error, network failure) would otherwise silently
@@ -127,7 +127,7 @@ export function ClassTracksClient({ canWrite }: { canWrite: boolean }) {
       return;
     }
     if (!form.name.trim()) {
-      toast.error("Nama rombongan belajar wajib diisi");
+      toast.error("Nama identitas kelas wajib diisi");
       return;
     }
     setSaving(true);
@@ -149,7 +149,7 @@ export function ClassTracksClient({ canWrite }: { canWrite: boolean }) {
     });
     if (res.ok) {
       toast.success(
-        editing ? "Rombongan belajar diperbarui" : "Rombongan belajar ditambahkan",
+        editing ? "Identitas kelas diperbarui" : "Identitas kelas ditambahkan",
       );
       setDialogOpen(false);
       resetForm();
@@ -243,21 +243,21 @@ export function ClassTracksClient({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="space-y-section">
       <PageHeader
-        title="Rombongan Belajar"
-        description="Identitas kelas yang stabil lintas tahun ajaran — dipetakan ke kampus dan program. Rombel harian dibuat menyusul di bawah setiap rombongan belajar."
+        title="Identitas Kelas"
+        description="Identitas kelas yang stabil lintas tahun ajaran — dipetakan ke kampus dan program. Rombel harian dibuat menyusul di bawah setiap identitas kelas."
         actions={
           canWrite ? (
             <Button onClick={openCreate} className="gap-2">
-              <Plus className="size-4" /> Tambah Rombongan Belajar
+              <Plus className="size-4" /> Tambah Identitas Kelas
             </Button>
           ) : undefined
         }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-card">
-        <StatCard label="Rombongan belajar aktif" value={stats.active} icon={School} color="success" index={0} />
+        <StatCard label="Identitas kelas aktif" value={stats.active} icon={School} color="success" index={0} />
         <StatCard label="Total tercatat" value={stats.all} icon={Layers} index={1} />
-        <StatCard label="Rombel terdaftar" value={stats.sections} icon={Building2} color="primary" sublabel="pada rombongan belajar aktif" index={2} />
+        <StatCard label="Rombel terdaftar" value={stats.sections} icon={Building2} color="primary" sublabel="pada identitas kelas aktif" index={2} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -309,11 +309,11 @@ export function ClassTracksClient({ canWrite }: { canWrite: boolean }) {
           setDialogOpen(v);
           if (!v) resetForm();
         }}
-        title={editing ? "Ubah Rombongan Belajar" : "Tambah Rombongan Belajar"}
+        title={editing ? "Ubah Identitas Kelas" : "Tambah Identitas Kelas"}
         description={
           editing
-            ? "Perbarui nama rombongan belajar. Kampus dan program tidak dapat diubah."
-            : "Pilih kampus dan program, lalu beri nama rombongan belajar."
+            ? "Perbarui nama identitas kelas. Kampus dan program tidak dapat diubah."
+            : "Pilih kampus dan program, lalu beri nama identitas kelas."
         }
         footer={
           <>
@@ -377,7 +377,7 @@ export function ClassTracksClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel>Nama rombongan belajar</FieldLabel>
+            <FieldLabel>Nama identitas kelas</FieldLabel>
             <Input
               value={form.name}
               placeholder="mis. TKIT A"
@@ -392,11 +392,11 @@ export function ClassTracksClient({ canWrite }: { canWrite: boolean }) {
         onOpenChange={(v) => !v && setDeactivateTarget(null)}
         entityName={
           deactivateTarget
-            ? `rombongan belajar ${deactivateTarget.name} (${deactivateTarget.campus.name})` +
+            ? `identitas kelas ${deactivateTarget.name} (${deactivateTarget.campus.name})` +
               (deactivateTarget._count.sections > 0
                 ? ` — ${deactivateTarget._count.sections} rombel terkait tetap aktif`
                 : "")
-            : "rombongan belajar"
+            : "identitas kelas"
         }
         onConfirm={async () => {
           if (deactivateTarget) {
@@ -409,7 +409,7 @@ export function ClassTracksClient({ canWrite }: { canWrite: boolean }) {
       <ConfirmDialog
         open={!!reactivateTarget}
         onOpenChange={(v) => !v && setReactivateTarget(null)}
-        title="Aktifkan kembali rombongan belajar?"
+        title="Aktifkan kembali identitas kelas?"
         description={
           reactivateTarget
             ? `${reactivateTarget.name} · ${reactivateTarget.campus.name} akan muncul kembali di daftar aktif.`
