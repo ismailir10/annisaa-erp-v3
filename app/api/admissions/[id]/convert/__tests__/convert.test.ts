@@ -62,6 +62,7 @@ function makeAdmission(overrides: Record<string, unknown> = {}) {
     parentOccupation: "Guru",
     parentIncome: "Rp 3-5 Juta",
     notes: "Anak aktif, suka menggambar",
+    parentRelationship: null,
     status: "ADMITTED",
     studentId: null,
     ...overrides,
@@ -128,6 +129,32 @@ describe("POST /api/admissions/[id]/convert", () => {
           occupation: "Guru",
           incomeRange: "Rp 3-5 Juta",
         }),
+      })
+    );
+  });
+
+  it("uses parentRelationship for StudentGuardian, defaults to IBU", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ parentRelationship: "AYAH" }));
+
+    const req = new Request("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
+
+    expect(studentGuardianCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ relationship: "AYAH" }),
+      })
+    );
+  });
+
+  it("defaults relationship to IBU when parentRelationship is null", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ parentRelationship: null }));
+
+    const req = new Request("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
+
+    expect(studentGuardianCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ relationship: "IBU" }),
       })
     );
   });

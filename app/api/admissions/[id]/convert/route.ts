@@ -85,7 +85,7 @@ export async function POST(
       data: {
         studentId: student.id,
         parentId: parent.id,
-        relationship: "WALI",
+        relationship: admission.parentRelationship || "IBU",
         isPrimary: true,
       },
     });

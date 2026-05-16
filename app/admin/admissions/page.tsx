@@ -88,6 +88,7 @@ type Admission = {
   parentEducation: string | null;
   parentOccupation: string | null;
   parentIncome: string | null;
+  parentRelationship: string | null;
   programId: string | null;
   source: string;
   status: string;
@@ -152,6 +153,7 @@ type AdmissionForm = {
   parentEducation: string;
   parentOccupation: string;
   parentIncome: string;
+  parentRelationship: string;
   programId: string;
   source: string;
   notes: string;
@@ -224,6 +226,24 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           />
         </Field>
       </div>
+      <Field>
+        <FieldLabel>Hubungan dengan Anak</FieldLabel>
+        <Select
+          value={form.parentRelationship}
+          onValueChange={(v) => v && setForm({ ...form, parentRelationship: v })}
+          items={{ AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Pilih" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="AYAH">Ayah</SelectItem>
+            <SelectItem value="IBU">Ibu</SelectItem>
+            <SelectItem value="WALI">Wali</SelectItem>
+            <SelectItem value="OTHER">Lainnya</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field>
           <FieldLabel>Pendidikan Orang Tua</FieldLabel>
@@ -424,6 +444,7 @@ export default function AdmissionsPage() {
     parentEducation: "",
     parentOccupation: "",
     parentIncome: "",
+    parentRelationship: "",
     programId: "",
     source: "WHATSAPP",
     notes: "",
@@ -565,6 +586,7 @@ export default function AdmissionsPage() {
       parentEducation: "",
       parentOccupation: "",
       parentIncome: "",
+      parentRelationship: "",
       programId: "",
       source: "WHATSAPP",
       notes: "",
@@ -730,6 +752,7 @@ export default function AdmissionsPage() {
                 parentEmail: "", parentEducation: a.parentEducation ?? "",
                 parentOccupation: a.parentOccupation ?? "",
                 parentIncome: a.parentIncome ?? "",
+                parentRelationship: a.parentRelationship ?? "",
                 programId: a.programId ?? "", source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
               });
               setDialogOpen(true);

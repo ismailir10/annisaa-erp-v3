@@ -129,6 +129,13 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - **`app/api/admissions/[id]/convert/route.ts`** — Added `notes: admission.notes` to `tx.student.create()` data. Added `education: admission.parentEducation`, `occupation: admission.parentOccupation`, `incomeRange: admission.parentIncome` to both `tx.parent.upsert()` create/update blocks and `tx.parent.create()` fallback (no-email path).
 - **`app/api/admissions/[id]/convert/__tests__/convert.test.ts`** — 3 Vitest tests: parent upsert carries education/occupation/incomeRange; student create carries notes; no-email parent.create carries education/occupation/incomeRange. Cross-checked design-system.html for field naming consistency.
 
+### Task 2: Add parentRelationship to Admission schema + conversion
+- **`prisma/schema.prisma`** — Added `parentRelationship String?` to Admission model after `parentIncome`. Migration: `20260516000000_add_admission_parent_relationship`.
+- **`lib/validations/admission.ts`** — Added `parentRelationship: z.enum(["AYAH", "IBU", "WALI", "OTHER"]).optional().nullable()` to `createAdmissionSchema`.
+- **`app/admin/admissions/page.tsx`** — Added `parentRelationship` to `Admission` type, `AdmissionForm` type, form body (dropdown: Ayah/Ibu/Wali/Lainnya after parent name/whatsapp grid), and all 3 form initializers (useState default, openDialog, onEdit). Cross-checked design-system.html for Select component patterns.
+- **`app/api/admissions/[id]/convert/route.ts`** — Changed `relationship: "WALI"` to `relationship: admission.parentRelationship || "IBU"`.
+- **`app/api/admissions/[id]/convert/__tests__/convert.test.ts`** — Added `parentRelationship: null` to `makeAdmission` default. 2 new tests: uses parentRelationship "AYAH" for StudentGuardian; defaults to "IBU" when null.
+
 ---
 
 ## Verification
@@ -136,6 +143,10 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 ### Task 1
 - `npx vitest run app/api/admissions/[id]/convert/__tests__/convert.test.ts` — 3/3 passed
 - Between-task gate: `npm run build` passed, `npx vitest run` — 134 files, 1101 tests passed
+
+### Task 2
+- `npx vitest run app/api/admissions/[id]/convert/__tests__/convert.test.ts` — 5/5 passed
+- Between-task gate: `npm run build` passed, `npx vitest run` — 134 files, 1103 tests passed
 
 ---
 
