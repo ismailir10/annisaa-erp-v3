@@ -85,6 +85,7 @@ type Admission = {
   parentName: string;
   parentPhone: string | null;
   parentWhatsapp: string | null;
+  parentEmail: string | null;
   parentEducation: string | null;
   parentOccupation: string | null;
   parentIncome: string | null;
@@ -244,6 +245,25 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           </SelectContent>
         </Select>
       </Field>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field>
+          <FieldLabel>Email</FieldLabel>
+          <Input
+            type="email"
+            value={form.parentEmail}
+            onChange={(e) => setForm({ ...form, parentEmail: e.target.value })}
+            placeholder="email@contoh.com"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>No. HP</FieldLabel>
+          <Input
+            value={form.parentPhone}
+            onChange={(e) => setForm({ ...form, parentPhone: e.target.value })}
+            placeholder="081234567890"
+          />
+        </Field>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field>
           <FieldLabel>Pendidikan Orang Tua</FieldLabel>
@@ -749,7 +769,7 @@ export default function AdmissionsPage() {
               setForm({
                 childName: a.childName, dateOfBirth: a.dateOfBirth ?? "", childGender: a.childGender ?? "",
                 parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
-                parentEmail: "", parentEducation: a.parentEducation ?? "",
+                parentEmail: a.parentEmail ?? "", parentEducation: a.parentEducation ?? "",
                 parentOccupation: a.parentOccupation ?? "",
                 parentIncome: a.parentIncome ?? "",
                 parentRelationship: a.parentRelationship ?? "",

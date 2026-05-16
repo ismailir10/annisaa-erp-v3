@@ -154,7 +154,7 @@ Each task = 1 commit. `npm run build && npx vitest run` must pass between tasks 
 - Between-task gate: `npm run build` passed, `npx vitest run` — 134 files, 1103 tests passed
 
 ### Task 3
-- Between-task gate: pending
+- Between-task gate: `npm run build` passed, `npx vitest run` — 135 files, 1105 tests passed
 
 ### Task 5
 - TypeScript: zero errors in `app/admin/students/[id]/page.tsx`
