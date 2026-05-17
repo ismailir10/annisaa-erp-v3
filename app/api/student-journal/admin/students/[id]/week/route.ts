@@ -3,6 +3,7 @@ import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /**
  * GET /api/student-journal/admin/students/[id]/week?weekStart=
@@ -33,7 +34,7 @@ export async function GET(
     }
     ws = weekStartParam;
   } else {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayInTimezone("Asia/Jakarta");
     ws = weekStart(today);
   }
 

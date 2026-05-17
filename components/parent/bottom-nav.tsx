@@ -2,14 +2,28 @@
 
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { Home, Receipt, CalendarDays, BookOpen, BookHeart } from "lucide-react";
+import {
+  Home,
+  Receipt,
+  CalendarDays,
+  BookOpen,
+  BookHeart,
+  LineChart,
+} from "lucide-react";
 import { PortalBottomNav, type PortalBottomNavItem } from "@/components/portal/portal-bottom-nav";
 
+// Frequency-of-use ordering: daily/financial actions first, formal/occasional
+// reports last. Parents check Tagihan most often (overdue anxiety) → daily
+// Kehadiran + Penghubung → weekly Capaian → semester Rapor.
 const baseTabs = [
   { label: "Beranda", href: "/parent", icon: Home },
   { label: "Tagihan", href: "/parent/invoices", icon: Receipt },
   { label: "Kehadiran", href: "/parent/attendance", icon: CalendarDays },
   { label: "Penghubung", href: "/parent/student-journal", icon: BookHeart },
+  // Short label "Capaian" fits the 6-tab bottom nav at mobile widths;
+  // page title + URL slug stay "Perkembangan" so the surface name matches
+  // the design spec + the in-page header text "Capaian per elemen".
+  { label: "Capaian", href: "/parent/perkembangan", icon: LineChart },
   { label: "Rapor", href: "/parent/reports", icon: BookOpen },
 ] as const;
 

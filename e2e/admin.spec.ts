@@ -46,13 +46,13 @@ test.describe("Admin flows", () => {
   });
 
   test("attendance page loads", async ({ page }) => {
-    await page.goto("/admin/attendance");
-    await page.waitForURL("**/admin/attendance");
+    await page.goto("/admin/employee-attendance");
+    await page.waitForURL("**/admin/employee-attendance");
     await expect(page.locator("text=Kehadiran Hari Ini")).toBeVisible();
   });
 
   test("monthly attendance grid loads", async ({ page }) => {
-    await page.goto("/admin/attendance/monthly");
+    await page.goto("/admin/employee-attendance/monthly");
     await expect(page.locator("text=Kehadiran Bulanan")).toBeVisible({ timeout: 15_000 });
   });
 
@@ -71,8 +71,8 @@ test.describe("Admin flows", () => {
     await page.waitForURL("**/admin/settings/holidays");
     await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 15_000 });
 
-    await page.goto("/admin/settings/salary-components");
-    await page.waitForURL("**/admin/settings/salary-components");
+    await page.goto("/admin/salary-components");
+    await page.waitForURL("**/admin/salary-components");
     await expect(page.locator("text=Gaji Pokok")).toBeVisible({ timeout: 15_000 });
   });
 
@@ -83,9 +83,9 @@ test.describe("Admin flows", () => {
     await expect(page.getByRole("dialog").getByRole("heading", { name: "Tambah Karyawan" })).toBeVisible({ timeout: 15_000 });
   });
 
-  test("deleted flat assessment-templates URL redirects to nested", async ({ page }) => {
-    await page.goto("/admin/assessment-templates");
-    await expect(page).toHaveURL("/admin/assessments/templates");
+  test("legacy nested assessments/templates URL redirects to flat path", async ({ page }) => {
+    await page.goto("/admin/assessments/templates");
+    await expect(page).toHaveURL("/admin/assessment-templates");
     await expect(page.getByRole("heading", { name: /Template Penilaian/i })).toBeVisible();
   });
 
@@ -311,9 +311,12 @@ test.describe("Admin flows", () => {
     const advanced = await advance.json();
     expect(advanced.status).toBe("VISIT_SCHEDULED");
 
-    // Negative: VISIT_SCHEDULED → REGISTERED skips states and must return 400
+    // Negative: VISIT_SCHEDULED → ADMITTED skips the VISITED step and must return 400.
+    // (Post-cycle-2026-05-12 the REGISTERED state was dropped; ADMITTED is still a
+    // valid enum value but is not in VALID_TRANSITIONS["VISIT_SCHEDULED"], so the
+    // server's transition gate rejects with the same "Invalid status transition" error.)
     const skip = await page.request.put(`/api/admissions/${target.id}`, {
-      data: { status: "REGISTERED" },
+      data: { status: "ADMITTED" },
     });
     expect(skip.status()).toBe(400);
     const skipJson = await skip.json();
@@ -361,6 +364,68 @@ test.describe("Admin flows", () => {
     await page.goto("/admin/student-journal/monitoring");
     await page.waitForURL("**/admin/student-journal/monitoring");
     await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 15_000 });
+  });
+
+  // Roll-forward smoke (academic-hierarchy-refactor Task 9). The seed ships a
+  // single academic year ("2025/2026") so a meaningful roll-forward needs a
+  // distinct target year — we create one via the API in setup, then trigger
+  // the "Gulir Kelas ke Tahun Ini" row action on it, picking the seed year as
+  // source. Focused smoke: assert the success toast, not exact counts.
+  test("academic-year roll-forward clones source sections into a fresh target year", async ({ page }) => {
+    // Source year — the seed's ACTIVE year with ACTIVE class sections.
+    const yearsRes = await page.request.get("/api/academic-years");
+    expect(yearsRes.ok()).toBeTruthy();
+    const years = (await yearsRes.json()) as Array<{ id: string; name: string; status: string }>;
+    const sourceYear = years.find((y) => y.status === "ACTIVE") ?? years[0];
+    if (!sourceYear) {
+      test.skip(true, "No academic year in seed");
+      return;
+    }
+
+    // Create a distinct target year via the API. Unique name keyed on Date.now()
+    // so re-runs never collide on the year-name unique constraint.
+    const targetName = `E2E Roll ${Date.now()}`;
+    const createRes = await page.request.post("/api/academic-years", {
+      data: { name: targetName, startDate: "2027-07-01", endDate: "2028-06-30" },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const targetYear = (await createRes.json()) as { id: string; name: string };
+    expect(targetYear.id).toBeTruthy();
+
+    await page.goto("/admin/academic-years");
+    await expect(page.getByRole("heading", { name: "Akademik" })).toBeVisible({ timeout: 15_000 });
+
+    // Wait for the academic-years fetch to settle so the new row is rendered.
+    await page
+      .waitForResponse((res) => res.url().includes("/api/academic-years") && res.ok(), { timeout: 15_000 })
+      .catch(() => undefined);
+
+    // Find the target year's row, open its row-actions menu, click the
+    // roll-forward action.
+    const targetRow = page.getByRole("row").filter({ hasText: targetName });
+    await expect(targetRow).toBeVisible({ timeout: 10_000 });
+    await targetRow.getByRole("button", { name: /Buka menu/i }).click();
+    await page.getByRole("menuitem", { name: /Gulir Kelas ke Tahun Ini/i }).click();
+
+    // Roll-forward dialog: pick the source year, submit.
+    const dialog = page.getByRole("dialog", { name: /Gulir Kelas ke Tahun Ajaran/i });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await dialog.getByRole("combobox").click();
+    await page.getByRole("option", { name: sourceYear.name }).click();
+    await dialog.getByRole("button", { name: /^Gulir Kelas$/ }).click();
+
+    // Outcome toast. The roll-forward POST clones each source section AND
+    // generates its ClassSession rows synchronously (reconcileSessions per
+    // section) — against the live DB that is a multi-second request, so the
+    // toast can take a while to land. Timeout is 60s (mirrors the bulk-retry
+    // orchestration test's ceiling in this file). Copy is one of:
+    //   • "N kelas digulir ke <year>"           — sections cloned (page.tsx:206)
+    //   • "... kelas dilewati (sudah ada)"       — tracks already rolled
+    //   • "Tidak ada kelas aktif yang bisa digulir ..." — nothing to roll
+    // All three confirm the action executed end-to-end; assert on the union.
+    await expect(
+      page.getByText(/kelas digulir ke|kelas dilewati|Tidak ada kelas aktif/i),
+    ).toBeVisible({ timeout: 60_000 });
   });
 });
 
@@ -790,10 +855,12 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     const period = `E2E Combobox ${Date.now()}`;
     await dialog.getByPlaceholder("April 2026").fill(period);
 
-    const feeSelect = dialog
-      .getByRole("combobox")
-      .filter({ hasText: /Pilih komponen/ })
-      .first();
+    // The fee-component combobox is the 2nd combobox in the dialog (1st = siswa).
+    // We no longer filter by "Pilih komponen" placeholder text because the form
+    // now pre-fills line[0].feeComponentId with the first ACTIVE component
+    // (fixes a two-click-to-commit bug in Base UI Select). Open the dropdown
+    // and click the desired fee option to lock in the test's specific choice.
+    const feeSelect = dialog.getByRole("combobox").nth(1);
     await feeSelect.click();
     await page.getByRole("option", { name: fee.label }).first().click();
 

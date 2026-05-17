@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatRupiah, formatDate } from "@/lib/format";
+import { paymentLinkState } from "@/lib/parent-invoice-link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
@@ -129,6 +130,7 @@ export function InvoiceDetailSheet({
   const isCancelled = invoice.status === "CANCELLED";
   const isPayable = remaining > 0 && !isCancelled && !isPaid;
   const hasPaymentLink = !!invoice.xenditPaymentUrl;
+  const linkState = paymentLinkState(hasPaymentLink, invoice.sentAt);
   const focalAmount = isPaid ? invoice.totalDue : remaining;
   const childName = invoice.student.nickname ?? invoice.student.name.split(" ")[0];
 
@@ -297,12 +299,16 @@ export function InvoiceDetailSheet({
             </section>
           ) : null}
 
-          {/* Bayar sekarang CTA — always rendered when invoice is payable.
-              Disabled when xenditPaymentUrl is still being provisioned, with
-              a helper line below explaining the wait state. Spec C3. */}
+          {/* Bayar sekarang CTA — rendered when invoice is payable.
+              - linkState "ready":   live link button.
+              - linkState "pending": disabled button + optimistic "sedang disiapkan" copy
+                                     (Xendit normally provisions in minutes).
+              - linkState "stale":   no button; direct parent to contact admin.
+                                     Covers the case where the Xendit provision never
+                                     completed (UAT 2026-05-12 parent MINOR-02). */}
           {isPayable ? (
             <div className="space-y-2">
-              {hasPaymentLink ? (
+              {linkState === "ready" ? (
                 <a
                   href={invoice.xenditPaymentUrl!}
                   target="_blank"
@@ -314,20 +320,27 @@ export function InvoiceDetailSheet({
                     Bayar sekarang
                   </Button>
                 </a>
+              ) : linkState === "pending" ? (
+                <>
+                  <Button className="w-full" size="lg" disabled>
+                    <ExternalLink size={16} className="mr-2" />
+                    Bayar sekarang
+                  </Button>
+                  <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                    <Info size={14} className="mt-0.5 shrink-0" />
+                    <span>
+                      Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
+                    </span>
+                  </div>
+                </>
               ) : (
-                <Button className="w-full" size="lg" disabled>
-                  <ExternalLink size={16} className="mr-2" />
-                  Bayar sekarang
-                </Button>
-              )}
-              {!hasPaymentLink ? (
-                <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                <div className="flex items-start gap-2 rounded-lg border border-status-late bg-status-late-subtle p-3 text-xs text-status-late-text">
                   <Info size={14} className="mt-0.5 shrink-0" />
                   <span>
-                    Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
+                    Link pembayaran belum tersedia. Silakan <strong>hubungi admin sekolah</strong> untuk info pembayaran.
                   </span>
                 </div>
-              ) : null}
+              )}
             </div>
           ) : null}
 

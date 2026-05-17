@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-05-03 in cycle `teacher-uat-fixes`
+> Last audited: 2026-05-15 in cycle `academic-hierarchy-refactor` (added Area: daily-session for session roster + pickup tracking)
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -289,6 +289,38 @@ This file is the living catalog of what a teacher user can and should be able to
   - Already checked in today → "MASUK" button is replaced by "PULANG" (driven by `hasCheckedIn` derived from today's record)
   - Check-in API 500 → status card does NOT flip; toast surfaces failure
 - **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+## Area: daily-session
+
+### JTBD-TEACHER-SESSION-01 — Run today's class session (status + Tap In + Tap Out + pickup)
+- **Persona:** Bu Sari (or sub teacher on absence days)
+- **Role:** TEACHER (or admin)
+- **Preconditions:**
+  - Logged in as the effective teacher of a `ClassSession` scheduled for today (Jakarta-tz, working day, non-holiday)
+  - The session's class has ≥1 ACTIVE-enrolled student
+  - Demo cookie set (pattern from `e2e/teacher.spec.ts`)
+- **Steps (user intent, not UI clicks):**
+  1. Open `/teacher` → the "Sesi Hari Ini" card lists today's session(s)
+  2. Tap a session → navigate to `/teacher/sessions/[id]` roster
+  3. For each student: cycle the status badge (PRESENT/ABSENT/SICK/PERMISSION); tap **Tap Masuk** to stamp `checkInTime`; later tap **Tap Pulang** to stamp `checkOutTime`; pick a `pickedUpByRelation` (PARENT/GUARDIAN/GRANDPARENT/SIBLING/DRIVER/HOUSEHOLD_HELPER/OTHER) and enter `pickedUpByName` (required when OTHER)
+  4. Tap **Simpan** → bulk `POST /api/teacher/sessions/[id]/attendance` upserts the whole roster keyed on `(studentId, sessionId)`
+  5. Reload — the persisted state shows again
+- **Done when:** Each student's status, times, and pickup info show on reload; the substitute trail (when the session was a swap day) is intact — `defaultTeacherId` is NOT touched.
+- **Why this job matters:** The daily hot path for early-childhood teachers. Tap-In + Tap-Out + pickup is the structured replacement for the legacy session-agnostic attendance entry. Pickup data feeds the late-pickup leaderboard once Layer 2 lands.
+- **Expected perf:** session list page load <1.5s; tap-in/out client response <500ms; Simpan round-trip <1.5s on 4G; full daily flow (morning check-in → midday pickup) completes in <3 min for a 20-student class.
+- **Known friction:** Tap In / Tap Out buttons disable once stamped (intentional — prevents accidental overwrite); rest of the row remains editable until Simpan.
+
+### JTBD-TEACHER-SESSION-02 — Substitute teacher covers an absent colleague's session
+- **Persona:** Bu Sari (the sub)
+- **Role:** TEACHER
+- **Preconditions:** An admin has swapped the session's `teacherId` to Bu Sari with a `substituteReason` (via `/admin/class-sections/[id]` → calendar drawer)
+- **Steps:**
+  1. Bu Sari opens `/teacher` — the swapped session appears in her "Sesi Hari Ini" list (the `teacherId === employeeId` query covers subs naturally)
+  2. She drives the roster page exactly like JTBD-TEACHER-SESSION-01
+- **Done when:** The sub can mark attendance + pickup on a session she does not own as homeroom; the original homeroom does NOT see this session in their list for the day; the audit trail preserves `defaultTeacherId` so reports can attribute the substitution.
+- **Why this job matters:** Absence coverage is universal in pre-K — the swap path must be invisible to the sub at the moment of need but fully auditable later.
 
 ---
 

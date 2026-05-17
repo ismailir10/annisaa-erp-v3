@@ -25,9 +25,9 @@ type VerbKey = `${WhitelistedEntity}.${string}`;
 type VerbBuilder = (target: string) => { verb: string; href: string };
 
 const VERB_MAP: Record<VerbKey, VerbBuilder> = {
-  "LeaveRequest.create": (t) => ({ verb: `mengajukan cuti untuk ${t}`, href: "/admin/leave" }),
-  "LeaveRequest.approve": (t) => ({ verb: `menyetujui cuti ${t}`, href: "/admin/leave" }),
-  "LeaveRequest.reject": (t) => ({ verb: `menolak cuti ${t}`, href: "/admin/leave" }),
+  "LeaveRequest.create": (t) => ({ verb: `mengajukan cuti untuk ${t}`, href: "/admin/leave-requests" }),
+  "LeaveRequest.approve": (t) => ({ verb: `menyetujui cuti ${t}`, href: "/admin/leave-requests" }),
+  "LeaveRequest.reject": (t) => ({ verb: `menolak cuti ${t}`, href: "/admin/leave-requests" }),
   "Employee.create": (t) => ({ verb: `menambah karyawan ${t}`, href: "/admin/employees" }),
   "Employee.update": (t) => ({ verb: `memperbarui data ${t}`, href: "/admin/employees" }),
   "PayrollRun.create": (t) => ({ verb: `membuat penggajian ${t}`, href: "/admin/payroll" }),

@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, BookHeart } from "lucide-react";
+import {
+  MapPin,
+  BookHeart,
+  CalendarDays,
+  ClipboardList,
+  ChevronRight,
+} from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/portal/page-header";
@@ -13,6 +19,19 @@ type TodayRecord = {
   status: string;
   checkInTime: string | null;
   checkOutTime: string | null;
+};
+
+type TodaySession = {
+  id: string;
+  slot: string;
+  className: string;
+  rosterCount: number;
+};
+
+const SLOT_LABEL: Record<string, string> = {
+  FULL_DAY: "Sehari penuh",
+  MORNING: "Pagi",
+  AFTERNOON: "Siang",
 };
 
 /** Pure helper: derive optimistic next state for the status card.
@@ -40,9 +59,13 @@ export function nextStateAfterAction(
 export function TeacherHomeClient({
   userName,
   todayRecord: initialRecord,
+  homeroomClassSectionName,
+  todaySessions = [],
 }: {
   userName: string;
   todayRecord: TodayRecord | null;
+  homeroomClassSectionName?: string | null;
+  todaySessions?: TodaySession[];
 }) {
   const router = useRouter();
   const [record, setRecord] = useState(initialRecord);
@@ -51,9 +74,22 @@ export function TeacherHomeClient({
   const [success, setSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [gpsStatus, setGpsStatus] = useState<string>("Menunggu...");
+  // FIND-015: defer time-dependent rendering until after client mount.
+  // Pre-fix, `time = new Date()` initialised differently server-vs-client
+  // (UTC vs WIB), producing the date string mismatch on the greeting line
+  // and tripping React error #418 (text content mismatch) when no
+  // AttendanceRecord existed to mask the divergence with a checked-in card.
+  const [mounted, setMounted] = useState(false);
 
-  // Live clock
+  // Live clock + mounted flag — both need the client to be active first.
   useEffect(() => {
+    // Intentional: flips `mounted` exactly once after first render so the
+    // time-derived rendering below produces stable HTML matching the SSR
+    // output (which had `mounted=false`). Without this flag, the FIND-015
+    // hydration mismatch fires on the empty-state path. This is the
+    // canonical React "wait for hydration" pattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
@@ -131,16 +167,39 @@ export function TeacherHomeClient({
     setLoading(false);
   }
 
-  const timeStr = formatTime(time.toISOString());
-  const dateStr = formatDate(time.toISOString().split("T")[0], {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  // Until mounted, render placeholders for time-derived strings so server
+  // SSR and client first-render produce identical HTML. Once `mounted` flips
+  // true via the useEffect above, the real clock takes over.
+  const timeStr = mounted ? formatTime(time.toISOString()) : "";
+  const dateStr = mounted
+    ? formatDate(time.toISOString().split("T")[0], {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : "";
 
-  const greeting = time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam";
-  const firstName = userName.split(" ")[0];
+  const greeting = mounted
+    ? time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam"
+    : "Datang";
+
+  // FIND-015 (full fix): render an empty shell on the server pass and on the
+  // client's first hydration pass. Only after `mounted` flips true (inside
+  // the live-clock useEffect) does the real UI render. This is heavier-handed
+  // than the prior partial mounted-guard but is the only way to guarantee
+  // SSR↔hydration produce identical HTML when (a) the body depends on a
+  // server-vs-client divergent `new Date()` and (b) framer-motion's initial
+  // values (`opacity: 0`, `y: 10`) emit slightly different DOM during the
+  // initial render than after one animation tick.
+  if (!mounted) {
+    return (
+      <div className="min-h-[60vh]" aria-busy="true" suppressHydrationWarning>
+        {/* Reserve vertical space so the layout doesn't jump when the real
+            content mounts; the bottom-tab nav is the only persistent UI. */}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -151,7 +210,7 @@ export function TeacherHomeClient({
         transition={{ duration: 0.4 }}
       >
         <PageHeader
-          title={`Selamat ${greeting}, Ustadz/Ustadzah ${firstName}`}
+          title={`Selamat ${greeting}, Ustadz/Ustadzah ${userName}`}
           subtitle={dateStr}
           className="mb-0"
         />
@@ -255,18 +314,81 @@ export function TeacherHomeClient({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
           Akses Cepat
         </p>
-        <Link
-          href="/teacher/student-journal"
-          className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
-        >
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <BookHeart size={20} className="text-primary" />
+        <div className="space-y-2">
+          <Link
+            href="/teacher/student-journal"
+            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <BookHeart size={20} className="text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Buku Penghubung</p>
+              <p className="text-xs text-muted-foreground">Isi catatan harian siswa</p>
+            </div>
+          </Link>
+          {homeroomClassSectionName && (
+            <Link
+              href="/teacher/assessments/weekly"
+              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+              data-testid="home-weekly-card"
+            >
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <CalendarDays size={20} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Penilaian Pekanan</p>
+                <p className="text-xs text-muted-foreground">
+                  Walas {homeroomClassSectionName}
+                </p>
+              </div>
+            </Link>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Today's class sessions — additive card (academic-hierarchy-refactor
+          Task 7). Each row links to the session roster page. */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.28, duration: 0.4 }}
+        className="mt-6"
+      >
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Sesi Hari Ini
+        </p>
+        {todaySessions.length > 0 ? (
+          <div className="space-y-2">
+            {todaySessions.map((s) => (
+              <Link
+                key={s.id}
+                href={`/teacher/sessions/${s.id}`}
+                className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <ClipboardList size={20} className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{s.className}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {SLOT_LABEL[s.slot] ?? s.slot} • {s.rosterCount} siswa
+                  </p>
+                </div>
+                <ChevronRight
+                  size={16}
+                  className="text-muted-foreground shrink-0"
+                />
+              </Link>
+            ))}
           </div>
-          <div>
-            <p className="text-sm font-medium">Buku Penghubung</p>
-            <p className="text-xs text-muted-foreground">Isi catatan harian siswa</p>
-          </div>
-        </Link>
+        ) : (
+          <Card className="p-card">
+            <p className="text-sm text-muted-foreground text-center">
+              Belum ada sesi kelas terjadwal hari ini.
+            </p>
+          </Card>
+        )}
       </motion.div>
 
       {/* Today status */}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function POST(
   req: NextRequest,
@@ -43,7 +44,7 @@ export async function POST(
     },
   });
 
-  const withdrawDate = effectiveDate || new Date().toISOString().split("T")[0];
+  const withdrawDate = effectiveDate || getTodayInTimezone("Asia/Jakarta");
 
   // Transaction: update student status + withdraw all active enrollments
   const updatedStudent = await prisma.$transaction(async (tx) => {

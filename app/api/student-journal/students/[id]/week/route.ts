@@ -8,6 +8,7 @@ import {
   JOURNAL_FORBIDDEN_MSG,
   JOURNAL_NOT_ENROLLED_MSG,
 } from "@/lib/student-journal/messages";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function GET(
   req: NextRequest,
@@ -72,7 +73,7 @@ export async function GET(
     }
     ws = weekStartParam;
   } else {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayInTimezone("Asia/Jakarta");
     ws = weekStart(today);
   }
 

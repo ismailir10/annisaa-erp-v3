@@ -14,8 +14,12 @@ import {
   Shield,
   Heart,
   BookOpen,
+  BookMarked,
   ClipboardList,
+  ClipboardCheck,
+  NotebookPen,
   Palette,
+  School,
   type LucideIcon,
 } from "lucide-react";
 import type { PermissionCode } from "@/lib/permissions";
@@ -54,39 +58,52 @@ export const adminNav: NavConfig = {
 
   groups: [
     {
-      id: "hr",
-      label: "SDM",
-      icon: Users,
-      permission: "hr.view",
-      items: [
-        { label: "Karyawan", href: "/admin/employees", icon: Users },
-        { label: "Kehadiran", href: "/admin/attendance", icon: CalendarCheck },
-        { label: "Pengajuan Cuti", href: "/admin/leave", icon: CalendarOff },
-        { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
-      ],
-    },
-    {
-      id: "academic",
-      label: "Akademik",
+      id: "students",
+      label: "Kesiswaan",
       icon: GraduationCap,
       items: [
-        { label: "Tahun Ajaran", href: "/admin/academic", icon: CalendarDays },
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
         { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
-        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
-        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
-        { label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen },
       ],
     },
     {
-      id: "learning",
+      id: "academic",
+      label: "Struktur Akademik",
+      icon: School,
+      permission: "academic.view",
+      items: [
+        { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
+        { label: "Identitas Kelas", href: "/admin/class-tracks", icon: School, permission: "academic.view" },
+        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
+      ],
+    },
+    {
+      id: "curriculum",
+      label: "Kurikulum",
+      icon: BookMarked,
+      permission: "curriculum.read",
+      items: [
+        { label: "Semester", href: "/admin/semesters", icon: CalendarDays, permission: "curriculum.read" },
+      ],
+    },
+    {
+      id: "assessment",
       label: "Penilaian",
       icon: ClipboardList,
       items: [
-        { label: "Template Penilaian", href: "/admin/assessments/templates", icon: ClipboardList },
-        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardList },
+        { label: "Template Penilaian", href: "/admin/assessment-templates", icon: ClipboardList },
+        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardCheck },
+      ],
+    },
+    {
+      id: "classroom",
+      label: "Kelas Harian",
+      icon: NotebookPen,
+      items: [
+        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
+        { label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen },
       ],
     },
     {
@@ -98,25 +115,37 @@ export const adminNav: NavConfig = {
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
       ],
     },
+    {
+      id: "hr",
+      label: "SDM",
+      icon: Users,
+      permission: "hr.view",
+      items: [
+        { label: "Karyawan", href: "/admin/employees", icon: Users },
+        { label: "Kehadiran", href: "/admin/employee-attendance", icon: CalendarCheck },
+        { label: "Pengajuan Cuti", href: "/admin/leave-requests", icon: CalendarOff },
+        { label: "Komponen Gaji", href: "/admin/salary-components", icon: Coins, permission: "hr.view" },
+        { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
+      ],
+    },
   ],
 
   settings: [
     { label: "Kampus", href: "/admin/settings/campuses", icon: Building2 },
-    { label: "Jam Kerja", href: "/admin/settings/config", icon: Clock },
+    { label: "Jam Kerja", href: "/admin/settings/work-hours", icon: Clock },
     {
       label: "Hari Libur",
       href: "/admin/settings/holidays",
       icon: CalendarDays,
     },
-    {
-      label: "Komponen Gaji",
-      href: "/admin/settings/salary-components",
-      icon: Coins,
-      permission: "hr.view",
-    },
     { label: "Pengguna", href: "/admin/settings/users", icon: Users },
     { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield },
-    { label: "Design System", href: "/admin/design-system", icon: Palette },
+    // Design System is an internal dev/reference page — hide in production so
+    // school admins don't see it. The build inlines NODE_ENV so this branch
+    // is dead-code-eliminated from the production bundle.
+    ...(process.env.NODE_ENV !== "production"
+      ? [{ label: "Design System", href: "/admin/design-system", icon: Palette } satisfies NavItem]
+      : []),
   ],
 };
 

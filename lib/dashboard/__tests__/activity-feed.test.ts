@@ -67,7 +67,7 @@ describe("getRecentActivity", () => {
       actorName: "Bu Sari",
       actorInitials: "BS",
       verb: "menyetujui cuti lr1",
-      href: "/admin/leave",
+      href: "/admin/leave-requests",
     });
   });
 

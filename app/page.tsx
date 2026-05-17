@@ -16,6 +16,15 @@ type UserOption = {
   role: string;
 };
 
+// Maps `?error=<code>` returned by /auth/callback to a user-facing message.
+// `access_denied` covers the most common failure: Google OAuth succeeds but
+// the email has no User/Employee/Parent record yet (UAT 2026-05-12 teacher
+// blocker — silent redirect with no UX).
+const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  auth_failed: "Login gagal. Silakan coba lagi.",
+  access_denied: "Akun belum terdaftar. Hubungi admin sekolah untuk akses.",
+};
+
 export default function LoginPageWrapper() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-sidebar" />}>
@@ -35,7 +44,7 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
-  const [authError, setAuthError] = useState(error === "auth_failed" ? "Login gagal. Silakan coba lagi." : "");
+  const [authError, setAuthError] = useState(error ? (LOGIN_ERROR_MESSAGES[error] ?? "") : "");
 
   // Demo mode state
   const [demoUsers, setDemoUsers] = useState<UserOption[]>([]);

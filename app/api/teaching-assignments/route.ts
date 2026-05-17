@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { backfillSessionTeacher } from "@/lib/sessions/teacher-backfill";
 
 // Cache GET responses for 1 hour — assignments change when teachers are reassigned
 export const revalidate = 3600;
@@ -78,6 +79,27 @@ export async function POST(req: NextRequest) {
     data: { employeeId, classSectionId, role: role ?? "HOMEROOM" },
   });
 
+  // A new HOMEROOM assignment becomes the section's effective homeroom — push
+  // it onto the section's future ClassSession rows (targeted backfill, not a
+  // full reconcile). The create above has already committed; a backfill
+  // failure is logged but never rolls back the assignment — the backfill is
+  // re-runnable and the assignment is independently valid.
+  let reconcileWarning: string | undefined;
+  if ((role ?? "HOMEROOM") === "HOMEROOM") {
+    try {
+      await backfillSessionTeacher(classSectionId, session.tenantId);
+    } catch (err) {
+      console.error(
+        `[teaching-assignments POST] backfillSessionTeacher failed for section ${classSectionId}:`,
+        err,
+      );
+      reconcileWarning = "Guru sesi kelas akan diperbarui otomatis.";
+    }
+  }
+
   revalidatePath("/api/teaching-assignments");
-  return NextResponse.json(assignment, { status: 201 });
+  return NextResponse.json(
+    reconcileWarning ? { ...assignment, reconcileWarning } : assignment,
+    { status: 201 },
+  );
 }

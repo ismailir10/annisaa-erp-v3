@@ -217,7 +217,11 @@ export default function EmployeesPage() {
       router.push(`/admin/employees/${emp.id}`);
     } else {
       const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal menambahkan");
+      // Surface the first field-level message from validateBody's `errors`
+      // array so users see "No. Rekening wajib diisi jika bank dipilih"
+      // instead of the generic "Validasi gagal" wrapper (F-10).
+      const fieldMessage = Array.isArray(d.errors) && d.errors[0]?.message;
+      toast.error(fieldMessage || d.error || "Gagal menambahkan");
     }
     setSaving(false);
   }
@@ -230,17 +234,33 @@ export default function EmployeesPage() {
       .catch((err) => console.error("[employees] campuses fetch failed", err));
     fetch("/api/employees/positions")
       .then((r) => r.json())
-      .then((p) => setPositions(Array.isArray(p) ? p : []))
+      .then((p) => {
+        const arr = Array.isArray(p) ? p : [];
+        // FIND-007: on a fresh tenant `Employee` has zero rows so the
+        // `distinct jabatan` query returns []. The Karyawan create dialog
+        // then offered only "+ Tambah jabatan baru" with no presets, which
+        // looked broken even though inline-add worked. Lazy-bootstrap a
+        // sensible default list so the first admin sees actionable options
+        // immediately. Custom values they add still flow through the inline
+        // path and become real `Employee.jabatan` strings.
+        const DEFAULT_POSITIONS = ["Guru Kelas", "Guru Pendamping", "Kepala Sekolah", "Admin Sekolah"];
+        setPositions(arr.length === 0 ? DEFAULT_POSITIONS : arr);
+      })
       .catch((err) => console.error("[employees] positions fetch failed", err));
-    // Quick stats — fetch all with minimal data
-    Promise.all([
-      fetch("/api/employees?pageSize=1&status=ACTIVE").then(r => r.json()),
-      fetch("/api/employees?pageSize=1&status=INACTIVE").then(r => r.json()),
-    ]).then(([active, inactive]) => {
-      const a = active.pagination?.total ?? 0;
-      const i = inactive.pagination?.total ?? 0;
-      setStats({ total: a + i, active: a, inactive: i });
-    }).catch((err) => console.error("[employees] stats fetch failed", err));
+    // F-6 collapse: single /api/employees/stats endpoint replaces the
+    // two pageSize=1 filtered list calls that ran full filtered counts
+    // under the hood. Same data, half the round-trips, no full-table
+    // scan repeated per status bucket.
+    fetch("/api/employees/stats")
+      .then((r) => r.json())
+      .then((s) =>
+        setStats({
+          total: s.total ?? 0,
+          active: s.active ?? 0,
+          inactive: s.inactive ?? 0,
+        }),
+      )
+      .catch((err) => console.error("[employees] stats fetch failed", err));
   }, []);
 
   const fetchEmployees = useCallback(async () => {

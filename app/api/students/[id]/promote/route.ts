@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function POST(
   req: NextRequest,
@@ -48,7 +49,7 @@ export async function POST(
     return NextResponse.json({ error: "Kelas tujuan tidak ditemukan" }, { status: 404 });
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getTodayInTimezone("Asia/Jakarta");
 
   // Transaction: lock target section row, re-check capacity, graduate old
   // enrollment, create/upsert new one. SELECT … FOR UPDATE prevents two

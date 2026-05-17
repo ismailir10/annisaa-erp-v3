@@ -46,8 +46,16 @@ export default async function AdminDashboard() {
   const tenantId = session.tenantId;
   const todayStr = jakartaDateStr(new Date());
 
+  // FIND-013: include today in the 7-weekday window. Pre-fix the cursor
+  // decremented BEFORE adding to the array, so the trend silently excluded
+  // today's row — and on a fresh staging DB where the only AttendanceRecord
+  // rows were for today, the panel rendered "Data kehadiran belum tersedia"
+  // despite there being data. The fix adds today first, then walks back.
   const last7Weekdays: string[] = [];
   const cursor = new Date(`${todayStr}T00:00:00+07:00`);
+  if (cursor.getDay() !== 0 && cursor.getDay() !== 6) {
+    last7Weekdays.push(jakartaDateStr(cursor));
+  }
   while (last7Weekdays.length < 7) {
     cursor.setDate(cursor.getDate() - 1);
     if (cursor.getDay() === 0 || cursor.getDay() === 6) continue;

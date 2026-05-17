@@ -19,7 +19,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { toast } from "sonner";
 import { ArrowLeft, Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield } from "lucide-react";
-import { formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
+import { formatDateShort, formatMonthLabel, formatTime, formatRupiah } from "@/lib/format";
 import Link from "next/link";
 
 type Employee = {
@@ -73,16 +73,43 @@ export default function EmployeeDetailPage() {
     setSaving(true);
     const res = await fetch(`/api/employees/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) });
     if (res.ok) { toast.success("Data karyawan disimpan"); setIsEditing(false); const updated = await fetch(`/api/employees/${id}`).then(r => r.json()); setEmployee(updated); }
-    else toast.error("Gagal menyimpan");
+    else {
+      const d = await res.json().catch(() => ({}));
+      // Surface validateBody's first field-level message (F-10).
+      const fieldMessage = Array.isArray(d.errors) && d.errors[0]?.message;
+      toast.error(fieldMessage || d.error || "Gagal menyimpan");
+    }
     setSaving(false);
   }
 
   async function handleSaveSalary() {
     setSavingSalary(true);
-    if (!salaryValues) return;
-    const payload = salaryValues.map(sv => ({ componentDefId: sv.componentDefId, value: sv.value }));
-    const res = await fetch(`/api/employees/${id}/salary`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (res.ok) toast.success("Nilai gaji disimpan"); else toast.error("Gagal menyimpan");
+    if (!salaryValues) { setSavingSalary(false); return; }
+    // FIND-020-NEW: Prisma serialises Decimal columns as strings in JSON, so
+    // unedited rows arrive with `sv.value` as a string. The PUT schema
+    // requires `z.number()`, so we coerce here before submit — pre-fix this
+    // produced an opaque HTTP 400 "Gagal menyimpan" toast.
+    const payload = salaryValues.map(sv => ({
+      componentDefId: sv.componentDefId,
+      value: Number(sv.value),
+    }));
+    const res = await fetch(`/api/employees/${id}/salary`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      toast.success("Nilai gaji disimpan");
+    } else {
+      // Surface the Zod field error (validateBody returns `{ error, errors: [{ field, message }] }`)
+      // so admins see *why* the save failed instead of a bare "Gagal menyimpan".
+      let detail: string | undefined;
+      try {
+        const d = await res.json();
+        detail = d?.errors?.[0]?.message ?? d?.error;
+      } catch { /* non-JSON body — fall back to generic */ }
+      toast.error(detail ?? "Gagal menyimpan");
+    }
     setSavingSalary(false);
   }
 
@@ -323,7 +350,12 @@ export default function EmployeeDetailPage() {
                         <span className="text-xs text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
                       </div>
                     </div>
-                    <div className="w-40"><Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" /></div>
+                    <div className="w-40">
+                      <Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" />
+                      {sv.value > 0 && (
+                        <p className="mt-1 text-right text-xs text-muted-foreground font-currency">{formatRupiah(sv.value)}</p>
+                      )}
+                    </div>
                   </div>
                 ))}
                 <Button onClick={handleSaveSalary} disabled={savingSalary} className="mt-2"><Save size={14} className="mr-1.5" /> {savingSalary ? "Menyimpan..." : "Simpan Semua Nilai"}</Button>

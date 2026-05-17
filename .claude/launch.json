@@ -14,6 +14,28 @@
       "runtimeArgs": ["DEMO_MODE=true", "npm", "run", "start"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "next-prod-demo-direct",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/next/dist/bin/next", "start"],
+      "port": 3000,
+      "autoPort": true,
+      "env": { "DEMO_MODE": "true" }
+    },
+    {
+      "name": "next-prod-demo-bash",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/ismailrabbanii/Documents/ai-builder/school-erp/.claude/worktrees/modest-napier-d20f90 && DEMO_MODE=true npm run start"],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "c4-prod-demo",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/ismailrabbanii/Documents/ai-builder/school-erp/.claude/worktrees/jolly-noether-29885e && DEMO_MODE=true npm run start"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

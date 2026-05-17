@@ -25,7 +25,7 @@ import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Tras
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
-type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; education: string | null; occupation: string | null; employer: string | null; incomeRange: string | null; childrenTotal: number | null } };
+type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null } };
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
@@ -155,7 +155,7 @@ export default function StudentDetailPage() {
 
   function openEditGuardian(g: Guardian) {
     setEditingGuardian(g);
-    setGuardianForm({ name: g.parent.name, relationship: g.relationship, phone: g.parent.phone ?? "", email: g.parent.email ?? "", whatsapp: g.parent.whatsapp ?? "", parentNik: "", education: g.parent.education ?? "", occupation: g.parent.occupation ?? "", employer: g.parent.employer ?? "", employerAddress: "", employerCity: "", incomeRange: g.parent.incomeRange ?? "" });
+    setGuardianForm({ name: g.parent.name, relationship: g.relationship, phone: g.parent.phone ?? "", email: g.parent.email ?? "", whatsapp: g.parent.whatsapp ?? "", parentNik: g.parent.nik ?? "", education: g.parent.education ?? "", occupation: g.parent.occupation ?? "", employer: g.parent.employer ?? "", employerAddress: g.parent.employerAddress ?? "", employerCity: g.parent.employerCity ?? "", incomeRange: g.parent.incomeRange ?? "" });
     setGuardianDialog(true);
   }
 
@@ -392,7 +392,7 @@ export default function StudentDetailPage() {
             </div>
             {student.nickname && <div><p className="text-xs text-muted-foreground">Nama Panggilan</p><p className="text-sm font-medium">{student.nickname}</p></div>}
             {student.dateOfBirth && <div><p className="text-xs text-muted-foreground">Tanggal Lahir</p><p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}</p></div>}
-            {student.gender && <div><p className="text-xs text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : "Perempuan"}</p></div>}
+            {student.gender && <div><p className="text-xs text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : student.gender === "P" ? "Perempuan" : "—"}</p></div>}
             {student.address && (
               <div className="col-span-2 flex items-start gap-3">
                 <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
@@ -634,6 +634,10 @@ export default function StudentDetailPage() {
               <Field><FieldLabel>NIK</FieldLabel><Input value={guardianForm.parentNik} onChange={e => setGuardianForm({ ...guardianForm, parentNik: e.target.value })} placeholder="NIK orang tua" /></Field>
             </div>
             <Field><FieldLabel>Tempat Kerja</FieldLabel><Input value={guardianForm.employer} onChange={e => setGuardianForm({ ...guardianForm, employer: e.target.value })} placeholder="Nama perusahaan / instansi" /></Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field><FieldLabel>Alamat Kantor</FieldLabel><Input value={guardianForm.employerAddress} onChange={e => setGuardianForm({ ...guardianForm, employerAddress: e.target.value })} placeholder="Alamat kantor" /></Field>
+              <Field><FieldLabel>Kota/Kab</FieldLabel><Input value={guardianForm.employerCity} onChange={e => setGuardianForm({ ...guardianForm, employerCity: e.target.value })} placeholder="Kota / Kabupaten" /></Field>
+            </div>
           </div>
         );
         const guardianTitle = editingGuardian ? "Edit Wali" : "Tambah Wali";

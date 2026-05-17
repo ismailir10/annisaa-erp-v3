@@ -1,6 +1,7 @@
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { JournalStatus } from "../lib/generated/prisma/enums";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { reconcileSessions } from "@/lib/sessions/reconcile";
 import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
@@ -34,7 +35,19 @@ async function main() {
   await prisma.assessmentIndicator.deleteMany();
   await prisma.assessmentCategory.deleteMany();
   await prisma.assessmentTemplate.deleteMany();
+  // Curriculum (C1) — children before parents.
+  await prisma.indicatorThemeLink.deleteMany();
+  await prisma.achievementIndicator.deleteMany();
+  await prisma.learningObjective.deleteMany();
+  await prisma.week.deleteMany();
+  await prisma.subTheme.deleteMany();
+  await prisma.theme.deleteMany();
+  // ClassSession references ClassSection + Semester + Employee, and
+  // StudentAttendance references ClassSession via sessionId — so it must be
+  // wiped before semester / studentAttendance / classSection / employee below.
   await prisma.studentAttendance.deleteMany();
+  await prisma.classSession.deleteMany();
+  await prisma.semester.deleteMany();
   await prisma.teachingAssignment.deleteMany();
   await prisma.leaveRequest.deleteMany();
   await prisma.studentEnrollment.deleteMany();
@@ -42,6 +55,7 @@ async function main() {
   await prisma.parent.deleteMany();
   await prisma.student.deleteMany();
   await prisma.classSection.deleteMany();
+  await prisma.classTrack.deleteMany();
   await prisma.program.deleteMany();
   await prisma.academicYear.deleteMany();
   await prisma.emailLog.deleteMany();
@@ -55,6 +69,13 @@ async function main() {
   await prisma.user.deleteMany();
   await prisma.role.deleteMany();
   await prisma.employee.deleteMany();
+  // Tenant-scoped tables that don't appear above — silently allowed when
+  // running against a pristine CI DB (zero rows), but block tenant delete
+  // when the local DB has been used by integration tests or production
+  // staging data. Listed here so re-seeding from any state is idempotent.
+  await prisma.invoiceNumberSequence.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.webhookEvent.deleteMany();
   await prisma.orgConfig.deleteMany();
   await prisma.campus.deleteMany();
   await prisma.tenant.deleteMany();
@@ -279,6 +300,110 @@ async function main() {
   });
   console.log(`✅ Academic year: ${academicYear.name}`);
 
+  // 7b-1b. Curriculum example (C1) — one Semester with two Themes, four
+  // SubThemes, eight Weeks. PROMES TPs + IKTPs land in C2/C3. Mon–Fri
+  // ranges at UTC-midnight per the curriculum storage contract.
+  // Re-runnable because `main()` wipes curriculum tables above.
+  const semester = await prisma.semester.create({
+    data: {
+      tenantId: tenant.id,
+      academicYearId: academicYear.id,
+      number: 1,
+      startDate: new Date("2025-07-14T00:00:00Z"),
+      endDate: new Date("2025-12-19T00:00:00Z"),
+      status: "ACTIVE",
+    },
+  });
+  const themesData = [
+    { name: "Saya Anak Sehat", order: 0 },
+    { name: "Lingkunganku", order: 1 },
+  ];
+  const subThemesByTheme: Record<string, { name: string; order: number }[]> = {
+    "Saya Anak Sehat": [
+      { name: "Tubuhku", order: 0 },
+      { name: "Makanan Sehat", order: 1 },
+    ],
+    Lingkunganku: [
+      { name: "Rumahku", order: 0 },
+      { name: "Sekolahku", order: 1 },
+    ],
+  };
+  // 8 weeks, Mon → Fri each, starting 2025-07-14.
+  const weekStarts = [
+    "2025-07-14",
+    "2025-07-21",
+    "2025-07-28",
+    "2025-08-04",
+    "2025-08-11",
+    "2025-08-18",
+    "2025-08-25",
+    "2025-09-01",
+  ];
+  let weekCursor = 0;
+  let themeCount = 0;
+  let subThemeCount = 0;
+  let weekCount = 0;
+  for (const t of themesData) {
+    const theme = await prisma.theme.create({
+      data: {
+        tenantId: tenant.id,
+        semesterId: semester.id,
+        name: t.name,
+        order: t.order,
+      },
+    });
+    themeCount++;
+    for (const st of subThemesByTheme[t.name]) {
+      const subTheme = await prisma.subTheme.create({
+        data: {
+          tenantId: tenant.id,
+          themeId: theme.id,
+          name: st.name,
+          order: st.order,
+        },
+      });
+      subThemeCount++;
+      // Two weeks per SubTheme = 8 total.
+      for (let i = 0; i < 2; i++) {
+        const startYmd = weekStarts[weekCursor];
+        weekCursor++;
+        const start = new Date(`${startYmd}T00:00:00Z`);
+        const end = new Date(start.getTime() + 4 * 24 * 60 * 60 * 1000); // Fri
+        await prisma.week.create({
+          data: {
+            tenantId: tenant.id,
+            subThemeId: subTheme.id,
+            number: weekCount + 1,
+            startDate: start,
+            endDate: end,
+            status: "ACTIVE",
+          },
+        });
+        weekCount++;
+      }
+    }
+  }
+  console.log(
+    `✅ Curriculum: 1 semester, ${themeCount} themes, ${subThemeCount} subthemes, ${weekCount} weeks`,
+  );
+
+  // 7b-1c. Semester 2 — same academic year, covers "today" (2026-05-15) so the
+  // teacher today's-sessions page + ClassSession generation below have live
+  // data. UTC-midnight DateTimes per the Semester storage contract; no
+  // curriculum (Themes/Weeks) attached — Semester 1 carries the curriculum
+  // example, Semester 2 exists purely for session-calendar coverage.
+  await prisma.semester.create({
+    data: {
+      tenantId: tenant.id,
+      academicYearId: academicYear.id,
+      number: 2,
+      startDate: new Date("2026-01-05T00:00:00Z"),
+      endDate: new Date("2026-06-20T00:00:00Z"),
+      status: "ACTIVE",
+    },
+  });
+  console.log(`✅ Semester 2: 2026-01-05 → 2026-06-20 (covers today)`);
+
   // 7b-2. Programs
   const programDefs = [
     { code: "DCARE", name: "Day Care", type: "YEAR_ROUND", ageMin: 24, ageMax: 36 },
@@ -305,7 +430,8 @@ async function main() {
   // 7b-3. Class Sections
   const classSectionDefs = [
     { name: "TKIT A", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
-    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
+    // TKIT B capacity 21 (not 20): seed inserts 20 base students + Fatimah as rightjetParent's third child.
+    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 21 },
     { name: "KB Aster", programCode: "KB", campusSlug: "taman-aster", capacity: 15 },
     { name: "KB Metland", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15 },
     { name: "D'Care Aster", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10 },
@@ -315,9 +441,20 @@ async function main() {
   const classSectionKeys = ["TKIT_A", "TKIT_B", "KB_ASTER", "KB_METLAND", "DCARE", "POPUP"];
   for (let i = 0; i < classSectionDefs.length; i++) {
     const cs = classSectionDefs[i];
+    // Each section belongs to a stable multi-year ClassTrack
+    // (cycle 2026-05-15 academic-hierarchy-refactor).
+    const classTrack = await prisma.classTrack.create({
+      data: {
+        tenantId: tenant.id,
+        campusId: campusMap[cs.campusSlug],
+        programId: programMap[cs.programCode],
+        name: cs.name,
+      },
+    });
     const created = await prisma.classSection.create({
       data: {
         tenantId: tenant.id,
+        classTrackId: classTrack.id,
         programId: programMap[cs.programCode],
         academicYearId: academicYear.id,
         name: cs.name,
@@ -478,6 +615,33 @@ async function main() {
     }
   }
   console.log(`✅ Teaching assignments: ${assignmentCount}`);
+
+  // ── 7c-2. CLASS SESSIONS (reactive generation) ─────────────
+  // Generate daily ClassSession rows for every seeded ClassSection across both
+  // Semesters of the academic year. reconcileSessions is idempotent and the
+  // single source of truth for session lifecycle — same call the API routes
+  // use. Run AFTER teaching assignments so it resolves each section's HOMEROOM
+  // teacher onto teacherId/defaultTeacherId. The two ACTIVE semesters
+  // (2025-07-14→2025-12-19 and 2026-01-05→2026-06-20) mean the generated set
+  // spans today (2026-05-15), giving the teacher dashboard + session pages
+  // real data.
+  let classSessionCount = 0;
+  const reconcileErrors: string[] = [];
+  for (const sectionId of Object.values(classSectionMap)) {
+    try {
+      const result = await reconcileSessions(sectionId);
+      classSessionCount += result?.added ?? 0;
+    } catch (error) {
+      console.error(`reconcileSessions failed for section ${sectionId}:`, error);
+      reconcileErrors.push(sectionId);
+    }
+  }
+  const sectionTotal = Object.keys(classSectionMap).length;
+  const successCount = sectionTotal - reconcileErrors.length;
+  const failureSuffix = reconcileErrors.length
+    ? `, ${reconcileErrors.length} sections failed: ${reconcileErrors.join(", ")}`
+    : "";
+  console.log(`✅ Class sessions: ${classSessionCount} generated across ${successCount} sections${failureSuffix}`);
 
   // ── 7d. STUDENT ATTENDANCE (last 5 school days) ───────────
   // Get all students with their enrollments for class linking
@@ -1127,7 +1291,9 @@ async function main() {
   }
   console.log(`✅ Invoices: ${invoiceCount} (paid/partial/overdue/sent/xendit) + ${paymentCount} payments`);
 
-  // 11e. ADMISSIONS — INQUIRY + REGISTERED linked to converted student.
+  // 11e. ADMISSIONS — INQUIRY + ADMITTED linked to converted student (studentId
+  // is the "converted" signal; status stays ADMITTED post-conversion per cycle
+  // 2026-05-12 — REGISTERED state dropped).
   const convertedStudent = studentsAll.find((s) => s.status === "ACTIVE");
   await prisma.admission.create({
     data: {
@@ -1157,12 +1323,12 @@ async function main() {
         parentPhone: "081200000002",
         programId: programMap["TKIT"],
         source: "WALK_IN",
-        status: "REGISTERED",
+        status: "ADMITTED",
         studentId: convertedStudent.id,
       },
     });
   }
-  console.log(`✅ Admissions: 1 INQUIRY + 1 REGISTERED`);
+  console.log(`✅ Admissions: 1 INQUIRY + 1 ADMITTED (converted)`);
 
   // 11f. LEAVE REQUESTS — 3 statuses across 3 employees.
   const empForLeave = Object.values(employeeIds).slice(0, 3);
@@ -1398,7 +1564,7 @@ async function main() {
             create: {
               id: "u_kbaster_parent_d4",
               tenantId: tenant.id,
-              email: `${kbAsterParent.id}@parent.seed.local`,
+              email: `parent-${kbAsterParent.id.slice(-6)}@demo.talib.id`,
               role: "GUARDIAN",
               name: kbAsterParent.name,
               parentId: kbAsterParent.id,
@@ -1449,6 +1615,26 @@ async function main() {
         create: { tenantId: t.id, year, lastNumber },
       });
     }
+  }
+
+  // Invariant: no class section may exceed its capacity. Fails the seed loudly
+  // if a future edit silently introduces another over-enrollment (F-4 from the
+  // 2026-05-13 staging sweep — Fatimah Az-Zahra's third-child insert into TKIT_B
+  // had bypassed the API capacity guard).
+  const sections = await prisma.classSection.findMany({
+    select: {
+      id: true,
+      name: true,
+      capacity: true,
+      _count: { select: { enrollments: { where: { status: "ACTIVE" } } } },
+    },
+  });
+  const overCapacity = sections.filter((s) => s._count.enrollments > s.capacity);
+  if (overCapacity.length > 0) {
+    const detail = overCapacity
+      .map((s) => `${s.name}: ${s._count.enrollments}/${s.capacity}`)
+      .join(", ");
+    throw new Error(`Seed invariant failed — class section(s) over capacity: ${detail}`);
   }
 
   console.log("\n🎉 Seed complete!");

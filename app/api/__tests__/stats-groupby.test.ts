@@ -167,9 +167,10 @@ describe("stats endpoints — single GROUP BY contract", () => {
       expect(json).toEqual({ total: 14, active: 8, graduated: 6 });
     });
 
-    it("excludes non-displayed buckets (INACTIVE, WITHDRAWN) from total", async () => {
-      // INACTIVE and WITHDRAWN are not part of the displayed cards; total
-      // must match the pre-refactor sum of (active + graduated) only.
+    it("includes ALL status buckets in total (matches list pagination.total)", async () => {
+      // Finding F-2: total is the unfiltered row count. INACTIVE and WITHDRAWN
+      // are counted even though they don't have a dedicated stat card, so the
+      // header count ("N siswa terdaftar") matches "TOTAL SISWA".
       studentGroupBy.mockResolvedValue([
         { status: "ACTIVE", _count: { status: 8 } },
         { status: "INACTIVE", _count: { status: 99 } },
@@ -182,7 +183,7 @@ describe("stats endpoints — single GROUP BY contract", () => {
       const res = await GET(makeReq("http://localhost/api/students/stats"));
       const json = await res.json();
 
-      expect(json).toEqual({ total: 8, active: 8, graduated: 0 });
+      expect(json).toEqual({ total: 112, active: 8, graduated: 0 });
     });
 
     it("scopes the groupBy to the caller's tenantId", async () => {

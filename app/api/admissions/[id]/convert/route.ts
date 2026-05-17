@@ -19,9 +19,15 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (admission.studentId) {
+    console.error(
+      `[admin-admissions CONVERT] already converted id=${id} studentId=${admission.studentId}`,
+    );
     return NextResponse.json({ error: "Pendaftaran ini sudah dikonversi menjadi siswa" }, { status: 400 });
   }
   if (admission.status !== "ADMITTED") {
+    console.error(
+      `[admin-admissions CONVERT] wrong status id=${id} status=${admission.status} (expected ADMITTED)`,
+    );
     return NextResponse.json({ error: "Hanya pendaftaran dengan status ADMITTED yang bisa dikonversi" }, { status: 400 });
   }
 
@@ -33,6 +39,7 @@ export async function POST(
         name: admission.childName,
         dateOfBirth: admission.dateOfBirth,
         gender: admission.childGender,
+        notes: admission.notes,
       },
     });
 
@@ -47,11 +54,17 @@ export async function POST(
           email: parentEmail,
           phone: admission.parentPhone,
           whatsapp: admission.parentWhatsapp,
+          education: admission.parentEducation,
+          occupation: admission.parentOccupation,
+          incomeRange: admission.parentIncome,
         },
         update: {
           name: admission.parentName,
           phone: admission.parentPhone,
           whatsapp: admission.parentWhatsapp,
+          education: admission.parentEducation,
+          occupation: admission.parentOccupation,
+          incomeRange: admission.parentIncome,
         },
       });
     } else {
@@ -61,6 +74,9 @@ export async function POST(
           name: admission.parentName,
           phone: admission.parentPhone,
           whatsapp: admission.parentWhatsapp,
+          education: admission.parentEducation,
+          occupation: admission.parentOccupation,
+          incomeRange: admission.parentIncome,
         },
       });
     }
@@ -69,14 +85,14 @@ export async function POST(
       data: {
         studentId: student.id,
         parentId: parent.id,
-        relationship: "WALI",
+        relationship: admission.parentRelationship || "IBU",
         isPrimary: true,
       },
     });
 
     await tx.admission.update({
       where: { id },
-      data: { studentId: student.id, status: "REGISTERED" },
+      data: { studentId: student.id },
     });
 
     return { student };

@@ -11,6 +11,7 @@ import Link from "next/link";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
 import { ArrowLeft, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ------------------------------------------------------------------
 // Types
@@ -39,7 +40,7 @@ type ClassInfo = {
 // ------------------------------------------------------------------
 
 function currentMonday(): string {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayInTimezone("Asia/Jakarta");
   return weekStart(today);
 }
 

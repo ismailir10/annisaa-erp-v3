@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { User, Mail, Phone, Building2, Briefcase, CreditCard, Wallet, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/portal/page-header";
+import { maskBankAccount } from "@/lib/format";
 
 export default async function TeacherProfilePage() {
   const session = await getSession();
@@ -25,7 +26,7 @@ export default async function TeacherProfilePage() {
     { icon: Building2, label: "Kampus", value: employee.campus.name },
     { icon: Mail, label: "Email", value: employee.email },
     { icon: Phone, label: "No. Handphone", value: employee.noHp ?? "—" },
-    { icon: CreditCard, label: "No. Rekening", value: employee.bankAccountNo ? `${employee.bankName} ${employee.bankAccountNo}` : "—" },
+    { icon: CreditCard, label: "No. Rekening", value: employee.bankAccountNo ? `${employee.bankName} ${maskBankAccount(employee.bankAccountNo)}` : "—" },
   ];
 
   return (

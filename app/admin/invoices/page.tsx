@@ -730,7 +730,7 @@ export default function InvoicesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <StatsCardsRow>
+      <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
         <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />
         <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
         <StatCard label="Lunas" value={stats.paid} icon={CheckCircle} color="success" index={2} />
@@ -838,7 +838,19 @@ export default function InvoicesPage() {
 
       {/* Manual single-invoice creation — own component handles Dialog/Sheet
           switch internally and pushes to detail page on success. */}
-      <ManualInvoiceDialog open={manualDialog} onOpenChange={setManualDialog} />
+      <ManualInvoiceDialog
+        open={manualDialog}
+        onOpenChange={setManualDialog}
+        // FIND-012: pre-fix the dialog navigated straight to /admin/invoices/[id]
+        // after create. When the admin clicked back to the list, the client
+        // component re-mounted and re-fetched from scratch, showing the
+        // 0-tagihan skeleton for 3-5s. Wiring onCreated here warms the
+        // list+stats cache *before* nav, so the return trip is instant.
+        onCreated={() => {
+          fetchInvoices();
+          fetchStats();
+        }}
+      />
 
       {/* Generate Dialog (desktop) / Sheet (mobile, side="bottom" — narrow single-column form) */}
       {isMobile ? (

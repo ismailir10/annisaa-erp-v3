@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
+import { maskBankAccount } from "@/lib/format";
 import React from "react";
 
 export async function GET(
@@ -62,7 +63,10 @@ export async function GET(
     position: item.employee.jabatan,
     workingDays: item.payrollRun.actualWorkDays,
     bankName: item.employee.bankName,
-    bankAccountNo: item.employee.bankAccountNo,
+    // Mask before passing into the PDF — defense-in-depth so the raw account
+    // number never enters the rendered PDF bytes (UAT 2026-05-12 teacher
+    // MAJOR — bank account unmasked on profile and PDF).
+    bankAccountNo: item.employee.bankAccountNo ? maskBankAccount(item.employee.bankAccountNo) : null,
     incomeLines: item.lines
       .filter((l) => l.categorySnapshot === "INCOME")
       .map((l) => ({ label: l.labelSnapshot, amount: Number(l.finalAmount) })),
@@ -82,6 +86,9 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="slip-gaji-${item.employee.kode}.pdf"`,
+      // Payroll PDFs contain salary + (now masked) bank info — keep them out
+      // of shared caches (intermediaries, browser disk cache).
+      "Cache-Control": "private, no-store",
     },
   });
 }

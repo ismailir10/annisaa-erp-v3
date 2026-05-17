@@ -17,6 +17,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { BookHeart, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type Assignment = {
   id: string;
@@ -27,7 +28,7 @@ export default function StudentJournalPickerPage() {
   const router = useRouter();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedClass, setSelectedClass] = useState("");
-  const today = new Date().toISOString().split("T")[0];
+  const today = getTodayInTimezone("Asia/Jakarta");
   const [date, setDate] = useState(today);
   const [loading, setLoading] = useState(true);
 

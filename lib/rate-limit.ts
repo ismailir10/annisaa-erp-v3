@@ -29,14 +29,13 @@ export function rateLimit(
 
 /**
  * Extract client identifier from request.
- * Uses X-Forwarded-For (Vercel sets this), falls back to generic key.
+ * Vercel overwrites x-forwarded-for with the client IP at index 0 (spoofing-safe;
+ * Vercel controls the header). Falls back to x-real-ip (Vercel alias), then "anonymous".
  */
 export function getClientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
-  // Use the last entry — Vercel appends the real client IP at the end.
-  // The first entry is user-controlled and can be spoofed.
   return (
-    forwarded?.split(",").at(-1)?.trim() ||
+    forwarded?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
     "anonymous"
   );

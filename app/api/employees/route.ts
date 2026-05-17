@@ -138,15 +138,24 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // F-26: role now comes from validated body (defaults to TEACHER for
-    // back-compat with seed/legacy callers that omit the field).
-    await tx.user.create({
-      data: {
+    // F-26: role from validated body (defaults to TEACHER for legacy callers).
+    // Upsert keyed on the composite (tenantId, email) unique index so HR
+    // onboarding can attach an Employee row to a User that already exists
+    // (preserved auth login, manually invited user, etc.) without hitting
+    // the unique-key conflict.
+    await tx.user.upsert({
+      where: { tenantId_email: { tenantId, email: body.email.trim() } },
+      create: {
         tenantId,
         email: body.email.trim(),
         role: body.role,
         name: body.nama.trim(),
         employeeId: emp.id,
+      },
+      update: {
+        employeeId: emp.id,
+        role: body.role,
+        name: body.nama.trim(),
       },
     });
 

@@ -3,6 +3,37 @@ import { createClient } from "./supabase/server";
 import { prisma } from "./db";
 import { getSystemRolePermissions } from "./permissions";
 
+/**
+ * Backfill Parent.email from a known User.email at session-resolve time.
+ *
+ * Background: F-7 from the 2026-05-13 staging E2E sweep — `Parent.email` is
+ * NULL for every Parent row on staging, while every signed-in guardian has
+ * a non-NULL `User.email`. Auth resolves via User.email; any feature that
+ * reads Parent.email silently breaks for these guardians. T3 ships a one-shot
+ * migration; this hook keeps newly-created or rolled-back records self-healing.
+ *
+ * Invariants:
+ *   - Only writes when `Parent.email IS NULL`. `updateMany` returns count=0
+ *     for already-healed rows; we never overwrite a non-NULL email.
+ *   - Never throws: a failed heal must not block session resolution. Errors
+ *     log to `[AUTH]` and the next signed request retries opportunistically.
+ *   - Caller filters role + presence of `parentId` + presence of `userEmail`,
+ *     so this helper does not re-validate them.
+ */
+export async function selfHealParentEmail(
+  parentId: string,
+  userEmail: string,
+): Promise<void> {
+  try {
+    await prisma.parent.updateMany({
+      where: { id: parentId, email: null },
+      data: { email: userEmail },
+    });
+  } catch (err) {
+    console.error("[AUTH] Parent.email self-heal failed", err);
+  }
+}
+
 // User row shape we cache — includes the optional customRole relation because
 // session resolution needs the role's permission JSON and code on every hit.
 type CachedUser = NonNullable<
@@ -170,6 +201,22 @@ export const isAdminRole = (role: string): boolean =>
   role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN";
 
 /**
+ * Map a session role to its canonical landing route. Used by layout guards
+ * to redirect cross-portal navigations to the user's own home instead of
+ * the login page — "you can't access /admin" should land a teacher on
+ * /teacher, not bounce them through the login form.
+ *
+ * Returns "/" for unknown roles so callers can still fall through to the
+ * login flow when the role isn't recognised.
+ */
+export function homePathForRole(role: string): string {
+  if (role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN") return "/admin";
+  if (role === "TEACHER") return "/teacher";
+  if (role === "GUARDIAN") return "/parent";
+  return "/";
+}
+
+/**
  * Get the current session user.
  * Reads Supabase Auth session, then looks up the Prisma User by email.
  * Auto-creates the Prisma User on first login if employee exists with that email.
@@ -296,11 +343,29 @@ async function _getSession(): Promise<SessionUser | null> {
       user = updated;
     }
 
-    // For guardian users, find their parent ID
+    // For guardian users, find their parent ID + sync display name from
+    // the authoritative Parent row (Parent.name is the source of truth for
+    // guardians; User.name may be stale from a pre-wipe seed or manual
+    // invite). Same pattern for teachers — Employee.nama wins over User.name.
     let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
-    if (user.role === "GUARDIAN" && !parentId) {
-      const parent = await prisma.parent.findFirst({ where: { email: user.email } });
-      parentId = parent?.id ?? null;
+    let displayName: string | null = user.name;
+    if (user.role === "GUARDIAN") {
+      const parent = parentId
+        ? await prisma.parent.findFirst({ where: { id: parentId }, select: { id: true, name: true } })
+        : await prisma.parent.findFirst({ where: { email: user.email }, select: { id: true, name: true } });
+      if (parent) {
+        parentId = parent.id;
+        displayName = parent.name;
+      }
+    } else if (user.role === "TEACHER" && user.employeeId) {
+      const employee = await prisma.employee.findFirst({ where: { id: user.employeeId }, select: { nama: true } });
+      if (employee) displayName = employee.nama;
+    }
+
+    // Self-heal F-7 (cycle 2026-05-13 staging-sweep-majors-cycle1). See
+    // selfHealParentEmail() docstring for behaviour + invariants.
+    if (parentId && user.role === "GUARDIAN" && user.email) {
+      await selfHealParentEmail(parentId, user.email);
     }
 
     // Fallback derivation in the rare case the cache entry wasn't populated
@@ -314,7 +379,7 @@ async function _getSession(): Promise<SessionUser | null> {
       id: user.id,
       email: user.email,
       role: user.role as SessionUser["role"],
-      name: user.name,
+      name: displayName,
       tenantId: user.tenantId,
       employeeId: user.employeeId,
       parentId,
@@ -346,9 +411,18 @@ async function getDemoSession(): Promise<SessionUser | null> {
   if (!user) return null;
 
   let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
-  if (user.role === "GUARDIAN" && !parentId) {
-    const parent = await prisma.parent.findFirst({ where: { email: user.email } });
-    parentId = parent?.id ?? null;
+  let displayName: string | null = user.name;
+  if (user.role === "GUARDIAN") {
+    const parent = parentId
+      ? await prisma.parent.findFirst({ where: { id: parentId }, select: { id: true, name: true } })
+      : await prisma.parent.findFirst({ where: { email: user.email }, select: { id: true, name: true } });
+    if (parent) {
+      parentId = parent.id;
+      displayName = parent.name;
+    }
+  } else if (user.role === "TEACHER" && user.employeeId) {
+    const employee = await prisma.employee.findFirst({ where: { id: user.employeeId }, select: { nama: true } });
+    if (employee) displayName = employee.nama;
   }
 
   const { permissions, customRoleCode } = derivePermissions(user);
@@ -357,7 +431,7 @@ async function getDemoSession(): Promise<SessionUser | null> {
     id: user.id,
     email: user.email,
     role: user.role as SessionUser["role"],
-    name: user.name,
+    name: displayName,
     tenantId: user.tenantId,
     employeeId: user.employeeId,
     parentId,

@@ -14,6 +14,7 @@ import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 // ------------------------------------------------------------------
@@ -31,6 +32,15 @@ type TeachingAssignment = {
     program: { name: string };
     campus: { name: string } | null;
   };
+};
+
+type Employee = { id: string; nama: string; kode: string | null };
+type ClassSection = {
+  id: string;
+  name: string;
+  program: { name: string; code: string };
+  academicYear: { name: string };
+  campus: { name: string };
 };
 
 // ------------------------------------------------------------------
@@ -93,6 +103,12 @@ export default function TeachingAssignmentsPage() {
   const [editRole, setEditRole] = useState<string>("HOMEROOM");
   const [editSaving, setEditSaving] = useState(false);
 
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ employeeId: "", classSectionId: "", role: "HOMEROOM" });
+  const [createSaving, setCreateSaving] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [classSections, setClassSections] = useState<ClassSection[]>([]);
+
   const fetchAssignments = useCallback(async () => {
     setLoading(true);
     try {
@@ -108,6 +124,47 @@ export default function TeachingAssignmentsPage() {
   }, []);
 
   useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
+
+  useEffect(() => {
+    if (!createOpen) return;
+    Promise.all([
+      fetch("/api/employees?status=ACTIVE&pageSize=200").then((r) => r.ok ? r.json() : null),
+      fetch("/api/class-sections?pageSize=200").then((r) => r.ok ? r.json() : null),
+    ]).then(([empJson, csJson]) => {
+      setEmployees(Array.isArray(empJson?.data) ? empJson.data : []);
+      setClassSections(Array.isArray(csJson) ? csJson : csJson?.data ?? []);
+    });
+  }, [createOpen]);
+
+  function openCreate() {
+    setCreateForm({ employeeId: "", classSectionId: "", role: "HOMEROOM" });
+    setCreateOpen(true);
+  }
+
+  async function handleCreateSave() {
+    if (!createForm.employeeId || !createForm.classSectionId) {
+      toast.error("Pilih guru dan kelas");
+      return;
+    }
+    setCreateSaving(true);
+    try {
+      const res = await fetch("/api/teaching-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        toast.error(e.error || "Gagal menyimpan");
+        return;
+      }
+      toast.success("Guru berhasil ditugaskan");
+      setCreateOpen(false);
+      fetchAssignments();
+    } finally {
+      setCreateSaving(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     if (!search) return data;
@@ -182,7 +239,15 @@ export default function TeachingAssignmentsPage() {
 
   return (
     <>
-      <PageHeader title="Guru Pengajar" description={`${data.length} penugasan`} />
+      <PageHeader
+        title="Guru Pengajar"
+        description={`${data.length} penugasan`}
+        actions={
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="size-4" /> Tambah Guru Pengajar
+          </Button>
+        }
+      />
 
       <DataTableToolbar
         searchPlaceholder="Cari guru, kelas, atau program..."
@@ -195,7 +260,7 @@ export default function TeachingAssignmentsPage() {
         defaultSort={{ field: "employee", order: "asc" }}
         loading={loading}
         emptyTitle="Belum ada penugasan guru"
-        emptyDescription="Tambahkan guru ke kelas melalui halaman Tahun Ajaran."
+        emptyDescription="Klik tombol Tambah untuk menugaskan guru ke kelas."
       />
 
       <DeactivateConfirmDialog
@@ -205,6 +270,80 @@ export default function TeachingAssignmentsPage() {
         action="delete"
         onConfirm={handleDelete}
       />
+
+      <ResponsiveFormDialog
+        open={createOpen}
+        onOpenChange={(o) => { setCreateOpen(o); }}
+        title="Tambah Guru Pengajar"
+        description="Pilih guru, kelas, dan peran penugasan."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={createSaving}>
+              Batal
+            </Button>
+            <Button onClick={handleCreateSave} disabled={createSaving}>
+              {createSaving ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-field">
+          <Field>
+            <FieldLabel>Guru</FieldLabel>
+            <Select
+              value={createForm.employeeId}
+              onValueChange={(v) => setCreateForm((f) => ({ ...f, employeeId: v ?? "" }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih guru" />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.nama}{e.kode ? ` (${e.kode})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field>
+            <FieldLabel>Kelas</FieldLabel>
+            <Select
+              value={createForm.classSectionId}
+              onValueChange={(v) => setCreateForm((f) => ({ ...f, classSectionId: v ?? "" }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih kelas" />
+              </SelectTrigger>
+              <SelectContent>
+                {classSections.map((cs) => (
+                  <SelectItem key={cs.id} value={cs.id}>
+                    {cs.program.name} · {cs.name} ({cs.academicYear.name})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field>
+            <FieldLabel>Peran</FieldLabel>
+            <Select
+              value={createForm.role}
+              onValueChange={(v) => v && setCreateForm((f) => ({ ...f, role: v }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </ResponsiveFormDialog>
 
       <ResponsiveFormDialog
         open={!!editTarget}

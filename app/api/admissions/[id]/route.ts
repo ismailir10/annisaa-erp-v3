@@ -5,14 +5,16 @@ import { updateAdmissionSchema } from "@/lib/validations/admission";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Allowed status transitions for the Admission state machine.
-// Terminal states (REGISTERED, CANCELLED) have no outgoing transitions.
+// Terminal state CANCELLED has no outgoing transitions. ADMITTED is terminal
+// in the next-action surface (no NEXT_STATUS entry) but retains the ADMITTED
+// → CANCELLED escape hatch; "converted vs not" is encoded by `studentId`
+// (cycle 2026-05-12 — REGISTERED state dropped, see docs/cycles/2026-05-12-admission-lifecycle-simplification.md).
 // Kept in sync with the ⋮ menu on /admin/admissions.
 const VALID_TRANSITIONS: Record<string, string[]> = {
   INQUIRY: ["VISIT_SCHEDULED", "CANCELLED"],
   VISIT_SCHEDULED: ["VISITED", "CANCELLED"],
   VISITED: ["ADMITTED", "CANCELLED"],
-  ADMITTED: ["REGISTERED", "CANCELLED"],
-  REGISTERED: [],
+  ADMITTED: ["CANCELLED"],
   CANCELLED: [],
 };
 
@@ -28,6 +30,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const parsed = updateAdmissionSchema.safeParse(await req.json());
   if (!parsed.success) {
+    // Log the rejection shape so Vercel runtime logs surface the actual reason
+    // (issues array, not just the 400 envelope). Bodies are not captured by
+    // default; this line is what makes 400s diagnosable without DevTools.
+    console.error(
+      `[admin-admissions PUT] validation failed id=${id}`,
+      JSON.stringify(parsed.error.issues),
+    );
     return NextResponse.json({ error: "Validation failed", issues: parsed.error.issues }, { status: 400 });
   }
   const body = parsed.data;
@@ -35,6 +44,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.status && body.status !== existing.status) {
     const allowed = VALID_TRANSITIONS[existing.status] ?? [];
     if (!allowed.includes(body.status)) {
+      console.error(
+        `[admin-admissions PUT] invalid transition id=${id} from=${existing.status} to=${body.status}`,
+      );
       return NextResponse.json(
         { error: `Invalid status transition from ${existing.status} to ${body.status}` },
         { status: 400 },
@@ -46,8 +58,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     where: { id },
     data: {
       childName: body.childName?.trim() ?? existing.childName,
-      childAge: body.childAge?.trim() ?? existing.childAge,
+      // childAge no longer client-writable — derived from dateOfBirth at display time.
+      // Legacy column value preserved on update (passes through existing.childAge for back-compat).
+      childAge: existing.childAge,
       childGender: body.childGender ?? existing.childGender,
+      dateOfBirth: body.dateOfBirth ?? existing.dateOfBirth,
       parentName: body.parentName?.trim() ?? existing.parentName,
       parentPhone: body.parentPhone?.trim() ?? existing.parentPhone,
       parentWhatsapp: body.parentWhatsapp?.trim() ?? existing.parentWhatsapp,
@@ -57,6 +72,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       status: body.status ?? existing.status,
       notes: body.notes?.trim() ?? existing.notes,
       followUpDate: body.followUpDate ?? existing.followUpDate,
+      parentRelationship: body.parentRelationship ?? existing.parentRelationship,
     },
   });
   return NextResponse.json(admission);
