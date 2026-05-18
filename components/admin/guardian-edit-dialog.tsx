@@ -27,6 +27,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   EDUCATION_OPTIONS,
@@ -51,6 +52,12 @@ export type GuardianForm = {
   employerCity: string;
   childrenTotal: string;
   address: string;
+  // T8: per-StudentGuardian junction fields. Editable only on entry points
+  // that own the student↔guardian link (student detail). On Parent-level
+  // entry points (guardians list, guardian detail) these stay out of the
+  // form via `showRelationship={false}` which also hides the junction row.
+  childOrder: string;
+  isPrimary: boolean;
 };
 
 export const EMPTY_GUARDIAN_FORM: GuardianForm = {
@@ -68,6 +75,8 @@ export const EMPTY_GUARDIAN_FORM: GuardianForm = {
   employerCity: "",
   childrenTotal: "",
   address: "",
+  childOrder: "",
+  isPrimary: false,
 };
 
 export function GuardianFormBody({
@@ -218,6 +227,42 @@ export function GuardianFormBody({
           <Input value={form.employerCity} onChange={(e) => patch({ employerCity: e.target.value })} placeholder="Kota / Kabupaten" />
         </Field>
       </div>
+
+      {/* T8: Junction fields (childOrder + isPrimary) only render on entry
+          points that own the student↔guardian link. Server enforces the
+          single-primary invariant in a serializable transaction. */}
+      {showRelationship && (
+        <>
+          <div className="pt-2 border-t">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Anak</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field>
+              <FieldLabel>Anak ke-</FieldLabel>
+              <Input
+                type="number"
+                min={1}
+                value={form.childOrder}
+                onChange={(e) => patch({ childOrder: e.target.value })}
+                placeholder="1"
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Wali Utama</FieldLabel>
+              <div className="flex items-center gap-3 pt-2">
+                <Switch
+                  checked={form.isPrimary}
+                  onCheckedChange={(checked) => patch({ isPrimary: checked === true })}
+                  aria-label="Tandai sebagai wali utama"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {form.isPrimary ? "Ya — wali utama" : "Bukan wali utama"}
+                </span>
+              </div>
+            </Field>
+          </div>
+        </>
+      )}
     </div>
   );
 }

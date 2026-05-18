@@ -30,6 +30,10 @@ export const updateGuardianSchema = z.object({
   whatsapp: z.string().max(20).optional().nullable(),
   relationship: z.enum(["AYAH", "IBU", "WALI", "OTHER"]).optional(),
   isPrimary: z.boolean().optional(),
+  // T8: per-junction "Anak ke-" position. Coerce so an HTML number input
+  // sending the value as a string lands as Int? on Prisma. Nullable so the
+  // admin can clear the position.
+  childOrder: z.coerce.number().int().min(1).optional().nullable(),
   parentNik: z.string().max(20).optional().nullable(),
   education: z.string().max(100).optional().nullable(),
   occupation: z.string().max(100).optional().nullable(),

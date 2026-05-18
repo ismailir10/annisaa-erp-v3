@@ -348,6 +348,8 @@ export default function StudentDetailPage() {
       employerCity: g.parent.employerCity ?? "",
       childrenTotal: g.parent.childrenTotal != null ? String(g.parent.childrenTotal) : "",
       address: g.parent.address ?? "",
+      childOrder: g.childOrder != null ? String(g.childOrder) : "",
+      isPrimary: g.isPrimary,
     });
     setGuardianDialog(true);
   }
@@ -363,6 +365,10 @@ export default function StudentDetailPage() {
     const payload: Record<string, unknown> = { ...guardianForm };
     if (payload.childrenTotal === "") payload.childrenTotal = null;
     else payload.childrenTotal = Number(payload.childrenTotal);
+    // T8: same coercion for childOrder. Empty → null clears the column;
+    // non-empty → number for the z.coerce.number().int() schema.
+    if (payload.childOrder === "") payload.childOrder = null;
+    else payload.childOrder = Number(payload.childOrder);
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (res.ok) { toast.success(editingGuardian ? "Data wali diperbarui" : "Wali ditambahkan"); setGuardianDialog(false); fetchStudent(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
