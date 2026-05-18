@@ -53,7 +53,7 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
   Update `lib/email/send-slip.ts` line 41 from the IIFE-throw `from: process.env.RESEND_FROM_EMAIL ?? (() => { throw new Error(…) })()` to the early-return pattern used by `admission-submitted.ts` lines 44–50 (read env into `const from`, if missing `console.error` + `return { sent: false, error: "RESEND_FROM_EMAIL not configured" }`, then `resend.emails.send({ from, … })`). The existing outer try/catch was only catching the IIFE throw; after refactor it stays for genuine network exceptions.
   *Acceptance:* `send-slip.ts` no longer contains `throw new Error("RESEND_FROM_EMAIL`; the missing-env path returns `{sent:false, error:"RESEND_FROM_EMAIL not configured"}` without throwing; existing `send-slips/route.ts` consumer already handles `{sent:false, error}` shape (writes EmailLog with `status="FAILED"`).
 
-- [ ] **Task 5 — Fix EmailLog subject mismatch in send-slips route.**
+- [x] **Task 5 — Fix EmailLog subject mismatch in send-slips route.**
   Update `app/api/payroll/[id]/send-slips/route.ts`: extract `const subject = \`Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}\`` once at the top of the per-item loop, use it in both the success-path `prisma.emailLog.create` (currently line 121) AND the catch-path `prisma.emailLog.create` (currently line 146, which uses only `${payroll.periodStart}`). Same string in both audit rows.
   *Acceptance:* grep for `Slip Gaji ${payroll.periodStart}` in the route file finds exactly one definition; both `emailLog.create` calls reference the local `subject` variable; build + tests green.
 
@@ -64,6 +64,7 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
 - Task 2: `lib/email/admission-submitted.ts` + `app/api/admission/submit/route.ts` — added `tenantId` to `SendAdmissionParams`, introduced internal `logAudit(status, error)` helper writing `prisma.emailLog.create` on every return path (simulated→SENT/null, missing-from→FAILED, resend-error→FAILED, resend-throw→FAILED, ok→SENT/null). Audit insert wrapped in its own try/catch so DB failure cannot mutate the route's 201 response contract. Route call site threads the already-resolved `tenantId`.
 - Task 3: `lib/email/__tests__/escape.test.ts` — added `admissionSubmittedEmailHtml — XSS hardening` describe block with two cases (`<script>` in childName, `<img onerror>` in parentName) mirroring the salary-slip block. Per-field isolation gives independent evidence that both params are wired through `escapeHtml`.
 - Task 4: `lib/email/send-slip.ts` — replaced IIFE-throw inside `resend.emails.send` arg with explicit `const from = …; if (!from) { console.error; return … }` early-return mirroring `admission-submitted.ts`. Error message normalized to `"RESEND_FROM_EMAIL not configured"`. Outer try/catch retained — still load-bearing for network throws + API errors.
+- Task 5: `app/api/payroll/[id]/send-slips/route.ts` — extracted `const subject = \`Slip Gaji ${periodStart} - ${periodEnd}\`` once per loop iteration; both success and catch `emailLog.create` calls now write identical subject strings (previously catch dropped `periodEnd`, making audit rows inconsistent).
 
 ## Verification
 
@@ -71,6 +72,7 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
 - Task 2: gates passed (build + vitest run, 1666 passed). `feature-dev:code-reviewer` + `superpowers:code-reviewer` (security pass, route.ts is public unauth surface) both clean. Verified: tenantId definitely-assigned before email block (route.ts:51-66 returns 500 if no ACTIVE tenant); logAudit try/catch isolates DB failures from return contract; only validated email + hardcoded subject/template flow into EmailLog (no user-string log poisoning); duplicate-row on retry is desired audit semantics, not a defect.
 - Task 3: gates passed (build + vitest run, 1668 passed; +2 new cases). `feature-dev:code-reviewer` clean — positive `.toContain("&lt;…")` assertions prove escape was invoked, not that payload was silently dropped.
 - Task 4: gates passed (build + vitest run, 1668 passed). `feature-dev:code-reviewer` clean — grep confirmed zero codebase references to old error string `"RESEND_FROM_EMAIL not set — configure a verified domain"`; outer try/catch retained for genuine network exceptions; log-prefix change `[EMAIL EXCEPTION] → [EMAIL]` for the missing-env path is intentional (config error, not runtime exception) and no log-scraping depends on the old prefix.
+- Task 5: gates passed (build + vitest run, 1668 passed). `feature-dev:code-reviewer` + `superpowers:code-reviewer` both clean — fresh `const` binding per iteration, no tenant-isolation change, audit-integrity improved (catch row now byte-identical to success row for same iteration), no test depends on the old truncated subject string.
 
 ## Ship Notes
 <!-- filled by /ship -->
