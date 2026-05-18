@@ -113,7 +113,7 @@ Intended outcome: every datum the admission flow or admin entry can write must b
       - `admin-guardian-primary-invariant.spec.ts` — toggle primary on two-guardian student, assert single-primary invariant.
       - `admin-guardian-document-upload.spec.ts` — upload KTP + KK on guardian detail, assert persisted + previewable. Open Student detail, assert KK preview resolves via primary guardian.
 
-- [ ] **T13 — Prisma migration: `Parent.ktpUrl` + `Parent.kkUrl`** *(I)*
+- [x] **T13 — Prisma migration: `Parent.ktpUrl` + `Parent.kkUrl`** *(I)*
       Add nullable `String?` columns `ktpUrl` and `kkUrl` to `Parent` in [prisma/schema.prisma:550](prisma/schema.prisma). Generate migration via `npx prisma migrate dev --name parent-ktp-kk-urls`. Verify migration is additive-only (no data loss, zero downtime). Update [prisma/seed.ts](prisma/seed.ts) so seeded demo parents leave both fields null (no fake URLs).
       *Acceptance:* `npx prisma migrate dev` runs clean. `Parent` rows persist NULL for new fields. `npm run build && npx vitest run` passes.
 
@@ -127,11 +127,12 @@ Intended outcome: every datum the admission flow or admin entry can write must b
 
 ## Implementation
 
-<!-- /build fills this -->
+- Subagent plan: T1 + T13 dispatched in parallel (no file overlap — T1 touches `lib/constants/` + page files; T13 touches `prisma/`). Then T3 + T4 + T5 sequential against `app/admin/students/[id]/page.tsx`. Then T2 + T7 + T9 + T14. Then T6 + T8 + T10 + T11 + T15. Then T12 E2E.
+- T13: `prisma/schema.prisma` (+4 lines, Parent model `ktpUrl String?` + `kkUrl String?` under "Document scans" comment block), `prisma/migrations/20260518000000_parent_ktp_kk_urls/migration.sql` (new, 2× `ALTER TABLE "Parent" ADD COLUMN ... TEXT`). Additive-only, nullable, zero-downtime. `prisma/seed.ts` untouched — existing `parent.create` calls omit both fields → default NULL. Reviewer (feature-dev:code-reviewer): clean, no blockers.
 
 ## Verification
 
-<!-- /build fills this -->
+- T13: `npm run build && npx vitest run` → build clean, vitest `Test Files 176 passed | 2 skipped (178), Tests 1668 passed | 42 todo (1710)`. Migration scaffolded via `prisma migrate diff` fallback (shadow DB has pre-existing unrelated failure on `20260415_enable_rls`); SQL hand-verified against schema diff.
 
 ## Ship Notes
 

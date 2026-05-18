@@ -568,6 +568,10 @@ model Parent {
   incomeRange     String? // "< 1jt" | "1-2jt" | "3-5jt" | "5-10jt" | "7-10jt" | "> 10jt"
   childrenTotal   Int? // Total anak (including non-students at this school)
 
+  // Document scans (auth-proxy storage tokens)
+  ktpUrl String? // KTP scan
+  kkUrl  String? // Family card (KK) scan
+
   tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   guardians          StudentGuardian[]
   invoices           Invoice[]
