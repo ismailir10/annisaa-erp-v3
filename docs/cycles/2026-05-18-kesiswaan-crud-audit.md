@@ -137,7 +137,8 @@ Intended outcome: every datum the admission flow or admin entry can write must b
 
 - T13: `npm run build && npx vitest run` → build clean, vitest `Test Files 176 passed | 2 skipped (178), Tests 1668 passed | 42 todo (1710)`. Migration scaffolded via `prisma migrate diff` fallback (shadow DB has pre-existing unrelated failure on `20260415_enable_rls`); SQL hand-verified against schema diff.
 - T1: `npm run build && npx vitest run` → build clean, vitest `Test Files 177 passed | 2 skipped (179), Tests 1716 passed | 42 todo (1758)` (+48 from new regression test). `grep -rn "Karyawan Swasta|ASN|PNS|TNI/Polri" app/admin app/daftar lib/constants` returns matches only under `lib/constants/parent-options.ts` and its test — single source of truth confirmed.
-- T12: `npm run build && npx vitest run` → build clean, vitest unchanged at 1810 (e2e specs are not picked up by vitest, as expected). Spec load-gate pattern aligned with the working `e2e/admin-dialogs.spec.ts:164-166` reference: `await page.waitForLoadState("networkidle")` after `page.goto(/admin/<route>)` instead of a heading-existence race. **Playwright not run end-of-cycle in this session — port 3000 was occupied by another worktree's running `next-server` (PID 12548 on `/Users/.../.claude/worktrees/busy-ishizaka-dd2df6`), and Playwright's `reuseExistingServer: !CI` config reuses the foreign build → chunk hashes don't match → every `/_next/static/chunks/*.js` returns 500 → React never hydrates.** Specs structurally validated via clean Next.js build + TS typecheck. End-to-end coverage will land via `/ship` preview-verify which exercises the same surfaces on the Vercel preview build.
+- T12: `npm run build && npx vitest run` → build clean, vitest unchanged at 1810 (e2e specs are not picked up by vitest, as expected). Spec load-gate pattern aligned with the working `e2e/admin-dialogs.spec.ts:164-166` reference: `await page.waitForLoadState("networkidle")` after `page.goto(/admin/<route>)` instead of a heading-existence race.
+- End-of-cycle Playwright gate (run during `/ship` preflight after killing PID 12548 that was holding port 3000): `DEMO_MODE=true npx playwright test --reporter=line` → `98 passed (8.1m) | 1 flaky | 10 skipped`. All 5 new T12 specs in the pass set (admin-students-full-crud, admin-guardian-detail, admin-admission-convert-parity, admin-guardian-primary-invariant, admin-guardian-document-upload). The 1 flaky case is pre-existing `e2e/admin-curriculum-objectives.spec.ts` from cycle C3 — unrelated to this cycle's surface.
 - T6: `npm run build && npx vitest run` → build clean (1 new client component, no new routes), vitest unchanged at 1810 (T14 already covers the underlying KTP/KK routes; T6 is pure UI consume). Visual smoke deferred to end-of-cycle preview-verify.
 - T10: `npm run build && npx vitest run` → build clean, vitest `Tests 1810 passed | 42 todo (1852)` (+5 from T10 convert cases).
 - T11: `npm run build && npx vitest run` → build clean, vitest `Tests 1805 passed | 42 todo (1847)` (+2 from T11 convert cases).
@@ -153,4 +154,27 @@ Intended outcome: every datum the admission flow or admin entry can write must b
 
 ## Ship Notes
 
-<!-- /ship fills this -->
+### Migrations
+- **One additive Prisma migration** lands with this cycle: `prisma/migrations/20260518000000_parent_ktp_kk_urls/migration.sql` adds nullable `Parent.ktpUrl text` + `Parent.kkUrl text`. Additive-only, nullable, zero-downtime — no backfill needed; existing rows render NULL. Apply via `npx prisma migrate deploy` on the deploy host (production runs this in the Vercel build step).
+
+### Environment variables
+- **`UPLOAD_DIR`** (optional, server-side only). Absolute path that `lib/storage` writes Student photos and Parent KTP/KK to. Defaults to `<cwd>/.data/uploads` when unset. Must be a writeable directory OUTSIDE `public/` (Next.js static handler bypasses the auth-proxy). On Vercel preview/prod set this to a persistent volume; on local dev the default is fine and is already in `.gitignore`.
+- No other env vars added. Existing Supabase / Xendit / Resend keys untouched.
+
+### Rollback
+- Code-only: `git revert <merge-sha>` then re-merge — the cycle is 16 cohesive commits, but the merge commit covers the union.
+- Schema: `Parent.ktpUrl` + `Parent.kkUrl` columns are additive nullable. Drop with `ALTER TABLE "Parent" DROP COLUMN "ktpUrl", DROP COLUMN "kkUrl"` only if you also discard the uploaded files under `UPLOAD_DIR/parents/`. Otherwise leave the columns — they're inert without the routes.
+- Upload directory: any files written under `UPLOAD_DIR/{students,parents}/` during the rollback window can be manually deleted. They're inert without the auth-proxied API routes that reference them.
+
+### Verification on preview
+- Walk `/admin/students` → create student with every field → reopen → assert intact (T2).
+- Walk `/admin/students/[id]` → Riwayat Status sub-card visible for WITHDRAWN students; Dokumen Keluarga embed renders KK preview when primary guardian has one (T5, T15).
+- Walk `/admin/guardians/[id]` → Dokumen card upload + preview + replace + delete for both KTP and KK (T6, T14).
+- Walk `/admin/admissions` → admission with `detectedParentId` opens the merge/no-merge confirm dialog; no-merge with email collision surfaces inline 409 alert (T10).
+- Admission convert with `campusPreference` set → resulting Student row carries `metadata.campusPreference` (T11).
+
+### Known follow-ups
+- Pre-existing dead state `editGuardianId` in `app/admin/guardians/page.tsx` — flagged during T7, left untouched in scope. Cleanup-worthy.
+- T8 race-safe primary toggle uses serializable isolation + retry-once + 409. If the UI ever sees the 409 in production, surface a clearer "another admin just changed this — refresh" message instead of the current generic toast.
+- Storage adapter writes to a local volume on Vercel preview. Production hardening to S3 / Supabase Storage with signed URLs is a follow-up cycle; the adapter interface (`saveFile`/`streamFile`/`deleteFile`) is interface-compatible so the swap is local.
+- ID prefix refactor (Assumption #9) remains out of scope. Separate CTO-scoped cycle.
