@@ -462,6 +462,12 @@ export default function AdmissionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAdmission, setEditingAdmission] = useState<Admission | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
+  // T10: convert-confirm + email-conflict UI state.
+  const [convertTarget, setConvertTarget] = useState<Admission | null>(null);
+  const [emailConflict, setEmailConflict] = useState<{
+    message: string;
+    conflictingParentName: string | null;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     childName: "",
@@ -545,15 +551,54 @@ export default function AdmissionsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  async function convertToStudent(admissionId: string) {
-    const res = await fetch(`/api/admissions/${admissionId}/convert`, { method: "POST" });
+  // T10: when an admission has a sibling-detect match, intercept Convert with
+  // a confirmation dialog (state below). For admissions without detection the
+  // direct path runs unchanged. The runConvert helper does the actual POST so
+  // both call sites + the dialog confirm action route through one place.
+  async function runConvert(admissionId: string, mergeWithDetected: boolean) {
+    const res = await fetch(`/api/admissions/${admissionId}/convert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mergeWithDetected }),
+    });
     if (res.ok) {
-      toast.success("Dikonversi menjadi siswa");
-      fetchAdmissions(); fetchStats();
-    } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal konversi");
+      toast.success(
+        mergeWithDetected ? "Dikonversi menjadi siswa" : "Dikonversi tanpa menggabungkan",
+      );
+      setConvertTarget(null);
+      setEmailConflict(null);
+      fetchAdmissions();
+      fetchStats();
+      return;
     }
+    if (res.status === 409) {
+      const d = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        conflictingParentName?: string;
+        message?: string;
+      };
+      if (d.error === "EMAIL_CONFLICT") {
+        setEmailConflict({
+          message:
+            d.message ??
+            "Email orang tua sudah terdaftar. Pilih Gabungkan atau hapus email pendaftaran.",
+          conflictingParentName: d.conflictingParentName ?? null,
+        });
+        return;
+      }
+    }
+    const d = await res.json().catch(() => ({}));
+    toast.error(d.error || "Gagal konversi");
+  }
+
+  function convertToStudent(a: Admission) {
+    if (a.detectedParentId) {
+      setConvertTarget(a);
+      setEmailConflict(null);
+      return;
+    }
+    // No detection → preserve the pre-T10 one-click behaviour (auto-merge).
+    void runConvert(a.id, true);
   }
 
   async function handleSubmit() {
@@ -776,7 +821,7 @@ export default function AdmissionsPage() {
           extras.push({
             label: "Konversi ke Siswa",
             icon: <UserPlus size={14} />,
-            onClick: () => convertToStudent(a.id),
+            onClick: () => convertToStudent(a),
           });
         }
         return (
@@ -911,6 +956,72 @@ export default function AdmissionsPage() {
         action="cancel"
         onConfirm={handleCancel}
       />
+
+      {/* T10: sibling-detect confirmation dialog — only opens when admission
+          has detectedParentId. Three actions: Merge (default, link to existing
+          parent), Convert without merging (new Parent), Cancel. Email-conflict
+          on no-merge surfaces inline via emailConflict state. */}
+      <Dialog
+        open={!!convertTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setConvertTarget(null);
+            setEmailConflict(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Konversi ke Siswa</DialogTitle>
+          </DialogHeader>
+          {convertTarget && (
+            <div className="space-y-4">
+              <p className="text-sm">
+                Pendaftar <strong>{convertTarget.childName}</strong> terdeteksi sebagai saudara dari keluarga{" "}
+                <strong>{convertTarget.detectedParent?.name ?? "(tidak diketahui)"}</strong>.
+              </p>
+              {convertTarget.detectedParent?.guardians?.length ? (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Anak terdaftar di keluarga ini:</p>
+                  <ul className="text-sm list-disc pl-5">
+                    {convertTarget.detectedParent.guardians.map((g, i) => (
+                      <li key={i}>{g.student.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {emailConflict && (
+                <Alert className="border-destructive/40 bg-destructive/10 text-destructive">
+                  <AlertDescription>
+                    {emailConflict.message}
+                    {emailConflict.conflictingParentName ? ` (Parent: ${emailConflict.conflictingParentName})` : ""}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <p className="text-xs text-muted-foreground">
+                <strong>Gabungkan</strong>: tautkan siswa baru ke wali yang sudah ada (rekomendasi).<br />
+                <strong>Konversi tanpa gabung</strong>: buat wali baru terpisah meski email cocok.
+              </p>
+            </div>
+          )}
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <DialogClose>
+              <Button variant="ghost">Batal</Button>
+            </DialogClose>
+            <Button
+              variant="outline"
+              onClick={() => convertTarget && void runConvert(convertTarget.id, false)}
+            >
+              Konversi tanpa gabung
+            </Button>
+            <Button
+              onClick={() => convertTarget && void runConvert(convertTarget.id, true)}
+            >
+              Gabungkan dengan wali
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

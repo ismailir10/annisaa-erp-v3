@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const {
   admissionFindUnique,
+  parentFindUnique,
   studentCreate,
   parentUpsert,
   parentCreate,
@@ -10,6 +11,9 @@ const {
   admissionUpdate,
 } = vi.hoisted(() => ({
   admissionFindUnique: vi.fn(),
+  // T10: pre-tx email-conflict gate calls prisma.parent.findUnique outside
+  // the transaction.
+  parentFindUnique: vi.fn(),
   studentCreate: vi.fn(),
   parentUpsert: vi.fn(),
   parentCreate: vi.fn(),
@@ -20,6 +24,7 @@ const {
 vi.mock("@/lib/db", () => ({
   prisma: {
     admission: { findUnique: admissionFindUnique },
+    parent: { findUnique: parentFindUnique },
     $transaction: vi.fn((fn: (tx: Record<string, unknown>) => unknown) =>
       fn({
         student: { create: studentCreate },
@@ -72,6 +77,7 @@ function makeAdmission(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  parentFindUnique.mockResolvedValue(null);
   studentCreate.mockResolvedValue({ id: "stu-1" });
   parentUpsert.mockResolvedValue({ id: "par-1" });
   parentCreate.mockResolvedValue({ id: "par-1" });
@@ -192,5 +198,76 @@ describe("POST /api/admissions/[id]/convert — campusPreference stash (T11)", (
         data: expect.objectContaining({ metadata: null }),
       }),
     );
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T10 — sibling-detect confirmation + email-conflict handling
+// ──────────────────────────────────────────────────────────────────────────
+
+function postReq(body: unknown) {
+  return new NextRequest("http://localhost/api/admissions/adm-1/convert", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+describe("POST /api/admissions/[id]/convert — sibling-detect + email-conflict (T10)", () => {
+  it("default (no body) auto-merges via parent.upsert — preserves pre-T10 behaviour", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const res = await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
+    expect(res.status).toBe(200);
+    expect(parentUpsert).toHaveBeenCalledTimes(1);
+    expect(parentCreate).not.toHaveBeenCalled();
+  });
+
+  it("mergeWithDetected=true routes through parent.upsert", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    const res = await POST(postReq({ mergeWithDetected: true }), { params: Promise.resolve({ id: "adm-1" }) });
+    expect(res.status).toBe(200);
+    expect(parentUpsert).toHaveBeenCalledTimes(1);
+    expect(parentCreate).not.toHaveBeenCalled();
+  });
+
+  it("mergeWithDetected=false (no email conflict) routes through parent.create with the email preserved", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    parentFindUnique.mockResolvedValue(null);
+    const res = await POST(postReq({ mergeWithDetected: false }), { params: Promise.resolve({ id: "adm-1" }) });
+    expect(res.status).toBe(200);
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(parentCreate).toHaveBeenCalledTimes(1);
+    expect(parentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: "fatimah@test.com",
+          name: "Ibu Fatimah",
+        }),
+      }),
+    );
+  });
+
+  it("mergeWithDetected=false + email collides → 409 EMAIL_CONFLICT with actionable payload", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    parentFindUnique.mockResolvedValue({ id: "par-existing", name: "Ibu Fatimah Asli" });
+    const res = await POST(postReq({ mergeWithDetected: false }), { params: Promise.resolve({ id: "adm-1" }) });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe("EMAIL_CONFLICT");
+    expect(body.conflictingParentId).toBe("par-existing");
+    expect(body.conflictingParentName).toBe("Ibu Fatimah Asli");
+    // No DB writes happen on the conflict path.
+    expect(parentCreate).not.toHaveBeenCalled();
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(studentCreate).not.toHaveBeenCalled();
+  });
+
+  it("mergeWithDetected=false skips the email-conflict gate when admission has no email", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ parentEmail: null }));
+    const res = await POST(postReq({ mergeWithDetected: false }), { params: Promise.resolve({ id: "adm-1" }) });
+    expect(res.status).toBe(200);
+    expect(parentFindUnique).not.toHaveBeenCalled();
+    expect(parentCreate).toHaveBeenCalledTimes(1);
   });
 });
