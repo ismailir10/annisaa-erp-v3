@@ -32,7 +32,9 @@ export async function PUT(
   if (result.error) return result.error;
   const body = result.data;
 
-  // Update parent contact fields
+  // Update parent contact fields. `address` and `childrenTotal` were silently
+  // dropped before T7 — the unified GuardianForm now passes them through, and
+  // updateGuardianSchema already permits both.
   await prisma.parent.update({
     where: { id: guardian.parentId },
     data: {
@@ -47,6 +49,10 @@ export async function PUT(
       employerAddress: body.employerAddress !== undefined ? (body.employerAddress?.trim() || null) : undefined,
       employerCity: body.employerCity !== undefined ? (body.employerCity?.trim() || null) : undefined,
       incomeRange: body.incomeRange !== undefined ? (body.incomeRange?.trim() || null) : undefined,
+      address: body.address !== undefined ? (body.address?.trim() || null) : undefined,
+      // childrenTotal is z.coerce.number() in the schema — arrives as a
+      // number (not a string), so no trim.
+      childrenTotal: body.childrenTotal !== undefined ? body.childrenTotal : undefined,
     },
   });
 

@@ -5,23 +5,16 @@ import Link from "next/link";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { ArrowLeft, Mail, Phone, MapPin, Briefcase, User, Building, GraduationCap, Wallet, Users, FileText, Baby, Pencil, X, Save } from "lucide-react";
 import { toast } from "sonner";
-import {
-  EDUCATION_OPTIONS,
-  OCCUPATION_OPTIONS,
-  INCOME_OPTIONS,
-  REL_LABELS,
-} from "@/lib/constants/parent-options";
+import { REL_LABELS } from "@/lib/constants/parent-options";
+import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 
 // ------------------------------------------------------------------
 // Types
@@ -60,22 +53,6 @@ type ParentDetail = {
   }[];
 };
 
-type EditForm = {
-  name: string;
-  email: string;
-  phone: string;
-  whatsapp: string;
-  address: string;
-  parentNik: string;
-  education: string;
-  occupation: string;
-  employer: string;
-  employerAddress: string;
-  employerCity: string;
-  incomeRange: string;
-  childrenTotal: string;
-};
-
 // ------------------------------------------------------------------
 // Constants
 // ------------------------------------------------------------------
@@ -91,11 +68,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
 
   // Edit toggle
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<EditForm>({
-    name: "", email: "", phone: "", whatsapp: "", address: "",
-    parentNik: "", education: "", occupation: "", employer: "",
-    employerAddress: "", employerCity: "", incomeRange: "", childrenTotal: "",
-  });
+  const [editForm, setEditForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
   const [saving, setSaving] = useState(false);
 
   const fetchParent = useCallback(async () => {
@@ -113,6 +86,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   function startEditing() {
     if (!parent) return;
     setEditForm({
+      ...EMPTY_GUARDIAN_FORM,
       name: parent.name,
       email: parent.email ?? "",
       phone: parent.phone ?? "",
@@ -199,49 +173,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
         </div>
 
         {isEditing ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field><FieldLabel required>Nama Lengkap</FieldLabel><Input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></Field>
-            <Field><FieldLabel>Email</FieldLabel><Input type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} /></Field>
-            <Field><FieldLabel>Telepon</FieldLabel><Input value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></Field>
-            <Field><FieldLabel>WhatsApp</FieldLabel><Input value={editForm.whatsapp} onChange={e => setEditForm({ ...editForm, whatsapp: e.target.value })} /></Field>
-            <Field className="sm:col-span-2"><FieldLabel>Alamat</FieldLabel><Input value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} /></Field>
-            <Field><FieldLabel>NIK</FieldLabel><Input value={editForm.parentNik} onChange={e => setEditForm({ ...editForm, parentNik: e.target.value })} placeholder="Nomor Induk Kependudukan" /></Field>
-            <Field><FieldLabel>Jumlah Anak</FieldLabel><Input type="number" min={0} value={editForm.childrenTotal} onChange={e => setEditForm({ ...editForm, childrenTotal: e.target.value })} /></Field>
-
-            <div className="sm:col-span-2 mt-2 border-t pt-4">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Pekerjaan</p>
-            </div>
-            <Field>
-              <FieldLabel>Pendidikan</FieldLabel>
-              <Select value={editForm.education || undefined} onValueChange={v => setEditForm({ ...editForm, education: v ?? "" })}>
-                <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                <SelectContent>
-                  {EDUCATION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Pekerjaan</FieldLabel>
-              <Select value={editForm.occupation || undefined} onValueChange={v => setEditForm({ ...editForm, occupation: v ?? "" })}>
-                <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                <SelectContent>
-                  {OCCUPATION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Penghasilan</FieldLabel>
-              <Select value={editForm.incomeRange || undefined} onValueChange={v => setEditForm({ ...editForm, incomeRange: v ?? "" })}>
-                <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                <SelectContent>
-                  {INCOME_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field><FieldLabel>Tempat Kerja</FieldLabel><Input value={editForm.employer} onChange={e => setEditForm({ ...editForm, employer: e.target.value })} /></Field>
-            <Field><FieldLabel>Alamat Kantor</FieldLabel><Input value={editForm.employerAddress} onChange={e => setEditForm({ ...editForm, employerAddress: e.target.value })} /></Field>
-            <Field><FieldLabel>Kota/Kab</FieldLabel><Input value={editForm.employerCity} onChange={e => setEditForm({ ...editForm, employerCity: e.target.value })} /></Field>
-          </div>
+          <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-4">

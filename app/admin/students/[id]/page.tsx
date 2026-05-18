@@ -25,16 +25,13 @@ import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Tras
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import {
-  EDUCATION_OPTIONS,
-  OCCUPATION_OPTIONS,
-  INCOME_OPTIONS,
-  RELATIONSHIP_OPTIONS,
   LIVING_WITH_OPTIONS,
   REL_LABELS,
   LIVING_WITH_LABELS,
 } from "@/lib/constants/parent-options";
+import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 
-type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null } };
+type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null } };
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
@@ -96,7 +93,7 @@ export default function StudentDetailPage() {
   // Guardian dialog
   const [guardianDialog, setGuardianDialog] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<Guardian | null>(null);
-  const [guardianForm, setGuardianForm] = useState({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "" });
+  const [guardianForm, setGuardianForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
 
@@ -330,13 +327,28 @@ export default function StudentDetailPage() {
   // --- Guardian CRUD ---
   function openAddGuardian() {
     setEditingGuardian(null);
-    setGuardianForm({ name: "", relationship: "WALI", phone: "", email: "", whatsapp: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "" });
+    setGuardianForm(EMPTY_GUARDIAN_FORM);
     setGuardianDialog(true);
   }
 
   function openEditGuardian(g: Guardian) {
     setEditingGuardian(g);
-    setGuardianForm({ name: g.parent.name, relationship: g.relationship, phone: g.parent.phone ?? "", email: g.parent.email ?? "", whatsapp: g.parent.whatsapp ?? "", parentNik: g.parent.nik ?? "", education: g.parent.education ?? "", occupation: g.parent.occupation ?? "", employer: g.parent.employer ?? "", employerAddress: g.parent.employerAddress ?? "", employerCity: g.parent.employerCity ?? "", incomeRange: g.parent.incomeRange ?? "" });
+    setGuardianForm({
+      name: g.parent.name,
+      relationship: g.relationship,
+      phone: g.parent.phone ?? "",
+      whatsapp: g.parent.whatsapp ?? "",
+      email: g.parent.email ?? "",
+      parentNik: g.parent.nik ?? "",
+      education: g.parent.education ?? "",
+      occupation: g.parent.occupation ?? "",
+      incomeRange: g.parent.incomeRange ?? "",
+      employer: g.parent.employer ?? "",
+      employerAddress: g.parent.employerAddress ?? "",
+      employerCity: g.parent.employerCity ?? "",
+      childrenTotal: g.parent.childrenTotal != null ? String(g.parent.childrenTotal) : "",
+      address: g.parent.address ?? "",
+    });
     setGuardianDialog(true);
   }
 
@@ -345,7 +357,13 @@ export default function StudentDetailPage() {
     setSavingGuardian(true);
     const url = editingGuardian ? `/api/students/${id}/guardians/${editingGuardian.id}` : `/api/students/${id}/guardians`;
     const method = editingGuardian ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(guardianForm) });
+    // childrenTotal is a string in the form (Input value) but the schema
+    // coerces — send "" as null so the schema's optional/nullable path fires
+    // rather than coercing the empty string to NaN.
+    const payload: Record<string, unknown> = { ...guardianForm };
+    if (payload.childrenTotal === "") payload.childrenTotal = null;
+    else payload.childrenTotal = Number(payload.childrenTotal);
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (res.ok) { toast.success(editingGuardian ? "Data wali diperbarui" : "Wali ditambahkan"); setGuardianDialog(false); fetchStudent(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
     setSavingGuardian(false);
@@ -886,76 +904,9 @@ export default function StudentDetailPage() {
         </AdminTabsContent>
       </AdminTabs>
 
-      {/* ---------- Guardian form body (shared) ---------- */}
+      {/* ---------- Guardian form body (shared via GuardianFormBody) ---------- */}
       {(() => {
-        const guardianBody = (
-          <div className="space-y-field">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field><FieldLabel required>Nama</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
-              <Field>
-                <FieldLabel>Hubungan</FieldLabel>
-                <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })} items={REL_LABELS}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {RELATIONSHIP_OPTIONS.map(o => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field><FieldLabel>No. HP</FieldLabel><Input value={guardianForm.phone} onChange={e => setGuardianForm({ ...guardianForm, phone: e.target.value })} placeholder="081234567890" /></Field>
-              <Field><FieldLabel>WhatsApp</FieldLabel><Input value={guardianForm.whatsapp} onChange={e => setGuardianForm({ ...guardianForm, whatsapp: e.target.value })} placeholder="081234567890" /></Field>
-            </div>
-            <Field><FieldLabel>Email</FieldLabel><Input type="email" value={guardianForm.email} onChange={e => setGuardianForm({ ...guardianForm, email: e.target.value })} placeholder="email@example.com" /></Field>
-
-            <div className="pt-2 border-t"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Pekerjaan</p></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>Pendidikan</FieldLabel>
-                <Select value={guardianForm.education || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, education: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    {EDUCATION_OPTIONS.map(o => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Pekerjaan</FieldLabel>
-                <Select value={guardianForm.occupation || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, occupation: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    {OCCUPATION_OPTIONS.map(o => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>Penghasilan</FieldLabel>
-                <Select value={guardianForm.incomeRange || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, incomeRange: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    {INCOME_OPTIONS.map(o => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field><FieldLabel>NIK</FieldLabel><Input value={guardianForm.parentNik} onChange={e => setGuardianForm({ ...guardianForm, parentNik: e.target.value })} placeholder="NIK orang tua" /></Field>
-            </div>
-            <Field><FieldLabel>Tempat Kerja</FieldLabel><Input value={guardianForm.employer} onChange={e => setGuardianForm({ ...guardianForm, employer: e.target.value })} placeholder="Nama perusahaan / instansi" /></Field>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field><FieldLabel>Alamat Kantor</FieldLabel><Input value={guardianForm.employerAddress} onChange={e => setGuardianForm({ ...guardianForm, employerAddress: e.target.value })} placeholder="Alamat kantor" /></Field>
-              <Field><FieldLabel>Kota/Kab</FieldLabel><Input value={guardianForm.employerCity} onChange={e => setGuardianForm({ ...guardianForm, employerCity: e.target.value })} placeholder="Kota / Kabupaten" /></Field>
-            </div>
-          </div>
-        );
+        const guardianBody = <GuardianFormBody form={guardianForm} setForm={setGuardianForm} />;
         const guardianTitle = editingGuardian ? "Edit Wali" : "Tambah Wali";
         // side="right" on mobile: multi-section form (name/contact + pekerjaan subsection, 9 fields)
         // benefits from full-height surface; bottom sheet would only show ~30% before scroll.

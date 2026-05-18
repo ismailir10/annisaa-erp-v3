@@ -13,21 +13,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
-import {
-  EDUCATION_OPTIONS,
-  OCCUPATION_OPTIONS,
-  INCOME_OPTIONS,
-} from "@/lib/constants/parent-options";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Users, UserCheck, UserX } from "lucide-react";
+import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 
 // ------------------------------------------------------------------
 // Types
@@ -94,92 +87,6 @@ const columns: ColumnDef<Guardian>[] = [
 // Page
 // ------------------------------------------------------------------
 
-// ------------------------------------------------------------------
-// Shared form body — reused by Dialog (desktop) + Sheet (mobile)
-// ------------------------------------------------------------------
-
-type GuardianEditForm = {
-  name: string;
-  email: string;
-  phone: string;
-  whatsapp: string;
-  address: string;
-  parentNik: string;
-  education: string;
-  occupation: string;
-  employer: string;
-  employerAddress: string;
-  employerCity: string;
-  incomeRange: string;
-  childrenTotal: string;
-};
-
-function GuardianEditFormBody({
-  form,
-  setForm,
-}: {
-  form: GuardianEditForm;
-  setForm: (v: GuardianEditForm) => void;
-}) {
-  return (
-    <div className="space-y-field">
-      <Field><FieldLabel required>Nama</FieldLabel><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field><FieldLabel>Email</FieldLabel><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-        <Field><FieldLabel>Telepon</FieldLabel><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field><FieldLabel>WhatsApp</FieldLabel><Input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} /></Field>
-        <Field><FieldLabel>NIK</FieldLabel><Input value={form.parentNik} onChange={(e) => setForm({ ...form, parentNik: e.target.value })} /></Field>
-      </div>
-      <Field><FieldLabel>Alamat</FieldLabel><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field>
-
-      <div className="border-t pt-4 mt-4">
-        <p className="text-sm font-medium text-muted-foreground mb-3">Data Pekerjaan</p>
-        <div className="space-y-field">
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel>Pendidikan</FieldLabel>
-              <Select value={form.education} onValueChange={(v) => setForm({ ...form, education: v ?? "" })}>
-                <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                <SelectContent>
-                  {EDUCATION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Pekerjaan</FieldLabel>
-              <Select value={form.occupation} onValueChange={(v) => setForm({ ...form, occupation: v ?? "" })}>
-                <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                <SelectContent>
-                  {OCCUPATION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel>Penghasilan</FieldLabel>
-              <Select value={form.incomeRange} onValueChange={(v) => setForm({ ...form, incomeRange: v ?? "" })}>
-                <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                <SelectContent>
-                  {INCOME_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field><FieldLabel>Jumlah Anak</FieldLabel><Input type="number" min={0} value={form.childrenTotal} onChange={(e) => setForm({ ...form, childrenTotal: e.target.value })} /></Field>
-          </div>
-          <Field><FieldLabel>Tempat Kerja</FieldLabel><Input value={form.employer} onChange={(e) => setForm({ ...form, employer: e.target.value })} /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field><FieldLabel>Alamat Kantor</FieldLabel><Input value={form.employerAddress} onChange={(e) => setForm({ ...form, employerAddress: e.target.value })} /></Field>
-            <Field><FieldLabel>Kota/Kab</FieldLabel><Input value={form.employerCity} onChange={(e) => setForm({ ...form, employerCity: e.target.value })} /></Field>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function GuardiansPage() {
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -194,7 +101,7 @@ export default function GuardiansPage() {
 
   const [editTarget, setEditTarget] = useState<Guardian | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Guardian | null>(null);
-  const [editForm, setEditForm] = useState<GuardianEditForm>({ name: "", email: "", phone: "", whatsapp: "", address: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "", childrenTotal: "" });
+  const [editForm, setEditForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
   const [editGuardianId, setEditGuardianId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -241,13 +148,20 @@ export default function GuardiansPage() {
 
   async function openEditDialog(g: Guardian) {
     setEditTarget(g);
-    setEditForm({ name: g.name, email: g.email || "", phone: g.phone || "", whatsapp: g.whatsapp || "", address: "", parentNik: "", education: "", occupation: "", employer: "", employerAddress: "", employerCity: "", incomeRange: "", childrenTotal: "" });
+    setEditForm({
+      ...EMPTY_GUARDIAN_FORM,
+      name: g.name,
+      email: g.email || "",
+      phone: g.phone || "",
+      whatsapp: g.whatsapp || "",
+    });
     setEditGuardianId(null);
     try {
       const res = await fetch(`/api/parents/${g.id}`);
       if (res.ok) {
         const parent = await res.json();
         setEditForm({
+          ...EMPTY_GUARDIAN_FORM,
           name: parent.name || g.name,
           email: parent.email || "",
           phone: parent.phone || "",
@@ -384,7 +298,7 @@ export default function GuardiansPage() {
           <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
             <SheetHeader><SheetTitle>Edit Wali</SheetTitle></SheetHeader>
             <div className="px-4 pb-4">
-              <GuardianEditFormBody form={editForm} setForm={setEditForm} />
+              <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
             </div>
             <SheetFooter>
               <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
@@ -397,7 +311,7 @@ export default function GuardiansPage() {
           <DialogContent className="sm:max-w-xl">
             <DialogHeader><DialogTitle>Edit Wali</DialogTitle></DialogHeader>
             <div>
-              <GuardianEditFormBody form={editForm} setForm={setEditForm} />
+              <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
             </div>
             <DialogFooter>
               <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
