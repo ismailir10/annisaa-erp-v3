@@ -36,9 +36,21 @@ export async function sendSalarySlipEmail(params: SendSlipParams): Promise<{
     return { sent: false };
   }
 
+  // Explicit env guard before the send call — surface the missing-config
+  // failure mode as a clean return value instead of an exception from
+  // inside resend.emails.send arg evaluation. Mirrors the shape used in
+  // lib/email/admission-submitted.ts.
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!from) {
+    console.error(
+      "[EMAIL] RESEND_FROM_EMAIL not set — dropping salary-slip email",
+    );
+    return { sent: false, error: "RESEND_FROM_EMAIL not configured" };
+  }
+
   try {
     const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL ?? (() => { throw new Error("RESEND_FROM_EMAIL not set — configure a verified domain"); })(),
+      from,
       to: params.to,
       subject,
       html,
