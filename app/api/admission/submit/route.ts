@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
   if (data.parentEmail) {
     try {
       const result = await sendAdmissionSubmittedEmail({
+        tenantId,
         to: data.parentEmail,
         childName: data.childName,
         parentName: data.parentName,

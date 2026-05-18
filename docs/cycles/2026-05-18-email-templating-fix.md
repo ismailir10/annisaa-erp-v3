@@ -40,7 +40,7 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
   *Acceptance:* template output contains `#5DB4B8`, `${appUrl}/logo.png`, "by An Nisaa' Sekolahku", footer chrome line, `Wassalamu'alaikum`; does NOT contain `#0C5C3F`; type signature unchanged.
   *Standards:* loads `design-system.html` (frontend gate — cycle doc contains literal `design-system` token via this line) + `voice.md` (Bu Sari register).
 
-- [ ] **Task 2 — Add EmailLog write inside `sendAdmissionSubmittedEmail`.**
+- [x] **Task 2 — Add EmailLog write inside `sendAdmissionSubmittedEmail`.**
   Update `lib/email/admission-submitted.ts`: add `tenantId: string` to `SendAdmissionParams`. After every send attempt (simulated, missing-from, Resend success, Resend error response, thrown exception), write one `prisma.emailLog.create({ data: { tenantId, to, subject, template: "admission_submitted", status, error } })`. Status mapping: simulated → `SENT`/null, missing-from → `FAILED`/"RESEND_FROM_EMAIL not configured", Resend error → `FAILED`/`error.message`, Resend exception → `FAILED`/exception message, success → `SENT`/null. Wrap each `emailLog.create` in its own try/catch — an audit-log insert failure must not change the function's return contract (caller still gets `{sent, error}`). Update `app/api/admission/submit/route.ts` to pass the resolved `tenantId` into `sendAdmissionSubmittedEmail`.
   *Acceptance:* unit test (added in Task 3 file or new file) verifies a `prisma.emailLog.create` call is fired per send attempt with correct status; route.ts passes `tenantId` in the call site.
   *Depends on:* Task 1's param shape only if Task 1 also touches `SendAdmissionParams` — it does not. Tasks 1 and 2 independent.
@@ -61,10 +61,12 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
 
 - Subagent plan: all 5 tasks file-disjoint (Task 1 → `templates/admission-submitted.ts`; Task 2 → `admission-submitted.ts` + `api/admission/submit/route.ts`; Task 3 → `__tests__/escape.test.ts`; Task 4 → `send-slip.ts`; Task 5 → `api/payroll/[id]/send-slips/route.ts`). Executed sequentially inline rather than parallel subagents — cycle is small (≤200 lines net diff) and clean per-task commits matter more than wall-clock savings here.
 - Task 1: `lib/email/templates/admission-submitted.ts` — full rewrite of HTML body using the canonical shell (560px table, teal `#5DB4B8` 3px header border, 48px `${appUrl}/logo.png`, wordmark + sub-label, support@ link, footer chrome). Dropped green `#0C5C3F` header. No CTA. Tightened `appUrl` type from optional to required (logo src needs it). JSDoc updated to declare shell-alignment contract.
+- Task 2: `lib/email/admission-submitted.ts` + `app/api/admission/submit/route.ts` — added `tenantId` to `SendAdmissionParams`, introduced internal `logAudit(status, error)` helper writing `prisma.emailLog.create` on every return path (simulated→SENT/null, missing-from→FAILED, resend-error→FAILED, resend-throw→FAILED, ok→SENT/null). Audit insert wrapped in its own try/catch so DB failure cannot mutate the route's 201 response contract. Route call site threads the already-resolved `tenantId`.
 
 ## Verification
 
 - Task 1: gates passed (build + vitest run, 1666 passed). Cross-checked `design-system.html` §header/CTA/footer + `lib/email/templates/salary-slip.ts` canonical shell — admission template now structurally identical (560px table, `#5DB4B8` 3px border, 48px logo, wordmark, footer chrome, support@ link). `feature-dev:code-reviewer` clean. Type-signature widening `appUrl: string | undefined → string` verified safe (sole caller `lib/email/admission-submitted.ts:25` defaults to `https://talib.annisaasekolahku.com`).
+- Task 2: gates passed (build + vitest run, 1666 passed). `feature-dev:code-reviewer` + `superpowers:code-reviewer` (security pass, route.ts is public unauth surface) both clean. Verified: tenantId definitely-assigned before email block (route.ts:51-66 returns 500 if no ACTIVE tenant); logAudit try/catch isolates DB failures from return contract; only validated email + hardcoded subject/template flow into EmailLog (no user-string log poisoning); duplicate-row on retry is desired audit semantics, not a defect.
 
 ## Ship Notes
 <!-- filled by /ship -->
