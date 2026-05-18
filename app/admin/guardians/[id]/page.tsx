@@ -16,6 +16,12 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ArrowLeft, Mail, Phone, MapPin, Briefcase, User, Building, GraduationCap, Wallet, Users, FileText, Baby, Pencil, X, Save } from "lucide-react";
 import { toast } from "sonner";
+import {
+  EDUCATION_OPTIONS,
+  OCCUPATION_OPTIONS,
+  INCOME_OPTIONS,
+  REL_LABELS,
+} from "@/lib/constants/parent-options";
 
 // ------------------------------------------------------------------
 // Types
@@ -73,39 +79,6 @@ type EditForm = {
 // ------------------------------------------------------------------
 // Constants
 // ------------------------------------------------------------------
-
-const REL_LABELS: Record<string, string> = { AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" };
-
-const EDUCATION_OPTIONS = [
-  { value: "SMA", label: "SMA" },
-  { value: "D1-D3", label: "D1-D3" },
-  { value: "S1", label: "S1" },
-  { value: "S2", label: "S2" },
-  { value: "S3", label: "S3" },
-  { value: "Profesi", label: "Profesi" },
-];
-
-const OCCUPATION_OPTIONS = [
-  { value: "PNS", label: "PNS" },
-  { value: "TNI/Polri", label: "TNI/Polri" },
-  { value: "Karyawan Swasta", label: "Karyawan Swasta" },
-  { value: "Wiraswasta", label: "Wiraswasta" },
-  { value: "Guru/Dosen", label: "Guru/Dosen" },
-  { value: "Dokter", label: "Dokter" },
-  { value: "Petani", label: "Petani" },
-  { value: "Nelayan", label: "Nelayan" },
-  { value: "Buruh", label: "Buruh" },
-  { value: "Ibu Rumah Tangga", label: "Ibu Rumah Tangga" },
-  { value: "Lainnya", label: "Lainnya" },
-];
-
-const INCOME_OPTIONS = [
-  { value: "<2jt", label: "< Rp 2 juta" },
-  { value: "2-5jt", label: "Rp 2–5 juta" },
-  { value: "5-10jt", label: "Rp 5–10 juta" },
-  { value: "10-20jt", label: "Rp 10–20 juta" },
-  { value: ">20jt", label: "> Rp 20 juta" },
-];
 
 // ------------------------------------------------------------------
 // Page

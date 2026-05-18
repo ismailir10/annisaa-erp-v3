@@ -24,6 +24,15 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import {
+  EDUCATION_OPTIONS,
+  OCCUPATION_OPTIONS,
+  INCOME_OPTIONS,
+  RELATIONSHIP_OPTIONS,
+  LIVING_WITH_OPTIONS,
+  REL_LABELS,
+  LIVING_WITH_LABELS,
+} from "@/lib/constants/parent-options";
 
 type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null } };
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
@@ -48,7 +57,6 @@ type ClassSection = { id: string; name: string; program: { name: string }; acade
 type AttendanceRecord = { id: string; date: string; status: string; notes: string | null; classSection: { name: string } };
 type AttendanceSummary = { present: number; absent: number; sick: number; permission: number; total: number };
 
-const REL_LABELS: Record<string, string> = { AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya", PARENT: "Orang Tua" };
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -374,12 +382,12 @@ export default function StudentDetailPage() {
             <Field><FieldLabel>No. KK</FieldLabel><Input value={editForm.kkNumber} onChange={e => setEditForm({ ...editForm, kkNumber: e.target.value })} placeholder="Nomor Kartu Keluarga" /></Field>
             <Field>
               <FieldLabel>Tinggal Dengan</FieldLabel>
-              <Select value={editForm.livingWith || undefined} onValueChange={v => v && setEditForm({ ...editForm, livingWith: v })} items={{ ORANG_TUA: "Orang Tua", WALI: "Wali", LAINNYA: "Lainnya" }}>
+              <Select value={editForm.livingWith || undefined} onValueChange={v => v && setEditForm({ ...editForm, livingWith: v })} items={LIVING_WITH_LABELS}>
                 <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ORANG_TUA">Orang Tua</SelectItem>
-                  <SelectItem value="WALI">Wali</SelectItem>
-                  <SelectItem value="LAINNYA">Lainnya</SelectItem>
+                  {LIVING_WITH_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>
@@ -412,7 +420,7 @@ export default function StudentDetailPage() {
               {student.birthPlace && <div><p className="text-xs text-muted-foreground">Tempat Lahir</p><p className="text-sm">{student.birthPlace}</p></div>}
               {student.nik && <div><p className="text-xs text-muted-foreground">NIK</p><p className="text-sm font-currency">{student.nik}</p></div>}
               {student.kkNumber && <div><p className="text-xs text-muted-foreground">No. KK</p><p className="text-sm font-currency">{student.kkNumber}</p></div>}
-              {student.livingWith && <div><p className="text-xs text-muted-foreground">Tinggal Dengan</p><p className="text-sm">{student.livingWith === "ORANG_TUA" ? "Orang Tua" : student.livingWith === "WALI" ? "Wali" : "Lainnya"}</p></div>}
+              {student.livingWith && <div><p className="text-xs text-muted-foreground">Tinggal Dengan</p><p className="text-sm">{LIVING_WITH_LABELS[student.livingWith] ?? student.livingWith}</p></div>}
             </div>
           </>
         )}
@@ -568,11 +576,12 @@ export default function StudentDetailPage() {
               <Field><FieldLabel required>Nama</FieldLabel><Input value={guardianForm.name} onChange={e => setGuardianForm({ ...guardianForm, name: e.target.value })} placeholder="Nama wali" /></Field>
               <Field>
                 <FieldLabel>Hubungan</FieldLabel>
-                <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })} items={{ AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" }}>
+                <Select value={guardianForm.relationship} onValueChange={v => v && setGuardianForm({ ...guardianForm, relationship: v })} items={REL_LABELS}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="AYAH">Ayah</SelectItem><SelectItem value="IBU">Ibu</SelectItem>
-                    <SelectItem value="WALI">Wali</SelectItem><SelectItem value="OTHER">Lainnya</SelectItem>
+                    {RELATIONSHIP_OPTIONS.map(o => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
@@ -590,12 +599,9 @@ export default function StudentDetailPage() {
                 <Select value={guardianForm.education || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, education: v })}>
                   <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SMA">SMA</SelectItem>
-                    <SelectItem value="D1-D3">D1-D3</SelectItem>
-                    <SelectItem value="S1">S1</SelectItem>
-                    <SelectItem value="S2">S2</SelectItem>
-                    <SelectItem value="S3">S3</SelectItem>
-                    <SelectItem value="Profesi">Profesi</SelectItem>
+                    {EDUCATION_OPTIONS.map(o => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
@@ -604,14 +610,9 @@ export default function StudentDetailPage() {
                 <Select value={guardianForm.occupation || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, occupation: v })}>
                   <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Karyawan Swasta">Karyawan Swasta</SelectItem>
-                    <SelectItem value="ASN">ASN</SelectItem>
-                    <SelectItem value="Guru">Guru</SelectItem>
-                    <SelectItem value="Wiraswasta">Wiraswasta</SelectItem>
-                    <SelectItem value="BUMN">BUMN</SelectItem>
-                    <SelectItem value="Ibu Rumah Tangga">Ibu Rumah Tangga</SelectItem>
-                    <SelectItem value="Freelance">Freelance</SelectItem>
-                    <SelectItem value="Lainnya">Lainnya</SelectItem>
+                    {OCCUPATION_OPTIONS.map(o => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
@@ -622,12 +623,9 @@ export default function StudentDetailPage() {
                 <Select value={guardianForm.incomeRange || undefined} onValueChange={v => v && setGuardianForm({ ...guardianForm, incomeRange: v })}>
                   <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="< Rp 1 Juta">&lt; Rp 1 Juta</SelectItem>
-                    <SelectItem value="Rp 1-2 Juta">Rp 1-2 Juta</SelectItem>
-                    <SelectItem value="Rp 3-5 Juta">Rp 3-5 Juta</SelectItem>
-                    <SelectItem value="Rp 5-10 Juta">Rp 5-10 Juta</SelectItem>
-                    <SelectItem value="Rp 7-10 Juta">Rp 7-10 Juta</SelectItem>
-                    <SelectItem value="> Rp 10 Juta">&gt; Rp 10 Juta</SelectItem>
+                    {INCOME_OPTIONS.map(o => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>

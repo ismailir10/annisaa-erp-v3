@@ -12,6 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
+  EDUCATION_OPTIONS,
+  OCCUPATION_OPTIONS,
+  INCOME_OPTIONS,
+  RELATIONSHIP_OPTIONS,
+} from "@/lib/constants/parent-options";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -232,16 +238,15 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
         <Select
           value={form.parentRelationship}
           onValueChange={(v) => v && setForm({ ...form, parentRelationship: v })}
-          items={{ AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" }}
+          items={Object.fromEntries(RELATIONSHIP_OPTIONS.map((o) => [o.value, o.label]))}
         >
           <SelectTrigger>
             <SelectValue placeholder="Pilih" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="AYAH">Ayah</SelectItem>
-            <SelectItem value="IBU">Ibu</SelectItem>
-            <SelectItem value="WALI">Wali</SelectItem>
-            <SelectItem value="OTHER">Lainnya</SelectItem>
+            {RELATIONSHIP_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Field>
@@ -270,17 +275,15 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentEducation}
             onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
-            items={{ SMA: "SMA", "D1-D3": "D1-D3", S1: "S1", S2: "S2", S3: "S3" }}
+            items={Object.fromEntries(EDUCATION_OPTIONS.map((o) => [o.value, o.label]))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="SMA">SMA</SelectItem>
-              <SelectItem value="D1-D3">D1-D3</SelectItem>
-              <SelectItem value="S1">S1</SelectItem>
-              <SelectItem value="S2">S2</SelectItem>
-              <SelectItem value="S3">S3</SelectItem>
+              {EDUCATION_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Field>
@@ -289,27 +292,15 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentOccupation}
             onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
-            items={{
-              "Karyawan Swasta": "Karyawan Swasta",
-              ASN: "ASN",
-              Guru: "Guru",
-              Wiraswasta: "Wiraswasta",
-              BUMN: "BUMN",
-              "Ibu Rumah Tangga": "Ibu Rumah Tangga",
-              Lainnya: "Lainnya",
-            }}
+            items={Object.fromEntries(OCCUPATION_OPTIONS.map((o) => [o.value, o.label]))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Karyawan Swasta">Karyawan Swasta</SelectItem>
-              <SelectItem value="ASN">ASN</SelectItem>
-              <SelectItem value="Guru">Guru</SelectItem>
-              <SelectItem value="Wiraswasta">Wiraswasta</SelectItem>
-              <SelectItem value="BUMN">BUMN</SelectItem>
-              <SelectItem value="Ibu Rumah Tangga">Ibu Rumah Tangga</SelectItem>
-              <SelectItem value="Lainnya">Lainnya</SelectItem>
+              {OCCUPATION_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Field>
@@ -318,23 +309,15 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentIncome}
             onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
-            items={{
-              "< Rp 1 Juta": "< Rp 1 Juta",
-              "Rp 1-2 Juta": "Rp 1-2 Juta",
-              "Rp 3-5 Juta": "Rp 3-5 Juta",
-              "Rp 5-10 Juta": "Rp 5-10 Juta",
-              "> Rp 10 Juta": "> Rp 10 Juta",
-            }}
+            items={Object.fromEntries(INCOME_OPTIONS.map((o) => [o.value, o.label]))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="< Rp 1 Juta">&lt; Rp 1 Juta</SelectItem>
-              <SelectItem value="Rp 1-2 Juta">Rp 1-2 Juta</SelectItem>
-              <SelectItem value="Rp 3-5 Juta">Rp 3-5 Juta</SelectItem>
-              <SelectItem value="Rp 5-10 Juta">Rp 5-10 Juta</SelectItem>
-              <SelectItem value="> Rp 10 Juta">&gt; Rp 10 Juta</SelectItem>
+              {INCOME_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Field>

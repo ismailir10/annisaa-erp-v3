@@ -61,7 +61,7 @@ Intended outcome: every datum the admission flow or admin entry can write must b
 
 > Independence legend: **(I)** = independent, can run in parallel; **(→Tx)** = depends on Tx.
 
-- [ ] **T1 — Extract shared parent-option constants** *(I)*
+- [x] **T1 — Extract shared parent-option constants** *(I)*
       Create `lib/constants/parent-options.ts` exporting `EDUCATION_OPTIONS`, `OCCUPATION_OPTIONS`, `INCOME_OPTIONS`, `RELATIONSHIP_OPTIONS`, `LIVING_WITH_OPTIONS`. Replace inline `SelectItem` lists in [app/admin/admissions/page.tsx](app/admin/admissions/page.tsx), [app/admin/guardians/page.tsx](app/admin/guardians/page.tsx), [app/admin/students/[id]/page.tsx](app/admin/students/[id]/page.tsx), [app/admin/guardians/[id]/page.tsx](app/admin/guardians/[id]/page.tsx), [app/daftar/client.tsx](app/daftar/client.tsx). **Drift is 4-way for occupation** — existing DB rows may hold any of `PNS`, `TNI/Polri`, `Guru/Dosen`, `Dokter`, `Petani`, `Nelayan`, `Buruh` (guardians-list set) OR `Karyawan Swasta`, `ASN`, `Guru`, `Wiraswasta`, `BUMN`, `Freelance` (student-detail / admissions set). Pick the SUPERSET (union of all observed values) as the canonical list, NOT a minimal set — narrowing would render `<Select>` blank for legacy rows. For income, same superset strategy. Document the legacy-source mapping in a top-of-file comment. No data migration; reads stay backward compatible.
       *Acceptance:* `grep -nE "SMA|D1-D3|S1|S2" app components lib` finds enum values only inside `lib/constants/parent-options.ts` plus the module that re-exports them. Existing DB rows with legacy values still render their value as the Select's current selection (verified via Vitest with a fixture row of each legacy value). `npm run build && npx vitest run` passes.
 
@@ -129,10 +129,12 @@ Intended outcome: every datum the admission flow or admin entry can write must b
 
 - Subagent plan: T1 + T13 dispatched in parallel (no file overlap — T1 touches `lib/constants/` + page files; T13 touches `prisma/`). Then T3 + T4 + T5 sequential against `app/admin/students/[id]/page.tsx`. Then T2 + T7 + T9 + T14. Then T6 + T8 + T10 + T11 + T15. Then T12 E2E.
 - T13: `prisma/schema.prisma` (+4 lines, Parent model `ktpUrl String?` + `kkUrl String?` under "Document scans" comment block), `prisma/migrations/20260518000000_parent_ktp_kk_urls/migration.sql` (new, 2× `ALTER TABLE "Parent" ADD COLUMN ... TEXT`). Additive-only, nullable, zero-downtime. `prisma/seed.ts` untouched — existing `parent.create` calls omit both fields → default NULL. Reviewer (feature-dev:code-reviewer): clean, no blockers.
+- T1: `lib/constants/parent-options.ts` (new, 145 lines, SUPERSET strategy preserves every legacy DB value: occupation 15 values incl. `PNS`/`TNI/Polri`/`Guru/Dosen`; income both label families incl. `<2jt` AND `< Rp 1 Juta`; education 6; relationship 5 incl. legacy `PARENT`; livingWith 3). Header-comment documents legacy-source mapping. `lib/constants/__tests__/parent-options.test.ts` (new, 137 lines, `it.each` pins every legacy value by name + uniqueness guards). Replaced inline `SelectItem` lists in `app/admin/admissions/page.tsx`, `app/admin/guardians/page.tsx`, `app/admin/guardians/[id]/page.tsx`, `app/admin/students/[id]/page.tsx`. Local `REL_LABELS` + `LIVING_WITH_LABELS` maps now derived from canonical arrays via `Object.fromEntries`. `app/daftar/client.tsx` untouched — no Selects to deduplicate (public form is name/phone/whatsapp/email only per non-goal). Cross-checked design-system.html §Forms — Select component styling unchanged. Reviewer (feature-dev:code-reviewer): clean.
 
 ## Verification
 
 - T13: `npm run build && npx vitest run` → build clean, vitest `Test Files 176 passed | 2 skipped (178), Tests 1668 passed | 42 todo (1710)`. Migration scaffolded via `prisma migrate diff` fallback (shadow DB has pre-existing unrelated failure on `20260415_enable_rls`); SQL hand-verified against schema diff.
+- T1: `npm run build && npx vitest run` → build clean, vitest `Test Files 177 passed | 2 skipped (179), Tests 1716 passed | 42 todo (1758)` (+48 from new regression test). `grep -rn "Karyawan Swasta|ASN|PNS|TNI/Polri" app/admin app/daftar lib/constants` returns matches only under `lib/constants/parent-options.ts` and its test — single source of truth confirmed.
 
 ## Ship Notes
 

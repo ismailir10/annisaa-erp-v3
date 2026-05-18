@@ -13,6 +13,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
+import {
+  EDUCATION_OPTIONS,
+  OCCUPATION_OPTIONS,
+  INCOME_OPTIONS,
+} from "@/lib/constants/parent-options";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -108,37 +113,6 @@ type GuardianEditForm = {
   incomeRange: string;
   childrenTotal: string;
 };
-
-const EDUCATION_OPTIONS = [
-  { value: "SMA", label: "SMA" },
-  { value: "D1-D3", label: "D1-D3" },
-  { value: "S1", label: "S1" },
-  { value: "S2", label: "S2" },
-  { value: "S3", label: "S3" },
-  { value: "Profesi", label: "Profesi" },
-];
-
-const OCCUPATION_OPTIONS = [
-  { value: "PNS", label: "PNS" },
-  { value: "TNI/Polri", label: "TNI/Polri" },
-  { value: "Karyawan Swasta", label: "Karyawan Swasta" },
-  { value: "Wiraswasta", label: "Wiraswasta" },
-  { value: "Guru/Dosen", label: "Guru/Dosen" },
-  { value: "Dokter", label: "Dokter" },
-  { value: "Petani", label: "Petani" },
-  { value: "Nelayan", label: "Nelayan" },
-  { value: "Buruh", label: "Buruh" },
-  { value: "Ibu Rumah Tangga", label: "Ibu Rumah Tangga" },
-  { value: "Lainnya", label: "Lainnya" },
-];
-
-const INCOME_OPTIONS = [
-  { value: "<2jt", label: "< Rp 2 juta" },
-  { value: "2-5jt", label: "Rp 2–5 juta" },
-  { value: "5-10jt", label: "Rp 5–10 juta" },
-  { value: "10-20jt", label: "Rp 10–20 juta" },
-  { value: ">20jt", label: "> Rp 20 juta" },
-];
 
 function GuardianEditFormBody({
   form,
