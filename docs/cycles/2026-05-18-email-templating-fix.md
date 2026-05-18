@@ -57,6 +57,10 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
   Update `app/api/payroll/[id]/send-slips/route.ts`: extract `const subject = \`Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}\`` once at the top of the per-item loop, use it in both the success-path `prisma.emailLog.create` (currently line 121) AND the catch-path `prisma.emailLog.create` (currently line 146, which uses only `${payroll.periodStart}`). Same string in both audit rows.
   *Acceptance:* grep for `Slip Gaji ${payroll.periodStart}` in the route file finds exactly one definition; both `emailLog.create` calls reference the local `subject` variable; build + tests green.
 
+- [x] **Task 6 — Bump CLAUDE.md doc counts to match repo state (`/ship` preflight precondition).**
+  `/audit-docs` reports pre-existing drift in `CLAUDE.md` File Structure block — claimed 38/11/6 portal pages (actual 41/14/8), claimed 149 routes (actual 163), claimed 18 specs (actual 22 + missing spec names: `jakarta-tz-server-date`, `parent-perkembangan`, `teacher-assessments-center`, `teacher-assessments-weekly`). Drift was NOT introduced by this cycle (zero net routes / pages / specs added here) but `/ship` rule treats `fail` audit findings as a precondition failure regardless of source. Update CLAUDE.md to match actual counts so the audit passes.
+  *Acceptance:* `/audit-docs` reports `ok` on all four counts (routes, portals, components, specs); build + tests still green.
+
 ## Implementation
 
 - Subagent plan: all 5 tasks file-disjoint (Task 1 → `templates/admission-submitted.ts`; Task 2 → `admission-submitted.ts` + `api/admission/submit/route.ts`; Task 3 → `__tests__/escape.test.ts`; Task 4 → `send-slip.ts`; Task 5 → `api/payroll/[id]/send-slips/route.ts`). Executed sequentially inline rather than parallel subagents — cycle is small (≤200 lines net diff) and clean per-task commits matter more than wall-clock savings here.
@@ -65,6 +69,7 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
 - Task 3: `lib/email/__tests__/escape.test.ts` — added `admissionSubmittedEmailHtml — XSS hardening` describe block with two cases (`<script>` in childName, `<img onerror>` in parentName) mirroring the salary-slip block. Per-field isolation gives independent evidence that both params are wired through `escapeHtml`.
 - Task 4: `lib/email/send-slip.ts` — replaced IIFE-throw inside `resend.emails.send` arg with explicit `const from = …; if (!from) { console.error; return … }` early-return mirroring `admission-submitted.ts`. Error message normalized to `"RESEND_FROM_EMAIL not configured"`. Outer try/catch retained — still load-bearing for network throws + API errors.
 - Task 5: `app/api/payroll/[id]/send-slips/route.ts` — extracted `const subject = \`Slip Gaji ${periodStart} - ${periodEnd}\`` once per loop iteration; both success and catch `emailLog.create` calls now write identical subject strings (previously catch dropped `periodEnd`, making audit rows inconsistent).
+- Task 6: `CLAUDE.md` File Structure block — updated portal counts 38/11/6→41/14/8, route count 149→163, spec count 18→22 and appended four missing spec names. Pre-existing drift from prior cycles; surfaced and blocked by `/ship` Step 6 `/audit-docs` precondition.
 
 ## Verification
 
@@ -73,8 +78,8 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
 - Task 3: gates passed (build + vitest run, 1668 passed; +2 new cases). `feature-dev:code-reviewer` clean — positive `.toContain("&lt;…")` assertions prove escape was invoked, not that payload was silently dropped.
 - Task 4: gates passed (build + vitest run, 1668 passed). `feature-dev:code-reviewer` clean — grep confirmed zero codebase references to old error string `"RESEND_FROM_EMAIL not set — configure a verified domain"`; outer try/catch retained for genuine network exceptions; log-prefix change `[EMAIL EXCEPTION] → [EMAIL]` for the missing-env path is intentional (config error, not runtime exception) and no log-scraping depends on the old prefix.
 - Task 5: gates passed (build + vitest run, 1668 passed). `feature-dev:code-reviewer` + `superpowers:code-reviewer` both clean — fresh `const` binding per iteration, no tenant-isolation change, audit-integrity improved (catch row now byte-identical to success row for same iteration), no test depends on the old truncated subject string.
-- End-of-cycle: `npm run build && npx vitest run` green (1668 passed, 42 todo, 2 skipped).
-- **Playwright skip:** explicit. Cycle touches only email templates, server-side email send paths, and audit-log writes. No UI surface added/changed, no new route, no portal page touched. CLAUDE.md permits Playwright skip for "pure-docs cycles" — extending here to pure-non-UI code where the headless Playwright pass could not surface any new regression. Email rendering hardened by vitest XSS tests + structural cross-check against the canonical salary-slip shell.
+- Task 6: `/audit-docs` re-run reports `ok` on routes (163=163), portals (41/14/8=41/14/8), components (69=69), specs (22=22). Pure doc edit; no code gate impact.
+- End-of-cycle: `npm run build && npx vitest run && npx playwright test` all green. Vitest: 1668 passed, 42 todo, 2 skipped. Playwright: 46 passed, 13 skipped, 2 did-not-run (project-level skip, no failures; exit 0). Runtime 31.1m.
 - **Voice checklist (per voice.md):** audience identified (parent for admission email); glossary canonical (Pendaftaran, ananda, Bapak/Ibu); Islamic courtesy applied (Assalamu'alaikum opener + InsyaAllah + Wassalamu'alaikum closer + Tim Penerimaan Talib signature); no error/empty/destructive copy in this diff (transactional confirmation only).
 
 ## Ship Notes

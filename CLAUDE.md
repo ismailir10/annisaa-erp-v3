@@ -223,13 +223,13 @@ Domain standards live under `.claude/standards/` — loaded only when relevant f
 ## File Structure
 
 ```
-app/{admin,teacher,parent}/  38 / 11 / 6 portal pages
-app/api/                     149 routes (organized by domain)
+app/{admin,teacher,parent}/  41 / 14 / 8 portal pages
+app/api/                     163 routes (organized by domain)
 components/ui/               69 Shadcn components
 lib/{api,validations,payroll,xendit,email}/  business logic, retry, integrations
 prisma/                      schema + seed
 proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
-e2e/                         18 specs (admin, admin-curriculum-objectives, admin-dashboard, admin-dialogs, admin-hydration, admin-school-admin, branding, curriculum-admin, curriculum-promes-import, daftar-public, design-system, parent, parent-attendance-scoping, parent-signout-bfcache, payment, perf-budget, sibling-detect, teacher)
+e2e/                         22 specs (admin, admin-curriculum-objectives, admin-dashboard, admin-dialogs, admin-hydration, admin-school-admin, branding, curriculum-admin, curriculum-promes-import, daftar-public, design-system, jakarta-tz-server-date, parent, parent-attendance-scoping, parent-perkembangan, parent-signout-bfcache, payment, perf-budget, sibling-detect, teacher, teacher-assessments-center, teacher-assessments-weekly)
 docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
 .claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
