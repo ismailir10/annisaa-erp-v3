@@ -86,8 +86,18 @@ All four tasks are independent (no shared files). `/build` should dispatch in pa
 - Task 2 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 130s). `feature-dev:code-reviewer` clean.
 - Task 3 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 64s). `feature-dev:code-reviewer` clean.
 - Task 4 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 60s). `feature-dev:code-reviewer` clean.
+- End-of-cycle: `DEMO_MODE=true npx playwright test` ✓ (26 passed, 10 skipped, 3 did not run, exit 0, 42m).
 - Cross-checked design-system.html §Status / §Empty / §Confirm overlay sections for visual side-effects across cycle tasks.
 
 ## Ship Notes
 
-_filled by /ship_
+- **Migrations:** none.
+- **Env vars:** none.
+- **Risk:** Low. Four single-file UI fixes — no API, no schema, no auth. Each commit is independently revertable.
+- **Manual smoke (preview URL):**
+  1. Teacher portal — force an error (e.g. visit `/teacher` with a broken downstream); confirm error boundary shows only "Halaman tidak bisa dimuat. Coba lagi sebentar ya." with no Prisma/stack trace leak.
+  2. Teacher self-attendance calendar (`/teacher/attendance`) — confirm legend, summary card, and the day-detail modal all show "Alpa" (not "Tidak Hadir") for ABSENT records.
+  3. Admin payroll detail (`/admin/payroll/[id]` on a DRAFT run) — click "Setujui" and "Kirim Slip"; both surface AlertDialog (not Dialog). Cancel + confirm work as expected.
+  4. Admin salary-components (`/admin/salary-components`) — toggle a component Off → confirm AlertDialog with "Ya, Nonaktifkan" surfaces; toggle On stays single-click.
+- **Rollback:** `git revert` any of the 4 task commits individually.
+- **Note for shipper:** `/spec` referenced the salary-components file at `app/admin/settings/salary-components/` (path in 2026-05-18 review report). After base reset to `origin/staging` the file was at `app/admin/(hr)/salary-components/` (recent merge moved it). Implementation tracked the new path; cycle Implementation bullet documents the discrepancy.
