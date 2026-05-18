@@ -987,7 +987,10 @@ export default function StudentDetailPage() {
           <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
-              <div>{guardianBody}</div>
+              {/* flex-1 min-h-0 overflow-y-auto: T7+T8 grew the form
+                  (childrenTotal + address + Data Anak section); body now
+                  needs inner scroll to keep DialogFooter docked. */}
+              <div className="flex-1 min-h-0 overflow-y-auto">{guardianBody}</div>
               <DialogFooter>
                 <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
                 <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}</Button>

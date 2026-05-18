@@ -310,7 +310,9 @@ export default function GuardiansPage() {
         <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
           <DialogContent className="sm:max-w-xl">
             <DialogHeader><DialogTitle>Edit Wali</DialogTitle></DialogHeader>
-            <div>
+            {/* flex-1 min-h-0 overflow-y-auto: T7 grew the unified form
+                (address + childrenTotal added); body needs inner scroll. */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
             </div>
             <DialogFooter>

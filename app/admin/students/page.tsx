@@ -697,7 +697,9 @@ export default function StudentsPage() {
             <DialogHeader>
               <DialogTitle>Edit Siswa</DialogTitle>
             </DialogHeader>
-            <div className="p-card">
+            {/* flex-1 min-h-0 overflow-y-auto: T2 expanded the form to 3 sections;
+                without inner scroll the Status field falls below the 90vh dialog cap. */}
+            <div className="p-card flex-1 min-h-0 overflow-y-auto">
               <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
             <DialogFooter>
@@ -748,7 +750,8 @@ export default function StudentsPage() {
             <DialogHeader>
               <DialogTitle>Tambah Siswa</DialogTitle>
             </DialogHeader>
-            <div className="p-card">
+            {/* flex-1 min-h-0 overflow-y-auto: see Edit dialog above. */}
+            <div className="p-card flex-1 min-h-0 overflow-y-auto">
               <StudentFormBody form={createForm} setForm={setCreateForm} />
             </div>
             <DialogFooter>

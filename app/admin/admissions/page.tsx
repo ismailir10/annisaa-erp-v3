@@ -931,7 +931,10 @@ export default function AdmissionsPage() {
             <DialogHeader>
               <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}</DialogTitle>
             </DialogHeader>
-            <div className="p-card space-y-field">
+            {/* flex-1 min-h-0 overflow-y-auto: T9 added campusPreference and
+                the form now overflows 90vh. Inner scroll keeps DialogFooter
+                docked while the body scrolls. */}
+            <div className="p-card space-y-field flex-1 min-h-0 overflow-y-auto">
               {editingAdmission?.detectedParent && (
                 <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
               )}
