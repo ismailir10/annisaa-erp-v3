@@ -97,6 +97,7 @@ type Admission = {
   parentIncome: string | null;
   parentRelationship: string | null;
   programId: string | null;
+  campusPreference: string | null;
   source: string;
   status: string;
   notes: string | null;
@@ -113,6 +114,8 @@ type Admission = {
 };
 
 type Program = { id: string; name: string };
+
+type Campus = { id: string; name: string };
 
 type Pagination = {
   page: number;
@@ -162,6 +165,7 @@ type AdmissionForm = {
   parentIncome: string;
   parentRelationship: string;
   programId: string;
+  campusPreference: string;
   source: string;
   notes: string;
   followUpDate: string;
@@ -171,9 +175,10 @@ type AdmissionFormBodyProps = {
   form: AdmissionForm;
   setForm: React.Dispatch<React.SetStateAction<AdmissionForm>>;
   programs: Program[];
+  campuses: Campus[];
 };
 
-function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) {
+function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormBodyProps) {
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -322,25 +327,46 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           </Select>
         </Field>
       </div>
-      <Field>
-        <FieldLabel>Program Diminati</FieldLabel>
-        <Select
-          value={form.programId}
-          onValueChange={(v) => v && setForm({ ...form, programId: v })}
-          items={programs.map((p) => ({ label: p.name, value: p.id }))}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Pilih program" />
-          </SelectTrigger>
-          <SelectContent>
-            {programs.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field>
+          <FieldLabel>Program Diminati</FieldLabel>
+          <Select
+            value={form.programId}
+            onValueChange={(v) => v && setForm({ ...form, programId: v })}
+            items={programs.map((p) => ({ label: p.name, value: p.id }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih program" />
+            </SelectTrigger>
+            <SelectContent>
+              {programs.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Preferensi Kampus</FieldLabel>
+          <Select
+            value={form.campusPreference}
+            onValueChange={(v) => v && setForm({ ...form, campusPreference: v })}
+            items={campuses.map((c) => ({ label: c.name, value: c.id }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih kampus" />
+            </SelectTrigger>
+            <SelectContent>
+              {campuses.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <Field>
           <FieldLabel>Sumber</FieldLabel>
@@ -396,6 +422,7 @@ export default function AdmissionsPage() {
   const isMobile = useIsMobile();
   const [data, setData] = useState<Admission[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     pageSize: 20,
@@ -449,17 +476,23 @@ export default function AdmissionsPage() {
     parentIncome: "",
     parentRelationship: "",
     programId: "",
+    campusPreference: "",
     source: "WHATSAPP",
     notes: "",
     followUpDate: "",
   });
 
-  // Fetch programs once
+  // Fetch programs + campuses once. Campuses cached for 1 h server-side
+  // (revalidate=3600 in /api/config/campuses) so this is cheap on repeat opens.
   useEffect(() => {
     fetch("/api/programs")
       .then((r) => r.json())
       .then((p) => setPrograms(Array.isArray(p) ? p : p.data ?? []))
       .catch((err) => console.error("[admissions] programs fetch failed", err));
+    fetch("/api/config/campuses")
+      .then((r) => r.json())
+      .then((c) => setCampuses(Array.isArray(c) ? c : []))
+      .catch((err) => console.error("[admissions] campuses fetch failed", err));
   }, []);
 
   const fetchAdmissions = useCallback(async () => {
@@ -591,6 +624,7 @@ export default function AdmissionsPage() {
       parentIncome: "",
       parentRelationship: "",
       programId: "",
+      campusPreference: "",
       source: "WHATSAPP",
       notes: "",
       followUpDate: "",
@@ -756,7 +790,9 @@ export default function AdmissionsPage() {
                 parentOccupation: a.parentOccupation ?? "",
                 parentIncome: a.parentIncome ?? "",
                 parentRelationship: a.parentRelationship ?? "",
-                programId: a.programId ?? "", source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
+                programId: a.programId ?? "",
+                campusPreference: a.campusPreference ?? "",
+                source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
               });
               setDialogOpen(true);
             }}
@@ -834,7 +870,7 @@ export default function AdmissionsPage() {
               {editingAdmission?.detectedParent && (
                 <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
               )}
-              <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
+              <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
               <div className="flex flex-col-reverse gap-2 pt-2">
                 <Button onClick={handleSubmit} disabled={saving}>
                   {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
@@ -854,7 +890,7 @@ export default function AdmissionsPage() {
               {editingAdmission?.detectedParent && (
                 <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
               )}
-              <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
+              <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
             </div>
             <DialogFooter>
               <DialogClose>

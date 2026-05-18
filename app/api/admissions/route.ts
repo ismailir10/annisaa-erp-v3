@@ -100,6 +100,7 @@ export async function POST(req: NextRequest) {
       parentIncome: body.parentIncome || null,
       parentRelationship: body.parentRelationship || null,
       programId: body.programId || null,
+      campusPreference: body.campusPreference || null,
       source: body.source ?? "WALK_IN",
       notes: body.notes?.trim() || null,
       followUpDate: body.followUpDate || null,

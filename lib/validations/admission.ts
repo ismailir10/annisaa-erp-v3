@@ -30,6 +30,12 @@ export const createAdmissionSchema = z.object({
   parentIncome: optionalTrimmed(z.string()),
   parentRelationship: optionalEnum(z.enum(["AYAH", "IBU", "WALI", "OTHER"])),
   programId: optionalTrimmed(z.string()),
+  // Campus ID — preferred campus for the resulting enrollment when convert
+  // creates one. Convert today only creates Student + Parent, so per cycle
+  // assumption #3 this value is stashed on Student.metadata.campusPreference
+  // during convert (T11). Optional so existing admissions without a campus
+  // preference still round-trip cleanly.
+  campusPreference: optionalTrimmed(z.string()),
   source: z.enum(["WHATSAPP", "WALK_IN", "WEBSITE", "REFERRAL", "OTHER"]).default("WALK_IN"),
   notes: optionalTrimmed(z.string()),
   followUpDate: optionalTrimmed(z.string()),
