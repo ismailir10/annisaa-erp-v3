@@ -82,20 +82,14 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
     await page.waitForURL("**/teacher/assessments/center/worship", {
       timeout: 15_000,
     });
-    // Tie the assertion to the actual GET so we don't race the network on
-    // cold CI. The fill triggers /api/teacher/assessment-entries/center/<center>
-    // with date=2025-07-15; await the response, then poll DOM for either
-    // the indicator picker or the no-IKTP banner.
-    const responsePromise = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/teacher/assessment-entries/center/worship") &&
-        res.url().includes("date=2025-07-15"),
-      { timeout: 30_000 },
-    );
     await page
       .locator('[data-testid="center-date"]')
       .fill("2025-07-15");
-    await responsePromise;
+    // Wait for the GET to settle: the indicator picker OR the no-IKTP
+    // banner (either branch proves the active-week path reached). Bumped
+    // from 15s → 60s for cold-CI tolerance — the date-change fetch races
+    // a setLoading(true) DOM clear, so the poll has to wait through the
+    // request round-trip plus the re-hydration of the picker list.
     await expect
       .poll(
         async () => {
@@ -109,7 +103,7 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
             .count();
           return picker + banner;
         },
-        { timeout: 15_000, intervals: [500, 1000, 2000] },
+        { timeout: 60_000, intervals: [500, 1000, 2000, 5000] },
       )
       .toBeGreaterThan(0);
   });

@@ -213,13 +213,15 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     // on cold CI. Force scroll-into-view first, then click.
     await matchedRow.scrollIntoViewIfNeeded();
     await matchedRow.getByRole("button", { name: /buka menu/i }).click();
-    // Base UI DropdownMenu re-mounts its items on focus / row re-render in CI,
+    // Base UI DropdownMenu re-mounts items on focus / row re-render in CI,
     // detaching the menuitem mid-click ("element was detached from the DOM").
-    // Wait for the menu container to be visible, then click with force:true
-    // so Playwright skips the stability re-check that loses the race.
-    const menu = page.getByRole("menu");
-    await menu.waitFor({ state: "visible" });
-    await menu.getByRole("menuitem", { name: /edit/i }).click({ force: true });
+    // Anchor on the data-slot the wrapper guarantees + force:true to skip
+    // the stability re-check that loses the race.
+    const editItem = page.locator('[data-slot="dropdown-menu-item"]', {
+      hasText: /edit/i,
+    });
+    await editItem.waitFor({ state: "visible" });
+    await editItem.click({ force: true });
     // Banner inside the Sheet/Dialog body.
     await expect(
       page.getByTestId("admission-edit-sibling-banner"),
