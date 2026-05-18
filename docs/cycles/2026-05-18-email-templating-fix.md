@@ -45,7 +45,7 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
   *Acceptance:* unit test (added in Task 3 file or new file) verifies a `prisma.emailLog.create` call is fired per send attempt with correct status; route.ts passes `tenantId` in the call site.
   *Depends on:* Task 1's param shape only if Task 1 also touches `SendAdmissionParams` — it does not. Tasks 1 and 2 independent.
 
-- [ ] **Task 3 — Add XSS hardening test for admission template.**
+- [x] **Task 3 — Add XSS hardening test for admission template.**
   Extend `lib/email/__tests__/escape.test.ts` (or create `lib/email/__tests__/admission-submitted.test.ts` if grouping by template feels cleaner) with at least two cases mirroring the existing salary-slip XSS block: (a) `<script>alert("xss")</script>` injected into `childName` does not appear unescaped in output; (b) `<img src=x onerror=alert(1)>` injected into `parentName` does not appear unescaped.
   *Acceptance:* `npx vitest run lib/email/__tests__/` shows the new cases pass; output asserts contain `&lt;script&gt;` / `&lt;img` (escaped form) and `.not.toContain` the raw `<script>alert` / `<img src=x`.
 
@@ -62,11 +62,13 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
 - Subagent plan: all 5 tasks file-disjoint (Task 1 → `templates/admission-submitted.ts`; Task 2 → `admission-submitted.ts` + `api/admission/submit/route.ts`; Task 3 → `__tests__/escape.test.ts`; Task 4 → `send-slip.ts`; Task 5 → `api/payroll/[id]/send-slips/route.ts`). Executed sequentially inline rather than parallel subagents — cycle is small (≤200 lines net diff) and clean per-task commits matter more than wall-clock savings here.
 - Task 1: `lib/email/templates/admission-submitted.ts` — full rewrite of HTML body using the canonical shell (560px table, teal `#5DB4B8` 3px header border, 48px `${appUrl}/logo.png`, wordmark + sub-label, support@ link, footer chrome). Dropped green `#0C5C3F` header. No CTA. Tightened `appUrl` type from optional to required (logo src needs it). JSDoc updated to declare shell-alignment contract.
 - Task 2: `lib/email/admission-submitted.ts` + `app/api/admission/submit/route.ts` — added `tenantId` to `SendAdmissionParams`, introduced internal `logAudit(status, error)` helper writing `prisma.emailLog.create` on every return path (simulated→SENT/null, missing-from→FAILED, resend-error→FAILED, resend-throw→FAILED, ok→SENT/null). Audit insert wrapped in its own try/catch so DB failure cannot mutate the route's 201 response contract. Route call site threads the already-resolved `tenantId`.
+- Task 3: `lib/email/__tests__/escape.test.ts` — added `admissionSubmittedEmailHtml — XSS hardening` describe block with two cases (`<script>` in childName, `<img onerror>` in parentName) mirroring the salary-slip block. Per-field isolation gives independent evidence that both params are wired through `escapeHtml`.
 
 ## Verification
 
 - Task 1: gates passed (build + vitest run, 1666 passed). Cross-checked `design-system.html` §header/CTA/footer + `lib/email/templates/salary-slip.ts` canonical shell — admission template now structurally identical (560px table, `#5DB4B8` 3px border, 48px logo, wordmark, footer chrome, support@ link). `feature-dev:code-reviewer` clean. Type-signature widening `appUrl: string | undefined → string` verified safe (sole caller `lib/email/admission-submitted.ts:25` defaults to `https://talib.annisaasekolahku.com`).
 - Task 2: gates passed (build + vitest run, 1666 passed). `feature-dev:code-reviewer` + `superpowers:code-reviewer` (security pass, route.ts is public unauth surface) both clean. Verified: tenantId definitely-assigned before email block (route.ts:51-66 returns 500 if no ACTIVE tenant); logAudit try/catch isolates DB failures from return contract; only validated email + hardcoded subject/template flow into EmailLog (no user-string log poisoning); duplicate-row on retry is desired audit semantics, not a defect.
+- Task 3: gates passed (build + vitest run, 1668 passed; +2 new cases). `feature-dev:code-reviewer` clean — positive `.toContain("&lt;…")` assertions prove escape was invoked, not that payload was silently dropped.
 
 ## Ship Notes
 <!-- filled by /ship -->
