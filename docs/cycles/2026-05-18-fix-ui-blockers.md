@@ -54,7 +54,7 @@ All four tasks are independent (no shared files). `/build` should dispatch in pa
     - Add `import { StatusBadge, getStatusConfig } from "@/components/ui/status-badge"`.
   - Acceptance: legend, summary, and modal all show "Alpa" for ABSENT. No more local label drift. Grid cells still render solid-bg coloring. `npx vitest run` passes.
 
-- [ ] **T3 — Convert payroll Approve + Send Slips to AlertDialog**
+- [x] **T3 — Convert payroll Approve + Send Slips to AlertDialog**
   - File: `app/admin/(hr)/payroll/[id]/page.tsx`
   - Changes:
     - Replace `<Dialog open={approveModal}>` block (lines 525-542) with `<AlertDialog>` equivalent. Move body summary into a `div` between `<AlertDialogHeader>` and `<AlertDialogFooter>`. `<AlertDialogCancel>` for Batal; `<AlertDialogAction onClick={handleApprove}>` for Setujui.
@@ -77,11 +77,13 @@ All four tasks are independent (no shared files). `/build` should dispatch in pa
 - Base: branch was 69 commits behind `origin/staging` (claude-harness worktree started before recent merges). Zero commits ahead → `git reset --hard origin/staging` to sync; cycle/review docs preserved as untracked.
 - Task 1: Remove raw error.message from teacher error boundary — `app/teacher/error.tsx` — replaced `{error.message || "…"}` interpolation with the fixed Indonesian fallback only. `error` prop kept on the signature (Next.js error boundary contract); TS unused-params not enabled. Cross-checked design-system.html §Status/Empty states for layout — no other visual change.
 - Task 2: Dedupe attendance calendar status maps — `components/attendance/calendar.tsx` — deleted local `STATUS_COLORS` + `STATUS_TEXT_COLORS`. New `STATUS_CELL_BG` retains only the calendar-specific solid-bg lookup (no label field). Labels in legend + summary now resolve via `getStatusConfig()` from `status-badge.tsx`. Modal status row swapped to `<StatusBadge variant="intent">`. "Tidak Hadir" → "Alpa" canonical drift fix can no longer regress here.
+- Task 3: Payroll Approve + Send Slips → AlertDialog — `app/admin/(hr)/payroll/[id]/page.tsx` — two irreversible confirmations migrated from `<Dialog>` to `<AlertDialog>` per ui.md Overlays Rule. `AlertDialogAction` carries the `disabled={approving|sending}` pending state (Button prop spread); `AlertDialogCancel` uses default outline variant. The 3 non-destructive Dialogs in the file (vars-modal, line-adj, edit) stay as `<Dialog>` (intentional — they edit reversible data). Dialog imports retained for the remaining consumers.
 
 ## Verification
 
 - Task 1 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 167s). `feature-dev:code-reviewer` clean.
 - Task 2 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 130s). `feature-dev:code-reviewer` clean.
+- Task 3 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 64s). `feature-dev:code-reviewer` clean.
 - Cross-checked design-system.html §Status / §Empty / §Confirm overlay sections for visual side-effects across cycle tasks.
 
 ## Ship Notes
