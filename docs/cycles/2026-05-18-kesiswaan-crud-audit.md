@@ -138,6 +138,21 @@ Intended outcome: every datum the admission flow or admin entry can write must b
 - T13: `npm run build && npx vitest run` → build clean, vitest `Test Files 176 passed | 2 skipped (178), Tests 1668 passed | 42 todo (1710)`. Migration scaffolded via `prisma migrate diff` fallback (shadow DB has pre-existing unrelated failure on `20260415_enable_rls`); SQL hand-verified against schema diff.
 - T1: `npm run build && npx vitest run` → build clean, vitest `Test Files 177 passed | 2 skipped (179), Tests 1716 passed | 42 todo (1758)` (+48 from new regression test). `grep -rn "Karyawan Swasta|ASN|PNS|TNI/Polri" app/admin app/daftar lib/constants` returns matches only under `lib/constants/parent-options.ts` and its test — single source of truth confirmed.
 - T12: `npm run build && npx vitest run` → build clean, vitest unchanged at 1810 (e2e specs are not picked up by vitest, as expected). Spec load-gate pattern aligned with the working `e2e/admin-dialogs.spec.ts:164-166` reference: `await page.waitForLoadState("networkidle")` after `page.goto(/admin/<route>)` instead of a heading-existence race.
+### /audit-docs report — 2026-05-18
+
+| Check | Status | Detail |
+|---|---|---|
+| Route count (CLAUDE) | ok | claimed=166 actual=166 (was 163 pre-cycle, +3 from T3 photo + T14 ktp/kk) |
+| Portal page counts (CLAUDE) | ok | claimed=41/14/8 actual=41/14/8 |
+| Component count | ok | claimed=69 actual=69 |
+| E2E spec count | ok | claimed=27 actual=27 (was 22 pre-cycle, +5 from T12) |
+| Standards-table files | ok | all 10 present under `.claude/standards/` |
+| ADR archive cutoff (60d) | ok | no rows older than 2026-03-19 |
+| File Structure paths | ok | all 13 paths present |
+| Workflow refs | ok | `/spec`/`/build`/`/ship`/`/audit-docs` all consistent |
+
+**Summary:** 8 ok, 0 warn, 0 fail (after CLAUDE.md edits to bump route + spec counts).
+
 - End-of-cycle Playwright gate (run during `/ship` preflight after killing PID 12548 that was holding port 3000): `DEMO_MODE=true npx playwright test --reporter=line` → `98 passed (8.1m) | 1 flaky | 10 skipped`. All 5 new T12 specs in the pass set (admin-students-full-crud, admin-guardian-detail, admin-admission-convert-parity, admin-guardian-primary-invariant, admin-guardian-document-upload). The 1 flaky case is pre-existing `e2e/admin-curriculum-objectives.spec.ts` from cycle C3 — unrelated to this cycle's surface.
 - T6: `npm run build && npx vitest run` → build clean (1 new client component, no new routes), vitest unchanged at 1810 (T14 already covers the underlying KTP/KK routes; T6 is pure UI consume). Visual smoke deferred to end-of-cycle preview-verify.
 - T10: `npm run build && npx vitest run` → build clean, vitest `Tests 1810 passed | 42 todo (1852)` (+5 from T10 convert cases).
