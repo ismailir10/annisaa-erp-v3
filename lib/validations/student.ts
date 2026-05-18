@@ -14,6 +14,9 @@ export const createStudentSchema = z.object({
   kkNumber: z.string().optional().nullable(),
   livingWith: z.string().optional().nullable(),
   metadata: z.record(z.string(), z.unknown()).optional().nullable(),
+  // Admin-created students normally land ACTIVE; allowing the full enum lets
+  // admins backfill historical rows (GRADUATED / WITHDRAWN) without a second PUT.
+  status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"]).optional(),
   guardians: z.array(z.object({
     name: z.string().min(1, "Nama wali wajib diisi"),
     relationship: z.enum(["AYAH", "IBU", "WALI", "OTHER"]).default("WALI"),
