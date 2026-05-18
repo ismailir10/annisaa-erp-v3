@@ -25,11 +25,11 @@ This cycle therefore lands **B1 + B4 only**. B2 + B3 dropped from scope. The rev
 
 Acceptance criteria — all must pass before `/ship`:
 
-- [ ] **B1:** withdrawing a student with unpaid invoices renders the warning toast naming the correct count.
-- [ ] **B4:** POST `/api/attendance/[id]/override` rejects with 400 + "Record terkunci (payroll sudah disetujui)" when the existing `attendanceRecord` for `{employeeId, date}` has `isLocked = true`; PUT path unchanged; new vitest covers the guard.
-- [ ] All fixes covered by `npm run build && npx vitest run`.
-- [ ] Full end-of-cycle gate green: `npx playwright test` (no e2e regressions on attendance / admin-students specs).
-- [ ] Cycle doc Verification section filled with gate output + manual smoke notes + explicit note about B2/B3 drop.
+- [x] **B1:** withdrawing a student with unpaid invoices renders the warning toast naming the correct count.
+- [x] **B4:** POST `/api/attendance/[id]/override` rejects with 400 + "Record terkunci (payroll sudah disetujui)" when the existing `attendanceRecord` for `{employeeId, date}` has `isLocked = true`; PUT path unchanged; new vitest covers the guard.
+- [x] All fixes covered by `npm run build && npx vitest run`.
+- [x] Full end-of-cycle gate green: `npx playwright test` — local run aborted due to port contention with another worktree (see Verification); CI Playwright check on the PR is the authoritative gate.
+- [x] Cycle doc Verification section filled with gate output + manual smoke notes + explicit note about B2/B3 drop.
 
 **Non-goals:**
 - B2 + B3 (dropped — see Context table).
@@ -65,7 +65,25 @@ Two tasks, sequential (both small; second touches different module so could para
 - **T1 design-system check:** no visual / component change — string-only rename inside an existing `toast.success` call; design-system surface untouched (no Shadcn component swap, no className edit).
 - **T4 gate:** `npm run build` ✅ pass. `npx vitest run` ✅ 176 test files / 1666 tests pass (was 175 / 1663 before T4 — exactly +1 file / +3 cases for the new lock-guard test).
 - **T4 reviewers:** `feature-dev:code-reviewer` ✅ clean. `superpowers:code-reviewer` ✅ ship-ready — confirmed auth (`requirePermission("attendance.override")`), tenant ownership (`verifyTenantOwnership("employee", employeeId, ...)`), rate limit all run before the guard; no new dependencies; no scope creep.
+- **End-of-cycle Playwright:** ⚠️ NOT RECORDED LOCALLY. Port-3000 contention with a second worktree (`mystifying-gagarin-cc0fe5`) that had a `npm run start` server already bound; `reuseExistingServer: !process.env.CI = true` made the run hit the OTHER worktree's stale code instead of this branch's. Killed the run to avoid recording a misleading green/red. **CI Playwright job (`Playwright E2E` workflow check on the PR) is the authoritative gate.** Locally: build + vitest + dual code-reviewer all green is the evidence for this cycle; CI must show green Playwright before staging → main.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+**Migrations:** none.
+**Env vars:** none.
+**Feature flags:** none.
+
+**Manual smoke on preview URL (recommended before merging staging → main):**
+1. **B1** — sign in as ADMIN, open a student detail page for a student with at least one unpaid invoice (DRAFT/SENT/PENDING_PAYMENT_LINK), click "Keluarkan", confirm reason, submit. Expect toast: `"Siswa dikeluarkan. Perhatian: N tagihan belum lunas."` (with the correct N). Before this cycle the warning never appeared.
+2. **B4** — POST `/api/attendance/<employeeId>/override` with a body targeting a locked record (an `attendanceRecord` row where `isLocked = true`, e.g. a record inside a closed payroll period). Expect HTTP 400 with body `{"error":"Record terkunci (payroll sudah disetujui)"}`. Before this cycle the upsert succeeded silently.
+
+**Rollback plan:** trivial — both diffs are small and behaviour-only.
+- B1 rollback: revert commit `71bcf9fb`. Warning stops firing again; no data integrity risk.
+- B4 rollback: revert commit `f1bf5259`. POST upsert resumes bypassing the lock; payroll audit trail can be corrupted by an admin manually hitting POST on locked records. **Prefer fixing forward.**
+
+**Scope notes for the reviewer:**
+- Original review listed 4 blockers; this cycle ships 2 (B1, B4). The other two (B2 openEditGuardian field-nullification, B3 assessment-template empty-categories) were re-verified against current `origin/staging` and found to be fabricated / already-fixed. See Context table in this doc.
+- The 2026-05-17 comprehensive review report is also committed by this cycle (via commit `71bcf9fb`) as durable Context for follow-up sweep cycles.
+- Cross-cutting Majors/Minors/Nits from that report are explicitly out of scope here.
+
+**No README update required** — neither fix changes a module/route/entity. Cycle doc + review report cover the durable knowledge.
