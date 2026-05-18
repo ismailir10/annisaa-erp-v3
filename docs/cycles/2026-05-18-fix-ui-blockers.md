@@ -43,7 +43,7 @@ All four tasks are independent (no shared files). `/build` should dispatch in pa
   - Change: line 20 — delete `{error.message || ...}` interpolation, keep fixed string `"Halaman tidak bisa dimuat. Coba lagi sebentar ya."`
   - Acceptance: file renders identical layout; visit `/teacher` with a forced thrown error and the user sees only the fixed Indonesian copy. `npx vitest run` passes (no test changes expected).
 
-- [ ] **T2 — Dedupe attendance calendar status maps + label drift**
+- [x] **T2 — Dedupe attendance calendar status maps + label drift**
   - File: `components/attendance/calendar.tsx`
   - Changes:
     - Strip `label` field from local `STATUS_COLORS` (keep `bg` + `text` for grid-cell styling — that is calendar-specific).
@@ -76,10 +76,12 @@ All four tasks are independent (no shared files). `/build` should dispatch in pa
 - Subagent plan: 4 tasks touch disjoint files (T1 teacher, T2 components/attendance, T3 admin payroll, T4 admin settings). Independent in code but cycle-doc edit + commit pipeline serializes the loop. Executing inline sequentially with per-task gate + code-reviewer.
 - Base: branch was 69 commits behind `origin/staging` (claude-harness worktree started before recent merges). Zero commits ahead → `git reset --hard origin/staging` to sync; cycle/review docs preserved as untracked.
 - Task 1: Remove raw error.message from teacher error boundary — `app/teacher/error.tsx` — replaced `{error.message || "…"}` interpolation with the fixed Indonesian fallback only. `error` prop kept on the signature (Next.js error boundary contract); TS unused-params not enabled. Cross-checked design-system.html §Status/Empty states for layout — no other visual change.
+- Task 2: Dedupe attendance calendar status maps — `components/attendance/calendar.tsx` — deleted local `STATUS_COLORS` + `STATUS_TEXT_COLORS`. New `STATUS_CELL_BG` retains only the calendar-specific solid-bg lookup (no label field). Labels in legend + summary now resolve via `getStatusConfig()` from `status-badge.tsx`. Modal status row swapped to `<StatusBadge variant="intent">`. "Tidak Hadir" → "Alpa" canonical drift fix can no longer regress here.
 
 ## Verification
 
 - Task 1 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 167s). `feature-dev:code-reviewer` clean.
+- Task 2 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 130s). `feature-dev:code-reviewer` clean.
 - Cross-checked design-system.html §Status / §Empty / §Confirm overlay sections for visual side-effects across cycle tasks.
 
 ## Ship Notes
