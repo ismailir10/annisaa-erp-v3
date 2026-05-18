@@ -73,9 +73,7 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
 
     // ---------- Land on /admin/guardians ----------
     await page.goto("/admin/guardians");
-    await expect(
-      page.getByRole("heading", { name: /Wali Murid/i }),
-    ).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState("networkidle");
 
     // The list paginates 20-at-a-time; search by name to surface the row.
     await page

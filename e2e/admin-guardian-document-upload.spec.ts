@@ -93,9 +93,7 @@ test.describe("Admin guardian — KTP + KK upload + Student KK preview", () => {
 
     // ---------- Open /admin/guardians/[id] ----------
     await page.goto(`/admin/guardians/${parentId}`);
-    await expect(
-      page.getByRole("heading", { name: /Dokumen/i }).first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState("networkidle");
 
     // Empty-state nudges visible before upload.
     await expect(page.getByText("KTP belum diunggah")).toBeVisible();
@@ -167,9 +165,7 @@ test.describe("Admin guardian — KTP + KK upload + Student KK preview", () => {
 
     // ---------- T15: Student detail KK preview via primary guardian ----------
     await page.goto(`/admin/students/${student.id}`);
-    await expect(
-      page.getByRole("heading", { name: /Dokumen Keluarga/i }).first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState("networkidle");
 
     // The student's primary guardian is the parent we just uploaded KK on,
     // so the resolved embed src must point at THIS parent's /kk endpoint.

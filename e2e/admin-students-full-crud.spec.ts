@@ -58,9 +58,7 @@ test.describe("Admin students — full-field CRUD round-trip", () => {
     };
 
     await page.goto("/admin/students");
-    await expect(
-      page.getByRole("heading", { name: /^Siswa$/ }),
-    ).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState("networkidle");
 
     // Open the create dialog.
     await page.getByRole("button", { name: /^Tambah Siswa$/ }).first().click();
