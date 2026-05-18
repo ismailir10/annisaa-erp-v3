@@ -151,3 +151,49 @@ describe("PUT /api/students/[id] — metadata (T4)", () => {
   });
 });
 
+// ──────────────────────────────────────────────────────────────────────────
+// T5 — withdrawalReason inline edit (date stays read-only)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PUT /api/students/[id] — withdrawalReason (T5)", () => {
+  it("updates withdrawalReason without touching withdrawalDate", async () => {
+    state.student = freshStudent({
+      status: "WITHDRAWN",
+      withdrawalReason: "pindah sekolah",
+      withdrawalDate: "2026-05-01",
+    });
+    const res = await PUT(putReq({ withdrawalReason: "pindah ke luar kota" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.lastUpdate?.withdrawalReason).toBe("pindah ke luar kota");
+    // Date field is never set by this route (lifecycle API owns it).
+    expect(state.lastUpdate?.withdrawalDate).toBeUndefined();
+  });
+
+  it("rejects an empty withdrawalReason", async () => {
+    state.student = freshStudent({ status: "WITHDRAWN" });
+    const res = await PUT(putReq({ withdrawalReason: "" }) as never, { params });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a whitespace-only withdrawalReason (schema trims before length check)", async () => {
+    state.student = freshStudent({ status: "WITHDRAWN" });
+    const res = await PUT(putReq({ withdrawalReason: "   " }) as never, { params });
+    expect(res.status).toBe(400);
+  });
+
+  it("leaves withdrawalReason untouched when not provided", async () => {
+    state.student = freshStudent({
+      status: "WITHDRAWN",
+      withdrawalReason: "pindah sekolah",
+      withdrawalDate: "2026-05-01",
+    });
+    const res = await PUT(putReq({ name: "Budi Baru" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.lastUpdate?.withdrawalReason).toBeUndefined();
+    // Lock the invariant: omitting the field must preserve the prior DB value,
+    // not coerce undefined → null on a future refactor.
+    expect(state.student?.withdrawalReason).toBe("pindah sekolah");
+  });
+});
+
+

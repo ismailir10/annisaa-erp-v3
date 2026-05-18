@@ -100,6 +100,9 @@ export async function PUT(
       livingWith: body.livingWith !== undefined ? (body.livingWith?.trim() || null) : undefined,
       metadata: metadataValue,
       status: body.status ?? existing.status,
+      // Inline edit from Student detail "Riwayat Status" sub-card (T5).
+      // Undefined → Prisma skips the column; date stays owned by /withdraw API.
+      withdrawalReason: body.withdrawalReason,
     },
   });
 

@@ -26,6 +26,11 @@ export const createStudentSchema = z.object({
 
 export const updateStudentSchema = createStudentSchema.partial().extend({
   status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"]).optional(),
+  // Inline edit from Student detail "Riwayat Status" sub-card.
+  // Withdrawal date is set by the /withdraw lifecycle API and stays read-only.
+  // .trim() before .min(1) so whitespace-only payloads from a direct API call
+  // (bypassing the client's client-side trim guard) are still rejected.
+  withdrawalReason: z.string().trim().min(1, "Alasan tidak boleh kosong").optional(),
 });
 
 export const enrollStudentSchema = z.object({

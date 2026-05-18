@@ -42,6 +42,9 @@ type Student = {
   nis: string | null; nisn: string | null; birthPlace: string | null;
   nik: string | null; kkNumber: string | null; livingWith: string | null;
   photoUrl: string | null;
+  withdrawalReason: string | null;
+  withdrawalDate: string | null;
+  graduationDate: string | null;
   guardians: Guardian[]; enrollments: Enrollment[];
 };
 function parseStudentMetadata(raw: string | null | undefined): Record<string, unknown> | null {
@@ -112,6 +115,11 @@ export default function StudentDetailPage() {
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
 
+  // Lifecycle inline edit (T5) — withdrawal reason editable, dates read-only
+  const [editingWithdrawalReason, setEditingWithdrawalReason] = useState(false);
+  const [withdrawalEditValue, setWithdrawalEditValue] = useState("");
+  const [savingWithdrawalReason, setSavingWithdrawalReason] = useState(false);
+
   // Attendance history
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
@@ -139,6 +147,8 @@ export default function StudentDetailPage() {
         : [];
       setMetadataRows(rows);
       setMetadataDirty(false);
+      setWithdrawalEditValue(data.withdrawalReason ?? "");
+      setEditingWithdrawalReason(false);
     } catch { toast.error("Terjadi kesalahan"); }
     finally { setLoading(false); }
   }, [id]);
@@ -285,6 +295,35 @@ export default function StudentDetailPage() {
       toast.error("Terjadi kesalahan jaringan");
     } finally {
       setSavingMetadata(false);
+    }
+  }
+
+  // --- Lifecycle inline edit (T5) ---
+  async function saveWithdrawalReason() {
+    const trimmed = withdrawalEditValue.trim();
+    if (!trimmed) {
+      toast.error("Alasan tidak boleh kosong");
+      return;
+    }
+    setSavingWithdrawalReason(true);
+    try {
+      const res = await fetch(`/api/students/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ withdrawalReason: trimmed }),
+      });
+      if (res.ok) {
+        toast.success("Alasan diperbarui");
+        setEditingWithdrawalReason(false);
+        fetchStudent();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Gagal menyimpan");
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setSavingWithdrawalReason(false);
     }
   }
 
@@ -587,6 +626,78 @@ export default function StudentDetailPage() {
               {student.nik && <div><p className="text-xs text-muted-foreground">NIK</p><p className="text-sm font-currency">{student.nik}</p></div>}
               {student.kkNumber && <div><p className="text-xs text-muted-foreground">No. KK</p><p className="text-sm font-currency">{student.kkNumber}</p></div>}
               {student.livingWith && <div><p className="text-xs text-muted-foreground">Tinggal Dengan</p><p className="text-sm">{LIVING_WITH_LABELS[student.livingWith] ?? student.livingWith}</p></div>}
+            </div>
+          </>
+        )}
+
+        {/* Lifecycle history (T5): read-only context for WITHDRAWN / GRADUATED status.
+            Withdrawal reason editable inline; dates set by lifecycle APIs and stay read-only. */}
+        {!isEditing && (student.status === "WITHDRAWN" || student.status === "GRADUATED") && (
+          <>
+            <div className="mt-6"><SectionHeading label="Riwayat Status" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {student.status === "WITHDRAWN" && (
+                <>
+                  {student.withdrawalDate && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tanggal Keluar</p>
+                      <p className="text-sm font-medium">{formatDateShort(student.withdrawalDate)}</p>
+                    </div>
+                  )}
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-muted-foreground">Alasan Keluar</p>
+                      {!editingWithdrawalReason && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => {
+                            setWithdrawalEditValue(student.withdrawalReason ?? "");
+                            setEditingWithdrawalReason(true);
+                          }}
+                        >
+                          <Pencil size={11} className="mr-1" /> Ubah
+                        </Button>
+                      )}
+                    </div>
+                    {editingWithdrawalReason ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={withdrawalEditValue}
+                          onChange={(e) => setWithdrawalEditValue(e.target.value)}
+                          rows={2}
+                          aria-label="Alasan keluar"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingWithdrawalReason(false);
+                              setWithdrawalEditValue(student.withdrawalReason ?? "");
+                            }}
+                            disabled={savingWithdrawalReason}
+                          >
+                            Batal
+                          </Button>
+                          <Button size="sm" onClick={saveWithdrawalReason} disabled={savingWithdrawalReason}>
+                            {savingWithdrawalReason ? "Menyimpan..." : "Simpan"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm">{student.withdrawalReason || <span className="text-muted-foreground">—</span>}</p>
+                    )}
+                  </div>
+                </>
+              )}
+              {student.status === "GRADUATED" && student.graduationDate && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Tanggal Lulus</p>
+                  <p className="text-sm font-medium">{formatDateShort(student.graduationDate)}</p>
+                </div>
+              )}
             </div>
           </>
         )}
