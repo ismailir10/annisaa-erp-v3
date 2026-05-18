@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback, use, useRef } from "react";
 import Link from "next/link";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
@@ -35,6 +35,8 @@ type ParentDetail = {
   employerCity: string | null;
   incomeRange: string | null;
   childrenTotal: number | null;
+  ktpUrl: string | null;
+  kkUrl: string | null;
   status: string;
   guardians: {
     id: string;
@@ -54,8 +56,128 @@ type ParentDetail = {
 };
 
 // ------------------------------------------------------------------
-// Constants
+// Document upload control (T14 + T6) — KTP / KK admin-only auth-proxied
 // ------------------------------------------------------------------
+
+const DOC_MAX_BYTES = 5 * 1024 * 1024;
+const DOC_ACCEPT = "image/jpeg,image/png,application/pdf";
+
+function DocumentUploadCell({
+  parentId,
+  field,
+  label,
+  hasFile,
+  onMutated,
+}: {
+  parentId: string;
+  field: "ktp" | "kk";
+  label: string;
+  hasFile: boolean;
+  onMutated: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Cache-bust the auth-proxied URL after upload/delete so <embed> reloads.
+  const [version, setVersion] = useState(0);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > DOC_MAX_BYTES) {
+      toast.error(`Ukuran ${label} maksimal 5 MB`);
+      return;
+    }
+    const okMime = ["image/jpeg", "image/png", "application/pdf"].includes(file.type);
+    if (!okMime) {
+      toast.error(`Format ${label} harus JPG, PNG, atau PDF`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      const res = await fetch(`/api/parents/${parentId}/${field}`, { method: "POST", body: fd });
+      if (res.ok) {
+        toast.success(`${label} diperbarui`);
+        setVersion((v) => v + 1);
+        onMutated();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error === "UNSUPPORTED_MEDIA_TYPE"
+          ? `Format ${label} ditolak server (magic-byte tidak cocok).`
+          : d.error || `Gagal mengunggah ${label}`);
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/parents/${parentId}/${field}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success(`${label} dihapus`);
+        setVersion((v) => v + 1);
+        onMutated();
+      } else {
+        toast.error(`Gagal menghapus ${label}`);
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      {hasFile ? (
+        <>
+          <embed
+            key={version}
+            src={`/api/parents/${parentId}/${field}?v=${version}`}
+            className="w-full h-48 border rounded-lg bg-muted"
+            aria-label={`Pratinjau ${label}`}
+          />
+          <a
+            href={`/api/parents/${parentId}/${field}?v=${version}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-primary hover:underline inline-block"
+          >
+            Buka di tab baru →
+          </a>
+        </>
+      ) : (
+        <div className="w-full h-48 border border-dashed rounded-lg bg-muted/50 flex items-center justify-center">
+          <p className="text-xs text-muted-foreground">{label} belum diunggah</p>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          ref={inputRef}
+          type="file"
+          accept={DOC_ACCEPT}
+          className="hidden"
+          onChange={handleFile}
+        />
+        <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
+          {busy ? "Memproses..." : hasFile ? `Ganti ${label}` : `Unggah ${label}`}
+        </Button>
+        {hasFile && (
+          <Button size="sm" variant="ghost" onClick={handleDelete} disabled={busy}>
+            Hapus
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ------------------------------------------------------------------
 // Page
@@ -264,6 +386,34 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
             )}
           </>
         )}
+      </Card>
+
+      {/* T6 + T14: Dokumen (KTP / KK) — admin-only auth-proxied uploads.
+          Sensitive PII under UU PDP 27/2022 — files written under .data/
+          (never public/), reads stream through requireAdmin-gated GET. */}
+      <Card className="p-card mb-4">
+        <div className="mb-4">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dokumen</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            KTP per orang tua + KK per keluarga · maks 5 MB · JPG / PNG / PDF
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <DocumentUploadCell
+            parentId={parent.id}
+            field="ktp"
+            label="KTP"
+            hasFile={!!parent.ktpUrl}
+            onMutated={fetchParent}
+          />
+          <DocumentUploadCell
+            parentId={parent.id}
+            field="kk"
+            label="KK"
+            hasFile={!!parent.kkUrl}
+            onMutated={fetchParent}
+          />
+        </div>
       </Card>
 
       {/* Tabs for related data */}
