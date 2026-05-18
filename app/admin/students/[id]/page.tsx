@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
@@ -41,6 +41,7 @@ type Student = {
   gender: string | null; address: string | null; notes: string | null; metadata: string | null; status: string;
   nis: string | null; nisn: string | null; birthPlace: string | null;
   nik: string | null; kkNumber: string | null; livingWith: string | null;
+  photoUrl: string | null;
   guardians: Guardian[]; enrollments: Enrollment[];
 };
 function parseStudentMetadata(raw: string | null | undefined): Record<string, unknown> | null {
@@ -68,6 +69,12 @@ export default function StudentDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", nickname: "", dateOfBirth: "", gender: "", address: "", notes: "", nis: "", nisn: "", birthPlace: "", nik: "", kkNumber: "", livingWith: "" });
   const [savingStudent, setSavingStudent] = useState(false);
+
+  // Photo upload (Data Anak card)
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  // Cache-bust the auth-proxied photo URL after upload/delete so <img> reloads.
+  const [photoVersion, setPhotoVersion] = useState(0);
 
   // Enroll dialog
   const [enrollDialog, setEnrollDialog] = useState(false);
@@ -152,6 +159,58 @@ export default function StudentDetailPage() {
     if (res.ok) { toast.success("Data siswa diperbarui"); setIsEditing(false); fetchStudent(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal menyimpan"); }
     setSavingStudent(false);
+  }
+
+  // --- Photo upload ---
+  async function handlePhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset the input so re-selecting the same file fires onChange again.
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Ukuran foto maksimal 2 MB");
+      return;
+    }
+    if (file.type !== "image/jpeg" && file.type !== "image/png") {
+      toast.error("Format foto harus JPG atau PNG");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      const res = await fetch(`/api/students/${id}/photo`, { method: "POST", body: fd });
+      if (res.ok) {
+        toast.success("Foto diperbarui");
+        setPhotoVersion((v) => v + 1);
+        fetchStudent();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Gagal mengunggah foto");
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handlePhotoDelete() {
+    setUploadingPhoto(true);
+    try {
+      const res = await fetch(`/api/students/${id}/photo`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Foto dihapus");
+        setPhotoVersion((v) => v + 1);
+        fetchStudent();
+      } else {
+        toast.error("Gagal menghapus foto");
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setUploadingPhoto(false);
+    }
   }
 
   // --- Guardian CRUD ---
@@ -354,6 +413,39 @@ export default function StudentDetailPage() {
               </Button>
             </div>
           )}
+        </div>
+
+        {/* Photo — auth-proxied; src never references a public filesystem path */}
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 border">
+            {student.photoUrl ? (
+              <img
+                src={`/api/students/${student.id}/photo?v=${photoVersion}`}
+                alt={`Foto ${student.name}`}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <span className="text-primary text-xl font-bold">{student.name[0]}</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              className="hidden"
+              onChange={handlePhotoFile}
+            />
+            <Button size="sm" variant="outline" onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}>
+              {uploadingPhoto ? "Mengunggah..." : "Ganti Foto"}
+            </Button>
+            {student.photoUrl && (
+              <Button size="sm" variant="ghost" onClick={handlePhotoDelete} disabled={uploadingPhoto}>
+                Hapus
+              </Button>
+            )}
+          </div>
         </div>
 
         {isEditing ? (

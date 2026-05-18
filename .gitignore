@@ -53,3 +53,7 @@ test-results/
 
 .playwright-mcp/
 .vercel
+
+# Local storage adapter uploads (lib/storage). Files written here are served
+# only through auth-proxied API routes — never via Next static handler.
+.data/

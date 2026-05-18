@@ -58,6 +58,7 @@ type Student = {
   nis: string | null;
   nisn: string | null;
   notes: string | null;
+  photoUrl: string | null;
   createdAt: string;
   guardians: { parent: { name: string; phone: string | null } }[];
   enrollments: {
@@ -192,10 +193,21 @@ const columns: ColumnDef<Student>[] = [
           href={`/admin/students/${s.id}`}
           className="flex items-center gap-3 group"
         >
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-            <span className="text-primary text-xs font-bold">
-              {s.name[0]}
-            </span>
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+            {s.photoUrl ? (
+              // Auth-proxied — never a public filesystem path. Lazy-load to
+              // keep large lists snappy on mid-range Android.
+              <img
+                src={`/api/students/${s.id}/photo`}
+                alt={`Foto ${s.name}`}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <span className="text-primary text-xs font-bold">
+                {s.name[0]}
+              </span>
+            )}
           </div>
           <div>
             <span className="text-sm font-medium group-hover:text-primary transition-colors">
