@@ -273,8 +273,8 @@ export default function StudentDetailPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.unpaidInvoices > 0) {
-          toast.success(`Siswa dikeluarkan. Perhatian: ${data.unpaidInvoices} tagihan belum lunas.`);
+        if (data.unpaidInvoiceCount > 0) {
+          toast.success(`Siswa dikeluarkan. Perhatian: ${data.unpaidInvoiceCount} tagihan belum lunas.`);
         } else {
           toast.success("Dikeluarkan");
         }
