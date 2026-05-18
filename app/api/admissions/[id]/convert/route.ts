@@ -31,8 +31,31 @@ export async function POST(
     return NextResponse.json({ error: "Hanya pendaftaran dengan status ADMITTED yang bisa dikonversi" }, { status: 400 });
   }
 
-  // Atomic conversion: student + parent + guardian + admission update
+  // T11 field-parity audit — every transferable Admission column maps to:
+  //   childName            → Student.name
+  //   childGender          → Student.gender
+  //   dateOfBirth          → Student.dateOfBirth
+  //   notes                → Student.notes
+  //   parentName/Phone/Email/Whatsapp/Education/Occupation/Income
+  //                        → Parent.{name,phone,email,whatsapp,education,
+  //                                  occupation,incomeRange}
+  //   parentRelationship   → StudentGuardian.relationship
+  //   campusPreference     → Student.metadata.campusPreference (stash per
+  //                          cycle assumption #3 — convert doesn't auto-
+  //                          create an enrollment; a future enroll flow can
+  //                          read this hint to default the campus picker)
+  // Intentionally NOT transferred (stay on the Admission row for audit):
+  //   programId            — Admission keeps program ref; first enroll picks
+  //                          ClassSection (carries program transitively)
+  //   source / followUpDate / detectedParentId / status / createdAt
+  //                        — admission-internal audit
+  //   childAge             — legacy free-text, derived from dateOfBirth at
+  //                          display time; never written on new admissions
+  //                          (see lib/admission/age.ts)
   const { student } = await prisma.$transaction(async (tx) => {
+    const studentMetadata = admission.campusPreference
+      ? JSON.stringify({ campusPreference: admission.campusPreference })
+      : null;
     const student = await tx.student.create({
       data: {
         tenantId: session.tenantId!,
@@ -40,6 +63,7 @@ export async function POST(
         dateOfBirth: admission.dateOfBirth,
         gender: admission.childGender,
         notes: admission.notes,
+        metadata: studentMetadata,
       },
     });
 

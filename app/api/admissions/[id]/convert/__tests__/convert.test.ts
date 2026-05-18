@@ -160,3 +160,37 @@ describe("POST /api/admissions/[id]/convert", () => {
     );
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// T11 — field-parity audit: campusPreference stashed on Student.metadata
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/admissions/[id]/convert — campusPreference stash (T11)", () => {
+  it("stashes Admission.campusPreference on Student.metadata.campusPreference", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ campusPreference: "campus-jakarta-1" }));
+
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
+
+    expect(studentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: JSON.stringify({ campusPreference: "campus-jakarta-1" }),
+        }),
+      }),
+    );
+  });
+
+  it("leaves Student.metadata null when campusPreference is unset", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ campusPreference: null }));
+
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
+
+    expect(studentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ metadata: null }),
+      }),
+    );
+  });
+});
