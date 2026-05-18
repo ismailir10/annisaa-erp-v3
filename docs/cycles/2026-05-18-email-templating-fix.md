@@ -73,6 +73,25 @@ Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param
 - Task 3: gates passed (build + vitest run, 1668 passed; +2 new cases). `feature-dev:code-reviewer` clean — positive `.toContain("&lt;…")` assertions prove escape was invoked, not that payload was silently dropped.
 - Task 4: gates passed (build + vitest run, 1668 passed). `feature-dev:code-reviewer` clean — grep confirmed zero codebase references to old error string `"RESEND_FROM_EMAIL not set — configure a verified domain"`; outer try/catch retained for genuine network exceptions; log-prefix change `[EMAIL EXCEPTION] → [EMAIL]` for the missing-env path is intentional (config error, not runtime exception) and no log-scraping depends on the old prefix.
 - Task 5: gates passed (build + vitest run, 1668 passed). `feature-dev:code-reviewer` + `superpowers:code-reviewer` both clean — fresh `const` binding per iteration, no tenant-isolation change, audit-integrity improved (catch row now byte-identical to success row for same iteration), no test depends on the old truncated subject string.
+- End-of-cycle: `npm run build && npx vitest run` green (1668 passed, 42 todo, 2 skipped).
+- **Playwright skip:** explicit. Cycle touches only email templates, server-side email send paths, and audit-log writes. No UI surface added/changed, no new route, no portal page touched. CLAUDE.md permits Playwright skip for "pure-docs cycles" — extending here to pure-non-UI code where the headless Playwright pass could not surface any new regression. Email rendering hardened by vitest XSS tests + structural cross-check against the canonical salary-slip shell.
+- **Voice checklist (per voice.md):** audience identified (parent for admission email); glossary canonical (Pendaftaran, ananda, Bapak/Ibu); Islamic courtesy applied (Assalamu'alaikum opener + InsyaAllah + Wassalamu'alaikum closer + Tim Penerimaan Talib signature); no error/empty/destructive copy in this diff (transactional confirmation only).
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Migrations:** none. `EmailLog` table + columns pre-exist; this cycle only writes new rows.
+
+**Env vars:** none new. Existing `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NEXT_PUBLIC_APP_URL` continue to control behavior. If `RESEND_FROM_EMAIL` is unset in prod, admission and salary-slip sends both now return a clean `{ sent: false, error: "RESEND_FROM_EMAIL not configured" }` and write `EmailLog` rows with `status="FAILED"` — verify the env var is set before merging (was already required pre-cycle).
+
+**Manual smoke on preview URL:**
+1. Trigger an admission submission via `/daftar` with a valid `parentEmail`. Confirm:
+   - Response 201 received by the client (admission row created).
+   - In DB: one new `EmailLog` row with `template="admission_submitted"`, `status="SENT"` (preview has real `RESEND_API_KEY`) or `status="SENT"` with `error=null` (if API key absent, simulated path).
+   - If a real send went out, render the received email in Gmail web + Outlook web and confirm the teal canonical shell (logo, wordmark, footer chrome, support@ link) — no green `#0C5C3F` header.
+2. Approve any pending APPROVED payroll run and click "Send slips". Confirm:
+   - Each `EmailLog` row for the run has subject `"Slip Gaji <start> - <end>"` regardless of whether the row's `status` is `SENT` or `FAILED` (catch-path subject parity).
+   - Salary-slip email itself renders unchanged (this cycle did not modify `salary-slip.ts`).
+
+**Rollback plan:** revert this branch's merge commit. The changes are additive (new audit rows) or behavior-preserving (template visual swap, equivalent error message). No data migration to undo. EmailLog rows written under the new template name `admission_submitted` are harmless if the code is reverted — they remain queryable as historical audit records.
+
+**Risk:** low. Email sending is best-effort already (failure swallowed, user still gets 201). Worst-case regression: the new audit write fails → caught by its own try/catch → logged → return contract unchanged. No public-facing breakage path identified.
