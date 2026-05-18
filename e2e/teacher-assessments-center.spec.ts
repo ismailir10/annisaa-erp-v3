@@ -82,12 +82,20 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
     await page.waitForURL("**/teacher/assessments/center/worship", {
       timeout: 15_000,
     });
+    // Tie the assertion to the actual GET so we don't race the network on
+    // cold CI. The fill triggers /api/teacher/assessment-entries/center/<center>
+    // with date=2025-07-15; await the response, then poll DOM for either
+    // the indicator picker or the no-IKTP banner.
+    const responsePromise = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/teacher/assessment-entries/center/worship") &&
+        res.url().includes("date=2025-07-15"),
+      { timeout: 30_000 },
+    );
     await page
       .locator('[data-testid="center-date"]')
       .fill("2025-07-15");
-    // Wait for the GET to settle: the indicator picker OR the no-IKTP
-    // banner (either branch proves the active-week path reached). Use
-    // expect.poll so the test handles the request latency cleanly.
+    await responsePromise;
     await expect
       .poll(
         async () => {
