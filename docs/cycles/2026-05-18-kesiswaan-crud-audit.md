@@ -1,0 +1,138 @@
+# Kesiswaan Module — Full CRUD Parity for Student + Guardian
+
+## Context
+
+The kesiswaan (student affairs) module is the operational backbone every admin role touches daily, yet the admin CRUD surface lags behind the data model. Concrete findings from an audit of the worktree at 2026-05-18:
+
+- **Student create dialog ([app/admin/students/page.tsx:75-83](app/admin/students/page.tsx)) exposes 7 fields** (`name, nickname, gender, dateOfBirth, nis, nisn, notes`). The `Student` model has 20+ user-meaningful fields. Direct-create admins cannot record `address, photoUrl, metadata, birthPlace, nik, kkNumber, livingWith, status, withdrawalReason, withdrawalDate, graduationDate` from the list page — they must create then navigate to the detail page.
+- **Student detail edit ([app/admin/students/[id]/page.tsx:61](app/admin/students/[id]/page.tsx)) covers 12 fields** — better, but still no editor for `photoUrl`, no JSON `metadata` editor (read-only display only), no surfaced lifecycle fields (`withdrawalDate`, `withdrawalReason`, `graduationDate` are saved by the lifecycle APIs but never displayed back).
+- **Guardian detail route exists ([app/admin/guardians/[id]/page.tsx](app/admin/guardians/[id]/page.tsx)) but lacks the document-upload surface this cycle introduces** (KTP, KK). Edit dialog also reuses inline-defined forms rather than a shared component → field drift below.
+- **Guardian edit forms diverge.** The student-detail-page guardian dialog ([app/admin/students/[id]/page.tsx:73,152,158](app/admin/students/[id]/page.tsx)) omits `address` and `childrenTotal` and uses a different occupation/income enum than the guardians-list edit form ([app/admin/guardians/page.tsx:121-141](app/admin/guardians/page.tsx)) — same `Parent` row edited from two screens yields divergent UX.
+- **`StudentGuardian.childOrder` and `StudentGuardian.isPrimary`** are displayed as badges in the student-detail guardian list ([app/admin/students/[id]/page.tsx:457](app/admin/students/[id]/page.tsx)) but no UI mutates them. Once set at admission, immutable forever.
+- **Admission convert ([app/api/admissions/[id]/convert/route.ts:39-89](app/api/admissions/[id]/convert/route.ts)) drops fields.** `Admission.campusPreference` is never read on convert; `Admission.childAge` (legacy free-text) is dropped silently; `Admission.detectedParentId` (sibling-detect match) is implicitly merged with no confirm-UI guarding the merge.
+- **Admin admission edit dialog ([app/admin/admissions/page.tsx:147-468](app/admin/admissions/page.tsx))** omits `campusPreference`. `campusPreference` is also missing from [lib/validations/admission.ts](lib/validations/admission.ts) and [app/api/admissions/[id]/route.ts](app/api/admissions/[id]/route.ts) — adding it to the UI without schema + handler changes is a silent no-op. (`parentRelationship` is already wired end-to-end — UI, schema, PUT route — so it stays out of this spec.)
+- **No document uploads.** Compliance demands KTP (parent ID card) and KK (Kartu Keluarga / family card) on file. Schema has `Student.kkNumber` (the number, free-text), but no document storage for either. KK is one document per family unit; storing on Student duplicates the file across siblings.
+
+Intended outcome: every datum the admission flow or admin entry can write must be (a) viewable by an admin, (b) editable by an admin from a discoverable surface, (c) preserved across the admission→student conversion, and (d) compliance documents (KTP per parent, KK per family) uploadable from the guardian surface and previewable from the student surface. CRUD pattern follows the existing list-page + detail-page convention but enforces field parity and a single source of truth for shared enums.
+
+**UAT staleness:** [docs/uat/reports/2026-05-02-admin.md](docs/uat/reports/2026-05-02-admin.md) flagged a P0 blank-screen hydration regression on `/admin/students` (16 days old). The follow-up cycle 2026-05-18-fix-review-blockers landed since; treat that finding as *possibly stale — verify in /build before declaring related work done*. The admin UI must render real content for this cycle's E2E tests to mean anything.
+
+## Spec
+
+### Acceptance criteria
+
+- [ ] Student create flow (list → "Tambah Siswa" dialog) accepts the full schema-editable field set (`name, nickname, gender, dateOfBirth, address, nis, nisn, birthPlace, nik, kkNumber, livingWith, notes, photoUrl, metadata, status`). Submitting persists every supplied value; reopening the detail page shows every value.
+- [ ] Student detail page renders + edits every schema field above, plus surfaces read-only lifecycle history (`withdrawalDate + withdrawalReason` when status is WITHDRAWN, `graduationDate` when status is GRADUATED) in a clearly-labelled section.
+- [ ] Student metadata JSON has a key/value editor (add row, edit value, remove row) on the detail page; saves via the existing `PUT /api/students/[id]` route with `metadata` re-serialised.
+- [ ] Student photo upload works on the detail page; uploaded files persist to the configured object store (or local fallback if no store configured — verify in build) and `photoUrl` displays back in the avatar slot on list + detail.
+- [ ] Parent KTP upload (one per Parent) and KK upload (one per Parent, representing that parent's family card) work from the guardian detail page. `Parent.ktpUrl` and `Parent.kkUrl` schema fields added via migration. File-size + MIME validation server-side (≤ 5 MB, `image/jpeg`/`image/png`/`application/pdf`).
+- [ ] Student detail page shows read-only KK preview resolved via the primary guardian (`StudentGuardian.isPrimary=true → Parent.kkUrl`). When no primary is set or no KK uploaded, render an empty-state nudge linking to the appropriate guardian.
+- [ ] `/admin/guardians/[id]` route exists, renders the parent record's full demographic + employment field set, lists the children (`StudentGuardian` rows) linked, exposes an Edit dialog with field parity to the guardians-list edit, AND exposes KTP + KK upload controls with preview.
+- [ ] The guardian edit dialog used inside the student detail page is field-identical to the guardian-detail page's dialog — same component, same enums.
+- [ ] All four touch points that select parent `education`, `occupation`, `incomeRange` (admin admissions, admin guardians, student-detail guardian dialog, public daftar) read from a single `lib/constants/parent-options.ts` module — no inline `SelectItem` strings.
+- [ ] `StudentGuardian.childOrder` and `StudentGuardian.isPrimary` are editable from the student-detail guardian dialog. The "Primary" toggle enforces at-most-one primary per student (server-side, in a transaction).
+- [ ] Admin admission edit dialog accepts `parentRelationship` and `campusPreference`. Both round-trip through `PUT /api/admissions/[id]`.
+- [ ] Admission convert API transfers every Admission field that has a destination on Student / Parent / StudentGuardian: child fields → Student; parent demographics → Parent; relationship → StudentGuardian; `campusPreference` → recorded on the first StudentEnrollment created (or skipped explicitly if enrollment is deferred — see assumption #3).
+- [ ] When `Admission.detectedParentId` is set, the convert flow surfaces a confirmation step in the admissions page UI ("Merge with existing parent <name>?" with view-existing + skip-merge options) before the conversion runs. The existing auto-merge becomes the default action of the confirmed dialog.
+- [ ] E2E specs cover: (a) admin creates a student with every field populated and reopens it intact; (b) admission convert moves all parent-demographic fields to the resulting `Parent` row; (c) `/admin/guardians/[id]` loads with no 404; (d) `childOrder` + `isPrimary` mutate correctly with single-primary invariant held.
+
+### Non-goals
+
+- Public daftar form expansion. The public funnel stays on its current minimal field set this cycle; widening intake risks dropping conversion. Tracked separately if marketing asks.
+- Audit-trail tables (`StudentAudit`, `ParentAudit`). Separate compliance cycle.
+- Bulk operations (CSV import, bulk promote/withdraw). Separate cycle.
+- Parent / guardian status workflow beyond the existing ACTIVE↔INACTIVE toggle.
+- Student journal, attendance, assessment modules — only Student / Guardian / Admission entities are in scope.
+- Migration to a new photo-storage vendor. Use whatever the repo already supports; if none, add a minimal local-path fallback so the field is not write-locked.
+
+### Assumptions
+
+1. **One Prisma migration required** — adds `Parent.ktpUrl String?` + `Parent.kkUrl String?`. All other fields referenced in this spec already exist in [prisma/schema.prisma:508-657](prisma/schema.prisma). Migration is additive + nullable → zero-downtime, no backfill needed.
+2. **`childrenTotal` on Parent is admin-only intake** — public daftar will not collect it; admin sets it on the guardians page. (Currently exists in the guardians-list dialog only.)
+3. **`Admission.campusPreference` semantics** — interpreted as "preferred campus for the resulting enrollment, when enrollment is created on convert". If the admin doesn't enroll on convert (which is the current default — convert only creates Student + Parent), the value is stashed on Student.metadata.campusPreference for later retrieval. Correct me if the intent is to auto-create an enrollment with this campus.
+4. **Storage adapter** — no `lib/storage` / `lib/upload` exists in the worktree (verified). T3 introduces a thin adapter shared by T14. The adapter writes outside `public/` (e.g. project-local `private/uploads/<entity>/<id>/<filename>`, or env-configured `UPLOAD_DIR`) and ALL reads go through an authenticated proxy route that calls `requireAdmin` (or the right portal role) and streams the file with the correct `Content-Type` + `Cache-Control: private`. Photos for students MAY be served via the same proxy (no SEO need for them; they're not public). KTP + KK absolutely MUST NOT be reachable at a guessable public URL — Indonesian UU PDP 27/2022 treats government ID + family card as sensitive personal data; serving them under `public/` is a data-protection breach. Production hardening to S3/Supabase Storage with signed URLs is a follow-up cycle; this cycle's adapter is interface-compatible so the swap is local.
+5. **Metadata editor scope** — flat `Record<string, string>` only. No nested objects, no typed fields, no schema validation beyond "key must be non-empty, value must be a string". JSON power-users edit raw via DB.
+6. **Single-primary invariant for `StudentGuardian.isPrimary`** is enforced server-side in a transaction on `PUT /api/students/[id]/guardians/[guardianId]` — flipping one to `isPrimary=true` flips the previously-primary row to `false` in the same tx.
+7. **Sibling-detect confirmation** is opt-out: admin can choose "Convert without merging" to create a brand-new Parent even when `detectedParentId` is set, but the default action is still the merge. The detected parent's id stays on the Admission row for audit.
+8. **KK placement on Parent (not Student).** KK is one document per family unit; siblings share it. Storing on Student would duplicate the file across N siblings and risk drift. Divorced parents with separate KKs are handled correctly because each Parent row carries its own `kkUrl`; the Student detail surface always resolves through the primary guardian. Per-student override (rare) is out of scope this cycle.
+9. **ID prefix refactor is OUT OF SCOPE for this cycle.** Raised in discussion 2026-05-18 but deferred — blast radius (every cuid() across 50+ models, every URL, every external integration, every cached lookup, full prod backfill) exceeds an atomic cycle. Tracked separately for a dedicated CTO-scoped cycle.
+
+## Tasks
+
+> Independence legend: **(I)** = independent, can run in parallel; **(→Tx)** = depends on Tx.
+
+- [ ] **T1 — Extract shared parent-option constants** *(I)*
+      Create `lib/constants/parent-options.ts` exporting `EDUCATION_OPTIONS`, `OCCUPATION_OPTIONS`, `INCOME_OPTIONS`, `RELATIONSHIP_OPTIONS`, `LIVING_WITH_OPTIONS`. Replace inline `SelectItem` lists in [app/admin/admissions/page.tsx](app/admin/admissions/page.tsx), [app/admin/guardians/page.tsx](app/admin/guardians/page.tsx), [app/admin/students/[id]/page.tsx](app/admin/students/[id]/page.tsx), [app/admin/guardians/[id]/page.tsx](app/admin/guardians/[id]/page.tsx), [app/daftar/client.tsx](app/daftar/client.tsx). **Drift is 4-way for occupation** — existing DB rows may hold any of `PNS`, `TNI/Polri`, `Guru/Dosen`, `Dokter`, `Petani`, `Nelayan`, `Buruh` (guardians-list set) OR `Karyawan Swasta`, `ASN`, `Guru`, `Wiraswasta`, `BUMN`, `Freelance` (student-detail / admissions set). Pick the SUPERSET (union of all observed values) as the canonical list, NOT a minimal set — narrowing would render `<Select>` blank for legacy rows. For income, same superset strategy. Document the legacy-source mapping in a top-of-file comment. No data migration; reads stay backward compatible.
+      *Acceptance:* `grep -nE "SMA|D1-D3|S1|S2" app components lib` finds enum values only inside `lib/constants/parent-options.ts` plus the module that re-exports them. Existing DB rows with legacy values still render their value as the Select's current selection (verified via Vitest with a fixture row of each legacy value). `npm run build && npx vitest run` passes.
+
+- [ ] **T2 — Expand Student create dialog to full field set** *(→T1)*
+      Replace `EMPTY_CREATE_FORM` in [app/admin/students/page.tsx:75](app/admin/students/page.tsx) with the full schema-editable field set. Reuse `StudentFormBody` as a single component used by both Create and Edit dialogs (already structured this way). Add sections: "Data Anak" (current 6 fields + address), "Identitas Resmi" (NIS, NISN, NIK, KK, birthPlace, livingWith), "Status" (status select for admin-created rows). On submit, POST every supplied non-empty value.
+      *Acceptance:* Admin can create a student from `/admin/students` and every supplied field appears verbatim on `/admin/students/[id]` without re-edit. Vitest covers POST `/api/students` with full payload.
+
+- [ ] **T3 — Storage adapter + Student photo upload** *(I)*
+      Create `lib/storage/index.ts` exposing `saveFile({ entity, entityId, field, file }) → { url }`, `deleteFile(url)`, and `streamFile(url, { req }) → ReadableStream`. Implementation: writes to `process.env.UPLOAD_DIR ?? .data/uploads/<entity>/<entityId>/<field>-<hash>.<ext>` (path outside `public/`, never web-served by Next static handler). URL returned by `saveFile` is an opaque token referencing the file (e.g. `local:<sha256>` or `students/<id>/photo-<hash>.jpg`), NOT a public URL. Add `POST /api/students/[id]/photo` (multipart upload, ≤ 2 MB, `image/jpeg`/`image/png` only, `requireAdmin`) → calls `saveFile`, persists token to `Student.photoUrl`. Add `GET /api/students/[id]/photo` (auth-required: admin or a guardian linked to this student) → calls `streamFile`. Add `DELETE /api/students/[id]/photo`. Add upload control on [app/admin/students/[id]/page.tsx](app/admin/students/[id]/page.tsx) in the "Data Anak" card. List page (`StudentsPage` columns "name" cell) loads `/api/students/[id]/photo` when `photoUrl` is set (use `<img src>` against the GET route).
+      *Acceptance:* Upload a JPG ≤ 2 MB → photo persists across reload, displays in list + detail. File-size + MIME validation server-side. Unauthenticated GET of the photo URL returns 401. Vitest covers the adapter + API route.
+
+- [ ] **T4 — Add Student metadata key/value editor** *(I)*
+      In [app/admin/students/[id]/page.tsx](app/admin/students/[id]/page.tsx), replace the read-only metadata grid with an in-place editor: rows of `[key input] [value input] [remove]` + an "Add Field" button. On save, re-serialise to JSON via the existing `PUT /api/students/[id]` body (server already accepts arbitrary string for `metadata`). Validate keys non-empty + unique client-side; server rejects invalid JSON.
+      *Acceptance:* Admin can add/edit/remove a metadata row, save, reload, see the change. Empty editor saves as `null`, not `"{}"`. Vitest covers the round-trip.
+
+- [ ] **T5 — Surface lifecycle history on Student detail** *(I)*
+      Read `withdrawalDate`, `withdrawalReason`, `graduationDate` from the Student response (already returned by `GET /api/students/[id]`). Add a "Riwayat Status" sub-card to [app/admin/students/[id]/page.tsx](app/admin/students/[id]/page.tsx) that renders the relevant fields when status is WITHDRAWN or GRADUATED. Withdrawal reason is editable inline (PATCH); date is read-only (set by the lifecycle API).
+      *Acceptance:* Withdraw a student via existing action → reason + date appear in detail view. Editing the reason persists. Graduated student shows graduation date.
+
+- [ ] **T6 — Expand `/admin/guardians/[id]` detail page** *(→T1,T7,T13,T14)*
+      Page already exists at [app/admin/guardians/[id]/page.tsx](app/admin/guardians/[id]/page.tsx) (427 lines). Refactor: (a) swap inline select option lists for `lib/constants/parent-options.ts` (T1); (b) replace inline edit form with shared `GuardianEditFormBody` from T7; (c) add new "Dokumen" card between "Data Pribadi" and "Anak" with KTP + KK upload controls from T14 (preview + replace + remove). Do NOT recreate the file from scratch.
+      *Acceptance:* `/admin/guardians/[id]` still loads + renders existing data. KTP + KK upload, preview, replace, remove all work. Edit form is the shared component. Diff is additive/refactor, not a rewrite.
+
+- [ ] **T7 — Unify guardian edit dialog component + extend PUT handler** *(→T1)*
+      Extract the guardian/parent edit form into `components/admin/guardian-edit-dialog.tsx`. Replace the three divergent forms in [app/admin/students/[id]/page.tsx:564-641](app/admin/students/[id]/page.tsx), [app/admin/guardians/page.tsx:143-207](app/admin/guardians/page.tsx), and [app/admin/guardians/[id]/page.tsx](app/admin/guardians/[id]/page.tsx) with the shared component. Field set is the superset: name, relationship, phone, whatsapp, email, parentNik, education, occupation, incomeRange, employer, employerAddress, employerCity, childrenTotal, address, plus the StudentGuardian fields covered by T8. **Critical:** extend [app/api/students/[id]/guardians/[guardianId]/route.ts](app/api/students/[id]/guardians/[guardianId]/route.ts) to write `childrenTotal` (currently absent — confirmed via grep — silent drop). Also extend `updateGuardianSchema` in [lib/validations/](lib/validations/) if it doesn't already permit it.
+      *Acceptance:* Editing a parent from any of the three entry surfaces yields identical UI and identical payload shape. `childrenTotal` round-trips via the student-detail guardian dialog. One component, one set of tests.
+
+- [ ] **T8 — Make `childOrder` + `isPrimary` editable with race-safe invariant** *(→T7)*
+      Add `childOrder` (number input) and `isPrimary` (switch) to the guardian dialog. Wire to `PUT /api/students/[id]/guardians/[guardianId]` — extend handler to accept both fields. **Race-safe pattern (required, not optional):** wrap in `prisma.$transaction([...], { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })`. Inside the tx, when incoming `isPrimary === true`, execute `updateMany({ where: { studentId, isPrimary: true, id: { not: guardianId } }, data: { isPrimary: false } })` BEFORE the target `update`. Serializable isolation prevents two concurrent promotion requests from each observing zero existing primaries and both committing as primary. On serialization conflict (Postgres SQLSTATE 40001), retry once with a fresh tx. Demoting (`isPrimary === false`) needs no clear-step. Setting `childOrder` is plain field write.
+      *Acceptance:* Toggling primary on row A unsets primary on row B (was true). Concurrent promotion test (two parallel PUTs against different guardians of the same student) ends with exactly one `isPrimary=true` row (vitest with `Promise.all`). Setting childOrder persists.
+
+- [ ] **T9 — Add `campusPreference` to Admission end-to-end** *(→T1)*
+      `parentRelationship` is already wired (UI + schema + PUT) — leave it alone. For `campusPreference`: (a) add field to `createAdmissionSchema` + `updateAdmissionSchema` in [lib/validations/admission.ts](lib/validations/admission.ts) (`z.string().optional()`); (b) extend [app/api/admissions/[id]/route.ts:75 PUT handler](app/api/admissions/[id]/route.ts) to persist it; (c) add a Select sourced from `/api/campuses` to the admission create+edit dialog in [app/admin/admissions/page.tsx:147-468](app/admin/admissions/page.tsx). Also drop the legacy `childAge` free-text from the create dialog; keep it shown on the list for rows that pre-date the cleanup, marked deprecated in a code comment.
+      *Acceptance:* Admin can set + change `campusPreference` on any admission. Round-trip via `PUT /api/admissions/[id]` persists. Pre-existing rows without `campusPreference` render the empty placeholder.
+
+- [ ] **T10 — Sibling-detect confirmation step + email-conflict handling** *(→T9)*
+      When `Admission.detectedParentId` is non-null, intercept the "Convert" action with a dialog: shows the detected Parent (name + phone + children count), with three actions: (a) **Merge** (current default — link the student to the detected parent), (b) **Convert without merging** (create brand-new Parent), (c) **Cancel**. Extend `POST /api/admissions/[id]/convert` to accept `{ mergeWithDetected: boolean }` and branch on it. **Email-conflict handling on no-merge path:** `Parent` has `@@unique([tenantId, email])` ([prisma/schema.prisma:577](prisma/schema.prisma)). If `Admission.parentEmail` collides with an existing `Parent.email` AND the admin chose no-merge, fail the request with HTTP 409 and an actionable error body: `{ error: "EMAIL_CONFLICT", conflictingParentId, message: "Parent with this email already exists. Use Merge to link, or clear the admission's parent email before retrying." }`. UI shows the error inline with a "Switch to merge" button.
+      *Acceptance:* Convert flow shows confirm dialog only when `detectedParentId` is set; merge path + clean no-merge path produce correct DB state; no-merge with email collision returns 409 with correct payload + UI affords recovery. Vitest covers all three paths.
+
+- [ ] **T11 — Field-parity audit on Admission convert** *(→T9)*
+      In [app/api/admissions/[id]/convert/route.ts](app/api/admissions/[id]/convert/route.ts), explicitly transfer every transferable Admission field. Specifically: persist `Admission.campusPreference` per assumption #3 (stash on `Student.metadata.campusPreference` since convert doesn't auto-enroll). Verify (with a fresh test fixture) that every populated Admission field either has a home post-convert or is intentionally dropped with a code comment explaining why.
+      *Acceptance:* New vitest test seeds an Admission with every optional field populated and asserts each value is reachable post-convert on Student / Parent / Admission.
+
+- [ ] **T12 — E2E coverage** *(→T2,T3,T6,T8,T10,T11,T14,T15)*
+      Add Playwright specs under `e2e/`:
+      - `admin-students-full-crud.spec.ts` — create a student with every field, reopen, assert intact; edit, assert persistence.
+      - `admin-guardian-detail.spec.ts` — navigate from `/admin/guardians` to `/admin/guardians/[id]`, edit a field, assert persistence.
+      - `admin-admission-convert-parity.spec.ts` — seed admission with full field set, convert, assert Student + Parent + StudentGuardian populated.
+      - `admin-guardian-primary-invariant.spec.ts` — toggle primary on two-guardian student, assert single-primary invariant.
+      - `admin-guardian-document-upload.spec.ts` — upload KTP + KK on guardian detail, assert persisted + previewable. Open Student detail, assert KK preview resolves via primary guardian.
+
+- [ ] **T13 — Prisma migration: `Parent.ktpUrl` + `Parent.kkUrl`** *(I)*
+      Add nullable `String?` columns `ktpUrl` and `kkUrl` to `Parent` in [prisma/schema.prisma:550](prisma/schema.prisma). Generate migration via `npx prisma migrate dev --name parent-ktp-kk-urls`. Verify migration is additive-only (no data loss, zero downtime). Update [prisma/seed.ts](prisma/seed.ts) so seeded demo parents leave both fields null (no fake URLs).
+      *Acceptance:* `npx prisma migrate dev` runs clean. `Parent` rows persist NULL for new fields. `npm run build && npx vitest run` passes.
+
+- [ ] **T14 — Parent KTP + KK upload + auth-proxied serve** *(→T3,T13)*
+      Add `POST /api/parents/[id]/{ktp,kk}` (multipart upload, ≤ 5 MB, `image/jpeg`/`image/png`/`application/pdf` only, `requireAdmin`) using `lib/storage` from T3. Persist token to `Parent.ktpUrl` / `Parent.kkUrl`. Add `GET /api/parents/[id]/{ktp,kk}` that calls `requireAdmin` (admins only — these are sensitive PII; portal users do not need these documents this cycle), then streams via `storage.streamFile`. Add `DELETE` for both. **Files must NEVER be reachable at a guessable public URL** (no `public/` writes, no Next.js static serving). MIME validated by reading magic bytes server-side (e.g. `file-type` package or hand-rolled signature check); do not trust the `Content-Type` header. Response headers: `Content-Type: <validated>`, `Cache-Control: private, no-store`, `Content-Disposition: inline; filename="..."`.
+      *Acceptance:* Authenticated admin GET streams the file. Anonymous GET returns 401. Non-admin authenticated GET returns 403. Upload of a `.exe` renamed to `.jpg` is rejected (magic-byte check). Vitest covers all validation branches.
+
+- [ ] **T15 — Student detail KK preview via primary guardian** *(→T14)*
+      In [app/admin/students/[id]/page.tsx](app/admin/students/[id]/page.tsx), within a new "Dokumen Keluarga" section (sits alongside the "Identitas Resmi" card), render a read-only KK preview resolved from the primary guardian's `Parent.kkUrl`. Resolution order: (a) find `StudentGuardian` row with `isPrimary=true` AND `status='ACTIVE'` → render that Parent's `kkUrl` via `GET /api/parents/<id>/kk` (auth-proxied — image/PDF rendered into `<img>` or `<embed>` that fetches the URL with same-session cookies); (b) if no primary, fall back to first ACTIVE guardian; (c) if no KK uploaded, render empty state "KK belum diunggah" with a button linking to that Parent's guardian detail page. **The `src` attribute of the preview is the auth-proxied API URL — never a raw filesystem path.**
+      *Acceptance:* Student with primary guardian + uploaded KK shows preview. Student with no KK shows the nudge with working link. Preview src is `/api/parents/.../kk`.
+
+## Implementation
+
+<!-- /build fills this -->
+
+## Verification
+
+<!-- /build fills this -->
+
+## Ship Notes
+
+<!-- /ship fills this -->
