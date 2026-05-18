@@ -31,7 +31,7 @@ import {
 } from "@/lib/constants/parent-options";
 import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 
-type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null } };
+type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null; ktpUrl: string | null; kkUrl: string | null } };
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
@@ -653,6 +653,62 @@ export default function StudentDetailPage() {
             </div>
           </>
         )}
+
+        {/* T15: Dokumen Keluarga — read-only KK preview resolved via primary guardian.
+            Resolution: active primary → first active fallback → empty-state nudge.
+            Preview src is the admin-only auth-proxied endpoint (cookies forwarded by
+            browser); raw filesystem paths NEVER leak to the DOM. */}
+        {!isEditing && (() => {
+          const activeGuardians = student.guardians.filter((g) => g.status === "ACTIVE");
+          const resolved =
+            activeGuardians.find((g) => g.isPrimary) ?? activeGuardians[0] ?? null;
+          const kkUrl = resolved?.parent.kkUrl ?? null;
+          return (
+            <>
+              <div className="mt-6"><SectionHeading label="Dokumen Keluarga" /></div>
+              {!resolved ? (
+                <p className="text-sm text-muted-foreground">
+                  Belum ada wali aktif — tambahkan wali untuk mengunggah KK.
+                </p>
+              ) : kkUrl ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    KK · {resolved.parent.name}
+                    {resolved.isPrimary ? " (wali utama)" : ""}
+                  </p>
+                  {/* <embed> handles both image and PDF — browser sniffs the
+                      response Content-Type. The src points at the admin-only
+                      auth-proxied endpoint; cookies forward automatically. */}
+                  <embed
+                    src={`/api/parents/${resolved.parent.id}/kk`}
+                    className="w-full max-w-md h-64 border rounded-lg bg-muted"
+                    aria-label={`KK keluarga ${resolved.parent.name}`}
+                  />
+                  <a
+                    href={`/api/parents/${resolved.parent.id}/kk`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline inline-block"
+                  >
+                    Buka di tab baru →
+                  </a>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    KK belum diunggah untuk wali {resolved.parent.name}.
+                  </p>
+                  <Link
+                    href={`/admin/guardians/${resolved.parent.id}`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Unggah KK di halaman wali →
+                  </Link>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* Lifecycle history (T5): read-only context for WITHDRAWN / GRADUATED status.
             Withdrawal reason editable inline; dates set by lifecycle APIs and stay read-only. */}
