@@ -82,7 +82,10 @@ export async function POST(
 
   const bytes = Buffer.from(await file.arrayBuffer());
   // Magic-byte check — DO NOT trust file.type from the client.
-  const mime = detectMime(bytes, file.type);
+  // imagesOnly: T14 broadens detectMime to include PDF for KTP/KK; photos
+  // here must still reject PDF (an avatar PDF isn't useful and bypasses
+  // the image-only client-side accept attribute).
+  const mime = detectMime(bytes, file.type, { imagesOnly: true });
   if (!mime.ok) {
     return NextResponse.json(
       { error: "UNSUPPORTED_MEDIA_TYPE", detail: mime.error },

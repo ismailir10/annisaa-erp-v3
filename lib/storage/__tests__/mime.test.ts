@@ -49,9 +49,24 @@ describe("detectMime", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("rejects PDF (out of scope for student photos; T14 extends the detector)", () => {
+  it("accepts PDF by magic bytes (T14 — KTP/KK upload allows it)", () => {
     const pdf = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
     const r = detectMime(pdf, "application/pdf");
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.mimeType).toBe("application/pdf");
+      expect(r.ext).toBe("pdf");
+    }
+  });
+
+  it("rejects PDF when imagesOnly=true (T3 photo upload — PDF avatars not useful)", () => {
+    const pdf = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
+    const r = detectMime(pdf, "application/pdf", { imagesOnly: true });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects an .exe claiming application/pdf — magic bytes still win", () => {
+    const r = detectMime(EXE_PREFIX, "application/pdf");
     expect(r.ok).toBe(false);
   });
 });
