@@ -87,6 +87,7 @@ All four tasks are independent (no shared files). `/build` should dispatch in pa
 - Task 3 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 64s). `feature-dev:code-reviewer` clean.
 - Task 4 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 60s). `feature-dev:code-reviewer` clean.
 - End-of-cycle: `DEMO_MODE=true npx playwright test` ✓ (26 passed, 10 skipped, 3 did not run, exit 0, 42m).
+- End-of-cycle reviewer pass: `feature-dev:code-reviewer` on full branch diff flagged one IMPORTANT (confidence 88) bug — `toggleEnabled` in salary-components silently swallowed API failures (pre-existing pattern, but T4's AlertDialog confirm implies reliability). Fix added `res.ok` guard + success/error toasts mirroring sibling `handleSave`. Re-review clean. Gate `npm run build` ✓ + `npx vitest run` ✓ (175 files, 1663 passed, 36s).
 - Cross-checked design-system.html §Status / §Empty / §Confirm overlay sections for visual side-effects across cycle tasks.
 
 ## Ship Notes

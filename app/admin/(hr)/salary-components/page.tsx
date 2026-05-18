@@ -97,11 +97,17 @@ export default function SalaryComponentsPage() {
   }
 
   async function toggleEnabled(c: Component) {
-    await fetch(`/api/salary-components/${c.id}`, {
+    const res = await fetch(`/api/salary-components/${c.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isEnabled: !c.isEnabled }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || "Gagal memperbarui komponen");
+      return;
+    }
+    toast.success(c.isEnabled ? "Komponen dinonaktifkan" : "Komponen diaktifkan");
     fetchComponents();
   }
 
