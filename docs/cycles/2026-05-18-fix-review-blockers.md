@@ -43,7 +43,7 @@ Two tasks, sequential (both small; second touches different module so could para
 
 - [x] **T1 — B1: fix withdraw warning field name.** Edit [app/admin/students/[id]/page.tsx:276-277](app/admin/students/[id]/page.tsx) — change both occurrences of `data.unpaidInvoices` to `data.unpaidInvoiceCount`. Acceptance: code change lands; manual smoke (or future Playwright addition) confirms warning text and count value populate correctly.
 
-- [ ] **T4 — B4: block POST attendance-override upsert when existing record is locked.** Edit [app/api/attendance/[id]/override/route.ts:112](app/api/attendance/[id]/override/route.ts) — before `prisma.attendanceRecord.upsert`, run `prisma.attendanceRecord.findUnique({ where: { employeeId_date: { employeeId, date } } })`; if `existing?.isLocked`, return same 400 payload as PUT guard at line 58. Add vitest in [app/api/__tests__/](app/api/__tests__/) asserting POST returns 400 when target record `isLocked=true`. Acceptance: new test passes; PUT untouched; smoke via curl confirms.
+- [x] **T4 — B4: block POST attendance-override upsert when existing record is locked.** Edit [app/api/attendance/[id]/override/route.ts:112](app/api/attendance/[id]/override/route.ts) — before `prisma.attendanceRecord.upsert`, run `prisma.attendanceRecord.findUnique({ where: { employeeId_date: { employeeId, date } } })`; if `existing?.isLocked`, return same 400 payload as PUT guard at line 58. Add vitest in [app/api/__tests__/](app/api/__tests__/) asserting POST returns 400 when target record `isLocked=true`. Acceptance: new test passes; PUT untouched; smoke via curl confirms.
 
 **Task ordering / dependencies:** None — T1 and T4 touch disjoint files. Inline sequential.
 
@@ -55,6 +55,7 @@ Two tasks, sequential (both small; second touches different module so could para
 
 - Subagent plan: 2 tasks (T1 + T4) after B2 + B3 dropped from scope; both executed inline by CTO. T1 is 1-line edit, T4 is guard + test. Between-task gate (`npm run build && npx vitest run`) + reviewer pass per task, one commit per task.
 - **T1** — B1: fix withdraw warning field name. Edited `app/admin/students/[id]/page.tsx:276-277` — both occurrences of `data.unpaidInvoices` → `data.unpaidInvoiceCount`. UI now reads the actual API field returned by `app/api/students/[id]/withdraw/route.ts:68`.
+- **T4** — B4: block POST attendance-override upsert when existing record is locked. Edited `app/api/attendance/[id]/override/route.ts` — added pre-upsert `findUnique({where: {employeeId_date}})` + `isLocked` guard mirroring the PUT guard at line 58. Returns 400 + same Indonesian "Record terkunci (payroll sudah disetujui)" message. New test file `app/api/__tests__/attendance-override-post-lock.test.ts` pins 3 branches (locked → 400 + no upsert call; null → upsert; unlocked → upsert).
 
 ## Verification
 
@@ -62,6 +63,8 @@ Two tasks, sequential (both small; second touches different module so could para
 - **T1 reviewer:** `feature-dev:code-reviewer` ✅ clean — diff matches spec, grep across `app/` + `lib/` for `unpaidInvoices` finds zero remaining references in source code (only docs / cycle metadata).
 - **T1 manual smoke:** deferred to end-of-cycle Playwright run.
 - **T1 design-system check:** no visual / component change — string-only rename inside an existing `toast.success` call; design-system surface untouched (no Shadcn component swap, no className edit).
+- **T4 gate:** `npm run build` ✅ pass. `npx vitest run` ✅ 176 test files / 1666 tests pass (was 175 / 1663 before T4 — exactly +1 file / +3 cases for the new lock-guard test).
+- **T4 reviewers:** `feature-dev:code-reviewer` ✅ clean. `superpowers:code-reviewer` ✅ ship-ready — confirmed auth (`requirePermission("attendance.override")`), tenant ownership (`verifyTenantOwnership("employee", employeeId, ...)`), rate limit all run before the guard; no new dependencies; no scope creep.
 
 ## Ship Notes
 

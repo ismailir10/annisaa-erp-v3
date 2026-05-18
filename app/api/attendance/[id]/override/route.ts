@@ -109,6 +109,18 @@ export async function POST(
   if (result.error) return result.error;
   const { date, status, reason } = result.data;
 
+  // Mirror the PUT guard at line 58: a payroll-locked record cannot be
+  // overwritten by re-hitting POST on the same {employeeId, date} composite key.
+  const existing = await prisma.attendanceRecord.findUnique({
+    where: { employeeId_date: { employeeId, date } },
+  });
+  if (existing?.isLocked) {
+    return NextResponse.json(
+      { error: "Record terkunci (payroll sudah disetujui)" },
+      { status: 400 }
+    );
+  }
+
   const record = await prisma.attendanceRecord.upsert({
     where: { employeeId_date: { employeeId, date } },
     update: {
