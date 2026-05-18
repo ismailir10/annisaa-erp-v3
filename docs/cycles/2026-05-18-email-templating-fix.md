@@ -1,0 +1,104 @@
+# Email Templating — Brand Parity + Audit + Hardening
+
+## Context
+
+Talib's outbound email surface has drifted from its own documented contract. The salary-slip template (`lib/email/templates/salary-slip.ts`) and the five Supabase Auth templates (`lib/supabase/email-templates/*.html`) share a canonical visual shell — teal `#5DB4B8` accent, 48px logo, `#F7FAFA` background, footer chrome — explicitly required by `docs/runbooks/supabase-email-templates.md` ("any visual change MUST be mirrored… so all Talib emails feel like one product"). The admission-submitted confirmation template (`lib/email/templates/admission-submitted.ts`, added Cycle 1.1) does not follow the shell: it ships a green `#0C5C3F` header, no logo, no footer chrome, no support contact — a recipient receiving both emails sees two different brands. Secondary issues stack on top: the admission send path writes no `EmailLog` audit row (salary-slip does), the admission template has `escapeHtml` calls but no XSS test proving they work, `lib/email/send-slip.ts` uses an IIFE-throw inside the Resend `from` argument while `admission-submitted.ts` uses a clean early-return for the same guard, and `app/api/payroll/[id]/send-slips/route.ts` writes mismatched EmailLog `subject` strings on success vs. catch paths. Intended outcome: every Talib outbound email renders the same brand shell; every transactional send writes an `EmailLog` audit row; the missing-`RESEND_FROM_EMAIL` guard follows one pattern; admission template XSS escaping is locked in by test. Pure-code cycle — no UI surface, no migration, no env change.
+
+## Spec
+
+**Acceptance criteria:**
+- [ ] `lib/email/templates/admission-submitted.ts` renders the canonical shell: 560px centered table, teal `#5DB4B8` accent (3px header bottom border), 48px `/logo.png`, "Talib" wordmark + "by An Nisaa' Sekolahku" sub-label, `#F7FAFA` page bg, footer chrome ("Dokumen resmi — An Nisaa' Sekolahku · Taman Aster, Bekasi · Metland Cibitung · Dikirim otomatis oleh Talib · talib.annisaasekolahku.com"), Bu Sari voice opening + Wassalamu'alaikum closing, support@annisaasekolahku.com link
+- [ ] `sendAdmissionSubmittedEmail` writes one `EmailLog` row per call with `template="admission_submitted"`, `status` in `{"SENT","FAILED"}` reflecting the Resend outcome, `error` populated on failure paths (including missing-`RESEND_FROM_EMAIL` and simulated/no-key paths classified as `SENT` with `error=null` to mirror salary-slip's "no error = treated as sent" convention)
+- [ ] `lib/email/__tests__/escape.test.ts` (or sibling test file) has at least two XSS hardening cases for `admissionSubmittedEmailHtml` — `<script>` in `childName`, `<img onerror>` in `parentName` — mirroring the existing `salarySlipEmailHtml` test shape
+- [ ] `lib/email/send-slip.ts` `from` guard uses an early-return identical in shape to `admission-submitted.ts` (read env, if missing log + return `{sent:false, error}`, then call `resend.emails.send` with a plain `from` variable)
+- [ ] `app/api/payroll/[id]/send-slips/route.ts` writes the same `subject` string on success and catch paths (single source of truth: `\`Slip Gaji ${periodStart} - ${periodEnd}\``)
+- [ ] `npm run build && npx vitest run` passes
+
+**Non-goals:**
+- No change to salary-slip template visuals (already canonical)
+- No change to the 5 Supabase Auth `.html` templates (already canonical, paste-and-go in dashboard)
+- No change to admission body copy intent — only the visual shell. Indonesian copy stays Bu Sari voice, transactional tone, no CTA link (still pure confirmation per Cycle 1.1 decision)
+- No `appUrl` HTML-escape in salary-slip template (env-controlled value, low risk, deferred — would touch every template's `${appUrl}` site)
+- No Playwright run — no UI surface touched
+- No env var changes, no Prisma migration (`EmailLog` model already exists)
+- No change to Resend retry/rate-limit/throttle logic
+
+**Assumptions:**
+1. The `EmailLog` audit row for admission emails should be written **inside** `sendAdmissionSubmittedEmail` (confirmed with user pre-spec). This requires adding `tenantId` to `SendAdmissionParams` and threading it from `app/api/admission/submit/route.ts` (the tenant is already resolved there).
+2. The "no API key" simulated path (`RESEND_API_KEY` absent in dev/e2e) should write an `EmailLog` row with `status="SENT"` and `error=null` — matches the salary-slip caller's treatment of `{sent:false, error:undefined}` as `"SENT"` (`send-slips/route.ts` line 123). Rationale: dev/e2e logs would otherwise pollute `EmailLog` with synthetic FAILEDs.
+3. The missing-`RESEND_FROM_EMAIL` path should write `EmailLog` with `status="FAILED"` and `error="RESEND_FROM_EMAIL not configured"` — a real misconfiguration deserves a real audit row.
+4. The admission template keeps no CTA button (per Cycle 1.1 spec §7 q4 — "transactional confirmation, not a CTA email"). The canonical shell's CTA section is omitted; everything else mirrors. The footer's optional `appUrl` line in the existing admission template is dropped — the canonical footer already cites `talib.annisaasekolahku.com`.
+
+→ Correct me now or `/build` will proceed with these.
+
+## Tasks
+
+Independent tasks (1, 3, 5 have no ordering between them; 2 depends on 1's param shape; 4 is standalone refactor). `/build` can dispatch 1+3+5 in parallel, then 2 sequentially.
+
+- [x] **Task 1 — Rewrite admission-submitted template using canonical shell.**
+  Update `lib/email/templates/admission-submitted.ts` to mirror `lib/email/templates/salary-slip.ts`'s shell (560px table, teal `#5DB4B8` 3px bottom border, 48px logo, "Talib" wordmark, `#F7FAFA` bg, footer chrome, support@ link, Wassalamu'alaikum closing). Drop the CTA section (admission template has no CTA per non-goal #3). Replace the green `#0C5C3F` header. Keep `appUrl` param (now used for `${appUrl}/logo.png` not footer URL), keep `escapeHtml` on `childName`/`parentName`. Update JSDoc design-constraint comment to reflect the shell alignment.
+  *Acceptance:* template output contains `#5DB4B8`, `${appUrl}/logo.png`, "by An Nisaa' Sekolahku", footer chrome line, `Wassalamu'alaikum`; does NOT contain `#0C5C3F`; type signature unchanged.
+  *Standards:* loads `design-system.html` (frontend gate — cycle doc contains literal `design-system` token via this line) + `voice.md` (Bu Sari register).
+
+- [x] **Task 2 — Add EmailLog write inside `sendAdmissionSubmittedEmail`.**
+  Update `lib/email/admission-submitted.ts`: add `tenantId: string` to `SendAdmissionParams`. After every send attempt (simulated, missing-from, Resend success, Resend error response, thrown exception), write one `prisma.emailLog.create({ data: { tenantId, to, subject, template: "admission_submitted", status, error } })`. Status mapping: simulated → `SENT`/null, missing-from → `FAILED`/"RESEND_FROM_EMAIL not configured", Resend error → `FAILED`/`error.message`, Resend exception → `FAILED`/exception message, success → `SENT`/null. Wrap each `emailLog.create` in its own try/catch — an audit-log insert failure must not change the function's return contract (caller still gets `{sent, error}`). Update `app/api/admission/submit/route.ts` to pass the resolved `tenantId` into `sendAdmissionSubmittedEmail`.
+  *Acceptance:* unit test (added in Task 3 file or new file) verifies a `prisma.emailLog.create` call is fired per send attempt with correct status; route.ts passes `tenantId` in the call site.
+  *Depends on:* Task 1's param shape only if Task 1 also touches `SendAdmissionParams` — it does not. Tasks 1 and 2 independent.
+
+- [x] **Task 3 — Add XSS hardening test for admission template.**
+  Extend `lib/email/__tests__/escape.test.ts` (or create `lib/email/__tests__/admission-submitted.test.ts` if grouping by template feels cleaner) with at least two cases mirroring the existing salary-slip XSS block: (a) `<script>alert("xss")</script>` injected into `childName` does not appear unescaped in output; (b) `<img src=x onerror=alert(1)>` injected into `parentName` does not appear unescaped.
+  *Acceptance:* `npx vitest run lib/email/__tests__/` shows the new cases pass; output asserts contain `&lt;script&gt;` / `&lt;img` (escaped form) and `.not.toContain` the raw `<script>alert` / `<img src=x`.
+
+- [x] **Task 4 — Refactor `send-slip.ts` `from` guard to early-return.**
+  Update `lib/email/send-slip.ts` line 41 from the IIFE-throw `from: process.env.RESEND_FROM_EMAIL ?? (() => { throw new Error(…) })()` to the early-return pattern used by `admission-submitted.ts` lines 44–50 (read env into `const from`, if missing `console.error` + `return { sent: false, error: "RESEND_FROM_EMAIL not configured" }`, then `resend.emails.send({ from, … })`). The existing outer try/catch was only catching the IIFE throw; after refactor it stays for genuine network exceptions.
+  *Acceptance:* `send-slip.ts` no longer contains `throw new Error("RESEND_FROM_EMAIL`; the missing-env path returns `{sent:false, error:"RESEND_FROM_EMAIL not configured"}` without throwing; existing `send-slips/route.ts` consumer already handles `{sent:false, error}` shape (writes EmailLog with `status="FAILED"`).
+
+- [x] **Task 5 — Fix EmailLog subject mismatch in send-slips route.**
+  Update `app/api/payroll/[id]/send-slips/route.ts`: extract `const subject = \`Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}\`` once at the top of the per-item loop, use it in both the success-path `prisma.emailLog.create` (currently line 121) AND the catch-path `prisma.emailLog.create` (currently line 146, which uses only `${payroll.periodStart}`). Same string in both audit rows.
+  *Acceptance:* grep for `Slip Gaji ${payroll.periodStart}` in the route file finds exactly one definition; both `emailLog.create` calls reference the local `subject` variable; build + tests green.
+
+- [x] **Task 6 — Bump CLAUDE.md doc counts to match repo state (`/ship` preflight precondition).**
+  `/audit-docs` reports pre-existing drift in `CLAUDE.md` File Structure block — claimed 38/11/6 portal pages (actual 41/14/8), claimed 149 routes (actual 163), claimed 18 specs (actual 22 + missing spec names: `jakarta-tz-server-date`, `parent-perkembangan`, `teacher-assessments-center`, `teacher-assessments-weekly`). Drift was NOT introduced by this cycle (zero net routes / pages / specs added here) but `/ship` rule treats `fail` audit findings as a precondition failure regardless of source. Update CLAUDE.md to match actual counts so the audit passes.
+  *Acceptance:* `/audit-docs` reports `ok` on all four counts (routes, portals, components, specs); build + tests still green.
+
+## Implementation
+
+- Subagent plan: all 5 tasks file-disjoint (Task 1 → `templates/admission-submitted.ts`; Task 2 → `admission-submitted.ts` + `api/admission/submit/route.ts`; Task 3 → `__tests__/escape.test.ts`; Task 4 → `send-slip.ts`; Task 5 → `api/payroll/[id]/send-slips/route.ts`). Executed sequentially inline rather than parallel subagents — cycle is small (≤200 lines net diff) and clean per-task commits matter more than wall-clock savings here.
+- Task 1: `lib/email/templates/admission-submitted.ts` — full rewrite of HTML body using the canonical shell (560px table, teal `#5DB4B8` 3px header border, 48px `${appUrl}/logo.png`, wordmark + sub-label, support@ link, footer chrome). Dropped green `#0C5C3F` header. No CTA. Tightened `appUrl` type from optional to required (logo src needs it). JSDoc updated to declare shell-alignment contract.
+- Task 2: `lib/email/admission-submitted.ts` + `app/api/admission/submit/route.ts` — added `tenantId` to `SendAdmissionParams`, introduced internal `logAudit(status, error)` helper writing `prisma.emailLog.create` on every return path (simulated→SENT/null, missing-from→FAILED, resend-error→FAILED, resend-throw→FAILED, ok→SENT/null). Audit insert wrapped in its own try/catch so DB failure cannot mutate the route's 201 response contract. Route call site threads the already-resolved `tenantId`.
+- Task 3: `lib/email/__tests__/escape.test.ts` — added `admissionSubmittedEmailHtml — XSS hardening` describe block with two cases (`<script>` in childName, `<img onerror>` in parentName) mirroring the salary-slip block. Per-field isolation gives independent evidence that both params are wired through `escapeHtml`.
+- Task 4: `lib/email/send-slip.ts` — replaced IIFE-throw inside `resend.emails.send` arg with explicit `const from = …; if (!from) { console.error; return … }` early-return mirroring `admission-submitted.ts`. Error message normalized to `"RESEND_FROM_EMAIL not configured"`. Outer try/catch retained — still load-bearing for network throws + API errors.
+- Task 5: `app/api/payroll/[id]/send-slips/route.ts` — extracted `const subject = \`Slip Gaji ${periodStart} - ${periodEnd}\`` once per loop iteration; both success and catch `emailLog.create` calls now write identical subject strings (previously catch dropped `periodEnd`, making audit rows inconsistent).
+- Task 6: `CLAUDE.md` File Structure block — updated portal counts 38/11/6→41/14/8, route count 149→163, spec count 18→22 and appended four missing spec names. Pre-existing drift from prior cycles; surfaced and blocked by `/ship` Step 6 `/audit-docs` precondition.
+
+## Verification
+
+- Task 1: gates passed (build + vitest run, 1666 passed). Cross-checked `design-system.html` §header/CTA/footer + `lib/email/templates/salary-slip.ts` canonical shell — admission template now structurally identical (560px table, `#5DB4B8` 3px border, 48px logo, wordmark, footer chrome, support@ link). `feature-dev:code-reviewer` clean. Type-signature widening `appUrl: string | undefined → string` verified safe (sole caller `lib/email/admission-submitted.ts:25` defaults to `https://talib.annisaasekolahku.com`).
+- Task 2: gates passed (build + vitest run, 1666 passed). `feature-dev:code-reviewer` + `superpowers:code-reviewer` (security pass, route.ts is public unauth surface) both clean. Verified: tenantId definitely-assigned before email block (route.ts:51-66 returns 500 if no ACTIVE tenant); logAudit try/catch isolates DB failures from return contract; only validated email + hardcoded subject/template flow into EmailLog (no user-string log poisoning); duplicate-row on retry is desired audit semantics, not a defect.
+- Task 3: gates passed (build + vitest run, 1668 passed; +2 new cases). `feature-dev:code-reviewer` clean — positive `.toContain("&lt;…")` assertions prove escape was invoked, not that payload was silently dropped.
+- Task 4: gates passed (build + vitest run, 1668 passed). `feature-dev:code-reviewer` clean — grep confirmed zero codebase references to old error string `"RESEND_FROM_EMAIL not set — configure a verified domain"`; outer try/catch retained for genuine network exceptions; log-prefix change `[EMAIL EXCEPTION] → [EMAIL]` for the missing-env path is intentional (config error, not runtime exception) and no log-scraping depends on the old prefix.
+- Task 5: gates passed (build + vitest run, 1668 passed). `feature-dev:code-reviewer` + `superpowers:code-reviewer` both clean — fresh `const` binding per iteration, no tenant-isolation change, audit-integrity improved (catch row now byte-identical to success row for same iteration), no test depends on the old truncated subject string.
+- Task 6: `/audit-docs` re-run reports `ok` on routes (163=163), portals (41/14/8=41/14/8), components (69=69), specs (22=22). Pure doc edit; no code gate impact.
+- Preview-verify iteration 1 (https://annisaa-erp-v3-git-feat-email-08b422-ismails-projects-196d40d3.vercel.app): flows=[/daftar happy path], blockers=0, minors=0. Filled childName + DOB + gender + parentName + parentPhone + parentEmail, submitted Step 3. `POST /api/admission/submit` → 201, confirmation page rendered with "Pendaftaran ananda Test PreviewVerify tercatat" + admission ID `cmpauc4dn000004juz3u6ctne`. Zero console errors. Email render itself not directly verifiable from preview (would require receiving the actual email); template + audit-log code paths covered by vitest XSS tests + structural shell comparison + audit-write code review.
+- Preview-verify converged on iteration 1 (clean): 1 iteration, 0 fix commits, final preview https://annisaa-erp-v3-git-feat-email-08b422-ismails-projects-196d40d3.vercel.app.
+- End-of-cycle: `npm run build && npx vitest run && npx playwright test` all green. Vitest: 1668 passed, 42 todo, 2 skipped. Playwright: 46 passed, 13 skipped, 2 did-not-run (project-level skip, no failures; exit 0). Runtime 31.1m.
+- **Voice checklist (per voice.md):** audience identified (parent for admission email); glossary canonical (Pendaftaran, ananda, Bapak/Ibu); Islamic courtesy applied (Assalamu'alaikum opener + InsyaAllah + Wassalamu'alaikum closer + Tim Penerimaan Talib signature); no error/empty/destructive copy in this diff (transactional confirmation only).
+
+## Ship Notes
+
+**Migrations:** none. `EmailLog` table + columns pre-exist; this cycle only writes new rows.
+
+**Env vars:** none new. Existing `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NEXT_PUBLIC_APP_URL` continue to control behavior. If `RESEND_FROM_EMAIL` is unset in prod, admission and salary-slip sends both now return a clean `{ sent: false, error: "RESEND_FROM_EMAIL not configured" }` and write `EmailLog` rows with `status="FAILED"` — verify the env var is set before merging (was already required pre-cycle).
+
+**Manual smoke on preview URL:**
+1. Trigger an admission submission via `/daftar` with a valid `parentEmail`. Confirm:
+   - Response 201 received by the client (admission row created).
+   - In DB: one new `EmailLog` row with `template="admission_submitted"`, `status="SENT"` (preview has real `RESEND_API_KEY`) or `status="SENT"` with `error=null` (if API key absent, simulated path).
+   - If a real send went out, render the received email in Gmail web + Outlook web and confirm the teal canonical shell (logo, wordmark, footer chrome, support@ link) — no green `#0C5C3F` header.
+2. Approve any pending APPROVED payroll run and click "Send slips". Confirm:
+   - Each `EmailLog` row for the run has subject `"Slip Gaji <start> - <end>"` regardless of whether the row's `status` is `SENT` or `FAILED` (catch-path subject parity).
+   - Salary-slip email itself renders unchanged (this cycle did not modify `salary-slip.ts`).
+
+**Rollback plan:** revert this branch's merge commit. The changes are additive (new audit rows) or behavior-preserving (template visual swap, equivalent error message). No data migration to undo. EmailLog rows written under the new template name `admission_submitted` are harmless if the code is reverted — they remain queryable as historical audit records.
+
+**Risk:** low. Email sending is best-effort already (failure swallowed, user still gets 201). Worst-case regression: the new audit write fails → caught by its own try/catch → logged → return contract unchanged. No public-facing breakage path identified.

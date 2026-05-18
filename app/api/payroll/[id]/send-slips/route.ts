@@ -75,6 +75,10 @@ export async function POST(
       continue;
     }
 
+    // Single source of truth for the EmailLog audit subject so success
+    // and catch paths write identical rows.
+    const subject = `Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}`;
+
     try {
       // Generate PDF for this employee
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
@@ -118,7 +122,7 @@ export async function POST(
         data: {
           tenantId: payroll.tenantId,
           to: item.employee.email,
-          subject: `Slip Gaji ${payroll.periodStart} - ${payroll.periodEnd}`,
+          subject,
           template: "salary_slip",
           status: result.sent ? "SENT" : (result.error ? "FAILED" : "SENT"),
           error: result.error ?? null,
@@ -143,7 +147,7 @@ export async function POST(
         data: {
           tenantId: payroll.tenantId,
           to: item.employee.email,
-          subject: `Slip Gaji ${payroll.periodStart}`,
+          subject,
           template: "salary_slip",
           status: "FAILED",
           error: msg,
