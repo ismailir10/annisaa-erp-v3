@@ -19,6 +19,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
@@ -521,42 +524,42 @@ export default function PayrollDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Approve Modal */}
-      <Dialog open={approveModal} onOpenChange={setApproveModal}>
-        <DialogContent className="p-card sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Setujui Penggajian</DialogTitle>
-            <DialogDescription>Setelah disetujui, kehadiran akan dikunci dan tidak bisa diubah.</DialogDescription>
-          </DialogHeader>
+      {/* Approve — AlertDialog: irreversible (locks attendance) */}
+      <AlertDialog open={approveModal} onOpenChange={setApproveModal}>
+        <AlertDialogContent className="p-card sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Setujui Penggajian</AlertDialogTitle>
+            <AlertDialogDescription>Setelah disetujui, kehadiran akan dikunci dan tidak bisa diubah.</AlertDialogDescription>
+          </AlertDialogHeader>
           <div className="py-2 space-y-2 text-sm">
             <p>Periode: {data.periodStart} — {data.periodEnd}</p>
             <p>Karyawan: {data.items.length}</p>
             <p>Total Bersih: <span className="font-currency font-bold">{formatRupiah(totalNet)}</span></p>
             {noBank.length > 0 && <p className="text-destructive">{noBank.length} karyawan tanpa rekening bank</p>}
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-            <Button onClick={handleApprove} disabled={approving}>{approving ? "Menyetujui..." : "Setujui"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleApprove} disabled={approving}>{approving ? "Menyetujui..." : "Setujui"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Send Slips Modal */}
-      <Dialog open={sendModal} onOpenChange={setSendModal}>
-        <DialogContent className="p-card sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Kirim Slip Gaji</DialogTitle>
-            <DialogDescription>Slip gaji PDF akan dikirim ke email setiap karyawan.</DialogDescription>
-          </DialogHeader>
+      {/* Send Slips — AlertDialog: irreversible (emails sent) */}
+      <AlertDialog open={sendModal} onOpenChange={setSendModal}>
+        <AlertDialogContent className="p-card sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kirim Slip Gaji</AlertDialogTitle>
+            <AlertDialogDescription>Slip gaji PDF akan dikirim ke email setiap karyawan.</AlertDialogDescription>
+          </AlertDialogHeader>
           <div className="py-2 text-sm">
             <p>{data.items.length} slip akan dikirim</p>
           </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-            <Button onClick={handleSendSlips} disabled={sending}>{sending ? "Mengirim..." : "Kirim Semua"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSendSlips} disabled={sending}>{sending ? "Mengirim..." : "Kirim Semua"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

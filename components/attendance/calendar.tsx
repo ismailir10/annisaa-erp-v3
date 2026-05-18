@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { formatTime } from "@/lib/format";
+import { StatusBadge, getStatusConfig } from "@/components/ui/status-badge";
 
 type AttendanceRecord = {
   id: string;
@@ -13,25 +14,18 @@ type AttendanceRecord = {
   checkOutTime: string | null;
 };
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  PRESENT: { bg: "bg-status-present", text: "text-white", label: "Hadir" },
-  LATE: { bg: "bg-status-late", text: "text-white", label: "Terlambat" },
-  ABSENT: { bg: "bg-status-absent", text: "text-white", label: "Tidak Hadir" },
-  LEAVE: { bg: "bg-status-leave", text: "text-white", label: "Izin" },
-  HOLIDAY: { bg: "bg-status-holiday", text: "text-white", label: "Libur" },
-  HALF_DAY: { bg: "bg-status-late", text: "text-white", label: "Setengah Hari" },
-  PRESENT_NO_CHECKOUT: { bg: "bg-status-late", text: "text-white", label: "Hadir Tanpa Pulang" },
-};
-
-// Status colors for text display (modal, summary)
-const STATUS_TEXT_COLORS: Record<string, string> = {
-  PRESENT: "text-status-present-text",
-  LATE: "text-status-late-text",
-  ABSENT: "text-status-absent-text",
-  LEAVE: "text-status-leave-text",
-  HOLIDAY: "text-status-holiday-text",
-  HALF_DAY: "text-status-late-text",
-  PRESENT_NO_CHECKOUT: "text-status-late-text",
+// Calendar-specific grid cell coloring: solid bg + white text (distinct from
+// the subtle pill treatment in StatusBadge). Labels resolve via
+// getStatusConfig() — single source of truth — so "Tidak Hadir" → "Alpa"
+// drift cannot recur here.
+const STATUS_CELL_BG: Record<string, string> = {
+  PRESENT: "bg-status-present",
+  LATE: "bg-status-late",
+  ABSENT: "bg-status-absent",
+  LEAVE: "bg-status-leave",
+  HOLIDAY: "bg-status-holiday",
+  HALF_DAY: "bg-status-late",
+  PRESENT_NO_CHECKOUT: "bg-status-late",
 };
 
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -119,15 +113,15 @@ export function AttendanceCalendar({
           const dow = new Date(year, month - 1, day).getDay();
           const isWeekend = dow === 0 || dow === 6;
           const isToday = isCurrentMonth && day === today.getDate();
-          const statusColor = record ? STATUS_COLORS[record.status] : null;
+          const cellBg = record ? STATUS_CELL_BG[record.status] : null;
 
           return (
             <button
               key={i}
               onClick={() => record && setSelectedDay(record)}
               className={`aspect-square rounded-lg flex items-center justify-center text-xs font-medium relative transition-colors ${
-                statusColor
-                  ? `${statusColor.bg} ${statusColor.text}`
+                cellBg
+                  ? `${cellBg} text-white`
                   : isWeekend
                   ? "bg-muted/50 text-muted-foreground"
                   : "text-foreground hover:bg-accent"
@@ -141,10 +135,10 @@ export function AttendanceCalendar({
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mt-4 text-xs">
-        {Object.entries(STATUS_COLORS).slice(0, 5).map(([key, val]) => (
+        {(["PRESENT", "LATE", "ABSENT", "LEAVE", "HOLIDAY"] as const).map((key) => (
           <div key={key} className="flex items-center gap-1">
-            <div className={`w-2.5 h-2.5 rounded-sm ${val.bg}`} />
-            <span className="text-muted-foreground">{val.label}</span>
+            <div className={`w-2.5 h-2.5 rounded-sm ${STATUS_CELL_BG[key]}`} />
+            <span className="text-muted-foreground">{getStatusConfig(key).label}</span>
           </div>
         ))}
       </div>
@@ -152,10 +146,10 @@ export function AttendanceCalendar({
       {/* Summary */}
       <div className="grid grid-cols-4 gap-3 mt-4 bg-card border border-border rounded-xl p-3">
         {[
-          { label: "Hadir", value: summary.present, color: "text-status-present" },
-          { label: "Terlambat", value: summary.late, color: "text-status-late" },
-          { label: "Tidak Hadir", value: summary.absent, color: "text-destructive" },
-          { label: "Izin", value: summary.leave, color: "text-status-leave" },
+          { label: getStatusConfig("PRESENT").label, value: summary.present, color: "text-status-present" },
+          { label: getStatusConfig("LATE").label, value: summary.late, color: "text-status-late" },
+          { label: getStatusConfig("ABSENT").label, value: summary.absent, color: "text-destructive" },
+          { label: getStatusConfig("LEAVE").label, value: summary.leave, color: "text-status-leave" },
         ].map((s) => (
           <div key={s.label} className="text-center">
             <p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p>
@@ -194,11 +188,9 @@ export function AttendanceCalendar({
                 </button>
               </div>
               <div className="space-y-3">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm items-center">
                   <span className="text-muted-foreground">Status</span>
-                  <span className={`font-medium ${STATUS_TEXT_COLORS[selectedDay.status] ?? "text-foreground"}`}>
-                    {STATUS_COLORS[selectedDay.status]?.label ?? selectedDay.status}
-                  </span>
+                  <StatusBadge status={selectedDay.status} variant="intent" />
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Masuk</span>
