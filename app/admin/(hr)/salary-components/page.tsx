@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,6 +48,7 @@ export default function SalaryComponentsPage() {
     code: "", label: "", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: "0",
   });
   const [saving, setSaving] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<Component | null>(null);
 
   async function fetchComponents() {
     const res = await fetch("/api/salary-components");
@@ -153,7 +157,7 @@ export default function SalaryComponentsPage() {
           <DataTableRowActions
             onEdit={() => openEdit(c)}
             isActive={c.isEnabled}
-            onDeactivate={() => toggleEnabled(c)}
+            onDeactivate={() => setConfirmTarget(c)}
             onActivate={() => toggleEnabled(c)}
           />
         );
@@ -237,6 +241,30 @@ export default function SalaryComponentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Deactivate guard — activation stays single-click (non-destructive) */}
+      <AlertDialog open={!!confirmTarget} onOpenChange={(o) => !o && setConfirmTarget(null)}>
+        <AlertDialogContent className="p-card sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Nonaktifkan komponen ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmTarget?.label} tidak akan masuk perhitungan penggajian berikutnya. Bisa diaktifkan kembali kapan saja.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (confirmTarget) toggleEnabled(confirmTarget);
+                setConfirmTarget(null);
+              }}
+            >
+              Ya, Nonaktifkan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

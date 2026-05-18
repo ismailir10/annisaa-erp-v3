@@ -62,7 +62,7 @@ All four tasks are independent (no shared files). `/build` should dispatch in pa
     - Add imports from `@/components/ui/alert-dialog` (Root, Content, Header, Title, Description, Footer, Cancel, Action). Drop unused `DialogClose` if it remains only for these blocks.
   - Acceptance: clicking Setujui/Kirim Semua surfaces an AlertDialog (no overlay-over-overlay regression). Body content (period dates, employee count, total) still visible. Disabled state during `approving` / `sending` preserved on the Action button. `npx vitest run` + `npm run build` pass.
 
-- [ ] **T4 — Add AlertDialog guard to salary-components deactivate**
+- [x] **T4 — Add AlertDialog guard to salary-components deactivate**
   - File: `app/admin/settings/salary-components/page.tsx`
   - Changes:
     - Add `confirmTarget` state: `const [confirmTarget, setConfirmTarget] = useState<Component | null>(null)`.
@@ -78,12 +78,14 @@ All four tasks are independent (no shared files). `/build` should dispatch in pa
 - Task 1: Remove raw error.message from teacher error boundary — `app/teacher/error.tsx` — replaced `{error.message || "…"}` interpolation with the fixed Indonesian fallback only. `error` prop kept on the signature (Next.js error boundary contract); TS unused-params not enabled. Cross-checked design-system.html §Status/Empty states for layout — no other visual change.
 - Task 2: Dedupe attendance calendar status maps — `components/attendance/calendar.tsx` — deleted local `STATUS_COLORS` + `STATUS_TEXT_COLORS`. New `STATUS_CELL_BG` retains only the calendar-specific solid-bg lookup (no label field). Labels in legend + summary now resolve via `getStatusConfig()` from `status-badge.tsx`. Modal status row swapped to `<StatusBadge variant="intent">`. "Tidak Hadir" → "Alpa" canonical drift fix can no longer regress here.
 - Task 3: Payroll Approve + Send Slips → AlertDialog — `app/admin/(hr)/payroll/[id]/page.tsx` — two irreversible confirmations migrated from `<Dialog>` to `<AlertDialog>` per ui.md Overlays Rule. `AlertDialogAction` carries the `disabled={approving|sending}` pending state (Button prop spread); `AlertDialogCancel` uses default outline variant. The 3 non-destructive Dialogs in the file (vars-modal, line-adj, edit) stay as `<Dialog>` (intentional — they edit reversible data). Dialog imports retained for the remaining consumers.
+- Task 4: Salary-components deactivate guard — `app/admin/(hr)/salary-components/page.tsx` (note: review report cited `app/admin/settings/salary-components/` — file was moved by a recent merge before this cycle; same code shape, no spec change needed). Added `confirmTarget` state + `<AlertDialog>` with destructive `<AlertDialogAction variant="destructive">`. `onDeactivate` now sets state instead of firing the toggle directly; `onActivate` stays single-click. Copy: "Nonaktifkan komponen ini?" + body interpolating component label + reassurance "Bisa diaktifkan kembali kapan saja"; confirm label "Ya, Nonaktifkan" per ui.md table.
 
 ## Verification
 
 - Task 1 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 167s). `feature-dev:code-reviewer` clean.
 - Task 2 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 130s). `feature-dev:code-reviewer` clean.
 - Task 3 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 64s). `feature-dev:code-reviewer` clean.
+- Task 4 gate: `npm run build` ✓, `npx vitest run` ✓ (175 files, 1663 passed, 2 skipped, 42 todo, 60s). `feature-dev:code-reviewer` clean.
 - Cross-checked design-system.html §Status / §Empty / §Confirm overlay sections for visual side-effects across cycle tasks.
 
 ## Ship Notes
