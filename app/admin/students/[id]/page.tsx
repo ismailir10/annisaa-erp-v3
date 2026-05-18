@@ -76,6 +76,14 @@ export default function StudentDetailPage() {
   // Cache-bust the auth-proxied photo URL after upload/delete so <img> reloads.
   const [photoVersion, setPhotoVersion] = useState(0);
 
+  // Metadata key/value editor
+  type MetadataRow = { id: string; key: string; value: string };
+  const [metadataRows, setMetadataRows] = useState<MetadataRow[]>([]);
+  const [savingMetadata, setSavingMetadata] = useState(false);
+  const [metadataDirty, setMetadataDirty] = useState(false);
+  const metadataRowIdRef = useRef(0);
+  const nextMetadataRowId = () => `m${++metadataRowIdRef.current}`;
+
   // Enroll dialog
   const [enrollDialog, setEnrollDialog] = useState(false);
   const [sections, setSections] = useState<ClassSection[]>([]);
@@ -117,7 +125,20 @@ export default function StudentDetailPage() {
     try {
       const res = await fetch(`/api/students/${id}`);
       if (!res.ok) { toast.error("Gagal memuat data siswa"); return; }
-      setStudent(await res.json());
+      const data = (await res.json()) as Student;
+      setStudent(data);
+      // Seed metadata editor rows from server state. Each row gets a stable
+      // local id so React keys are stable across edits + adds + removes.
+      const parsed = parseStudentMetadata(data.metadata);
+      const rows: MetadataRow[] = parsed
+        ? Object.entries(parsed).map(([key, value]) => ({
+            id: nextMetadataRowId(),
+            key,
+            value: value == null ? "" : String(value),
+          }))
+        : [];
+      setMetadataRows(rows);
+      setMetadataDirty(false);
     } catch { toast.error("Terjadi kesalahan"); }
     finally { setLoading(false); }
   }, [id]);
@@ -139,6 +160,12 @@ export default function StudentDetailPage() {
   // --- Edit toggle ---
   function startEditing() {
     if (!student) return;
+    // Switching to the main edit form hides the metadata editor block; warn before
+    // discarding unsaved metadata rows so the user doesn't lose typed work.
+    if (metadataDirty) {
+      toast.error("Simpan informasi tambahan dulu sebelum mengedit data siswa.");
+      return;
+    }
     setEditForm({
       name: student.name, nickname: student.nickname ?? "",
       dateOfBirth: student.dateOfBirth ?? "", gender: student.gender ?? "",
@@ -210,6 +237,54 @@ export default function StudentDetailPage() {
       toast.error("Terjadi kesalahan jaringan");
     } finally {
       setUploadingPhoto(false);
+    }
+  }
+
+  // --- Metadata editor (T4) ---
+  function addMetadataRow() {
+    setMetadataRows((rows) => [...rows, { id: nextMetadataRowId(), key: "", value: "" }]);
+    setMetadataDirty(true);
+  }
+  function updateMetadataRow(rowId: string, patch: Partial<MetadataRow>) {
+    setMetadataRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r)));
+    setMetadataDirty(true);
+  }
+  function removeMetadataRow(rowId: string) {
+    setMetadataRows((rows) => rows.filter((r) => r.id !== rowId));
+    setMetadataDirty(true);
+  }
+  async function saveMetadata() {
+    const trimmed = metadataRows.map((r) => ({ id: r.id, key: r.key.trim(), value: r.value }));
+    if (trimmed.some((r) => r.key === "")) {
+      toast.error("Nama field tidak boleh kosong");
+      return;
+    }
+    const keys = trimmed.map((r) => r.key);
+    if (new Set(keys).size !== keys.length) {
+      toast.error("Nama field harus unik");
+      return;
+    }
+    // Empty editor → save null (not "{}") per spec; otherwise emit a flat object.
+    const metadataPayload =
+      trimmed.length === 0 ? null : Object.fromEntries(trimmed.map((r) => [r.key, r.value]));
+    setSavingMetadata(true);
+    try {
+      const res = await fetch(`/api/students/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metadata: metadataPayload }),
+      });
+      if (res.ok) {
+        toast.success("Informasi tambahan disimpan");
+        fetchStudent();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Gagal menyimpan");
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setSavingMetadata(false);
     }
   }
 
@@ -360,7 +435,6 @@ export default function StudentDetailPage() {
   if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
 
   const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
-  const metadata = parseStudentMetadata(student.metadata);
 
   return (
     <>
@@ -517,14 +591,55 @@ export default function StudentDetailPage() {
           </>
         )}
 
-        {!isEditing && metadata && Object.keys(metadata).length > 0 && (
+        {/* Metadata editor (T4): flat key/value rows. Empty → saved as null, not "{}". */}
+        {!isEditing && (
           <>
-            <div className="mt-6"><SectionHeading label="Informasi Tambahan" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              {Object.entries(metadata).map(([key, value]) => (
-                <div key={key}><p className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p><p className="text-sm">{String(value)}</p></div>
-              ))}
+            <div className="mt-6">
+              <SectionHeading
+                label="Informasi Tambahan"
+                actions={
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="ghost" onClick={addMetadataRow}>
+                      <Plus size={12} className="mr-1" /> Tambah Field
+                    </Button>
+                    {metadataDirty && (
+                      <Button size="sm" onClick={saveMetadata} disabled={savingMetadata}>
+                        <Save size={12} className="mr-1" /> {savingMetadata ? "Menyimpan..." : "Simpan"}
+                      </Button>
+                    )}
+                  </div>
+                }
+              />
             </div>
+            {metadataRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada field tambahan. Klik &ldquo;Tambah Field&rdquo; untuk menambahkan.</p>
+            ) : (
+              <div className="space-y-2">
+                {metadataRows.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[1fr_2fr_auto] gap-2 items-start">
+                    <Input
+                      value={row.key}
+                      onChange={(e) => updateMetadataRow(row.id, { key: e.target.value })}
+                      placeholder="Nama field"
+                      aria-label="Nama field"
+                    />
+                    <Input
+                      value={row.value}
+                      onChange={(e) => updateMetadataRow(row.id, { value: e.target.value })}
+                      placeholder="Nilai"
+                      aria-label="Nilai field"
+                    />
+                    <button
+                      onClick={() => removeMetadataRow(row.id)}
+                      aria-label={`Hapus field ${row.key || "tanpa nama"}`}
+                      className="p-2 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </Card>
