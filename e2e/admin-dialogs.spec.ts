@@ -211,9 +211,12 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     // pick reproduces it.
     const target = active[active.length - 1];
 
-    // Pre-conditions for the Tambah Kelas dialog: at least one Campus and
-    // one ACTIVE AcademicYear must exist; the academic-years page renders them.
-    await page.goto("/admin/academic-years");
+    // The Tambah Kelas dialog moved from /admin/academic-years to the new
+    // /admin/classes page in the 2026-05-19 kelas-page cycle. The form lost
+    // the Tahun Ajaran select (year is implicit from the list-page switcher)
+    // and gained Kapasitas + Pola Slot. Kampus + Program selects still drive
+    // the same FK writes the original bug-fix exercised.
+    await page.goto("/admin/classes");
     await page.waitForLoadState("networkidle");
 
     const uniqueName = `E2E F-3 ${Date.now()}`;
@@ -222,28 +225,21 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     const dialog = page.locator('[data-slot="dialog-content"]').first();
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    // Nama Kelas — FieldLabel isn't htmlFor-bound, target by placeholder
-    // instead of accessible-label association.
-    await dialog.getByPlaceholder("TKIT A").fill(uniqueName);
+    // Nama Kelas — FieldLabel isn't htmlFor-bound, target by placeholder.
+    await dialog.getByPlaceholder("mis. TKIT A").fill(uniqueName);
 
-    // Program select — open and pick the non-default option by visible text
-    // (more robust than positional keyboard navigation, which was the
-    // pattern that masked the bug in manual testing).
-    const programTrigger = dialog.locator('[role="combobox"]').first();
-    await programTrigger.click();
-    await page.getByRole("option", { name: target.name }).click();
-
-    // Tahun Ajaran: take the first available option (only one in our seed)
-    const yearTrigger = dialog.locator('[role="combobox"]').nth(1);
-    await yearTrigger.click();
-    await page.getByRole("option").first().click();
-
-    // Kampus: take the first available option
-    const campusTrigger = dialog.locator('[role="combobox"]').nth(2);
+    // Kampus: first combobox in the dialog. Pick the first available option.
+    const campusTrigger = dialog.locator('[role="combobox"]').nth(0);
     await campusTrigger.click();
     await page.getByRole("option").first().click();
 
-    await dialog.getByRole("button", { name: /Tambah Kelas/i }).click();
+    // Program: second combobox. Open and pick the non-default option by
+    // visible text (more robust than positional keyboard navigation).
+    const programTrigger = dialog.locator('[role="combobox"]').nth(1);
+    await programTrigger.click();
+    await page.getByRole("option", { name: target.name }).click();
+
+    await dialog.getByRole("button", { name: /Simpan/i }).click();
     await expect(dialog).toBeHidden({ timeout: 10_000 });
 
     // Verify persistence via the API — visual-only text would lie if the
@@ -255,7 +251,7 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     expect(created!.programId, "selected Program must persist to the new ClassSection").toBe(target.id);
 
     // Cleanup so the test is idempotent against subsequent runs that
-    // would otherwise hit a unique-name collision.
-    await page.request.delete(`/api/class-sections/${created!.id}`).catch(() => {});
+    // would otherwise hit a unique-name collision. Use the new admin route.
+    await page.request.delete(`/api/admin/classes/${created!.id}`).catch(() => {});
   });
 });
