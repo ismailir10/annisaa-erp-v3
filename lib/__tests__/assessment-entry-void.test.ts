@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { AssessmentEntry } from "@/lib/generated/prisma";
+import type { AssessmentEntry } from "@/lib/generated/prisma/client";
 
 describe("AssessmentEntry void columns — generated type (C7a/T3)", () => {
   it("exposes voidedAt + voidedById + voidReason as nullable columns", () => {
