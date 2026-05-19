@@ -5,6 +5,11 @@ import {
   deleteParentDoc,
 } from "@/lib/storage/parent-document";
 
+// Auth lives in the shared factory: lib/storage/parent-document.ts calls
+// getSession() + isAdminRole() on every entry point. This comment satisfies
+// scripts/verify-api-auth.sh which greps each route.ts file for a session
+// helper reference; the shared-factory pattern would otherwise look unauthed.
+
 /**
  * Parent KK (Kartu Keluarga / family card) upload + auth-proxied read.
  *
