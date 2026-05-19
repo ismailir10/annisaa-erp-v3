@@ -36,7 +36,7 @@ const VERB_MAP: Record<VerbKey, VerbBuilder> = {
   "Invoice.payment": (t) => ({ verb: `mencatat pembayaran ${t}`, href: "/admin/invoices" }),
   "Admission.create": (t) => ({ verb: `pendaftaran baru: ${t}`, href: "/admin/admissions" }),
   "Admission.update": (t) => ({ verb: `memperbarui pendaftaran ${t}`, href: "/admin/admissions" }),
-  "StudentEnrollment.create": (t) => ({ verb: `mendaftarkan siswa ${t}`, href: "/admin/enrollments" }),
+  "StudentEnrollment.create": (t) => ({ verb: `mendaftarkan siswa ${t}`, href: "/admin/classes" }),
 };
 
 const ENTITY_NAME_FIELD: Record<WhitelistedEntity, string> = {

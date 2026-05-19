@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -67,6 +67,7 @@ const HEALTH_TONE: Record<ClassRow["health"], string> = {
 };
 
 export function ClassesClient({ canWrite }: { canWrite: boolean }) {
+  const router = useRouter();
   const [rows, setRows] = useState<ClassRow[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -264,12 +265,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         <DataTableColumnHeader column={column} title="Nama" />
       ),
       cell: ({ row }) => (
-        <Link
-          href={`/admin/classes/${row.original.id}`}
-          className="text-sm font-medium hover:underline"
-        >
-          {row.original.name}
-        </Link>
+        <span className="text-sm font-medium">{row.original.name}</span>
       ),
     },
     {
@@ -343,6 +339,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       cell: ({ row }) => (
         <div className="flex items-center justify-end">
           <DataTableRowActions
+            onView={() => router.push(`/admin/classes/${row.original.id}`)}
             onEdit={
               canWrite && !archivedMode ? () => openEdit(row.original) : undefined
             }
