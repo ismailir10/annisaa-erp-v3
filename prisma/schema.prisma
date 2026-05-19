@@ -179,6 +179,7 @@ model Employee {
   leaveRequests            LeaveRequest[]
   teachingAssignments      TeachingAssignment[]
   recordedAssessments      AssessmentEntry[]     @relation("AssessmentRecordedBy")
+  voidedAssessments        AssessmentEntry[]     @relation("AssessmentVoidedBy")
   sessionsAsTeacher        ClassSession[]        @relation("SessionTeacher")
   sessionsAsDefaultTeacher ClassSession[]        @relation("SessionDefaultTeacher")
 
@@ -627,29 +628,29 @@ model StudentEnrollment {
 // Optional FKs (program, student) default to SetNull if the linked entity
 // is removed; we make this explicit.
 model Admission {
-  id               String   @id @default(cuid())
-  tenantId         String
-  childName        String
-  childAge         String? // e.g., "4 tahun"
-  childGender      String? // L | P
-  dateOfBirth      String? // YYYY-MM-DD
-  parentName       String
-  parentPhone      String?
-  parentEmail      String?
-  parentWhatsapp   String?
-  parentEducation  String? // SMA | D1-D3 | S1 | S2 | S3
-  parentOccupation String? // Karyawan Swasta | ASN | Guru | Wiraswasta | BUMN | Ibu Rumah Tangga | Lainnya
-  parentIncome     String? // < Rp 1 Juta | Rp 1-2 Juta | Rp 3-5 Juta | Rp 5-10 Juta | > Rp 10 Juta
+  id                 String   @id @default(cuid())
+  tenantId           String
+  childName          String
+  childAge           String? // e.g., "4 tahun"
+  childGender        String? // L | P
+  dateOfBirth        String? // YYYY-MM-DD
+  parentName         String
+  parentPhone        String?
+  parentEmail        String?
+  parentWhatsapp     String?
+  parentEducation    String? // SMA | D1-D3 | S1 | S2 | S3
+  parentOccupation   String? // Karyawan Swasta | ASN | Guru | Wiraswasta | BUMN | Ibu Rumah Tangga | Lainnya
+  parentIncome       String? // < Rp 1 Juta | Rp 1-2 Juta | Rp 3-5 Juta | Rp 5-10 Juta | > Rp 10 Juta
   parentRelationship String? // AYAH | IBU | WALI | OTHER
-  programId        String? // Program of interest
-  campusPreference String? // Campus ID
-  source           String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER
-  status           String   @default("INQUIRY") // INQUIRY | VISIT_SCHEDULED | VISITED | ADMITTED | CANCELLED — "converted" encoded by studentId IS NOT NULL (cycle 2026-05-12 dropped REGISTERED)
-  notes            String?
-  followUpDate     String? // YYYY-MM-DD
-  studentId        String?  @unique // Linked when converted to student
-  detectedParentId String? // Sibling-detect match (cycle 1.2) — nullable FK to Parent
-  createdAt        DateTime @default(now())
+  programId          String? // Program of interest
+  campusPreference   String? // Campus ID
+  source             String   @default("WALK_IN") // WHATSAPP | WALK_IN | WEBSITE | REFERRAL | OTHER
+  status             String   @default("INQUIRY") // INQUIRY | VISIT_SCHEDULED | VISITED | ADMITTED | CANCELLED — "converted" encoded by studentId IS NOT NULL (cycle 2026-05-12 dropped REGISTERED)
+  notes              String?
+  followUpDate       String? // YYYY-MM-DD
+  studentId          String?  @unique // Linked when converted to student
+  detectedParentId   String? // Sibling-detect match (cycle 1.2) — nullable FK to Parent
+  createdAt          DateTime @default(now())
 
   tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   program        Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
@@ -824,12 +825,6 @@ model StudentAttendance {
   classSection ClassSection  @relation(fields: [classSectionId], references: [id], onDelete: Restrict)
   session      ClassSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  @@unique([studentId, sessionId])
-  @@index([studentId, date])
-  @@index([classSectionId, date])
-  @@index([date])
-  @@index([isVoided])
-
   /// NOTE: @@unique([studentId, sessionId]) does NOT constrain rows where
   /// sessionId IS NULL (Postgres treats NULLs as distinct). A raw partial
   /// unique index — "StudentAttendance_studentId_date_legacy_key" ON
@@ -838,6 +833,12 @@ model StudentAttendance {
   /// session-agnostic marking path atomic. Prisma can't express partial
   /// indexes, so it exists in SQL only. Dropped by Task 7's follow-up cycle
   /// once every attendance row carries a non-NULL sessionId.
+
+  @@unique([studentId, sessionId])
+  @@index([studentId, date])
+  @@index([classSectionId, date])
+  @@index([date])
+  @@index([isVoided])
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1275,13 +1276,30 @@ model AssessmentEntry {
   recordedById String
   recordedAt   DateTime         @default(now())
 
+  // C7a: soft-void for admin Category-C override + audit trail.
+  // Active row = voidedAt IS NULL. Voided rows are retained as audit history;
+  // raport / parent-perkembangan rollups filter on voidedAt IS NULL.
+  voidedAt   DateTime?
+  voidedById String?
+  voidReason String?
+
   tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   student    Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
   indicator  AchievementIndicator @relation(fields: [indicatorId], references: [id], onDelete: Restrict)
   week       Week                 @relation(fields: [weekId], references: [id], onDelete: Restrict)
   recordedBy Employee             @relation("AssessmentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  voidedBy   Employee?            @relation("AssessmentVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
+
+  /// NOTE: C7a adds soft-void columns (voidedAt/voidedById/voidReason) but leaves the
+  /// existing @@unique([tenantId, studentId, indicatorId, date, source]) in place — so
+  /// the C4/C5 walas+sentra upsert callers keep their Prisma upsert key. C7b will swap
+  /// this to a partial unique "WHERE voidedAt IS NULL" together with refactoring those
+  /// callers to raw-SQL ON CONFLICT, so schema + consumers ship in one PR. Until C7b
+  /// lands, override semantics are single-row in-place: a voided row contains the
+  /// LAST authoritative level + a voidedAt marker; raport rollups filter on voidedAt IS NULL.
 
   @@unique([tenantId, studentId, indicatorId, date, source])
   @@index([tenantId, weekId, studentId])
   @@index([tenantId, studentId, date])
+  @@index([voidedAt])
 }

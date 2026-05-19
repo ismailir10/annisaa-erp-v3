@@ -47,6 +47,9 @@ artifacts/
 # Third-party agent skill plugins (loaded from ~/.claude/, not this repo)
 .agents/
 
+# Brainstorm visual companion artifacts (per-session, ephemeral)
+.superpowers/
+
 # Playwright output
 playwright-report/
 test-results/

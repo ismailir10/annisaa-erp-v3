@@ -161,6 +161,30 @@ describe("getSystemRolePermissions", () => {
       "assessments.write",
     );
   });
+
+  it("SCHOOL_ADMIN → has assessments.read + assessments.void (C7a override gate)", () => {
+    const perms = getSystemRolePermissions("SCHOOL_ADMIN");
+    expect(perms).toContain("assessments.read");
+    expect(perms).toContain("assessments.void");
+  });
+
+  it("SCHOOL_ADMIN → does NOT have assessments.write (writing entries stays teacher-only)", () => {
+    expect(getSystemRolePermissions("SCHOOL_ADMIN")).not.toContain(
+      "assessments.write",
+    );
+  });
+
+  it("TEACHER → does NOT have assessments.void (admin-only override)", () => {
+    expect(getSystemRolePermissions("TEACHER")).not.toContain(
+      "assessments.void",
+    );
+  });
+
+  it("GUARDIAN → does NOT have assessments.void (admin-only override)", () => {
+    expect(getSystemRolePermissions("GUARDIAN")).not.toContain(
+      "assessments.void",
+    );
+  });
 });
 
 describe("ALL_PERMISSIONS", () => {
@@ -171,6 +195,12 @@ describe("ALL_PERMISSIONS", () => {
   it("includes curriculum.read + curriculum.write (C1/T2)", () => {
     expect(ALL_PERMISSIONS).toContain("curriculum.read");
     expect(ALL_PERMISSIONS).toContain("curriculum.write");
+  });
+
+  it("includes assessments.read + assessments.write + assessments.void (C7a/T2)", () => {
+    expect(ALL_PERMISSIONS).toContain("assessments.read");
+    expect(ALL_PERMISSIONS).toContain("assessments.write");
+    expect(ALL_PERMISSIONS).toContain("assessments.void");
   });
 });
 
