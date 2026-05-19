@@ -134,11 +134,53 @@ PR #294 (kesiswaan CRUD audit, merged 2026-05-19) shipped a local-disk storage a
   Post-apply verified via `SELECT id, public, file_size_limit, allowed_mime_types FROM storage.buckets WHERE id='attachments'`: both projects return `public=false`, `file_size_limit=5242880`, `allowed_mime_types=[image/jpeg,image/png,application/pdf]`. No source diffs.
 - **T2 — `lib/storage/supabase.ts`**
   New file with 4 exports: `getSupabaseStorageClient` (singleton, fail-fast on missing env), `getBucketName` (env-overridable, defaults `attachments`), `uploadObject` (upsert=true), `downloadObject` (throws `ENOENT` on miss), `removeObject` (swallows "not found"). Test-only `__testHelpers.resetCache` exported for `vi.mock` re-entry. Companion `lib/storage/__tests__/supabase.test.ts` covers all four primitives + env-var failures + caching via `vi.hoisted` to dodge mock-factory hoisting. 15/15 vitest pass.
+- **T3 — Swap `lib/storage/index.ts` backend** *(2026-05-19)*
+  Rewrite of the adapter internals while preserving the public API. `saveFile` writes via `uploadObject` (Supabase `upsert=true`); `streamFile` calls `downloadObject` and wraps the buffer in a single-chunk `ReadableStream`; `deleteFile` calls `removeObject`. Token prefix moves to `supabase:v1:`. Legacy `local:v1:` tokens parse cleanly but `streamFile` throws `Legacy local-disk token` (caught → 404) and `deleteFile` no-ops. All filesystem imports (`fs`, `path`, `createReadStream`) removed alongside `getBaseDir` / `realpath` symlink defense — the latter no longer applies because Supabase Storage has no symlinks. Path-traversal regex + ext whitelist preserved as the first line of defense. `__internal.parseToken` replaces `__internal.resolveTokenPath`. No source changes in `app/api/students/[id]/photo/route.ts` or `lib/storage/parent-document.ts` (consumer-route contract unchanged).
+- **T4 — Storage unit tests rewritten** *(2026-05-19)*
+  `lib/storage/__tests__/storage.test.ts` mocks `../supabase` via `vi.hoisted` with an in-memory `Map` bucket so round-trip semantics stay exercised (same bytes ↔ same path ↔ same token). New cases: legacy `local:v1:` token degrade (3 cases — stream throws, delete no-ops, traversal still rejected), `saveFile` propagates upload errors. Traversal regex tested with 10 attack payloads. Vitest 25/25 pass in `lib/storage/`.
+- **T5 — Route tests pinned against `@/lib/storage` mock** *(2026-05-19)*
+  `app/api/students/[id]/photo/__tests__/route.test.ts` + `app/api/parents/[id]/ktp/__tests__/route.test.ts` swap `process.env.UPLOAD_DIR=tmpdir` setup for an in-test `Map`-backed mock of `saveFile` / `streamFile` / `deleteFile`. Drops `fs`/`path`/`os` imports + tmpdir teardown. Token regexes updated `local:v1:` → `supabase:v1:`. Adapter coverage stays in T4 — route tests now assert only route logic. All route tests pass without `SUPABASE_SERVICE_ROLE_KEY` set (the env-var fail-fast in `lib/storage/supabase.ts` is bypassed by the mock).
+- **T6 — E2E spec `e2e/admin-student-photo-upload.spec.ts`** *(2026-05-19)*
+  New spec follows the `admin-guardian-document-upload.spec.ts` pattern: demo-mode admin login, seed a fresh student, navigate to `/admin/students/[id]`, upload a 1-KB synthetic JPEG via the hidden file input, await the POST response, reload, assert (a) the `<img src="/api/students/[id]/photo*">` renders, (b) the auth-proxied GET returns 200 with `image/jpeg` + `private, no-store`, (c) the first 3 bytes round-trip as `FF D8 FF`. Token-format assertion guards against accidental revert to local disk. Cleanup deletes the photo + marks the student INACTIVE.
+- **T7 — README ADR row** *(2026-05-19)*
+  One row prepended to README.md's active ADR table documenting the storage swap, legacy-token handling, and the auth-proxy invariant for KTP/KK reads (UU PDP 27/2022). Cycle link points back at this doc.
+- **T8 — Staging stale-token cleanup** *(2026-05-19)*
+  One-off `UPDATE` applied against staging (`udbivhchbizpxoryejgz`) via Supabase MCP: 2 Parent rows had `local:v1:` tokens for `ktpUrl` + `kkUrl` from PR #294 preview-verify iterations. Set both columns to `NULL`; `RETURNING` confirmed both rows now `null` for both columns. Prod required no action — `ktpUrl`/`kkUrl` columns don't exist yet (migration ships on next staging→main promote), `Student.photoUrl` is 0 non-null rows.
 
 ## Verification
 
-<!-- /build fills gate output + manual smoke -->
+**Between-task gate** *(after T2)* — `npm run build && npx vitest run` both green.
+**Between-task gate** *(after T5)* — `npm run build && npx vitest run` both green: build clean, vitest 190 files / 1891 tests pass / 42 todo / 2 skipped. First full-suite run after T5 had a transient flake on `components/portal/__tests__/page-header.test.tsx` ("Tagihan" heading lookup); re-run was clean — pre-existing JSDOM cross-test pollution, file untouched in this cycle.
+
+**Design-system gate** — frontend-gate (pre-commit Rule 4) does not trigger this cycle. No `app/**/*.{tsx,css}`, `components/**/*.tsx`, or `tailwind.config.*` diffs. `design-system` mentioned here as documentation of the gate skip.
+
+**End-of-cycle gate** — recorded in the commit landing T6 (Playwright run included).
 
 ## Ship Notes
 
-<!-- /ship fills migrations, env vars, manual steps, rollback -->
+**Migrations**
+- T1 `storage_attachments_bucket` migration applied to both Supabase projects via MCP `apply_migration`:
+  - Staging `udbivhchbizpxoryejgz` ✓
+  - Prod `vxwywmvpxetdgnxejjgk` ✓
+  - Idempotent (`ON CONFLICT (id) DO NOTHING`) — safe to re-run.
+- No Prisma schema migrations in this cycle.
+
+**Env vars**
+- `STORAGE_SUPABASE_BUCKET` (optional, defaults to `attachments`). Set in Vercel only if the bucket name diverges from the default. **No change needed for current deploys.**
+- `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` already wired across production + preview environments — same keys this repo uses elsewhere for RLS-bypass paths.
+- `UPLOAD_DIR` is now unused — can be removed from Vercel env in a follow-up housekeeping pass; no harm if left.
+
+**One-off SQL (already applied, 2026-05-19)**
+```sql
+-- Staging only — prod had no rows to clean (migration not yet applied + zero Student photos).
+UPDATE "Parent"
+SET "ktpUrl" = NULL, "kkUrl" = NULL
+WHERE ("ktpUrl" LIKE 'local:v1:%') OR ("kkUrl" LIKE 'local:v1:%');
+-- 2 rows affected; RETURNING confirmed both nulled.
+```
+
+**Manual steps**
+- None.
+
+**Rollback plan**
+- Revert this PR. The bucket row stays (idempotent, harmless). Legacy `local:v1:` tokens still 500 on Vercel; rollback restores the pre-existing broken state — not a regression. If a downstream consumer relied on the bucket existing (none today), bucket removal is `DELETE FROM storage.buckets WHERE id='attachments'` after confirming `storage.objects` for the bucket is empty.

@@ -1,10 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { promises as fs } from "fs";
-import path from "path";
-import os from "os";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ──────────────────────────────────────────────────────────────────────────
-// Mocks — keep these in sync with @/lib/auth + @/lib/db usage in the route.
+// Mocks — keep these in sync with @/lib/auth + @/lib/db + @/lib/storage
+// usage in the route.
 // ──────────────────────────────────────────────────────────────────────────
 
 type Session = {
@@ -33,6 +31,49 @@ vi.mock("@/lib/auth", async () => {
     isAdminRole: (role: string) => role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN",
   };
 });
+
+// Backend mock — route tests assert route logic (auth, validation, response
+// shape), not storage internals. The adapter has its own coverage in
+// lib/storage/__tests__/storage.test.ts. Mocking @/lib/storage here also
+// bypasses the env-var fail-fast in lib/storage/supabase.ts, which would
+// otherwise throw in CI where SUPABASE_SERVICE_ROLE_KEY isn't set.
+const fakeBucket = new Map<string, { bytes: Buffer; mimeType: string }>();
+vi.mock("@/lib/storage", () => ({
+  saveFile: vi.fn(async ({ entity, entityId, field, file }: {
+    entity: string;
+    entityId: string;
+    field: string;
+    file: { bytes: Buffer; mimeType: string; ext: string };
+  }) => {
+    const hash = "deadbeefdeadbeef";
+    const path = `${entity}/${entityId}/${field}-${hash}.${file.ext}`;
+    fakeBucket.set(path, { bytes: file.bytes, mimeType: file.mimeType });
+    return { token: `supabase:v1:${path}` };
+  }),
+  streamFile: vi.fn(async (token: string) => {
+    if (!token.startsWith("supabase:v1:")) throw new Error("ENOENT");
+    const path = token.slice("supabase:v1:".length);
+    const obj = fakeBucket.get(path);
+    if (!obj) throw new Error("ENOENT");
+    const filename = path.split("/").pop() ?? "file.jpg";
+    const ext = filename.split(".").pop() ?? "bin";
+    const mimeType = ext === "jpg" ? "image/jpeg" : ext === "png" ? "image/png" : "application/octet-stream";
+    return {
+      stream: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(obj.bytes));
+          controller.close();
+        },
+      }),
+      mimeType,
+      filename,
+    };
+  }),
+  deleteFile: vi.fn(async (token: string) => {
+    if (!token.startsWith("supabase:v1:")) return;
+    fakeBucket.delete(token.slice("supabase:v1:".length));
+  }),
+}));
 
 vi.mock("@/lib/db", () => {
   return {
@@ -72,9 +113,6 @@ import { POST, GET, DELETE } from "../route";
 // ──────────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────
-
-let tmpRoot: string;
-let originalEnv: string | undefined;
 
 function adminSession(): Session {
   return {
@@ -138,21 +176,13 @@ async function runDelete(id = "stu_1") {
   });
 }
 
-beforeEach(async () => {
-  originalEnv = process.env.UPLOAD_DIR;
-  tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "photo-route-test-"));
-  process.env.UPLOAD_DIR = tmpRoot;
+beforeEach(() => {
+  fakeBucket.clear();
   state.session = null;
   state.student = { id: "stu_1", tenantId: "t_default", photoUrl: null };
   state.guardianLink = null;
   state.user = null;
   state.lastUpdate = null;
-});
-
-afterEach(async () => {
-  if (originalEnv === undefined) delete process.env.UPLOAD_DIR;
-  else process.env.UPLOAD_DIR = originalEnv;
-  await fs.rm(tmpRoot, { recursive: true, force: true });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -201,7 +231,7 @@ describe("POST /api/students/[id]/photo", () => {
     const res = await runPost(makeReq(fd, JPEG_BYTES.length));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.photoUrl).toMatch(/^local:v1:students\/stu_1\/photo-[a-f0-9]{16}\.jpg$/);
+    expect(body.photoUrl).toMatch(/^supabase:v1:students\/stu_1\/photo-[a-f0-9]{16}\.jpg$/);
     expect(state.lastUpdate?.photoUrl).toBe(body.photoUrl);
   });
 
