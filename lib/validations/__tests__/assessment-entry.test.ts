@@ -4,6 +4,7 @@ import {
   assessmentEntryBulkCreateSchema,
   assessmentEntryUpdateSchema,
   assessmentEntryCenterSessionSchema,
+  assessmentEntryVoidSchema,
   MAX_BULK_ENTRIES,
   MAX_CENTER_SESSION_ENTRIES,
 } from "@/lib/validations/assessment-entry";
@@ -237,6 +238,55 @@ describe("assessmentEntryCenterSessionSchema", () => {
       ...baseSession,
       center: "FOO",
     });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("assessmentEntryVoidSchema (C7a/T2)", () => {
+  it("accepts a trimmed reason between 3 and 500 chars", () => {
+    const r = assessmentEntryVoidSchema.safeParse({
+      voidReason: "Salah skala — koreksi setelah ulang amatan",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.voidReason).toBe(
+        "Salah skala — koreksi setelah ulang amatan",
+      );
+    }
+  });
+
+  it("trims surrounding whitespace before length check", () => {
+    const r = assessmentEntryVoidSchema.safeParse({
+      voidReason: "   koreksi data   ",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.voidReason).toBe("koreksi data");
+  });
+
+  it("rejects empty string", () => {
+    const r = assessmentEntryVoidSchema.safeParse({ voidReason: "" });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects whitespace-only reason (trims to less than 3 chars)", () => {
+    const r = assessmentEntryVoidSchema.safeParse({ voidReason: "  a  " });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a string of only whitespace (canonical bypass attempt)", () => {
+    const r = assessmentEntryVoidSchema.safeParse({ voidReason: "     " });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects reasons longer than 500 chars after trim", () => {
+    const r = assessmentEntryVoidSchema.safeParse({
+      voidReason: "x".repeat(501),
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects missing voidReason key", () => {
+    const r = assessmentEntryVoidSchema.safeParse({});
     expect(r.success).toBe(false);
   });
 });

@@ -91,6 +91,22 @@ export const assessmentEntryUpdateSchema = z.object({
 });
 
 /**
+ * Admin Category-C override — C7a/T2.
+ *
+ * Used by the upcoming `PATCH /api/admin/assessment-entries/[id]/void`
+ * route (ships C7b). The route handler sets voidedAt = now, voidedById
+ * = session.employeeId, and persists voidReason as written here. Reason
+ * is trimmed and capped to keep audit text scannable.
+ */
+export const assessmentEntryVoidSchema = z.object({
+  voidReason: z
+    .string()
+    .trim()
+    .min(3, "Alasan minimal 3 karakter")
+    .max(500, "Alasan maksimal 500 karakter"),
+});
+
+/**
  * Sentra (center) session schema — C5/T1.
  *
  * One sentra teacher fills one session per (center × date × ageGroup):
@@ -148,3 +164,4 @@ export type AssessmentEntryUpdateInput = z.infer<
 export type AssessmentEntryCenterSessionInput = z.infer<
   typeof assessmentEntryCenterSessionSchema
 >;
+export type AssessmentEntryVoidInput = z.infer<typeof assessmentEntryVoidSchema>;

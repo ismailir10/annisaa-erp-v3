@@ -63,7 +63,7 @@ Why this cycle is first: Raport (Sept 2026 ship) reads `AssessmentEntry`. Withou
   - `npx prisma generate` and `npx prisma format` succeed.
   - **Acceptance:** `npm run build` passes (no consumer break since `@@unique` is preserved); `npx prisma migrate dev` applies cleanly on dev DB; existing vitest suite stays green.
 
-- [ ] **T2 — Validation schema + permission key + README ADR row** *(depends on T1 types; commit prefix `feat:`)*
+- [x] **T2 — Validation schema + permission key + README ADR row** *(depends on T1 types; commit prefix `feat:`)*
   - Update `lib/validations/assessment-entry.ts`: export `assessmentEntryVoidSchema = z.object({ voidReason: z.string().trim().min(3).max(500) })`.
   - Update `lib/permissions.ts`: add `assessments.void` permission key in the `learning` group. Grant to `SUPER_ADMIN` + `SCHOOL_ADMIN`. Do not grant to `TEACHER`. Update `getSystemRolePermissions` defaults accordingly.
   - Update permissions test: assert the three role sets per Acceptance criteria. Locate the existing permissions test via `grep -rn "assessments.read" lib/__tests__` and extend the closest assertion block.
@@ -88,12 +88,18 @@ Why this cycle is first: Raport (Sept 2026 ship) reads `AssessmentEntry`. Withou
   - `npx prisma format` + `npx prisma generate` succeeded; the format pass also normalized column alignment in `Admission` and reordered the `///` comment in `StudentAttendance` (formatter artifacts, no behavioral change). Build + vitest both green; 1859/1901 vitest pass (42 todo, baseline unchanged).
   - **Spec amendment landed mid-task:** the original T1 intended to swap the all-rows `@@unique` for a partial unique `WHERE voidedAt IS NULL`. Build broke immediately because Prisma's upsert builder relies on the named unique key generated from `@@unique` (callers at `app/api/teacher/assessment-entries/{route.ts:198, center/route.ts:129}` plus their `__tests__` fixtures). Per `/build` "spec wrong, stop" rule, paused and asked the user; chose **Option C — split**: C7a ships void columns + index only, C7b ships the partial-unique swap together with the upsert refactor (raw-SQL `ON CONFLICT (cols) WHERE voidedAt IS NULL DO UPDATE`). Cycle doc Spec/Tasks/Non-goals/Assumption-#1 amended in this commit; consumer-facing override semantics in C7a are single-row in-place UPDATE until C7b lands.
   - Reviewer pass (`feature-dev:code-reviewer`): no blockers. Important: Assumption #3 originally used the wrong back-relation name (`assessmentsVoided`) while the schema and rest of the doc use `voidedAssessments` — fixed inline before commit. Observation (deferred to C7b): the bare `@@index([voidedAt])` is not selective for the dominant `IS NULL` filter on mostly-NULL data; a partial `WHERE voidedAt IS NOT NULL` or composite `(tenantId, voidedAt)` may be more useful when Lens D's audit view ships and the query shape is known — defer to C7b. The bare index does no harm in C7a.
-
-<!-- /build fills per-task: files touched + one-line summary -->
+- **T2 — Validation + permission key + README ADR** *(commit `feat(curriculum): C7a T2 — assessments.void permission + voidReason validation`)*:
+  - `lib/validations/assessment-entry.ts` — exported `assessmentEntryVoidSchema` (Zod `z.object({ voidReason: trim().min(3).max(500) })`) plus `AssessmentEntryVoidInput` type. Doc-comment points forward to the C7b PATCH route consumer.
+  - `lib/permissions.ts` — added `"assessments.void": "Override penilaian siswa (admin Category-C)"` under `learning` group; granted `assessments.read` + `assessments.void` to SCHOOL_ADMIN (kept `assessments.write` teacher-only — admins override but never record fresh entries directly). TEACHER + GUARDIAN unchanged.
+  - `lib/__tests__/permissions.test.ts` — 5 new cases: SCHOOL_ADMIN has read+void / lacks write; TEACHER + GUARDIAN both lack void; `ALL_PERMISSIONS` includes all 3 assessment keys. Existing TEACHER `.toEqual` exact-match case still passes (TEACHER perm set untouched).
+  - `lib/validations/__tests__/assessment-entry.test.ts` — 7 new cases for `assessmentEntryVoidSchema`: happy path, trim, empty, whitespace-with-one-char (trims < 3), pure whitespace (canonical bypass — added per reviewer note), >500 chars, missing key.
+  - `README.md` — new ADR row (top of 2026-05-19 group). Cell lengths verified ≤ 400 chars (decision 311, why 257).
+  - Gates: `npm run build` ✓; full `npx vitest run` ✓ `1870 passed | 42 todo (1912)` — `+11` new vs T1 baseline (5 perm + 6 schema), zero regressions.
 
 ## Verification
 
 - T1: `npx prisma format` ✓ ; `npx prisma generate` ✓ (Prisma Client 7.8.0 → `lib/generated/prisma`); `npm run build` ✓ (compiled cleanly, full route prerender list rendered without type errors after `@@unique` was preserved); `npx vitest run` ✓ `1859 passed | 42 todo (1901)` — baseline unchanged. Migration `20260519000000_add_assessment_entry_void/migration.sql` not yet applied to a live DB (T3 will exercise it via the test DB). No frontend change in C7a — design-system gate inert.
+- T2: `npm run build` ✓; `npx vitest run` ✓ — final tally `1871 passed | 42 todo (1913)` after the reviewer-flagged pure-whitespace case landed (`+12` vs T1: 5 permission, 7 voidReason validation). ADR cell lengths verified ≤ 400 chars (decision 311, why 257). Narrow doc-sync hook satisfied: `feat:` + `lib/**` commit includes README staged on the same commit. No frontend change. Reviewer (`feature-dev:code-reviewer`) reported zero blockers + one low-confidence test-coverage suggestion (pure-whitespace case) — applied inline.
 
 <!-- /build fills: gate output, test names, manual smoke notes -->
 
