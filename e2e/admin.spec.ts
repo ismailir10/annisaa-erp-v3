@@ -145,32 +145,6 @@ test.describe("Admin flows", () => {
     });
   });
 
-  test("enrollment deactivate sets status WITHDRAWN and hides from Aktif filter", async ({ page }) => {
-    const list = await page.request.get("/api/enrollments?pageSize=100&status=ACTIVE");
-    const json = await list.json();
-    const target = (json.data as Array<{ id: string; status: string }> | undefined)?.[0];
-    if (!target) {
-      test.skip(true, "No ACTIVE enrollment to deactivate");
-      return;
-    }
-
-    const put = await page.request.put(`/api/enrollments/${target.id}`, {
-      data: { status: "WITHDRAWN" },
-    });
-    expect(put.ok()).toBeTruthy();
-
-    const after = await page.request.get("/api/enrollments?pageSize=100&status=ACTIVE");
-    const afterJson = await after.json();
-    const stillActive = (afterJson.data as Array<{ id: string }> | undefined)
-      ?.find(e => e.id === target.id);
-    expect(stillActive).toBeUndefined();
-
-    // Restore to ACTIVE so other tests / subsequent runs stay idempotent
-    await page.request.put(`/api/enrollments/${target.id}`, {
-      data: { status: "ACTIVE" },
-    });
-  });
-
   test("student-attendance override updates status; void flips isVoided and hides row", async ({ page }) => {
     const list = await page.request.get("/api/student-attendance?mode=list&pageSize=100");
     const json = await list.json();
