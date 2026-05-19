@@ -6,9 +6,6 @@ import { test, expect, Page } from "@playwright/test";
 // - Cancel button labeled "Batal" with variant="ghost"
 // - On mobile viewport, the overlay renders as a Sheet (not a Dialog)
 // - Required fields show the asterisk via FieldLabel `required` prop
-//
-// One screenshot per dialog × viewport lands under
-// `e2e/__snapshots__/admin-dialogs/` for the visual baseline.
 
 const ADMIN_USER_ID = "u_super_admin";
 const DESKTOP = { width: 1280, height: 800 } as const;
@@ -106,12 +103,6 @@ test.describe("Admin form dialogs — desktop", () => {
       // pages: some render a Button directly, some use the base-nova
       // `render` prop, some use an inner DialogClose).
       await expect(dialog.locator('button:has-text("Batal")').first()).toBeVisible();
-
-      await page.screenshot({
-        path: `e2e/__snapshots__/admin-dialogs/${check.name}-desktop.png`,
-        clip: undefined,
-        fullPage: false,
-      });
     });
   }
 });
@@ -149,11 +140,6 @@ test.describe("Admin form dialogs — mobile renders as Sheet", () => {
       // SectionHeading h3s nested inside the form body and fails strict-mode.
       await expect(sheet.locator('[data-slot="sheet-title"]')).toContainText(check.expectedTitle);
       await expect(sheet.getByRole("button", { name: check.expectedSubmit })).toBeVisible();
-
-      await page.screenshot({
-        path: `e2e/__snapshots__/admin-dialogs/${check.name}-mobile.png`,
-        fullPage: false,
-      });
     });
   }
 });
