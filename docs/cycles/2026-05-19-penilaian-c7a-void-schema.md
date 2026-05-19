@@ -75,9 +75,9 @@ Why this cycle is first: Raport (Sept 2026 ship) reads `AssessmentEntry`. Withou
   - **Reviewer-driven slim:** the first cut of this file contained four cases, three of which exercised mocked Prisma calls and were correctly flagged by the `feature-dev:code-reviewer` agent as tautological — they asserted that `vi.fn()` records its arguments, a Vitest invariant rather than application behavior. Replaced with a single case whose only job is to break the build via `Pick<AssessmentEntry, "voidedAt" | "voidedById" | "voidReason">` if codegen ever drops one of the three columns or changes them away from nullable.
   - **Acceptance:** new spec `lib/__tests__/assessment-entry-void.test.ts` — 1 case (`Pick<AssessmentEntry, ...>` compile-time guard plus three `toBeNull` assertions on a literal null fixture).
 
-- [ ] **T4 — RLS + API-auth verify scripts** *(depends on T1 + T2; commit prefix `chore:`)*
-  - Run `bash scripts/verify-rls-coverage.sh` — confirm 32/32 (no new table).
-  - Run `bash scripts/verify-api-auth.sh` — confirm count unchanged (no new route).
+- [x] **T4 — RLS + API-auth verify scripts** *(depends on T1 + T2; commit prefix `chore:`)*
+  - Run `bash scripts/verify-rls-coverage.sh` — confirm coverage unchanged (no new tenant-scoped table introduced; `AssessmentEntry` already had RLS enabled in C4).
+  - Run `bash scripts/verify-api-auth.sh` — confirm route count unchanged (no new route in C7a).
   - **Acceptance:** both verify scripts green. No code change; commit only the cycle-doc Verification block update. `chore:` prefix exempt from narrow rule.
 
 ## Implementation
@@ -100,12 +100,17 @@ Why this cycle is first: Raport (Sept 2026 ship) reads `AssessmentEntry`. Withou
   - `lib/__tests__/assessment-entry-void.test.ts` — new spec containing a single case that uses `Pick<AssessmentEntry, "voidedAt" | "voidedById" | "voidReason">` against the generated client type as a compile-time guard. Dropping any column (or removing the nullability) will fail the build on this fixture before the runtime suite even runs.
   - Two spec amendments: the original "test DB round-trip" assumed an integration-test harness that doesn't exist in this repo; re-scoped first to a 4-case mock + type-witness combo; then reviewer (`feature-dev:code-reviewer`) flagged three of the four cases as tautological (verifying that `vi.fn()` records its arguments, a Vitest invariant). Slimmed to the type-witness case only. The mock infrastructure removed with it.
   - Gates: `npm run build` ✓; focused vitest 1/1 pass.
+- **T4 — RLS + API-auth verify scripts** *(commit `chore(curriculum): C7a T4 — verify scripts`)*:
+  - `bash scripts/verify-rls-coverage.sh` → `34 / 34` tenant-scoped models have RLS ENABLE + policy. C7a adds no tenant-scoped table, so the count matches the staging baseline; `AssessmentEntry`'s C4-issued service-role policy continues to cover the three new nullable columns by definition.
+  - `bash scripts/verify-api-auth.sh` → `163 / 163` routes have session helper or `@public` sentinel. C7a ships no new route — baseline preserved.
+  - Cycle-doc-only commit (`chore:` prefix; exempt from the narrow doc-sync rule).
 
 ## Verification
 
 - T1: `npx prisma format` ✓ ; `npx prisma generate` ✓ (Prisma Client 7.8.0 → `lib/generated/prisma`); `npm run build` ✓ (compiled cleanly, full route prerender list rendered without type errors after `@@unique` was preserved); `npx vitest run` ✓ `1859 passed | 42 todo (1901)` — baseline unchanged. Migration `20260519000000_add_assessment_entry_void/migration.sql` not yet applied to a live DB (T3 will exercise it via the test DB). No frontend change in C7a — design-system gate inert.
 - T2: `npm run build` ✓; `npx vitest run` ✓ — final tally `1871 passed | 42 todo (1913)` after the reviewer-flagged pure-whitespace case landed (`+12` vs T1: 5 permission, 7 voidReason validation). ADR cell lengths verified ≤ 400 chars (decision 311, why 257). Narrow doc-sync hook satisfied: `feat:` + `lib/**` commit includes README staged on the same commit. No frontend change. Reviewer (`feature-dev:code-reviewer`) reported zero blockers + one low-confidence test-coverage suggestion (pure-whitespace case) — applied inline.
 - T3: `npm run build` ✓; focused `npx vitest run lib/__tests__/assessment-entry-void.test.ts` ✓ `1 passed (1)`. Spec re-scoped twice: first from "round-trip against test DB" to "mock-based shape verification" because the repo has no live test DB; then slimmed from 4 cases to 1 after reviewer flagged 3 of the 4 as tautological (verifying that `vi.fn()` records its calls rather than any application behavior). Real round-trip deferred to C7b's PATCH-route integration test.
+- T4: `bash scripts/verify-rls-coverage.sh` ✓ `34 / 34 tenant-scoped models have ENABLE + policy`; `bash scripts/verify-api-auth.sh` ✓ `163 / 163 routes have session helper or @public sentinel`. No new tables / no new routes in C7a, so both counts match staging baseline.
 
 <!-- /build fills: gate output, test names, manual smoke notes -->
 
