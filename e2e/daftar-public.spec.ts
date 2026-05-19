@@ -71,7 +71,7 @@ test.describe("Public admission entry — /daftar", () => {
     await expect(page.getByText("Nama anak wajib diisi")).toBeVisible();
   });
 
-  test("rate limit — direct POST returns 429 after the per-IP cap", async ({ request }) => {
+  test("rate limit — direct POST returns 429 with Retry-After header after the per-IP cap", async ({ request }) => {
     const VALID_BODY = {
       childName: "Rate Limit Test",
       dateOfBirth: "2020-03-15",
@@ -80,60 +80,25 @@ test.describe("Public admission entry — /daftar", () => {
       parentPhone: "081234567890",
     };
 
-    const statuses: number[] = [];
     // Fire 7 rapid POSTs from the same source. The bucket cap is 5/min/IP
     // (RATE_LIMIT_PER_MIN in app/api/admission/submit/route.ts). Earlier
     // tests in the same suite may have consumed bucket slots — this test
     // therefore asserts that AT LEAST one request returns 429, not a fixed
     // cutover index. The bucket is in-memory and shared across all calls
-    // from localhost since the previous test's HTTP client.
+    // from localhost since the previous test's HTTP client. Hold every
+    // response so the first 429 can be re-inspected for header + body shape.
+    const responses: Awaited<ReturnType<typeof request.post>>[] = [];
     for (let i = 0; i < 7; i++) {
-      const res = await request.post("/api/admission/submit", { data: VALID_BODY });
-      statuses.push(res.status());
+      responses.push(await request.post("/api/admission/submit", { data: VALID_BODY }));
     }
 
-    expect(statuses).toContain(429);
-    // The first 429 response carries Retry-After.
-    const firstThrottledIdx = statuses.indexOf(429);
-    expect(firstThrottledIdx).toBeGreaterThanOrEqual(0);
-  });
-
-  test("rate limit response shape carries Retry-After header", async ({ request }) => {
-    // Exhaust bucket (best-effort — earlier tests may already have).
-    for (let i = 0; i < 7; i++) {
-      await request.post("/api/admission/submit", {
-        data: {
-          childName: "Header Probe",
-          dateOfBirth: "2020-03-15",
-          childGender: "L",
-          parentName: "Header Parent",
-          parentPhone: "081234567890",
-        },
-      });
-    }
-
-    const probe = await request.post("/api/admission/submit", {
-      data: {
-        childName: "Header Probe",
-        dateOfBirth: "2020-03-15",
-        childGender: "L",
-        parentName: "Header Parent",
-        parentPhone: "081234567890",
-      },
-    });
-
-    if (probe.status() === 429) {
-      expect(probe.headers()["retry-after"]).toBeDefined();
-      const body = (await probe.json()) as { error: string };
-      expect(body.error).toBe("rate_limited");
-    } else {
-      // Bucket happened to reset right at the probe — non-fatal; the
-      // previous test already asserted the 429 path. Skip the header
-      // assertion in that rare ordering.
-      test.info().annotations.push({
-        type: "note",
-        description: `Rate-limit probe returned ${probe.status()} (bucket reset edge case)`,
-      });
-    }
+    const throttled = responses.find((r) => r.status() === 429);
+    expect(throttled, "at least one of the 7 POSTs must hit the 5/min cap").toBeDefined();
+    // Retry-After is set by the route as String(Math.ceil(RATE_WINDOW_MS / 1000)).
+    // Assert the shape (positive integer string), not the literal "60", so the
+    // window constant can change without breaking the test.
+    expect(throttled!.headers()["retry-after"]).toMatch(/^\d+$/);
+    const body = (await throttled!.json()) as { error: string };
+    expect(body.error).toBe("rate_limited");
   });
 });
