@@ -74,13 +74,12 @@ describe("adminNav IA — ordering + grouping", () => {
     expect(semester.permission).toBe("curriculum.read");
   });
 
-  it("students group covers the admission → enrollment funnel", () => {
+  it("students group covers the admission → guardian funnel; enrollment lives on /admin/classes", () => {
     const labels = adminNav.groups.find((g) => g.id === "students")!.items.map((i) => i.label);
     expect(labels).toEqual([
       "Pendaftaran",
       "Siswa",
       "Wali Murid",
-      "Penempatan",
     ]);
   });
 

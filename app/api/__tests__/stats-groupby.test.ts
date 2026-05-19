@@ -7,13 +7,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // - Admin-only (403 for non-admin)
 
 const invoiceGroupBy = vi.fn();
-const enrollmentGroupBy = vi.fn();
 const studentGroupBy = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: { groupBy: invoiceGroupBy },
-    studentEnrollment: { groupBy: enrollmentGroupBy },
     student: { groupBy: studentGroupBy },
   },
 }));
@@ -109,42 +107,6 @@ describe("stats endpoints — single GROUP BY contract", () => {
 
       expect(res.status).toBe(403);
       expect(invoiceGroupBy).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("GET /api/enrollments/stats", () => {
-    it("returns correct counts and scopes via student.tenantId", async () => {
-      enrollmentGroupBy.mockResolvedValue([
-        { status: "ACTIVE", _count: { status: 12 } },
-        { status: "WITHDRAWN", _count: { status: 3 } },
-      ]);
-      const { GET } = await import("../enrollments/stats/route");
-      const { getSession } = await import("@/lib/auth");
-      vi.mocked(getSession).mockResolvedValue(adminSession);
-
-      const res = await GET(makeReq("http://localhost/api/enrollments/stats"));
-      const json = await res.json();
-
-      expect(res.status).toBe(200);
-      expect(json).toEqual({ total: 15, active: 12, withdrawn: 3 });
-      expect(enrollmentGroupBy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          by: ["status"],
-          where: { student: { tenantId: "t-1" } },
-        }),
-      );
-    });
-
-    it("missing status buckets default to 0", async () => {
-      enrollmentGroupBy.mockResolvedValue([]);
-      const { GET } = await import("../enrollments/stats/route");
-      const { getSession } = await import("@/lib/auth");
-      vi.mocked(getSession).mockResolvedValue(adminSession);
-
-      const res = await GET(makeReq("http://localhost/api/enrollments/stats"));
-      const json = await res.json();
-
-      expect(json).toEqual({ total: 0, active: 0, withdrawn: 0 });
     });
   });
 
