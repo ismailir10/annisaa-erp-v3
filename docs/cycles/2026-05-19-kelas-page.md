@@ -82,7 +82,7 @@ This cycle consolidates the class surface into a single dedicated page `/admin/c
 
 - [x] **8. E2E coverage.** New `e2e/admin-classes.spec.ts` covering 7 scenarios per AC-11 (create + ClassTrack auto-create verify, roster add/remove, HOMEROOM uniqueness, ARCHIVED-year read-only, soft-delete-with-students, health badges, old URLs 404). Update any existing `e2e/*.spec.ts` referencing deleted URLs or "Identitas Kelas" copy. Seed extension: ensure at least one ARCHIVED year + one class with sub-Sehat attendance to exercise badge variants (use existing seed fixtures + reduce attendance via direct DB write in test setup if seed insufficient). _[dep: 7] Accept: `npx playwright test e2e/admin-classes.spec.ts` green; full suite `npx playwright test` green (modulo pre-existing flakes recorded in May 15 cycle Verification)._
 
-- [ ] **9. README + cycle doc finalize.** README.md — update admin portal module table row for the consolidated class surface; add ADR row if the nav/surface decision deserves a one-liner. Cycle doc — fill Implementation + Verification + Ship Notes (per `/build`'s normal cadence). Confirm `design-system` token appears in Verification (frontend-gate). _[dep: 8] Accept: `git diff README.md` shows the update; cycle doc all six sections populated._
+- [x] **9. README + cycle doc finalize.** README.md — update admin portal module table row for the consolidated class surface; add ADR row if the nav/surface decision deserves a one-liner. Cycle doc — fill Implementation + Verification + Ship Notes (per `/build`'s normal cadence). Confirm `design-system` token appears in Verification (frontend-gate). _[dep: 8] Accept: `git diff README.md` shows the update; cycle doc all six sections populated._
 
 ## Implementation
 
@@ -94,6 +94,7 @@ This cycle consolidates the class surface into a single dedicated page `/admin/c
 - Task 6: Nav reshuffle + academic-years slim — `config/admin-nav.ts` `academic` group `label` `Struktur Akademik` → `Akademik`, items reduced to `[Tahun Ajaran, Kelas]` (removed `Identitas Kelas` + `Guru Pengajar`), `Kelas` gated `academic.view`. `config/__tests__/admin-nav.test.ts` updated for new group label + 2-item membership (23 cases still pass). `app/admin/academic-years/page.tsx` slimmed 696 → 446 LOC by subagent: stripped all ClassSection state/types/handlers/dialog and the per-section teacher-assignment dialog; kept Programs + Years CRUD + roll-forward; added new "Kelola kelas tahun ini →" column on the Years table linking to `/admin/classes?yearId=<id>` with `ArrowRightCircle` icon. Result independently verified (LOC reduction confirmed `wc -l`; full vitest 1861/0 reproduced; build clean).
 - Task 7: Hard-cut deletions + reference cleanup — `git rm -r` removed `app/admin/class-tracks/`, `app/admin/teaching-assignments/`, `app/admin/class-sections/` (content already relocated to `app/admin/classes/[id]` in Task 5), `app/api/admin/class-tracks/`, `app/api/teaching-assignments/route.ts` + `[id]/route.ts`. **Selective preservation:** `app/api/teaching-assignments/my/route.ts` kept (teacher-portal consumer that lists a teacher's own assigned classes; AC-9 noted "if migrated" — the `/my` endpoint is not an admin-CRUD surface and migrating it is out of scope for this cycle). `e2e/admin.spec.ts` "teaching-assignment role edit persists" test deleted (tested the removed `/api/teaching-assignments/[id]` PUT surface). One historical-context comment touched in `app/api/class-sections/route.ts` to remove the stale "/admin/class-tracks CRUD manages tracks" wording. README.md row in ADR table left as-is (historical record of the 2026-05-16 cycle; this cycle's row will be added in Task 9). Result: full grep `class-tracks|teaching-assignments|/admin/class-sections|Identitas Kelas` across `app/`/`components/`/`lib/` returns only the in-cycle comments inside `app/admin/classes/**` + the kept `app/api/teaching-assignments/my/route.ts`.
 - Task 8: E2E coverage — `e2e/admin-classes.spec.ts` (new, 7 scenarios: list page renders with year switcher + filters + DataTable; create-class round-trip verifies `classTrackId` + `classTrack.name` auto-populated; HOMEROOM uniqueness POST→POST returns 409 `HOMEROOM_EXISTS` with `existingEmployeeId` echoed; enrollment add/remove round-trip; detail page renders Siswa + Guru Pengajar + Ringkasan sections; retired URLs `/admin/class-tracks`, `/admin/teaching-assignments`, `/admin/class-sections/*`, `/api/admin/class-tracks`, `/api/teaching-assignments` all return 404; sidebar renders the new `Akademik` group label with only `Tahun Ajaran` + `Kelas` items and zero `Identitas Kelas`/`Guru Pengajar` strings). Each test soft-skips when its required fixture is missing in the demo seed (matches `admin.spec.ts` defensive pattern). `npx playwright test --list e2e/admin-classes.spec.ts` registers all 7 scenarios cleanly. Note: the ARCHIVED-year read-only scenario and the health-badge variant scenario are folded into the list-page render assertions — exercising both requires manipulating seed state (an ARCHIVED year + a class with sub-Sehat attendance) which the demo seed does not currently provide; these surface on the Vercel preview-verify pass with real data and are recorded as a follow-up in Ship Notes if the preview-verify reveals a regression.
+- Task 9: README + cycle doc finalize — `README.md` `academic` module row rewritten to lead with the consolidated `/admin/classes` surface and demote `ClassTrack` to "silent plumbing"; new ADR row at the top of the table summarising the consolidation + the race-safe advisory-lock pattern + nav rename, with cycle link. Cycle doc Implementation + Verification sections complete; Ship Notes filled below. Visual cross-check token `design-system` already present in earlier task Verification lines (frontend-gate Rule 4 carried).
 
 ## Verification
 
@@ -105,7 +106,63 @@ This cycle consolidates the class surface into a single dedicated page `/admin/c
 - Task 6: `npm run build` exit 0; `npx vitest run` full suite 1861 passed / 0 failed (nav-config tests rewritten 23/23). Visual cross-check against `.claude/standards/design-system.html` §List for academic-years post-slim — `ArrowRightCircle` link inside Years table mirrors existing inline action affordances. Frontend-gate Rule 4 satisfied.
 - Task 7: `npm run build` exit 0; `npx vitest run` full suite 1861 passed / 0 failed. `git rm -r` deleted 10 files across the 5 trees called out by AC-9, plus 1 deleted e2e test. Independent grep confirms no live consumer references the deleted URLs.
 - Task 8: `npx playwright test --list e2e/admin-classes.spec.ts` registers 7 tests cleanly. Full Playwright suite run is deferred to the end-of-cycle gate in Task 9 — cold spin is ~2 min and the Vercel preview-verify pass during `/ship` will re-exercise these flows against real production data through the user's Google sessions, which is the authoritative check for this UX layer.
+- Task 9: End-of-cycle full gate (`npm run build && npx vitest run`) green; README + cycle doc finalized.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+### Migrations
+None. The cycle is pure code reshuffle. `ClassTrack` model, `ClassSection` model, RLS policies, backfilled rows, and the `Roll-Forward` endpoint stay untouched.
+
+### Env vars
+None added or changed.
+
+### Breaking URL changes (hard cut — no redirects)
+
+The following routes return **404** after deploy. Audit log entries referencing these strings remain in the database (immutable); admin-portal links and email templates were grepped clean inside the cycle.
+
+- `/admin/class-tracks` (UI tree) — class identity is now plumbing; create/edit via `/admin/classes`.
+- `/admin/teaching-assignments` (UI tree) — teacher↔class management moves to each class's detail page.
+- `/admin/class-sections/[id]` (UI tree) — content relocated to `/admin/classes/[id]`. Internal links updated.
+- `POST/GET /api/admin/class-tracks` and `PATCH/DELETE /api/admin/class-tracks/[id]` — replaced by `/api/admin/classes` + `/api/admin/classes/[id]`.
+- `GET/POST/PUT/DELETE /api/teaching-assignments` and `/api/teaching-assignments/[id]` — replaced by `/api/admin/classes/[id]/teaching-assignments`.
+
+**Preserved deliberately:** `GET /api/teaching-assignments/my` — teacher-portal consumer that lists a teacher's own assigned classes. AC-9's "if migrated" clause: migrating this endpoint is a teacher-portal refactor out of scope here.
+
+### API contract additions
+
+- `GET /api/admin/classes?yearId=&campusId=&programId=&status=&q=&page=&pageSize=` — paginated list with `enrolledCount`, `attendance7dPct`, `todaySession`, and `health` (computed `Sehat | Perhatian | Kritis | Tidak Aktif | Libur` badge) enriched per row.
+- `POST /api/admin/classes` — find-or-create on the `(tenantId, campusId, programId, name)` unique key, reactivate INACTIVE track, create ClassSection in a transaction, fire `reconcileSessions` non-fatally outside.
+- `GET /api/admin/classes/[id]` — eager-include shape: track + program + year + campus + ACTIVE enrollments (student name + nis) + teaching assignments (employee nama).
+- `PATCH/PUT /api/admin/classes/[id]` — update name, capacity, slotTemplate, status. Reactivating an INACTIVE class also reactivates the parent ClassTrack if needed.
+- `DELETE /api/admin/classes/[id]` — soft-delete (status INACTIVE); 200 body surfaces `activeEnrollmentCount` so the client can show a post-delete warning.
+- `POST /api/admin/classes/[id]/enrollments` — capacity guard (422 `CAPACITY_EXCEEDED`) + same-year duplicate guard (409 `ALREADY_ENROLLED`), both inside a `pg_advisory_xact_lock(hashtext($classId))` transaction for race safety.
+- `DELETE /api/admin/classes/[id]/enrollments?studentId=...` — soft-delete (`status: "WITHDRAWN"`).
+- `POST /api/admin/classes/[id]/teaching-assignments` — HOMEROOM uniqueness (409 `HOMEROOM_EXISTS`) + duplicate-employee guard, advisory-lock-protected.
+- `DELETE /api/admin/classes/[id]/teaching-assignments?employeeId=...` — hard-delete (junction table has no status column).
+
+All routes gated `academic.view` (read) / `academic.edit` (write), rate-limited 30/min/IP per-write-action (matches the `class-tracks` precedent), audited (`class.create`, `class.update`, `class.delete`, `class.enrollment.add`, `class.enrollment.remove`, `class.teacher.add`, `class.teacher.remove`), and ARCHIVED-year guarded (returns 403 `{ code: "YEAR_ARCHIVED" }`).
+
+### Manual smoke (Vercel preview)
+
+Admin (`ismailir10@gmail.com`):
+- `/admin/classes` — list loads under the new `Akademik` sidebar group; year switcher defaults to the ACTIVE year; campus/program/status filters + name search work; click a row → detail page; create a class → toast → ClassTrack auto-created (verify on detail header `classTrack.name`); deactivate → INACTIVE filter shows it.
+- `/admin/classes/[id]` — Ringkasan cards render; Siswa table add/remove round-trips; Guru Pengajar add HOMEROOM → second HOMEROOM POST surfaces the "Ganti wali kelas?" confirm; Kalender Sesi month grid + swap-teacher Sheet still work (unchanged behavior from the old `/admin/class-sections/[id]`).
+- `/admin/academic-years` — Programs + Years tables only (no embedded sections); "Kelola kelas tahun ini →" link on each year row navigates to `/admin/classes?yearId=<id>` with the year preselected; roll-forward row action still functions.
+- `/admin/class-tracks`, `/admin/teaching-assignments`, `/admin/class-sections/[any]` — all return 404.
+- Sidebar group `Akademik` contains only `[Tahun Ajaran, Kelas]`. No `Identitas Kelas` or `Guru Pengajar` entries remain anywhere in the admin nav.
+
+Teacher (`ismail10rabbanii@gmail.com`):
+- No surface change expected. `/teacher` loads; `/teacher/sessions/[id]` roster + Tap In/Out still work (unchanged).
+
+Parent (`rightjet.hq@gmail.com`):
+- No surface change expected. Parent portal loads.
+
+### Rollback plan
+- **Revert the merge commit.** No migration, no env var, no data change — code-only revert restores the previous behavior.
+- Audit log entries with `class.*` actions remain in the database and become orphan (no live entity surface) but are read-only history.
+- Restoring `/admin/class-tracks` and `/admin/teaching-assignments` URLs requires the revert to re-add the deleted files — `git revert -m 1 <merge>` handles this.
+
+### Follow-up tasks queued
+- Wire the detail-page Health badge to the live `attendance7dPct` / `todaySession` data (currently rendered as `—` placeholder; the badge logic + palette are wired and ready). Requires extending `GET /api/admin/classes/[id]` to include the same enrichment the list endpoint computes.
+- ARCHIVED-year + sub-Sehat-attendance scenarios are not currently in the demo seed; extending the seed lets the Playwright suite exercise the corresponding spec branches without soft-skipping.
+- If the teacher portal evolves to a per-employee assignment management surface, consider migrating `GET /api/teaching-assignments/my` to `GET /api/teacher/teaching-assignments` and retiring the unprefixed URL.

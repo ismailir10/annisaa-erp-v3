@@ -33,7 +33,7 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 |--------|--------|
 | **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
 | **hr** | Staff lifecycle: employees, attendance, leave, payroll, salary components — gated by `hr.*` permissions |
-| **academic** | School structure: academic year (with one-click roll-forward), programs, class tracks (stable multi-year class identity), class sections, daily class sessions (per-section calendar + substitute-teacher swap), teaching assignments |
+| **academic** | School structure: academic year (with one-click roll-forward), programs, classes (consolidated per-year management surface at `/admin/classes` with roster + teacher + health snapshot + sessions calendar; `ClassTrack` lineage stays as silent plumbing — find-or-created on POST), daily class sessions (per-class calendar + substitute-teacher swap), teaching assignments |
 | **students** | Student lifecycle: students (with auth-proxied photo upload via `lib/storage` adapter — files outside `public/`, MIME magic-byte validated, opaque storage tokens), guardians (full 13-field edit + detail page with list row-click nav), enrollments, admissions (admin CRM + public `/daftar` entry + sibling auto-detect on submit) |
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF |
 | **learning** | Academic outcomes: attendance, assessment templates, BB/MB/BSH/BSB scoring |
@@ -67,6 +67,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-05-19 | `/admin/classes` consolidates the old class-tracks UI + embedded sections + global teaching-assignments into one per-year management page; `ClassTrack` stays as schema plumbing. Nav group `Struktur Akademik` → `Akademik`. Race-safe via `pg_advisory_xact_lock` | Three admin surfaces made "manage TKIT A this year" a context-switch — see [cycle](docs/cycles/2026-05-19-kelas-page.md) |
 | 2026-05-18 | Kesiswaan CRUD parity (in flight): superset parent-option constants; Student photo + Parent KTP/KK uploads; metadata editor; "Riwayat Status"; create-full-field-set; Admission `campusPreference` + stash on Student.metadata; unified `GuardianFormBody`; race-safe `isPrimary`+`childOrder`; KK preview via primary guardian; sibling-detect confirm + 409 email-conflict; guardian-detail Dokumen card | Closes UU PDP 27/2022 gap; race-safe primary toggle; convert no longer P2002s on email collision — see [cycle](docs/cycles/2026-05-18-kesiswaan-crud-audit.md) |
 | 2026-05-16 | CRUD consistency audit: admission conversion copies parent fields + `parentRelationship`; guardian CRUD surfaces expanded | Fix data loss on convert; new guardian detail page; expand list edit form — see [cycle](docs/cycles/2026-05-16-crud-consistency-audit.md) |
 | 2026-05-16 | Nav reshuffle: Tahun Ajaran + Guru Pengajar moved Kurikulum → Struktur Akademik; ClassTrack label "Rombongan Belajar" → "Identitas Kelas"; teaching-assignments gains create button | Structural setup ≠ curriculum content; "Rombongan Belajar" is ClassSection not ClassTrack — see [cycle](docs/cycles/2026-05-16-academic-nav-reshuffle.md) |
