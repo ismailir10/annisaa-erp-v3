@@ -76,3 +76,12 @@ Per-class enrollment management is at `/admin/classes/[id]` Siswa tab (single wr
 
 ### Rollback
 - Revert merge commit. No DB change.
+
+### Preview-verify
+
+- Preview-verify iteration 1 (annisaa-erp-v3-git-feat-kelas-e1f2fd-ismails-projects-196d40d3.vercel.app, commit 9472bc4a): flows=[sidebar nav, /admin/classes list with Lihat button, Lihat click navigates to detail, /admin/enrollments 404], blockers=0, minors=0
+  - Sidebar `Kesiswaan` group shows exactly `[Pendaftaran, Siswa, Wali Murid]` — `Penempatan` entry gone.
+  - `/admin/classes` list: Nama column renders as plain text (no underline / no Link affordance); standard `Lihat` Button with Eye icon visible at the end of each row before the kebab `MoreHorizontal` dropdown — matches other admin list pages.
+  - Click `Lihat` on TKIT A row → client-side push lands at `/admin/classes/cmpasbh8x00deudx799we288q`. Detail page renders header, Ringkasan StatCards (Roster 20/20, Kehadiran 7 hari, Sesi hari ini), Kondisi badge, Daftar Siswa with Keluarkan row action.
+  - `/admin/enrollments` → Next.js 404. No console errors.
+- Preview-verify converged on iteration 1 (clean): 1 iteration, 0 fix commits.
