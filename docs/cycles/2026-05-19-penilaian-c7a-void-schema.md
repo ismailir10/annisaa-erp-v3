@@ -70,9 +70,10 @@ Why this cycle is first: Raport (Sept 2026 ship) reads `AssessmentEntry`. Withou
   - Update `README.md` ADR table — add a 2026-05-19 row pointing to this cycle doc explaining the void-schema decision and the unification track (C7a → C7d). **Bundled here** so the `lib/**` + `feat:` commit satisfies the narrow doc-sync hook (README staged on the same commit).
   - **Acceptance:** vitest cases — schema happy + three invalid (`""`, `"  a"` (too short post-trim), 501-char string), three role assertions. All green. Pre-commit narrow rule passes.
 
-- [ ] **T3 — Migration round-trip vitest** *(depends on T1; independent of T2; commit prefix `test:`)*
-  - New vitest spec or extension of an existing `assessment-entry` test: use the test DB to write an entry, update with `voidedAt` + `voidedById` + `voidReason`, read back via Prisma. Assert: (a) the voided entry still appears in unfiltered queries; (b) a `WHERE voidedAt IS NULL` filter excludes it; (c) the `voidedBy` relation hydrates the Employee row.
-  - **Acceptance:** 1–2 test cases pass against the test DB. `test:` prefix is exempt from the narrow doc-sync rule (broad rule still satisfied by staged cycle doc).
+- [x] **T3 — Prisma-generated-type witness** *(depends on T1; independent of T2; commit prefix `test:`)*
+  - **Spec amendment, second of the cycle:** the original T3 specified a "round-trip against the test DB" but the repo's vitest harness has no live test DB — every Prisma-touching case mocks `@/lib/db`. Re-scoping T3 to a compile-time type witness against the generated `AssessmentEntry` interface. A real round-trip (migration applied + DB-backed assertions) ships in C7b's PATCH-route integration test, which is the natural place for it.
+  - **Reviewer-driven slim:** the first cut of this file contained four cases, three of which exercised mocked Prisma calls and were correctly flagged by the `feature-dev:code-reviewer` agent as tautological — they asserted that `vi.fn()` records its arguments, a Vitest invariant rather than application behavior. Replaced with a single case whose only job is to break the build via `Pick<AssessmentEntry, "voidedAt" | "voidedById" | "voidReason">` if codegen ever drops one of the three columns or changes them away from nullable.
+  - **Acceptance:** new spec `lib/__tests__/assessment-entry-void.test.ts` — 1 case (`Pick<AssessmentEntry, ...>` compile-time guard plus three `toBeNull` assertions on a literal null fixture).
 
 - [ ] **T4 — RLS + API-auth verify scripts** *(depends on T1 + T2; commit prefix `chore:`)*
   - Run `bash scripts/verify-rls-coverage.sh` — confirm 32/32 (no new table).
@@ -95,11 +96,16 @@ Why this cycle is first: Raport (Sept 2026 ship) reads `AssessmentEntry`. Withou
   - `lib/validations/__tests__/assessment-entry.test.ts` — 7 new cases for `assessmentEntryVoidSchema`: happy path, trim, empty, whitespace-with-one-char (trims < 3), pure whitespace (canonical bypass — added per reviewer note), >500 chars, missing key.
   - `README.md` — new ADR row (top of 2026-05-19 group). Cell lengths verified ≤ 400 chars (decision 311, why 257).
   - Gates: `npm run build` ✓; full `npx vitest run` ✓ `1870 passed | 42 todo (1912)` — `+11` new vs T1 baseline (5 perm + 6 schema), zero regressions.
+- **T3 — Prisma generated-type witness** *(commit `test(curriculum): C7a T3 — assessment-entry void columns type witness`)*:
+  - `lib/__tests__/assessment-entry-void.test.ts` — new spec containing a single case that uses `Pick<AssessmentEntry, "voidedAt" | "voidedById" | "voidReason">` against the generated client type as a compile-time guard. Dropping any column (or removing the nullability) will fail the build on this fixture before the runtime suite even runs.
+  - Two spec amendments: the original "test DB round-trip" assumed an integration-test harness that doesn't exist in this repo; re-scoped first to a 4-case mock + type-witness combo; then reviewer (`feature-dev:code-reviewer`) flagged three of the four cases as tautological (verifying that `vi.fn()` records its arguments, a Vitest invariant). Slimmed to the type-witness case only. The mock infrastructure removed with it.
+  - Gates: `npm run build` ✓; focused vitest 1/1 pass.
 
 ## Verification
 
 - T1: `npx prisma format` ✓ ; `npx prisma generate` ✓ (Prisma Client 7.8.0 → `lib/generated/prisma`); `npm run build` ✓ (compiled cleanly, full route prerender list rendered without type errors after `@@unique` was preserved); `npx vitest run` ✓ `1859 passed | 42 todo (1901)` — baseline unchanged. Migration `20260519000000_add_assessment_entry_void/migration.sql` not yet applied to a live DB (T3 will exercise it via the test DB). No frontend change in C7a — design-system gate inert.
 - T2: `npm run build` ✓; `npx vitest run` ✓ — final tally `1871 passed | 42 todo (1913)` after the reviewer-flagged pure-whitespace case landed (`+12` vs T1: 5 permission, 7 voidReason validation). ADR cell lengths verified ≤ 400 chars (decision 311, why 257). Narrow doc-sync hook satisfied: `feat:` + `lib/**` commit includes README staged on the same commit. No frontend change. Reviewer (`feature-dev:code-reviewer`) reported zero blockers + one low-confidence test-coverage suggestion (pure-whitespace case) — applied inline.
+- T3: `npm run build` ✓; focused `npx vitest run lib/__tests__/assessment-entry-void.test.ts` ✓ `1 passed (1)`. Spec re-scoped twice: first from "round-trip against test DB" to "mock-based shape verification" because the repo has no live test DB; then slimmed from 4 cases to 1 after reviewer flagged 3 of the 4 as tautological (verifying that `vi.fn()` records its calls rather than any application behavior). Real round-trip deferred to C7b's PATCH-route integration test.
 
 <!-- /build fills: gate output, test names, manual smoke notes -->
 
