@@ -164,6 +164,19 @@ PR #294 (kesiswaan CRUD audit, merged 2026-05-19) shipped a local-disk storage a
 
 Real integration verification lands in `/ship` Step 3 preview-verify against the feat/* preview deploy.
 
+**Preview-verify iter 1** *(2026-05-20)* — preview READY at `annisaa-erp-v3-git-feat-kesisw-efae77-ismails-projects-196d40d3.vercel.app` (deployment `dpl_42j8HMuvE7Ca98yDo8ofe4BdcGTj`) for commit `19b2bf02`. Chrome MCP walked 3 flows with the authenticated Google admin session:
+
+1. **Student photo upload** — `/admin/students/cmpcs8gn70001d3x71umb55p5` ("E2E PhotoHost…"). Uploaded a 1-KB synthetic JPEG. Toast "Foto diperbarui" shown. Page reload + direct fetch of `/api/students/<id>/photo`:
+   - `status: 200`
+   - `content-type: image/jpeg`
+   - `cache-control: private, no-store`
+   - `body: 1024 bytes`
+   - First 4 bytes `ff d8 ff e0` — JPEG magic-byte preserved byte-for-byte through upload → Supabase → download.
+2. **Parent KTP upload** — `/admin/guardians/<Abdul Santoso parent id>`. Uploaded same JPEG via the KTP cell. `/api/parents/<id>/ktp` → 200, image/jpeg, private/no-store, 1024 bytes.
+3. **Parent KK upload** — same guardian, KK cell. `/api/parents/<id>/kk` → 200, image/jpeg, private/no-store, 1024 bytes.
+
+Zero blockers, zero minors — **converged on iter 1**. The PR #294 production 500s are closed: the auth-proxy round-trip works end-to-end on Vercel against Supabase Storage for all three upload surfaces.
+
 ## Ship Notes
 
 **Migrations**
