@@ -23,7 +23,6 @@ import { test, expect } from "@playwright/test";
 // fixture setup.
 
 let parentUserId: string;
-let firstChildId: string | null = null;
 
 test.describe("Parent — Perkembangan (C6)", () => {
   test.beforeAll(async ({ request }) => {
@@ -77,27 +76,15 @@ test.describe("Parent — Perkembangan (C6)", () => {
         { timeout: 15_000 },
       )
       .toBeGreaterThan(0);
-
-    // Capture studentId from the URL if we landed on the detail page,
-    // for the next test.
-    const url = new URL(page.url());
-    const match = url.pathname.match(
-      /\/parent\/perkembangan\/([^/?#]+)/,
-    );
-    if (match) firstChildId = match[1];
   });
 
   test("detail page renders the 5-row element progress block", async ({
     page,
   }) => {
-    // If we already captured an id from the previous test, use it.
-    // Otherwise call the children API and pick the first.
-    let studentId = firstChildId;
-    if (!studentId) {
-      const res = await page.request.get("/api/parent/children");
-      const body = await res.json();
-      studentId = body.data?.[0]?.id ?? null;
-    }
+    // Resolve studentId independently per test — no cross-test shared state.
+    const res = await page.request.get("/api/parent/children");
+    const body = await res.json();
+    const studentId: string | null = body.data?.[0]?.id ?? null;
     test.skip(
       !studentId,
       "Demo guardian has no children — element-block test cannot run",
