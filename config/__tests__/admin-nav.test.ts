@@ -49,21 +49,20 @@ describe("adminNav IA — ordering + grouping", () => {
     ]);
   });
 
-  it("academic group is gated by academic.view and lists structural setup items", () => {
+  it("academic group is gated by academic.view, label Akademik, lists Tahun Ajaran + Kelas only", () => {
     const group = adminNav.groups.find((g) => g.id === "academic")!;
+    expect(group.label).toBe("Akademik");
     expect(group.permission).toBe("academic.view");
     expect(group.items.map((i) => i.label)).toEqual([
       "Tahun Ajaran",
-      "Identitas Kelas",
-      "Guru Pengajar",
+      "Kelas",
     ]);
     expect(group.items.map((i) => i.href)).toEqual([
       "/admin/academic-years",
-      "/admin/class-tracks",
-      "/admin/teaching-assignments",
+      "/admin/classes",
     ]);
-    const classTracks = group.items.find((i) => i.label === "Identitas Kelas")!;
-    expect(classTracks.permission).toBe("academic.view");
+    const kelas = group.items.find((i) => i.label === "Kelas")!;
+    expect(kelas.permission).toBe("academic.view");
   });
 
   it("curriculum group is gated by curriculum.read and holds content-authoring items only", () => {
