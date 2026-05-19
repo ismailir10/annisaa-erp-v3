@@ -92,20 +92,19 @@ describe("POST /api/payroll/generate — F-10 rekening pre-flight", () => {
   });
 
   it("passes the guard when no employee has the mismatched pair (does not 422)", async () => {
-    // This test exercises the guard's pass branch only. The route then runs
-    // calculatePayroll which has its own preconditions (org config, working
-    // days, components) we don't fully mock here — those branches have their
-    // own dedicated tests. We assert the GUARD did not 422 and that the
-    // downstream pipeline was attempted (employee.findMany consumed).
+    // Exercises the rekening-guard's pass branch. The route then runs the
+    // calculatePayroll pipeline whose own preconditions (working-day count,
+    // components, etc.) are covered by their own dedicated tests — we don't
+    // fully mock them here. The contract under test is narrower: the guard
+    // MUST NOT short-circuit with 422.
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(prisma.orgConfig.findUnique).mockResolvedValue({ workingDays: "1,2,3,4,5", lemburCompliant: false } as any);
-    // FIND-019: the route now also refuses 422 when an employee has no
-    // EmployeeSalaryValue rows. This test exercises the rekening-guard pass
-    // branch in isolation, so we mock at least one salaryValue per employee
-    // so the salary guard doesn't pre-empt the assertion below.
+    // FIND-019: the route also 422s when an employee has no EmployeeSalaryValue
+    // rows. Mock at least one salaryValue per employee so the salary guard
+    // doesn't pre-empt the assertion below.
     vi.mocked(prisma.employee.findMany).mockResolvedValue([
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { id: "e1", kode: "E001", nama: "Guru Satu", bankName: "Bank BSI", bankAccountNo: "0001", salaryValues: [{ componentDefId: "c1", value: 1 }], attendanceRecords: [] } as any,
@@ -113,15 +112,34 @@ describe("POST /api/payroll/generate — F-10 rekening pre-flight", () => {
       { id: "e2", kode: "E002", nama: "Guru Dua", bankName: null, bankAccountNo: null, salaryValues: [{ componentDefId: "c1", value: 1 }], attendanceRecords: [] } as any,
     ]);
 
-    let res: Response;
+    // Two possible outcomes both prove the guard passed:
+    //   A. POST returns a Response → the response status must NOT be 422.
+    //      (The rekening guard's only failure path is `return NextResponse
+    //      .json(..., { status: 422 })`; any other status proves the guard
+    //      let the request through.)
+    //   B. POST throws → the throw came from downstream calculatePayroll
+    //      (which uses `throw new Error(...)`). The guard never throws —
+    //      it returns a Response. A throw therefore proves the guard
+    //      passed, but ONLY if the error is from the engine and not from
+    //      something earlier in the route (e.g. validation, RBAC).
+    // Either path asserts a definite outcome — no branch passes vacuously.
+    let res: Response | null = null;
+    let caught: unknown = null;
     try {
       res = await POST(makeReq(validBody) as never);
-    } catch {
-      // Downstream calculatePayroll may throw with our minimal mock; that's
-      // proof the guard already let the request through.
-      expect(prisma.employee.findMany).toHaveBeenCalled();
-      return;
+    } catch (e) {
+      caught = e;
     }
-    expect(res.status).not.toBe(422);
+    if (res) {
+      expect(res.status).not.toBe(422);
+    } else {
+      expect(caught).toBeInstanceOf(Error);
+      // Specifically: the throw must come from calculatePayroll, not from
+      // the rekening guard (which returns, not throws) and not from any
+      // pre-guard check. The engine throws when actualWorkingDays <= 0;
+      // the contract under test is the "> 0" check, not the variable name,
+      // so anchor on the semantic phrase rather than the symbol.
+      expect((caught as Error).message).toMatch(/must be > 0/);
+    }
   });
 });
