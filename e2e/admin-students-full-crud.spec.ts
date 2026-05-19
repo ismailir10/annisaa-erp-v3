@@ -67,7 +67,9 @@ test.describe("Admin students — full-field CRUD round-trip", () => {
 
     // ----- Fill Data Anak block -----
     await dialog.getByPlaceholder("Aisyah Putri").fill(payload.name);
-    await dialog.getByPlaceholder("Aisyah").fill(payload.nickname);
+    // exact:true — "Aisyah" is a substring of "Aisyah Putri" so without
+    // exact:true the locator matches both inputs and strict-mode fails.
+    await dialog.getByPlaceholder("Aisyah", { exact: true }).fill(payload.nickname);
 
     // Jenis Kelamin — 1st combobox in the dialog.
     const genderTrigger = dialog.locator('[role="combobox"]').nth(0);
@@ -89,7 +91,8 @@ test.describe("Admin students — full-field CRUD round-trip", () => {
       .fill(payload.notes);
 
     // ----- Fill Identitas Resmi block -----
-    await dialog.getByPlaceholder("Nomor Induk Siswa").fill(payload.nis);
+    // exact:true — "Nomor Induk Siswa" is a substring of "Nomor Induk Siswa Nasional".
+    await dialog.getByPlaceholder("Nomor Induk Siswa", { exact: true }).fill(payload.nis);
     await dialog
       .getByPlaceholder("Nomor Induk Siswa Nasional")
       .fill(payload.nisn);
@@ -109,7 +112,7 @@ test.describe("Admin students — full-field CRUD round-trip", () => {
     // Status — 3rd combobox (already defaults to ACTIVE; re-select to exercise).
     const statusTrigger = dialog.locator('[role="combobox"]').nth(2);
     await statusTrigger.click();
-    await page.getByRole("option", { name: "Aktif" }).click();
+    await page.getByRole("option", { name: "Aktif", exact: true }).click();
 
     // ----- Submit -----
     // The dialog's submit + page header trigger share the same accessible

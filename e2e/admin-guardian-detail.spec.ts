@@ -79,11 +79,13 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
     await page
       .getByPlaceholder("Cari nama, email, atau telepon...")
       .fill(parentName);
-    // Wait for the filtered fetch to land.
+    // Wait for the filtered fetch to land. URLSearchParams encodes spaces as
+    // `+`, not %20, so substring-matching encodeURIComponent() output races
+    // against the actual request URL. Just look for `search=` on /api/guardians.
     await page.waitForResponse(
       (res) =>
         res.url().includes("/api/guardians") &&
-        res.url().includes(encodeURIComponent(parentName).slice(0, 12)) &&
+        res.url().includes("search=") &&
         res.ok(),
       { timeout: 15_000 },
     );
@@ -122,7 +124,10 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
     );
     await page.getByRole("button", { name: /Simpan Perubahan/ }).click();
     const saveRes = await savePromise;
-    expect(saveRes.ok()).toBeTruthy();
+    if (!saveRes.ok()) {
+      const errBody = await saveRes.text();
+      throw new Error(`PUT ${saveRes.url()} returned ${saveRes.status()}: ${errBody}`);
+    }
 
     // ---------- Assert persistence — API readback + DOM render ----------
     const apiRes = await page.request.get(`/api/parents/${parentId}`);

@@ -192,6 +192,11 @@ export default function GuardiansPage() {
     const payload: Record<string, unknown> = { ...editForm };
     if (payload.childrenTotal === "") payload.childrenTotal = null;
     else payload.childrenTotal = Number(payload.childrenTotal);
+    // T8 fields are hidden on this surface (showRelationship={false}) and
+    // /api/parents/[id] doesn't accept them anyway, but coerce/strip so a
+    // future schema tightening doesn't reject the payload.
+    if (payload.childOrder === "") delete payload.childOrder;
+    else payload.childOrder = Number(payload.childOrder);
     const res = await fetch(`/api/parents/${editTarget.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

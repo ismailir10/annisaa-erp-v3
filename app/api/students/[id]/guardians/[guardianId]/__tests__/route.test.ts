@@ -72,9 +72,11 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/generated/prisma/client", () => {
   class PrismaClientKnownRequestError extends Error {
     code: string;
-    constructor(message: string, opts: { code: string }) {
+    clientVersion: string;
+    constructor(message: string, opts: { code: string; clientVersion: string }) {
       super(message);
       this.code = opts.code;
+      this.clientVersion = opts.clientVersion;
     }
   }
   return {
@@ -149,7 +151,10 @@ vi.mock("@/lib/db", () => ({
       // route's retry path is exercised.
       if (state.forceP2034Once && state.txAttempts === 1) {
         const { Prisma } = await import("@/lib/generated/prisma/client");
-        throw new Prisma.PrismaClientKnownRequestError("serialization", { code: "P2034" });
+        throw new Prisma.PrismaClientKnownRequestError("serialization", {
+          code: "P2034",
+          clientVersion: "test",
+        });
       }
       if (typeof cb === "function") return (cb as (tx: unknown) => unknown)(txProxy);
       return null;

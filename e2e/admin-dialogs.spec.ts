@@ -97,7 +97,10 @@ test.describe("Admin form dialogs — desktop", () => {
       const dialog = page.locator('[data-slot="dialog-content"]').first();
       await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-      await expect(dialog.getByRole("heading")).toContainText(check.expectedTitle);
+      // Use data-slot selector for DialogTitle specifically — getByRole("heading")
+      // would match SectionHeading <h3>s now added inside Tambah Siswa (T2 +
+      // sectioned forms) and fail strict-mode against the multi-match.
+      await expect(dialog.locator('[data-slot="dialog-title"]')).toContainText(check.expectedTitle);
       await expect(dialog.getByRole("button", { name: check.expectedSubmit })).toBeVisible();
       // Cancel slot — text-based locator (DialogClose wrapper varies across
       // pages: some render a Button directly, some use the base-nova
@@ -142,7 +145,9 @@ test.describe("Admin form dialogs — mobile renders as Sheet", () => {
       // Dialog popup must NOT be present at the same time
       await expect(page.locator('[data-slot="dialog-content"]')).toHaveCount(0);
 
-      await expect(sheet.getByRole("heading")).toContainText(check.expectedTitle);
+      // Use data-slot selector for SheetTitle — getByRole("heading") matches
+      // SectionHeading h3s nested inside the form body and fails strict-mode.
+      await expect(sheet.locator('[data-slot="sheet-title"]')).toContainText(check.expectedTitle);
       await expect(sheet.getByRole("button", { name: check.expectedSubmit })).toBeVisible();
 
       await page.screenshot({
