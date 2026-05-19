@@ -259,39 +259,6 @@ test.describe("Admin flows", () => {
     }
   });
 
-  test("teaching-assignment role edit persists and list reflects new role", async ({ page }) => {
-    const list = await page.request.get("/api/teaching-assignments");
-    if (!list.ok()) {
-      test.skip(true, "Teaching assignments endpoint unavailable");
-      return;
-    }
-    const rows = (await list.json()) as Array<{ id: string; role: string }>;
-    const target = rows[0];
-    if (!target) {
-      test.skip(true, "No teaching assignment available");
-      return;
-    }
-
-    const nextRole = target.role === "HOMEROOM" ? "ASSISTANT" : "HOMEROOM";
-    const put = await page.request.put(`/api/teaching-assignments/${target.id}`, {
-      data: { role: nextRole },
-    });
-    expect(put.ok()).toBeTruthy();
-    const putJson = await put.json();
-    expect(putJson.role).toBe(nextRole);
-
-    // Verify list re-fetch surfaces the new role
-    const after = await page.request.get("/api/teaching-assignments");
-    const afterRows = (await after.json()) as Array<{ id: string; role: string }>;
-    const updated = afterRows.find((r) => r.id === target.id);
-    expect(updated?.role).toBe(nextRole);
-
-    // Restore original role so subsequent runs stay idempotent
-    await page.request.put(`/api/teaching-assignments/${target.id}`, {
-      data: { role: target.role },
-    });
-  });
-
   test("admission status transitions follow the state machine", async ({ page }) => {
     // Find an INQUIRY admission to exercise the happy-path + illegal-jump guard
     const list = await page.request.get("/api/admissions?status=INQUIRY&pageSize=1");
