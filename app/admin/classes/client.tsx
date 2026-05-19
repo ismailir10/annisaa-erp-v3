@@ -105,7 +105,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     const [campusRes, programRes, yearRes] = await Promise.all([
       fetch("/api/config/campuses?status=ALL"),
       fetch("/api/programs"),
-      fetch("/api/admin/academic-years"),
+      fetch("/api/academic-years"),
     ]);
 
     if (campusRes.ok) {

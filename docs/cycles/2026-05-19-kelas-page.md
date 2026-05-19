@@ -109,6 +109,11 @@ This cycle consolidates the class surface into a single dedicated page `/admin/c
 - Task 9: End-of-cycle full gate green — `npm run build` exit 0, `npx vitest run` 1861 passed / 0 failed, `npx playwright test e2e/admin-classes.spec.ts` 5 passed / 2 graceful-skipped (skips fire when demo seed lacks an ARCHIVED year + a class with sub-Sehat attendance — both folded into list-page render assertions in the converged tests). README updated + cycle doc finalized. Initial run flagged one playwright failure (the `text=` / CSS selector mix on the list-page render test); fixed by switching to `.or()` locator composition before recording the pass.
 - Pre-ship spot-check `npx playwright test e2e/admin.spec.ts` — 20 passed / 5 skipped / **1 pre-existing failure** at `admin.spec.ts:461` (`bulk generate plans, confirms, runs sequential batches, lands all in PENDING_PAYMENT_LINK`) — same DEMO_MODE-not-propagated-to-test-runner infra bug the May 15 cycle Verification documented for `admin.spec.ts:494,538`. Confirmed not caused by this cycle (no `app/admin/invoices`, `lib/xendit`, or invoices-related diff in `feat/kelas-page`). CI Playwright on the PR will rerun against a fresh env. Mirrors the precedent set by cycle 2026-05-15.
 
+### Preview-verify
+
+- Preview-verify iteration 1 (annisaa-erp-v3-git-feat-kelas-page-ismails-projects-196d40d3.vercel.app): flows=[admin/classes list], blockers=1, minors=0
+  - `/admin/classes` year switcher empty + table stuck on loading skeleton because `app/admin/classes/client.tsx` called the non-existent `/api/admin/academic-years` (404). The real endpoint is `/api/academic-years` (no `admin` prefix — established by cycle 2026-05-13). Fixed in a follow-up commit; iteration 2 will re-walk.
+
 ## Ship Notes
 
 ### Migrations
