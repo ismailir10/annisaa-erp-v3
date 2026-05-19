@@ -70,13 +70,12 @@ export const adminNav: NavConfig = {
     },
     {
       id: "academic",
-      label: "Struktur Akademik",
+      label: "Akademik",
       icon: School,
       permission: "academic.view",
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
-        { label: "Identitas Kelas", href: "/admin/class-tracks", icon: School, permission: "academic.view" },
-        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
+        { label: "Kelas", href: "/admin/classes", icon: School, permission: "academic.view" },
       ],
     },
     {
