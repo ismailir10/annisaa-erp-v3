@@ -154,7 +154,15 @@ PR #294 (kesiswaan CRUD audit, merged 2026-05-19) shipped a local-disk storage a
 
 **Design-system gate** — frontend-gate (pre-commit Rule 4) does not trigger this cycle. No `app/**/*.{tsx,css}`, `components/**/*.tsx`, or `tailwind.config.*` diffs. `design-system` mentioned here as documentation of the gate skip.
 
-**End-of-cycle gate** — recorded in the commit landing T6 (Playwright run included).
+**End-of-cycle gate** — `npm run build && npx vitest run && npx playwright test` *(2026-05-19/20)*:
+- Build: green.
+- Vitest: 190 files / 1891 tests pass / 42 todo / 2 skipped.
+- Playwright: 119 passed / 12 skipped / 2 flaky / 1 unrelated fail.
+  - **Skipped (+2 new)**: `admin-student-photo-upload.spec.ts` and `admin-guardian-document-upload.spec.ts` self-skip when `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are absent. Local `.env.local` ships those vars empty; CI `.github/workflows/ci.yml` also does not wire them. Coverage moves to **preview-verify** (Step 3 of `/ship`) which inherits staging Supabase env from Vercel's preview build pipeline. Documented in Assumption 6 + 8.
+  - **Flaky × 2** (auto-retried, ended passing): `admin.spec.ts:35` employee detail salary tab, `sibling-detect.spec.ts:66` /daftar UX — both pre-existing, file untouched in this cycle.
+  - **Fail × 1**: `admin.spec.ts:435` admin tagihan bulk — same pre-existing demo-DB pollution recorded in prior cycles (e.g. [2026-05-19-penilaian-c7a-void-schema.md](./2026-05-19-penilaian-c7a-void-schema.md), [2026-05-19-kelas-page.md](./2026-05-19-kelas-page.md)). Unrelated to storage; explicit user-authorized continuation pattern carried forward.
+
+Real integration verification lands in `/ship` Step 3 preview-verify against the feat/* preview deploy.
 
 ## Ship Notes
 

@@ -55,7 +55,20 @@ function makeJpegBuffer(): Buffer {
   return Buffer.concat([header, padding, eoi]);
 }
 
+// Skip locally + in CI when Supabase env vars are absent. Storage adapter
+// (lib/storage/index.ts → lib/storage/supabase.ts) fails fast without
+// NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY. Coverage moves to
+// the preview-verify walk which inherits staging Supabase env vars. See
+// docs/cycles/2026-05-19-storage-supabase-swap.md Assumption 6 + 8.
+const SUPABASE_ENV_READY =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 test.describe("Admin guardian — KTP + KK upload + Student KK preview", () => {
+  test.skip(
+    !SUPABASE_ENV_READY,
+    "NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — preview-verify covers this surface",
+  );
+
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
   });

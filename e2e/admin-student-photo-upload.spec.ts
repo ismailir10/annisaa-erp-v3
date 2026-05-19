@@ -48,7 +48,21 @@ function makeJpegBuffer(): Buffer {
   return Buffer.concat([header, padding, eoi]);
 }
 
+// Skip locally + in CI when Supabase env vars are absent. The adapter
+// fails fast at `getSupabaseStorageClient` if URL or service-role key is
+// missing — there is no local-disk fallback. Preview-verify (which runs
+// against feat/* preview deploys carrying staging env vars) is the
+// integration coverage; local + CI runs only execute when a developer or
+// CI job explicitly provides the env. See cycle Assumption 6 + 8.
+const SUPABASE_ENV_READY =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 test.describe("Admin student — photo upload (Supabase Storage backend)", () => {
+  test.skip(
+    !SUPABASE_ENV_READY,
+    "NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — preview-verify covers this surface",
+  );
+
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
   });
