@@ -106,7 +106,7 @@ This cycle consolidates the class surface into a single dedicated page `/admin/c
 - Task 6: `npm run build` exit 0; `npx vitest run` full suite 1861 passed / 0 failed (nav-config tests rewritten 23/23). Visual cross-check against `.claude/standards/design-system.html` §List for academic-years post-slim — `ArrowRightCircle` link inside Years table mirrors existing inline action affordances. Frontend-gate Rule 4 satisfied.
 - Task 7: `npm run build` exit 0; `npx vitest run` full suite 1861 passed / 0 failed. `git rm -r` deleted 10 files across the 5 trees called out by AC-9, plus 1 deleted e2e test. Independent grep confirms no live consumer references the deleted URLs.
 - Task 8: `npx playwright test --list e2e/admin-classes.spec.ts` registers 7 tests cleanly. Full Playwright suite run is deferred to the end-of-cycle gate in Task 9 — cold spin is ~2 min and the Vercel preview-verify pass during `/ship` will re-exercise these flows against real production data through the user's Google sessions, which is the authoritative check for this UX layer.
-- Task 9: End-of-cycle full gate (`npm run build && npx vitest run`) green; README + cycle doc finalized.
+- Task 9: End-of-cycle full gate green — `npm run build` exit 0, `npx vitest run` 1861 passed / 0 failed, `npx playwright test e2e/admin-classes.spec.ts` 5 passed / 2 graceful-skipped (skips fire when demo seed lacks an ARCHIVED year + a class with sub-Sehat attendance — both folded into list-page render assertions in the converged tests). README updated + cycle doc finalized. Initial run flagged one playwright failure (the `text=` / CSS selector mix on the list-page render test); fixed by switching to `.or()` locator composition before recording the pass.
 
 ## Ship Notes
 

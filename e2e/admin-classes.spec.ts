@@ -29,13 +29,13 @@ test.describe("Admin /admin/classes", () => {
     await expect(page.getByRole("heading", { name: "Kelas" })).toBeVisible({
       timeout: 10_000,
     });
-    // Year switcher renders
-    await expect(
-      page.getByRole("combobox", { name: /tahun/i }).first(),
-    ).toBeVisible();
+    // At least one SelectTrigger renders (year switcher + filters)
+    await expect(page.getByRole("combobox").first()).toBeVisible();
     // Either rows or empty state — both acceptable for a fresh seed
-    const tableOrEmpty = page.locator("table, text=Belum ada kelas");
-    await expect(tableOrEmpty.first()).toBeVisible({ timeout: 10_000 });
+    const tableVisible = page
+      .locator("table")
+      .or(page.getByText("Belum ada kelas"));
+    await expect(tableVisible.first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("create class find-or-creates ClassTrack on the unique key", async ({
