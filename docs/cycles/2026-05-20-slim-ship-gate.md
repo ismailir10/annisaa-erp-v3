@@ -49,7 +49,7 @@ The ship gate (`npm run build && npx vitest run && npx playwright test` per `.cl
    - Acceptance: no `page.screenshot(` in admin-dialogs.spec.ts; `e2e/__snapshots__/admin-dialogs/` no longer exists; dialog assertions unchanged; suite still passes.
    - Independent.
 
-3. [ ] **lib/__tests__/auth-helpers.test.ts**: DELETE.
+3. [x] **lib/__tests__/auth-helpers.test.ts**: DELETE.
    - Acceptance: file removed; `npx vitest run` shows 8 fewer tests but no failures; CI lint+typecheck clean.
    - Independent.
 
@@ -90,11 +90,13 @@ The ship gate (`npm run build && npx vitest run && npx playwright test` per `.cl
 - Execution plan: 11 tasks executed sequentially in this session (controller-driven implementation); per-task `feature-dev:code-reviewer` agent pass required before each commit per CLAUDE.md /build rule 8. Subagent-driven 3-stage pattern judged overkill for the cut sizes (most tasks ≤ 50 LOC delta). No tasks touch `app/api/**` / `lib/auth*` / `middleware.ts` so no `superpowers:code-reviewer` security pass required.
 - Task 1: deleted 4 DEMO_MODE-gated tagihan tests in `e2e/admin.spec.ts` (225 lines via `sed`) + removed orphaned `firstActiveYearId` helper at the file foot (11 lines via `sed`, flagged by reviewer — surviving tests resolve year via `waitForResponse`, not the helper). Remaining 12 admin-flows tests + 2 tagihan tests (bulk-generate + retry-payload-validation) untouched. File: 834 → 598 LOC.
 - Task 2: stripped 2 `page.screenshot()` blocks from `e2e/admin-dialogs.spec.ts` (lines 110-114 desktop + lines 153-156 mobile) — wrote PNGs to `e2e/__snapshots__/admin-dialogs/` but no `toMatchSnapshot` consumer existed. `git rm -r` removed the orphan dir (7 PNGs). Updated file-header comment to drop the "screenshot per dialog × viewport" claim. All dialog assertions retained.
+- Task 3: deleted `lib/__tests__/auth-helpers.test.ts` (8 tests asserting string equality against role enum literals — `isSuperAdmin` returns `role === "SUPER_ADMIN"`, `isAdminRole` returns `role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN"`). Helpers themselves remain (verified 20+ consumers across `app/api/**`, `app/admin/**`); only the tautological tests removed. RBAC coverage continues via `lib/__tests__/permissions.test.ts` + per-route permission-gate tests.
 
 ## Verification
 
 - Task 1: between-task gate green twice (pre-review + post-reviewer-fix). Final: `npm run build` ok (Next.js 16 production build, 149 routes). `npx vitest run` → 189 passed | 2 skipped | 1872 tests | 42 todo | 66.64s. No spec-import errors despite 236-line e2e delete. Reviewer agent (feature-dev:code-reviewer) flagged dead `firstActiveYearId` helper — fixed in-task before commit. Playwright deferred to end-of-cycle per three-tier gate.
 - Task 2: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1872 tests | 42 todo | 62.41s. Vitest unaffected by Playwright-only file changes (expected — `vitest.config.ts` excludes `e2e/**`).
+- Task 3: between-task gate green. `npm run build` ok. `npx vitest run` → 188 passed | 2 skipped | 1864 tests | 42 todo | 84.95s. Delta vs Task 2: −1 file, −8 tests (exactly the 4+4 isSuperAdmin/isAdminRole assertions). No build-time breakage despite removing one of the modules that imports `@/lib/auth` (the helpers themselves remain).
 
 ## Ship Notes
 
