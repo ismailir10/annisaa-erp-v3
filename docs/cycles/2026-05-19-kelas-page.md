@@ -66,7 +66,7 @@ This cycle consolidates the class surface into a single dedicated page `/admin/c
 
 > Ordered, atomic, independently committable. `[dep: N]` marks a hard dependency. Tasks without a dep can be dispatched in parallel by `/build`.
 
-- [ ] **1. Health metric service.** `lib/classes/health.ts` — pure `computeHealthBadge` + `attendanceLast7Days(sectionIds[])` + `todaySessionState(sectionIds[])` batch helpers. Unit tests cover threshold combos (Sehat/Perhatian/Kritis/Tidak Aktif/Libur), zero roster, zero capacity, no session today, holiday today, mixed-attendance edge cases. _Accept: `npx vitest run lib/classes/health.test.ts` green; pure functions, no Prisma side effects._
+- [x] **1. Health metric service.** `lib/classes/health.ts` — pure `computeHealthBadge` + `attendanceLast7Days(sectionIds[])` + `todaySessionState(sectionIds[])` batch helpers. Unit tests cover threshold combos (Sehat/Perhatian/Kritis/Tidak Aktif/Libur), zero roster, zero capacity, no session today, holiday today, mixed-attendance edge cases. _Accept: `npx vitest run lib/classes/health.test.ts` green; pure functions, no Prisma side effects._
 
 - [ ] **2. Class API: list + detail + meta CRUD.** `app/api/admin/classes/{route.ts,[id]/route.ts}` — GET list with health enrichment (calls Task 1 helpers in parallel), POST find-or-create ClassTrack via upsert + create ClassSection + audit + non-fatal reconcileSessions, GET detail with eager-include shape per AC-4, PATCH update with ClassTrack reactivation, DELETE soft-delete with audit + active-enrollment warning surfaced. `lib/validations/class.ts` (Zod schemas). ARCHIVED-year guard helper `lib/classes/year-guard.ts`. Unit tests per endpoint. _Accept: `npx vitest run app/api/admin/classes` + `lib/validations/class.test.ts` + `lib/classes/year-guard.test.ts` green; cross-tenant probes return 404._
 
@@ -86,11 +86,11 @@ This cycle consolidates the class surface into a single dedicated page `/admin/c
 
 ## Implementation
 
-<!-- filled by /build -->
+- Task 1: Health metric service — `lib/classes/health.ts` (new — `computeHealthBadge` pure decision tree + `attendanceLast7Days` Prisma groupBy batch helper + `todaySessionState` Prisma findFirst/findMany batch helper, all read-only), `lib/classes/__tests__/health.test.ts` (new — 24 cases covering threshold matrix + SICK/PERMISSION exclusion contract + zero-row sections + 7-day inclusive window + Holiday/Missing/Held branches). Reviewer pass (feature-dev:code-reviewer) — fixed: `ATTENDED_STATUSES` set was misleading (named "attended" but only PRESENT incremented numerator → SICK/PERMISSION silently deflated rate); rewrote loop to be explicit ("only PRESENT counts; SICK/PERMISSION are excused but not in class") + added a regression test asserting all-SICK = 0% present. Added 11 batch-helper unit tests with mocked PrismaClient to close the reviewer-flagged coverage gap.
 
 ## Verification
 
-<!-- filled by /build -->
+- Task 1: `npm run build` exit 0; `npx vitest run` full suite 1834 passed / 0 failed (+11 over Task 0 baseline 1823 — all from new health tests). Cross-checked `lib/sessions/` module layout (mirror pattern: `__tests__/`, batch helpers, Prisma types from `@/lib/generated/prisma/client`).
 
 ## Ship Notes
 
