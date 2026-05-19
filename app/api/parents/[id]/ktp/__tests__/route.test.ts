@@ -1,7 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { promises as fs } from "fs";
-import path from "path";
-import os from "os";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
  * KTP + KK share the same handlers via lib/storage/parent-document.ts.
@@ -41,6 +38,51 @@ vi.mock("@/lib/auth", () => ({
   isAdminRole: (role: string) => role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN",
 }));
 
+// See app/api/students/[id]/photo/__tests__/route.test.ts for rationale.
+// Adapter coverage lives in lib/storage/__tests__/storage.test.ts; here we
+// mock the adapter so route tests can run without Supabase env vars.
+const fakeBucket = new Map<string, { bytes: Buffer; mimeType: string }>();
+vi.mock("@/lib/storage", () => ({
+  saveFile: vi.fn(async ({ entity, entityId, field, file }: {
+    entity: string;
+    entityId: string;
+    field: string;
+    file: { bytes: Buffer; mimeType: string; ext: string };
+  }) => {
+    const hash = "deadbeefdeadbeef";
+    const objPath = `${entity}/${entityId}/${field}-${hash}.${file.ext}`;
+    fakeBucket.set(objPath, { bytes: file.bytes, mimeType: file.mimeType });
+    return { token: `supabase:v1:${objPath}` };
+  }),
+  streamFile: vi.fn(async (token: string) => {
+    if (!token.startsWith("supabase:v1:")) throw new Error("ENOENT");
+    const objPath = token.slice("supabase:v1:".length);
+    const obj = fakeBucket.get(objPath);
+    if (!obj) throw new Error("ENOENT");
+    const filename = objPath.split("/").pop() ?? "file";
+    const ext = filename.split(".").pop() ?? "bin";
+    const mimeType =
+      ext === "jpg" ? "image/jpeg" :
+      ext === "png" ? "image/png" :
+      ext === "pdf" ? "application/pdf" :
+      "application/octet-stream";
+    return {
+      stream: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(obj.bytes));
+          controller.close();
+        },
+      }),
+      mimeType,
+      filename,
+    };
+  }),
+  deleteFile: vi.fn(async (token: string) => {
+    if (!token.startsWith("supabase:v1:")) return;
+    fakeBucket.delete(token.slice("supabase:v1:".length));
+  }),
+}));
+
 vi.mock("@/lib/db", () => ({
   prisma: {
     parent: {
@@ -66,9 +108,6 @@ vi.mock("@/lib/db", () => ({
 
 import { POST as POST_KTP, GET as GET_KTP, DELETE as DELETE_KTP } from "../route";
 import { POST as POST_KK } from "../../kk/route";
-
-let tmpRoot: string;
-let originalEnv: string | undefined;
 
 function adminSession(): Session {
   return {
@@ -132,19 +171,11 @@ async function runDelete(id = "par_1") {
   });
 }
 
-beforeEach(async () => {
-  originalEnv = process.env.UPLOAD_DIR;
-  tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "parent-doc-test-"));
-  process.env.UPLOAD_DIR = tmpRoot;
+beforeEach(() => {
+  fakeBucket.clear();
   state.session = null;
   state.parent = { id: "par_1", tenantId: "t_default", ktpUrl: null, kkUrl: null };
   state.lastUpdate = null;
-});
-
-afterEach(async () => {
-  if (originalEnv === undefined) delete process.env.UPLOAD_DIR;
-  else process.env.UPLOAD_DIR = originalEnv;
-  await fs.rm(tmpRoot, { recursive: true, force: true });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -208,7 +239,7 @@ describe("POST /api/parents/[id]/ktp", () => {
     const res = await runPost(makeReq(fd, JPEG_BYTES.length));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.ktpUrl).toMatch(/^local:v1:parents\/par_1\/ktp-/);
+    expect(body.ktpUrl).toMatch(/^supabase:v1:parents\/par_1\/ktp-/);
     expect(state.lastUpdate?.ktpUrl).toBe(body.ktpUrl);
     expect(state.parent?.ktpUrl).toBe(body.ktpUrl);
   });
@@ -316,7 +347,7 @@ describe("POST /api/parents/[id]/kk — factory dispatch", () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.kkUrl).toMatch(/^local:v1:parents\/par_1\/kk-/);
+    expect(body.kkUrl).toMatch(/^supabase:v1:parents\/par_1\/kk-/);
     expect(state.lastUpdate?.kkUrl).toBe(body.kkUrl);
     expect(state.lastUpdate?.ktpUrl).toBeUndefined();
   });

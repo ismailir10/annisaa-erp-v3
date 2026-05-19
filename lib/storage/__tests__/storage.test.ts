@@ -1,14 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { promises as fs } from "fs";
-import path from "path";
-import os from "os";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// The adapter delegates upload/download/remove to `./supabase`. Mock the
+// whole module so the tests stay backend-agnostic — we exercise the adapter
+// contract (token format, path-traversal defense, legacy handling), not
+// Supabase-SDK semantics (covered separately in supabase.test.ts).
+const { uploadObjectMock, downloadObjectMock, removeObjectMock } = vi.hoisted(() => ({
+  uploadObjectMock: vi.fn(),
+  downloadObjectMock: vi.fn(),
+  removeObjectMock: vi.fn(),
+}));
+
+vi.mock("../supabase", () => ({
+  uploadObject: uploadObjectMock,
+  downloadObject: downloadObjectMock,
+  removeObject: removeObjectMock,
+}));
+
 import { saveFile, streamFile, deleteFile, __internal } from "../index";
-
-// Each test gets a fresh tempdir set as UPLOAD_DIR. We DO NOT touch the
-// project's `.data/` — that path is real and shared with dev runs.
-
-let tmpRoot: string;
-let originalEnv: string | undefined;
 
 async function consumeStream(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
   const reader = stream.getReader();
@@ -22,16 +30,26 @@ async function consumeStream(stream: ReadableStream<Uint8Array>): Promise<Buffer
   return Buffer.concat(chunks.map((c) => Buffer.from(c)));
 }
 
-beforeEach(async () => {
-  originalEnv = process.env.UPLOAD_DIR;
-  tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "storage-test-"));
-  process.env.UPLOAD_DIR = tmpRoot;
-});
+// In-memory "bucket" so saveFile then streamFile round-trips. Keyed by path.
+const fakeBucket = new Map<string, Buffer>();
 
-afterEach(async () => {
-  if (originalEnv === undefined) delete process.env.UPLOAD_DIR;
-  else process.env.UPLOAD_DIR = originalEnv;
-  await fs.rm(tmpRoot, { recursive: true, force: true });
+beforeEach(() => {
+  fakeBucket.clear();
+  uploadObjectMock.mockReset();
+  downloadObjectMock.mockReset();
+  removeObjectMock.mockReset();
+
+  uploadObjectMock.mockImplementation(async ({ path, bytes }: { path: string; bytes: Buffer }) => {
+    fakeBucket.set(path, bytes);
+  });
+  downloadObjectMock.mockImplementation(async (path: string) => {
+    const bytes = fakeBucket.get(path);
+    if (!bytes) throw new Error("ENOENT");
+    return { bytes, mimeType: "application/octet-stream" };
+  });
+  removeObjectMock.mockImplementation(async (path: string) => {
+    fakeBucket.delete(path);
+  });
 });
 
 describe("storage adapter — round-trip", () => {
@@ -44,7 +62,12 @@ describe("storage adapter — round-trip", () => {
       field: "photo",
       file: { bytes: jpegBytes, mimeType: "image/jpeg", ext: "jpg" },
     });
-    expect(token).toMatch(/^local:v1:students\/stu_abc123\/photo-[a-f0-9]{16}\.jpg$/);
+    expect(token).toMatch(/^supabase:v1:students\/stu_abc123\/photo-[a-f0-9]{16}\.jpg$/);
+    expect(uploadObjectMock).toHaveBeenCalledTimes(1);
+    const call = uploadObjectMock.mock.calls[0][0];
+    expect(call.path).toMatch(/^students\/stu_abc123\/photo-[a-f0-9]{16}\.jpg$/);
+    expect(call.mimeType).toBe("image/jpeg");
+    expect(Buffer.isBuffer(call.bytes)).toBe(true);
 
     const { stream, mimeType, filename } = await streamFile(token);
     expect(mimeType).toBe("image/jpeg");
@@ -62,7 +85,8 @@ describe("storage adapter — round-trip", () => {
     });
     await deleteFile(token);
     await expect(streamFile(token)).rejects.toThrow();
-    // ENOENT on a second delete must not throw
+    // ENOENT on a second delete must not throw — emulate Supabase "not found".
+    removeObjectMock.mockResolvedValueOnce(undefined);
     await expect(deleteFile(token)).resolves.toBeUndefined();
   });
 
@@ -90,7 +114,7 @@ describe("storage adapter — round-trip", () => {
       field: "ktp",
       file: { bytes: pdfBytes, mimeType: "application/pdf", ext: "pdf" },
     });
-    expect(token).toMatch(/^local:v1:parents\/par_xyz\/ktp-[a-f0-9]{16}\.pdf$/);
+    expect(token).toMatch(/^supabase:v1:parents\/par_xyz\/ktp-[a-f0-9]{16}\.pdf$/);
     const { mimeType } = await streamFile(token);
     expect(mimeType).toBe("application/pdf");
   });
@@ -98,22 +122,23 @@ describe("storage adapter — round-trip", () => {
 
 describe("storage adapter — path-traversal defense", () => {
   const cases = [
-    "local:v1:../etc/passwd",
-    "local:v1:students/../../../etc/passwd",
-    "local:v1:students/stu/..%2fphoto.jpg",
-    "local:v1:students/stu/photo\0.jpg",
-    "local:v1:/etc/passwd",
-    "local:v1:students\\stu\\photo.jpg",
+    "supabase:v1:../etc/passwd",
+    "supabase:v1:students/../../../etc/passwd",
+    "supabase:v1:students/stu/..%2fphoto.jpg",
+    "supabase:v1:students/stu/photo\0.jpg",
+    "supabase:v1:/etc/passwd",
+    "supabase:v1:students\\stu\\photo.jpg",
     "wrong-prefix:students/stu/photo.jpg",
-    "local:v1:students/stu/photo.exe", // ext not whitelisted
-    "local:v1:students/stu/photo", // no ext
-    "local:v1:students/stu/photo/extra/segment.jpg", // too many segments
+    "supabase:v1:students/stu/photo.exe", // ext not whitelisted
+    "supabase:v1:students/stu/photo", // no ext
+    "supabase:v1:students/stu/photo/extra/segment.jpg", // too many segments
   ];
 
   for (const token of cases) {
     it(`rejects malicious token: ${token}`, async () => {
-      expect(() => __internal.resolveTokenPath(token)).toThrow();
+      expect(() => __internal.parseToken(token)).toThrow();
       await expect(streamFile(token)).rejects.toThrow();
+      expect(downloadObjectMock).not.toHaveBeenCalled();
     });
   }
 });
@@ -130,6 +155,7 @@ describe("storage adapter — input validation", () => {
         file: { bytes: jpegBytes, mimeType: "image/jpeg", ext: "jpg" },
       }),
     ).rejects.toThrow();
+    expect(uploadObjectMock).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported ext", async () => {
@@ -141,13 +167,47 @@ describe("storage adapter — input validation", () => {
         file: { bytes: jpegBytes, mimeType: "application/x-msdownload", ext: "exe" },
       }),
     ).rejects.toThrow();
+    expect(uploadObjectMock).not.toHaveBeenCalled();
   });
 });
 
-describe("storage adapter — missing file handling", () => {
-  it("streamFile throws for a syntactically-valid token whose file is absent", async () => {
-    // Hand-craft a token that passes validation but points at no file.
-    const token = "local:v1:students/stu_missing/photo-deadbeefdeadbeef.jpg";
-    await expect(streamFile(token)).rejects.toThrow();
+describe("storage adapter — missing object handling", () => {
+  it("streamFile propagates ENOENT for a valid token whose object is absent", async () => {
+    // Hand-craft a token that passes validation but points at no object.
+    const token = "supabase:v1:students/stu_missing/photo-deadbeefdeadbeef.jpg";
+    await expect(streamFile(token)).rejects.toThrow(/ENOENT/);
+  });
+
+  it("saveFile propagates upload errors from the backend", async () => {
+    uploadObjectMock.mockRejectedValueOnce(new Error("bucket misconfigured"));
+    await expect(
+      saveFile({
+        entity: "students",
+        entityId: "stu_err",
+        field: "photo",
+        file: { bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0]), mimeType: "image/jpeg", ext: "jpg" },
+      }),
+    ).rejects.toThrow(/bucket misconfigured/);
+  });
+});
+
+describe("storage adapter — legacy local:v1 token degrade", () => {
+  it("streamFile on a syntactically-valid legacy token throws 'Legacy local-disk token'", async () => {
+    const legacy = "local:v1:parents/par_legacy/ktp-deadbeefdeadbeef.jpg";
+    expect(() => __internal.parseToken(legacy)).not.toThrow();
+    await expect(streamFile(legacy)).rejects.toThrow(/Legacy local-disk token/);
+    expect(downloadObjectMock).not.toHaveBeenCalled();
+  });
+
+  it("deleteFile on a legacy token is a no-op (no Supabase call)", async () => {
+    const legacy = "local:v1:parents/par_legacy/kk-deadbeefdeadbeef.jpg";
+    await expect(deleteFile(legacy)).resolves.toBeUndefined();
+    expect(removeObjectMock).not.toHaveBeenCalled();
+  });
+
+  it("legacy token with traversal payload is rejected even before backend dispatch", async () => {
+    const malicious = "local:v1:../etc/passwd";
+    await expect(streamFile(malicious)).rejects.toThrow();
+    expect(downloadObjectMock).not.toHaveBeenCalled();
   });
 });
