@@ -50,7 +50,7 @@ Yesterday's `/ship --to-staging` (PR #299 / cycle `2026-05-20-slim-ship-gate`) a
    - Acceptance: `/audit-docs` Check 4 returns `claimed=27 actual=27 OK` post-edit.
    - Sequential after Tasks 1, 2.
 
-5. [ ] **End-of-cycle gate + cycle-doc Verification + Ship Notes**.
+5. [x] **End-of-cycle gate + cycle-doc Verification + Ship Notes**.
    - Acceptance: `npm run build && npx vitest run` green; new Step 1c regex self-check passes; cycle doc Verification + Ship Notes filled.
    - Sequential after Tasks 1-4.
 
@@ -68,7 +68,31 @@ Yesterday's `/ship --to-staging` (PR #299 / cycle `2026-05-20-slim-ship-gate`) a
 - Task 2: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 61.89s. Same delta as Task 1 — Playwright-only delete.
 - Task 3: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 38.92s. Widened Step 1c regex self-check: `baseline=31 current=29 delta=-2 PASS` (caught the 2 SUPABASE deletes from Tasks 1+2 as expected negative delta).
 - Task 4: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 32.05s. Audit-docs sweep all PASS (route 163/163, pages 39/14/8, components 69, specs 27/27).
+- **End-of-cycle gate (Task 5):** branch state — 4 commits ahead of `origin/staging`, 0 behind. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 32.05s (last between-task run; no doc-only delta since). Widened Step 1c soft-skip delta self-check: `baseline=31 current=29 delta=-2 PASS`. Playwright NOT run locally — same scoping rationale as yesterday's `slim-ship-gate` cycle: pure test-file deletes (no app surface), DATABASE_URL in symlinked `.env` points at Supabase staging pooler, CI runs Playwright against fresh `prisma db push --force-reset` Postgres in `.github/workflows/ci.yml:101`. CI is the canonical end-of-cycle Playwright gate.
 
 ## Ship Notes
 
-<filled by /ship — migrations, env vars, manual steps, rollback plan>
+**Migrations:** None.
+**Env vars:** None.
+**Manual smoke (preview-verify):** Pure-test/docs/skill cycle — no `app/**` page, `components/**` UI, or `lib/**` business-logic change. `/ship` Step 3 (preview-verify) skips per CLAUDE.md pure-docs rule. Diff against `origin/staging`: 2 e2e specs deleted, `.claude/skills/ship/SKILL.md` (+ comment + regex), `CLAUDE.md` (e2e count), cycle doc.
+
+**Rollback plan:** All 4 commits independent. Revert by `git revert <sha>` per-commit if needed:
+- `44145d8d` — restores admin-student-photo-upload.spec.ts (still 100%-skipped in CI; restore only if Supabase env wired)
+- `c59133a7` — restores admin-guardian-document-upload.spec.ts (same)
+- `3b1e8599` — reverts widened SKIP_REGEX (returns to yesterday's 4-alt form)
+- `844967d4` — restores CLAUDE.md spec count 29 / list (would re-create audit-docs Check 4 drift)
+
+**CI expectations:**
+- `Lint, Typecheck & Test` — expected pass (vitest verified 189/189 files green locally).
+- `Build` — expected pass (`npm run build` verified locally).
+- `Playwright E2E` — expected pass against fresh CI Postgres + seed. CI workflow has zero `SUPABASE_*` env entries, so the now-deleted specs were already 100%-skipping there; deletion removes the skip-overhead, doesn't change CI pass/fail.
+
+**Post-merge:** No follow-up actions required. Future cycles automatically benefit from the widened Step 1c regex.
+
+**Known evasion paths in the widened Step 1c gate (documented in SKILL.md comment block, require manual reviewer catch):**
+- `test.skip(callback, reason)` Playwright predicate form, e.g. `test.skip(({ browserName }) => browserName !== 'webkit', '...')`. Hard to distinguish via regex from legitimate single-test gates.
+- `test.skip(notReady, ...)` with non-`!ALL_CAPS` variable name (snake_case or camelCase). The line doesn't end at `(`, so `test\.skip\($` doesn't match.
+
+**Out of scope, flagged for separate consideration:**
+- Wiring `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` into CI to actually run upload e2e (per author intent in PR #298, this is delegated to manual preview-verify; promoting to CI would need a test-only Supabase project + secret rotation).
+- Tier-3 soft-skip epidemic — multi-line `test.skip(true, "msg")` variants in `e2e/teacher.spec.ts`, `e2e/parent-perkembangan.spec.ts` etc. — still grandfathered per yesterday's spec Non-goals.
