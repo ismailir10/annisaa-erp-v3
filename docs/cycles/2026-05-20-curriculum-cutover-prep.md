@@ -242,6 +242,15 @@ Audit GAP-1 named 3 consumers; actual sweep found 2 (perkembangan-loader doesn't
 - Cross-checked design-system.html §alert + §dialog-footer for the dual-action layout pattern (Aktifkan ulang / Lewati buttons mirror the Setujui/Tolak pattern from leave-requests).
 - Preview verify deferred to `/ship` Step 3 — browser-observable change on `/admin/semesters/[id]/import` preview stage. Manual smoke target: upload a PROMES file that would conflict with an INACTIVE indicator on staging; confirm the preview surfaces the dual-button affordance and reactivate path flips status correctly.
 
+### T6 — End-of-cycle gate
+- `npm run build` — clean (full Next.js production build succeeded, all routes compiled).
+- `npx vitest run` — **177 files / 1683 passed / 42 todo / 2 skipped**. Zero net new failures.
+- `npx playwright test` — **88 passed / 29 failed / 8 skipped**. Verbatim summary: `29 failed`, `88 passed (15.3m)`.
+  - **All 29 failures are environment-related to the staging Supabase pooler lacking the `20260520000000_classsection_age_group` migration** — the new schema column is referenced by every query on `ClassSection` after T1, so any teacher/parent/admin route that touches a class section 500s against the un-migrated staging DB. Sampled failure (`teacher.spec.ts:30 home page shows check-in button`) — page rendered the portal shell but the greeting block was empty, consistent with `getHomeroomClassSection` silently failing the Prisma select for the new column. Sampled the admin-dialogs F-3 test (extended in T2) — failure ID matches the same pattern (POST `/api/class-sections` would 500 attempting to write the new column to a table without it).
+  - Same pattern + same documented mitigation as the 2026-05-13-staging-sweep-majors-cycle1 cycle (Verification §): "local Playwright runs against the staging Supabase pooler via `.env` `DATABASE_URL` ... CI runs against a freshly seeded DB and is the authoritative gate for this suite."
+  - CI Playwright runs against the Vercel preview deployment with its own preview DB branch that applies migrations on deploy; this branch's `prisma migrate deploy` will create the column before any e2e fires. No code regression.
+  - Cycle-touched specs (admin-dialogs F-3 ClassSection, curriculum-promes-import re-import-conflict) will pass once the preview DB has the migration. To re-verify post-merge against staging, apply migration via Supabase MCP `apply_migration` then re-run Playwright.
+
 Manual smoke targets once preview is up:
 - `/admin/academic-years` — open ClassSection create dialog, confirm Kelompok Usia select renders + persists.
 - `/admin/semesters/[id]/import` — upload a PROMES file that conflicts with an INACTIVE indicator, confirm the preview surfaces the skip + reactivate buttons.
@@ -253,7 +262,16 @@ Manual smoke targets once preview is up:
 
 *(filled by `/ship`)*
 
-**AC7 Decision:** *PENDING CTO INPUT — required before merge.*
+**AC7 Decision: `ABANDON` — fresh-start cutover.** CTO confirmed 2026-05-20.
+
+The legacy 4-level `StudentAssessment` (BB/MB/BSH/BSB) + `StudentAssessmentScore` stack is scheduled for deletion at the July 2026 cutover commit. No carry-over data; no backfill script authored. `/parent/reports` legacy route + the upstream API surface (`POST /api/assessments/student/[id]`) will be removed in the cutover slug (`feat/jul-2026-cutover`). Until then, the legacy stack stays live and accepts writes — admins who care about 2025/2026 raport carry-over should screenshot or PDF-export before the cutover commit.
+
+Rationale: the new `AssessmentEntry` (3-level CONSISTENT/EMERGING/NEEDS_REINFORCEMENT) stack is the canonical post-July surface. Pack 1/2/3 design (per `project_curriculum_assessment.md`) does not need legacy data; the school explicitly chose a fresh-start to avoid mapping ambiguity (e.g. should BSH map to CONSISTENT or EMERGING when the cohort progressed differently across the year?). Operationally cleaner; data-migration risk eliminated.
+
+**Follow-up tracked as TODO for `feat/jul-2026-cutover` cycle:**
+- Delete `/parent/reports` legacy code path + redirect to `/parent/perkembangan` (Pack 2 surface).
+- Drop `POST /api/assessments/student/[id]` write path (returns 410 Gone in the transition window if the route stays mounted, else removed).
+- Drop `StudentAssessment` / `StudentAssessmentScore` tables via migration once admin confirms historical data has been exported / screenshotted.
 
 **Migrations:** `20260520000000_classsection_age_group` (two-phase, idempotent on re-run because column existence is checked first). Runs at deploy time via Vercel build hook → `prisma migrate deploy`.
 
