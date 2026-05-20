@@ -273,7 +273,7 @@ Rationale: the new `AssessmentEntry` (3-level CONSISTENT/EMERGING/NEEDS_REINFORC
 - Drop `POST /api/assessments/student/[id]` write path (returns 410 Gone in the transition window if the route stays mounted, else removed).
 - Drop `StudentAssessment` / `StudentAssessmentScore` tables via migration once admin confirms historical data has been exported / screenshotted.
 
-**Migrations:** `20260520000000_classsection_age_group` (two-phase, idempotent on re-run because column existence is checked first). Runs at deploy time via Vercel build hook → `prisma migrate deploy`.
+**Migrations:** `20260520000000_classsection_age_group` — two-phase migration. `ADD COLUMN IF NOT EXISTS` + `UPDATE … WHERE "ageGroup" IS NULL` + assertion + `SET NOT NULL`. Re-running the SQL after a partial failure (column added, NOT NULL not yet set, or operator did a partial manual fix) re-applies only the missing pieces and never overwrites a row that has already been backfilled or manually corrected. Runs at deploy time via Vercel build hook → `prisma migrate deploy`.
 
 **Env vars:** none expected.
 

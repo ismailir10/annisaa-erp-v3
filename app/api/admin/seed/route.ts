@@ -68,8 +68,9 @@ export async function POST(req: NextRequest) {
   const classDefs = [
     { name: "TKIT A", programCode: "TKIT", campusId: asterCampusId, capacity: 20, key: "TKIT_A", ageGroup: "A" as const },
     { name: "TKIT B", programCode: "TKIT", campusId: asterCampusId, capacity: 20, key: "TKIT_B", ageGroup: "B" as const },
+    // Non-TK programs default to A — see prisma/seed.ts for the rationale.
     { name: "KB Aster", programCode: "KB", campusId: asterCampusId, capacity: 15, key: "KB_ASTER", ageGroup: "A" as const },
-    { name: "KB Metland", programCode: "KB", campusId: metlandCampusId, capacity: 15, key: "KB_METLAND", ageGroup: "B" as const },
+    { name: "KB Metland", programCode: "KB", campusId: metlandCampusId, capacity: 15, key: "KB_METLAND", ageGroup: "A" as const },
     { name: "D'Care Aster", programCode: "DCARE", campusId: asterCampusId, capacity: 10, key: "DCARE", ageGroup: "A" as const },
     { name: "POPUP Weekend", programCode: "POPUP", campusId: asterCampusId, capacity: 25, key: "POPUP", ageGroup: "A" as const },
   ];

@@ -134,14 +134,17 @@ describe("/teacher/assessments/[classSectionId]/[templateId]/[period] tenant sco
       title: "T1",
       categories: [],
     });
-    // TA lookup returns null → access denied EmptyState renders, but the
-    // important thing for this test is the where shape we asserted below.
+    // TA lookup returns null → the page must render the "Akses ditolak"
+    // EmptyState. We assert both the where shape (the defense-in-depth
+    // contract) AND the render output (the user-facing behavior) so that
+    // future refactors can't accidentally drop the TA-null branch without
+    // failing the test.
     teachingAssignmentFindFirst.mockResolvedValue(null);
 
     const { default: Page } = await import(
       "@/app/teacher/assessments/[classSectionId]/[templateId]/[period]/page"
     );
-    await Page({
+    const result = await Page({
       params: Promise.resolve({
         classSectionId: "cs-1",
         templateId: "tpl-1",
@@ -155,5 +158,6 @@ describe("/teacher/assessments/[classSectionId]/[templateId]/[period] tenant sco
     expect(taArgs.where.classSection.status).toBe("ACTIVE");
     expect(taArgs.where.employeeId).toBe("emp-1");
     expect(taArgs.where.classSectionId).toBe("cs-1");
+    expect(findReactNodeWithProp(result, "title", "Akses ditolak")).toBe(true);
   });
 });
