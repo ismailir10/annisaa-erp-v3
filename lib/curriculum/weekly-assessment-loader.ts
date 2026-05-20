@@ -6,27 +6,6 @@ import {
   parseJakartaYmd,
 } from "@/lib/validations/curriculum";
 
-/**
- * Derive the curriculum age group (A | B) from a ClassSection name.
- *
- * Convention (see prisma/seed.ts l.409): ClassSection names follow
- * "<Program> <A|B>" — e.g. "TKIT A", "TKIT B". Splitting on whitespace
- * and reading the last token works against today's seed.
- *
- * Returns null when the name doesn't end in A/B (e.g. KB Aster, D'Care).
- *
- * **Known footgun:** when admin renames a class to break this convention,
- * the indicator picker silently empties the ageGroup-filtered branch.
- * Schema column on ClassSection is the proper fix; tracked as a C4
- * follow-up.
- */
-export function deriveAgeGroup(classSectionName: string): "A" | "B" | null {
-  const tokens = classSectionName.trim().split(/\s+/);
-  const last = tokens[tokens.length - 1]?.toUpperCase();
-  if (last === "A" || last === "B") return last;
-  return null;
-}
-
 export type WeeklyAssessmentPayload =
   | { ok: false; status: 404; reason: "no_active_year"; message: string }
   | {
@@ -40,7 +19,7 @@ export type WeeklyAssessmentPayload =
       status: 404;
       reason: "no_active_week";
       message: string;
-      classSection: { id: string; name: string; ageGroup: "A" | "B" | null };
+      classSection: { id: string; name: string; ageGroup: "A" | "B" };
     }
   | {
       ok: true;
@@ -53,7 +32,7 @@ export type WeeklyAssessmentPayload =
         subTheme: { id: string; name: string };
         theme: { id: string; name: string };
       };
-      classSection: { id: string; name: string; ageGroup: "A" | "B" | null };
+      classSection: { id: string; name: string; ageGroup: "A" | "B" };
       students: Array<{ id: string; name: string; nickname: string | null; status: string }>;
       indicators: Array<{
         id: string;
@@ -110,7 +89,7 @@ export async function loadWeeklyAssessment(
     };
   }
 
-  const ageGroup = deriveAgeGroup(homeroom.name);
+  const ageGroup = homeroom.ageGroup;
   const targetUtcMidnight = parseJakartaYmd(jakartaYmd);
   const week = await getCurrentWeek(tenantId, targetUtcMidnight);
   if (!week) {
@@ -138,11 +117,12 @@ export async function loadWeeklyAssessment(
     .filter((s) => s.status === "ACTIVE");
 
   const linkedIndicators = await prisma.achievementIndicator.findMany({
+
     where: {
       tenantId,
       status: "ACTIVE",
       themeLinks: { some: { themeId: week.subTheme.theme.id } },
-      ...(ageGroup ? { objective: { ageGroup } } : {}),
+      objective: { ageGroup },
     },
     select: {
       id: true,

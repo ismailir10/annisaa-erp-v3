@@ -20,6 +20,7 @@ export async function getHomeroomClassSection(
 ): Promise<{
   id: string;
   name: string;
+  ageGroup: "A" | "B";
   programId: string;
   campusId: string;
   academicYearId: string;
@@ -45,6 +46,7 @@ export async function getHomeroomClassSection(
         select: {
           id: true,
           name: true,
+          ageGroup: true,
           programId: true,
           campusId: true,
           academicYearId: true,

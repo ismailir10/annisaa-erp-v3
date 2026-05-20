@@ -59,6 +59,7 @@ const setHomeroomActiveWeek = () => {
     classSection: {
       id: "cs1",
       name: "TKIT A",
+      ageGroup: "A",
       programId: "prog1",
       campusId: "campus1",
       academicYearId: "ay1",
@@ -176,13 +177,19 @@ describe("GET /api/teacher/assessment-entries/weekly", () => {
     expect(callArgs.where.objective).toEqual({ ageGroup: "A" });
   });
 
-  it("200 indicators are NOT ageGroup-filtered when classSection name lacks A/B", async () => {
+  it("200 indicators are ageGroup-filtered for every class (heuristic null path removed 2026-05-20)", async () => {
     vi.mocked(getSession).mockResolvedValue(teacher);
     setHomeroomActiveWeek();
+    // Pre-2026-05-20 the loader called deriveAgeGroup(homeroom.name) and
+    // returned null for non-A/B names like "KB Aster", which collapsed
+    // the indicator picker to "show all ageGroups". ClassSection.ageGroup
+    // is now a NOT NULL schema column, so every class — including
+    // KB Aster, D'Care, etc. — applies the filter.
     teachingAssignmentFindFirst.mockResolvedValue({
       classSection: {
         id: "cs1",
         name: "KB Aster",
+        ageGroup: "B",
         programId: "prog1",
         campusId: "campus1",
         academicYearId: "ay1",
@@ -190,7 +197,7 @@ describe("GET /api/teacher/assessment-entries/weekly", () => {
     });
     await GET(req() as never);
     const callArgs = achievementIndicatorFindMany.mock.calls[0][0];
-    expect(callArgs.where.objective).toBeUndefined();
+    expect(callArgs.where.objective).toEqual({ ageGroup: "B" });
   });
 
   it("200 entries are scoped to source HOMEROOM + this week", async () => {

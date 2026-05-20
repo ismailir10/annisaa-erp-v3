@@ -8,7 +8,6 @@ import {
   formatJakartaYmd,
 } from "@/lib/validations/curriculum";
 import { learningCenterSchema } from "@/lib/validations/assessment-entry";
-import { deriveAgeGroup } from "@/lib/curriculum/weekly-assessment-loader";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 
@@ -67,15 +66,20 @@ export async function GET(
   }
 
   // Roster: every ACTIVE student in the tenant whose ACTIVE enrolment is
-  // in a ClassSection whose name parses as the requested ageGroup. The
-  // name-prefix heuristic is the same one C4 documented; sentra rotation
-  // is deferred so we don't yet know which students rotate to which
-  // sentra session — caller-side roster is the next-best fallback.
+  // in a ClassSection with the requested ageGroup. Sentra rotation is
+  // deferred so we don't yet know which students rotate to which sentra
+  // session — caller-side roster is the next-best fallback. Filtering on
+  // classSection.ageGroup happens in the DB query (schema column added
+  // 2026-05-20 in feat/curriculum-cutover-prep T1), not via name parsing.
   const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       status: "ACTIVE",
       student: { tenantId: session.tenantId, status: "ACTIVE" },
-      classSection: { tenantId: session.tenantId, status: "ACTIVE" },
+      classSection: {
+        tenantId: session.tenantId,
+        status: "ACTIVE",
+        ageGroup,
+      },
     },
     select: {
       classSection: { select: { id: true, name: true } },
@@ -93,7 +97,6 @@ export async function GET(
     status: string;
   }> = [];
   for (const e of enrollments) {
-    if (deriveAgeGroup(e.classSection.name) !== ageGroup) continue;
     if (seenStudentIds.has(e.student.id)) continue;
     seenStudentIds.add(e.student.id);
     students.push(e.student);

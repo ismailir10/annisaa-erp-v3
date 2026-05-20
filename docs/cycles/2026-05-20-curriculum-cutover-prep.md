@@ -183,6 +183,17 @@ Audit GAP-3 framing was partially wrong on closer read: the outer `classSection.
   1. Cross-tenant classSectionId → outer `classSection.findFirst` returns null (tenant-scoped) → renders "Kelas tidak ditemukan" EmptyState; template + TA lookups never run.
   2. TeachingAssignment.findFirst where shape includes `classSection.tenantId` + `status: "ACTIVE"` + `employeeId` + `classSectionId`.
 
+### T4 — Remove `deriveAgeGroup` heuristic, switch consumers to schema column
+
+Audit GAP-1 named 3 consumers; actual sweep found 2 (perkembangan-loader doesn't reference deriveAgeGroup, false claim).
+
+- **`lib/curriculum/homeroom.ts`** — `getHomeroomClassSection` return type gains `ageGroup: "A" | "B"`; Prisma select on the included `classSection` adds `ageGroup: true`. No behavioural change for callers that already destructure by name.
+- **`lib/curriculum/weekly-assessment-loader.ts`** — deleted the `deriveAgeGroup` export entirely. `WeeklyAssessmentPayload.classSection.ageGroup` type narrows from `"A" | "B" | null` to `"A" | "B"`. The conditional indicator filter `...(ageGroup ? { objective: { ageGroup } } : {})` is now an unconditional `objective: { ageGroup }` since the column is NOT NULL — the silent "show all ageGroups" path for non-A/B names is closed by design.
+- **`app/api/teacher/assessment-entries/center/[center]/route.ts`** — dropped the `deriveAgeGroup` import. Sentra roster query now filters in the DB (`classSection: { ageGroup }` added to `studentEnrollment.findMany` where), removing the post-query loop that called `deriveAgeGroup(e.classSection.name)` and trimming an N-row scan to an index lookup.
+- **`lib/curriculum/__tests__/homeroom.test.ts`** — mock fixture now includes `ageGroup: "A"`; assertion gains check that the helper projects `ageGroup` in its Prisma `include.classSection.select`.
+- **`app/api/__tests__/teacher-assessment-entries-weekly-route.test.ts`** — `setHomeroomActiveWeek` mock now carries `ageGroup: "A"`. The test "indicators are NOT ageGroup-filtered when classSection name lacks A/B" was renamed to "indicators are ageGroup-filtered for every class (heuristic null path removed 2026-05-20)" and now asserts the `objective: { ageGroup: "B" }` filter applies even for `KB Aster` (which carries an explicit `ageGroup: "B"` from T1's seed).
+- **`app/api/__tests__/teacher-assessment-entries-center-get-route.test.ts`** — `studentEnrollmentFindMany` mock collapsed from 2 rows to 1, because the DB-side `classSection.ageGroup` filter now does the work the post-query loop used to do. Test comment notes the simplification rationale.
+
 ---
 
 ## Verification
@@ -204,6 +215,11 @@ Audit GAP-3 framing was partially wrong on closer read: the outer `classSection.
 - `npm run build` — clean.
 - `npx vitest run` — 177 files / 1678 passed.
 - Cross-checked design-system.html §none — no UI surface touched, pure auth-predicate hardening.
+
+### T4
+- `npm run build` — clean.
+- `npx vitest run` — 177 files / 1678 passed. The 4 failures introduced mid-task (test fixtures missing ageGroup + 1 test asserting the old null-path behaviour) were repaired in this commit.
+- Cross-checked design-system.html §none — no UI surface touched; pure data-flow refactor + DB-side filter optimization.
 
 Manual smoke targets once preview is up:
 - `/admin/academic-years` — open ClassSection create dialog, confirm Kelompok Usia select renders + persists.
