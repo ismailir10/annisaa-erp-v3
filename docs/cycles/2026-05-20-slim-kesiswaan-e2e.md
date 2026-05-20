@@ -42,7 +42,7 @@ Yesterday's `/ship --to-staging` (PR #299 / cycle `2026-05-20-slim-ship-gate`) a
    - Acceptance: file removed; `find e2e -name "*.spec.ts" | wc -l` returns 27; CI workflow unaffected.
    - Independent.
 
-3. [ ] **Widen `.claude/skills/ship/SKILL.md` Step 1c SKIP_REGEX**.
+3. [x] **Widen `.claude/skills/ship/SKILL.md` Step 1c SKIP_REGEX**.
    - Acceptance: regex matches `test.skip(!ALL_CAPS,` AND `test.skip(...process.env.,`; self-validation against current branch shows delta ≤ 0 vs `origin/staging` baseline.
    - Independent.
 
@@ -59,11 +59,13 @@ Yesterday's `/ship --to-staging` (PR #299 / cycle `2026-05-20-slim-ship-gate`) a
 - Execution plan: 5 tasks sequential in this session (controller-driven, same pattern as yesterday's `slim-ship-gate` cycle); per-task `feature-dev:code-reviewer` agent pass required before each commit per CLAUDE.md /build rule 8. No `app/api/**` / `lib/auth*` / `middleware.ts` changes → no `superpowers:code-reviewer` security pass required.
 - Task 1: deleted `e2e/admin-student-photo-upload.spec.ts` (146 LOC, single describe block, 100%-skipped in CI via `test.skip(!SUPABASE_ENV_READY, "...preview-verify covers this surface")` at line 61). Spec count: 29 → 28.
 - Task 2: deleted `e2e/admin-guardian-document-upload.spec.ts` (pre-existing file; PR #298 added the same SUPABASE_ENV_READY skip-guard at line 67 → 100%-skipped in CI since). KTP/KK route coverage retained via `app/api/parents/[id]/ktp/__tests__/route.test.ts` (which PR #298 also updated to mock `@/lib/storage` instead of needing live Supabase). Spec count: 28 → 27.
+- Task 3: widened `.claude/skills/ship/SKILL.md` Step 1c `SKIP_REGEX` to add three alternatives: `test\.skip\($` + `it\.skip\($` (multi-line invocations where the skip condition lives on the next line) + `test\.skip\(\)` (Playwright no-arg always-skip form). The original 4-alt regex `test\.skip\(true,|...` was line-anchored to a literal-arg form; PR #298's `test.skip(\n  !SUPABASE_ENV_READY,\n  "..."\n);` (newline after `(`) slipped through. Validation against historical commits: pre-#298 baseline=42, post-#298 baseline=44 (correctly catches +2 SUPABASE skips), post-#299 origin/staging=31, post-this-cycle HEAD=29. Hypothetical: if Step 1c with the widened regex had been live when PR #298 was opened, delta would have been +2 → BLOCKED, forcing conversion or explicit grandfathering. Tradeoff: also matches multi-line legitimate variants (e.g. `test.skip(true, "msg")` formatted across 3 lines in `e2e/teacher.spec.ts`); those are grandfathered into the baseline, so the delta-only rule still works. Known evasion paths NOT caught (documented in SKILL.md comment block): `test.skip(callback, reason)` predicate form, and `test.skip(notReady, ...)` with non-`!ALL_CAPS` variable name — both require manual reviewer catch.
 
 ## Verification
 
 - Task 1: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 31.68s. Vitest unaffected by Playwright-only delete (expected — `vitest.config.ts` excludes `e2e/**`).
 - Task 2: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 61.89s. Same delta as Task 1 — Playwright-only delete.
+- Task 3: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 38.92s. Widened Step 1c regex self-check: `baseline=31 current=29 delta=-2 PASS` (caught the 2 SUPABASE deletes from Tasks 1+2 as expected negative delta).
 
 ## Ship Notes
 

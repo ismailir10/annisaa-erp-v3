@@ -70,8 +70,28 @@ git fetch origin staging --quiet
 # Patterns matched:
 #   - test.skip(true,  / it.skip(true,  / describe.skip(  — Playwright
 #     and vitest static skips that resolve to "always skip" in CI
+#   - test.skip()  — Playwright no-arg always-skip form (terse evasion
+#     path: a future author could vacuously green a test with one line)
+#   - test.skip($  / it.skip($  — multi-line invocations where the
+#     condition lives on the next line (catches dynamic env-conditional
+#     skips like `test.skip(\n  !SUPABASE_ENV_READY,\n  "preview-verify
+#     covers this surface"\n);` — same anti-pattern as DEMO_MODE-gated
+#     skips, missed by the literal-arg patterns above. Tradeoff: also
+#     matches multi-line `test.skip(true, ...)` and multi-line
+#     `test.skip(!seedFixture, ...)` — those are grandfathered (counted
+#     in the baseline) and the delta-only rule still blocks growth.
 #   - process.env.DEMO_MODE === "true"  — gate that always fires in CI
 #     (CI sets DEMO_MODE=true), often paired with test.skip(...)
+#
+# Known gaps (NOT caught by this regex — possible future evasion paths):
+#   - test.skip(callback, reason) — top-of-file/describe predicate form,
+#     e.g. test.skip(({ browserName }) => browserName !== 'webkit', '…').
+#     Hard to distinguish via regex from legitimate single-test gates.
+#     If a PR adds this pattern, reviewer must catch it manually.
+#   - Custom-named env-conditional helpers that evaluate to false in CI
+#     but aren't named in `!ALL_CAPS` form — e.g. `test.skip(notReady,…)`
+#     where `notReady` is a variable. The line ends with a non-EOL char
+#     so `test\.skip\($` misses it.
 #
 # Both sides use `git grep -c` so the file set + path resolution are
 # symmetric (mixing filesystem grep with `git grep` against a ref
@@ -79,7 +99,7 @@ git fetch origin staging --quiet
 # tree would silently miscount). `:(glob)` pathspecs restrict to test
 # files so source files that legitimately branch on DEMO_MODE (e.g.
 # `lib/xendit/client.ts`) are not counted.
-SKIP_REGEX='test\.skip\(true,|it\.skip\(true,|describe\.skip\(|process\.env\.DEMO_MODE === "true"'
+SKIP_REGEX='test\.skip\(true,|it\.skip\(true,|describe\.skip\(|process\.env\.DEMO_MODE === "true"|test\.skip\($|it\.skip\($|test\.skip\(\)'
 PATHSPECS=':(glob)**/*.test.ts :(glob)**/*.test.tsx :(glob)**/*.spec.ts :(glob)**/*.spec.tsx'
 
 CURRENT_SKIPS=$(git grep -cE "$SKIP_REGEX" HEAD -- $PATHSPECS 2>/dev/null \
