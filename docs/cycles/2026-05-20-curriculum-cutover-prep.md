@@ -164,6 +164,16 @@ The audit also flagged `revalidateTag(tag, { expire: 0 })` as undocumented. Fals
   - `app/api/admin/academic-years/[id]/roll-forward/route.ts` — `sourceSections.select` adds `ageGroup`; copied to target year on create.
 - **`app/api/__tests__/session-reconcile-triggers.test.ts`** — added `ageGroup: "A"` to both POST fixtures (previously omitted; Zod now rejects without it).
 
+### T2 — Admin ClassSection form: Kelompok Usia select
+
+- **`app/admin/academic-years/page.tsx`** —
+  - `ClassSection` type gains `ageGroup: "A" | "B"`.
+  - `sectionForm` state widened to include `ageGroup: "" | "A" | "B"`.
+  - All 3 initializers (useState default, Tambah click, onEdit) carry the new field.
+  - POST body sends `ageGroup` (validated by Zod); PUT body sends `ageGroup` only when set (skips on no-change edits).
+  - New `Kelompok Usia` select between Kampus and Kapasitas with options `A (4–5 tahun)` + `B (5–6 tahun)`. Cross-checked design-system.html §form-field for Select pattern.
+- **`e2e/admin-dialogs.spec.ts`** — F-3 Program-combobox regression test extended to also pick Kelompok Usia (4th combobox at `nth(3)`); otherwise the Zod-required field would 400 the POST.
+
 ---
 
 ## Verification
@@ -173,6 +183,13 @@ The audit also flagged `revalidateTag(tag, { expire: 0 })` as undocumented. Fals
 - `npx vitest run` — 176 files / 1676 passed / 42 todo / 2 skipped. The 2 pre-fix failures in `app/api/__tests__/session-reconcile-triggers.test.ts` resolved by adding `ageGroup: "A"` to test fixtures.
 - Cross-checked design-system.html §form-field for the Zod enum naming convention (Bahasa form labels resolved in T2).
 - Migration SQL inspected; `prisma migrate dev` deliberately not run because local `.env` `DATABASE_URL` points at the staging Supabase pooler — runs against staging at deploy time via `/ship`.
+
+### T2
+- `npm run build` — clean.
+- `npx vitest run` — 176 files / 1676 passed (no test impact; this task is UI + e2e only).
+- Playwright deferred to T6 end-of-cycle gate; e2e change adds 1 step to existing F-3 regression test, no new spec file.
+- Cross-checked design-system.html §form-field for Select component patterns + label conventions; copy uses Bahasa Indonesia per voice.md.
+- Preview verify deferred to `/ship` Step 3 — browser-observable change on `/admin/academic-years` Tambah/Edit Kelas dialog.
 
 Manual smoke targets once preview is up:
 - `/admin/academic-years` — open ClassSection create dialog, confirm Kelompok Usia select renders + persists.
