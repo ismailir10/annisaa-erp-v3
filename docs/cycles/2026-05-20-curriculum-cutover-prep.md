@@ -194,6 +194,21 @@ Audit GAP-1 named 3 consumers; actual sweep found 2 (perkembangan-loader doesn't
 - **`app/api/__tests__/teacher-assessment-entries-weekly-route.test.ts`** — `setHomeroomActiveWeek` mock now carries `ageGroup: "A"`. The test "indicators are NOT ageGroup-filtered when classSection name lacks A/B" was renamed to "indicators are ageGroup-filtered for every class (heuristic null path removed 2026-05-20)" and now asserts the `objective: { ageGroup: "B" }` filter applies even for `KB Aster` (which carries an explicit `ageGroup: "B"` from T1's seed).
 - **`app/api/__tests__/teacher-assessment-entries-center-get-route.test.ts`** — `studentEnrollmentFindMany` mock collapsed from 2 rows to 1, because the DB-side `classSection.ageGroup` filter now does the work the post-query loop used to do. Test comment notes the simplification rationale.
 
+### T5 — PROMES re-import: status-aware conflict handling
+
+- **`lib/validations/curriculum.ts`** — `PromesPreviewPayload.conflicts` flipped from a flat array to `{ active: [...], inactive: [...] }`. The `inactive` bucket carries `existingId` so the reactivate path can update by id without a second lookup. New `PromesConflictPolicy` type (`"block" | "skip" | "reactivate"`). `PromesCommitPayload` gains `conflictPolicy` + `applied: { created, reactivated, skipped, indicators }` for the toast UX.
+- **`app/api/admin/curriculum/import-promes/route.ts`** —
+  - Conflict detection select adds `id`, `status`; result splits into active + inactive arrays.
+  - Preview branch returns 409 only on active conflicts (current behaviour preserved). When only inactive conflicts → 200, so the UI can offer skip/reactivate.
+  - Commit branch parses `?conflictPolicy=block|skip|reactivate` (default `block`). Active conflicts always 409. Inactive conflicts honour the policy: `block` → 409, `skip` → filter out conflicting upload rows, `reactivate` → `updateMany` flips inactive ids back to `status='ACTIVE'` inside the existing transaction.
+  - Reactivate path does NOT re-create indicators for restored objectives — admin manages indicators via the C3 IKTP CRUD UI. The upload's indicator rows for the reactivated objective are filtered out to avoid clobbering live data.
+  - Audit `after` payload reshaped from `objectivesCount`/`indicatorsCount` to `conflictPolicy` + `objectivesCreated`/`objectivesReactivated`/`objectivesSkipped`/`indicatorsCount` for an accurate trail.
+- **`app/admin/semesters/[id]/import/client.tsx`** —
+  - `Preview.conflicts` type updated to `{ active, inactive }`; client splits the alert into a destructive "active conflict" panel and a non-destructive "inactive — choose skip or reactivate" panel.
+  - `handleCommit` accepts a `policy` arg; the preview footer renders 2 buttons (`Aktifkan ulang N & simpan` / `Lewati & simpan sisanya`) when only inactive conflicts remain. Active conflicts continue to block commit.
+  - Success toast surfaces the `applied` shape: `PROMES tersimpan: N tujuan pembelajaran dibuat, N diaktifkan ulang, N dilewati, N indikator.`
+- **`app/api/__tests__/curriculum-import-promes-route.test.ts`** — `learningObjective.updateMany` mock added. Existing 2 conflict tests updated for new shape (`status` on `findMany` result; assertions read `conflicts.active`). 4 new tests: inactive-only preview returns 200 + populated `inactive`; commit `block` + inactive → 409; commit `skip` + inactive → 201 with `applied.skipped=1`; commit `reactivate` + inactive → 201 + `updateMany` called + indicators NOT re-created. Plus 1 test for invalid `conflictPolicy` → 400. Audit-assertion test updated for new `after` payload shape.
+
 ---
 
 ## Verification
@@ -220,6 +235,12 @@ Audit GAP-1 named 3 consumers; actual sweep found 2 (perkembangan-loader doesn't
 - `npm run build` — clean.
 - `npx vitest run` — 177 files / 1678 passed. The 4 failures introduced mid-task (test fixtures missing ageGroup + 1 test asserting the old null-path behaviour) were repaired in this commit.
 - Cross-checked design-system.html §none — no UI surface touched; pure data-flow refactor + DB-side filter optimization.
+
+### T5
+- `npm run build` — clean.
+- `npx vitest run` — 177 files / 1683 passed (gain of 5 net new test cases in `app/api/__tests__/curriculum-import-promes-route.test.ts`).
+- Cross-checked design-system.html §alert + §dialog-footer for the dual-action layout pattern (Aktifkan ulang / Lewati buttons mirror the Setujui/Tolak pattern from leave-requests).
+- Preview verify deferred to `/ship` Step 3 — browser-observable change on `/admin/semesters/[id]/import` preview stage. Manual smoke target: upload a PROMES file that would conflict with an INACTIVE indicator on staging; confirm the preview surfaces the dual-button affordance and reactivate path flips status correctly.
 
 Manual smoke targets once preview is up:
 - `/admin/academic-years` — open ClassSection create dialog, confirm Kelompok Usia select renders + persists.

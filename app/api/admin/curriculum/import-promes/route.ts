@@ -50,6 +50,7 @@ import {
   type IndicatorCreateInput,
   type PromesPreviewPayload,
   type PromesCommitPayload,
+  type PromesConflictPolicy,
 } from "@/lib/validations/curriculum";
 import {
   CURRICULUM_WRITE_BUDGET,
@@ -301,6 +302,9 @@ export async function POST(req: NextRequest) {
   }
 
   // ── conflict detection (no DB writes yet) ──────────────────────────
+  // Split by status so the operator can choose to skip-or-reactivate
+  // INACTIVE conflicts (left over from a prior C3 IKTP soft-delete)
+  // without being forced to block on the whole batch.
   const conflictKeys = objectiveRows.map((o) => ({
     element: o.element,
     number: o.number,
@@ -315,14 +319,27 @@ export async function POST(req: NextRequest) {
         number: k.number,
       })),
     },
-    select: { element: true, number: true, content: true },
+    select: { id: true, element: true, number: true, content: true, status: true },
   });
-  const conflicts: PromesPreviewPayload["conflicts"] = existing.map((e) => ({
-    ageGroup,
-    element: e.element as CurriculumElementInput,
-    number: e.number,
-    existingContent: e.content,
-  }));
+  const conflicts: PromesPreviewPayload["conflicts"] = {
+    active: existing
+      .filter((e) => e.status === "ACTIVE")
+      .map((e) => ({
+        ageGroup,
+        element: e.element as CurriculumElementInput,
+        number: e.number,
+        existingContent: e.content,
+      })),
+    inactive: existing
+      .filter((e) => e.status === "INACTIVE")
+      .map((e) => ({
+        ageGroup,
+        element: e.element as CurriculumElementInput,
+        number: e.number,
+        existingContent: e.content,
+        existingId: e.id,
+      })),
+  };
 
   // ── build preview shape (used by both preview AND commit responses) ─
   const previewByElement: PromesPreviewPayload["byElement"] = {};
@@ -354,15 +371,34 @@ export async function POST(req: NextRequest) {
   };
 
   // ── preview branch (no DB writes) ──────────────────────────────────
-  const commit = new URL(req.url).searchParams.get("commit") === "true";
+  // 409 only when there are ACTIVE conflicts (truly unresolvable without
+  // tenant action). When only INACTIVE conflicts remain, return 200 so
+  // the operator can choose `skip` or `reactivate` on commit.
+  const reqUrl = new URL(req.url);
+  const commit = reqUrl.searchParams.get("commit") === "true";
+  const conflictPolicyRaw = reqUrl.searchParams.get("conflictPolicy") ?? "block";
+  if (
+    conflictPolicyRaw !== "block" &&
+    conflictPolicyRaw !== "skip" &&
+    conflictPolicyRaw !== "reactivate"
+  ) {
+    return NextResponse.json(
+      { error: "conflictPolicy harus salah satu dari: block, skip, reactivate." },
+      { status: 400 },
+    );
+  }
+  const conflictPolicy = conflictPolicyRaw as PromesConflictPolicy;
+
   if (!commit) {
     return NextResponse.json(preview, {
-      status: conflicts.length > 0 ? 409 : 200,
+      status: conflicts.active.length > 0 ? 409 : 200,
     });
   }
 
   // ── commit branch ──────────────────────────────────────────────────
-  if (conflicts.length > 0) {
+  // ACTIVE conflicts always refuse — tenant must resolve in C3 CRUD
+  // first. INACTIVE conflicts honour the policy.
+  if (conflicts.active.length > 0) {
     return NextResponse.json(
       {
         error:
@@ -372,20 +408,64 @@ export async function POST(req: NextRequest) {
       { status: 409 },
     );
   }
+  if (conflicts.inactive.length > 0 && conflictPolicy === "block") {
+    return NextResponse.json(
+      {
+        error:
+          "Sebagian baris akan tertabrak tujuan pembelajaran INACTIVE. Pilih kebijakan skip atau reactivate untuk melanjutkan.",
+        ...preview,
+      },
+      { status: 409 },
+    );
+  }
+
+  // Pre-compute which objectiveRows to skip (conflictPolicy === "skip"
+  // or "reactivate" both write only non-conflicting rows; reactivate
+  // additionally flips inactive rows to ACTIVE inside the same tx).
+  const inactiveKeys = new Set(
+    conflicts.inactive.map((c) => `${c.element}:${c.number}`),
+  );
+  const inactiveIdsToReactivate =
+    conflictPolicy === "reactivate"
+      ? conflicts.inactive.map((c) => c.existingId)
+      : [];
+  const filteredObjectiveRows =
+    conflicts.inactive.length > 0
+      ? objectiveRows.filter((o) => !inactiveKeys.has(`${o.element}:${o.number}`))
+      : objectiveRows;
+  const filteredIndicatorRows =
+    conflicts.inactive.length > 0
+      ? indicatorRows.filter(
+          (i) => !inactiveKeys.has(`${i.element}:${i.objectiveNumber}`),
+        )
+      : indicatorRows;
 
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.learningObjective.createMany({
-        data: objectiveRows.map((o) => ({
-          tenantId: session.tenantId,
-          semesterId,
-          ageGroup: o.ageGroup,
-          element: o.element,
-          number: o.number,
-          competencyText: o.competencyText,
-          content: o.content,
-        })),
-      });
+      if (filteredObjectiveRows.length > 0) {
+        await tx.learningObjective.createMany({
+          data: filteredObjectiveRows.map((o) => ({
+            tenantId: session.tenantId,
+            semesterId,
+            ageGroup: o.ageGroup,
+            element: o.element,
+            number: o.number,
+            competencyText: o.competencyText,
+            content: o.content,
+          })),
+        });
+      }
+
+      // Reactivate INACTIVE conflicts in-place when policy === reactivate.
+      if (inactiveIdsToReactivate.length > 0) {
+        await tx.learningObjective.updateMany({
+          where: {
+            tenantId: session.tenantId,
+            id: { in: inactiveIdsToReactivate },
+          },
+          data: { status: "ACTIVE" },
+        });
+      }
 
       // Resolve parent objective ids by composite key so the child
       // indicator inserts can carry the correct FK. `createMany` does
@@ -404,12 +484,12 @@ export async function POST(req: NextRequest) {
         idByKey.set(`${row.element}:${row.number}`, row.id);
       }
 
-      const indicatorData = indicatorRows.map((i) => {
+      const indicatorData = filteredIndicatorRows.map((i) => {
         const objectiveId = idByKey.get(`${i.element}:${i.objectiveNumber}`);
         if (!objectiveId) {
-          // Should not happen — every indicatorRow's parent was inserted
-          // above. Throw to roll the transaction back rather than insert
-          // an orphan.
+          // Should not happen — every filteredIndicatorRow's parent was
+          // inserted above OR pre-existed via reactivate. Throw to roll
+          // the transaction back rather than insert an orphan.
           throw new Error(
             `internal: failed to resolve objectiveId for ${i.element}:${i.objectiveNumber}`,
           );
@@ -436,8 +516,12 @@ export async function POST(req: NextRequest) {
           after: {
             semesterId,
             ageGroup,
-            objectivesCount: objectiveRows.length,
-            indicatorsCount: indicatorRows.length,
+            conflictPolicy,
+            objectivesCreated: filteredObjectiveRows.length,
+            objectivesReactivated: inactiveIdsToReactivate.length,
+            objectivesSkipped:
+              objectiveRows.length - filteredObjectiveRows.length - inactiveIdsToReactivate.length,
+            indicatorsCount: filteredIndicatorRows.length,
             themeLinksDeferred: themeLinkPlan.length,
             filename: file.name,
           },
@@ -485,7 +569,15 @@ export async function POST(req: NextRequest) {
     semesterId,
     ageGroup,
     filename: file.name,
+    conflictPolicy,
     counts: preview.counts,
+    applied: {
+      created: filteredObjectiveRows.length,
+      reactivated: inactiveIdsToReactivate.length,
+      skipped:
+        objectiveRows.length - filteredObjectiveRows.length - inactiveIdsToReactivate.length,
+      indicators: filteredIndicatorRows.length,
+    },
   };
   return NextResponse.json(commitResponse, { status: 201 });
 }
