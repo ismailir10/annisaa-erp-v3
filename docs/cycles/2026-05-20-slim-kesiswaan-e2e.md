@@ -38,7 +38,7 @@ Yesterday's `/ship --to-staging` (PR #299 / cycle `2026-05-20-slim-ship-gate`) a
    - Acceptance: file removed; `find e2e -name "*.spec.ts" | wc -l` returns 28; CI workflow unaffected.
    - Independent.
 
-2. [ ] **Delete `e2e/admin-guardian-document-upload.spec.ts`**.
+2. [x] **Delete `e2e/admin-guardian-document-upload.spec.ts`**.
    - Acceptance: file removed; `find e2e -name "*.spec.ts" | wc -l` returns 27; CI workflow unaffected.
    - Independent.
 
@@ -58,10 +58,12 @@ Yesterday's `/ship --to-staging` (PR #299 / cycle `2026-05-20-slim-ship-gate`) a
 
 - Execution plan: 5 tasks sequential in this session (controller-driven, same pattern as yesterday's `slim-ship-gate` cycle); per-task `feature-dev:code-reviewer` agent pass required before each commit per CLAUDE.md /build rule 8. No `app/api/**` / `lib/auth*` / `middleware.ts` changes → no `superpowers:code-reviewer` security pass required.
 - Task 1: deleted `e2e/admin-student-photo-upload.spec.ts` (146 LOC, single describe block, 100%-skipped in CI via `test.skip(!SUPABASE_ENV_READY, "...preview-verify covers this surface")` at line 61). Spec count: 29 → 28.
+- Task 2: deleted `e2e/admin-guardian-document-upload.spec.ts` (pre-existing file; PR #298 added the same SUPABASE_ENV_READY skip-guard at line 67 → 100%-skipped in CI since). KTP/KK route coverage retained via `app/api/parents/[id]/ktp/__tests__/route.test.ts` (which PR #298 also updated to mock `@/lib/storage` instead of needing live Supabase). Spec count: 28 → 27.
 
 ## Verification
 
 - Task 1: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 31.68s. Vitest unaffected by Playwright-only delete (expected — `vitest.config.ts` excludes `e2e/**`).
+- Task 2: between-task gate green. `npm run build` ok. `npx vitest run` → 189 passed | 2 skipped | 1874 tests | 42 todo | 61.89s. Same delta as Task 1 — Playwright-only delete.
 
 ## Ship Notes
 
