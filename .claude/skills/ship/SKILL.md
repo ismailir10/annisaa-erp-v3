@@ -61,6 +61,55 @@ npm run build && npx vitest run && npx playwright test
 
 If any of the three fails, stop and hand back to the user. Do not open a PR on a broken commit.
 
+**1c. Soft-skip + DEMO_MODE-skip delta check** (catches new vacuous-green tests landing on the ship gate). A test that 100%-skips in CI exists only to inflate the green-tick count; once accumulated, the suite looks healthy while losing coverage. This check counts the soft-skip + DEMO_MODE-gate occurrences on the current branch and against `origin/staging`. Existing skips are grandfathered (they may be load-bearing in ways the audit cannot see); only the **delta** blocks `/ship`.
+
+```bash
+git fetch origin staging --quiet
+
+# Count soft-skip + DEMO_MODE-gate occurrences in test files only.
+# Patterns matched:
+#   - test.skip(true,  / it.skip(true,  / describe.skip(  — Playwright
+#     and vitest static skips that resolve to "always skip" in CI
+#   - process.env.DEMO_MODE === "true"  — gate that always fires in CI
+#     (CI sets DEMO_MODE=true), often paired with test.skip(...)
+#
+# Both sides use `git grep -c` so the file set + path resolution are
+# symmetric (mixing filesystem grep with `git grep` against a ref
+# produces a method-asymmetric delta — files that exist only in one
+# tree would silently miscount). `:(glob)` pathspecs restrict to test
+# files so source files that legitimately branch on DEMO_MODE (e.g.
+# `lib/xendit/client.ts`) are not counted.
+SKIP_REGEX='test\.skip\(true,|it\.skip\(true,|describe\.skip\(|process\.env\.DEMO_MODE === "true"'
+PATHSPECS=':(glob)**/*.test.ts :(glob)**/*.test.tsx :(glob)**/*.spec.ts :(glob)**/*.spec.tsx'
+
+CURRENT_SKIPS=$(git grep -cE "$SKIP_REGEX" HEAD -- $PATHSPECS 2>/dev/null \
+  | awk -F: '{s+=$NF} END {print s+0}')
+BASE_SKIPS=$(git grep -cE "$SKIP_REGEX" origin/staging -- $PATHSPECS 2>/dev/null \
+  | awk -F: '{s+=$NF} END {print s+0}')
+
+echo "Soft-skip + DEMO_MODE-skip delta vs origin/staging:"
+echo "  baseline=$BASE_SKIPS  current=$CURRENT_SKIPS  delta=$((CURRENT_SKIPS - BASE_SKIPS))"
+
+if [ "$CURRENT_SKIPS" -gt "$BASE_SKIPS" ]; then
+  echo ""
+  echo "/ship precondition failed: this branch introduces $((CURRENT_SKIPS - BASE_SKIPS))"
+  echo "new soft-skip / DEMO_MODE-gate test(s). Skipped tests in CI = vacuous"
+  echo "green — they exist only to inflate the green-tick count."
+  echo ""
+  echo "Resolve one of:"
+  echo "  - Convert the new skip into a hard assertion (preferred)."
+  echo "  - Replace the test with one that actually exercises the surface."
+  echo "  - If this is a legitimate WIP gate (e.g., describe.skip for an"
+  echo "    undeployed feature), document it in the cycle doc's"
+  echo "    ## Verification AND keep delta ≤ 0 by removing an equivalent"
+  echo "    soft-skip in the same cycle. Existing legitimate skips are"
+  echo "    grandfathered; the audit only blocks net growth."
+  exit 1
+fi
+```
+
+If the delta is positive, stop and hand back to the user. Do not open a PR on a regression-on-the-gate.
+
 ## Step 2: Open the PR (same flow for every role)
 
 Every role opens a PR from `feat/*` → `staging`, then hands off to the user. The user watches CI and merges manually when all four checks (`build`, `typecheck`, `test`, `e2e`) are green.
