@@ -146,13 +146,33 @@ The audit also flagged `revalidateTag(tag, { expire: 0 })` as undocumented. Fals
 
 ## Implementation
 
-*(filled by `/build`)*
+### T1 — `ClassSection.ageGroup` column + 2-phase migration
+
+- **`prisma/schema.prisma`** — added `ageGroup AgeGroup` field (NOT NULL, no default) to `ClassSection` model. Reuses existing `AgeGroup` enum (line 1087) used by `LearningObjective`.
+- **`prisma/migrations/20260520000000_classsection_age_group/migration.sql`** — new. Three-step:
+  1. `ADD COLUMN` nullable.
+  2. `UPDATE` backfill via legacy heuristic (`split_part(name, ' ', -1)`).
+  3. `DO $$` block raises an exception listing offender ClassSection names if any row resolves to NULL — forces operator to manually `UPDATE` before re-running `prisma migrate deploy`.
+  4. `SET NOT NULL` once assertion passes.
+- **`lib/validations/class-section.ts`** — exported `ageGroupSchema = z.enum(["A","B"])`. Added to `createClassSectionSchema` (required) and `updateClassSectionSchema` (optional).
+- **`lib/validations/__tests__/class-section.test.ts`** — new file. 13 tests covering enum accept/reject, schema accept/reject, partial update behaviour.
+- **`app/api/class-sections/route.ts`** (POST) + **`app/api/class-sections/[id]/route.ts`** (PUT) — write `ageGroup` from validated body.
+- **Fan-out callers updated** (all 4 callsites that `prisma.classSection.create()`):
+  - `prisma/seed.ts` line 431-439 — explicit `ageGroup` per `classSectionDefs` entry (TKIT_A=A, TKIT_B=B, KB Aster=A, KB Metland=B, D'Care=A, POPUP=A).
+  - `app/api/admin/seed/route.ts` line 68-75 — same.
+  - `scripts/reseed/org.ts` — `ClassSectionPlan` type gains `ageGroup`; `buildClassSectionPlan` defaults to `"A"` (admin re-classifies post-cycle).
+  - `app/api/admin/academic-years/[id]/roll-forward/route.ts` — `sourceSections.select` adds `ageGroup`; copied to target year on create.
+- **`app/api/__tests__/session-reconcile-triggers.test.ts`** — added `ageGroup: "A"` to both POST fixtures (previously omitted; Zod now rejects without it).
 
 ---
 
 ## Verification
 
-*(filled by `/build` and `/ship` preview-verify loop)*
+### T1
+- `npm run build` — clean, full production build succeeded.
+- `npx vitest run` — 176 files / 1676 passed / 42 todo / 2 skipped. The 2 pre-fix failures in `app/api/__tests__/session-reconcile-triggers.test.ts` resolved by adding `ageGroup: "A"` to test fixtures.
+- Cross-checked design-system.html §form-field for the Zod enum naming convention (Bahasa form labels resolved in T2).
+- Migration SQL inspected; `prisma migrate dev` deliberately not run because local `.env` `DATABASE_URL` points at the staging Supabase pooler — runs against staging at deploy time via `/ship`.
 
 Manual smoke targets once preview is up:
 - `/admin/academic-years` — open ClassSection create dialog, confirm Kelompok Usia select renders + persists.

@@ -149,6 +149,7 @@ export type ClassSectionPlan = {
   academicYearName: AcademicYearKey;
   sectionName: string;
   capacity: number;
+  ageGroup: "A" | "B";
 };
 
 /**
@@ -173,6 +174,9 @@ export function buildClassSectionPlan(
           academicYearName: year.name,
           sectionName: `${programCode} — ${campus.code === "TAMAN_ASTER" ? "Aster" : "Metland"}`,
           capacity: programCode === "DCARE" ? 15 : 20,
+          // Reseed plans default ageGroup to A; admin re-classifies per
+          // class via the Kelompok Usia select once the cycle is live.
+          ageGroup: "A",
         });
       }
     }
@@ -384,6 +388,7 @@ export async function seedOrg(prisma: PrismaClient): Promise<SeedOrgResult> {
         academicYearId: academicYearIdByName[plan.academicYearName],
         campusId: campusIdByCode[plan.campusCode],
         name: plan.sectionName,
+        ageGroup: plan.ageGroup,
         capacity: plan.capacity,
       },
     });
