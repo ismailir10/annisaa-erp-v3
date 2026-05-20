@@ -174,6 +174,15 @@ The audit also flagged `revalidateTag(tag, { expire: 0 })` as undocumented. Fals
   - New `Kelompok Usia` select between Kampus and Kapasitas with options `A (4–5 tahun)` + `B (5–6 tahun)`. Cross-checked design-system.html §form-field for Select pattern.
 - **`e2e/admin-dialogs.spec.ts`** — F-3 Program-combobox regression test extended to also pick Kelompok Usia (4th combobox at `nth(3)`); otherwise the Zod-required field would 400 the POST.
 
+### T3 — Tenant-scope legacy assessment page (defense-in-depth)
+
+Audit GAP-3 framing was partially wrong on closer read: the outer `classSection.findFirst` at line 22 of the page already filters by `tenantId: session.tenantId`, so a forged cross-tenant classSectionId returns the "Kelas tidak ditemukan" EmptyState before the TeachingAssignment lookup runs. The fix here is belt-and-suspenders against the recurring "forgot tenantId on junction-traversal" bug class (RLS regressions 2026-04-24 EmailLog, 2026-05-17 ClassTrack+ClassSession).
+
+- **`app/teacher/assessments/[classSectionId]/[templateId]/[period]/page.tsx`** — `TeachingAssignment.findFirst` `classSection` predicate gains `tenantId: session.tenantId` alongside the existing `status: "ACTIVE"`. Inline comment explains the defense rationale.
+- **`app/teacher/assessments/__tests__/cross-tenant.test.ts`** — new file, 2 tests:
+  1. Cross-tenant classSectionId → outer `classSection.findFirst` returns null (tenant-scoped) → renders "Kelas tidak ditemukan" EmptyState; template + TA lookups never run.
+  2. TeachingAssignment.findFirst where shape includes `classSection.tenantId` + `status: "ACTIVE"` + `employeeId` + `classSectionId`.
+
 ---
 
 ## Verification
@@ -190,6 +199,11 @@ The audit also flagged `revalidateTag(tag, { expire: 0 })` as undocumented. Fals
 - Playwright deferred to T6 end-of-cycle gate; e2e change adds 1 step to existing F-3 regression test, no new spec file.
 - Cross-checked design-system.html §form-field for Select component patterns + label conventions; copy uses Bahasa Indonesia per voice.md.
 - Preview verify deferred to `/ship` Step 3 — browser-observable change on `/admin/academic-years` Tambah/Edit Kelas dialog.
+
+### T3
+- `npm run build` — clean.
+- `npx vitest run` — 177 files / 1678 passed.
+- Cross-checked design-system.html §none — no UI surface touched, pure auth-predicate hardening.
 
 Manual smoke targets once preview is up:
 - `/admin/academic-years` — open ClassSection create dialog, confirm Kelompok Usia select renders + persists.

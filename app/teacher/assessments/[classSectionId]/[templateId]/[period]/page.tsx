@@ -71,7 +71,12 @@ export default async function TeacherAssessmentEntryPage({ params }: { params: P
       where: {
         employeeId: session.employeeId,
         classSectionId: classSection.id,
-        classSection: { status: "ACTIVE" },
+        // Defense-in-depth: the outer classSection.findFirst at line 22
+        // already filters by session.tenantId, but propagating the scope
+        // here pins the contract against the recurring "forgot tenantId
+        // on junction-traversal" bug class (RLS regressions 2026-04-24
+        // EmailLog, 2026-05-17 ClassTrack+ClassSession).
+        classSection: { tenantId: session.tenantId, status: "ACTIVE" },
       },
       select: { id: true },
     });
