@@ -55,4 +55,20 @@ A 2026-06-01 state audit of the Curriculum/Penilaian initiative (cycles C1–C7a
 - Task 2: gates passed — `npm run build` ✓ Compiled successfully (16.8s); `npx vitest run` 1886 passed / 2 skipped / 42 todo (191 files, 86s); eslint clean. Inline review (agent unavailable): tenant-scoped on all 3 queries, `assessments.read` gate, YMD-validated input, read-only — no rate-limit on GET (consistent with curriculum GET routes).
 - Task 1: gates passed — `npm run build` ok; `npx vitest run` 1874 passed / 2 skipped / 42 todo (87s). Inline code review (feature-dev:code-reviewer agent unavailable — pinned to inaccessible glm-5): no dangling legacy refs, eslint clean, e2e balanced, empty-state guard equivalent to prior `classSections.length===0`.
 
+- End-of-cycle gate: `npm run build` ✓ (17.3s) + `npx vitest run` 1885 passed / 2 skipped / 42 todo. **Playwright (headless, local) blocked by env** — the sandbox worktree does not provision DEMO_MODE demo users, so `e2e/teacher.spec.ts:11` + every teacher/admin spec `beforeAll` (`GET /api/auth/users` → find TEACHER) throws "No TEACHER user found" *before* any assertion. Reproducible for all such specs independent of this cycle (`npm run seed` points at staging Supabase — not run). Authoritative Playwright = CI (fresh Postgres + seed) + `/ship` preview-verify.
+- **Manual deterministic verification** (started `DEMO_MODE=true PORT=3100 npm run start`, curl, no auth/seed needed): legacy redirects all 308 → `/admin/assessments/templates`, `/admin/assessment-templates`, `/admin/assessments/abc123` → `/admin/penilaian`; `/teacher/assessments/cs1/tmpl1/Semester%201` → `/teacher/assessments`. New surfaces serve: `/admin/penilaian` 307→login (page exists, not 500), `/teacher/assessments` 307→login, `GET /api/admin/penilaian` 401 `{"error":"unauthorized"}` (auth gate confirmed).
+
 ## Ship Notes
+
+**Migrations:** none — no schema change (legacy `AssessmentTemplate`/`StudentAssessment`/`StudentAssessmentScore` tables + their API routes deliberately kept intact; UI deprecation only).
+
+**Env vars:** none new.
+
+**Behavior changes shippers/users will notice:**
+- Admin sidebar "Penilaian" group now has a single item **"Pemantauan"** → `/admin/penilaian` (read-only completion monitor). The old "Template Penilaian" + "Penilaian Siswa" entries are gone.
+- Legacy admin assessment URLs (`/admin/assessments*`, `/admin/assessment-templates`) and the legacy teacher template-scoring route now **308-redirect** to the consolidated surfaces. Bookmarks resolve, not 404.
+- Teacher Penilaian hub no longer shows the "Penilaian lama (template)" section — only the new IKTP Pekanan (walas) + Sentra flow.
+
+**Preview-verify focus (for `/ship`):** with the signed-in Google session — (1) admin: Penilaian → Pemantauan loads, walas table + sentra grid render, week/day selectors re-query; (2) hit a legacy URL (e.g. `/admin/assessments`) → lands on `/admin/penilaian`; (3) teacher hub shows only the new flow. The new monitor is read-only — no destructive actions to seed.
+
+**Rollback:** revert the cycle commits. No data migration to undo; legacy tables/routes untouched, so reverting fully restores the prior UI.
