@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { escapeHtml } from "../escape";
 import { salarySlipEmailHtml } from "../templates/salary-slip";
+import { admissionSubmittedEmailHtml } from "../templates/admission-submitted";
 
 describe("escapeHtml", () => {
   it("escapes <script> tags", () => {
@@ -45,6 +46,28 @@ describe("salarySlipEmailHtml — XSS hardening", () => {
     const html = salarySlipEmailHtml({
       employeeName: "Ali",
       period: "<img src=x onerror=alert(1)>",
+      appUrl: "https://example.com",
+    });
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;img src=x");
+  });
+});
+
+describe("admissionSubmittedEmailHtml — XSS hardening", () => {
+  it("escapes <script> in childName", () => {
+    const html = admissionSubmittedEmailHtml({
+      childName: 'Aisyah <script>alert("xss")</script>',
+      parentName: "Pak Budi",
+      appUrl: "https://example.com",
+    });
+    expect(html).not.toContain("<script>alert");
+    expect(html).toContain("&lt;script&gt;alert");
+  });
+
+  it("escapes <img onerror> in parentName", () => {
+    const html = admissionSubmittedEmailHtml({
+      childName: "Aisyah",
+      parentName: "<img src=x onerror=alert(1)>",
       appUrl: "https://example.com",
     });
     expect(html).not.toContain("<img src=x");

@@ -65,18 +65,16 @@ export const adminNav: NavConfig = {
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
-        { label: "Penempatan", href: "/admin/enrollments", icon: BookOpen },
       ],
     },
     {
       id: "academic",
-      label: "Struktur Akademik",
+      label: "Akademik",
       icon: School,
       permission: "academic.view",
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
-        { label: "Identitas Kelas", href: "/admin/class-tracks", icon: School, permission: "academic.view" },
-        { label: "Guru Pengajar", href: "/admin/teaching-assignments", icon: Users },
+        { label: "Kelas", href: "/admin/classes", icon: School, permission: "academic.view" },
       ],
     },
     {
@@ -92,9 +90,9 @@ export const adminNav: NavConfig = {
       id: "assessment",
       label: "Penilaian",
       icon: ClipboardList,
+      permission: "assessments.read",
       items: [
-        { label: "Template Penilaian", href: "/admin/assessment-templates", icon: ClipboardList },
-        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardCheck },
+        { label: "Pemantauan", href: "/admin/penilaian", icon: ClipboardCheck, permission: "assessments.read" },
       ],
     },
     {

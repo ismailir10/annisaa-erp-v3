@@ -40,9 +40,11 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
 
 // ------------------------------------------------------------------
 // Types
@@ -58,6 +60,7 @@ type Student = {
   nis: string | null;
   nisn: string | null;
   notes: string | null;
+  photoUrl: string | null;
   createdAt: string;
   guardians: { parent: { name: string; phone: string | null } }[];
   enrollments: {
@@ -77,9 +80,17 @@ const EMPTY_CREATE_FORM = {
   nickname: "",
   gender: "",
   dateOfBirth: "",
+  address: "",
   nis: "",
   nisn: "",
+  birthPlace: "",
+  nik: "",
+  kkNumber: "",
+  livingWith: "",
   notes: "",
+  // Admin-created rows default ACTIVE; the Status section lets backfill set
+  // GRADUATED / WITHDRAWN / INACTIVE without a follow-up PUT.
+  status: "ACTIVE",
 };
 
 type StudentFormValues = typeof EMPTY_CREATE_FORM;
@@ -98,6 +109,7 @@ function StudentFormBody({
 }) {
   return (
     <div className="space-y-field">
+      <SectionHeading label="Data Anak" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
           <FieldLabel required>Nama Lengkap</FieldLabel>
@@ -143,6 +155,27 @@ function StudentFormBody({
         </Field>
       </div>
 
+      <Field>
+        <FieldLabel>Alamat</FieldLabel>
+        <Textarea
+          value={form.address}
+          onChange={(e) => setForm({ ...form, address: e.target.value })}
+          placeholder="Alamat tempat tinggal"
+          rows={2}
+        />
+      </Field>
+
+      <Field>
+        <FieldLabel>Catatan</FieldLabel>
+        <Textarea
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="Alergi, kebutuhan khusus, dll."
+          rows={2}
+        />
+      </Field>
+
+      <div className="pt-2"><SectionHeading label="Identitas Resmi" /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
           <FieldLabel>NIS</FieldLabel>
@@ -161,15 +194,65 @@ function StudentFormBody({
           />
         </Field>
       </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
+        <Field>
+          <FieldLabel>Tempat Lahir</FieldLabel>
+          <Input
+            value={form.birthPlace}
+            onChange={(e) => setForm({ ...form, birthPlace: e.target.value })}
+            placeholder="Kota kelahiran"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>NIK</FieldLabel>
+          <Input
+            value={form.nik}
+            onChange={(e) => setForm({ ...form, nik: e.target.value })}
+            placeholder="Nomor Induk Kependudukan"
+          />
+        </Field>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
+        <Field>
+          <FieldLabel>No. KK</FieldLabel>
+          <Input
+            value={form.kkNumber}
+            onChange={(e) => setForm({ ...form, kkNumber: e.target.value })}
+            placeholder="Nomor Kartu Keluarga"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Tinggal Dengan</FieldLabel>
+          <Select
+            value={form.livingWith || undefined}
+            onValueChange={(v) => v && setForm({ ...form, livingWith: v })}
+            items={LIVING_WITH_LABELS}
+          >
+            <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+            <SelectContent>
+              {LIVING_WITH_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
 
+      <div className="pt-2"><SectionHeading label="Status" /></div>
       <Field>
-        <FieldLabel>Catatan</FieldLabel>
-        <Textarea
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          placeholder="Alergi, kebutuhan khusus, dll."
-          rows={2}
-        />
+        <FieldLabel>Status</FieldLabel>
+        <Select
+          value={form.status}
+          onValueChange={(v) => v && setForm({ ...form, status: v })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ACTIVE">Aktif</SelectItem>
+            <SelectItem value="INACTIVE">Nonaktif</SelectItem>
+            <SelectItem value="GRADUATED">Lulus</SelectItem>
+            <SelectItem value="WITHDRAWN">Keluar</SelectItem>
+          </SelectContent>
+        </Select>
       </Field>
     </div>
   );
@@ -192,10 +275,21 @@ const columns: ColumnDef<Student>[] = [
           href={`/admin/students/${s.id}`}
           className="flex items-center gap-3 group"
         >
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-            <span className="text-primary text-xs font-bold">
-              {s.name[0]}
-            </span>
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+            {s.photoUrl ? (
+              // Auth-proxied — never a public filesystem path. Lazy-load to
+              // keep large lists snappy on mid-range Android.
+              <img
+                src={`/api/students/${s.id}/photo`}
+                alt={`Foto ${s.name}`}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <span className="text-primary text-xs font-bold">
+                {s.name[0]}
+              </span>
+            )}
           </div>
           <div>
             <span className="text-sm font-medium group-hover:text-primary transition-colors">
@@ -388,17 +482,40 @@ export default function StudentsPage() {
     fetchStudents();
   }
 
-  function openEdit(student: Student) {
-    setEditForm({
-      name: student.name,
-      nickname: student.nickname ?? "",
-      gender: student.gender ?? "",
-      dateOfBirth: student.dateOfBirth ?? "",
-      nis: student.nis ?? "",
-      nisn: student.nisn ?? "",
-      notes: student.notes ?? "",
-    });
+  async function openEdit(student: Student) {
+    // The list-row Student type omits the demographic fields the edit dialog
+    // now exposes (address, birthPlace, nik, kkNumber, livingWith). Seeding
+    // those from the row would set them to empty strings; saving would then
+    // clobber the real DB values to null. Fetch the full record first.
     setEditTarget(student);
+    try {
+      const res = await fetch(`/api/students/${student.id}`);
+      if (!res.ok) { toast.error("Gagal memuat data siswa"); return; }
+      const full = (await res.json()) as {
+        name: string; nickname: string | null; gender: string | null;
+        dateOfBirth: string | null; address: string | null; notes: string | null;
+        nis: string | null; nisn: string | null; birthPlace: string | null;
+        nik: string | null; kkNumber: string | null; livingWith: string | null;
+        status: string;
+      };
+      setEditForm({
+        name: full.name,
+        nickname: full.nickname ?? "",
+        gender: full.gender ?? "",
+        dateOfBirth: full.dateOfBirth ?? "",
+        address: full.address ?? "",
+        nis: full.nis ?? "",
+        nisn: full.nisn ?? "",
+        birthPlace: full.birthPlace ?? "",
+        nik: full.nik ?? "",
+        kkNumber: full.kkNumber ?? "",
+        livingWith: full.livingWith ?? "",
+        notes: full.notes ?? "",
+        status: full.status,
+      });
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    }
   }
 
   async function handleEdit() {
@@ -413,9 +530,15 @@ export default function StudentsPage() {
         nickname: editForm.nickname.trim() || null,
         gender: editForm.gender || null,
         dateOfBirth: editForm.dateOfBirth || null,
+        address: editForm.address.trim() || null,
         nis: editForm.nis.trim() || null,
         nisn: editForm.nisn.trim() || null,
+        birthPlace: editForm.birthPlace.trim() || null,
+        nik: editForm.nik.trim() || null,
+        kkNumber: editForm.kkNumber.trim() || null,
+        livingWith: editForm.livingWith || null,
         notes: editForm.notes.trim() || null,
+        status: editForm.status,
       }),
     });
     if (!res.ok) {
@@ -443,9 +566,15 @@ export default function StudentsPage() {
         nickname: createForm.nickname.trim() || null,
         gender: createForm.gender || null,
         dateOfBirth: createForm.dateOfBirth || null,
+        address: createForm.address.trim() || null,
         nis: createForm.nis.trim() || null,
         nisn: createForm.nisn.trim() || null,
+        birthPlace: createForm.birthPlace.trim() || null,
+        nik: createForm.nik.trim() || null,
+        kkNumber: createForm.kkNumber.trim() || null,
+        livingWith: createForm.livingWith || null,
         notes: createForm.notes.trim() || null,
+        status: createForm.status,
       }),
     });
 
@@ -568,7 +697,9 @@ export default function StudentsPage() {
             <DialogHeader>
               <DialogTitle>Edit Siswa</DialogTitle>
             </DialogHeader>
-            <div className="p-card">
+            {/* flex-1 min-h-0 overflow-y-auto: T2 expanded the form to 3 sections;
+                without inner scroll the Status field falls below the 90vh dialog cap. */}
+            <div className="p-card flex-1 min-h-0 overflow-y-auto">
               <StudentFormBody form={editForm} setForm={setEditForm} />
             </div>
             <DialogFooter>
@@ -619,7 +750,8 @@ export default function StudentsPage() {
             <DialogHeader>
               <DialogTitle>Tambah Siswa</DialogTitle>
             </DialogHeader>
-            <div className="p-card">
+            {/* flex-1 min-h-0 overflow-y-auto: see Edit dialog above. */}
+            <div className="p-card flex-1 min-h-0 overflow-y-auto">
               <StudentFormBody form={createForm} setForm={setCreateForm} />
             </div>
             <DialogFooter>

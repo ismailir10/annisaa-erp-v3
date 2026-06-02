@@ -17,7 +17,7 @@ export default function TeacherError({
       </div>
       <h2 className="text-h2 font-semibold mb-2">Terjadi Kesalahan</h2>
       <p className="text-sm text-muted-foreground mb-6">
-        {error.message || "Halaman tidak bisa dimuat. Coba lagi sebentar ya."}
+        Halaman tidak bisa dimuat. Coba lagi sebentar ya.
       </p>
       <Button onClick={reset} variant="outline">
         Coba Lagi

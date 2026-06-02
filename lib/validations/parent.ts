@@ -10,13 +10,18 @@ export const updateParentSchema = z.object({
   email: z.string().email("Email tidak valid").max(200).optional().nullable(),
   whatsapp: z.string().max(20).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
+  // Both `nik` (legacy field name on the Parent row) and `parentNik` (the
+  // unified GuardianForm key used by all three admin surfaces since T7) are
+  // accepted. The PUT handler folds `parentNik` into the same db column.
   nik: z.string().max(20).optional().nullable(),
+  parentNik: z.string().max(20).optional().nullable(),
   education: z.string().max(100).optional().nullable(),
   occupation: z.string().max(100).optional().nullable(),
   employer: z.string().max(200).optional().nullable(),
   employerAddress: z.string().max(500).optional().nullable(),
   employerCity: z.string().max(100).optional().nullable(),
   incomeRange: z.string().max(50).optional().nullable(),
+  childrenTotal: z.coerce.number().int().min(0).optional().nullable(),
 });
 
 export const toggleParentStatusSchema = z.object({

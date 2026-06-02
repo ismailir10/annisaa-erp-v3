@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       kkNumber: body.kkNumber?.trim() || null,
       livingWith: body.livingWith?.trim() || null,
       metadata: body.metadata ? JSON.stringify(body.metadata) : null,
+      status: body.status ?? "ACTIVE",
     },
   });
 

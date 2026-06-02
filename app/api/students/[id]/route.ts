@@ -56,9 +56,18 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const result = await validateBody(updateStudentSchema, await req.json());
+  const rawBody = (await req.json()) as Record<string, unknown>;
+  const result = await validateBody(updateStudentSchema, rawBody);
   if (result.error) return result.error;
   const body = result.data;
+  // Distinguish "not provided" (preserve existing) from "explicitly null" (clear).
+  // Zod loses this distinction for nullable+optional fields, so consult raw body.
+  const metadataProvided = Object.prototype.hasOwnProperty.call(rawBody, "metadata");
+  const metadataValue = metadataProvided
+    ? body.metadata == null
+      ? null
+      : JSON.stringify(body.metadata)
+    : existing.metadata;
 
   // Cascade: withdraw enrollments + cancel draft/sent invoices when student is deactivated or withdrawn
   if (body.status === "INACTIVE" || body.status === "WITHDRAWN") {
@@ -89,8 +98,11 @@ export async function PUT(
       nik: body.nik !== undefined ? (body.nik?.trim() || null) : undefined,
       kkNumber: body.kkNumber !== undefined ? (body.kkNumber?.trim() || null) : undefined,
       livingWith: body.livingWith !== undefined ? (body.livingWith?.trim() || null) : undefined,
-      metadata: body.metadata ? JSON.stringify(body.metadata) : existing.metadata,
+      metadata: metadataValue,
       status: body.status ?? existing.status,
+      // Inline edit from Student detail "Riwayat Status" sub-card (T5).
+      // Undefined → Prisma skips the column; date stays owned by /withdraw API.
+      withdrawalReason: body.withdrawalReason,
     },
   });
 

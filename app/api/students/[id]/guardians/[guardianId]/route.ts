@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { validateBody } from "@/lib/api/validate";
@@ -32,7 +33,9 @@ export async function PUT(
   if (result.error) return result.error;
   const body = result.data;
 
-  // Update parent contact fields
+  // Update parent contact fields. `address` and `childrenTotal` were silently
+  // dropped before T7 — the unified GuardianForm now passes them through, and
+  // updateGuardianSchema already permits both.
   await prisma.parent.update({
     where: { id: guardian.parentId },
     data: {
@@ -47,18 +50,72 @@ export async function PUT(
       employerAddress: body.employerAddress !== undefined ? (body.employerAddress?.trim() || null) : undefined,
       employerCity: body.employerCity !== undefined ? (body.employerCity?.trim() || null) : undefined,
       incomeRange: body.incomeRange !== undefined ? (body.incomeRange?.trim() || null) : undefined,
+      address: body.address !== undefined ? (body.address?.trim() || null) : undefined,
+      // childrenTotal is z.coerce.number() in the schema — arrives as a
+      // number (not a string), so no trim.
+      childrenTotal: body.childrenTotal !== undefined ? body.childrenTotal : undefined,
     },
   });
 
-  // Update relationship/isPrimary on the junction record
-  const updated = await prisma.studentGuardian.update({
-    where: { id: guardianId },
-    data: {
-      relationship: body.relationship || guardian.relationship,
-      isPrimary: body.isPrimary !== undefined ? body.isPrimary : guardian.isPrimary,
-    },
-    include: { parent: true },
-  });
+  // T8: race-safe single-primary invariant.
+  //
+  // The studentGuardian junction has no unique constraint on (studentId,
+  // isPrimary=true), so two concurrent promotion requests could each
+  // observe zero existing primaries and both commit as primary. Serializable
+  // isolation lets Postgres abort the loser (SQLSTATE 40001 → P2034); we
+  // retry once with a fresh tx, then surface 409 to the caller.
+  //
+  // Demotion (isPrimary === false) needs no clear-step. childOrder is a
+  // plain field write — no invariant to enforce.
+  const promotingPrimary = body.isPrimary === true;
+  // Capture non-null fallbacks into closure-stable locals so TS narrowing
+  // survives the async tx callback boundary.
+  const currentGuardian = guardian;
+
+  async function runPrimaryTx() {
+    return prisma.$transaction(
+      async (tx) => {
+        if (promotingPrimary) {
+          await tx.studentGuardian.updateMany({
+            where: { studentId, isPrimary: true, id: { not: guardianId } },
+            data: { isPrimary: false },
+          });
+        }
+        return tx.studentGuardian.update({
+          where: { id: guardianId },
+          data: {
+            relationship: body.relationship || currentGuardian.relationship,
+            isPrimary: body.isPrimary !== undefined ? body.isPrimary : currentGuardian.isPrimary,
+            // childOrder: undefined → Prisma skips; explicit null → clear.
+            childOrder: body.childOrder === undefined ? undefined : body.childOrder,
+          },
+          include: { parent: true },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  let updated;
+  try {
+    updated = await runPrimaryTx();
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+      try {
+        updated = await runPrimaryTx();
+      } catch (e2) {
+        if (e2 instanceof Prisma.PrismaClientKnownRequestError && e2.code === "P2034") {
+          return NextResponse.json(
+            { error: "Konflik penyimpanan, coba lagi." },
+            { status: 409 },
+          );
+        }
+        throw e2;
+      }
+    } else {
+      throw e;
+    }
+  }
 
   return NextResponse.json(updated);
 }

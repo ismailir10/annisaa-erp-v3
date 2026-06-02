@@ -92,6 +92,10 @@ export async function PUT(
   }
   const d = parsed.data;
 
+  // `parentNik` is the unified GuardianForm key (T7); both it and the legacy
+  // `nik` key map to the same Parent.nik column. `parentNik` wins on conflict.
+  const nikInput = d.parentNik !== undefined ? d.parentNik : d.nik;
+
   const updated = await prisma.parent.update({
     where: { id },
     data: {
@@ -100,13 +104,14 @@ export async function PUT(
       email: d.email !== undefined ? (d.email?.trim() || null) : parent.email,
       whatsapp: d.whatsapp !== undefined ? (d.whatsapp?.trim() || null) : parent.whatsapp,
       address: d.address !== undefined ? (d.address?.trim() || null) : parent.address,
-      nik: d.nik !== undefined ? (d.nik?.trim() || null) : undefined,
+      nik: nikInput !== undefined ? (nikInput?.trim() || null) : undefined,
       education: d.education !== undefined ? (d.education?.trim() || null) : undefined,
       occupation: d.occupation !== undefined ? (d.occupation?.trim() || null) : undefined,
       employer: d.employer !== undefined ? (d.employer?.trim() || null) : undefined,
       employerAddress: d.employerAddress !== undefined ? (d.employerAddress?.trim() || null) : undefined,
       employerCity: d.employerCity !== undefined ? (d.employerCity?.trim() || null) : undefined,
       incomeRange: d.incomeRange !== undefined ? (d.incomeRange?.trim() || null) : undefined,
+      childrenTotal: d.childrenTotal !== undefined ? d.childrenTotal : undefined,
     },
   });
 

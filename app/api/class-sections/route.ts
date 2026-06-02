@@ -79,9 +79,9 @@ export async function POST(req: NextRequest) {
 
   // Every ClassSection belongs to a stable multi-year ClassTrack
   // (cycle 2026-05-15 academic-hierarchy-refactor). Resolve-or-create
-  // the track for this (campus, program, name) tuple — the dedicated
-  // /admin/class-tracks CRUD manages tracks explicitly, but a section
-  // created here without a pre-existing track still needs one.
+  // the track for this (campus, program, name) tuple — ClassTrack is now
+  // silent plumbing (its dedicated CRUD UI was retired in the kelas-page
+  // cycle); a section created without a pre-existing track still needs one.
   const sectionName = body.name.trim();
   const classTrack = await prisma.classTrack.upsert({
     where: {

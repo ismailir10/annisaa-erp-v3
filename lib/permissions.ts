@@ -73,6 +73,7 @@ export const PERMISSION_GROUPS = {
     permissions: {
       "assessments.read": "Lihat penilaian siswa",
       "assessments.write": "Catat penilaian siswa (pekanan + sentra)",
+      "assessments.void": "Override penilaian siswa (admin Category-C)",
     },
   },
 } as const;
@@ -142,6 +143,11 @@ export function getSystemRolePermissions(role: string): string[] {
         // curriculum — SCHOOL_ADMIN can READ but not WRITE curriculum.
         // Authoring is SUPER_ADMIN-only per design doc §3.2.
         "curriculum.read",
+        // Penilaian — SCHOOL_ADMIN reads everything in the new admin
+        // /admin/assessments rebuild (C7b) and can override entries
+        // (Category-C event-log). Writing fresh entries stays teacher-only.
+        "assessments.read",
+        "assessments.void",
       ];
     case "TEACHER":
       // Self-service permissions: a TEACHER can see their own attendance

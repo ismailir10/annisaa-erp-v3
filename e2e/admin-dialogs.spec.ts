@@ -6,9 +6,6 @@ import { test, expect, Page } from "@playwright/test";
 // - Cancel button labeled "Batal" with variant="ghost"
 // - On mobile viewport, the overlay renders as a Sheet (not a Dialog)
 // - Required fields show the asterisk via FieldLabel `required` prop
-//
-// One screenshot per dialog × viewport lands under
-// `e2e/__snapshots__/admin-dialogs/` for the visual baseline.
 
 const ADMIN_USER_ID = "u_super_admin";
 const DESKTOP = { width: 1280, height: 800 } as const;
@@ -97,18 +94,15 @@ test.describe("Admin form dialogs — desktop", () => {
       const dialog = page.locator('[data-slot="dialog-content"]').first();
       await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-      await expect(dialog.getByRole("heading")).toContainText(check.expectedTitle);
+      // Use data-slot selector for DialogTitle specifically — getByRole("heading")
+      // would match SectionHeading <h3>s now added inside Tambah Siswa (T2 +
+      // sectioned forms) and fail strict-mode against the multi-match.
+      await expect(dialog.locator('[data-slot="dialog-title"]')).toContainText(check.expectedTitle);
       await expect(dialog.getByRole("button", { name: check.expectedSubmit })).toBeVisible();
       // Cancel slot — text-based locator (DialogClose wrapper varies across
       // pages: some render a Button directly, some use the base-nova
       // `render` prop, some use an inner DialogClose).
       await expect(dialog.locator('button:has-text("Batal")').first()).toBeVisible();
-
-      await page.screenshot({
-        path: `e2e/__snapshots__/admin-dialogs/${check.name}-desktop.png`,
-        clip: undefined,
-        fullPage: false,
-      });
     });
   }
 });
@@ -142,13 +136,10 @@ test.describe("Admin form dialogs — mobile renders as Sheet", () => {
       // Dialog popup must NOT be present at the same time
       await expect(page.locator('[data-slot="dialog-content"]')).toHaveCount(0);
 
-      await expect(sheet.getByRole("heading")).toContainText(check.expectedTitle);
+      // Use data-slot selector for SheetTitle — getByRole("heading") matches
+      // SectionHeading h3s nested inside the form body and fails strict-mode.
+      await expect(sheet.locator('[data-slot="sheet-title"]')).toContainText(check.expectedTitle);
       await expect(sheet.getByRole("button", { name: check.expectedSubmit })).toBeVisible();
-
-      await page.screenshot({
-        path: `e2e/__snapshots__/admin-dialogs/${check.name}-mobile.png`,
-        fullPage: false,
-      });
     });
   }
 });
@@ -206,9 +197,12 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     // pick reproduces it.
     const target = active[active.length - 1];
 
-    // Pre-conditions for the Tambah Kelas dialog: at least one Campus and
-    // one ACTIVE AcademicYear must exist; the academic-years page renders them.
-    await page.goto("/admin/academic-years");
+    // The Tambah Kelas dialog moved from /admin/academic-years to the new
+    // /admin/classes page in the 2026-05-19 kelas-page cycle. The form lost
+    // the Tahun Ajaran select (year is implicit from the list-page switcher)
+    // and gained Kapasitas + Pola Slot. Kampus + Program selects still drive
+    // the same FK writes the original bug-fix exercised.
+    await page.goto("/admin/classes");
     await page.waitForLoadState("networkidle");
 
     const uniqueName = `E2E F-3 ${Date.now()}`;
@@ -217,28 +211,21 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     const dialog = page.locator('[data-slot="dialog-content"]').first();
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    // Nama Kelas — FieldLabel isn't htmlFor-bound, target by placeholder
-    // instead of accessible-label association.
-    await dialog.getByPlaceholder("TKIT A").fill(uniqueName);
+    // Nama Kelas — FieldLabel isn't htmlFor-bound, target by placeholder.
+    await dialog.getByPlaceholder("mis. TKIT A").fill(uniqueName);
 
-    // Program select — open and pick the non-default option by visible text
-    // (more robust than positional keyboard navigation, which was the
-    // pattern that masked the bug in manual testing).
-    const programTrigger = dialog.locator('[role="combobox"]').first();
-    await programTrigger.click();
-    await page.getByRole("option", { name: target.name }).click();
-
-    // Tahun Ajaran: take the first available option (only one in our seed)
-    const yearTrigger = dialog.locator('[role="combobox"]').nth(1);
-    await yearTrigger.click();
-    await page.getByRole("option").first().click();
-
-    // Kampus: take the first available option
-    const campusTrigger = dialog.locator('[role="combobox"]').nth(2);
+    // Kampus: first combobox in the dialog. Pick the first available option.
+    const campusTrigger = dialog.locator('[role="combobox"]').nth(0);
     await campusTrigger.click();
     await page.getByRole("option").first().click();
 
-    await dialog.getByRole("button", { name: /Tambah Kelas/i }).click();
+    // Program: second combobox. Open and pick the non-default option by
+    // visible text (more robust than positional keyboard navigation).
+    const programTrigger = dialog.locator('[role="combobox"]').nth(1);
+    await programTrigger.click();
+    await page.getByRole("option", { name: target.name }).click();
+
+    await dialog.getByRole("button", { name: /Simpan/i }).click();
     await expect(dialog).toBeHidden({ timeout: 10_000 });
 
     // Verify persistence via the API — visual-only text would lie if the
@@ -250,7 +237,7 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     expect(created!.programId, "selected Program must persist to the new ClassSection").toBe(target.id);
 
     // Cleanup so the test is idempotent against subsequent runs that
-    // would otherwise hit a unique-name collision.
-    await page.request.delete(`/api/class-sections/${created!.id}`).catch(() => {});
+    // would otherwise hit a unique-name collision. Use the new admin route.
+    await page.request.delete(`/api/admin/classes/${created!.id}`).catch(() => {});
   });
 });

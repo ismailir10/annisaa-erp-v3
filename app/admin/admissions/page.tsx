@@ -12,6 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
+  EDUCATION_OPTIONS,
+  OCCUPATION_OPTIONS,
+  INCOME_OPTIONS,
+  RELATIONSHIP_OPTIONS,
+} from "@/lib/constants/parent-options";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -91,6 +97,7 @@ type Admission = {
   parentIncome: string | null;
   parentRelationship: string | null;
   programId: string | null;
+  campusPreference: string | null;
   source: string;
   status: string;
   notes: string | null;
@@ -107,6 +114,8 @@ type Admission = {
 };
 
 type Program = { id: string; name: string };
+
+type Campus = { id: string; name: string };
 
 type Pagination = {
   page: number;
@@ -156,6 +165,7 @@ type AdmissionForm = {
   parentIncome: string;
   parentRelationship: string;
   programId: string;
+  campusPreference: string;
   source: string;
   notes: string;
   followUpDate: string;
@@ -165,9 +175,10 @@ type AdmissionFormBodyProps = {
   form: AdmissionForm;
   setForm: React.Dispatch<React.SetStateAction<AdmissionForm>>;
   programs: Program[];
+  campuses: Campus[];
 };
 
-function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) {
+function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormBodyProps) {
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -232,16 +243,15 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
         <Select
           value={form.parentRelationship}
           onValueChange={(v) => v && setForm({ ...form, parentRelationship: v })}
-          items={{ AYAH: "Ayah", IBU: "Ibu", WALI: "Wali", OTHER: "Lainnya" }}
+          items={Object.fromEntries(RELATIONSHIP_OPTIONS.map((o) => [o.value, o.label]))}
         >
           <SelectTrigger>
             <SelectValue placeholder="Pilih" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="AYAH">Ayah</SelectItem>
-            <SelectItem value="IBU">Ibu</SelectItem>
-            <SelectItem value="WALI">Wali</SelectItem>
-            <SelectItem value="OTHER">Lainnya</SelectItem>
+            {RELATIONSHIP_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Field>
@@ -270,17 +280,15 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentEducation}
             onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
-            items={{ SMA: "SMA", "D1-D3": "D1-D3", S1: "S1", S2: "S2", S3: "S3" }}
+            items={Object.fromEntries(EDUCATION_OPTIONS.map((o) => [o.value, o.label]))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="SMA">SMA</SelectItem>
-              <SelectItem value="D1-D3">D1-D3</SelectItem>
-              <SelectItem value="S1">S1</SelectItem>
-              <SelectItem value="S2">S2</SelectItem>
-              <SelectItem value="S3">S3</SelectItem>
+              {EDUCATION_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Field>
@@ -289,27 +297,15 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentOccupation}
             onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
-            items={{
-              "Karyawan Swasta": "Karyawan Swasta",
-              ASN: "ASN",
-              Guru: "Guru",
-              Wiraswasta: "Wiraswasta",
-              BUMN: "BUMN",
-              "Ibu Rumah Tangga": "Ibu Rumah Tangga",
-              Lainnya: "Lainnya",
-            }}
+            items={Object.fromEntries(OCCUPATION_OPTIONS.map((o) => [o.value, o.label]))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Karyawan Swasta">Karyawan Swasta</SelectItem>
-              <SelectItem value="ASN">ASN</SelectItem>
-              <SelectItem value="Guru">Guru</SelectItem>
-              <SelectItem value="Wiraswasta">Wiraswasta</SelectItem>
-              <SelectItem value="BUMN">BUMN</SelectItem>
-              <SelectItem value="Ibu Rumah Tangga">Ibu Rumah Tangga</SelectItem>
-              <SelectItem value="Lainnya">Lainnya</SelectItem>
+              {OCCUPATION_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Field>
@@ -318,46 +314,59 @@ function AdmissionFormBody({ form, setForm, programs }: AdmissionFormBodyProps) 
           <Select
             value={form.parentIncome}
             onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
-            items={{
-              "< Rp 1 Juta": "< Rp 1 Juta",
-              "Rp 1-2 Juta": "Rp 1-2 Juta",
-              "Rp 3-5 Juta": "Rp 3-5 Juta",
-              "Rp 5-10 Juta": "Rp 5-10 Juta",
-              "> Rp 10 Juta": "> Rp 10 Juta",
-            }}
+            items={Object.fromEntries(INCOME_OPTIONS.map((o) => [o.value, o.label]))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="< Rp 1 Juta">&lt; Rp 1 Juta</SelectItem>
-              <SelectItem value="Rp 1-2 Juta">Rp 1-2 Juta</SelectItem>
-              <SelectItem value="Rp 3-5 Juta">Rp 3-5 Juta</SelectItem>
-              <SelectItem value="Rp 5-10 Juta">Rp 5-10 Juta</SelectItem>
-              <SelectItem value="> Rp 10 Juta">&gt; Rp 10 Juta</SelectItem>
+              {INCOME_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Field>
       </div>
-      <Field>
-        <FieldLabel>Program Diminati</FieldLabel>
-        <Select
-          value={form.programId}
-          onValueChange={(v) => v && setForm({ ...form, programId: v })}
-          items={programs.map((p) => ({ label: p.name, value: p.id }))}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Pilih program" />
-          </SelectTrigger>
-          <SelectContent>
-            {programs.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field>
+          <FieldLabel>Program Diminati</FieldLabel>
+          <Select
+            value={form.programId}
+            onValueChange={(v) => v && setForm({ ...form, programId: v })}
+            items={programs.map((p) => ({ label: p.name, value: p.id }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih program" />
+            </SelectTrigger>
+            <SelectContent>
+              {programs.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Preferensi Kampus</FieldLabel>
+          <Select
+            value={form.campusPreference}
+            onValueChange={(v) => v && setForm({ ...form, campusPreference: v })}
+            items={campuses.map((c) => ({ label: c.name, value: c.id }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih kampus" />
+            </SelectTrigger>
+            <SelectContent>
+              {campuses.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <Field>
           <FieldLabel>Sumber</FieldLabel>
@@ -413,6 +422,7 @@ export default function AdmissionsPage() {
   const isMobile = useIsMobile();
   const [data, setData] = useState<Admission[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     pageSize: 20,
@@ -452,6 +462,12 @@ export default function AdmissionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAdmission, setEditingAdmission] = useState<Admission | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
+  // T10: convert-confirm + email-conflict UI state.
+  const [convertTarget, setConvertTarget] = useState<Admission | null>(null);
+  const [emailConflict, setEmailConflict] = useState<{
+    message: string;
+    conflictingParentName: string | null;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     childName: "",
@@ -466,17 +482,23 @@ export default function AdmissionsPage() {
     parentIncome: "",
     parentRelationship: "",
     programId: "",
+    campusPreference: "",
     source: "WHATSAPP",
     notes: "",
     followUpDate: "",
   });
 
-  // Fetch programs once
+  // Fetch programs + campuses once. Campuses cached for 1 h server-side
+  // (revalidate=3600 in /api/config/campuses) so this is cheap on repeat opens.
   useEffect(() => {
     fetch("/api/programs")
       .then((r) => r.json())
       .then((p) => setPrograms(Array.isArray(p) ? p : p.data ?? []))
       .catch((err) => console.error("[admissions] programs fetch failed", err));
+    fetch("/api/config/campuses")
+      .then((r) => r.json())
+      .then((c) => setCampuses(Array.isArray(c) ? c : []))
+      .catch((err) => console.error("[admissions] campuses fetch failed", err));
   }, []);
 
   const fetchAdmissions = useCallback(async () => {
@@ -529,15 +551,54 @@ export default function AdmissionsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  async function convertToStudent(admissionId: string) {
-    const res = await fetch(`/api/admissions/${admissionId}/convert`, { method: "POST" });
+  // T10: when an admission has a sibling-detect match, intercept Convert with
+  // a confirmation dialog (state below). For admissions without detection the
+  // direct path runs unchanged. The runConvert helper does the actual POST so
+  // both call sites + the dialog confirm action route through one place.
+  async function runConvert(admissionId: string, mergeWithDetected: boolean) {
+    const res = await fetch(`/api/admissions/${admissionId}/convert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mergeWithDetected }),
+    });
     if (res.ok) {
-      toast.success("Dikonversi menjadi siswa");
-      fetchAdmissions(); fetchStats();
-    } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal konversi");
+      toast.success(
+        mergeWithDetected ? "Dikonversi menjadi siswa" : "Dikonversi tanpa menggabungkan",
+      );
+      setConvertTarget(null);
+      setEmailConflict(null);
+      fetchAdmissions();
+      fetchStats();
+      return;
     }
+    if (res.status === 409) {
+      const d = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        conflictingParentName?: string;
+        message?: string;
+      };
+      if (d.error === "EMAIL_CONFLICT") {
+        setEmailConflict({
+          message:
+            d.message ??
+            "Email orang tua sudah terdaftar. Pilih Gabungkan atau hapus email pendaftaran.",
+          conflictingParentName: d.conflictingParentName ?? null,
+        });
+        return;
+      }
+    }
+    const d = await res.json().catch(() => ({}));
+    toast.error(d.error || "Gagal konversi");
+  }
+
+  function convertToStudent(a: Admission) {
+    if (a.detectedParentId) {
+      setConvertTarget(a);
+      setEmailConflict(null);
+      return;
+    }
+    // No detection → preserve the pre-T10 one-click behaviour (auto-merge).
+    void runConvert(a.id, true);
   }
 
   async function handleSubmit() {
@@ -608,6 +669,7 @@ export default function AdmissionsPage() {
       parentIncome: "",
       parentRelationship: "",
       programId: "",
+      campusPreference: "",
       source: "WHATSAPP",
       notes: "",
       followUpDate: "",
@@ -759,7 +821,7 @@ export default function AdmissionsPage() {
           extras.push({
             label: "Konversi ke Siswa",
             icon: <UserPlus size={14} />,
-            onClick: () => convertToStudent(a.id),
+            onClick: () => convertToStudent(a),
           });
         }
         return (
@@ -773,7 +835,9 @@ export default function AdmissionsPage() {
                 parentOccupation: a.parentOccupation ?? "",
                 parentIncome: a.parentIncome ?? "",
                 parentRelationship: a.parentRelationship ?? "",
-                programId: a.programId ?? "", source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
+                programId: a.programId ?? "",
+                campusPreference: a.campusPreference ?? "",
+                source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
               });
               setDialogOpen(true);
             }}
@@ -851,7 +915,7 @@ export default function AdmissionsPage() {
               {editingAdmission?.detectedParent && (
                 <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
               )}
-              <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
+              <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
               <div className="flex flex-col-reverse gap-2 pt-2">
                 <Button onClick={handleSubmit} disabled={saving}>
                   {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
@@ -867,11 +931,14 @@ export default function AdmissionsPage() {
             <DialogHeader>
               <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}</DialogTitle>
             </DialogHeader>
-            <div className="p-card space-y-field">
+            {/* flex-1 min-h-0 overflow-y-auto: T9 added campusPreference and
+                the form now overflows 90vh. Inner scroll keeps DialogFooter
+                docked while the body scrolls. */}
+            <div className="p-card space-y-field flex-1 min-h-0 overflow-y-auto">
               {editingAdmission?.detectedParent && (
                 <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
               )}
-              <AdmissionFormBody form={form} setForm={setForm} programs={programs} />
+              <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
             </div>
             <DialogFooter>
               <DialogClose>
@@ -892,6 +959,72 @@ export default function AdmissionsPage() {
         action="cancel"
         onConfirm={handleCancel}
       />
+
+      {/* T10: sibling-detect confirmation dialog — only opens when admission
+          has detectedParentId. Three actions: Merge (default, link to existing
+          parent), Convert without merging (new Parent), Cancel. Email-conflict
+          on no-merge surfaces inline via emailConflict state. */}
+      <Dialog
+        open={!!convertTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setConvertTarget(null);
+            setEmailConflict(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Konversi ke Siswa</DialogTitle>
+          </DialogHeader>
+          {convertTarget && (
+            <div className="space-y-4">
+              <p className="text-sm">
+                Pendaftar <strong>{convertTarget.childName}</strong> terdeteksi sebagai saudara dari keluarga{" "}
+                <strong>{convertTarget.detectedParent?.name ?? "(tidak diketahui)"}</strong>.
+              </p>
+              {convertTarget.detectedParent?.guardians?.length ? (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Anak terdaftar di keluarga ini:</p>
+                  <ul className="text-sm list-disc pl-5">
+                    {convertTarget.detectedParent.guardians.map((g, i) => (
+                      <li key={i}>{g.student.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {emailConflict && (
+                <Alert className="border-destructive/40 bg-destructive/10 text-destructive">
+                  <AlertDescription>
+                    {emailConflict.message}
+                    {emailConflict.conflictingParentName ? ` (Parent: ${emailConflict.conflictingParentName})` : ""}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <p className="text-xs text-muted-foreground">
+                <strong>Gabungkan</strong>: tautkan siswa baru ke wali yang sudah ada (rekomendasi).<br />
+                <strong>Konversi tanpa gabung</strong>: buat wali baru terpisah meski email cocok.
+              </p>
+            </div>
+          )}
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <DialogClose>
+              <Button variant="ghost">Batal</Button>
+            </DialogClose>
+            <Button
+              variant="outline"
+              onClick={() => convertTarget && void runConvert(convertTarget.id, false)}
+            >
+              Konversi tanpa gabung
+            </Button>
+            <Button
+              onClick={() => convertTarget && void runConvert(convertTarget.id, true)}
+            >
+              Gabungkan dengan wali
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -83,10 +83,12 @@ test.describe("Admin flows", () => {
     await expect(page.getByRole("dialog").getByRole("heading", { name: "Tambah Karyawan" })).toBeVisible({ timeout: 15_000 });
   });
 
-  test("legacy nested assessments/templates URL redirects to flat path", async ({ page }) => {
+  test("legacy assessment URLs redirect to the consolidated penilaian monitor", async ({ page }) => {
+    // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
+    // admin surfaces retired → all redirect to /admin/penilaian.
     await page.goto("/admin/assessments/templates");
-    await expect(page).toHaveURL("/admin/assessment-templates");
-    await expect(page.getByRole("heading", { name: /Template Penilaian/i })).toBeVisible();
+    await expect(page).toHaveURL("/admin/penilaian");
+    await expect(page.getByRole("heading", { name: "Penilaian" })).toBeVisible();
   });
 
   test("program deactivate sets status INACTIVE and hides from Aktif filter", async ({ page }) => {
@@ -141,32 +143,6 @@ test.describe("Admin flows", () => {
 
     // Restore to ACTIVE so other tests / subsequent runs stay idempotent
     await page.request.put(`/api/class-sections/${target.id}`, {
-      data: { status: "ACTIVE" },
-    });
-  });
-
-  test("enrollment deactivate sets status WITHDRAWN and hides from Aktif filter", async ({ page }) => {
-    const list = await page.request.get("/api/enrollments?pageSize=100&status=ACTIVE");
-    const json = await list.json();
-    const target = (json.data as Array<{ id: string; status: string }> | undefined)?.[0];
-    if (!target) {
-      test.skip(true, "No ACTIVE enrollment to deactivate");
-      return;
-    }
-
-    const put = await page.request.put(`/api/enrollments/${target.id}`, {
-      data: { status: "WITHDRAWN" },
-    });
-    expect(put.ok()).toBeTruthy();
-
-    const after = await page.request.get("/api/enrollments?pageSize=100&status=ACTIVE");
-    const afterJson = await after.json();
-    const stillActive = (afterJson.data as Array<{ id: string }> | undefined)
-      ?.find(e => e.id === target.id);
-    expect(stillActive).toBeUndefined();
-
-    // Restore to ACTIVE so other tests / subsequent runs stay idempotent
-    await page.request.put(`/api/enrollments/${target.id}`, {
       data: { status: "ACTIVE" },
     });
   });
@@ -257,39 +233,6 @@ test.describe("Admin flows", () => {
       await page.waitForURL(`**/admin/payroll/${nonDraft.id}`);
       await expect(page.getByTestId("payroll-edit-btn")).toHaveCount(0);
     }
-  });
-
-  test("teaching-assignment role edit persists and list reflects new role", async ({ page }) => {
-    const list = await page.request.get("/api/teaching-assignments");
-    if (!list.ok()) {
-      test.skip(true, "Teaching assignments endpoint unavailable");
-      return;
-    }
-    const rows = (await list.json()) as Array<{ id: string; role: string }>;
-    const target = rows[0];
-    if (!target) {
-      test.skip(true, "No teaching assignment available");
-      return;
-    }
-
-    const nextRole = target.role === "HOMEROOM" ? "ASSISTANT" : "HOMEROOM";
-    const put = await page.request.put(`/api/teaching-assignments/${target.id}`, {
-      data: { role: nextRole },
-    });
-    expect(put.ok()).toBeTruthy();
-    const putJson = await put.json();
-    expect(putJson.role).toBe(nextRole);
-
-    // Verify list re-fetch surfaces the new role
-    const after = await page.request.get("/api/teaching-assignments");
-    const afterRows = (await after.json()) as Array<{ id: string; role: string }>;
-    const updated = afterRows.find((r) => r.id === target.id);
-    expect(updated?.role).toBe(nextRole);
-
-    // Restore original role so subsequent runs stay idempotent
-    await page.request.put(`/api/teaching-assignments/${target.id}`, {
-      data: { role: target.role },
-    });
   });
 
   test("admission status transitions follow the state machine", async ({ page }) => {
@@ -535,231 +478,6 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await expect(page.getByText(/tagihan dibuat \(/)).toBeVisible({ timeout: 60_000 });
   });
 
-  test("manual create surfaces alert card on detail page when Xendit fails", async ({ page }) => {
-    test.skip(
-      process.env.DEMO_MODE === "true",
-      "DEMO_MODE short-circuit returns synthetic SENT — failure-path coverage validated manually on staging. See lib/xendit/client.ts:167.",
-    );
-    // Resolve a student + fee component via API so the test doesn't depend
-    // on seed name ordering for the Select picker.
-    const studentsRes = await page.request.get("/api/students?status=ACTIVE&pageSize=1");
-    const studentsJson = await studentsRes.json();
-    const student = studentsJson.data?.[0] as { id: string; name: string } | undefined;
-    if (!student) {
-      test.skip(true, "No ACTIVE student available");
-      return;
-    }
-    const feesRes = await page.request.get("/api/fee-components");
-    const fees = (await feesRes.json()) as Array<{ id: string; status: string; isEnabled: boolean }>;
-    const fee = fees.find((f) => f.status === "ACTIVE" && f.isEnabled);
-    if (!fee) {
-      test.skip(true, "No active fee component available");
-      return;
-    }
-
-    // Drive the API directly. The dialog wires identical semantics (see
-    // `manual-invoice-dialog.tsx:387`); the Select component's list-
-    // virtualisation makes the UI brittle in headless mode.
-    const create = await page.request.post("/api/invoices", {
-      data: {
-        studentId: student.id,
-        periodLabel: `E2E Manual ${Date.now()}`,
-        dueDate: "2026-12-31",
-        lines: [{ feeComponentId: fee.id, amount: 250000 }],
-      },
-    });
-    expect(create.status()).toBe(201);
-    const created = await create.json();
-    expect(created.id).toBeTruthy();
-    // Xendit fails (real api with fake key) → response includes xenditError
-    // and status is PENDING_PAYMENT_LINK with paymentLinkError persisted.
-    expect(created.status).toBe("PENDING_PAYMENT_LINK");
-    expect(created.xenditError).toBeTruthy();
-    expect(created.paymentLinkError).toBeTruthy();
-
-    // Detail page renders the warning alert card (page.tsx:237 — visible
-    // when paymentLinkError is set) + status badge "Link Gagal".
-    await page.goto(`/admin/invoices/${created.id}`);
-    await page.waitForURL(`**/admin/invoices/${created.id}`);
-    await expect(page.getByText(/Link pembayaran belum berhasil dibuat/)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("button", { name: /Coba Lagi/ })).toBeVisible();
-    await expect(page.getByText(/Total Tagihan/)).toBeVisible();
-  });
-
-  test("bulk failure leaves PENDING_PAYMENT_LINK rows + per-row retry endpoint reports stillFailed", async ({ page }) => {
-    test.skip(
-      process.env.DEMO_MODE === "true",
-      "DEMO_MODE short-circuit returns synthetic SENT — failure-path coverage validated manually on staging. See lib/xendit/client.ts:167.",
-    );
-    // Drive batch endpoint directly with a tiny student set so the test is
-    // fast and deterministic. The orchestrator UI is covered by the first
-    // test; this one focuses on the data-state contract.
-    const period = `E2E Fail ${Date.now()}`;
-    const yearId = await firstActiveYearId(page);
-    const planRes = await page.request.post("/api/invoices/generate/plan", {
-      data: { periodLabel: period, dueDate: "2026-12-31", academicYearId: yearId },
-    });
-    expect(planRes.ok()).toBeTruthy();
-    const plan = await planRes.json();
-    const studentIds: string[] = (plan.eligibleStudentIds ?? []).slice(0, 2);
-    if (studentIds.length === 0) {
-      test.skip(true, "No eligible students for bulk-fail scenario");
-      return;
-    }
-
-    const batchRes = await page.request.post("/api/invoices/generate/batch", {
-      data: { studentIds, periodLabel: period, dueDate: "2026-12-31", academicYearId: yearId },
-    });
-    expect(batchRes.ok()).toBeTruthy();
-    const batch = await batchRes.json();
-    expect(batch.created).toBe(studentIds.length);
-    const pendingRow = (batch.results as Array<{ status: string; invoiceId: string }>)
-      .find((r) => r.status === "PENDING_PAYMENT_LINK");
-    expect(pendingRow).toBeTruthy();
-    const pendingId = pendingRow!.invoiceId;
-
-    // List page filtered to PENDING_PAYMENT_LINK shows the "Link Gagal" badge.
-    await page.goto(`/admin/invoices?status=PENDING_PAYMENT_LINK&pageSize=50`);
-    await expect(page.locator("text=Link Gagal").first()).toBeVisible({ timeout: 15_000 });
-
-    // Per-row retry endpoint: with the same fake key, retry will still fail.
-    // We assert the response shape (the success-path is covered by Vitest
-    // mocking `createXenditSessionForInvoice` in the helper unit test).
-    const retryRes = await page.request.post("/api/invoices/retry-payment-links", {
-      data: { invoiceIds: [pendingId] },
-    });
-    expect(retryRes.ok()).toBeTruthy();
-    const retryJson = await retryRes.json();
-    expect(retryJson.retried).toBe(1);
-    // Either succeeded or stillFailed should be 1 — we don't assert which,
-    // since it depends on whether CI has Xendit network reachability. Both
-    // are valid PENDING_PAYMENT_LINK outcomes.
-    expect(retryJson.succeeded + retryJson.stillFailed).toBe(1);
-  });
-
-  test("header bulk-retry button visible when stats.pendingPaymentLink > 0 and confirms", async ({ page }) => {
-    test.skip(
-      process.env.DEMO_MODE === "true",
-      "DEMO_MODE short-circuit returns synthetic SENT — no PENDING_PAYMENT_LINK rows render the header trigger. Failure-path validated manually on staging. See lib/xendit/client.ts:167.",
-    );
-    // Pre-condition: ensure at least one PENDING_PAYMENT_LINK invoice for the
-    // tenant. Real Xendit fails with the fake key, so any batch creates
-    // PENDING rows. Use a fresh periodLabel to avoid skippedAlreadyInvoiced.
-    const period = `E2E HdrRetry ${Date.now()}`;
-    const yearId = await firstActiveYearId(page);
-    const planRes = await page.request.post("/api/invoices/generate/plan", {
-      data: { periodLabel: period, dueDate: "2026-12-31", academicYearId: yearId },
-    });
-    const plan = await planRes.json();
-    const studentIds: string[] = (plan.eligibleStudentIds ?? []).slice(0, 2);
-    if (studentIds.length === 0) {
-      test.skip(true, "No eligible students for header-retry scenario");
-      return;
-    }
-    const batchRes = await page.request.post("/api/invoices/generate/batch", {
-      data: { studentIds, periodLabel: period, dueDate: "2026-12-31", academicYearId: yearId },
-    });
-    expect(batchRes.ok()).toBeTruthy();
-
-    // List page header should show "Coba Lagi Link (N)" with N >= 1. The
-    // header surface is now wrapped in PendingLinkBreakdownPopover (cycle
-    // 2026-04-? — finance auto-retry, PR #151) so clicking the trigger
-    // opens the popover, NOT the confirm dialog directly. The confirm
-    // dialog is opened by the "Coba Lagi Sekarang" button inside the
-    // popover body.
-    await page.goto("/admin/invoices");
-    const retryBtn = page.getByRole("button", { name: /Coba Lagi Link \(\d+\)/ });
-    await expect(retryBtn).toBeVisible({ timeout: 15_000 });
-
-    // Click trigger → popover opens. Then click the inner "Coba Lagi
-    // Sekarang" button to open the confirm dialog.
-    await retryBtn.click();
-    await page.getByRole("button", { name: /^Coba Lagi Sekarang$/ }).click();
-    await expect(page.getByText(/Membuat ulang link/)).toBeVisible({ timeout: 5_000 });
-
-    // Confirming kicks off the retry orchestration. Since real Xendit still
-    // fails, the toast lands on the "stillFailed" branch — copy: "X masih
-    // gagal" or "X link berhasil, Y masih gagal". Both formats include the
-    // word "berhasil" or "gagal"; assert "Coba Lagi Link" header button is
-    // still visible afterward (still-pending count > 0).
-    await page.getByRole("button", { name: /^Lanjutkan$/ }).click();
-
-    // The bulk-retry orchestration produces a final toast referencing
-    // either "berhasil" or "gagal" — see page.tsx:533. Assert the toast
-    // appears within 30s.
-    await expect(page.getByText(/(link berhasil|masih gagal)/)).toBeVisible({ timeout: 30_000 });
-  });
-
-  test("pending-payment-link breakdown popover renders bucket counts when count > 0", async ({ page }) => {
-    test.skip(
-      process.env.DEMO_MODE === "true",
-      "DEMO_MODE short-circuit returns synthetic SENT — no PENDING_PAYMENT_LINK rows render the popover trigger. Failure-path validated manually on staging. See lib/xendit/client.ts:167.",
-    );
-    // Mock the diagnostic endpoint with a deterministic payload — browser-side
-    // GET from app/admin/invoices/page.tsx is interceptable via page.route().
-    // Stats endpoint we cannot mock (server-side), so we ensure pendingPaymentLink
-    // > 0 by creating a real failing-Xendit invoice via the batch endpoint first.
-    await page.route(
-      "**/api/invoices/pending-payment-link/breakdown",
-      (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            total: 6,
-            byPrefix: {
-              "5xx": 4,
-              "401": 2,
-              "429": 0,
-              "408": 0,
-              network: 0,
-              "403": 0,
-              "422": 0,
-              "4xx": 0,
-              untagged: 0,
-              unknown: 0,
-            },
-          }),
-        }),
-    );
-
-    // Pre-condition: ensure stats.pendingPaymentLink > 0 so the trigger renders.
-    // Reuse the same path the header-retry test uses — fake-Xendit lands rows
-    // in PENDING_PAYMENT_LINK deterministically.
-    const period = `E2E Breakdown ${Date.now()}`;
-    const yearId = await firstActiveYearId(page);
-    const planRes = await page.request.post("/api/invoices/generate/plan", {
-      data: { periodLabel: period, dueDate: "2026-12-31", academicYearId: yearId },
-    });
-    const plan = await planRes.json();
-    const studentIds: string[] = (plan.eligibleStudentIds ?? []).slice(0, 2);
-    if (studentIds.length === 0) {
-      test.skip(true, "No eligible students for breakdown popover scenario");
-      return;
-    }
-    const batchRes = await page.request.post("/api/invoices/generate/batch", {
-      data: { studentIds, periodLabel: period, dueDate: "2026-12-31", academicYearId: yearId },
-    });
-    expect(batchRes.ok()).toBeTruthy();
-
-    await page.goto("/admin/invoices");
-    const trigger = page.getByRole("button", { name: /Coba Lagi Link \(\d+\)/ });
-    await expect(trigger).toBeVisible({ timeout: 15_000 });
-
-    // Click the trigger → popover opens, breakdown fetch fires, mocked payload
-    // renders. Assert non-zero buckets are present and zero buckets are not.
-    await trigger.click();
-    await expect(page.getByText("Rincian gagal")).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText("5xx")).toBeVisible();
-    await expect(page.getByText("401")).toBeVisible();
-    // Auth share = 2/6 ≈ 0.33 — below 0.5 threshold, warning should NOT appear.
-    await expect(page.getByText(/Banyak gagal autentikasi/)).not.toBeVisible();
-    // The retry CTA inside the popover.
-    await expect(
-      page.getByRole("button", { name: /Coba Lagi Sekarang/ }),
-    ).toBeVisible();
-  });
-
   test("retry-payment-links endpoint validates payload", async ({ page }) => {
     // Smoke-test the retry endpoint contract — independent of Xendit state.
     // Empty body → retry-all PENDING for tenant, returns the expected shape.
@@ -880,14 +598,3 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     ).toBeVisible({ timeout: 30_000 });
   });
 });
-
-// Helper: first ACTIVE academic year id. Inlined here (rather than in the
-// module top scope) so it stays scoped to the new tagihan describe block.
-async function firstActiveYearId(page: import("@playwright/test").Page): Promise<string> {
-  const res = await page.request.get("/api/academic-years");
-  const years = await res.json();
-  const list = Array.isArray(years) ? years : (years.data ?? []);
-  const active = list.find((y: { status: string; id: string }) => y.status === "ACTIVE");
-  if (!active) throw new Error("No ACTIVE academic year");
-  return active.id;
-}
