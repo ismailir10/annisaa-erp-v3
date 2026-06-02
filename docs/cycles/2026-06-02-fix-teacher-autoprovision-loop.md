@@ -91,9 +91,20 @@ Non-goals / assumptions:
   authoritative gate; it runs on this PR.** Initial run also hit a stale
   `next-server` squatting on :3000 (reuseExistingServer=true locally) — killed
   it and re-ran against the correct build before recording the above.
-- Live teacher-OAuth re-verify happens in preview-verify against a fresh
-  Employee with no pre-existing User (auto-create path) + a divergent-email
-  Employee+User (reconcile path).
+- **Preview-verify iteration 1 (clean)** — PR #315 preview
+  `annisaa-erp-v3-git-feat-fix-te-176e70-...vercel.app` (commit d293bf5d), Chrome
+  MCP, real Google sign-in as `ismail10rabbanii@gmail.com`:
+  - Repro set on the shared staging DB: Employee.email = auth email,
+    linked User.email = `guru02@example.test` (divergent) — the exact pre-fix
+    loop condition.
+  - Result: lands on `/teacher` (header "Selamat Sore, Ustadz/Ustadzah Guru
+    Dua"), bottom nav renders, **zero console errors**. Pre-fix this looped
+    `/teacher`→`/`.
+  - DB after: User.email reconciled `guru02@example.test` → `ismail10rabbanii@gmail.com`,
+    `lastLoginAt` set — proving the fix's update branch fired.
+  - **0 blockers, 0 minors.** Fresh-Employee create path is unit-tested +
+    unchanged from prior (already worked for fresh employees); not separately
+    walked live (would need a fresh controllable Google identity).
 
 ## Ship Notes
 
