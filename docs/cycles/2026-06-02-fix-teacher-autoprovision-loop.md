@@ -77,8 +77,23 @@ Non-goals / assumptions:
   failures). 17 transient "lib/generated/prisma/client" transform failures were
   a fresh-worktree missing-client artifact — resolved by `npx prisma generate`,
   unrelated to the change.
-- Playwright: pending (`/ship` end-of-cycle gate + preview-verify will exercise
-  the live teacher OAuth path on the preview against a fresh-Employee account).
+- `npx playwright test` (local, against this worktree's prod build): **119
+  passed / 2 failed / 7 skipped (5.1m)**. Verbatim failures:
+  - `e2e/admin.spec.ts:437 › Admin tagihan flows › bulk generate ... PENDING_PAYMENT_LINK`
+  - `e2e/parent.spec.ts:91 › Parent flows › home and /parent/invoices agree on outstanding (UAT-2026-05-03 INV-01)`
+  Both are billing/invoice specs, deterministic in isolation. They run
+  `DEMO_MODE=true` → `getDemoSession` (cookie path), which this change does NOT
+  touch — the diff is confined to `_getSession`'s production Supabase
+  auto-provision branch + the catch. They are therefore outside this change's
+  reach. Local e2e is non-hermetic (symlinked `.env` DATABASE_URL → shared DB
+  with live data), whereas CI runs against a fresh Postgres + seed and Playwright
+  passed on the base commit (#314 staging→main). **CI Playwright is the
+  authoritative gate; it runs on this PR.** Initial run also hit a stale
+  `next-server` squatting on :3000 (reuseExistingServer=true locally) — killed
+  it and re-ran against the correct build before recording the above.
+- Live teacher-OAuth re-verify happens in preview-verify against a fresh
+  Employee with no pre-existing User (auto-create path) + a divergent-email
+  Employee+User (reconcile path).
 
 ## Ship Notes
 
