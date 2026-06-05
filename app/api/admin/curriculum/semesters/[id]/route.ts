@@ -7,6 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { semesterUpdateSchema, parseJakartaYmd } from "@/lib/validations/curriculum";
 import { auditActionForUpdate, CURRICULUM_WRITE_BUDGET, CURRICULUM_WRITE_WINDOW_MS, semesterListSelect } from "../../_helpers";
 import { reconcileSessions } from "@/lib/sessions/reconcile";
+import { demoteOtherActiveSemesters } from "@/lib/curriculum/semester-activate";
 
 export async function GET(
   _req: NextRequest,
@@ -47,7 +48,7 @@ export async function PUT(
 
   const before = await prisma.semester.findFirst({
     where: { id, tenantId: session.tenantId },
-    select: { id: true, number: true, startDate: true, endDate: true, status: true },
+    select: { id: true, number: true, startDate: true, endDate: true, status: true, academicYearId: true },
   });
   if (!before) {
     return NextResponse.json({ error: "Semester tidak ditemukan" }, { status: 404 });
@@ -78,11 +79,16 @@ export async function PUT(
     );
   }
 
-  const updated = await prisma.semester.update({
-    where: { id },
-    data,
-    select: semesterListSelect,
-  });
+  // Activating this semester must demote sibling ACTIVE semesters in the same
+  // year — at most one ACTIVE semester per year (single-active invariant).
+  const tenantId = session.tenantId; // narrow before transaction closure re-widens it
+  const updated =
+    data.status === "ACTIVE"
+      ? await prisma.$transaction(async (tx) => {
+          await demoteOtherActiveSemesters(tx, tenantId, before.academicYearId, id);
+          return tx.semester.update({ where: { id }, data, select: semesterListSelect });
+        })
+      : await prisma.semester.update({ where: { id }, data, select: semesterListSelect });
 
   await recordAudit({
     tenantId: session.tenantId,
