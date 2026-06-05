@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { demoteOtherActiveYears, isAcademicYearStatus } from "@/lib/academic-year/activate";
 
 export const revalidate = 86400; // 24h — academic years rarely change
 
@@ -29,9 +30,22 @@ export async function POST(req: NextRequest) {
   if (!name?.trim() || !startDate || !endDate) {
     return NextResponse.json({ error: "Nama, tanggal mulai, dan tanggal selesai wajib diisi" }, { status: 400 });
   }
+  if (status !== undefined && !isAcademicYearStatus(status)) {
+    return NextResponse.json({ error: "Status tahun ajaran tidak valid" }, { status: 400 });
+  }
 
-  const year = await prisma.academicYear.create({
-    data: { tenantId: session.tenantId, name: name.trim(), startDate, endDate, status: status ?? "PLANNING" },
-  });
+  const tenantId = session.tenantId; // narrow before transaction closure re-widens it
+  const data = { tenantId, name: name.trim(), startDate, endDate, status: status ?? "PLANNING" };
+
+  // If created ACTIVE, demote any existing ACTIVE year first — single-active
+  // invariant (at most one ACTIVE year per tenant). No exceptId: the new row
+  // does not exist yet when the demotion runs.
+  const year =
+    data.status === "ACTIVE"
+      ? await prisma.$transaction(async (tx) => {
+          await demoteOtherActiveYears(tx, tenantId);
+          return tx.academicYear.create({ data });
+        })
+      : await prisma.academicYear.create({ data });
   return NextResponse.json(year, { status: 201 });
 }
