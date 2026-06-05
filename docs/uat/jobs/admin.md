@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-04-18 in cycle `uat-jtbd-enrichment`
+> Last audited: 2026-06-01 in cycle `penilaian-consolidation` (penilaian monitor added; legacy assessment-template surface retired)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -376,10 +376,24 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
 - **Student detail inline edit** (`/admin/students/[id]`) — edit-toggle pattern exists; add JTBD once field coverage is final
 - **Admission → enrolled student conversion** — flow exists but the handoff UX is still evolving
 - **Teacher-portal leave request submission** — teacher-side form not yet shipped (see teacher.md Appendix)
-- **Assessment template authoring** (`/admin/assessment-templates`) — CRUD present; JTBD to add once templates are locked for the upcoming term
+- **Penilaian monitor** (`/admin/penilaian`) — covered by `JTBD-ADMIN-PENILAIAN-01`. The legacy assessment-template authoring surface (`/admin/assessment-templates`, `/admin/assessments`) was retired in the `penilaian-consolidation` cycle (redirects → `/admin/penilaian`); the new IKTP penilaian is authored via Kurikulum (Semester → IKTP) + entered by teachers.
 - **Settings: campuses, roles & permissions, salary components, work hours** — low-frequency configuration; add JTBD only when a cycle touches them
 - **Enrollment move** (move student between class sections mid-term) — edge case, low-frequency
 - **Guardian create & link to student** — covered obliquely by `JTBD-ADMIN-STUDENT-01`; promote to first-class if friction shows up in UAT
+
+### JTBD-ADMIN-PENILAIAN-01 — Monitor walas + sentra penilaian completion
+- **Persona:** Ibu Nur (stands in for Kepala Divisi Pendidikan)
+- **Role:** either (gated by `assessments.read`)
+- **Expected perf:** page load <4s; week/day change → table refresh <2s
+- **Preconditions:** Logged in with `assessments.read`; active academic year set; ≥1 active class section; some `AssessmentEntry` rows for the selected week/day
+- **Steps (user intent, not UI clicks):**
+  1. Open Penilaian → Pemantauan (`/admin/penilaian`)
+  2. Read walas-weekly completion (assessed/enrolled) per class for the current week
+  3. Change the week or sentra-day selector to inspect another period
+  4. Read sentra-daily entries-made counts per center
+- **Done when:** Each active class shows an `N/M dinilai` badge for the resolved week; the 8 sentra cards show entries + distinct-students for the selected day; changing the date re-queries without a full reload.
+- **Why this job matters:** The academic head needs to see which walas/sentra are behind on penilaian during the pilot + before each triwulan raport — without this, gaps surface only at report-compile time.
+- **Known friction (from last UAT):** <filled by /uat reports>
 
 ### Negative-access (deferred until role-split ships)
 

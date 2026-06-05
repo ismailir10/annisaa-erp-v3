@@ -284,17 +284,39 @@ async function _getSession(): Promise<SessionUser | null> {
       });
 
       if (employee) {
-        // Create Teacher user linked to employee
-        user = (await prisma.user.create({
-          data: {
-            tenantId: employee.tenantId,
-            email: authUser.email,
-            role: "TEACHER",
-            name: employee.nama,
-            employeeId: employee.id,
-          },
+        // Reconcile-by-employeeId, do NOT blind-create. If a User row is
+        // already linked to this Employee (seeded, an admin-created invite, or
+        // the Employee email was changed after the User was created), its email
+        // may be stale relative to the verified Google auth email. A blind
+        // `prisma.user.create({ employeeId })` would violate the unique
+        // `User_employeeId_key`; the catch below swallows it, getSession
+        // returns null, and the teacher bounces to login in a silent loop
+        // (pilot audit 2026-06-02). employeeId is @unique, so look the row up,
+        // sync the stale email to the verified auth email, and reuse it —
+        // preserving the existing role (admin intent). Only create when no
+        // User is linked to the Employee yet.
+        const linked = await prisma.user.findUnique({
+          where: { employeeId: employee.id },
           include: { customRole: true },
-        })) as CachedUser;
+        });
+        user = (linked
+          ? linked.email === authUser.email
+            ? linked
+            : await prisma.user.update({
+                where: { id: linked.id },
+                data: { email: authUser.email },
+                include: { customRole: true },
+              })
+          : await prisma.user.create({
+              data: {
+                tenantId: employee.tenantId,
+                email: authUser.email,
+                role: "TEACHER",
+                name: employee.nama,
+                employeeId: employee.id,
+              },
+              include: { customRole: true },
+            })) as CachedUser;
         const derived = derivePermissions(user);
         setCachedEntry(authUser.email, user, derived.permissions, derived.customRoleCode);
         cached = getCachedEntry(authUser.email);
@@ -386,10 +408,16 @@ async function _getSession(): Promise<SessionUser | null> {
       permissions,
       customRoleCode,
     };
-  } catch {
+  } catch (err) {
     // In production, don't fall back to demo mode on auth errors.
     // Return null so the middleware redirects to login.
-    console.error("[AUTH] Session retrieval failed");
+    //
+    // Log the actual error — a bare `console.error("...failed")` with no
+    // detail hid the teacher auto-provision unique-violation loop for an
+    // entire pilot audit (2026-06-02). A swallowed exception here always
+    // surfaces to the user as a silent login bounce, so it MUST be
+    // diagnosable in the server logs.
+    console.error("[AUTH] Session retrieval failed", err);
     return null;
   }
 }
