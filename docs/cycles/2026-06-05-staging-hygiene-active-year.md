@@ -35,7 +35,7 @@ The 2026-06-04 admin+teacher UAT ([report](../uat/reports/2026-06-04-admin-teach
 4. [x] **Unit tests for invariants.** Vitest: `setActiveAcademicYear` demotes sibling years to PLANNING; semester activate demotes in-year siblings to INACTIVE; `pickDefaultYear` date logic (covering / fallback-recent / list[0] / empty). *Accept: tests fail on the pre-fix behavior, pass after.* (depends on 1,2,3.)
 5. [x] **Stop e2e specs polluting staging (DATABASE_URL guard).** **Root cause corrected during build:** the demo-cookie specs only auth against `localhost` (cookie `domain:"localhost"`), so the leak was NOT preview runs — it was local `npx playwright test`: `lib/db.ts` always connects to `process.env.DATABASE_URL` (DEMO_MODE switches only auth, never the DB), and the repo `.env` points at staging Supabase, so every local e2e run wrote `E2E …` rows into staging. Per-spec `afterAll` teardown is also unworkable — there is no hard-delete API (year DELETE soft-archives; no admission delete). Fix: a guard in `playwright.config.ts` that resolves DATABASE_URL (process.env > .env.local > .env) and throws unless the host is local, with `E2E_ALLOW_REMOTE_DB=1` opt-in; pins the validated URL into `webServer.env`. *Accept: `playwright test` against a non-local DATABASE_URL aborts before any spec; CI (ephemeral localhost) runs all 27 specs.* (independent.)
 6. [x] **README ADR + invariant note.** Add a short ADR-table row in README.md recording the single-active-year/semester invariant + Kelas date-bounded default (also satisfies the `commit-msg` hook requiring README on `feat` commits touching `app/**`/`lib/**`). *Accept: README ADR row present; pre-commit/commit-msg pass.* (depends on 1,2,3.)
-7. [ ] **Reseed staging + Ship Notes (ops, hand-off).** Run `npm run reseed:staging` against staging — **manual, needs staging creds + prior Supabase snapshot; CTO does not auto-run it.** Record exact command, snapshot id, and post-reseed active-year/semester counts in Ship Notes. *Accept: staging shows 1 ACTIVE year + 1 ACTIVE current-term semester, no E2E backlog.* (depends on 1,2,5 merged so reseed output stays clean.)
+7. [ ] **Reseed staging + Ship Notes (ops, hand-off).** ⏳ **OPS HAND-OFF — not run by CTO** (destructive, needs prior Supabase snapshot + staging creds). Runbook + command in Ship Notes. *Accept: staging shows 1 ACTIVE year + 1 ACTIVE current-term semester, no E2E backlog.* Run after the PR merges (so code enforcing the invariant is live before reseed).
 
 ## Implementation
 - Subagent plan: tasks 1/2/3/5 are independent (different files) but executed **inline sequentially** in one worktree to avoid write conflicts; each task's unit test folded into its own commit (TDD), superseding the standalone task-4.
@@ -49,5 +49,29 @@ The 2026-06-04 admin+teacher UAT ([report](../uat/reports/2026-06-04-admin-teach
 - Task 3+4 (UI): Kelas date-bounded default year — `app/admin/classes/pick-default-year.ts` (pure `pickDefaultYear(years, today)`: covering-ACTIVE → most-recent-ACTIVE → list[0]), wired into `client.tsx` (AcademicYear type gains `startDate/endDate`; replaced `find(status==="ACTIVE")`). Logic-only, **no visual/layout change** — design-system.html not re-consulted (no UI diff). Mirrors the tz convention of `lib/academic-period-db.ts`. superpowers:code-reviewer: Approve, no blockers (the UTC-vs-Jakarta ~7h boundary edge is a pre-existing accepted tradeoff shared with the canonical resolver). 6 tests in `__tests__/pick-default-year.test.ts`; gates green, `npx vitest run` 1900 passed.
 
 - Task 6: README ADR row (2026-06-05) recording the single-active invariant + Kelas date-default + e2e DB guard (Decision 352 / Why 281 chars, both < 400). Docs-only.
+- End-of-cycle gate: `npm run build` (compiled + typecheck) green; `npx vitest run` 1900 passed | 42 todo. **Playwright (local) intentionally skipped** — the new `playwright.config` guard correctly refuses the staging `.env` and there is no local Postgres in this worktree; the required CI `Playwright E2E` job (ephemeral localhost) validates all 27 specs on the PR.
 
 ## Ship Notes
+
+**Migrations:** none. Reuses existing `AcademicYear.status` (`PLANNING|ACTIVE|ARCHIVED`) and `Semester.status` (`ACTIVE|INACTIVE`) — no schema change.
+
+**Env vars:** none required. New optional `E2E_ALLOW_REMOTE_DB=1` is a *local-only* opt-in to run e2e against a non-local DB — never set it in CI or prod.
+
+**Behavioral note:** the single-active invariant is enforced **going forward** (on the next create/activate per year and per year-semester). Pre-existing multi-active rows are **not** auto-healed; the reseed below clears the staging backlog, and in any tenant the next activate collapses siblings.
+
+**Manual step — reseed staging (Task 7, DESTRUCTIVE, ops hand-off):**
+1. Take a manual Supabase **snapshot** of the staging project via the dashboard first (only rollback for the data wipe).
+2. Run **after this PR merges** (so the invariant-enforcing code is live), with staging creds:
+   ```
+   STAGING_CONFIRM=yes \
+   STAGING_SUPABASE_REF=<staging-ref> \
+   NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co \
+   DATABASE_URL=<staging-postgres-url> \
+   SUPABASE_SERVICE_ROLE_KEY=<...> \
+   XENDIT_SECRET_KEY=xnd_development_<...> \
+   npm run reseed:staging
+   ```
+   (Script refuses to run if any env var is missing, the ref looks like prod, the URL host mismatches the ref, or the Xendit key is not a sandbox key — see `scripts/reseed-staging.ts`.)
+3. Verify post-reseed: exactly **1 ACTIVE `AcademicYear`** + **1 ACTIVE current-term `Semester`**, and no `E2E …` / `Rate Limit Test` / `E2E Combobox` rows in admissions/years/semesters/classes/invoices. Record the snapshot id + counts back here.
+
+**Rollback:** revert commits `4b3c4994..ebb946f5` (code is additive, no data migration to undo). The reseed is the only irreversible op — covered by the pre-reseed snapshot.
