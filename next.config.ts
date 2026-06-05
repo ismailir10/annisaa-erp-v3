@@ -27,8 +27,31 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
-        source: "/admin/assessments/templates",
-        destination: "/admin/assessment-templates",
+        // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
+        // admin surfaces retired → single new monitor at /admin/penilaian.
+        source: "/admin/assessments",
+        destination: "/admin/penilaian",
+        permanent: true,
+      },
+      {
+        source: "/admin/assessments/:path*",
+        destination: "/admin/penilaian",
+        permanent: true,
+      },
+      {
+        source: "/admin/assessment-templates",
+        destination: "/admin/penilaian",
+        permanent: true,
+      },
+      {
+        source: "/admin/assessment-templates/:path*",
+        destination: "/admin/penilaian",
+        permanent: true,
+      },
+      {
+        // Legacy teacher template-scoring route retired → back to the hub.
+        source: "/teacher/assessments/:classSectionId/:templateId/:period",
+        destination: "/teacher/assessments",
         permanent: true,
       },
       {

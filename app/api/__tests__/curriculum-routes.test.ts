@@ -10,6 +10,7 @@ const semesterFindFirst = vi.fn();
 const semesterCount = vi.fn();
 const semesterCreate = vi.fn();
 const semesterUpdate = vi.fn();
+const semesterUpdateMany = vi.fn();
 
 const themeFindMany = vi.fn();
 const themeFindFirst = vi.fn();
@@ -64,7 +65,19 @@ vi.mock("@/lib/db", () => ({
       count: semesterCount,
       create: semesterCreate,
       update: semesterUpdate,
+      updateMany: semesterUpdateMany,
     },
+    // Single-active-semester enforcement runs create/update inside a
+    // transaction alongside a sibling-demote updateMany. Run the callback with
+    // a tx exposing the same semester mocks.
+    $transaction: (cb: (tx: unknown) => unknown) =>
+      cb({
+        semester: {
+          create: semesterCreate,
+          update: semesterUpdate,
+          updateMany: semesterUpdateMany,
+        },
+      }),
     theme: {
       findMany: themeFindMany,
       findFirst: themeFindFirst,
@@ -159,6 +172,7 @@ beforeEach(() => {
   // not leak into the next case.
   semesterFindMany.mockResolvedValue([]);
   semesterCount.mockResolvedValue(0);
+  semesterUpdateMany.mockResolvedValue({ count: 0 });
   classSectionFindMany.mockResolvedValue([]);
   reconcileSessions.mockResolvedValue({
     classSectionId: "cs",

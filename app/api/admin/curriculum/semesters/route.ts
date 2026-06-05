@@ -7,6 +7,7 @@ import { validateBody } from "@/lib/api/validate";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { semesterCreateSchema, parseJakartaYmd } from "@/lib/validations/curriculum";
+import { demoteOtherActiveSemesters } from "@/lib/curriculum/semester-activate";
 import {
   CURRICULUM_WRITE_BUDGET,
   CURRICULUM_WRITE_WINDOW_MS,
@@ -78,16 +79,23 @@ export async function POST(req: NextRequest) {
   );
   if (parent instanceof NextResponse) return parent;
 
+  // New semesters default to ACTIVE (schema default), so creating one must
+  // demote any existing ACTIVE semester in the same year first — at most one
+  // ACTIVE semester per year (single-active invariant). Atomic.
+  const tenantId = session.tenantId; // narrow before transaction closure re-widens it
   try {
-    const created = await prisma.semester.create({
-      data: {
-        tenantId: session.tenantId,
-        academicYearId: body.academicYearId,
-        number: body.number,
-        startDate: parseJakartaYmd(body.startDate),
-        endDate: parseJakartaYmd(body.endDate),
-      },
-      select: semesterListSelect,
+    const created = await prisma.$transaction(async (tx) => {
+      await demoteOtherActiveSemesters(tx, tenantId, body.academicYearId);
+      return tx.semester.create({
+        data: {
+          tenantId,
+          academicYearId: body.academicYearId,
+          number: body.number,
+          startDate: parseJakartaYmd(body.startDate),
+          endDate: parseJakartaYmd(body.endDate),
+        },
+        select: semesterListSelect,
+      });
     });
     await recordAudit({
       tenantId: session.tenantId,

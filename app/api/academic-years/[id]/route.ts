@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { demoteOtherActiveYears, isAcademicYearStatus } from "@/lib/academic-year/activate";
 
 // Shared archive guard: block transition-to-ARCHIVED (whether via PUT
 // status update or DELETE soft-delete) if any class section under the
@@ -32,20 +33,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const body = await req.json();
 
+  if (body.status !== undefined && !isAcademicYearStatus(body.status)) {
+    return NextResponse.json({ error: "Status tahun ajaran tidak valid" }, { status: 400 });
+  }
+
   if (body.status === "ARCHIVED") {
     const blocker = await getActiveEnrollmentBlocker(id);
     if (blocker) return blocker;
   }
 
-  const year = await prisma.academicYear.update({
-    where: { id },
-    data: {
-      name: body.name?.trim(),
-      startDate: body.startDate,
-      endDate: body.endDate,
-      status: body.status,
-    },
-  });
+  const data = {
+    name: body.name?.trim(),
+    startDate: body.startDate,
+    endDate: body.endDate,
+    status: body.status,
+  };
+
+  // Capture the narrowed tenantId — inside the transaction closure below TS
+  // re-widens `session.tenantId` back to `string | null`.
+  const tenantId = session.tenantId;
+
+  // Activating this year must demote every other ACTIVE year for the tenant —
+  // at most one ACTIVE year per tenant (single-active invariant). Atomic so a
+  // failed update never leaves zero or two active years.
+  const year =
+    body.status === "ACTIVE"
+      ? await prisma.$transaction(async (tx) => {
+          await demoteOtherActiveYears(tx, tenantId, id);
+          return tx.academicYear.update({ where: { id }, data });
+        })
+      : await prisma.academicYear.update({ where: { id }, data });
   return NextResponse.json(year);
 }
 
