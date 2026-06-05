@@ -54,6 +54,8 @@ The 2026-06-04 admin+teacher UAT ([report](../uat/reports/2026-06-04-admin-teach
 
 - `/ship` preflight `/audit-docs` (A-scope): all checks **ok** — routes 164=164, portal pages 40/14/8 match, components/ui 69=69, e2e specs 27=27, all 10 standards files present. Zero `fail`. Playwright **not run locally** — the Task-5 guard refuses the staging `.env` and no local Postgres is available (no docker); the PR's required CI `Playwright E2E` job (ephemeral localhost) is the Playwright gate before merge.
 
+- Preview-verify converged iteration 1 (clean) — PR #318 preview `annisaa-erp-v3-git-feat-stagin-963d3d…vercel.app` (staging DB, still polluted pre-reseed), admin Google session. **Flow 1 — `/admin/classes` (the headline fix):** now defaults to **`2025/2026 · Aktif`** (date-covering) and renders the 6 real classes — on the *exact* polluted DB where pre-fix it defaulted to an E2E 2030 year and showed "Tidak ada data". `GET /api/admin/classes?yearId=cmpasbfsg…&status=ACTIVE` 200, all reference APIs 200, no console errors. **Flow 2 — `/admin/academic-years`:** renders clean (programs + year list + activate menus), APIs 200, no console errors. **0 blockers, 1 minor** (pre-existing report-only `POST /api/csp-report → 204`, same as UAT 2026-06-04, not introduced by this cycle). 0 fix commits.
+
 ## Ship Notes
 
 **Migrations:** none. Reuses existing `AcademicYear.status` (`PLANNING|ACTIVE|ARCHIVED`) and `Semester.status` (`ACTIVE|INACTIVE`) — no schema change.
