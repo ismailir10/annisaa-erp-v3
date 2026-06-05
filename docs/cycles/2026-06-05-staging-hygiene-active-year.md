@@ -56,6 +56,8 @@ The 2026-06-04 admin+teacher UAT ([report](../uat/reports/2026-06-04-admin-teach
 
 - Preview-verify converged iteration 1 (clean) — PR #318 preview `annisaa-erp-v3-git-feat-stagin-963d3d…vercel.app` (staging DB, still polluted pre-reseed), admin Google session. **Flow 1 — `/admin/classes` (the headline fix):** now defaults to **`2025/2026 · Aktif`** (date-covering) and renders the 6 real classes — on the *exact* polluted DB where pre-fix it defaulted to an E2E 2030 year and showed "Tidak ada data". `GET /api/admin/classes?yearId=cmpasbfsg…&status=ACTIVE` 200, all reference APIs 200, no console errors. **Flow 2 — `/admin/academic-years`:** renders clean (programs + year list + activate menus), APIs 200, no console errors. **0 blockers, 1 minor** (pre-existing report-only `POST /api/csp-report → 204`, same as UAT 2026-06-04, not introduced by this cycle). 0 fix commits.
 
+- CI fix (Playwright E2E): the new single-active-year invariant broke 5 `teacher-assessments-weekly` specs on the shared serial CI DB — `curriculum-promes-import.spec.ts` creates an `ACTIVE` 2030 year (required: `ensureActiveParent` needs the parent year ACTIVE to create its semester), which now **demoted the seeded 2025/2026 ACTIVE year**, so the later walas weekly specs found no active current year. Fix: that spec now captures the prior-active year in `beforeAll` and re-activates it in `afterAll`, leaving the shared DB seed-consistent. tsc clean. (Pre-change this passed only because multiple ACTIVE years were silently allowed — the failure is the invariant correctly surfacing un-isolated E2E state.)
+
 ## Ship Notes
 
 **Migrations:** none. Reuses existing `AcademicYear.status` (`PLANNING|ACTIVE|ARCHIVED`) and `Semester.status` (`ACTIVE|INACTIVE`) — no schema change.
