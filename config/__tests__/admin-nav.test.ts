@@ -83,9 +83,11 @@ describe("adminNav IA — ordering + grouping", () => {
     ]);
   });
 
-  it("assessment group has Template Penilaian first, then Penilaian Siswa", () => {
-    const labels = adminNav.groups.find((g) => g.id === "assessment")!.items.map((i) => i.label);
-    expect(labels).toEqual(["Template Penilaian", "Penilaian Siswa"]);
+  it("assessment group holds the single consolidated penilaian monitor", () => {
+    const group = adminNav.groups.find((g) => g.id === "assessment")!;
+    expect(group.items.map((i) => i.label)).toEqual(["Pemantauan"]);
+    expect(group.items[0].href).toBe("/admin/penilaian");
+    expect(group.items[0].permission).toBe("assessments.read");
   });
 
   it("classroom group holds the daily teacher ops items", () => {
@@ -169,27 +171,18 @@ describe("getBreadcrumbs", () => {
     ]);
   });
 
-  it("returns 2-level trail for assessment-templates exact path", () => {
-    expect(getBreadcrumbs("/admin/assessment-templates")).toEqual([
+  it("returns 2-level trail for the consolidated penilaian monitor", () => {
+    expect(getBreadcrumbs("/admin/penilaian")).toEqual([
       { label: "Penilaian" },
-      { label: "Template Penilaian" },
+      { label: "Pemantauan" },
     ]);
   });
 
-  it("renders assessment template detail trail (now flat path)", () => {
-    expect(getBreadcrumbs("/admin/assessment-templates/tmpl1")).toEqual([
-      { label: "Penilaian" },
-      { label: "Template Penilaian", href: "/admin/assessment-templates" },
-      { label: "Detail" },
-    ]);
-  });
-
-  it("renders assessment detail on new path-segment route", () => {
-    expect(getBreadcrumbs("/admin/assessments/abc123")).toEqual([
-      { label: "Penilaian" },
-      { label: "Penilaian Siswa", href: "/admin/assessments" },
-      { label: "Detail" },
-    ]);
+  it("returns no trail for retired legacy assessment paths (server-redirected)", () => {
+    // Penilaian consolidation: these paths no longer exist in the nav; the
+    // server redirects them to /admin/penilaian before a page ever renders.
+    expect(getBreadcrumbs("/admin/assessment-templates")).toEqual([]);
+    expect(getBreadcrumbs("/admin/assessments/abc123")).toEqual([]);
   });
 
   it("renders settings sub-page trail", () => {

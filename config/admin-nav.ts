@@ -90,9 +90,9 @@ export const adminNav: NavConfig = {
       id: "assessment",
       label: "Penilaian",
       icon: ClipboardList,
+      permission: "assessments.read",
       items: [
-        { label: "Template Penilaian", href: "/admin/assessment-templates", icon: ClipboardList },
-        { label: "Penilaian Siswa", href: "/admin/assessments", icon: ClipboardCheck },
+        { label: "Pemantauan", href: "/admin/penilaian", icon: ClipboardCheck, permission: "assessments.read" },
       ],
     },
     {
