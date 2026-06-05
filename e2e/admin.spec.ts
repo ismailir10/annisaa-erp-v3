@@ -83,10 +83,12 @@ test.describe("Admin flows", () => {
     await expect(page.getByRole("dialog").getByRole("heading", { name: "Tambah Karyawan" })).toBeVisible({ timeout: 15_000 });
   });
 
-  test("legacy nested assessments/templates URL redirects to flat path", async ({ page }) => {
+  test("legacy assessment URLs redirect to the consolidated penilaian monitor", async ({ page }) => {
+    // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
+    // admin surfaces retired → all redirect to /admin/penilaian.
     await page.goto("/admin/assessments/templates");
-    await expect(page).toHaveURL("/admin/assessment-templates");
-    await expect(page.getByRole("heading", { name: /Template Penilaian/i })).toBeVisible();
+    await expect(page).toHaveURL("/admin/penilaian");
+    await expect(page.getByRole("heading", { name: "Penilaian" })).toBeVisible();
   });
 
   test("program deactivate sets status INACTIVE and hides from Aktif filter", async ({ page }) => {
