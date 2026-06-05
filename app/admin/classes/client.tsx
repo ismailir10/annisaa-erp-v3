@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { pickDefaultYear } from "./pick-default-year";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -54,6 +55,8 @@ type AcademicYear = {
   id: string;
   name: string;
   status: "PLANNING" | "ACTIVE" | "ARCHIVED";
+  startDate: string;
+  endDate: string;
 };
 
 type StatusFilter = "ACTIVE" | "INACTIVE" | "all";
@@ -122,9 +125,8 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       const list: AcademicYear[] = Array.isArray(j) ? j : j?.data ?? [];
       setYears(list);
       if (!yearId) {
-        const active = list.find((y) => y.status === "ACTIVE");
-        if (active) setYearId(active.id);
-        else if (list[0]) setYearId(list[0].id);
+        const def = pickDefaultYear(list, new Date());
+        if (def) setYearId(def.id);
       }
     }
   }
