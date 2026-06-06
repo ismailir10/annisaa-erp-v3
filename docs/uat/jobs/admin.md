@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-06-01 in cycle `penilaian-consolidation` (penilaian monitor added; legacy assessment-template surface retired)
+> Last audited: 2026-06-06 in cycle `admin-raport-mvp` (admin raport surface added — auto-draft from penilaian, override, publish, PDF)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -393,6 +393,21 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
   4. Read sentra-daily entries-made counts per center
 - **Done when:** Each active class shows an `N/M dinilai` badge for the resolved week; the 8 sentra cards show entries + distinct-students for the selected day; changing the date re-queries without a full reload.
 - **Why this job matters:** The academic head needs to see which walas/sentra are behind on penilaian during the pilot + before each triwulan raport — without this, gaps surface only at report-compile time.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-RAPORT-01 — Draft, override & publish a student's triwulan raport
+- **Persona:** Ibu Nur (stands in for Kepala Divisi Pendidikan)
+- **Role:** either (gated by `reportCard.read`/`write`/`publish`)
+- **Expected perf:** page load <4s; open a student's raport (auto-draft) <3s
+- **Preconditions:** Logged in with `reportCard.*`; active semester set; ≥1 Term (triwulan) created; ≥1 class with active students; some `AssessmentEntry` rows in the term window
+- **Steps (user intent, not UI clicks):**
+  1. Open Penilaian → Raport (`/admin/raport`); if no triwulan exists, create one (semester + number + dates)
+  2. Pick a triwulan + class → read the roster with per-student status (Belum dibuat / Draft / Terbit)
+  3. Open a student → see narrative sections pre-filled with a suggested level (from penilaian) + the "saran penilaian" count hint, and attendance auto-pulled
+  4. Override a level / edit a narrative / adjust attendance; Simpan
+  5. Simpan & Terbitkan; then Unduh PDF
+- **Done when:** A new student opens with suggested levels + attendance (not blank); edits persist on save (status → Draft); publishing flips status → Terbit; the PDF downloads with the saved sections, attendance, hafalan, and signature lines.
+- **Why this job matters:** Raport compile was ~640 hand-assembled docx/year. The admin surface turns penilaian already in the system into a draft the academic head reviews + overrides, instead of re-typing from paper.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ### Negative-access (deferred until role-split ships)
