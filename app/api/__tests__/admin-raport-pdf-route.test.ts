@@ -78,6 +78,6 @@ describe("GET /api/admin/raport/[studentId]/[termId]/pdf", () => {
     expect(props.className).toBe("TK A1");
     // level-bearing section maps level → Indonesian label
     const religious = props.sections.find((s: { label: string }) => s.label.includes("Agama"));
-    expect(religious.level).toBe("Konsisten");
+    expect(religious.level).toBe("Mampu dan Konsisten");
   });
 });

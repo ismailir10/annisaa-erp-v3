@@ -5,9 +5,12 @@
 
 export type RaportLevel = "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT";
 
+// Canonical long-form level labels — match the teacher weekly surface
+// (app/teacher/assessments/weekly/client.tsx LEVEL_FULL_LABEL) so the same
+// child's level reads identically across teacher, admin raport, and PDF.
 export const LEVEL_LABELS: Record<RaportLevel, string> = {
-  CONSISTENT: "Konsisten",
-  EMERGING: "Belum Konsisten",
+  CONSISTENT: "Mampu dan Konsisten",
+  EMERGING: "Mampu Belum Konsisten",
   NEEDS_REINFORCEMENT: "Perlu Penguatan",
 };
 

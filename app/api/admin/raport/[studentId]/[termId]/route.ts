@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { requirePermission } from "@/lib/auth-guards";
 import { validateBody } from "@/lib/api/validate";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -107,6 +108,16 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   const tenantId = session.tenantId;
   const { heightCm, weightKg, ...entryFields } = body;
 
+  // JSON column: distinguish omitted (undefined → skip) from explicit clear
+  // (null → SQL NULL via Prisma.DbNull) so a wired parentMeetingAttendance
+  // can be cleared, not just set. Mirrors the measurement key-presence guard.
+  const pma =
+    entryFields.parentMeetingAttendance === undefined
+      ? undefined
+      : entryFields.parentMeetingAttendance === null
+        ? Prisma.DbNull
+        : entryFields.parentMeetingAttendance;
+
   const saved = await prisma.$transaction(async (tx) => {
     const entry = await tx.reportCardEntry.upsert({
       where: { tenantId_studentId_termId: { tenantId, studentId, termId } },
@@ -121,7 +132,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         sickDays: entryFields.sickDays,
         unexcusedAbsenceDays: entryFields.unexcusedAbsenceDays,
         totalSchoolDays: entryFields.totalSchoolDays,
-        parentMeetingAttendance: entryFields.parentMeetingAttendance ?? undefined,
+        parentMeetingAttendance: pma,
         memorizationNotes: entryFields.memorizationNotes ?? null,
       },
       update: {
@@ -132,7 +143,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         sickDays: entryFields.sickDays,
         unexcusedAbsenceDays: entryFields.unexcusedAbsenceDays,
         totalSchoolDays: entryFields.totalSchoolDays,
-        parentMeetingAttendance: entryFields.parentMeetingAttendance ?? undefined,
+        parentMeetingAttendance: pma,
         memorizationNotes: entryFields.memorizationNotes ?? null,
       },
       select: reportCardEntrySelect,

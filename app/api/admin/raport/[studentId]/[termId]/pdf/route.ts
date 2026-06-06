@@ -92,7 +92,12 @@ export async function GET(
     hafalan: entry.memorizationNotes,
     height: measurement?.heightCm != null ? String(measurement.heightCm) : null,
     weight: measurement?.weightKg != null ? String(measurement.weightKg) : null,
-    generatedDate: new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
+    generatedDate: new Date().toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "Asia/Jakarta",
+    }),
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
