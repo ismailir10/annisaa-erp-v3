@@ -57,22 +57,26 @@ export default function AdminRaportPage() {
   const [showCreate, setShowCreate] = useState(false);
 
   const loadSelectors = useCallback(async () => {
-    try {
-      const [termRes, classRes, semRes] = await Promise.all([
-        fetch("/api/admin/terms"),
-        fetch("/api/admin/classes?pageSize=200"),
-        fetch("/api/admin/curriculum/semesters?status=ACTIVE&pageSize=50"),
-      ]);
-      const termJson = (await termRes.json()) as { data?: Term[] };
-      const classJson = (await classRes.json()) as { data?: ClassRow[] };
-      const semJson = (await semRes.json()) as { data?: Semester[] };
-      setTerms(termJson.data ?? []);
-      setClasses((classJson.data ?? []).filter((c) => c.status === "ACTIVE"));
-      setSemesters(semJson.data ?? []);
-    } catch {
-      setTerms([]);
-      setClasses([]);
+    // Settle each selector independently — one failing fetch (e.g. the raport
+    // tables not yet migrated on a preview DB) must not blank the others.
+    async function fetchData<T>(url: string): Promise<T[]> {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return [];
+        const json = (await res.json()) as { data?: T[] };
+        return json.data ?? [];
+      } catch {
+        return [];
+      }
     }
+    const [termData, classData, semData] = await Promise.all([
+      fetchData<Term>("/api/admin/terms"),
+      fetchData<ClassRow>("/api/admin/classes?pageSize=200"),
+      fetchData<Semester>("/api/admin/curriculum/semesters?status=ACTIVE&pageSize=50"),
+    ]);
+    setTerms(termData);
+    setClasses(classData.filter((c) => c.status === "ACTIVE"));
+    setSemesters(semData);
   }, []);
 
   useEffect(() => {
