@@ -55,6 +55,7 @@ The `/admin/penilaian` surface (cycle 2026-06-01) is a deliberately read-only co
 - Task 1: Raport schema + permissions — `prisma/schema.prisma` (`ReportSection` enum + `Term`, `ReportCardEntry`, `StudentMeasurement` models, all tenant-scoped + soft-delete; back-relations on `Tenant`/`Student`/`Semester`), `prisma/migrations/20260606000000_add_raport_models/migration.sql` (additive: CREATE TYPE/TABLE/INDEX/FK + RLS service_role policy per table, generated offline via `migrate diff` schema→schema, no live-DB touch), `lib/permissions.ts` (`reportCard` group read/write/publish → SUPER_ADMIN escape-hatch + SCHOOL_ADMIN explicit list), `lib/__tests__/permissions.test.ts` (reportCard grant/deny), `README.md` (reportCard module row). Note: `StudentMeasurement` uses `recordedAt` (semantic creation time of a measurement) instead of `createdAt` — deliberate, not parity-with-siblings.
 
 ## Verification
+- End-of-cycle gate: `npm run build` ✓ BUILD OK + `npx vitest run` **1940 passed / 2 skipped / 42 todo** (198 files). **Playwright blocked by env** (verbatim): `Error: Refusing to run e2e against non-local DATABASE_URL host "aws-1-ap-southeast-1.pooler.supabase.com" … set E2E_ALLOW_REMOTE_DB=1 to override.` — the worktree `.env` points at staging Supabase; DEMO_MODE switches auth, not the DB. Authoritative Playwright = CI (fresh Postgres + seed) + `/ship` preview-verify (real Google session). Browser preview also unavailable locally (`EPERM: uv_cwd`). New spec `e2e/admin-raport.spec.ts` is non-mutating (asserts surface + API 200/400) and runs in CI.
 - Task 6: `/audit-docs` count checks all OK — routes doc=171 actual=171; portal pages claim 41/14/8 = actual 41/14/8; components 69=69; specs doc=28 actual=28. design-system.html cross-check recorded in T4. (Pre-existing: File Structure lists `verify-rls-coverage` which exists as `.sh` — unchanged by this cycle.)
 - Task 5: gates passed — `npm run build` ✓ Compiled successfully (7.1s, pdf route built as `ƒ /api/admin/raport/[studentId]/[termId]/pdf`); `npx vitest run` 1940 passed / 2 skipped / 42 todo (198 files); pdf route tests 3/3.
 - Task 4: gates passed — `npm run build` ✓ Compiled successfully (6.9s, `/admin/raport` built) + typecheck clean (after fixing Button asChild → buttonVariants Link); `npx vitest run` 1937 passed / 2 skipped / 42 todo (incl. updated admin-nav test). design-system.html cross-checked (recorded in T4 Implementation — reused primitives only). **Local browser preview unavailable** — preview dev server fails to start in this sandbox (`EPERM: uv_cwd`); authenticated UI walk deferred to CI Playwright (`e2e/admin-raport.spec.ts`) + `/ship` preview-verify on the Vercel preview (real Google session), per prior-cycle precedent. e2e smoke is non-mutating (no Term seeded → asserts create-form + API 200/400).
@@ -63,4 +64,25 @@ The `/admin/penilaian` surface (cycle 2026-06-01) is a deliberately read-only co
 - Task 1: gates passed — `npm run build` ✓ Compiled successfully; `npx vitest run` 1905 passed / 2 skipped / 42 todo (195 files); `npx prisma validate` clean; `scripts/verify-rls-coverage.sh` → 37/37 tenant-scoped models have ENABLE + policy (incl. the 3 new raport tables). Reviews: `superpowers:code-reviewer` (security) **PASS, no blockers** — RLS ✓, tenant-scoped uniques ✓, no over-grant (matches design §3.2), additive-only migration ✓; one non-security nit (StudentMeasurement createdAt parity) deliberately declined. `feature-dev:code-reviewer` unavailable (pinned to inaccessible glm-5, as in prior cycles).
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Migrations:** ONE new additive migration `prisma/migrations/20260606000000_add_raport_models/` — creates `ReportSection` enum + `Term`, `ReportCardEntry`, `StudentMeasurement` tables (+ indexes, FKs, service_role RLS). No destructive ALTER/DROP, no backfill. CI/Vercel runs `prisma migrate deploy` on a fresh DB; on prod/staging it applies cleanly (pilot DB near-empty). Rollback = revert commits + drop the 3 tables + enum (no data to preserve).
+
+**Env vars:** none new. PDF uses the existing `@react-pdf/renderer` dep + `NEXT_PUBLIC_APP_URL` (already set).
+
+**Permissions:** new `reportCard.read`/`reportCard.write`/`reportCard.publish` granted to SUPER_ADMIN (escape hatch) + SCHOOL_ADMIN. **System-role seeding:** if existing custom/system roles are persisted in DB with a frozen permission array, they will NOT auto-gain `reportCard.*` — SUPER_ADMIN works via the escape hatch regardless; SCHOOL_ADMIN via its code-derived defaults. Re-seed/refresh role permission arrays if a tenant relies on persisted custom roles.
+
+**Behavior changes users will notice:**
+- Admin sidebar "Penilaian" group gains a **"Raport"** item → `/admin/raport` (triwulan report card: pick triwulan + class → per-student raport auto-drafted from penilaian, override any field, Simpan / Simpan & Terbitkan / Unduh PDF). The penilaian monitor header gains a "Susun Raport" cross-link.
+- First use requires creating a **Triwulan (Term)** on `/admin/raport` (semester + number 1|2 + start/end dates) — defines the penilaian + attendance aggregation window.
+
+**Preview-verify focus (for `/ship`, signed-in Google session):**
+1. Penilaian → Raport loads; create a Triwulan against the active semester.
+2. Pick triwulan + class → roster shows students with status badges.
+3. Open a student → narrative sections pre-filled with suggested levels + "saran penilaian" hint; attendance auto-pulled. Override a level, edit a narrative, Simpan (status → Draft).
+4. Simpan & Terbitkan (status → Terbit); Unduh PDF → opens a report card PDF.
+5. Confirm `/admin/penilaian` "Susun Raport" link lands on `/admin/raport`.
+Note: this MVP **writes data** (Term + ReportCardEntry) — preview-verify on the Vercel preview DB is fine; avoid running mutating flows against prod.
+
+**Deferred to later cycles (non-goals this cycle):** kisi-kisi narrative templates, teacher/walas authoring workflow, parent download/comment/e-sign, docx output, hafalan structured tracking, `homeroomTeacherId` FK.
+
+**Rollback:** revert the cycle commits; drop the 3 new tables + `ReportSection` enum. No existing data touched.
