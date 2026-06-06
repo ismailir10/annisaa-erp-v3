@@ -83,11 +83,13 @@ describe("adminNav IA — ordering + grouping", () => {
     ]);
   });
 
-  it("assessment group holds the single consolidated penilaian monitor", () => {
+  it("assessment group holds the penilaian monitor + raport", () => {
     const group = adminNav.groups.find((g) => g.id === "assessment")!;
-    expect(group.items.map((i) => i.label)).toEqual(["Pemantauan"]);
+    expect(group.items.map((i) => i.label)).toEqual(["Pemantauan", "Raport"]);
     expect(group.items[0].href).toBe("/admin/penilaian");
     expect(group.items[0].permission).toBe("assessments.read");
+    expect(group.items[1].href).toBe("/admin/raport");
+    expect(group.items[1].permission).toBe("reportCard.read");
   });
 
   it("classroom group holds the daily teacher ops items", () => {

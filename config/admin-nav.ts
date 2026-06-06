@@ -17,6 +17,7 @@ import {
   BookMarked,
   ClipboardList,
   ClipboardCheck,
+  FileText,
   NotebookPen,
   Palette,
   School,
@@ -93,6 +94,7 @@ export const adminNav: NavConfig = {
       permission: "assessments.read",
       items: [
         { label: "Pemantauan", href: "/admin/penilaian", icon: ClipboardCheck, permission: "assessments.read" },
+        { label: "Raport", href: "/admin/raport", icon: FileText, permission: "reportCard.read" },
       ],
     },
     {
