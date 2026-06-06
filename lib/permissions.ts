@@ -76,6 +76,14 @@ export const PERMISSION_GROUPS = {
       "assessments.void": "Override penilaian siswa (admin Category-C)",
     },
   },
+  reportCard: {
+    label: "Raport",
+    permissions: {
+      "reportCard.read": "Lihat raport triwulan",
+      "reportCard.write": "Kelola raport triwulan (buat / ubah / override)",
+      "reportCard.publish": "Terbitkan / tarik raport triwulan",
+    },
+  },
 } as const;
 
 // Flatten all permission codes
@@ -148,6 +156,12 @@ export function getSystemRolePermissions(role: string): string[] {
         // (Category-C event-log). Writing fresh entries stays teacher-only.
         "assessments.read",
         "assessments.void",
+        // Raport — SCHOOL_ADMIN owns the admin-driven raport MVP: read,
+        // author/override, and publish triwulan report cards. Matches the
+        // master design §3.2 reportCard.publish row (SUPER_ADMIN + SCHOOL_ADMIN).
+        "reportCard.read",
+        "reportCard.write",
+        "reportCard.publish",
       ];
     case "TEACHER":
       // Self-service permissions: a TEACHER can see their own attendance

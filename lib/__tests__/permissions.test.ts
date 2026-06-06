@@ -238,3 +238,36 @@ describe("curriculum permissions (C1/T2)", () => {
     ).toBe(false);
   });
 });
+
+describe("reportCard permissions (C8 admin-raport-mvp)", () => {
+  it("ALL_PERMISSIONS includes reportCard.read/write/publish", () => {
+    expect(ALL_PERMISSIONS).toContain("reportCard.read");
+    expect(ALL_PERMISSIONS).toContain("reportCard.write");
+    expect(ALL_PERMISSIONS).toContain("reportCard.publish");
+  });
+
+  it("SUPER_ADMIN owner escape hatch grants reportCard.publish without explicit listing", () => {
+    expect(
+      hasPermission({ role: "SUPER_ADMIN", permissions: [] }, "reportCard.publish"),
+    ).toBe(true);
+  });
+
+  it("SCHOOL_ADMIN defaults → reportCard.read/write/publish all allowed", () => {
+    const perms = getSystemRolePermissions("SCHOOL_ADMIN");
+    expect(hasPermission({ role: "SCHOOL_ADMIN", permissions: perms }, "reportCard.read")).toBe(true);
+    expect(hasPermission({ role: "SCHOOL_ADMIN", permissions: perms }, "reportCard.write")).toBe(true);
+    expect(hasPermission({ role: "SCHOOL_ADMIN", permissions: perms }, "reportCard.publish")).toBe(true);
+  });
+
+  it("TEACHER defaults → no reportCard.* (admin-driven MVP)", () => {
+    const perms = getSystemRolePermissions("TEACHER");
+    expect(hasPermission({ role: "TEACHER", permissions: perms }, "reportCard.read")).toBe(false);
+    expect(hasPermission({ role: "TEACHER", permissions: perms }, "reportCard.write")).toBe(false);
+    expect(hasPermission({ role: "TEACHER", permissions: perms }, "reportCard.publish")).toBe(false);
+  });
+
+  it("GUARDIAN defaults → no reportCard.* (parent surface is a later phase)", () => {
+    const perms = getSystemRolePermissions("GUARDIAN");
+    expect(hasPermission({ role: "GUARDIAN", permissions: perms }, "reportCard.read")).toBe(false);
+  });
+});
