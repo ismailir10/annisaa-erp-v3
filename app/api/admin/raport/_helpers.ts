@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requirePermission } from "@/lib/auth-guards";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 
@@ -34,19 +33,18 @@ export async function resolveTerm(
 
 /**
  * Shared publish / unpublish handler. Flips `status` + `publishedAt` on an
- * existing entry. Gated by `reportCard.publish`. The entry must already be
- * saved (publish has nothing to act on otherwise → 404).
+ * existing entry. The caller route gates `reportCard.publish` and passes the
+ * resolved session (kept in the route so the API-auth coverage guard sees the
+ * `requirePermission` call per-file). The entry must already be saved
+ * (publish has nothing to act on otherwise → 404).
  */
 export async function setPublishState(
   req: NextRequest,
-  ctx: { params: Promise<{ studentId: string; termId: string }> },
+  session: { tenantId: string; id: string },
+  studentId: string,
+  termId: string,
   publish: boolean,
 ): Promise<Response> {
-  const auth = await requirePermission("reportCard.publish");
-  if ("error" in auth) return auth.error;
-  const { session } = auth;
-  const { studentId, termId } = await ctx.params;
-
   const { success } = rateLimit(
     `raport-publish:${getClientIp(req)}`,
     RAPORT_WRITE_BUDGET,
