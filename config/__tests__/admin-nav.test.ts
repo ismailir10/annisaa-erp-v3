@@ -37,11 +37,10 @@ describe("getActiveItem — longest-prefix wins", () => {
 describe("adminNav IA — ordering + grouping", () => {
   const groupIds = adminNav.groups.map((g) => g.id);
 
-  it("orders groups: students → academic → curriculum → assessment → classroom → finance → hr", () => {
+  it("orders groups: students → academic → assessment → classroom → finance → hr", () => {
     expect(groupIds).toEqual([
       "students",
       "academic",
-      "curriculum",
       "assessment",
       "classroom",
       "finance",
@@ -49,29 +48,28 @@ describe("adminNav IA — ordering + grouping", () => {
     ]);
   });
 
-  it("academic group is gated by academic.view, label Akademik, lists Tahun Ajaran + Kelas only", () => {
+  it("academic group lists Tahun Ajaran + Kelas + Semester; Semester gated by curriculum.read", () => {
     const group = adminNav.groups.find((g) => g.id === "academic")!;
     expect(group.label).toBe("Akademik");
     expect(group.permission).toBe("academic.view");
     expect(group.items.map((i) => i.label)).toEqual([
       "Tahun Ajaran",
       "Kelas",
+      "Semester",
     ]);
     expect(group.items.map((i) => i.href)).toEqual([
       "/admin/academic-years",
       "/admin/classes",
+      "/admin/semesters",
     ]);
     const kelas = group.items.find((i) => i.label === "Kelas")!;
     expect(kelas.permission).toBe("academic.view");
-  });
-
-  it("curriculum group is gated by curriculum.read and holds content-authoring items only", () => {
-    const group = adminNav.groups.find((g) => g.id === "curriculum")!;
-    expect(group.permission).toBe("curriculum.read");
-    expect(group.items.map((i) => i.label)).toEqual(["Semester"]);
-    expect(group.items.map((i) => i.href)).toEqual(["/admin/semesters"]);
     const semester = group.items.find((i) => i.label === "Semester")!;
     expect(semester.permission).toBe("curriculum.read");
+  });
+
+  it("no standalone Kurikulum group — Semester absorbed into Akademik", () => {
+    expect(adminNav.groups.find((g) => g.id === "curriculum")).toBeUndefined();
   });
 
   it("students group covers the admission → guardian funnel; enrollment lives on /admin/classes", () => {
