@@ -14,7 +14,6 @@ import {
   Shield,
   Heart,
   BookOpen,
-  BookMarked,
   ClipboardList,
   ClipboardCheck,
   FileText,
@@ -76,14 +75,6 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
         { label: "Kelas", href: "/admin/classes", icon: School, permission: "academic.view" },
-      ],
-    },
-    {
-      id: "curriculum",
-      label: "Kurikulum",
-      icon: BookMarked,
-      permission: "curriculum.read",
-      items: [
         { label: "Semester", href: "/admin/semesters", icon: CalendarDays, permission: "curriculum.read" },
       ],
     },
