@@ -274,4 +274,49 @@ test.describe("Admin /admin/classes", () => {
     const j = await res.json();
     expect(j.error).toContain("sourceClassSectionId");
   });
+
+  test("promotions POST executes the capacity lock query (regression: 0A000 FOR UPDATE+GROUP BY)", async ({
+    page,
+  }) => {
+    // Exclude every student so the transaction runs its row-lock capacity
+    // query against real Postgres but mutates nothing (promoted: 0). The
+    // original query combined FOR UPDATE with GROUP BY, which Postgres
+    // rejects (0A000) — every POST failed until the 2026-06-12 fix. A
+    // mocked unit test cannot catch this class of bug; this can.
+    const sectionsRes = await page.request.get("/api/class-sections");
+    if (!sectionsRes.ok()) {
+      test.skip(true, "class-sections endpoint unavailable in demo seed");
+      return;
+    }
+    const sectionsJson = await sectionsRes.json();
+    const sections = Array.isArray(sectionsJson)
+      ? sectionsJson
+      : sectionsJson.data ?? [];
+    if (sections.length < 2) {
+      test.skip(true, "need ≥2 class sections in seed");
+      return;
+    }
+    const [source, target] = sections;
+
+    const roster = await page.request.get(
+      `/api/promotions?sourceClassSectionId=${source.id}`,
+    );
+    expect(roster.status()).toBe(200);
+    const rosterJson = await roster.json();
+    const excludeStudentIds = rosterJson.students.map(
+      (s: { id: string }) => s.id,
+    );
+
+    const res = await page.request.post("/api/promotions", {
+      data: {
+        sourceClassSectionId: source.id,
+        targetClassSectionId: target.id,
+        excludeStudentIds,
+      },
+    });
+    const j = await res.json();
+    expect(res.status(), JSON.stringify(j)).toBe(200);
+    expect(j.promoted).toBe(0);
+    expect(j.skipped).toBe(excludeStudentIds.length);
+  });
 });
