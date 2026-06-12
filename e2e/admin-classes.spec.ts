@@ -244,4 +244,34 @@ test.describe("Admin /admin/classes", () => {
     await expect(page.locator("text=Identitas Kelas")).toHaveCount(0);
     await expect(page.locator("text=Guru Pengajar")).toHaveCount(0);
   });
+
+  test("Naik Kelas Massal dialog opens with year/class selectors and roster placeholder", async ({
+    page,
+  }) => {
+    await page.goto("/admin/classes");
+    await page.waitForURL("**/admin/classes");
+    const trigger = page.getByRole("button", { name: "Naik Kelas Massal" });
+    await expect(trigger).toBeVisible({ timeout: 10_000 });
+    await trigger.click();
+
+    await expect(
+      page.getByRole("heading", { name: "Naik Kelas Massal" }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Tahun Ajaran Asal")).toBeVisible();
+    await expect(page.getByText("Kelas Tujuan")).toBeVisible();
+    // No source class chosen yet → placeholder copy, submit disabled
+    await expect(
+      page.getByText("Pilih kelas asal untuk melihat daftar siswa."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Naik Kelas \(0 siswa\)/ }),
+    ).toBeDisabled();
+  });
+
+  test("promotions API rejects a missing source class", async ({ page }) => {
+    const res = await page.request.get("/api/promotions");
+    expect(res.status()).toBe(400);
+    const j = await res.json();
+    expect(j.error).toContain("sourceClassSectionId");
+  });
 });
