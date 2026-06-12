@@ -62,6 +62,21 @@ Assumptions:
 - End-of-cycle gate: `npm run build` ✓ + `npx vitest run` **1970 passed | 42 todo (2012)**. **Playwright (local) blocked by env** (verbatim): `Error: Refusing to run e2e against non-local DATABASE_URL host "aws-1-ap-southeast-1.pooler.supabase.com" … set E2E_ALLOW_REMOTE_DB=1 to override.` — worktree `.env` points at staging Supabase; same constraint + resolution as cycles 2026-06-05/2026-06-06: authoritative Playwright = required CI `Playwright E2E` job (ephemeral localhost Postgres + seed) on the PR, plus `/ship` preview-verify with the real Google session. New specs are non-mutating (assert surface + API 200/400 contracts).
 - Browser preview unavailable locally (`EPERM: uv_cwd` from the preview harness on every launch config, including stock `next-dev`) — interactive smoke deferred to `/ship` preview-verify.
 
+### /audit-docs report — 2026-06-12
+
+| Check | Status | Detail |
+|---|---|---|
+| Route count (README/CLAUDE) | ok | claimed=173 actual=173 |
+| Portal page counts (CLAUDE) | ok | claimed=41/14/8 actual=41/14/8 |
+| Component count | ok | claimed=69 actual=69 |
+| E2E spec count | ok | claimed=29 actual=29 |
+| Standards-table files | ok | all present |
+| ADR archive cutoff (60d) | ok | no full-date rows older than 2026-04-13 (legacy `2026-04`/`2025-04` partial-date rows predate the format, unchanged from prior audits) |
+| File Structure paths | ok | all present |
+| Workflow refs | ok | ship↔spec/build + CLAUDE↔audit-docs intact |
+
+**Summary:** 8 ok, 0 warn, 0 fail
+
 ## Ship Notes
 
 - **No migrations, no new env vars, no schema changes.** Both features read/write existing tables through existing or new read-only routes.
