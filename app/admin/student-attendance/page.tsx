@@ -25,9 +25,17 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import {
+  AdminTabs,
+  AdminTabsList,
+  AdminTabsTrigger,
+  AdminTabsContent,
+} from "@/components/admin/admin-tabs";
 import {
   CalendarCheck,
   CalendarX,
+  Download,
   Heart,
   Info,
   Pencil,
@@ -47,6 +55,20 @@ type AttendanceRecord = {
 type ClassSection = { id: string; name: string };
 
 type Pagination = { page: number; pageSize: number; total: number; totalPages: number };
+
+type RecapRow = {
+  studentId: string;
+  name: string;
+  nickname: string | null;
+  nis: string | null;
+  classSectionId: string;
+  className: string;
+  present: number;
+  absent: number;
+  sick: number;
+  permission: number;
+  total: number;
+};
 
 const STATUS_OPTIONS = [
   { value: "all", label: "Semua Status" },
@@ -71,9 +93,10 @@ export default function StudentAttendancePage() {
   // Default both ends of the range to today so the table renders something on
   // first load (UAT 2026-05-12 admin m8 — blank dd/mm/yyyy placeholders left
   // the admin staring at a "Tidak ada catatan" empty state before they could
-  // figure out the filter was required).
-  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  // figure out the filter was required). Jakarta-tz helper, not toISOString —
+  // the UTC split showed yesterday's date 00:00–06:59 WIB (2026-04-24 ADR).
+  const [dateFrom, setDateFrom] = useState(() => getTodayInTimezone("Asia/Jakarta"));
+  const [dateTo, setDateTo] = useState(() => getTodayInTimezone("Asia/Jakarta"));
   const [stats, setStats] = useState({ present: 0, absent: 0, sick: 0, permission: 0 });
 
   // Override dialog (Category C — event-log override, not a destructive edit)
@@ -95,7 +118,7 @@ export default function StudentAttendancePage() {
 
   // ── Fetch stats (today's date range for context) ────────────────
   useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getTodayInTimezone("Asia/Jakarta");
     fetch(`/api/student-attendance/stats?dateFrom=${today}&dateTo=${today}`)
       .then((r) => r.json())
       .then((data) => {
@@ -270,6 +293,14 @@ export default function StudentAttendancePage() {
         <StatCard label="Izin" value={stats.permission} icon={Info} color="primary" index={3} />
       </StatsCardsRow>
 
+      <AdminTabs defaultValue="harian">
+        <AdminTabsList>
+          <AdminTabsTrigger value="harian">Harian</AdminTabsTrigger>
+          <AdminTabsTrigger value="rekap">Rekap Bulanan</AdminTabsTrigger>
+        </AdminTabsList>
+
+        <AdminTabsContent value="harian">
+
       {/* Date range filters (outside DataTableToolbar since they're date inputs) */}
       <div className="flex flex-wrap gap-3 mb-3">
         <div className="flex items-center gap-2">
@@ -350,6 +381,13 @@ export default function StudentAttendancePage() {
         emptyDescription="Record kehadiran siswa akan tampil di sini setelah guru mencatat kehadiran."
       />
 
+        </AdminTabsContent>
+
+        <AdminTabsContent value="rekap">
+          <RecapView classSections={classSections} />
+        </AdminTabsContent>
+      </AdminTabs>
+
       {/* ── Override dialog (Category C — event-log override) ─── */}
       <ResponsiveFormDialog
         open={!!overrideTarget}
@@ -410,6 +448,146 @@ export default function StudentAttendancePage() {
         onConfirm={handleVoid}
       />
 
+    </>
+  );
+}
+
+// ─── Rekap Bulanan ────────────────────────────────────────────────────────────
+
+const recapColumns: ColumnDef<RecapRow>[] = [
+  {
+    id: "student",
+    header: "Siswa",
+    cell: ({ row }) => (
+      <div>
+        <p className="text-sm font-medium">{row.original.name}</p>
+        {row.original.nis && (
+          <p className="text-xs text-muted-foreground">NIS {row.original.nis}</p>
+        )}
+      </div>
+    ),
+  },
+  {
+    id: "class",
+    header: "Kelas",
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground">{row.original.className}</span>
+    ),
+  },
+  {
+    accessorKey: "present",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Hadir" />,
+    cell: ({ row }) => <span className="text-sm tabular-nums">{row.original.present}</span>,
+  },
+  {
+    accessorKey: "sick",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Sakit" />,
+    cell: ({ row }) => <span className="text-sm tabular-nums">{row.original.sick}</span>,
+  },
+  {
+    accessorKey: "permission",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Izin" />,
+    cell: ({ row }) => <span className="text-sm tabular-nums">{row.original.permission}</span>,
+  },
+  {
+    accessorKey: "absent",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Alpa" />,
+    cell: ({ row }) => <span className="text-sm tabular-nums">{row.original.absent}</span>,
+  },
+  {
+    accessorKey: "total",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Total Tercatat" />,
+    cell: ({ row }) => (
+      <span className="text-sm font-medium tabular-nums">{row.original.total}</span>
+    ),
+  },
+];
+
+function RecapView({ classSections }: { classSections: ClassSection[] }) {
+  // <input type="month"> value: "YYYY-MM" — default to the current Jakarta month.
+  const [month, setMonth] = useState(() =>
+    getTodayInTimezone("Asia/Jakarta").slice(0, 7),
+  );
+  const [classFilter, setClassFilter] = useState("all");
+  const [rows, setRows] = useState<RecapRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const buildParams = useCallback(() => {
+    const [y, m] = month.split("-");
+    const params = new URLSearchParams({ month: m, year: y });
+    if (classFilter !== "all") params.set("classSectionId", classFilter);
+    return params;
+  }, [month, classFilter]);
+
+  useEffect(() => {
+    if (!month) return;
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/student-attendance/recap?${buildParams()}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Gagal memuat rekap");
+        }
+        return res.json();
+      })
+      .then((json) => {
+        if (!cancelled) setRows(json.data ?? []);
+      })
+      .catch((e) => {
+        if (!cancelled) toast.error(e instanceof Error ? e.message : "Gagal memuat rekap");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [month, buildParams]);
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">Bulan</span>
+          <Input
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="h-9 w-44 text-sm"
+          />
+        </div>
+        <Select value={classFilter} onValueChange={(v) => setClassFilter(v ?? "all")}>
+          <SelectTrigger className="h-9 w-44 text-sm">
+            <SelectValue placeholder="Semua Kelas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Kelas</SelectItem>
+            {classSections.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 ml-auto"
+          disabled={!month || loading || rows.length === 0}
+          onClick={() => {
+            window.open(`/api/student-attendance/export?${buildParams()}`, "_blank");
+          }}
+        >
+          <Download size={14} className="mr-1" /> Ekspor CSV
+        </Button>
+      </div>
+
+      <DataTable
+        columns={recapColumns}
+        data={rows}
+        loading={loading}
+        emptyTitle="Belum ada data rekap"
+        emptyDescription="Rekap bulanan tampil setelah ada siswa terdaftar aktif. Pilih bulan lain atau periksa filter kelas."
+      />
     </>
   );
 }
