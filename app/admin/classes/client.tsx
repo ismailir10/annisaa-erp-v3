@@ -23,7 +23,8 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Search } from "lucide-react";
+import { BulkPromoteDialog } from "@/components/admin/classes/bulk-promote-dialog";
+import { ArrowUpRight, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 type ClassRow = {
@@ -99,6 +100,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
   const [reactivateTarget, setReactivateTarget] = useState<ClassRow | null>(
     null,
   );
+  const [promoteOpen, setPromoteOpen] = useState(false);
 
   const archivedMode = useMemo(() => {
     const y = years.find((y) => y.id === yearId);
@@ -369,9 +371,14 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         description="Daftar kelas per tahun ajaran — buat, ubah kapasitas, kelola siswa dan wali kelas, dan pantau kondisi tiap kelas."
         actions={
           canWrite && !archivedMode ? (
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="size-4" /> Tambah Kelas
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setPromoteOpen(true)} className="gap-2">
+                <ArrowUpRight className="size-4" /> Naik Kelas Massal
+              </Button>
+              <Button onClick={openCreate} className="gap-2">
+                <Plus className="size-4" /> Tambah Kelas
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -461,6 +468,14 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       )}
 
       <DataTable columns={columns} data={rows} loading={loading} />
+
+      <BulkPromoteDialog
+        open={promoteOpen}
+        onOpenChange={setPromoteOpen}
+        years={years}
+        defaultSourceYearId={yearId}
+        onDone={fetchRows}
+      />
 
       <ResponsiveFormDialog
         open={dialogOpen}

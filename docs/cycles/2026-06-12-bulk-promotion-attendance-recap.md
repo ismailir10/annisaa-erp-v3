@@ -54,4 +54,6 @@ Assumptions:
 
 ## Verification
 
+- [x] Cross-checked design-system.html §13 Overlays (ResponsiveFormDialog = Dialog desktop / Sheet mobile, Batal-ghost + verb submit, inline destructive copy) and §DataTable (sortable headers, skeleton loading, empty state) for the Rekap table and Naik Kelas Massal dialog; button labels follow ui.md's canonical table ("Ekspor CSV", "Naik Kelas (N siswa)", "Memproses...").
+
 ## Ship Notes
