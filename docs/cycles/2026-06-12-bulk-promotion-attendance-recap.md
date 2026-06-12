@@ -1,0 +1,54 @@
+# Bulk Class Promotion UI + Student Attendance Monthly Recap
+
+## Context
+
+The 2026-06-12 pilot-readiness audit found two feature gaps ahead of the prod-sgp staff-first pilot. (1) `POST /api/promotions` is a fully built bulk class-promotion API — preview roster, exclude list, row-locked capacity re-check, Bahasa errors — with **zero UI callers**; year-end "naik kelas" is only possible one student at a time via the student-detail sheet, which does not scale to whole-class promotion in July. (2) The admin student-attendance page has no monthly recap or export, while employee attendance has a CSV export — schools need a per-student monthly recap (hadir/sakit/izin/alpa) per class for yayasan/Dinas reporting. Both close incomplete loops on existing data with no schema changes. Bonus: the student-attendance page initializes its date filters with `toISOString()` (UTC), violating the 2026-04-24 Jakarta-tz ADR — shows yesterday's date 00:00–06:59 WIB; fixed in passing since the page is being touched.
+
+UAT input: latest admin report (2026-06-04-admin-teacher-full) predates the nav-simplify cycle and lists no blocker/major findings in the classes or student-attendance areas.
+
+## Spec
+
+Acceptance criteria:
+
+- [ ] `/admin/classes` page exposes a "Naik Kelas Massal" action that opens a dialog: select source class (with year context), select target class, preview the ACTIVE roster from `GET /api/promotions`, exclude individual students via checkboxes, see available-capacity hint, execute via `POST /api/promotions`.
+- [ ] Successful promotion shows `promoted`/`skipped` counts (toast), refreshes the classes list, and the dialog closes. Capacity/validation errors surface the API's Bahasa message inline without closing the dialog.
+- [ ] `GET /api/student-attendance/recap?month=&year=&classSectionId=` returns per-student rows (name, nis, class) with counts per status (PRESENT, ABSENT, SICK, PERMISSION) and total marked days for the month, excluding voided records, tenant-scoped, admin-gated. Month/year validated like `attendance/export` (400 on junk, no silent empty result).
+- [ ] `GET /api/student-attendance/export?month=&year=&classSectionId=` streams a CSV (same aggregation), filename `kehadiran_siswa_<bulan>_<tahun>.csv`, mirroring the employee attendance export contract.
+- [ ] `/admin/student-attendance` gains a "Rekap Bulanan" view (tab or toggle alongside the existing daily list): month picker, class filter, recap DataTable, "Unduh CSV" button.
+- [ ] Date filter initialization on `/admin/student-attendance` uses Jakarta-tz helper instead of `toISOString()`.
+- [ ] Cross-checked design-system.html for dialog, tab, and table patterns (frontend gate token: design-system).
+
+Non-goals:
+
+- No schema or migration changes (both features read/write existing tables).
+- No xlsx output — CSV for consistency with the existing employee attendance export.
+- No invoice notifications, payments ledger, global search, or bulk student import (separate cycles).
+- No teacher-portal changes.
+- No changes to the promotions API itself (UI consumes it as-is).
+
+Assumptions:
+
+1. Bulk promotion UI lives on `/admin/classes` (the consolidated per-year management surface), not on academic-years or student pages.
+2. Recap denominator is "days marked" per student (count of non-voided records), not a computed school-day calendar — sufficient for the Dinas/yayasan recap use case.
+3. CSV is acceptable for export (matches employee attendance); xlsx deferred until a real need appears.
+4. `classSectionId` filter on recap/export is optional — omitted means all classes, ordered by class then student name.
+
+## Tasks
+
+- [x] **T1 — Recap aggregation API.** `lib/attendance/student-recap.ts` (shared aggregation: month window → per-student status counts) + `GET /api/student-attendance/recap` route + unit tests for the aggregation and the month/year validation. *Accept:* route returns correct counts for a seeded month, 400 on invalid month/year, voided records excluded; vitest green. (independent)
+- [x] **T2 — CSV export API.** `GET /api/student-attendance/export` reusing the T1 helper; CSV shape mirrors `app/api/attendance/export/route.ts` (header row, `\r\n`, attachment disposition, Bahasa filename). Unit test for CSV assembly. *Accept:* curl of route yields valid CSV with correct counts. (depends T1)
+- [ ] **T3 — Rekap Bulanan UI.** `/admin/student-attendance` page: view toggle (Harian | Rekap Bulanan), month picker + class filter, recap DataTable, "Unduh CSV" button wired to T2; fix UTC date-init bug with Jakarta-tz helper. *Accept:* recap renders for current month, export downloads, daily view unchanged; design-system cross-checked. (depends T1, T2)
+- [ ] **T4 — Bulk promotion dialog.** "Naik Kelas Massal" action on `/admin/classes`: source/target class selectors (grouped by academic year), roster preview with exclude checkboxes via `GET /api/promotions`, capacity hint, execute via `POST /api/promotions`, success toast with promoted/skipped, inline Bahasa error on failure. *Accept:* full flow works against local seed; capacity-exceeded error stays in dialog. (independent of T1–T3)
+- [ ] **T5 — E2E + docs.** Extend `e2e/admin-classes.spec.ts` (promote dialog opens, preview renders) and `e2e/admin.spec.ts` or new spec for recap tab render + export response; update README modules table (students/learning rows) + CLAUDE.md e2e count if changed. *Accept:* end-of-cycle gate (`npm run build && npx vitest run && npx playwright test`) green. (depends T3, T4)
+
+## Implementation
+
+- Subagent plan: all tasks executed inline sequentially. T4 is file-independent of T1–T3 but shares the git index; parallel subagent commits interleave badly, and the memory note on fabricated subagent test reports argues for inline verification. Review passes still use subagents.
+- Reviewer-agent caveat: `feature-dev:code-reviewer` and `superpowers:code-reviewer` could not launch (user-global `ANTHROPIC_DEFAULT_SONNET_MODEL=glm-5` remap points at an unavailable model). Review performed by a `general-purpose` subagent on the inherited session model with the same brief; verdict recorded below.
+- Task 1: Recap aggregation API — `lib/attendance/student-recap.ts` (parseMonthYear, monthWindow, getStudentRecap, resolveRecapRequest), `app/api/student-attendance/recap/route.ts`, `lib/attendance/__tests__/student-recap.test.ts` — roster-based per-student monthly status counts (ACTIVE enrollments, voided excluded), tenant-scoped at both query and route layer.
+- Task 2: CSV export API — `buildRecapCsv` in the same lib + `app/api/student-attendance/export/route.ts` — mirrors employee export contract (CRLF, attachment, Bahasa filename) with two deliberate hardenings beyond it: RFC 4180 quote escaping and formula-injection prefix neutralization (student names originate from public /daftar).
+- Review findings applied: NaN-bypass in month/year validation fixed via digit-regex (major); zero-padded months now accepted; CSV formula injection neutralized; route boilerplate deduped into `resolveRecapRequest`. Known-accepted minor: records under non-ACTIVE enrollments (mid-month withdraw/move) are not re-attributed — spec assumption 2, documented in the lib docstring.
+
+## Verification
+
+## Ship Notes
