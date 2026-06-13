@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-06-12 in cycle `bulk-promotion-attendance-recap` (bulk class promotion dialog on /admin/classes; Rekap Bulanan tab + CSV export on /admin/student-attendance)
+> Last audited: 2026-06-13 in cycle `payments-ledger` (Penerimaan payments-received ledger on /admin/payments — date-range, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -58,6 +58,21 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 ---
 
 ## Area: invoices
+
+### JTBD-ADMIN-PAY-01 — Check today's cash received (Penerimaan)
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** ledger load <1.5s; CSV download starts <1s
+- **Preconditions:** Logged in as SUPER_ADMIN; ≥1 payment recorded in the chosen range
+- **Steps:**
+  1. Open Keuangan → Penerimaan (`/admin/payments`)
+  2. Default view shows today's payments + Total Penerimaan + Jumlah Transaksi
+  3. Widen the date range (e.g. month-to-date) and/or filter by method (Tunai / Transfer Bank / Virtual Account)
+  4. Read the per-method summary badges
+  5. Click "Ekspor CSV"
+- **Done when:** Summary cards + table reconcile (sum of rows = Total Penerimaan), method filter narrows both, CSV downloads with matching totals and a Bahasa filename. REVERSED payments never appear.
+- **Why this job matters:** Treasurer daily/period cash recap previously required opening every invoice one by one.
+- **Known friction (from last UAT):** <filled by /uat reports>
 
 ### JTBD-ADMIN-INV-01 — Create a manual invoice for a specific student
 - **Persona:** Ibu Nur

@@ -33,8 +33,8 @@ Assumptions:
 
 - [x] **T1 — Ledger aggregation lib + JSON API.** `lib/finance/payments-ledger.ts` (shared query: range + method filter → rows + per-method summary, tenant-scoped via invoice relation, REVERSED excluded; `parseDateRange` validator; reuse the Jakarta-day window approach from `lib/attendance/student-recap.ts`) + `GET /api/payments/route.ts` + unit tests (row mapping, summary math, REVERSED exclusion, date validation, tenant scoping). Lift `METHOD_LABELS` → `lib/constants/payment-methods.ts`. *Accept:* correct totals for a seeded range, 400 on junk dates, REVERSED absent; vitest green. (independent)
 - [x] **T2 — CSV export API.** `GET /api/payments/export/route.ts` reusing the T1 lib + a `buildLedgerCsv` (RFC 4180 + formula-injection guard, Bahasa header/filename). Unit test for CSV assembly. *Accept:* curl yields valid CSV matching the JSON totals. (depends T1)
-- [ ] **T3 — Penerimaan page + nav.** `/admin/payments` page (date pickers Jakarta-init, method filter, summary StatCards, DataTable, Ekspor CSV via `window.open`) + `config/admin-nav.ts` Keuangan group entry. *Accept:* renders for today, export downloads, nav link works; design-system cross-checked. (depends T1, T2)
-- [ ] **T4 — E2E + docs.** New `e2e/admin-payments.spec.ts` (page renders, summary + table present, API 200/400 contracts, export content-type/header) + README modules/finance + portal Admin bullet, CLAUDE.md route/spec counts. *Accept:* end-of-cycle gate (build + vitest + playwright) green. (depends T3)
+- [x] **T3 — Penerimaan page + nav.** `/admin/payments` page (date pickers Jakarta-init, method filter, summary StatCards, DataTable, Ekspor CSV via `window.open`) + `config/admin-nav.ts` Keuangan group entry. *Accept:* renders for today, export downloads, nav link works; design-system cross-checked. (depends T1, T2)
+- [x] **T4 — E2E + docs.** New `e2e/admin-payments.spec.ts` (page renders, summary + table present, API 200/400 contracts, export content-type/header) + README modules/finance + portal Admin bullet, CLAUDE.md route/spec counts. *Accept:* end-of-cycle gate (build + vitest + playwright) green. (depends T3)
 
 ## Implementation
 
@@ -43,6 +43,13 @@ Assumptions:
 - Task 2: CSV export — `app/api/payments/export/route.ts` reusing the shared resolver + buildLedgerCsv (RFC 4180 + formula-injection guard, Bahasa filename `penerimaan_<dari>_<sampai>.csv`).
 - Review (general-purpose subagent — sonnet→glm remap blocks the named reviewer agents): no blockers/majors. Confirmed tenant isolation, the 23:30/00:30-WIB window boundary, REVERSED handling, validation, CSV hardening. Applied 2 minor suggestions: consolidated both routes into `resolveLedgerRequest` (anti-drift, mirrors resolveRecapRequest) + cleaner `readonly string[]` cast instead of `as never`. Noted pre-existing (out of scope): no code writes REVERSED today, and the invoice `totalPaid` recompute doesn't share the REVERSED filter.
 
+- Task 3: Penerimaan page + nav — `app/admin/payments/page.tsx` (date pickers Jakarta-init, method Select, summary StatCards + per-method badges, DataTable, Ekspor CSV via `window.open`), `config/admin-nav.ts` (Keuangan → Penerimaan, Wallet icon). UI review (subagent): no blockers/majors; applied a11y aria-labels on filter controls. Build caught `StatsCardsRow cols={2}` (min is 3) → plain `grid-cols-1 sm:grid-cols-2`.
+- Task 4: E2E + docs — `e2e/admin-payments.spec.ts` (page render, ledger data+summary envelope, CSV contract, 400 on inverted range + unknown method), README finance module + admin portal bullet, CLAUDE.md counts (175 routes, 30 specs), JTBD-ADMIN-PAY-01.
+
 ## Verification
+
+- [x] Cross-checked design-system.html §stats (StatCard) + §DataTable (sortable headers, loading, empty state) + §forms (date inputs, Select) for the Penerimaan page; button label "Ekspor CSV" per voice.md glossary.
+- T1+T2 gate: `npm run build` ✓ + `npx vitest run` 1989 passed | 42 todo (22 new ledger tests).
+- T3 gate: `npm run build` ✓ (after fixing StatsCardsRow cols + a11y) + `npx vitest run` 1992 passed | 42 todo.
 
 ## Ship Notes
