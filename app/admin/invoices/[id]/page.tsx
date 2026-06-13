@@ -23,6 +23,7 @@ import { XenditActivityCard } from "@/components/admin/invoices/xendit-activity-
 import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
+import { paymentMethodLabel } from "@/lib/constants/payment-methods";
 
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = { id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string };
@@ -33,8 +34,6 @@ type InvoiceDetail = {
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
 };
-
-const METHOD_LABELS: Record<string, string> = { CASH: "Tunai", BANK_TRANSFER: "Transfer Bank", XENDIT: "Virtual Account", OTHER: "Lainnya" };
 
 // ------------------------------------------------------------------
 // Payment Form Body (shared between Dialog + Sheet)
@@ -309,7 +308,7 @@ export default function InvoiceDetailPage() {
                 {invoice.payments.map(p => (
                   <div key={p.id} className="border-b border-border/50 last:border-0 pb-2">
                     <div className="flex justify-between">
-                      <Badge variant="outline" className="text-xs">{METHOD_LABELS[p.method] ?? p.method}</Badge>
+                      <Badge variant="outline" className="text-xs">{paymentMethodLabel(p.method)}</Badge>
                       <span className="font-currency text-sm font-bold text-status-present">{formatRupiah(p.amount)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">

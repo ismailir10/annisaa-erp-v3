@@ -9,6 +9,7 @@ import {
   UserPlus,
   Coins,
   Receipt,
+  Wallet,
   Building2,
   Clock,
   Shield,
@@ -104,6 +105,7 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Biaya", href: "/admin/fees", icon: Coins },
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
+        { label: "Penerimaan", href: "/admin/payments", icon: Wallet },
       ],
     },
     {
