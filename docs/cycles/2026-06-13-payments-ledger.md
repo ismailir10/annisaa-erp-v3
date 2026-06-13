@@ -51,5 +51,26 @@ Assumptions:
 - [x] Cross-checked design-system.html §stats (StatCard) + §DataTable (sortable headers, loading, empty state) + §forms (date inputs, Select) for the Penerimaan page; button label "Ekspor CSV" per voice.md glossary.
 - T1+T2 gate: `npm run build` ✓ + `npx vitest run` 1989 passed | 42 todo (22 new ledger tests).
 - T3 gate: `npm run build` ✓ (after fixing StatsCardsRow cols + a11y) + `npx vitest run` 1992 passed | 42 todo.
+- End-of-cycle gate: `npm run build` ✓ + `npx vitest run` **1992 passed | 42 todo (2034)**. **Playwright (local) blocked by the non-local-DB guard** (worktree `.env` → staging Supabase; DEMO_MODE switches auth, not the DB) — authoritative Playwright = required CI `Playwright E2E` job (ephemeral localhost). New `e2e/admin-payments.spec.ts` is non-mutating (asserts surface + API 200/400). Local browser preview also unavailable (`EPERM: uv_cwd`); interactive smoke via `/ship` preview-verify with real Google session.
+
+### /audit-docs report — 2026-06-13
+
+| Check | Status | Detail |
+|---|---|---|
+| Route count | ok | claimed=175 actual=175 |
+| Portal page counts | ok | claimed=42/14/8 actual=42/14/8 |
+| Component count | ok | claimed=69 actual=69 |
+| E2E spec count | ok | claimed=30 actual=30 |
+| Standards-table files | ok | all present |
+| ADR archive cutoff | ok | no stale full-date rows |
+| File Structure paths | ok | all present |
+| Workflow refs | ok | intact |
+
+**Summary:** 8 ok, 0 warn, 0 fail
 
 ## Ship Notes
+
+- **No migrations, no env vars, no schema changes.** Reads existing `Payment`/`Invoice`/`Student` via new read-only routes.
+- New routes: `GET /api/payments`, `GET /api/payments/export` (admin-gated, tenant-scoped via invoice relation, read-only). New page `/admin/payments` + Keuangan nav entry. `METHOD_LABELS` lifted from invoice detail to `lib/constants/payment-methods.ts` (invoice detail re-points to it — verify it still renders).
+- Preview smoke (for `/ship`): `/admin/payments` → default = today's payments, summary cards reconcile with row sum; widen range + filter method; Ekspor CSV downloads with matching totals; inverted range / bad method → no crash. Also re-check `/admin/invoices/[id]` payment method badge still labels correctly (shared-constant refactor).
+- Rollback: revert the two commits — no data cleanup (read-only feature).
