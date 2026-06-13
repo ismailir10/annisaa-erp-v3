@@ -258,7 +258,7 @@ test.describe("Admin /admin/classes", () => {
       page.getByRole("heading", { name: "Naik Kelas Massal" }),
     ).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Tahun Ajaran Asal")).toBeVisible();
-    await expect(page.getByText("Kelas Tujuan")).toBeVisible();
+    await expect(page.getByText("Kelas Tujuan").first()).toBeVisible();
     // No source class chosen yet → placeholder copy, submit disabled
     await expect(
       page.getByText("Pilih kelas asal untuk melihat daftar siswa."),

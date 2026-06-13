@@ -519,31 +519,35 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
     return params;
   }, [month, classFilter]);
 
+  // Same fetch-in-callback shape as the daily view's fetchData — the lint
+  // rule rejects setState directly in an effect body.
+  const fetchRecap = useCallback(async (signal: { cancelled: boolean }) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/student-attendance/recap?${buildParams()}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Gagal memuat rekap");
+      }
+      const json = await res.json();
+      if (!signal.cancelled) setRows(json.data ?? []);
+    } catch (e) {
+      if (!signal.cancelled) {
+        toast.error(e instanceof Error ? e.message : "Gagal memuat rekap");
+      }
+    } finally {
+      if (!signal.cancelled) setLoading(false);
+    }
+  }, [buildParams]);
+
   useEffect(() => {
     if (!month) return;
-    let cancelled = false;
-    setLoading(true);
-    fetch(`/api/student-attendance/recap?${buildParams()}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Gagal memuat rekap");
-        }
-        return res.json();
-      })
-      .then((json) => {
-        if (!cancelled) setRows(json.data ?? []);
-      })
-      .catch((e) => {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : "Gagal memuat rekap");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const signal = { cancelled: false };
+    fetchRecap(signal);
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
-  }, [month, buildParams]);
+  }, [month, fetchRecap]);
 
   return (
     <>
