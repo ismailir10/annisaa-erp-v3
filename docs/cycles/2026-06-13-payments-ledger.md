@@ -53,6 +53,8 @@ Assumptions:
 - T3 gate: `npm run build` ✓ (after fixing StatsCardsRow cols + a11y) + `npx vitest run` 1992 passed | 42 todo.
 - End-of-cycle gate: `npm run build` ✓ + `npx vitest run` **1992 passed | 42 todo (2034)**. **Playwright (local) blocked by the non-local-DB guard** (worktree `.env` → staging Supabase; DEMO_MODE switches auth, not the DB) — authoritative Playwright = required CI `Playwright E2E` job (ephemeral localhost). New `e2e/admin-payments.spec.ts` is non-mutating (asserts surface + API 200/400). Local browser preview also unavailable (`EPERM: uv_cwd`); interactive smoke via `/ship` preview-verify with real Google session.
 
+- **Preview-verify iteration 1** (PR #335 preview, Chrome MCP, authenticated SUPER_ADMIN Google session). Flows=[ledger render, summary reconciliation, CSV export, error paths, refactored invoice badge]. Default today = empty state (Rp 0, Ekspor disabled) correct. Wide range 2026: Total **Rp 2.950.000 / 5 transaksi**, per-method badges Tunai 2.95M(4) + Virtual Account Rp 0(1), table 5 rows with Jakarta datetimes + method badges + formatRupiah + date-desc sort. API checks: rows-sum = byMethod-sum = totalAmount ✓, count 5=5 ✓, CSV 200 with correct header + 5 rows ✓, inverted range / unknown method / impossible date all 400 ✓ (in-UI inverted range → "Rentang tanggal tidak valid" toast + empty state). Invoices surface still loads clean post METHOD_LABELS refactor (no console errors). **blockers=0, minors=0.**
+
 ### /audit-docs report — 2026-06-13
 
 | Check | Status | Detail |
