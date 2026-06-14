@@ -244,4 +244,79 @@ test.describe("Admin /admin/classes", () => {
     await expect(page.locator("text=Identitas Kelas")).toHaveCount(0);
     await expect(page.locator("text=Guru Pengajar")).toHaveCount(0);
   });
+
+  test("Naik Kelas Massal dialog opens with year/class selectors and roster placeholder", async ({
+    page,
+  }) => {
+    await page.goto("/admin/classes");
+    await page.waitForURL("**/admin/classes");
+    const trigger = page.getByRole("button", { name: "Naik Kelas Massal" });
+    await expect(trigger).toBeVisible({ timeout: 10_000 });
+    await trigger.click();
+
+    await expect(
+      page.getByRole("heading", { name: "Naik Kelas Massal" }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Tahun Ajaran Asal")).toBeVisible();
+    await expect(page.getByText("Kelas Tujuan").first()).toBeVisible();
+    // No source class chosen yet → placeholder copy, submit disabled
+    await expect(
+      page.getByText("Pilih kelas asal untuk melihat daftar siswa."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Naik Kelas \(0 siswa\)/ }),
+    ).toBeDisabled();
+  });
+
+  test("promotions API rejects a missing source class", async ({ page }) => {
+    const res = await page.request.get("/api/promotions");
+    expect(res.status()).toBe(400);
+    const j = await res.json();
+    expect(j.error).toContain("sourceClassSectionId");
+  });
+
+  test("promotions POST executes the capacity lock query (regression: 0A000 FOR UPDATE+GROUP BY)", async ({
+    page,
+  }) => {
+    // Exclude every student so the transaction runs its row-lock capacity
+    // query against real Postgres but mutates nothing (promoted: 0). The
+    // original query combined FOR UPDATE with GROUP BY, which Postgres
+    // rejects (0A000) — every POST failed until the 2026-06-12 fix. A
+    // mocked unit test cannot catch this class of bug; this can.
+    const sectionsRes = await page.request.get("/api/class-sections");
+    if (!sectionsRes.ok()) {
+      test.skip(true, "class-sections endpoint unavailable in demo seed");
+      return;
+    }
+    const sectionsJson = await sectionsRes.json();
+    const sections = Array.isArray(sectionsJson)
+      ? sectionsJson
+      : sectionsJson.data ?? [];
+    if (sections.length < 2) {
+      test.skip(true, "need ≥2 class sections in seed");
+      return;
+    }
+    const [source, target] = sections;
+
+    const roster = await page.request.get(
+      `/api/promotions?sourceClassSectionId=${source.id}`,
+    );
+    expect(roster.status()).toBe(200);
+    const rosterJson = await roster.json();
+    const excludeStudentIds = rosterJson.students.map(
+      (s: { id: string }) => s.id,
+    );
+
+    const res = await page.request.post("/api/promotions", {
+      data: {
+        sourceClassSectionId: source.id,
+        targetClassSectionId: target.id,
+        excludeStudentIds,
+      },
+    });
+    const j = await res.json();
+    expect(res.status(), JSON.stringify(j)).toBe(200);
+    expect(j.promoted).toBe(0);
+    expect(j.skipped).toBe(excludeStudentIds.length);
+  });
 });

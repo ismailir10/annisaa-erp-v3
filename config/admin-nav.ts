@@ -9,14 +9,15 @@ import {
   UserPlus,
   Coins,
   Receipt,
+  Wallet,
   Building2,
   Clock,
   Shield,
   Heart,
   BookOpen,
-  BookMarked,
   ClipboardList,
   ClipboardCheck,
+  FileText,
   NotebookPen,
   Palette,
   School,
@@ -75,14 +76,6 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
         { label: "Kelas", href: "/admin/classes", icon: School, permission: "academic.view" },
-      ],
-    },
-    {
-      id: "curriculum",
-      label: "Kurikulum",
-      icon: BookMarked,
-      permission: "curriculum.read",
-      items: [
         { label: "Semester", href: "/admin/semesters", icon: CalendarDays, permission: "curriculum.read" },
       ],
     },
@@ -93,6 +86,7 @@ export const adminNav: NavConfig = {
       permission: "assessments.read",
       items: [
         { label: "Pemantauan", href: "/admin/penilaian", icon: ClipboardCheck, permission: "assessments.read" },
+        { label: "Raport", href: "/admin/raport", icon: FileText, permission: "reportCard.read" },
       ],
     },
     {
@@ -111,6 +105,7 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Biaya", href: "/admin/fees", icon: Coins },
         { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
+        { label: "Penerimaan", href: "/admin/payments", icon: Wallet },
       ],
     },
     {

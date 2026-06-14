@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { pickDefaultYear } from "./pick-default-year";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -22,7 +23,8 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Search } from "lucide-react";
+import { BulkPromoteDialog } from "@/components/admin/classes/bulk-promote-dialog";
+import { ArrowUpRight, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 type ClassRow = {
@@ -30,6 +32,7 @@ type ClassRow = {
   name: string;
   capacity: number;
   slotTemplate: "FULL_DAY" | "MORNING_AND_AFTERNOON";
+  ageGroup: "A" | "B";
   status: "ACTIVE" | "INACTIVE";
   campusId: string;
   programId: string;
@@ -54,6 +57,8 @@ type AcademicYear = {
   id: string;
   name: string;
   status: "PLANNING" | "ACTIVE" | "ARCHIVED";
+  startDate: string;
+  endDate: string;
 };
 
 type StatusFilter = "ACTIVE" | "INACTIVE" | "all";
@@ -87,6 +92,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     name: "",
     capacity: 20,
     slotTemplate: "FULL_DAY" as ClassRow["slotTemplate"],
+    ageGroup: "" as "" | ClassRow["ageGroup"],
   });
   const [saving, setSaving] = useState(false);
 
@@ -96,6 +102,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
   const [reactivateTarget, setReactivateTarget] = useState<ClassRow | null>(
     null,
   );
+  const [promoteOpen, setPromoteOpen] = useState(false);
 
   const archivedMode = useMemo(() => {
     const y = years.find((y) => y.id === yearId);
@@ -122,9 +129,8 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       const list: AcademicYear[] = Array.isArray(j) ? j : j?.data ?? [];
       setYears(list);
       if (!yearId) {
-        const active = list.find((y) => y.status === "ACTIVE");
-        if (active) setYearId(active.id);
-        else if (list[0]) setYearId(list[0].id);
+        const def = pickDefaultYear(list, new Date());
+        if (def) setYearId(def.id);
       }
     }
   }
@@ -171,6 +177,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       name: "",
       capacity: 20,
       slotTemplate: "FULL_DAY",
+      ageGroup: "",
     });
   }
 
@@ -187,6 +194,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       name: row.name,
       capacity: row.capacity,
       slotTemplate: row.slotTemplate,
+      ageGroup: row.ageGroup,
     });
     setDialogOpen(true);
   }
@@ -204,6 +212,10 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       toast.error("Kapasitas harus antara 1 dan 200");
       return;
     }
+    if (!form.ageGroup) {
+      toast.error("Kelompok usia wajib dipilih");
+      return;
+    }
     setSaving(true);
     const url = editing
       ? `/api/admin/classes/${editing.id}`
@@ -214,6 +226,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           name: form.name.trim(),
           capacity: form.capacity,
           slotTemplate: form.slotTemplate,
+          ageGroup: form.ageGroup,
         }
       : {
           campusId: form.campusId,
@@ -222,6 +235,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           name: form.name.trim(),
           capacity: form.capacity,
           slotTemplate: form.slotTemplate,
+          ageGroup: form.ageGroup,
         };
     const res = await fetch(url, {
       method,
@@ -367,9 +381,14 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         description="Daftar kelas per tahun ajaran — buat, ubah kapasitas, kelola siswa dan wali kelas, dan pantau kondisi tiap kelas."
         actions={
           canWrite && !archivedMode ? (
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="size-4" /> Tambah Kelas
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setPromoteOpen(true)} className="gap-2">
+                <ArrowUpRight className="size-4" /> Naik Kelas Massal
+              </Button>
+              <Button onClick={openCreate} className="gap-2">
+                <Plus className="size-4" /> Tambah Kelas
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -459,6 +478,14 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       )}
 
       <DataTable columns={columns} data={rows} loading={loading} />
+
+      <BulkPromoteDialog
+        open={promoteOpen}
+        onOpenChange={setPromoteOpen}
+        years={years}
+        defaultSourceYearId={yearId}
+        onDone={fetchRows}
+      />
 
       <ResponsiveFormDialog
         open={dialogOpen}
@@ -589,6 +616,27 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
                 <SelectItem value="MORNING_AND_AFTERNOON">
                   Pagi & sore
                 </SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field>
+            <FieldLabel>Kelompok usia</FieldLabel>
+            <Select
+              value={form.ageGroup}
+              onValueChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  ageGroup: (v as ClassRow["ageGroup"]) ?? "",
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih kelompok usia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A">A · 4–5 tahun (TK A)</SelectItem>
+                <SelectItem value="B">B · 5–6 tahun (TK B)</SelectItem>
               </SelectContent>
             </Select>
           </Field>

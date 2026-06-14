@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const semesterFindFirst = vi.fn();
 const learningObjectiveFindMany = vi.fn();
 const learningObjectiveCreateMany = vi.fn();
+const learningObjectiveUpdateMany = vi.fn();
 const achievementIndicatorCreateMany = vi.fn();
 const auditLogCreate = vi.fn();
 const transactionFn = vi.fn();
@@ -18,6 +19,7 @@ vi.mock("@/lib/db", () => ({
     learningObjective: {
       findMany: learningObjectiveFindMany,
       createMany: learningObjectiveCreateMany,
+      updateMany: learningObjectiveUpdateMany,
     },
     achievementIndicator: { createMany: achievementIndicatorCreateMany },
     auditLog: { create: auditLogCreate },
@@ -165,6 +167,7 @@ beforeEach(() => {
   semesterFindFirst.mockResolvedValue({ id: "sem-1" });
   learningObjectiveFindMany.mockResolvedValue([]);
   learningObjectiveCreateMany.mockResolvedValue({ count: 0 });
+  learningObjectiveUpdateMany.mockResolvedValue({ count: 0 });
   achievementIndicatorCreateMany.mockResolvedValue({ count: 0 });
   auditLogCreate.mockResolvedValue({ id: "a-1" });
   parsePromesWorkbookMock.mockResolvedValue(happyParsedShape());
@@ -176,6 +179,7 @@ beforeEach(() => {
       learningObjective: {
         createMany: learningObjectiveCreateMany,
         findMany: learningObjectiveFindMany,
+        updateMany: learningObjectiveUpdateMany,
       },
       achievementIndicator: {
         createMany: achievementIndicatorCreateMany,
@@ -410,7 +414,7 @@ describe("POST /api/admin/curriculum/import-promes — preview branch", () => {
     expect(body.semesterId).toBe("sem-1");
     expect(body.ageGroup).toBe("A");
     expect(body.counts).toEqual({ objectives: 1, indicators: 2 });
-    expect(body.conflicts).toEqual([]);
+    expect(body.conflicts).toEqual({ active: [], inactive: [] });
     // No transaction, no createMany, no audit.
     expect(transactionFn).not.toHaveBeenCalled();
     expect(learningObjectiveCreateMany).not.toHaveBeenCalled();
@@ -418,15 +422,17 @@ describe("POST /api/admin/curriculum/import-promes — preview branch", () => {
     expect(auditLogCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 409 + preview payload when conflicts exist (no DB writes)", async () => {
+  it("returns 409 + preview payload when ACTIVE conflicts exist (no DB writes)", async () => {
     const { POST } = await import(
       "@/app/api/admin/curriculum/import-promes/route"
     );
     learningObjectiveFindMany.mockResolvedValueOnce([
       {
+        id: "lo-active-1",
         element: "RELIGIOUS_MORAL",
         number: 1,
         content: "previously imported content",
+        status: "ACTIVE",
       },
     ]);
     const form = makeForm({
@@ -437,14 +443,17 @@ describe("POST /api/admin/curriculum/import-promes — preview branch", () => {
     const res = await POST(makeReq({ form }) as never);
     expect(res.status).toBe(409);
     const body = (await res.json()) as {
-      conflicts: Array<{
-        ageGroup: string;
-        element: string;
-        number: number;
-        existingContent: string;
-      }>;
+      conflicts: {
+        active: Array<{
+          ageGroup: string;
+          element: string;
+          number: number;
+          existingContent: string;
+        }>;
+        inactive: unknown[];
+      };
     };
-    expect(body.conflicts).toEqual([
+    expect(body.conflicts.active).toEqual([
       {
         ageGroup: "A",
         element: "RELIGIOUS_MORAL",
@@ -452,8 +461,54 @@ describe("POST /api/admin/curriculum/import-promes — preview branch", () => {
         existingContent: "previously imported content",
       },
     ]);
+    expect(body.conflicts.inactive).toEqual([]);
     expect(transactionFn).not.toHaveBeenCalled();
     expect(learningObjectiveCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 + preview payload when only INACTIVE conflicts exist (skip/reactivate path)", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    learningObjectiveFindMany.mockResolvedValueOnce([
+      {
+        id: "lo-inactive-1",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        content: "soft-deleted via C3 IKTP CRUD",
+        status: "INACTIVE",
+      },
+    ]);
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(makeReq({ form }) as never);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      conflicts: {
+        active: unknown[];
+        inactive: Array<{
+          ageGroup: string;
+          element: string;
+          number: number;
+          existingContent: string;
+          existingId: string;
+        }>;
+      };
+    };
+    expect(body.conflicts.active).toEqual([]);
+    expect(body.conflicts.inactive).toEqual([
+      {
+        ageGroup: "A",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        existingContent: "soft-deleted via C3 IKTP CRUD",
+        existingId: "lo-inactive-1",
+      },
+    ]);
+    expect(transactionFn).not.toHaveBeenCalled();
   });
 });
 
@@ -522,7 +577,10 @@ describe("POST /api/admin/curriculum/import-promes — commit branch", () => {
           after: expect.objectContaining({
             semesterId: "sem-1",
             ageGroup: "A",
-            objectivesCount: 1,
+            conflictPolicy: "block",
+            objectivesCreated: 1,
+            objectivesReactivated: 0,
+            objectivesSkipped: 0,
             indicatorsCount: 2,
           }),
         }),
@@ -530,15 +588,17 @@ describe("POST /api/admin/curriculum/import-promes — commit branch", () => {
     );
   });
 
-  it("returns 409 on commit when conflicts exist; no DB writes", async () => {
+  it("returns 409 on commit when ACTIVE conflicts exist; no DB writes", async () => {
     const { POST } = await import(
       "@/app/api/admin/curriculum/import-promes/route"
     );
     learningObjectiveFindMany.mockResolvedValueOnce([
       {
+        id: "lo-active-1",
         element: "RELIGIOUS_MORAL",
         number: 1,
         content: "existing row",
+        status: "ACTIVE",
       },
     ]);
     const form = makeForm({
@@ -556,6 +616,142 @@ describe("POST /api/admin/curriculum/import-promes — commit branch", () => {
     expect(transactionFn).not.toHaveBeenCalled();
     expect(learningObjectiveCreateMany).not.toHaveBeenCalled();
     expect(auditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 on commit when INACTIVE conflicts + policy=block (default)", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    learningObjectiveFindMany.mockResolvedValueOnce([
+      {
+        id: "lo-inactive-1",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        content: "soft-deleted earlier",
+        status: "INACTIVE",
+      },
+    ]);
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(
+      makeReq({
+        url: "http://l/api/admin/curriculum/import-promes?commit=true",
+        form,
+      }) as never,
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/skip atau reactivate/);
+    expect(transactionFn).not.toHaveBeenCalled();
+  });
+
+  it("commit with policy=skip skips INACTIVE conflicts, writes non-conflicting rows", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    learningObjectiveFindMany.mockResolvedValueOnce([
+      {
+        id: "lo-inactive-1",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        content: "soft-deleted earlier",
+        status: "INACTIVE",
+      },
+    ]);
+    learningObjectiveFindMany.mockResolvedValueOnce([]); // no rows surviving in tx — all were skipped
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(
+      makeReq({
+        url: "http://l/api/admin/curriculum/import-promes?commit=true&conflictPolicy=skip",
+        form,
+      }) as never,
+    );
+    expect(res.status).toBe(201);
+    expect(transactionFn).toHaveBeenCalledTimes(1);
+    // createMany should not have been called (the only row was skipped).
+    expect(learningObjectiveCreateMany).not.toHaveBeenCalled();
+    expect(learningObjectiveUpdateMany).not.toHaveBeenCalled();
+    const body = (await res.json()) as {
+      applied: { created: number; reactivated: number; skipped: number };
+    };
+    expect(body.applied).toEqual({
+      created: 0,
+      reactivated: 0,
+      skipped: 1,
+      indicators: 0,
+    });
+  });
+
+  it("commit with policy=reactivate flips INACTIVE rows back to ACTIVE inside the tx", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    learningObjectiveFindMany.mockResolvedValueOnce([
+      {
+        id: "lo-inactive-1",
+        element: "RELIGIOUS_MORAL",
+        number: 1,
+        content: "soft-deleted earlier",
+        status: "INACTIVE",
+      },
+    ]);
+    // Second findMany inside tx: only the reactivated row is here so the
+    // indicator FK lookup finds it.
+    learningObjectiveFindMany.mockResolvedValueOnce([
+      { id: "lo-inactive-1", element: "RELIGIOUS_MORAL", number: 1 },
+    ]);
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(
+      makeReq({
+        url: "http://l/api/admin/curriculum/import-promes?commit=true&conflictPolicy=reactivate",
+        form,
+      }) as never,
+    );
+    expect(res.status).toBe(201);
+    expect(transactionFn).toHaveBeenCalledTimes(1);
+    expect(learningObjectiveUpdateMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: "t-import",
+        id: { in: ["lo-inactive-1"] },
+      },
+      data: { status: "ACTIVE" },
+    });
+    expect(learningObjectiveCreateMany).not.toHaveBeenCalled();
+    // Reactivate restores status only; indicators on a reactivated
+    // objective stay as-is (admin manages them via the C3 IKTP CRUD UI).
+    // The upload's indicator rows for the reactivated objective are
+    // skipped to avoid duplicating or clobbering live indicator data.
+    expect(achievementIndicatorCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown conflictPolicy with 400", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(
+      makeReq({
+        url: "http://l/api/admin/curriculum/import-promes?commit=true&conflictPolicy=overwrite",
+        form,
+      }) as never,
+    );
+    expect(res.status).toBe(400);
+    expect(transactionFn).not.toHaveBeenCalled();
   });
 
   it("rolls back atomically when audit insert throws inside the transaction", async () => {

@@ -25,6 +25,13 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("Admin curriculum — PROMES import", () => {
   let semesterId: string | null = null;
+  // The seeded current AcademicYear (2025/2026) is ACTIVE. Creating this
+  // spec's own ACTIVE year now demotes it (single-active invariant —
+  // docs/cycles/2026-06-05-staging-hygiene-active-year.md), which would break
+  // later serial specs that depend on the seeded year being current (e.g.
+  // teacher-assessments-weekly). Capture the prior ACTIVE year here and
+  // re-activate it in afterAll so the shared CI DB is left as we found it.
+  let priorActiveYearId: string | null = null;
 
   test.beforeAll(async ({ browser }) => {
     // Create a brand-new Semester per spec run so happy-path is
@@ -48,6 +55,15 @@ test.describe("Admin curriculum — PROMES import", () => {
     // key is (tenantId, academicYearId, number) — sharing the seeded
     // AY would collide on the 2nd run.
     const api = ctx.request;
+
+    // Remember which year is ACTIVE before we steal ACTIVE for our own year.
+    const priorYearsRes = await api.get("/api/academic-years");
+    if (priorYearsRes.ok()) {
+      const priorYears = await priorYearsRes.json();
+      const list = Array.isArray(priorYears) ? priorYears : priorYears.data ?? [];
+      priorActiveYearId = list.find((y: { status: string }) => y.status === "ACTIVE")?.id ?? null;
+    }
+
     const stamp = Date.now();
     const ayName = `E2E PROMES Import ${stamp}`;
     const ayCreate = await api.post("/api/academic-years", {
@@ -83,6 +99,27 @@ test.describe("Admin curriculum — PROMES import", () => {
       const body = await semCreate.json();
       semesterId = body.id ?? null;
     }
+    await ctx.close();
+  });
+
+  test.afterAll(async ({ browser }) => {
+    // Restore the seeded ACTIVE year that creating our own ACTIVE year demoted,
+    // so later serial specs on the shared CI DB see the current year as ACTIVE.
+    if (!priorActiveYearId) return;
+    const ctx = await browser.newContext();
+    await ctx.addCookies([
+      {
+        name: "school-erp-session",
+        value: SUPER_ADMIN_ID,
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+    await ctx.request.put(`/api/academic-years/${priorActiveYearId}`, {
+      data: { status: "ACTIVE" },
+    });
     await ctx.close();
   });
 
@@ -156,7 +193,7 @@ test.describe("Admin curriculum — PROMES import", () => {
     );
   });
 
-  test("re-import surfaces 409 conflict alert + commit button disabled", async ({
+  test("re-import surfaces 409 conflict alert + commit blocked (button hidden)", async ({
     page,
   }) => {
     test.skip(!semesterId, "could not create test semester — skipping");
@@ -197,8 +234,12 @@ test.describe("Admin curriculum — PROMES import", () => {
       alert.getByText(/Nilai Agama dan Budi Pekerti.*TP\s*1/i),
     ).toBeVisible();
 
-    // Commit button disabled while conflicts present.
-    const commit = page.getByRole("button", { name: /Konfirmasi & simpan/i });
-    await expect(commit).toBeDisabled();
+    // Active conflicts hard-block the import: the 2026-05-20 status-aware
+    // re-import (T5) removes the commit button entirely for ACTIVE conflicts
+    // (only INACTIVE rows get skip/reactivate affordances). The commit path
+    // is unreachable — assert the button is absent, not merely disabled.
+    await expect(
+      page.getByRole("button", { name: /Konfirmasi & simpan/i }),
+    ).toHaveCount(0);
   });
 });

@@ -86,7 +86,7 @@ describe("POST /api/promotions (bulk promote) — capacity race safety", () => {
     expect(body.error).toMatch(/Kapasitas kelas tujuan tidak cukup/);
   });
 
-  it("uses `FOR UPDATE OF cs` in bulk-promote capacity query", async () => {
+  it("row-locks the target section in the bulk-promote capacity query", async () => {
     const prisma = await primeMocks(3);
     const capturedSql: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,7 +113,11 @@ describe("POST /api/promotions (bulk promote) — capacity race safety", () => {
       }) as never,
     );
     expect(res.status).toBe(200);
-    expect(capturedSql[0]).toMatch(/FOR UPDATE OF cs/);
+    // Plain `FOR UPDATE`, not `FOR UPDATE OF cs` — Postgres rejects FOR UPDATE
+    // combined with GROUP BY (0A000), so the active count is a correlated
+    // subquery and the lock applies to the single ClassSection row selected.
+    expect(capturedSql[0]).toMatch(/FOR UPDATE/);
+    expect(capturedSql[0]).not.toMatch(/GROUP BY/);
     expect(capturedSql[0]).toMatch(/StudentEnrollment/);
   });
 

@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
       programId: body.programId,
       academicYearId: body.academicYearId,
       name: sectionName,
+      ageGroup: body.ageGroup,
       capacity: body.capacity,
       campusId: body.campusId,
     },

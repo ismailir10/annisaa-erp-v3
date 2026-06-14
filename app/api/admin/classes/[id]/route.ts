@@ -71,6 +71,7 @@ async function update(
       name: true,
       capacity: true,
       slotTemplate: true,
+      ageGroup: true,
       status: true,
       classTrackId: true,
     },
@@ -91,6 +92,7 @@ async function update(
   if (body.name !== undefined) data.name = body.name;
   if (body.capacity !== undefined) data.capacity = body.capacity;
   if (body.slotTemplate !== undefined) data.slotTemplate = body.slotTemplate;
+  if (body.ageGroup !== undefined) data.ageGroup = body.ageGroup;
   if (body.status !== undefined) data.status = body.status;
 
   if (Object.keys(data).length === 0) {
@@ -135,12 +137,14 @@ async function update(
         name: before.name,
         capacity: before.capacity,
         slotTemplate: before.slotTemplate,
+        ageGroup: before.ageGroup,
         status: before.status,
       },
       after: {
         name: updated.name,
         capacity: updated.capacity,
         slotTemplate: updated.slotTemplate,
+        ageGroup: updated.ageGroup,
         status: updated.status,
       },
     });

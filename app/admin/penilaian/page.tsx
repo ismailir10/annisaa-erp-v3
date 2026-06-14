@@ -8,8 +8,10 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { buttonVariants } from "@/components/ui/button";
 import { formatLearningCenter } from "@/lib/format";
-import { ClipboardList, CalendarDays, Building2, AlertCircle } from "lucide-react";
+import { ClipboardList, CalendarDays, Building2, AlertCircle, FileText } from "lucide-react";
+import Link from "next/link";
 
 type WalasRow = {
   classSectionId: string;
@@ -91,6 +93,11 @@ export default function AdminPenilaianPage() {
           data
             ? `Pantau kelengkapan penilaian — Tahun Ajaran ${data.academicYear}`
             : "Pantau kelengkapan penilaian walas pekanan & sentra harian"
+        }
+        actions={
+          <Link href="/admin/raport" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <FileText className="size-4" /> Susun Raport
+          </Link>
         }
       />
 

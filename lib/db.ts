@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-05-15-academic-hierarchy-refactor — seed gained Semester 2 + ClassSession generation; adapter unchanged.
+// Last verified: 2026-05-20-curriculum-cutover-prep — seed gained ClassSection.ageGroup explicit per-row + KB Metland normalized to A; adapter unchanged.
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

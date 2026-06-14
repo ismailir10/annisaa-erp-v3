@@ -22,6 +22,7 @@ describe("getHomeroomClassSection", () => {
       classSection: {
         id: "cs1",
         name: "TKIT A",
+        ageGroup: "A",
         programId: "prog1",
         campusId: "campus1",
         academicYearId: "ay1",
@@ -29,6 +30,7 @@ describe("getHomeroomClassSection", () => {
     });
     const r = await getHomeroomClassSection("t1", "emp1", "ay1");
     expect(r?.id).toBe("cs1");
+    expect(r?.ageGroup).toBe("A");
     expect(teachingAssignmentFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -39,6 +41,11 @@ describe("getHomeroomClassSection", () => {
             tenantId: "t1",
             academicYearId: "ay1",
             status: "ACTIVE",
+          }),
+        }),
+        include: expect.objectContaining({
+          classSection: expect.objectContaining({
+            select: expect.objectContaining({ ageGroup: true }),
           }),
         }),
       }),

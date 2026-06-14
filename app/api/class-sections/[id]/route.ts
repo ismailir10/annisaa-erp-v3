@@ -76,6 +76,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     where: { id },
     data: {
       name: body.name?.trim(),
+      ageGroup: body.ageGroup,
       capacity: body.capacity,
       campusId: body.campusId,
       status: body.status,

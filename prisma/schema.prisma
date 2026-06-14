@@ -43,6 +43,9 @@ model Tenant {
   learningObjectives     LearningObjective[]
   achievementIndicators  AchievementIndicator[]
   assessmentEntries      AssessmentEntry[]
+  terms                  Term[]
+  reportCardEntries      ReportCardEntry[]
+  studentMeasurements    StudentMeasurement[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -448,16 +451,17 @@ model ClassTrack {
 
 // ── CLASS SECTION ────────────────────────────────────────────
 model ClassSection {
-  id             String @id @default(cuid())
+  id             String   @id @default(cuid())
   tenantId       String
   classTrackId   String
   programId      String
   academicYearId String
   name           String // "TKIT A", "KB Aster", "D'Care Metland"
-  capacity       Int    @default(20)
+  ageGroup       AgeGroup // A (4-5 yo) | B (5-6 yo) — was derived from name; column added 2026-05-20
+  capacity       Int      @default(20)
   campusId       String
-  slotTemplate   String @default("FULL_DAY") // FULL_DAY | MORNING_AND_AFTERNOON
-  status         String @default("ACTIVE") // ACTIVE | INACTIVE
+  slotTemplate   String   @default("FULL_DAY") // FULL_DAY | MORNING_AND_AFTERNOON
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   classTrack          ClassTrack           @relation(fields: [classTrackId], references: [id], onDelete: Restrict)
@@ -533,14 +537,16 @@ model Student {
   withdrawalDate   String? // YYYY-MM-DD
   graduationDate   String? // YYYY-MM-DD
 
-  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  guardians          StudentGuardian[]
-  enrollments        StudentEnrollment[]
-  admission          Admission?
-  invoices           Invoice[]
-  studentAttendances StudentAttendance[]
-  assessments        StudentAssessment[]
-  assessmentEntries  AssessmentEntry[]
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  guardians           StudentGuardian[]
+  enrollments         StudentEnrollment[]
+  admission           Admission?
+  invoices            Invoice[]
+  studentAttendances  StudentAttendance[]
+  assessments         StudentAssessment[]
+  assessmentEntries   AssessmentEntry[]
+  reportCardEntries   ReportCardEntry[]
+  studentMeasurements StudentMeasurement[]
 
   @@index([tenantId, status])
   @@index([nis], map: "Student_nis_idx")
@@ -1116,6 +1122,7 @@ model Semester {
   themes        Theme[]
   objectives    LearningObjective[]
   classSessions ClassSession[]
+  terms         Term[]
 
   @@unique([tenantId, academicYearId, number])
   @@index([tenantId])
@@ -1302,4 +1309,122 @@ model AssessmentEntry {
   @@index([tenantId, weekId, studentId])
   @@index([tenantId, studentId, date])
   @@index([voidedAt])
+}
+
+// ── RAPORT (C8 — Admin Raport MVP) ───────────────────────────
+// Per-student triwulan report card. This cycle ships the admin-driven slice:
+// kisi-kisi narrative templates + teacher/walas authoring + parent sign are
+// later phases. Sign + parent columns exist now (nullable) but stay unwired.
+
+/// Narrative section of a raport. 5 bucketed (3-level narratives) + 3 closing
+/// (single-content). MVP auto-suggests levels for the bucketed sections from
+/// AssessmentEntry; narratives are admin-typed free-text until kisi-kisi lands.
+enum ReportSection {
+  // bucketed (level-bearing):
+  INTRODUCTION
+  RELIGIOUS_MORAL
+  IDENTITY
+  STEAM
+  PERFORMANCE_SHOWCASE // Unjuk Kerja — pools MOTOR_SKILLS + ART penilaian
+
+  // single-content (no level):
+  CLOSING // Penutup
+  FOLLOW_UP_PLAN // Rencana Tindak Lanjut
+  HOME_ACTIVITIES // Kegiatan Disarankan di Rumah
+}
+
+/// Triwulan window. 2 per Semester (4/year). Defines the penilaian +
+/// attendance aggregation window for raport drafting.
+model Term {
+  id          String    @id @default(cuid())
+  tenantId    String
+  semesterId  String
+  number      Int // 1 or 2 within the semester
+  startDate   DateTime // UTC midnight of the Jakarta-tz day
+  endDate     DateTime // UTC midnight of the Jakarta-tz day
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  semester          Semester             @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  reportCardEntries ReportCardEntry[]
+  measurements      StudentMeasurement[]
+
+  @@unique([tenantId, semesterId, number])
+  @@index([tenantId])
+  @@index([tenantId, semesterId])
+}
+
+/// One report card per student per term. Section levels + narratives are JSON
+/// (5 fixed sections, atomic per-entry write — master design rationale).
+model ReportCardEntry {
+  id                String  @id @default(cuid())
+  tenantId          String
+  studentId         String
+  termId            String
+  homeroomTeacherId String? // walas (nullable; admin-set in MVP, no FK)
+
+  // { RELIGIOUS_MORAL: "CONSISTENT", IDENTITY: "EMERGING", ... } — keyed by
+  // ReportSection, value AchievementLevel. Closing sections omitted (no level).
+  sectionLevels     Json
+  // { INTRODUCTION: "...", RELIGIOUS_MORAL: "...", CLOSING: "...", ... } —
+  // keyed by ReportSection, value markdown narrative (Indonesian).
+  sectionNarratives Json
+
+  // Attendance (auto-pulled from StudentAttendance over the term window; admin may override)
+  permittedAbsenceDays Int @default(0) // izin (PERMISSION)
+  sickDays             Int @default(0) // sakit (SICK)
+  unexcusedAbsenceDays Int @default(0) // alpa (ABSENT)
+  totalSchoolDays      Int @default(0) // distinct school days in window
+
+  // { parenting: "1/2", pengajian: null } — parent event attendance (free-text fractions)
+  parentMeetingAttendance Json?
+
+  // Hafalan free-text (Quran surah / hadis / doa list) — structured tracking deferred
+  memorizationNotes String?
+
+  // Internal signatures (audit trail; not legal e-signature) — unwired in MVP
+  walasSignedAt  DateTime?
+  kepalaSignedAt DateTime?
+
+  // Parent post-publish workflow — unwired in MVP
+  parentComment  String?
+  parentSignedAt DateTime?
+
+  status      String    @default("DRAFT") // DRAFT | PUBLISHED
+  publishedAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term    Term    @relation(fields: [termId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, studentId, termId])
+  @@index([tenantId, termId])
+  @@index([tenantId, studentId])
+}
+
+/// Optional height/weight per student per term (raport header metadata).
+model StudentMeasurement {
+  id         String    @id @default(cuid())
+  tenantId   String
+  studentId  String
+  termId     String
+  heightCm   Decimal?  @db.Decimal(5, 1)
+  weightKg   Decimal?  @db.Decimal(4, 1)
+  recordedAt DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term    Term    @relation(fields: [termId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, studentId, termId])
+  @@index([tenantId, termId])
 }

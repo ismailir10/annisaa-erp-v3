@@ -52,6 +52,14 @@ type PreviewObjective = {
   content: string;
   indicators: PreviewIndicator[];
 };
+type ActiveConflict = {
+  ageGroup: AgeGroup;
+  element: CurriculumElement;
+  number: number;
+  existingContent: string;
+};
+type InactiveConflict = ActiveConflict & { existingId: string };
+
 type Preview = {
   semesterId: string;
   ageGroup: AgeGroup;
@@ -59,13 +67,13 @@ type Preview = {
   filename: string;
   byElement: Partial<Record<CurriculumElement, PreviewObjective[]>>;
   counts: { objectives: number; indicators: number };
-  conflicts: Array<{
-    ageGroup: AgeGroup;
-    element: CurriculumElement;
-    number: number;
-    existingContent: string;
-  }>;
+  conflicts: {
+    active: ActiveConflict[];
+    inactive: InactiveConflict[];
+  };
 };
+
+type ConflictPolicy = "block" | "skip" | "reactivate";
 
 const ELEMENT_LABELS: Record<CurriculumElement, string> = {
   RELIGIOUS_MORAL: "Nilai Agama dan Budi Pekerti",
@@ -116,8 +124,10 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
   const filenameHint = file ? ageGroupFromFilename(file.name) : null;
   const effectiveAgeGroup = ageGroup ?? filenameHint;
 
-  const conflicts = preview?.conflicts ?? [];
-  const hasConflicts = conflicts.length > 0;
+  const activeConflicts = preview?.conflicts.active ?? [];
+  const inactiveConflicts = preview?.conflicts.inactive ?? [];
+  const hasActiveConflicts = activeConflicts.length > 0;
+  const hasInactiveConflicts = inactiveConflicts.length > 0;
   const mismatchInferred = useMemo(() => {
     if (!preview || !preview.inferredAgeGroup) return false;
     return preview.inferredAgeGroup !== preview.ageGroup;
@@ -164,7 +174,10 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       // If conflicts surfaced, move keyboard + screen-reader focus to
       // the destructive alert so an SR user is not stranded at the top
       // of the page with silently appended danger content.
-      if ((previewBody.conflicts?.length ?? 0) > 0) {
+      const conflictCount =
+        (previewBody.conflicts?.active?.length ?? 0) +
+        (previewBody.conflicts?.inactive?.length ?? 0);
+      if (conflictCount > 0) {
         // Defer to the next tick so the Alert has mounted.
         setTimeout(() => conflictAlertRef.current?.focus(), 0);
       }
@@ -177,7 +190,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
     }
   }
 
-  async function handleCommit() {
+  async function handleCommit(policy: ConflictPolicy = "block") {
     if (committingRef.current || !file || !preview) return;
     committingRef.current = true;
     setFormError(null);
@@ -188,12 +201,13 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       form.append("semesterId", semester.id);
       form.append("ageGroup", preview.ageGroup);
       const res = await fetch(
-        "/api/admin/curriculum/import-promes?commit=true",
+        `/api/admin/curriculum/import-promes?commit=true&conflictPolicy=${policy}`,
         { method: "POST", body: form },
       );
       const body = (await res.json()) as {
         error?: string;
         counts?: { objectives: number; indicators: number };
+        applied?: { created: number; reactivated: number; skipped: number; indicators: number };
       };
       if (!res.ok) {
         setFormError(body.error ?? `Gagal menyimpan (status ${res.status}).`);
@@ -201,11 +215,20 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
         committingRef.current = false;
         return;
       }
-      const objectives = body.counts?.objectives ?? 0;
-      const indicators = body.counts?.indicators ?? 0;
-      toast.success(
-        `PROMES berhasil diimpor: ${objectives} tujuan pembelajaran, ${indicators} indikator.`,
-      );
+      const applied = body.applied;
+      if (applied && (applied.reactivated > 0 || applied.skipped > 0)) {
+        const parts = [`${applied.created} tujuan pembelajaran dibuat`];
+        if (applied.reactivated > 0) parts.push(`${applied.reactivated} diaktifkan ulang`);
+        if (applied.skipped > 0) parts.push(`${applied.skipped} dilewati`);
+        parts.push(`${applied.indicators} indikator`);
+        toast.success(`PROMES tersimpan: ${parts.join(", ")}.`);
+      } else {
+        const objectives = body.counts?.objectives ?? 0;
+        const indicators = body.counts?.indicators ?? 0;
+        toast.success(
+          `PROMES berhasil diimpor: ${objectives} tujuan pembelajaran, ${indicators} indikator.`,
+        );
+      }
       router.push(`/admin/semesters/${semester.id}/themes`);
       router.refresh();
     } catch (err) {
@@ -346,7 +369,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
             </CardHeader>
           </Card>
 
-          {hasConflicts && (
+          {hasActiveConflicts && (
             <Alert
               ref={conflictAlertRef}
               tabIndex={-1}
@@ -354,24 +377,61 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
               variant="destructive"
             >
               <AlertTitle>
-                {conflicts.length} konflik dengan tujuan pembelajaran yang
-                sudah ada
+                {activeConflicts.length} konflik dengan tujuan pembelajaran
+                aktif
               </AlertTitle>
               <AlertDescription>
                 <p className="mb-2">
-                  Berkas ini tidak bisa disimpan apa adanya. Selesaikan
-                  konflik dengan menghapus baris bermasalah dari berkas atau
-                  memilih semester lain, lalu unggah ulang.
+                  Berkas ini tidak bisa disimpan apa adanya — baris di
+                  semester ini sudah dipakai. Hapus baris bermasalah dari
+                  berkas atau pilih semester lain, lalu unggah ulang.
                 </p>
                 <ul className="list-disc list-inside text-sm">
-                  {conflicts.slice(0, 10).map((c) => (
+                  {activeConflicts.slice(0, 10).map((c) => (
                     <li key={`${c.element}-${c.number}`}>
                       TK {c.ageGroup} · {ELEMENT_LABELS[c.element]} · TP{" "}
                       {c.number}: <em>{c.existingContent}</em>
                     </li>
                   ))}
-                  {conflicts.length > 10 && (
-                    <li>… dan {conflicts.length - 10} konflik lainnya</li>
+                  {activeConflicts.length > 10 && (
+                    <li>
+                      … dan {activeConflicts.length - 10} konflik lainnya
+                    </li>
+                  )}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {hasInactiveConflicts && !hasActiveConflicts && (
+            <Alert
+              ref={hasActiveConflicts ? undefined : conflictAlertRef}
+              tabIndex={-1}
+              role="alert"
+            >
+              <AlertTitle>
+                {inactiveConflicts.length} tujuan pembelajaran nonaktif
+                tertabrak
+              </AlertTitle>
+              <AlertDescription>
+                <p className="mb-2">
+                  Baris di bawah ini sudah ada di semester ini dengan status
+                  nonaktif (mungkin sisa dari penghapusan IKTP sebelumnya).
+                  Pilih <strong>Lewati</strong> untuk membiarkan baris lama
+                  tetap nonaktif, atau <strong>Aktifkan ulang</strong> untuk
+                  menghidupkan kembali baris lama tanpa membuat duplikat.
+                </p>
+                <ul className="list-disc list-inside text-sm">
+                  {inactiveConflicts.slice(0, 10).map((c) => (
+                    <li key={`${c.element}-${c.number}`}>
+                      TK {c.ageGroup} · {ELEMENT_LABELS[c.element]} · TP{" "}
+                      {c.number}: <em>{c.existingContent}</em>
+                    </li>
+                  ))}
+                  {inactiveConflicts.length > 10 && (
+                    <li>
+                      … dan {inactiveConflicts.length - 10} baris lainnya
+                    </li>
                   )}
                 </ul>
               </AlertDescription>
@@ -440,13 +500,34 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
             </Alert>
           )}
 
-          <div className="flex gap-2">
-            <Button
-              onClick={handleCommit}
-              disabled={committing || hasConflicts}
-            >
-              {committing ? "Menyimpan…" : "Konfirmasi & simpan"}
-            </Button>
+          <div className="flex flex-wrap gap-2">
+            {!hasActiveConflicts && !hasInactiveConflicts && (
+              <Button
+                onClick={() => handleCommit("block")}
+                disabled={committing}
+              >
+                {committing ? "Menyimpan…" : "Konfirmasi & simpan"}
+              </Button>
+            )}
+            {!hasActiveConflicts && hasInactiveConflicts && (
+              <>
+                <Button
+                  onClick={() => handleCommit("reactivate")}
+                  disabled={committing}
+                >
+                  {committing
+                    ? "Menyimpan…"
+                    : `Aktifkan ulang ${inactiveConflicts.length} & simpan`}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleCommit("skip")}
+                  disabled={committing}
+                >
+                  {committing ? "Menyimpan…" : "Lewati & simpan sisanya"}
+                </Button>
+              </>
+            )}
             <Button
               variant="ghost"
               onClick={handleReset}

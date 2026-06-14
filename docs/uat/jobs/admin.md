@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-06-01 in cycle `penilaian-consolidation` (penilaian monitor added; legacy assessment-template surface retired)
+> Last audited: 2026-06-13 in cycle `payments-ledger` (Penerimaan payments-received ledger on /admin/payments — date-range, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -58,6 +58,21 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 ---
 
 ## Area: invoices
+
+### JTBD-ADMIN-PAY-01 — Check today's cash received (Penerimaan)
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** ledger load <1.5s; CSV download starts <1s
+- **Preconditions:** Logged in as SUPER_ADMIN; ≥1 payment recorded in the chosen range
+- **Steps:**
+  1. Open Keuangan → Penerimaan (`/admin/payments`)
+  2. Default view shows today's payments + Total Penerimaan + Jumlah Transaksi
+  3. Widen the date range (e.g. month-to-date) and/or filter by method (Tunai / Transfer Bank / Virtual Account)
+  4. Read the per-method summary badges
+  5. Click "Ekspor CSV"
+- **Done when:** Summary cards + table reconcile (sum of rows = Total Penerimaan), method filter narrows both, CSV downloads with matching totals and a Bahasa filename. REVERSED payments never appear.
+- **Why this job matters:** Treasurer daily/period cash recap previously required opening every invoice one by one.
+- **Known friction (from last UAT):** <filled by /uat reports>
 
 ### JTBD-ADMIN-INV-01 — Create a manual invoice for a specific student
 - **Persona:** Ibu Nur
@@ -335,6 +350,37 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Why this job matters:** Start-of-term ritual. Ibu Nur does it once every 6 months but if it's broken, everything downstream (attendance, invoices, payroll) breaks.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
+### JTBD-ADMIN-ACAD-02 — Promote a whole class to the next year (Naik Kelas Massal)
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** roster preview <1.5s; promotion submit click-to-confirm <2s
+- **Preconditions:** Logged in as SUPER_ADMIN; a source class with ≥1 ACTIVE enrollment; a target class (typically next academic year) with enough capacity
+- **Steps:**
+  1. Open Kelas (`/admin/classes`)
+  2. Click "Naik Kelas Massal"
+  3. Pick source year + class — roster of active students appears, all checked
+  4. Untick any student who stays behind
+  5. Pick target year + class — capacity hint shows remaining seats vs. needed
+  6. Click "Naik Kelas (N siswa)"
+- **Done when:** Toast confirms `N siswa naik kelas` (+ `M ditahan` when some were unticked); old enrollments become GRADUATED, new ACTIVE enrollments exist in the target class. Over-capacity attempt shows the Bahasa error inline and the dialog stays open.
+- **Why this job matters:** Year-end ritual (July). Before this dialog the only path was per-student promotion — untenable for a 20-student class.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-ACAD-03 — Pull the monthly attendance recap for the yayasan report
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** recap load <1.5s; CSV download starts <1s
+- **Preconditions:** Logged in as SUPER_ADMIN; ≥1 class with marked attendance in the chosen month
+- **Steps:**
+  1. Open Kehadiran Siswa (`/admin/student-attendance`)
+  2. Switch to the "Rekap Bulanan" tab
+  3. Pick the month (and optionally a class)
+  4. Review per-student Hadir / Sakit / Izin / Alpa counts
+  5. Click "Ekspor CSV"
+- **Done when:** Table shows every ACTIVE student (zero-count rows included); CSV downloads with the same numbers and a Bahasa filename. Never-marked students are visible with 0 totals, not silently missing.
+- **Why this job matters:** Monthly yayasan/Dinas reporting previously required manual tallying from the daily list.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
 ---
 
 ## Area: settings
@@ -393,6 +439,21 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
   4. Read sentra-daily entries-made counts per center
 - **Done when:** Each active class shows an `N/M dinilai` badge for the resolved week; the 8 sentra cards show entries + distinct-students for the selected day; changing the date re-queries without a full reload.
 - **Why this job matters:** The academic head needs to see which walas/sentra are behind on penilaian during the pilot + before each triwulan raport — without this, gaps surface only at report-compile time.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-RAPORT-01 — Draft, override & publish a student's triwulan raport
+- **Persona:** Ibu Nur (stands in for Kepala Divisi Pendidikan)
+- **Role:** either (gated by `reportCard.read`/`write`/`publish`)
+- **Expected perf:** page load <4s; open a student's raport (auto-draft) <3s
+- **Preconditions:** Logged in with `reportCard.*`; active semester set; ≥1 Term (triwulan) created; ≥1 class with active students; some `AssessmentEntry` rows in the term window
+- **Steps (user intent, not UI clicks):**
+  1. Open Penilaian → Raport (`/admin/raport`); if no triwulan exists, create one (semester + number + dates)
+  2. Pick a triwulan + class → read the roster with per-student status (Belum dibuat / Draft / Terbit)
+  3. Open a student → see narrative sections pre-filled with a suggested level (from penilaian) + the "saran penilaian" count hint, and attendance auto-pulled
+  4. Override a level / edit a narrative / adjust attendance; Simpan
+  5. Simpan & Terbitkan; then Unduh PDF
+- **Done when:** A new student opens with suggested levels + attendance (not blank); edits persist on save (status → Draft); publishing flips status → Terbit; the PDF downloads with the saved sections, attendance, hafalan, and signature lines.
+- **Why this job matters:** Raport compile was ~640 hand-assembled docx/year. The admin surface turns penilaian already in the system into a draft the academic head reviews + overrides, instead of re-typing from paper.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ### Negative-access (deferred until role-split ships)

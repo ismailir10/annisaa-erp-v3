@@ -429,13 +429,19 @@ async function main() {
 
   // 7b-3. Class Sections
   const classSectionDefs = [
-    { name: "TKIT A", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20 },
+    { name: "TKIT A", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20, ageGroup: "A" as const },
     // TKIT B capacity 21 (not 20): seed inserts 20 base students + Fatimah as rightjetParent's third child.
-    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 21 },
-    { name: "KB Aster", programCode: "KB", campusSlug: "taman-aster", capacity: 15 },
-    { name: "KB Metland", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15 },
-    { name: "D'Care Aster", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10 },
-    { name: "POPUP Weekend", programCode: "POPUP", campusSlug: "taman-aster", capacity: 25 },
+    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 21, ageGroup: "B" as const },
+    // Non-TK programs (KB / D'Care / POPUP) all map to ageGroup A as the
+    // curriculum default — the 4-5 yo cohort that overlaps with TK A.
+    // A real PAUD tenant typically uploads one PROMES set for the whole
+    // program; assigning every KB+DCARE+POPUP class to A keeps the
+    // indicator picker populated. Admin can change per-class via the
+    // Kelompok Usia select once the cycle lands.
+    { name: "KB Aster", programCode: "KB", campusSlug: "taman-aster", capacity: 15, ageGroup: "A" as const },
+    { name: "KB Metland", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15, ageGroup: "A" as const },
+    { name: "D'Care Aster", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10, ageGroup: "A" as const },
+    { name: "POPUP Weekend", programCode: "POPUP", campusSlug: "taman-aster", capacity: 25, ageGroup: "A" as const },
   ];
   const classSectionMap: Record<string, string> = {};
   const classSectionKeys = ["TKIT_A", "TKIT_B", "KB_ASTER", "KB_METLAND", "DCARE", "POPUP"];
@@ -458,6 +464,7 @@ async function main() {
         programId: programMap[cs.programCode],
         academicYearId: academicYear.id,
         name: cs.name,
+        ageGroup: cs.ageGroup,
         capacity: cs.capacity,
         campusId: campusMap[cs.campusSlug],
       },
