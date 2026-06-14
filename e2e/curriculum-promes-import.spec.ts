@@ -193,7 +193,7 @@ test.describe("Admin curriculum — PROMES import", () => {
     );
   });
 
-  test("re-import surfaces 409 conflict alert + commit button disabled", async ({
+  test("re-import surfaces 409 conflict alert + commit blocked (button hidden)", async ({
     page,
   }) => {
     test.skip(!semesterId, "could not create test semester — skipping");
@@ -234,8 +234,12 @@ test.describe("Admin curriculum — PROMES import", () => {
       alert.getByText(/Nilai Agama dan Budi Pekerti.*TP\s*1/i),
     ).toBeVisible();
 
-    // Commit button disabled while conflicts present.
-    const commit = page.getByRole("button", { name: /Konfirmasi & simpan/i });
-    await expect(commit).toBeDisabled();
+    // Active conflicts hard-block the import: the 2026-05-20 status-aware
+    // re-import (T5) removes the commit button entirely for ACTIVE conflicts
+    // (only INACTIVE rows get skip/reactivate affordances). The commit path
+    // is unreachable — assert the button is absent, not merely disabled.
+    await expect(
+      page.getByRole("button", { name: /Konfirmasi & simpan/i }),
+    ).toHaveCount(0);
   });
 });
