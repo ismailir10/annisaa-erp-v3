@@ -1,21 +1,24 @@
 -- Add ClassSection.ageGroup column.
--- Two-phase:
---   1. ADD COLUMN nullable (IF NOT EXISTS — operator recovery from a
---      partial run that died between steps 1 and 4 will not error)
---   2. Backfill via the legacy split-on-whitespace heuristic
+--   1. ADD COLUMN nullable (IF NOT EXISTS — safe to re-run after a partial run)
+--   2. Backfill: TKIT A/B from the legacy split-on-whitespace suffix
 --      (matches lib/curriculum/weekly-assessment-loader.ts deriveAgeGroup
---      that this migration retires)
---   3. Fail loudly if any row resolves to NULL — surfaces the offender
---      ClassSection names so the operator can fix them before re-running
---   4. SET NOT NULL once backfill is verified complete
+--      that this migration retires). Names that do NOT end in a bare A/B
+--      token — KB / D'Care / POPUP and other non-TK cohorts — default to
+--      'A' (the seed convention; these are the younger 4-5 yo groups).
+--      The /admin/classes Tambah/Ubah Kelas form makes ageGroup editable,
+--      so any class needing 'B' is corrected in one click post-migration.
+--   3. SET NOT NULL once every row has a value.
 --
--- Idempotency: prisma migrate deploy tracks completed migrations in
--- _prisma_migrations and won't re-run a clean apply. For partial-run
--- recovery (column added, NOT NULL not yet set), every statement here
--- is safe to re-execute: ADD COLUMN IF NOT EXISTS no-ops, UPDATE only
--- touches NULL rows (next iteration), the assertion sees only the
--- remaining offenders, and SET NOT NULL on an already-NOT-NULL column
--- is also a no-op.
+-- History: the original 2026-05-20 form of this migration RAISE'd on any
+-- non-A/B name (Spec Assumption #2 — "all ClassSection names resolve to
+-- A/B"). That assumption was false against real staging data (KB Aster,
+-- KB Metland, D'Care Aster, POPUP Weekend + leaked E2E rows), so the first
+-- staging deploy failed P3009. Replaced the fail-loud assertion with a
+-- safe default — backfill is now total and deploy-clean on staging + prod.
+--
+-- Idempotency: every statement is safe to re-execute. ADD COLUMN IF NOT
+-- EXISTS no-ops; the UPDATE only touches NULL rows; SET NOT NULL on an
+-- already-NOT-NULL column is a no-op.
 
 ALTER TABLE "ClassSection" ADD COLUMN IF NOT EXISTS "ageGroup" "AgeGroup";
 
@@ -23,19 +26,8 @@ UPDATE "ClassSection"
 SET "ageGroup" = CASE upper(split_part(name, ' ', -1))
   WHEN 'A' THEN 'A'::"AgeGroup"
   WHEN 'B' THEN 'B'::"AgeGroup"
-  ELSE NULL
+  ELSE 'A'::"AgeGroup"
 END
 WHERE "ageGroup" IS NULL;
-
-DO $$
-DECLARE
-  offenders text;
-BEGIN
-  SELECT string_agg(name, ', ') INTO offenders FROM "ClassSection" WHERE "ageGroup" IS NULL;
-  IF offenders IS NOT NULL THEN
-    RAISE EXCEPTION
-      'ClassSection ageGroup backfill incomplete. Names not matching the legacy A/B suffix: %. Fix the rows manually (UPDATE "ClassSection" SET "ageGroup" = ''A''|''B'' WHERE name = ...) and re-run prisma migrate deploy.', offenders;
-  END IF;
-END $$;
 
 ALTER TABLE "ClassSection" ALTER COLUMN "ageGroup" SET NOT NULL;
