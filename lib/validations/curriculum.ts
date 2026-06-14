@@ -294,30 +294,54 @@ export interface PromesPreviewPayload {
    * Per-row conflict report. Each entry identifies an existing
    * LearningObjective row that would collide on the
    * (tenantId, semesterId, ageGroup, element, number) unique key.
-   * Preview returns 409 when this list is non-empty; commit refuses
-   * to write while any conflict is unresolved.
+   *
+   * Conflicts are split into two buckets so the admin UI can offer
+   * skip-or-reactivate on stale (INACTIVE) rows separately from
+   * blocking-only on live (ACTIVE) rows. Preview returns 409 only when
+   * `active.length > 0`; commit honours `conflictPolicy` (block / skip /
+   * reactivate, default `block`).
+   *
+   * `ageGroup` is carried explicitly per row — the LearningObjective
+   * unique key is (tenantId, semesterId, ageGroup, element, number),
+   * so two objectives can share (element, number) if they differ by
+   * ageGroup. The admin UI must surface which ageGroup the existing
+   * row belongs to so a "TK A re-import" colliding with "TK B" prior
+   * data reads correctly.
    */
-  conflicts: Array<{
-    // ageGroup carried explicitly per row — the LearningObjective
-    // unique key is (tenantId, semesterId, ageGroup, element, number),
-    // so two objectives can share (element, number) if they differ by
-    // ageGroup. The admin UI must surface which ageGroup the existing
-    // row belongs to so a "TK A re-import" colliding with "TK B" prior
-    // data reads correctly.
-    ageGroup: AgeGroupInput;
-    element: CurriculumElementInput;
-    number: number;
-    existingContent: string;
-  }>;
+  conflicts: {
+    active: Array<{
+      ageGroup: AgeGroupInput;
+      element: CurriculumElementInput;
+      number: number;
+      existingContent: string;
+    }>;
+    inactive: Array<{
+      ageGroup: AgeGroupInput;
+      element: CurriculumElementInput;
+      number: number;
+      existingContent: string;
+      existingId: string;
+    }>;
+  };
 }
+
+export type PromesConflictPolicy = "block" | "skip" | "reactivate";
 
 /** Response shape for the commit endpoint. */
 export interface PromesCommitPayload {
   semesterId: string;
   ageGroup: AgeGroupInput;
   filename: string;
+  conflictPolicy: PromesConflictPolicy;
   counts: {
     objectives: number;
+    indicators: number;
+  };
+  /** Rows actually written or reactivated, broken down by action. */
+  applied: {
+    created: number;
+    reactivated: number;
+    skipped: number;
     indicators: number;
   };
 }

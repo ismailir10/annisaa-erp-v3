@@ -451,16 +451,17 @@ model ClassTrack {
 
 // ── CLASS SECTION ────────────────────────────────────────────
 model ClassSection {
-  id             String @id @default(cuid())
+  id             String   @id @default(cuid())
   tenantId       String
   classTrackId   String
   programId      String
   academicYearId String
   name           String // "TKIT A", "KB Aster", "D'Care Metland"
-  capacity       Int    @default(20)
+  ageGroup       AgeGroup // A (4-5 yo) | B (5-6 yo) — was derived from name; column added 2026-05-20
+  capacity       Int      @default(20)
   campusId       String
-  slotTemplate   String @default("FULL_DAY") // FULL_DAY | MORNING_AND_AFTERNOON
-  status         String @default("ACTIVE") // ACTIVE | INACTIVE
+  slotTemplate   String   @default("FULL_DAY") // FULL_DAY | MORNING_AND_AFTERNOON
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   classTrack          ClassTrack           @relation(fields: [classTrackId], references: [id], onDelete: Restrict)

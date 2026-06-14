@@ -14,6 +14,7 @@ describe("classCreateSchema", () => {
     name: "TKIT A",
     capacity: 20,
     slotTemplate: "FULL_DAY" as const,
+    ageGroup: "A" as const,
   };
 
   it("accepts a fully populated valid input", () => {
@@ -69,6 +70,22 @@ describe("classCreateSchema", () => {
     expect(
       classCreateSchema.safeParse({ ...valid, academicYearId: "" }).success,
     ).toBe(false);
+  });
+
+  it("requires ageGroup", () => {
+    const { ageGroup: _drop, ...rest } = valid;
+    expect(classCreateSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it("rejects ageGroup outside A/B", () => {
+    expect(
+      classCreateSchema.safeParse({ ...valid, ageGroup: "C" }).success,
+    ).toBe(false);
+  });
+
+  it("accepts ageGroup B", () => {
+    const r = classCreateSchema.safeParse({ ...valid, ageGroup: "B" });
+    expect(r.success).toBe(true);
   });
 
   it("rejects unknown slotTemplate", () => {

@@ -66,12 +66,13 @@ export async function POST(req: NextRequest) {
   const metlandCampusId = campusByName["Metland Cibitung"] ?? defaultCampusId;
 
   const classDefs = [
-    { name: "TKIT A", programCode: "TKIT", campusId: asterCampusId, capacity: 20, key: "TKIT_A" },
-    { name: "TKIT B", programCode: "TKIT", campusId: asterCampusId, capacity: 20, key: "TKIT_B" },
-    { name: "KB Aster", programCode: "KB", campusId: asterCampusId, capacity: 15, key: "KB_ASTER" },
-    { name: "KB Metland", programCode: "KB", campusId: metlandCampusId, capacity: 15, key: "KB_METLAND" },
-    { name: "D'Care Aster", programCode: "DCARE", campusId: asterCampusId, capacity: 10, key: "DCARE" },
-    { name: "POPUP Weekend", programCode: "POPUP", campusId: asterCampusId, capacity: 25, key: "POPUP" },
+    { name: "TKIT A", programCode: "TKIT", campusId: asterCampusId, capacity: 20, key: "TKIT_A", ageGroup: "A" as const },
+    { name: "TKIT B", programCode: "TKIT", campusId: asterCampusId, capacity: 20, key: "TKIT_B", ageGroup: "B" as const },
+    // Non-TK programs default to A — see prisma/seed.ts for the rationale.
+    { name: "KB Aster", programCode: "KB", campusId: asterCampusId, capacity: 15, key: "KB_ASTER", ageGroup: "A" as const },
+    { name: "KB Metland", programCode: "KB", campusId: metlandCampusId, capacity: 15, key: "KB_METLAND", ageGroup: "A" as const },
+    { name: "D'Care Aster", programCode: "DCARE", campusId: asterCampusId, capacity: 10, key: "DCARE", ageGroup: "A" as const },
+    { name: "POPUP Weekend", programCode: "POPUP", campusId: asterCampusId, capacity: 25, key: "POPUP", ageGroup: "A" as const },
   ];
   const classMap: Record<string, string> = {};
   for (const cs of classDefs) {
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
         create: { tenantId, campusId: cs.campusId, programId: programMap[cs.programCode], name: cs.name },
       });
       existing = await prisma.classSection.create({
-        data: { tenantId, classTrackId: classTrack.id, programId: programMap[cs.programCode], academicYearId: academicYear.id, name: cs.name, capacity: cs.capacity, campusId: cs.campusId },
+        data: { tenantId, classTrackId: classTrack.id, programId: programMap[cs.programCode], academicYearId: academicYear.id, name: cs.name, ageGroup: cs.ageGroup, capacity: cs.capacity, campusId: cs.campusId },
       });
     }
     classMap[cs.key] = existing.id;

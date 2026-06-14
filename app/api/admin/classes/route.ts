@@ -204,6 +204,7 @@ export async function POST(req: NextRequest) {
           name: sectionName,
           capacity: body.capacity,
           slotTemplate: body.slotTemplate,
+          ageGroup: body.ageGroup,
         },
         select: classListSelect,
       });
@@ -219,6 +220,7 @@ export async function POST(req: NextRequest) {
       after: {
         name: result.name,
         capacity: result.capacity,
+        ageGroup: result.ageGroup,
         campusId: result.campusId,
         programId: result.programId,
         academicYearId: result.academicYearId,

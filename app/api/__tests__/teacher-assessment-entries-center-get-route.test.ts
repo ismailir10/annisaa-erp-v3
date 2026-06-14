@@ -62,14 +62,15 @@ const happy = () => {
       theme: { id: "th1", name: "Theme", semesterId: "sem1" },
     },
   });
+  // ClassSection.ageGroup is now a DB-side filter (column added
+  // 2026-05-20 in feat/curriculum-cutover-prep T1). The route's where
+  // clause already constrains classSection.ageGroup === requested
+  // ageGroup, so the mock returns only the matching subset; the prior
+  // post-query name-heuristic that excluded TKIT B is gone.
   studentEnrollmentFindMany.mockResolvedValue([
     {
       classSection: { id: "cs1", name: "TKIT A" },
       student: { id: "stu1", name: "Ali", nickname: "Ali", status: "ACTIVE" },
-    },
-    {
-      classSection: { id: "cs2", name: "TKIT B" },
-      student: { id: "stu2", name: "Bud", nickname: "Bud", status: "ACTIVE" },
     },
   ]);
   achievementIndicatorFindMany.mockResolvedValue([

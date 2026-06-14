@@ -7,6 +7,11 @@ import { z } from "zod";
 
 export const SLOT_TEMPLATES = ["FULL_DAY", "MORNING_AND_AFTERNOON"] as const;
 
+// Kelompok usia (A = 4-5 yo / B = 5-6 yo). Mirrors Prisma enum `AgeGroup`.
+// Promoted 2026-05-20 from the legacy `deriveAgeGroup` name-heuristic to an
+// explicit required field — drives walas-weekly + sentra cohort + perkembangan.
+export const ageGroupSchema = z.enum(["A", "B"]);
+
 const namePiece = z
   .string()
   .trim()
@@ -26,12 +31,14 @@ export const classCreateSchema = z.object({
   name: namePiece,
   capacity: capacityPiece,
   slotTemplate: z.enum(SLOT_TEMPLATES).default("FULL_DAY"),
+  ageGroup: ageGroupSchema,
 });
 
 export const classUpdateSchema = z.object({
   name: namePiece.optional(),
   capacity: capacityPiece.optional(),
   slotTemplate: z.enum(SLOT_TEMPLATES).optional(),
+  ageGroup: ageGroupSchema.optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
