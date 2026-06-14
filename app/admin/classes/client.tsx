@@ -31,6 +31,7 @@ type ClassRow = {
   name: string;
   capacity: number;
   slotTemplate: "FULL_DAY" | "MORNING_AND_AFTERNOON";
+  ageGroup: "A" | "B";
   status: "ACTIVE" | "INACTIVE";
   campusId: string;
   programId: string;
@@ -90,6 +91,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     name: "",
     capacity: 20,
     slotTemplate: "FULL_DAY" as ClassRow["slotTemplate"],
+    ageGroup: "" as "" | ClassRow["ageGroup"],
   });
   const [saving, setSaving] = useState(false);
 
@@ -173,6 +175,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       name: "",
       capacity: 20,
       slotTemplate: "FULL_DAY",
+      ageGroup: "",
     });
   }
 
@@ -189,6 +192,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       name: row.name,
       capacity: row.capacity,
       slotTemplate: row.slotTemplate,
+      ageGroup: row.ageGroup,
     });
     setDialogOpen(true);
   }
@@ -206,6 +210,10 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       toast.error("Kapasitas harus antara 1 dan 200");
       return;
     }
+    if (!form.ageGroup) {
+      toast.error("Kelompok usia wajib dipilih");
+      return;
+    }
     setSaving(true);
     const url = editing
       ? `/api/admin/classes/${editing.id}`
@@ -216,6 +224,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           name: form.name.trim(),
           capacity: form.capacity,
           slotTemplate: form.slotTemplate,
+          ageGroup: form.ageGroup,
         }
       : {
           campusId: form.campusId,
@@ -224,6 +233,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           name: form.name.trim(),
           capacity: form.capacity,
           slotTemplate: form.slotTemplate,
+          ageGroup: form.ageGroup,
         };
     const res = await fetch(url, {
       method,
@@ -591,6 +601,27 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
                 <SelectItem value="MORNING_AND_AFTERNOON">
                   Pagi & sore
                 </SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field>
+            <FieldLabel>Kelompok usia</FieldLabel>
+            <Select
+              value={form.ageGroup}
+              onValueChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  ageGroup: (v as ClassRow["ageGroup"]) ?? "",
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih kelompok usia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A">A · 4–5 tahun (TK A)</SelectItem>
+                <SelectItem value="B">B · 5–6 tahun (TK B)</SelectItem>
               </SelectContent>
             </Select>
           </Field>

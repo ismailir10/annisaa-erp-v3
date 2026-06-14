@@ -225,6 +225,13 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     await programTrigger.click();
     await page.getByRole("option", { name: target.name }).click();
 
+    // Kelompok usia (A/B) is required since the 2026-05-20 curriculum cutover
+    // promoted ageGroup from name-heuristic to an explicit column. Last
+    // combobox in the dialog; pick A.
+    const ageGroupTrigger = dialog.locator('[role="combobox"]').last();
+    await ageGroupTrigger.click();
+    await page.getByRole("option", { name: /TK A/ }).click();
+
     await dialog.getByRole("button", { name: /Simpan/i }).click();
     await expect(dialog).toBeHidden({ timeout: 10_000 });
 

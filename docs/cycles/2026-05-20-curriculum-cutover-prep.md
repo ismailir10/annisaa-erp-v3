@@ -287,3 +287,20 @@ Rationale: the new `AssessmentEntry` (3-level CONSISTENT/EMERGING/NEEDS_REINFORC
 - Pending T7 decision, schedule the legacy `/parent/reports` deletion or backfill execution before July 2026 cutover.
 - Audit other Prisma `where` clauses across `app/**/page.tsx` for missing `tenantId` (sister bug class to T3). Track as a `feat/page-layer-tenant-scope-audit` follow-up.
 - The audit's `feat/security-hardening` + `feat/finance-audit-trail` cycles are sequenced after this one merges to staging.
+
+---
+
+## Rebase 2026-06-14 — re-home ageGroup select to `/admin/classes`
+
+The branch sat unshipped ~84 commits and went semantically stale: the 2026-05-19 kelas-page cycle (#295) moved the ClassSection create/edit form out of `app/admin/academic-years/page.tsx` into the consolidated `/admin/classes` surface (`app/admin/classes/client.tsx`, route `/api/admin/classes`, validator `lib/validations/class.ts`). T2's form changes (which targeted the old `academic-years` page) were dropped on rebase (took staging) and **re-implemented on the new surface**:
+
+- **`lib/validations/class.ts`** — `ageGroupSchema = z.enum(["A","B"])`; required on `classCreateSchema`, optional on `classUpdateSchema`.
+- **`app/api/admin/classes/route.ts`** (POST) + **`[id]/route.ts`** (PATCH) — persist `ageGroup`; audit before/after carry it.
+- **`app/api/admin/classes/_helpers.ts`** — `ageGroup` added to `classListSelect` + `classDetailSelect` (list/detail/edit prefill).
+- **`app/admin/classes/client.tsx`** — required **Kelompok usia (A/B)** select in the Tambah/Ubah Kelas dialog; form state + validation + create/edit payload.
+- **`e2e/admin-dialogs.spec.ts`** — F-3 Program-combobox test now selects Kelompok usia (required) before submit.
+- **`lib/validations/__tests__/class.test.ts`** — `valid` fixture gains `ageGroup`; +3 cases (required / out-of-range / accepts B).
+
+Cross-checked design-system.html §form-field + §dialog-footer — the Kelompok usia select reuses the existing `Field`/`FieldLabel`/`Select` pattern from the same dialog (Pola slot), copy in Bahasa Indonesia per voice.md.
+
+**Gate (rebase):** `npm run build` clean · `npx vitest run` **1963 passed / 42 todo / 2 skipped, 0 fail**. Migration `20260520000000_classsection_age_group` unchanged; applies at deploy. Playwright + preview-verify run via `/ship` (browser-observable: `/admin/classes` Tambah/Ubah Kelas dialog + the NOT-NULL column round-trip).
