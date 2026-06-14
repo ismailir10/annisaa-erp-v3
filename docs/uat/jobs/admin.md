@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-06-06 in cycle `admin-raport-mvp` (admin raport surface added — auto-draft from penilaian, override, publish, PDF)
+> Last audited: 2026-06-13 in cycle `payments-ledger` (Penerimaan payments-received ledger on /admin/payments — date-range, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -58,6 +58,21 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 ---
 
 ## Area: invoices
+
+### JTBD-ADMIN-PAY-01 — Check today's cash received (Penerimaan)
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** ledger load <1.5s; CSV download starts <1s
+- **Preconditions:** Logged in as SUPER_ADMIN; ≥1 payment recorded in the chosen range
+- **Steps:**
+  1. Open Keuangan → Penerimaan (`/admin/payments`)
+  2. Default view shows today's payments + Total Penerimaan + Jumlah Transaksi
+  3. Widen the date range (e.g. month-to-date) and/or filter by method (Tunai / Transfer Bank / Virtual Account)
+  4. Read the per-method summary badges
+  5. Click "Ekspor CSV"
+- **Done when:** Summary cards + table reconcile (sum of rows = Total Penerimaan), method filter narrows both, CSV downloads with matching totals and a Bahasa filename. REVERSED payments never appear.
+- **Why this job matters:** Treasurer daily/period cash recap previously required opening every invoice one by one.
+- **Known friction (from last UAT):** <filled by /uat reports>
 
 ### JTBD-ADMIN-INV-01 — Create a manual invoice for a specific student
 - **Persona:** Ibu Nur
@@ -333,6 +348,37 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
   4. Confirm each class section shows student count and wali kelas assignment
 - **Done when:** User can answer "are all classes set up correctly for this term?" in under 30 seconds. Empty states (if any class has no wali kelas) are visually distinct and actionable.
 - **Why this job matters:** Start-of-term ritual. Ibu Nur does it once every 6 months but if it's broken, everything downstream (attendance, invoices, payroll) breaks.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-ACAD-02 — Promote a whole class to the next year (Naik Kelas Massal)
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** roster preview <1.5s; promotion submit click-to-confirm <2s
+- **Preconditions:** Logged in as SUPER_ADMIN; a source class with ≥1 ACTIVE enrollment; a target class (typically next academic year) with enough capacity
+- **Steps:**
+  1. Open Kelas (`/admin/classes`)
+  2. Click "Naik Kelas Massal"
+  3. Pick source year + class — roster of active students appears, all checked
+  4. Untick any student who stays behind
+  5. Pick target year + class — capacity hint shows remaining seats vs. needed
+  6. Click "Naik Kelas (N siswa)"
+- **Done when:** Toast confirms `N siswa naik kelas` (+ `M ditahan` when some were unticked); old enrollments become GRADUATED, new ACTIVE enrollments exist in the target class. Over-capacity attempt shows the Bahasa error inline and the dialog stays open.
+- **Why this job matters:** Year-end ritual (July). Before this dialog the only path was per-student promotion — untenable for a 20-student class.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-ACAD-03 — Pull the monthly attendance recap for the yayasan report
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** recap load <1.5s; CSV download starts <1s
+- **Preconditions:** Logged in as SUPER_ADMIN; ≥1 class with marked attendance in the chosen month
+- **Steps:**
+  1. Open Kehadiran Siswa (`/admin/student-attendance`)
+  2. Switch to the "Rekap Bulanan" tab
+  3. Pick the month (and optionally a class)
+  4. Review per-student Hadir / Sakit / Izin / Alpa counts
+  5. Click "Ekspor CSV"
+- **Done when:** Table shows every ACTIVE student (zero-count rows included); CSV downloads with the same numbers and a Bahasa filename. Never-marked students are visible with 0 totals, not silently missing.
+- **Why this job matters:** Monthly yayasan/Dinas reporting previously required manual tallying from the daily list.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

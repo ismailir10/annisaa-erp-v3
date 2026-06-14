@@ -4,6 +4,14 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
+/**
+ * Domain error whose message is safe to surface to the client. Anything else
+ * thrown inside the transaction (Prisma/Postgres internals) must NOT leak —
+ * the 0A000 incident put a raw `prisma.$queryRaw` invocation error straight
+ * into the admin dialog.
+ */
+class PromotionError extends Error {}
+
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
@@ -111,30 +119,33 @@ export async function POST(req: NextRequest) {
   const today = getTodayInTimezone("Asia/Jakarta");
 
   // Transaction: lock target section, re-check capacity, graduate old
-  // enrollments, upsert new ones. `SELECT … FOR UPDATE OF cs` on ClassSection
-  // prevents two concurrent bulk promotes from both seeing the same
-  // active count and overflowing.
+  // enrollments, upsert new ones. The row lock on ClassSection prevents two
+  // concurrent bulk promotes from both seeing the same active count and
+  // overflowing. The active count is a correlated subquery, NOT a GROUP BY —
+  // Postgres rejects `FOR UPDATE` combined with `GROUP BY` (0A000), which
+  // made this endpoint fail on every call until the 2026-06-12 cycle wired
+  // the first UI to it. The subquery runs under the acquired lock, so the
+  // race-safety is unchanged.
   try {
   await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<
-      Array<{ id: string; capacity: number; active_count: bigint }>
+      Array<{ id: string; capacity: number; active_count: number }>
     >`
-      SELECT cs.id, cs.capacity, COUNT(se.id)::int AS active_count
+      SELECT cs.id, cs.capacity,
+        (SELECT COUNT(*)::int FROM "StudentEnrollment" se
+          WHERE se."classSectionId" = cs.id AND se.status = 'ACTIVE') AS active_count
       FROM "ClassSection" cs
-      LEFT JOIN "StudentEnrollment" se
-        ON se."classSectionId" = cs.id AND se.status = 'ACTIVE'
       WHERE cs.id = ${targetClassSectionId}
-      GROUP BY cs.id, cs.capacity
-      FOR UPDATE OF cs
+      FOR UPDATE
     `;
     if (rows.length === 0) {
-      throw new Error("Kelas tujuan tidak ditemukan");
+      throw new PromotionError("Kelas tujuan tidak ditemukan");
     }
     const capacity = rows[0].capacity;
     const currentActive = Number(rows[0].active_count);
     const needed = currentActive + toPromote.length;
     if (needed > capacity) {
-      throw new Error(
+      throw new PromotionError(
         `Kapasitas kelas tujuan tidak cukup. Tersedia: ${capacity - currentActive}, dibutuhkan: ${toPromote.length}`,
       );
     }
@@ -165,8 +176,14 @@ export async function POST(req: NextRequest) {
     }
   });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Gagal memproses promosi";
-    return NextResponse.json({ error: message }, { status: 400 });
+    if (err instanceof PromotionError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    console.error("[promotions POST] transaction failed:", err);
+    return NextResponse.json(
+      { error: "Gagal memproses naik kelas. Coba lagi." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
