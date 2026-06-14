@@ -179,8 +179,26 @@ test.describe("FieldLabel required asterisk", () => {
 test.describe("Tambah Kelas — Program combobox writes selected value", () => {
   test.use({ viewport: DESKTOP });
 
+  // CI Playwright runs against the Vercel preview, whose DATABASE_URL points
+  // at the real staging Supabase DB — so this test's create persists there.
+  // Track the created id and tear it down in afterEach so cleanup runs even
+  // when an assertion throws (the old inline post-assert cleanup leaked an
+  // ACTIVE row + reconciled sessions on every failed run — see the
+  // 2026-06-14 P3009 incident). DELETE is a soft-delete (status→INACTIVE);
+  // a fully isolated preview DB is the real fix, tracked separately.
+  let createdSectionId: string | null = null;
+
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
+  });
+
+  test.afterEach(async ({ page }) => {
+    if (createdSectionId) {
+      await page.request
+        .delete(`/api/admin/classes/${createdSectionId}`)
+        .catch(() => {});
+      createdSectionId = null;
+    }
   });
 
   test("non-default Program selection persists to the new ClassSection", async ({ page }) => {
@@ -240,11 +258,11 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     const listRes = await page.request.get("/api/class-sections");
     const sections = (await listRes.json()) as Array<{ id: string; name: string; programId: string }>;
     const created = sections.find((s) => s.name === uniqueName);
+    // Record the id BEFORE asserting so afterEach tears it down even if the
+    // programId assertion below throws — otherwise a regression would leak
+    // the row on every CI run.
+    createdSectionId = created?.id ?? null;
     expect(created, `class section "${uniqueName}" should exist after create`).toBeTruthy();
     expect(created!.programId, "selected Program must persist to the new ClassSection").toBe(target.id);
-
-    // Cleanup so the test is idempotent against subsequent runs that
-    // would otherwise hit a unique-name collision. Use the new admin route.
-    await page.request.delete(`/api/admin/classes/${created!.id}`).catch(() => {});
   });
 });
