@@ -61,6 +61,22 @@ describe("GET /api/guardian/raport/[studentId]/[termId]/pdf", () => {
     expect((await GET({} as never, ctx)).status).toBe(403);
   });
 
+  it("404 without querying when the session has neither parentId nor email (no null-email global match)", async () => {
+    getSession.mockResolvedValue({ tenantId: "t1", parentId: null, email: null, role: "GUARDIAN" });
+    expect((await GET({} as never, ctx)).status).toBe(404);
+    // Critical: must NOT fall through to a `where: { email: null }` lookup.
+    expect(db.parent.findFirst).not.toHaveBeenCalled();
+    expect(renderToBuffer).not.toHaveBeenCalled();
+  });
+
+  it("falls back to email lookup only when email is a non-empty string", async () => {
+    getSession.mockResolvedValue({ tenantId: "t1", parentId: null, email: "siti@x.com", role: "GUARDIAN" });
+    db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "other" }] });
+    await GET({} as never, ctx);
+    const where = db.parent.findFirst.mock.calls[0]![0].where;
+    expect(where).toEqual({ email: "siti@x.com", tenantId: "t1" });
+  });
+
   it("404 when the student is not linked to this guardian", async () => {
     getSession.mockResolvedValue(GUARDIAN);
     db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "other" }] });

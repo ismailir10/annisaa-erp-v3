@@ -30,10 +30,20 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const tenantId = session.tenantId;
 
   // Ownership: the student must be one of this parent's linked children.
+  // Contract mirrors lib/parent-helpers.ts `_getParentWithChildren` — require
+  // `parentId` OR a non-empty `email` before querying. Without this guard, a
+  // GUARDIAN session carrying both null would hit `findFirst({ where: { email:
+  // null, tenantId } })`, which Prisma resolves as a tenant-only lookup and
+  // returns the FIRST null-email parent (staging has ~200) — a cross-family
+  // raport-PDF leak. Flat 404 on the degenerate session, same as a miss.
+  const hasEmail = typeof session.email === "string" && session.email.length > 0;
+  if (!session.parentId && !hasEmail) {
+    return NextResponse.json({ error: "Tidak ditemukan." }, { status: 404 });
+  }
   const parent = await prisma.parent.findFirst({
     where: session.parentId
       ? { id: session.parentId, tenantId }
-      : { email: session.email, tenantId },
+      : { email: session.email as string, tenantId },
     select: { guardians: { select: { studentId: true } } },
   });
   const owns = parent?.guardians.some((g) => g.studentId === studentId) ?? false;

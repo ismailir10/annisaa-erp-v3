@@ -210,6 +210,19 @@ real Vercel preview using the staging Google logins — the surface the bug was 
   - `admin.spec.ts:437 bulk tagihan … PENDING_PAYMENT_LINK` — Xendit stub failure-path,
     known environmental/flaky.
 
+**Code review (end-of-cycle).** Adversarial pass on the diff found one material issue,
+now fixed: the guardian PDF route's ownership query reintroduced the null-email
+global-parent-match leak that `lib/parent-helpers.ts` was hardened against — a
+`parentId`-null + `email`-null GUARDIAN session would have matched the first null-email
+parent in the tenant (~200 on staging) and could fetch a foreign child's raport PDF.
+Fixed by requiring `parentId` OR non-empty `email` before the lookup (flat 404
+otherwise), mirroring the `_getParentWithChildren` contract. Added 2 regression tests
+(no-credential session → 404 without querying; email fallback only for non-empty email).
+Refactor parity (shared builder vs. old admin inline) confirmed equivalent — unknown
+levels now resolve to `null` instead of `undefined` (strict improvement); admin PDF
+route test still green. Post-fix gate: `npm run build` ✓ · `npx vitest run` ✓ (205
+files, 2037 passed, 42 todo, 2 skipped); guardian route test 8/8.
+
 ## Ship Notes
 
 - **Migrations:** none. `ReportCardEntry` / `StudentMeasurement` / `Term` schema is
