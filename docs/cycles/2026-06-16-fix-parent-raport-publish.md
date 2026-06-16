@@ -212,4 +212,24 @@ real Vercel preview using the staging Google logins — the surface the bug was 
 
 ## Ship Notes
 
-<!-- /ship fills: migrations, env vars, rollback -->
+- **Migrations:** none. `ReportCardEntry` / `StudentMeasurement` / `Term` schema is
+  unchanged (the #319 MVP already shipped them). Pure read-path rewire + new route.
+- **Env vars / deps:** none. No new packages.
+- **New surface:** `GET /api/guardian/raport/[studentId]/[termId]/pdf` (GUARDIAN-gated).
+  Net API route count unchanged (175 — one added, one removed).
+- **Cache:** new tag `parent-report-cards` (120s TTL), evicted on admin raport
+  publish/unpublish. No action needed on deploy.
+- **Data:** parent `/parent/reports` shows content only once an admin **publishes** a
+  raport in `/admin/raport`. No backfill — pre-existing PUBLISHED `ReportCardEntry` rows
+  surface immediately. The legacy `StudentAssessment` "(Demo)" rows simply stop being
+  read on the parent side (still readable by the admin template system).
+- **Rollback:** revert the PR — no schema/data state to unwind.
+- **Preview-verify (the authored-content E2E):** on the Vercel preview, sign in as admin
+  (ismailir10@gmail.com) → `/admin/raport` → create a Triwulan + author a raport for a
+  TKIT-A child of guardian Siti → "Simpan & Terbitkan". Then sign in as guardian
+  (rightjet.hq@gmail.com) → `/parent/reports` → "Buka rapor" → confirm the authored
+  narrative + 3-level skala + Kehadiran + working "Unduh PDF", and that no "(Demo)"
+  legacy report appears.
+- **Follow-up (out of scope):** `admin-raport.spec.ts:25` assumes no Term is seeded and
+  now fails against staging (a Term exists from the manual bug repro) — make it tolerant
+  of an existing Term.
