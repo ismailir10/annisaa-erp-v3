@@ -178,6 +178,38 @@ count unchanged: +1 (guardian raport PDF) −1 (guardian assessments) = 175.
   passed, 42 todo, 2 skipped). `verify-api-auth.sh` ✓ (175/175). Grep confirms zero
   lingering references to the deleted symbols.
 
+**Task 6 — E2E `e2e/parent-raport.spec.ts`.** Two demo-mode tests. (1) Guardian opens
+`/parent/reports`: header renders, the legacy "Laporan Perkembangan Semester 1" /
+"Perkembangan Motorik Halus" strings are absent (count 0), and either the empty state or
+the published-rapor surface shows; when a "Buka rapor" button exists, clicking it asserts
+the authored drawer (Kehadiran heading + Unduh PDF button). (2) Guardian PDF route:
+bogus child as guardian → 404; the same route with an admin session → 403.
+
+Why no admin-publish→guardian-content fixture: no Term/ReportCardEntry DELETE API exists
+(a created fixture can't be torn down → staging leak), and reseeding staging would wipe
+pilot data. The authored-content end-to-end is delegated to `/ship` preview-verify on the
+real Vercel preview using the staging Google logins — the surface the bug was found on.
+
+- Task 6 verification: `e2e/parent-raport.spec.ts` ✓ **2/2 passed** (targeted run,
+  `E2E_ALLOW_REMOTE_DB=1`, read-only GETs — staging-safe). Verbatim:
+  ```
+  ✓ 1 …parent-raport.spec.ts:42 › reports page renders and never shows the legacy (Demo) report (1.8s)
+  ✓ 2 …parent-raport.spec.ts:73 › guardian rapor PDF route is ownership- and role-gated (703ms)
+  2 passed (5.5s)
+  ```
+- **Full Playwright suite (staging): 128 passed / 6 failed / 7 skipped.** All 6 failures
+  are in specs/pages this cycle does NOT touch (`git diff origin/staging...HEAD` confirms
+  none are in the diff), i.e. pre-existing staging-state / time-relative failures, not
+  regressions from this fix:
+  - `admin-raport.spec.ts:25 raport surface loads` — asserts the "Buat Triwulan" card
+    (assumes **no** Term seeded); staging now has a Term (the bug repro manually built +
+    published a Triwulan raport there), so the surface shows the term selector instead.
+    Pre-existing spec brittleness — follow-up: make the spec tolerant of an existing Term.
+  - `teacher-assessments-weekly.spec.ts:38/49/65/83` — date-relative (assert a 2025-07
+    active week; today is 2026-06-16 → no_active_week), staging-curriculum dependent.
+  - `admin.spec.ts:437 bulk tagihan … PENDING_PAYMENT_LINK` — Xendit stub failure-path,
+    known environmental/flaky.
+
 ## Ship Notes
 
 <!-- /ship fills: migrations, env vars, rollback -->
