@@ -251,58 +251,6 @@ export async function getTodayStudentAttendance(
   return record?.status ?? null;
 }
 
-export type PublishedAssessmentListItem = {
-  id: string;
-  templateName: string;
-  period: string;
-  programName: string;
-  status: string;
-  publishedAt: string | null;
-};
-
-/**
- * Fetch every published assessment for a specific student.
- *
- * Tenant safety: callers resolve `studentId` via `getParentWithChildren()`,
- * which already applies the tenant filter; an assessment row is locked to a
- * tenant-scoped student, so the original `template: { tenantId }` JOIN was
- * defensive-in-depth but strictly redundant. Dropping it removes a JOIN.
- *
- * Cached 2 minutes, tagged so publish/unpublish mutations can invalidate.
- */
-export const getPublishedAssessmentsForStudent = unstable_cache(
-  async (studentId: string): Promise<PublishedAssessmentListItem[]> => {
-    const rows = await prisma.studentAssessment.findMany({
-      where: { studentId, status: "PUBLISHED" },
-      select: {
-        id: true,
-        period: true,
-        status: true,
-        publishedAt: true,
-        template: {
-          select: {
-            name: true,
-            program: { select: { name: true } },
-          },
-        },
-      },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    });
-    return rows.map((r) => ({
-      id: r.id,
-      templateName: r.template.name,
-      period: r.period,
-      programName: r.template.program.name,
-      status: r.status,
-      publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,
-    }));
-  },
-  ["parent-published-assessments"],
-  // Tag string must stay in sync with the revalidateTag call in
-  // app/api/assessments/student/[id]/route.ts (publish handler).
-  { revalidate: 120, tags: ["parent-published-assessments"] },
-);
-
 export type ParentReportCard = {
   termId: string;
   /** "Triwulan 1 · Semester 1 · 2025/2026" — headline + history label. */

@@ -162,9 +162,21 @@ status badge). Empty state "Rapor belum terbit" preserved.
 - Task 3 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (205 files, 2035
   passed, 42 todo, 2 skipped). `verify-api-auth.sh` ✓ (176/176) · `verify-rls-coverage.sh`
   ✓ (37/37). New guardian-raport-pdf-route.test.ts 6/6.
+**Task 5 — Drop legacy.** Deleted `app/parent/assessments-table.tsx` and
+`app/api/guardian/assessments/[id]/route.ts`; removed `getPublishedAssessmentsForStudent`
++ `PublishedAssessmentListItem` from `lib/parent-helpers.ts`; removed the now-orphan
+`revalidateTag("parent-published-assessments")` / `revalidatePath("/parent/reports")`
+block (and its `next/cache` import) from `app/api/assessments/student/[id]/route.ts` —
+legacy StudentAssessment publishing no longer touches any parent surface. The admin
+StudentAssessment template system is otherwise untouched (out of scope). Net API route
+count unchanged: +1 (guardian raport PDF) −1 (guardian assessments) = 175.
+
 - Task 4 between-task gate: `npm run build` ✓ (vitest unchanged — UI-only task; full
   flow proven by Task 6 E2E + `/ship` preview-verify). Local dev seed ships no published
   ReportCardEntry, so only the empty state is reachable without API seeding.
+- Task 5 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (205 files, 2035
+  passed, 42 todo, 2 skipped). `verify-api-auth.sh` ✓ (175/175). Grep confirms zero
+  lingering references to the deleted symbols.
 
 ## Ship Notes
 
