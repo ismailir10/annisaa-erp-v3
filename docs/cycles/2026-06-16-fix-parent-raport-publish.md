@@ -148,9 +148,23 @@ assertion, 200 owned-published with 8 sections + Indonesian level.
 
 - Task 2 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (204 files, 2029
   passed, 42 todo, 2 skipped). New report-cards.test.ts 4/4.
+**Task 4 — Parent surface.** Repointed `app/parent/reports/page.tsx` from
+`getPublishedAssessmentsForStudent` to `getPublishedReportCardsForStudent(studentId,
+tenantId)` (added a `session.tenantId` guard). New client
+`app/parent/report-cards-list.tsx`: celebration banner + "Buka rapor" + "Riwayat rapor"
++ Sheet drawer rendering authored sections (label + 3-level skala Badge + narrative,
+empty sections hidden), Kehadiran 4-cell grid, Pertumbuhan, Hafalan, and "Unduh PDF" →
+the guardian PDF route. Renders entirely from server props (no per-row fetch; ownership
+already enforced upstream). Header subtitle → "tiap triwulan". Cross-checked
+design-system.html portal shell (celebration gold card, bottom/right Sheet, p-card,
+status badge). Empty state "Rapor belum terbit" preserved.
+
 - Task 3 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (205 files, 2035
   passed, 42 todo, 2 skipped). `verify-api-auth.sh` ✓ (176/176) · `verify-rls-coverage.sh`
   ✓ (37/37). New guardian-raport-pdf-route.test.ts 6/6.
+- Task 4 between-task gate: `npm run build` ✓ (vitest unchanged — UI-only task; full
+  flow proven by Task 6 E2E + `/ship` preview-verify). Local dev seed ships no published
+  ReportCardEntry, so only the empty state is reachable without API seeding.
 
 ## Ship Notes
 
