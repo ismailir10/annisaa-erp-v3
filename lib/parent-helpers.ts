@@ -2,6 +2,8 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
+import { buildReportSections, formatTermLabel } from "@/lib/raport/build";
+import type { ReportCardSection } from "@/lib/pdf/report-card";
 
 export type StudentInvoices = {
   id: string;
@@ -299,6 +301,102 @@ export const getPublishedAssessmentsForStudent = unstable_cache(
   // Tag string must stay in sync with the revalidateTag call in
   // app/api/assessments/student/[id]/route.ts (publish handler).
   { revalidate: 120, tags: ["parent-published-assessments"] },
+);
+
+export type ParentReportCard = {
+  termId: string;
+  /** "Triwulan 1 · Semester 1 · 2025/2026" — headline + history label. */
+  period: string;
+  publishedAt: string | null;
+  /** Ordered narrative sections (label + Indonesian level + narrative). */
+  sections: ReportCardSection[];
+  attendance: { sick: number; permitted: number; unexcused: number; total: number };
+  hafalan: string | null;
+  /** Decimal serialised to a display string (null when not recorded). */
+  height: string | null;
+  weight: string | null;
+};
+
+/**
+ * Fetch every PUBLISHED raport (`ReportCardEntry`) for a student, newest first.
+ *
+ * This is the parent portal's source of truth for `/parent/reports` — it reads
+ * the admin-authored `ReportCardEntry` (3-level skala + narrative sections +
+ * Kehadiran + measurements), NOT the legacy `StudentAssessment` template.
+ * Returns the full per-raport payload so the drawer renders from props (no
+ * per-row detail API); the PDF is fetched separately via the guardian PDF route.
+ *
+ * Tenant safety: callers resolve `studentId` via `getParentWithChildren()`,
+ * which tenant-scopes the student; `tenantId` is also in every `where` as
+ * defense in depth. `StudentMeasurement` has no relation to `ReportCardEntry`,
+ * so it is fetched in a second query and joined by `termId` in memory.
+ *
+ * Cached 2 minutes, tagged `parent-report-cards` so admin publish/unpublish
+ * (app/api/admin/raport/_helpers.ts `setPublishState`) can invalidate it.
+ */
+export const getPublishedReportCardsForStudent = unstable_cache(
+  async (studentId: string, tenantId: string): Promise<ParentReportCard[]> => {
+    const entries = await prisma.reportCardEntry.findMany({
+      where: { studentId, tenantId, status: "PUBLISHED", deletedAt: null },
+      select: {
+        termId: true,
+        sectionLevels: true,
+        sectionNarratives: true,
+        sickDays: true,
+        permittedAbsenceDays: true,
+        unexcusedAbsenceDays: true,
+        totalSchoolDays: true,
+        memorizationNotes: true,
+        publishedAt: true,
+        term: {
+          select: {
+            number: true,
+            semester: { select: { number: true, academicYear: { select: { name: true } } } },
+          },
+        },
+      },
+      orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+    });
+    if (entries.length === 0) return [];
+
+    const measurements = await prisma.studentMeasurement.findMany({
+      where: {
+        tenantId,
+        studentId,
+        termId: { in: entries.map((e) => e.termId) },
+        deletedAt: null,
+      },
+      select: { termId: true, heightCm: true, weightKg: true },
+    });
+    const byTerm = new Map(measurements.map((m) => [m.termId, m]));
+
+    return entries.map((e) => {
+      const m = byTerm.get(e.termId);
+      return {
+        termId: e.termId,
+        period: formatTermLabel(
+          e.term.number,
+          e.term.semester.number,
+          e.term.semester.academicYear.name,
+        ),
+        publishedAt: e.publishedAt ? e.publishedAt.toISOString() : null,
+        sections: buildReportSections(e.sectionLevels, e.sectionNarratives),
+        attendance: {
+          sick: e.sickDays,
+          permitted: e.permittedAbsenceDays,
+          unexcused: e.unexcusedAbsenceDays,
+          total: e.totalSchoolDays,
+        },
+        hafalan: e.memorizationNotes,
+        height: m?.heightCm != null ? String(m.heightCm) : null,
+        weight: m?.weightKg != null ? String(m.weightKg) : null,
+      };
+    });
+  },
+  ["parent-report-cards"],
+  // Tag must stay in sync with the revalidateTag call in
+  // app/api/admin/raport/_helpers.ts `setPublishState`.
+  { revalidate: 120, tags: ["parent-report-cards"] },
 );
 
 /**

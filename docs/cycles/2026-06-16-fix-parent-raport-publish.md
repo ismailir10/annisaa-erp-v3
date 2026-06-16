@@ -122,10 +122,23 @@ deleted its inline section/level loop (parity, no behaviour change). Unit test
 closing never level-bearing, narrative passthrough, unknown-level null, null-input
 tolerance.
 
+**Task 2 — Guardian read helper + cache invalidation.** Added
+`getPublishedReportCardsForStudent(studentId, tenantId)` + `ParentReportCard` type to
+`lib/parent-helpers.ts`: PUBLISHED non-deleted `ReportCardEntry` joined to Term (label
+via `formatTermLabel`) and `StudentMeasurement` (second query joined by `termId` — no
+relation exists), sections via `buildReportSections`, Decimal measurements serialised to
+string, ordered `publishedAt desc`. Cached/tagged `parent-report-cards`. Added
+`revalidateTag("parent-report-cards", { expire: 0 })` to `setPublishState` in
+`app/api/admin/raport/_helpers.ts` (the repo idiom — Next 16 requires the 2nd arg).
+Unit test `lib/__tests__/parent-helpers.report-cards.test.ts` (4 cases): scoping/order,
+empty short-circuit, full mapping, measurement join + Decimal→string.
+
 ## Verification
 
 - Task 1 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (203 files, 2025
   passed, 42 todo, 2 skipped). New build.test.ts 10/10.
+- Task 2 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (204 files, 2029
+  passed, 42 todo, 2 skipped). New report-cards.test.ts 4/4.
 
 ## Ship Notes
 
