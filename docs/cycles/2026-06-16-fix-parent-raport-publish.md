@@ -137,8 +137,20 @@ empty short-circuit, full mapping, measurement join + Decimal→string.
 
 - Task 1 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (203 files, 2025
   passed, 42 todo, 2 skipped). New build.test.ts 10/10.
+**Task 3 — Guardian PDF route.** New
+`app/api/guardian/raport/[studentId]/[termId]/pdf/route.ts`: GUARDIAN role +
+parent-ownership (mirrors `app/api/guardian/assessments/[id]/route.ts`) + PUBLISHED-only
+`reportCardEntry.findFirst`; any miss → flat 404 (no existence disclosure). Reuses
+`resolveTerm` + `buildReportCardData` + `ReportCardPdf` (identical render to admin PDF).
+Route test `app/api/__tests__/guardian-raport-pdf-route.test.ts` (6 cases): 403
+non-guardian/unauth, 404 non-owned, 404 unpublished, PUBLISHED+deletedAt where-clause
+assertion, 200 owned-published with 8 sections + Indonesian level.
+
 - Task 2 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (204 files, 2029
   passed, 42 todo, 2 skipped). New report-cards.test.ts 4/4.
+- Task 3 between-task gate: `npm run build` ✓ · `npx vitest run` ✓ (205 files, 2035
+  passed, 42 todo, 2 skipped). `verify-api-auth.sh` ✓ (176/176) · `verify-rls-coverage.sh`
+  ✓ (37/37). New guardian-raport-pdf-route.test.ts 6/6.
 
 ## Ship Notes
 
