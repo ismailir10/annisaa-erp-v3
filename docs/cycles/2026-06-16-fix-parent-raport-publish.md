@@ -223,6 +223,28 @@ levels now resolve to `null` instead of `undefined` (strict improvement); admin 
 route test still green. Post-fix gate: `npm run build` ✓ · `npx vitest run` ✓ (205
 files, 2037 passed, 42 todo, 2 skipped); guardian route test 8/8.
 
+**Preview-verify — converged iteration 1 (CLEAN, 0 blockers).** PR #344 Vercel preview
+(`annisaa-erp-v3-git-feat-fix-pa-8bec7b…vercel.app`), driven via Chrome MCP against the
+real Google-auth staging session — the OAuth-gated surface CI cannot reach. Full
+admin-publish → guardian-see flow on real data:
+- Signed in as admin (ismailir10@) → `/admin/raport` → Triwulan 1 + TKIT A → authored +
+  "Simpan & Terbitkan" a raport for **Aisyah Putri Ramadhani** (Siti's child): Pembukaan
+  narrative, Nilai Agama & Budi Pekerti = CONSISTENT + narrative `[VERIFY-RAPORT-2026]`,
+  Jati Diri = CONSISTENT. Toast "Raport diterbitkan."
+- Signed in as guardian Siti (rightjet.hq@) → `/parent/reports`:
+  - Default child tab (Ahmad) → new empty state "Rapor belum terbit", **no legacy
+    "(Demo)" report** — the bug symptom is gone.
+  - Aisyah tab → celebration banner "Rapor Triwulan 1 · … Aisyah sudah terbit" + "Buka
+    rapor" → drawer renders the authored sections (Pembukaan + "Mampu dan Konsisten"
+    chips + `[VERIFY-RAPORT-2026]` narrative + Jati Diri), Kehadiran 4-cell grid, and
+    "Unduh PDF".
+  - "Unduh PDF" → `GET /api/guardian/raport/<aisyah>/<term>/pdf` returns a rendered PDF
+    ("An Nisaa' Sekolahku · RAPORT TRIWULAN · Aisyah Putri Ramadhani · TKIT A", all 8
+    sections, levels + marker narrative) — guardian PDF route 200, ownership-gated.
+- No console errors / layout breaks observed. Staging mutation: one PUBLISHED
+  ReportCardEntry for Aisyah (reused the existing Term cmq36gel2…) — left in place as a
+  demo fixture.
+
 ## Ship Notes
 
 - **Migrations:** none. `ReportCardEntry` / `StudentMeasurement` / `Term` schema is
