@@ -3,16 +3,8 @@ import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
-import { ReportCardPdf, type ReportCardData, type ReportCardSection } from "@/lib/pdf/report-card";
-import {
-  BUCKETED_SECTIONS,
-  CLOSING_SECTIONS,
-  SECTION_LABELS,
-  SECTION_HAS_SUGGESTION,
-  LEVEL_LABELS,
-  type ReportSectionKey,
-  type RaportLevel,
-} from "@/lib/raport/labels";
+import { ReportCardPdf } from "@/lib/pdf/report-card";
+import { buildReportCardData } from "@/lib/raport/build";
 import { resolveTerm } from "../../../_helpers";
 
 /**
@@ -63,42 +55,16 @@ export async function GET(
     );
   }
 
-  const levels = (entry.sectionLevels ?? {}) as Record<string, RaportLevel>;
-  const narratives = (entry.sectionNarratives ?? {}) as Record<string, string>;
-
-  const order: ReportSectionKey[] = [...BUCKETED_SECTIONS, ...CLOSING_SECTIONS];
-  const sections: ReportCardSection[] = order.map((key) => {
-    const isLevelBearing = (BUCKETED_SECTIONS as readonly string[]).includes(key) && SECTION_HAS_SUGGESTION[key as keyof typeof SECTION_HAS_SUGGESTION];
-    const lvl = isLevelBearing ? levels[key] : undefined;
-    return {
-      label: SECTION_LABELS[key],
-      level: lvl ? LEVEL_LABELS[lvl] : null,
-      narrative: narratives[key] ?? "",
-    };
-  });
-
-  const data: ReportCardData = {
+  const data = buildReportCardData({
     schoolName: tenant?.name ?? "Sekolah",
     studentName: student.name,
     className: student.enrollments[0]?.classSection.name ?? null,
-    termLabel: `Triwulan ${term.number} · Semester ${term.semester.number} · ${term.semester.academicYear.name}`,
-    sections,
-    attendance: {
-      sick: entry.sickDays,
-      permitted: entry.permittedAbsenceDays,
-      unexcused: entry.unexcusedAbsenceDays,
-      total: entry.totalSchoolDays,
-    },
-    hafalan: entry.memorizationNotes,
-    height: measurement?.heightCm != null ? String(measurement.heightCm) : null,
-    weight: measurement?.weightKg != null ? String(measurement.weightKg) : null,
-    generatedDate: new Date().toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: "Asia/Jakarta",
-    }),
-  };
+    termNumber: term.number,
+    semesterNumber: term.semester.number,
+    academicYear: term.semester.academicYear.name,
+    entry,
+    measurement,
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buffer = await renderToBuffer(React.createElement(ReportCardPdf, { data }) as any);

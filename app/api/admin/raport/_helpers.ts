@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
@@ -80,6 +81,12 @@ export async function setPublishState(
     entityId: existing.id,
     action: publish ? "publish" : "unpublish",
   });
+
+  // Evict the parent portal's published-raport cache so the new publish state
+  // surfaces on /parent/reports without waiting out the 120s TTL. Next.js tags
+  // are global (not per-student), so this evicts every student's entry — the
+  // known coarse-grain behaviour, acceptable given the short TTL.
+  revalidateTag("parent-report-cards", { expire: 0 });
 
   return NextResponse.json({ data: updated });
 }
