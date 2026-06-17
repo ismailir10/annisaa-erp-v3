@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
 
-// Demo-mode smoke for the admin raport MVP. The seed ships a Semester +
-// ClassSections but no Term, so the surface opens on the "Buat Triwulan"
-// create form — we assert the surface renders and its APIs answer (no 500).
+// Demo-mode smoke for the admin raport MVP. On a fresh seed (no Term) the
+// surface opens on the "Buat Triwulan" create form; once a Term exists (e.g. a
+// drifted staging DB, or a fresh seed that later gains a Term) it opens on the
+// Triwulan/Kelas selector. The smoke tolerates EITHER surface — we only assert
+// the page renders and its APIs answer (no 500), not which branch shows.
 
 const ADMIN_USER_ID = "u_super_admin"; // SUPER_ADMIN — has reportCard.*
 
@@ -24,8 +26,12 @@ test.describe("Admin raport", () => {
 
   test("raport surface loads", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Raport", exact: true })).toBeVisible();
-    // No term seeded → the create-term card is shown.
-    await expect(page.getByRole("heading", { name: "Buat Triwulan" })).toBeVisible();
+    // Tolerate either surface: the "Buat Triwulan" create card (no Term seeded)
+    // OR the "Triwulan" term selector (a Term exists). The label is exact so it
+    // does not also match the "Buat Triwulan" heading.
+    const createCard = page.getByRole("heading", { name: "Buat Triwulan" });
+    const termSelector = page.getByLabel("Triwulan", { exact: true });
+    await expect(createCard.or(termSelector).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("raport APIs respond for an authorized admin", async ({ page }) => {
