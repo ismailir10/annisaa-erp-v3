@@ -3,10 +3,10 @@ import { redirect } from "next/navigation";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import {
   getParentWithChildren,
-  getPublishedAssessmentsForStudent,
+  getPublishedReportCardsForStudent,
   resolveSelectedChild,
 } from "@/lib/parent-helpers";
-import { AssessmentsTable } from "@/app/parent/assessments-table";
+import { ReportCardsList } from "@/app/parent/report-cards-list";
 import { PageHeader } from "@/components/portal/page-header";
 
 export default async function ParentReportsPage({
@@ -15,7 +15,7 @@ export default async function ParentReportsPage({
   searchParams: Promise<{ child?: string }>;
 }) {
   const session = await getSession();
-  if (!session || session.role !== "GUARDIAN") redirect("/");
+  if (!session || session.role !== "GUARDIAN" || !session.tenantId) redirect("/");
 
   const { parent, children } = await getParentWithChildren(session);
   if (!parent || children.length === 0) redirect("/parent");
@@ -24,7 +24,12 @@ export default async function ParentReportsPage({
   const selected = resolveSelectedChild(children, params.child);
   if (!selected) redirect("/parent");
 
-  const assessmentsData = await getPublishedAssessmentsForStudent(selected.studentId);
+  // Published admin-authored raports (ReportCardEntry) for this child — the
+  // legacy StudentAssessment read path is gone.
+  const reportCards = await getPublishedReportCardsForStudent(
+    selected.studentId,
+    session.tenantId,
+  );
 
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
@@ -40,10 +45,11 @@ export default async function ParentReportsPage({
         sticky
       />
 
-      <PageHeader title="Rapor" subtitle="Laporan perkembangan tiap semester" />
+      <PageHeader title="Rapor" subtitle="Laporan perkembangan tiap triwulan" />
 
-      <AssessmentsTable
-        data={assessmentsData}
+      <ReportCardsList
+        data={reportCards}
+        studentId={selected.studentId}
         childName={selected.studentNickname ?? selected.studentName.split(" ")[0]}
       />
     </div>

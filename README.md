@@ -13,7 +13,7 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 | Layer | Technology |
 |-------|------------|
 | Framework | Next.js 16 (App Router) + TypeScript strict |
-| Database | Supabase Postgres (prod + staging Singapore `ap-southeast-1`) / SQLite (local dev) |
+| Database | Supabase Postgres (prod + staging Singapore `ap-southeast-1`); Prisma datasource is Postgres-only — local dev points `DATABASE_URL` at a Postgres too |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
 | UI | Shadcn UI + Tailwind + TanStack Table; fonts Plus Jakarta Sans + JetBrains Mono |
@@ -27,7 +27,7 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 
 ## Modules
 
-Seven domain modules. Parent Portal is a view *across* students + finance + learning, not its own module.
+Nine domain modules — seven stable, plus `curriculum` and `reportCard` mid-cutover for the July 2026 PROMES/Penilaian/Raport switch. Parent Portal is a view *across* students + finance + learning, not its own module.
 
 | Module | Domain |
 |--------|--------|
@@ -36,10 +36,10 @@ Seven domain modules. Parent Portal is a view *across* students + finance + lear
 | **academic** | School structure: academic year (with one-click roll-forward), programs, classes (consolidated per-year management surface at `/admin/classes` with roster + teacher + health snapshot + sessions calendar; `ClassTrack` lineage stays as silent plumbing — find-or-created on POST), daily class sessions (per-class calendar + substitute-teacher swap), teaching assignments, bulk class promotion ("Naik Kelas Massal" dialog on `/admin/classes` wiring `GET/POST /api/promotions` — roster preview, exclude list, capacity hint) |
 | **students** | Student lifecycle: students (with auth-proxied photo upload via `lib/storage` adapter — files outside `public/`, MIME magic-byte validated, opaque storage tokens), guardians (full 13-field edit + detail page with list row-click nav), enrollments, admissions (admin CRM + public `/daftar` entry + sibling auto-detect on submit) |
 | **finance** | Fees & payments: invoice state machine, Xendit checkout, manual + bulk generate, kuitansi PDF, payments-received ledger (`/admin/payments` — date-range cash recap + per-method summary + CSV via `GET /api/payments/{,export}`) |
-| **learning** | Academic outcomes: attendance (incl. admin Rekap Bulanan tab on `/admin/student-attendance` + CSV export — `GET /api/student-attendance/{recap,export}`), assessment templates, BB/MB/BSH/BSB scoring |
+| **learning** | Academic outcomes: attendance (incl. admin Rekap Bulanan tab on `/admin/student-attendance` + CSV export — `GET /api/student-attendance/{recap,export}`). Legacy `AssessmentTemplate` + BB/MB/BSH/BSB `StudentAssessment` scoring still backs the `/admin/assessment-templates` surface but is being retired by the `curriculum`/`reportCard` cutover (3-level skala) — no longer read by any parent surface |
 | **student-journal** | Buku Penghubung — bi-directional school + home indicators with audit trail |
-| **curriculum** *(in flight — C6 of 11)* | PROMES spine: Semester → Theme → SubTheme → Week, LearningObjective → AchievementIndicator → IndicatorThemeLink. C1 (merged) lands schema + admin CRUD APIs (`/api/admin/curriculum/{semesters,themes,subthemes,weeks}`) + admin pages at `/admin/semesters` and `/admin/semesters/[id]/themes`. C2 (merged) ships the PROMES xlsx import pipeline at `POST /api/admin/curriculum/import-promes`. C3 (this cycle) adds Objective + IKTP + ThemeLink admin CRUD: `PUT /objectives/[id]`, `GET/POST /indicators` + `PUT /indicators/[id]` (status-flip soft-delete), idempotent `POST /indicator-theme-links` `{indicatorId, themeId, linked: boolean}`, and admin page at `/admin/semesters/[id]/objectives` (filter chips × accordion TP list × IKTP rows × theme-link checkbox matrix). AssessmentEntry is C4. Permissions: `curriculum.read` (TEACHER + SCHOOL_ADMIN + SUPER_ADMIN), `curriculum.write` (SUPER_ADMIN). See [archived design spec](docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaian-raport-design.md) (pre-harmony — new design notes live in the relevant cycle doc). |
-| **reportCard** *(in flight — admin MVP)* | Triwulan report card aggregating penilaian. C8 admin-first MVP lands schema (`Term`, `ReportCardEntry`, `StudentMeasurement`, `ReportSection` enum) + admin surface `/admin/raport`: per-student raport auto-drafted from `AssessmentEntry` (`lib/curriculum/raport-aggregator.ts` — dominant `AchievementLevel` per curriculum element, lower-achievement tie-break; `PERFORMANCE_SHOWCASE` pools MOTOR_SKILLS+ART) + auto-pulled attendance, admin override of any field, publish, PDF. APIs: `GET/POST /api/admin/terms` + `PATCH /api/admin/terms/[id]` (triwulan setup), `GET /api/admin/raport` (roster+status), `GET/PUT /api/admin/raport/[studentId]/[termId]` (draft-or-saved / upsert), `POST .../publish` + `.../unpublish`, `GET .../pdf` (`@react-pdf/renderer` report card, `lib/pdf/report-card.tsx`). Permissions `reportCard.read`/`reportCard.write`/`reportCard.publish` (SUPER_ADMIN + SCHOOL_ADMIN). Kisi-kisi narrative templates, teacher/walas authoring, parent download/sign, docx are later phases — [archived design spec](docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaian-raport-design.md). |
+| **curriculum** *(cutover in progress)* | PROMES spine: Semester → Theme → SubTheme → Week, LearningObjective → AchievementIndicator → IndicatorThemeLink. Shipped: schema + admin CRUD APIs (`/api/admin/curriculum/{semesters,themes,subthemes,weeks}`) + admin pages (`/admin/semesters`, `/admin/semesters/[id]/{themes,objectives,import}`); PROMES xlsx import (`POST /api/admin/curriculum/import-promes`); Objective/IKTP/ThemeLink CRUD; the `AssessmentEntry` write path — walas weekly (`/teacher/assessments/weekly`) + sentra/CENTER daily (`/teacher/assessments/center/[center]`) via `POST /api/teacher/assessment-entries`, with `voidedAt` soft-void; admin Penilaian monitor (`/admin/penilaian`); parent perkembangan rollup (`/parent/perkembangan`). 3-level skala (Konsisten/Belum/Penguatan). Permissions: `curriculum.read` (TEACHER + SCHOOL_ADMIN + SUPER_ADMIN), `curriculum.write` (SUPER_ADMIN), `assessments.read` (+ GUARDIAN), `assessments.void` (SCHOOL_ADMIN). Feeds the `reportCard` module; per-cycle history in `docs/cycles/`. |
+| **reportCard** *(cutover in progress — admin authoring + parent read shipped)* | Triwulan report card aggregating penilaian. Schema (`Term`, `ReportCardEntry`, `StudentMeasurement`, `ReportSection` enum) + admin surface `/admin/raport`: per-student raport auto-drafted from `AssessmentEntry` (`lib/curriculum/raport-aggregator.ts` — dominant `AchievementLevel` per curriculum element, lower-achievement tie-break; `PERFORMANCE_SHOWCASE` pools MOTOR_SKILLS+ART) + auto-pulled attendance, admin override of any field, publish, PDF. APIs: `GET/POST /api/admin/terms` + `PATCH /api/admin/terms/[id]` (triwulan setup), `GET /api/admin/raport` (roster+status), `GET/PUT /api/admin/raport/[studentId]/[termId]` (draft-or-saved / upsert), `POST .../publish` + `.../unpublish`, `GET .../pdf` (`@react-pdf/renderer` report card, `lib/pdf/report-card.tsx`). Permissions `reportCard.read`/`reportCard.write`/`reportCard.publish` (SUPER_ADMIN + SCHOOL_ADMIN). **Parent surface (2026-06-16):** `/parent/reports` renders the PUBLISHED `ReportCardEntry` (`getPublishedReportCardsForStudent` → narrative sections + 3-level skala + Kehadiran/measurements + `GET /api/guardian/raport/[studentId]/[termId]/pdf`, GUARDIAN-gated); the legacy `StudentAssessment` parent read path was dropped. Section/PDF assembly is shared via `lib/raport/build.ts`. Kisi-kisi narrative templates, teacher/walas authoring, parent sign, docx are later phases — [archived design spec](docs/archive/superpowers-legacy/specs/2026-05-12-curriculum-penilaian-raport-design.md). |
 
 ---
 
@@ -94,23 +94,6 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 | 2026-05-03 | Role split `SUPER_ADMIN` vs `SCHOOL_ADMIN`; permission-based RBAC for HR | `hasPermission()` replaces role-string checks; salary/payroll gated by `hr.*` — see [ADR](docs/adrs/2026-05-03-role-split-super-admin-school-admin.md) |
 | 2026-05-03 | Query optimization Phase 6: mandatory `select:`, default `take:`, two-query budget on detail pages | Eliminate N+1, fat rows, unbounded fetches — see [ADR](docs/adrs/2026-05-03-query-optimization-phase-6.md) |
 | 2026-05-03 | Pin `resend@6.10.x`, defer `svix→uuid<14` CVE chain | Vulnerable surface not reachable; `audit fix --force` would breaking-downgrade to 6.1.3 — see [ADR](docs/adrs/2026-05-03-resend-cve-deferred.md) |
-| 2026-04 | Xendit over Midtrans for parent payments | Cleaner Checkout Session API + webhook semantics |
-| 2025-04 | Bundle perf phase 2: analyzer + dynamic imports | Initial bundle was >400KB — see [cycle](docs/cycles/archive/2025-04-15-performance-optimization-phase2.md) |
-| 2026-04-21 | Single `StudentJournalTemplate` with `scope` enum (SCHOOL/HOME) | One admin page + shared `<WeekGrid>`; one audit table — see [cycle](docs/cycles/archive/2026-04-21-student-journal.md) |
-| 2026-04-24 | Teachers use `/api/teacher/students?classId=…`, not admin `/api/students` | Closes PII enumeration leak — see [cycle](docs/cycles/archive/2026-04-24-critical-money-and-auth-hotfix.md) |
-| 2026-04-24 | `ConfirmDialog` rebuilt on AlertDialog (Base UI), stays open on `onConfirm` reject | Caller toasts and user retries — see [cycle](docs/cycles/archive/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
-| 2026-04-24 | Date helpers use `getYmdInTimezone(d, "Asia/Jakarta")` not `toISOString()` | UTC fallback returned yesterday's data 00:00–06:59 WIB on Vercel — see [cycle](docs/cycles/archive/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
-| 2026-04-24 | Capacity check inside `$transaction` with `SELECT … FOR UPDATE OF cs` | Closes over-enrollment race on concurrent promote |
-| 2026-04-24 | Prisma: `@@unique([tenantId, email])`, explicit `onDelete` everywhere | Schema matches multi-tenant intent — see [cycle](docs/cycles/archive/2026-04-24-alertdialog-jakarta-schema-alignment.md) |
-| 2026-04-24 | RLS = tenant-scoped SELECT only; writes via `service_role` | App-layer `tenantId` filter is real write isolation; CI guard `verify-rls-coverage.sh` — see [cycle](docs/cycles/archive/2026-04-24-stress-review-followups.md) |
-| 2026-04-24 | Accept prefix collision on `20260424000000_*` migrations | Already applied; rename would break Prisma `_migrations` state. Future migrations must avoid `YYYYMMDD000000` when one exists |
-| 2026-04-24 | `Content-Security-Policy-Report-Only` added; `@libsql/*` removed | Logs without blocking — graduate after console clean — see [cycle](docs/cycles/archive/2026-04-24-outstanding-findings-audit.md) |
-| 2026-04-25 | Parent kuitansi PDF route `GET /api/guardian/invoices/[id]/pdf` | Detail-sheet link previously 404'd — see [cycle](docs/cycles/archive/2026-04-25-parent-portal-design-fixes.md) |
-| 2026-04-25 | Permission-based RBAC for HR replaces role-string checks | `hasPermission()` from `session.permissions`; `SCHOOL_ADMIN` excludes `hr.*` — see [cycle](docs/cycles/archive/2026-04-25-super-admin-rbac-sidebar-fix.md) |
-| 2026-04-25 | Tagihan async pipeline: `PENDING_PAYMENT_LINK` status, chunked bulk-gen, retry endpoint, manual single-student create | Vercel free 60s ceiling forces ≤25-row chunks + `pLimit(5)`; durable failure state — see [cycle](docs/cycles/archive/2026-04-25-tagihan-fixes-async-bulk-manual-create.md) |
-| 2026-04-26 | Finance Robustness: `InvoiceNumberSequence` allocator, two-phase webhook, bulk retry orchestrator, parent allow-list | Eliminates P2002 race on `POST /api/invoices`; new `CRON_SECRET` env — see [cycle](docs/cycles/archive/2026-04-26-finance-robustness-a-b-c.md) + [follow-ups](docs/cycles/archive/2026-04-26-finance-followup-fixes.md) |
-| 2026-04-27 | Invoice creation auto-retry: typed `XenditApiError` + `withXenditRetry` (3 attempts, honors `Retry-After`) | Transient 5xx/408/429/network retried inline before persisting failure — see [cycle](docs/cycles/archive/2026-04-27-invoice-create-auto-retry.md) |
-| 2026-04-28 | Bulk fan-out throttled: concurrency=2, 1s inter-chunk pacing, 2-attempt 429 budget | Rate-limit storm fits 60s function ceiling — see [cycle](docs/cycles/archive/2026-04-28-finance-bulk-throttle.md) |
 | 2026-05-02 | `AuditLog` table for sensitive mutations (salary, payroll approve/cancel, employee status) | Append-only history with before/after JSON; tenant-scoped + RLS; tx-mode re-throws for atomic audit — see [cycle](docs/cycles/2026-05-02-hr-module-bugs-and-gaps.md) |
 | 2026-05-02 | `OrgConfig.lemburCompliant` flag for UU 13/2003 §78(4) tiered overtime | Default off (flat); flag on switches to 1.5× first hour / 2× thereafter. Holiday OT (§85) deferred — see [cycle](docs/cycles/2026-05-02-hr-module-bugs-and-gaps.md) |
 | 2026-05-02 | Migration `20260421000002_rls_fk_indexes` renamed to `20260421160000_*` | Index referenced `ProgramFeeStructure.tenantId` added by sibling whose timestamp sorted later — see [cycle](docs/cycles/2026-05-02-migration-ordering-fix.md) + [runbook](docs/runbooks/fresh-db-bootstrap.md) |
@@ -125,7 +108,7 @@ cd annisaa-erp-v3
 npm install
 ./scripts/install-hooks.sh           # required: pre-commit, prepare-commit-msg, commit-msg, pre-push
 npx prisma generate && npx prisma db push && npx prisma db seed
-npm run dev                          # http://localhost:3000 — demo mode, no Supabase
+npm run dev                          # http://localhost:3000 — DEMO_MODE bypasses Google auth (DB still required)
 ```
 
 Tests: `npm run build && npx vitest run` (mandated gate before every commit), `npx playwright test`, `npm run lint`. Type-check on demand: `npm run typecheck` (runs `prisma generate` + `tsc --noEmit`).
@@ -136,7 +119,7 @@ Copy `.env.example` to `.env`. Per-env values:
 
 | Variable | Local | Staging | Production |
 |---|---|---|---|
-| `DATABASE_URL` | `file:./dev.db` | Supabase Singapore pooler (6543) | Supabase Singapore pooler (6543) |
+| `DATABASE_URL` | local Postgres (`postgresql://…@localhost:5432`) | Supabase Singapore pooler (6543) | Supabase Singapore pooler (6543) |
 | `DIRECT_URL` | optional | Supabase Singapore direct (5432) — required¹ | Supabase Singapore direct (5432) — required¹ |
 | `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | — | Staging | Production |
 | `RESEND_API_KEY` (omit → emails simulated) | — | Resend key | Resend key |
@@ -154,7 +137,7 @@ Copy `.env.example` to `.env`. Per-env values:
 
 | Environment | Branch | URL | Database | Purpose |
 |---|---|---|---|---|
-| Local | any | localhost:3000 | SQLite | Demo mode |
+| Local | any | localhost:3000 | local Postgres | Demo mode (auth bypassed; DB still required) |
 | Staging | `staging` | [preview](https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app/) | Supabase Singapore (staging project) | Safe data |
 | Production | `main` | talib.annisaasekolahku.com | Supabase Singapore (prod project) | Real users |
 
