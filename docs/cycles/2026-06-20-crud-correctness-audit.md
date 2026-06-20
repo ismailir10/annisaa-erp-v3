@@ -145,6 +145,33 @@ Assumptions:
   for bank/rekening; no new tokens or components. No visual regression surface beyond the
   two new number inputs + read-view rows.
 
+### End-of-cycle gate
+- `npm run build` → success. `npx vitest run` → 207 files / 2058 passed | 42 todo.
+- Lint (touched files): 0 errors. 2 pre-existing unused-import warnings in
+  `employees/[id]/page.tsx` (`ArrowLeft`, `Link`) — present on origin/staging before
+  this cycle, not introduced here; left untouched (out of scope).
+- Final diff vs origin/staging: 15 files, +493 / −34. Scope-clean.
+- **Playwright: delegated to CI.** The repo's `playwright.config.ts` refuses to run
+  locally against the staging Supabase (anti-pollution guard, lines 39–46) and there is
+  no local Postgres in this worktree. Playwright E2E runs as the PR's required branch-
+  protection check; `/ship` preview-verify additionally exercises the authenticated
+  surface. Affected e2e specs: admin-dialogs (academic-years + fee-component dialogs),
+  admin-school-admin (employee form). Behaviour on those routes is preserved (refactor)
+  or additive (leave-balance inputs), and fully covered by the new unit tests.
+
 ## Ship Notes
 
-_(filled by /ship — no migration expected; all three target columns already exist)_
+- **Migrations:** none. `leaveBalanceAnnual` / `leaveBalanceSick` (Employee),
+  AcademicYear, and FeeComponentDef columns all already exist — this cycle only adds
+  validation + form inputs over existing schema.
+- **Env vars:** none.
+- **Behaviour changes:** AcademicYear + fee-component POST/PUT now reject malformed
+  bodies with per-field 400s (previously: combined message / silent accept). fee-component
+  `category` is now enum-restricted (TUITION|REGISTRATION|ACTIVITY|MATERIAL|OTHER) — all
+  existing seed/db values are within the set, so no live row breaks on edit.
+- **Rollback:** revert the three commits (db9ea85, 44dc595, ca00927). No data migration to
+  unwind.
+- **Follow-up (deferred, out of scope this cycle):** R4 (SalaryComponentDef create schema
+  → move to `lib/validations/`); the ~25 unaudited models were triaged at field-coverage
+  level (see Context) and showed no missing-form gaps, but a deeper per-route validation
+  sweep of payroll/invoice/journal could be a future cycle.
