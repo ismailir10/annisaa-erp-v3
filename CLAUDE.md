@@ -224,7 +224,7 @@ Domain standards live under `.claude/standards/` — loaded only when relevant f
 
 ```
 app/{admin,teacher,parent}/  42 / 14 / 8 portal pages
-app/api/                     175 routes (organized by domain)
+app/api/                     176 routes (organized by domain)
 components/ui/               69 Shadcn components
 lib/{api,validations,payroll,xendit,email}/  business logic, retry, integrations
 prisma/                      schema + seed

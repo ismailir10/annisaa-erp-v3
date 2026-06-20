@@ -75,7 +75,7 @@ filename), and is tenant-scoped + admin-gated like the rest of the student surfa
    covering: column selection/ordering, escaping (commas, quotes, newlines), injection guard (`=`,`+`,`-`,`@`),
    empty-rows header-only output, blank enrollment/guardian. *Acceptance: `npx vitest run lib/students` green.* (independent)
 
-2. **[T2] Export API route** — `app/api/students/export/route.ts`: `getSession` + `isAdminRole` guard, parse +
+2. [x] **[T2] Export API route** — `app/api/students/export/route.ts`: `getSession` + `isAdminRole` guard, parse +
    validate criteria (reject bad `status`/`gender` with 400), build tenant-scoped Prisma `where` (incl. ACTIVE-enrollment
    `some` filter for class/program/year), query students with primary-guardian + active-enrollment includes (same shape
    as `/api/students`), hand rows to `buildStudentCsv`, return CSV with attachment headers. Route test
@@ -100,12 +100,20 @@ filename), and is tenant-scoped + admin-gated like the rest of the student surfa
 - Task 1: CSV builder + column registry — `lib/students/export.ts`, `lib/students/__tests__/export.test.ts` —
   pure `STUDENT_EXPORT_COLUMNS` registry (18 cols, 4 groups), `selectExportColumns` (canonical-order, unknown-key-safe),
   `escapeCsvCell` (always-quote + formula-injection guard), `buildStudentCsv` (CRLF, header-only on empty). No Prisma import.
+- Task 2: Export API route — `app/api/students/export/route.ts`, `app/api/students/__tests__/export-route.test.ts`,
+  README students-module row, CLAUDE.md route count 175→176 — GET, admin-gated (`isAdminRole`), tenant-scoped;
+  status/gender validated (400); class/program/year criteria → ACTIVE-enrollment `some` filter; reuses T1 `buildStudentCsv`;
+  streams `text/csv` attachment (`siswa_<jakarta-date>.csv`). `Prisma` type from `@/lib/generated/prisma/client` (build fix).
 
 ## Verification
 
 - Task 1: `npx vitest run lib/students` → 14 passed. `npm run build` → green. Inline code-review (subagent dispatch
   unavailable, see Tasks note): formula guard covers OWASP =,+,-,@,tab,CR set with apostrophe-prefix-before-quote
   (no bypass); always-quote escaping prevents delimiter/newline spillover; column ordering + null accessors verified.
+- Task 2: `npx vitest run app/api/students` → 48 passed (8 new + 40 existing). `npm run build` → green. Inline
+  security review: getSession→401, isAdminRole→403, where.tenantId on every query, enrollment `some` filter cannot
+  leak cross-tenant (top-level tenantId gates the student set), Prisma params block injection. GET read-only → no Zod
+  body / rate-limit needed (matches existing attendance/payments export routes).
 
 ## Ship Notes
 
