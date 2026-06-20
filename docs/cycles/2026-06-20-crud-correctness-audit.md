@@ -159,6 +159,24 @@ Assumptions:
   admin-school-admin (employee form). Behaviour on those routes is preserved (refactor)
   or additive (leave-balance inputs), and fully covered by the new unit tests.
 
+### Preview-verify (PR #360, Chrome MCP + signed-in Google session)
+Preview: `annisaa-erp-v3-git-feat-crud-c-2633fc-…vercel.app`. Flows walked = 4.
+- **R1 employee form** (`/admin/employees` → Tambah): "Saldo Cuti Tahunan" (placeholder
+  12) + "Saldo Cuti Sakit" (placeholder 14) render between No. Rekening and BPJS — clean
+  two-column layout. 0 console errors. Full create skipped (employee POST upserts an auth
+  `User`; the new fields' persistence is unit-covered).
+- **R2 academic-year** (`/admin/academic-years` → Tambah Tahun Ajaran): created
+  "E2E PREVIEW 360" (01/07/2025–30/06/2026) → toast "Tahun ajaran ditambahkan", count
+  23→24. Refactored Zod POST happy-path confirmed.
+- **R3 fee-component** (`/admin/fees` → Tambah Komponen): created code `e2e_preview`
+  (category SPP/TUITION) → toast "Komponen biaya ditambahkan", row appears. Then toggled
+  its Aktif switch off → row dims, no error — refactored PUT toggle (partial-schema path)
+  confirmed.
+- Preview-verify converged on iteration 1 (clean): 0 blockers, 0 minors, 0 fix commits.
+- **Fixtures left on staging** (non-destructive cycle — not cleaned per /ship rule):
+  AcademicYear "E2E PREVIEW 360" (PLANNING), FeeComponent `e2e_preview` (disabled). Safe to
+  delete manually.
+
 ## Ship Notes
 
 - **Migrations:** none. `leaveBalanceAnnual` / `leaveBalanceSick` (Employee),
