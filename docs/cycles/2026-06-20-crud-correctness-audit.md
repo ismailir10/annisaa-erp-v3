@@ -77,12 +77,12 @@ Assumptions:
 
 ## Tasks
 
-- [ ] **T1 — R2 AcademicYear Zod.** Add `lib/validations/academic-year.ts`; wire
+- [x] **T1 — R2 AcademicYear Zod.** Add `lib/validations/academic-year.ts`; wire
   `app/api/academic-years/route.ts` (POST) + `[id]/route.ts` (PUT). Unit test the schema.
-- [ ] **T2 — R3 fee-component Zod.** Verify existing `category` values in seed/db usages;
+- [x] **T2 — R3 fee-component Zod.** Verify existing `category` values in seed/db usages;
   add `lib/validations/fee-component.ts` (category enum); wire `fee-components/route.ts` +
   `[id]/route.ts`. Unit test.
-- [ ] **T3 — R1 Employee leave balances.** Extend employee Zod (create+update) with
+- [x] **T3 — R1 Employee leave balances.** Extend employee Zod (create+update) with
   `leaveBalanceAnnual`/`leaveBalanceSick`; add form inputs; persist in POST/PUT route. Unit
   test the schema.
 
