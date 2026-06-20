@@ -82,7 +82,7 @@ filename), and is tenant-scoped + admin-gated like the rest of the student surfa
    `app/api/students/__tests__/export-route.test.ts`: 401 no session, 403 non-admin, 400 bad gender, 200 + correct
    headers + header row, tenant isolation, column subset honored. *Acceptance: `npx vitest run app/api/students` green.* (depends T1)
 
-3. **[T3] Export dialog UI** — in `app/admin/students/page.tsx` (+ extract `components/admin/student-export-dialog.tsx`
+3. [x] **[T3] Export dialog UI** — in `app/admin/students/page.tsx` (+ extract `components/admin/student-export-dialog.tsx`
    if it keeps the page readable): "Unduh Data Siswa" button in PageHeader opens Dialog (Sheet `side="bottom"` on mobile).
    Body: criteria selects (status reusing `STUDENT_STATUS_OPTIONS`, gender, tahun ajaran/program/kelas fetched from
    reference APIs) + grouped column checkboxes with per-group "Pilih semua". Footer "Unduh CSV" builds the query string
@@ -104,6 +104,10 @@ filename), and is tenant-scoped + admin-gated like the rest of the student surfa
   README students-module row, CLAUDE.md route count 175→176 — GET, admin-gated (`isAdminRole`), tenant-scoped;
   status/gender validated (400); class/program/year criteria → ACTIVE-enrollment `some` filter; reuses T1 `buildStudentCsv`;
   streams `text/csv` attachment (`siswa_<jakarta-date>.csv`). `Prisma` type from `@/lib/generated/prisma/client` (build fix).
+- Task 3: Export dialog UI — `components/admin/student-export-dialog.tsx` (new), `app/admin/students/page.tsx` ("Unduh Data"
+  PageHeader button + `exportOpen` state + dialog mount), README admin-portal bullet — Dialog (desktop) / Sheet (mobile)
+  via `useIsMobile`; criteria selects (status/gender/tahun-ajaran/program/kelas, kelas narrows to program+year);
+  4 column groups with per-group "select-all"; anchor-download to `/api/students/export?…`; disabled at zero columns.
 
 ## Verification
 
@@ -114,6 +118,11 @@ filename), and is tenant-scoped + admin-gated like the rest of the student surfa
   security review: getSession→401, isAdminRole→403, where.tenantId on every query, enrollment `some` filter cannot
   leak cross-tenant (top-level tenantId gates the student set), Prisma params block injection. GET read-only → no Zod
   body / rate-limit needed (matches existing attendance/payments export routes).
+- Task 3: `npm run build` → green; `npx vitest run` → 2060 passed / 42 todo (full suite). design-system: dialog/sheet
+  shell + button placement cross-checked against design-system.html Overlays § (Dialog desktop / Sheet mobile, ui.md
+  one-overlay rule). Inline frontend review: anchor-download honors Content-Disposition; SelectValue null-coalesced
+  (base-ui onValueChange is `string|null`); zero-column guard disables Unduh. Browser preview deferred to T4 Playwright
+  (local demo server needs DEMO_MODE + staging DATABASE_URL the launch harness can't inject cleanly).
 
 ## Ship Notes
 
