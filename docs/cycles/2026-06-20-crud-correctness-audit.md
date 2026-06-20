@@ -99,6 +99,18 @@ Assumptions:
   invariant logic unchanged. Per-field 400 messages now instead of one combined string.
 - Added `lib/validations/__tests__/academic-year.test.ts` (9 cases).
 
+### T2 — R3 fee-component Zod
+- Verified existing `category` values (seed: TUITION/REGISTRATION/MATERIAL; form
+  offers all five) before locking the enum — no live row is rejected on edit.
+- Added `lib/validations/fee-component.ts`: `createFeeComponentSchema` /
+  `updateFeeComponentSchema`. `category` is now an enum
+  (TUITION|REGISTRATION|ACTIVITY|MATERIAL|OTHER); `code` lowercased via transform
+  (was inline in route); `sortOrder` coerced int.
+- Wired `app/api/fee-components/route.ts` (POST) + `[id]/route.ts` (PUT). The PUT
+  enable/disable toggle now flows through the same partial schema (Prisma omits
+  undefined keys), removing the brittle `Object.keys(body).length === 1` branch.
+- Added `lib/validations/__tests__/fee-component.test.ts` (8 cases).
+
 ## Verification
 
 ### T1
@@ -106,6 +118,11 @@ Assumptions:
 - `npm run build` → success (all routes compiled).
 - `npx vitest run` → 206 files passed | 2 skipped; 2046 passed | 42 todo. No regressions.
 - Playwright: deferred to end-of-cycle gate.
+
+### T2
+- `npx vitest run lib/validations/__tests__/fee-component.test.ts` → 8 passed.
+- `npm run build` → success.
+- `npx vitest run` → 207 files passed | 2 skipped; 2054 passed | 42 todo. No regressions.
 
 ## Ship Notes
 
