@@ -142,6 +142,10 @@ filename), and is tenant-scoped + admin-gated like the rest of the student surfa
 - CI staleness note: the fix-commit's `synchronize` event repeatedly linted a stale checkout (kept flagging the
   already-removed effect at the old line 135 — confirmed clean via `git show <sha>:components/admin/student-export-dialog.tsx`).
   Pushed a no-op comment-clarify commit to force a fresh SHA + clean CI run.
+- CI Playwright fix: on the fresh SHA, lint/typecheck/build/docs all green; Playwright surfaced one real spec bug —
+  `getByText("Wali Murid")` matched 2 nodes (dialog group label + sidebar guardians nav link) → strict-mode violation.
+  Scoped the spec's locators to the dialog (`getByRole("dialog").getByRole("checkbox", { name: "Wali Murid" })`).
+  CI confirmed auth + dialog-open + 18-kolom default all worked; only the ambiguous selector failed. 134 other specs passed.
 
 ## Ship Notes
 

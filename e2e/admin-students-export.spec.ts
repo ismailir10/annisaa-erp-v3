@@ -40,13 +40,14 @@ test.describe("Admin students — data export", () => {
 
     await page.getByRole("button", { name: /Unduh Data/ }).click();
 
-    // Dialog open, all columns selected by default.
-    await expect(page.getByRole("heading", { name: "Unduh Data Siswa" })).toBeVisible();
-    const downloadBtn = page.getByRole("button", { name: /Unduh CSV/ });
+    // Scope to the dialog — "Wali Murid" also names the sidebar guardians nav link.
+    const dialog = page.getByRole("dialog", { name: "Unduh Data Siswa" });
+    await expect(dialog).toBeVisible();
+    const downloadBtn = dialog.getByRole("button", { name: /Unduh CSV/ });
     await expect(downloadBtn).toContainText("18 kolom");
 
     // Drop the "Wali Murid" group (2 columns) → 16 remain.
-    await page.getByText("Wali Murid", { exact: true }).click();
+    await dialog.getByRole("checkbox", { name: "Wali Murid" }).click();
     await expect(downloadBtn).toContainText("16 kolom");
 
     const downloadPromise = page.waitForEvent("download");
