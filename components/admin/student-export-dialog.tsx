@@ -120,7 +120,9 @@ export function StudentExportDialog({
     };
   }, [open, refsLoaded]);
 
-  // Kelas options narrow to the chosen program / year; reset a now-invalid pick.
+  // Kelas options narrow to the chosen program / year. Changing program or
+  // year resets the kelas pick inline (in the handlers below) rather than via
+  // an effect — a setState-in-effect would trip cascading-render lint.
   const filteredSections = useMemo(
     () =>
       sections.filter(
@@ -130,11 +132,6 @@ export function StudentExportDialog({
       ),
     [sections, programId, academicYearId],
   );
-  useEffect(() => {
-    if (classSectionId !== "all" && !filteredSections.some((s) => s.id === classSectionId)) {
-      setClassSectionId("all");
-    }
-  }, [filteredSections, classSectionId]);
 
   const columnsByGroup = useMemo(() => {
     const map = new Map<ExportColumnGroup, typeof STUDENT_EXPORT_COLUMNS[number][]>();
@@ -227,7 +224,13 @@ export function StudentExportDialog({
           </Field>
           <Field>
             <FieldLabel>Tahun Ajaran</FieldLabel>
-            <Select value={academicYearId} onValueChange={(v) => setAcademicYearId(v ?? "all")}>
+            <Select
+              value={academicYearId}
+              onValueChange={(v) => {
+                setAcademicYearId(v ?? "all");
+                setClassSectionId("all");
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Semua Tahun Ajaran" />
               </SelectTrigger>
@@ -243,7 +246,13 @@ export function StudentExportDialog({
           </Field>
           <Field>
             <FieldLabel>Program</FieldLabel>
-            <Select value={programId} onValueChange={(v) => setProgramId(v ?? "all")}>
+            <Select
+              value={programId}
+              onValueChange={(v) => {
+                setProgramId(v ?? "all");
+                setClassSectionId("all");
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Semua Program" />
               </SelectTrigger>

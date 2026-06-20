@@ -136,6 +136,9 @@ filename), and is tenant-scoped + admin-gated like the rest of the student surfa
   `/ship` preview-verify will exercise the spec against seeded data.
 - End-of-cycle gate: `npm run build` → exit 0; `npx vitest run` → 2060 passed / 42 todo / 2 files skipped. Playwright
   recorded as live-verified above (CI runs the committed spec on the PR). `/audit-docs` run at `/ship` preflight.
+- CI fix (PR #361, "Lint, Typecheck & Test" red): export dialog's `classSectionId` reset moved out of a `useEffect`
+  (synchronous setState-in-effect tripped the cascading-render lint error) into the program/year `onValueChange`
+  handlers. `npx eslint` on cycle files → 0 errors; `npm run build` exit 0; export tests 62 passed.
 
 ## Ship Notes
 
