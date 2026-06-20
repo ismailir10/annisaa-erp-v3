@@ -111,6 +111,18 @@ Assumptions:
   undefined keys), removing the brittle `Object.keys(body).length === 1` branch.
 - Added `lib/validations/__tests__/fee-component.test.ts` (8 cases).
 
+### T3 — R1 Employee leave balances
+- Extended `employeeBaseObject` (drives both create + update schemas) with optional
+  `leaveBalanceAnnual` / `leaveBalanceSick` (coerced int 0–365, `z.preprocess` maps
+  blank/"" → undefined like `guardian.childOrder`).
+- POST `app/api/employees/route.ts` + PUT `[id]/route.ts` persist the fields; undefined
+  omits the column (Prisma applies @default(12)/@default(14) on create; edit leaves the
+  existing balance untouched).
+- Create form (`app/admin/(hr)/employees/page.tsx`) + edit/detail form
+  (`app/admin/(hr)/employees/[id]/page.tsx`): added "Saldo Cuti" inputs (edit) +
+  read-view rows, reusing existing `Field` / `FieldLabel` / `Input` / `SectionHeading`
+  primitives — no new visual patterns introduced.
+
 ## Verification
 
 ### T1
@@ -123,6 +135,15 @@ Assumptions:
 - `npx vitest run lib/validations/__tests__/fee-component.test.ts` → 8 passed.
 - `npm run build` → success.
 - `npx vitest run` → 207 files passed | 2 skipped; 2054 passed | 42 todo. No regressions.
+
+### T3
+- `npx vitest run lib/validations/__tests__/employee.test.ts` → 24 passed (4 new R1 cases).
+- `npm run build` → success.
+- `npx vitest run` → 207 files passed | 2 skipped; 2058 passed | 42 todo. No regressions.
+- Frontend: cross-checked design-system.html form/field conventions — leave-balance
+  inputs reuse the existing `Field` + `FieldLabel` + numeric `Input` pattern already used
+  for bank/rekening; no new tokens or components. No visual regression surface beyond the
+  two new number inputs + read-view rows.
 
 ## Ship Notes
 
