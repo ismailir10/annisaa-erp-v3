@@ -41,7 +41,8 @@ import {
 } from "@/components/ui/sheet";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { Plus, Users, GraduationCap, UserCheck } from "lucide-react";
+import { Plus, Users, GraduationCap, UserCheck, Download } from "lucide-react";
+import { StudentExportDialog } from "@/components/admin/student-export-dialog";
 import { formatDateShort } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
@@ -385,6 +386,7 @@ export default function StudentsPage() {
   const [stats, setStats] = useState({ total: 0, active: 0, graduated: 0 });
 
   // Create dialog state
+  const [exportOpen, setExportOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
@@ -621,11 +623,18 @@ export default function StudentsPage() {
         title="Siswa"
         description={`${pagination.total} siswa terdaftar`}
         actions={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus size={14} className="mr-1.5" /> Tambah Siswa
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
+              <Download size={14} className="mr-1.5" /> Unduh Data
+            </Button>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus size={14} className="mr-1.5" /> Tambah Siswa
+            </Button>
+          </div>
         }
       />
+
+      <StudentExportDialog open={exportOpen} onOpenChange={setExportOpen} />
 
       <StatsCardsRow>
         <StatCard label="Total Siswa" value={stats.total} icon={Users} color="primary" index={0} />
