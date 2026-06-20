@@ -35,3 +35,9 @@
 - Playwright/preview-verify: N/A — change is reseed-script-only, touches no app route, component, or API surface. No browser-observable behavior.
 
 ## Ship Notes
+- **Migrations:** none. `classTrackId` column already exists in the schema; this only fixes the seed script.
+- **Env vars:** none.
+- **Manual steps:** none for the app. Operators running `npm run reseed:staging` (or `reseed:*`) will now complete past step 3/9 instead of aborting after the wipe.
+- **Preview-verify:** skipped — reseed-script-only change, no app route/component/API surface (recorded in Verification).
+- **Rollback:** revert the two commits; no data migration to undo. Note the reseed script was non-functional before this, so revert restores the broken state.
+- **Risk:** low. Seed-time-only code path, covered by build + unit gates + a live staging run.
