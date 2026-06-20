@@ -33,6 +33,7 @@
 - Task 2: `npx vitest run scripts/reseed/__tests__/org.test.ts` → 20 passed.
 - Code review: mandated `feature-dev:code-reviewer` agent unavailable in this session (pinned to inaccessible model glm-5). Reviewed inline instead — track grouping satisfies `@@unique([tenantId,campusId,programId,name])`, FKs always populated, names collision-free. No defects.
 - Playwright/preview-verify: N/A — change is reseed-script-only, touches no app route, component, or API surface. No browser-observable behavior.
+- Preview-verify skipped — no UI surface (diff vs origin/staging is `scripts/` + `docs/` only). CI's required `Playwright E2E` check still runs on PR #362 against the Vercel preview, preserving coverage.
 
 ## Ship Notes
 - **Migrations:** none. `classTrackId` column already exists in the schema; this only fixes the seed script.
