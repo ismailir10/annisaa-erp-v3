@@ -139,6 +139,9 @@ filename), and is tenant-scoped + admin-gated like the rest of the student surfa
 - CI fix (PR #361, "Lint, Typecheck & Test" red): export dialog's `classSectionId` reset moved out of a `useEffect`
   (synchronous setState-in-effect tripped the cascading-render lint error) into the program/year `onValueChange`
   handlers. `npx eslint` on cycle files → 0 errors; `npm run build` exit 0; export tests 62 passed.
+- CI staleness note: the fix-commit's `synchronize` event repeatedly linted a stale checkout (kept flagging the
+  already-removed effect at the old line 135 — confirmed clean via `git show <sha>:components/admin/student-export-dialog.tsx`).
+  Pushed a no-op comment-clarify commit to force a fresh SHA + clean CI run.
 
 ## Ship Notes
 

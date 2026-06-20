@@ -121,8 +121,9 @@ export function StudentExportDialog({
   }, [open, refsLoaded]);
 
   // Kelas options narrow to the chosen program / year. Changing program or
-  // year resets the kelas pick inline (in the handlers below) rather than via
-  // an effect — a setState-in-effect would trip cascading-render lint.
+  // year resets the kelas pick inline (in the Select onValueChange handlers
+  // below) rather than via an effect — a synchronous setState in an effect
+  // trips the react-hooks/set-state-in-effect lint rule.
   const filteredSections = useMemo(
     () =>
       sections.filter(
