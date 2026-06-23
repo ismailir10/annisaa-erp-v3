@@ -161,6 +161,18 @@ run_case "Edge feat(scope): + app/ no README → reject" \
   reject "feat(invoices): new field" \
   "app/api/invoices/route.ts"
 
+run_case "Edge Model-Trailer unknown → reject" \
+  reject $'fix: example\n\nModel-Trailer: unknown\nRole: product-builder' \
+  "docs/cycles/2026-06-23-x.md"
+
+run_case "Edge Role unknown → reject" \
+  reject $'fix: example\n\nModel-Trailer: gpt-5\nRole: unknown' \
+  "docs/cycles/2026-06-23-x.md"
+
+run_case "Edge known attribution trailers → accept" \
+  accept $'fix: example\n\nModel-Trailer: gpt-5\nRole: cto' \
+  "docs/cycles/2026-06-23-x.md"
+
 echo ""
 echo "Testing .githooks/pre-commit Rule 6 (ADR cell length)..."
 echo ""

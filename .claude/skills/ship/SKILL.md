@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR and stops — the user watches CI and merges manually when all checks are green. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
 
-> **Why manual merge:** this repo is private on GitHub's free plan, which does not support branch protection or "Allow auto-merge" (the API returns `403 Upgrade to GitHub Pro`). Server-side enforcement is therefore unavailable — see the Rules section for the enforcement-gap note. If the repo ever moves to Pro, revisit this skill to restore auto-merge.
+> **Why manual merge:** GitHub branch protection enforces PR + required checks, but the final merge stays human-owned. `/ship` handles gates, PR creation, and preview verification; the author watches CI and merges only when the protected checks are green.
 
 ## Invocation modes
 
@@ -132,7 +132,7 @@ If the delta is positive, stop and hand back to the user. Do not open a PR on a 
 
 ## Step 2: Open the PR (same flow for every role)
 
-Every role opens a PR from `feat/*` → `staging`, then hands off to the user. The user watches CI and merges manually when all four checks (`build`, `typecheck`, `test`, `e2e`) are green.
+Every role opens a PR from `feat/*` → `staging`, then hands off to the user. The user watches CI and merges manually when all four required checks (`Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`) are green.
 
 1. Ensure you are on a feature branch. If somehow on `staging`, create one from HEAD:
    ```bash
@@ -236,7 +236,7 @@ BODY
    Watch CI live:
      gh pr checks $PR_NUMBER --watch
 
-   Merge when all four checks (build, typecheck, test, e2e) are green:
+   Merge when all four required checks are green:
      gh pr merge $PR_NUMBER --squash
    ```
    Exit after printing. Do not proceed past Step 2. The CTO is responsible for waiting for green and running the merge command themselves.
@@ -246,6 +246,8 @@ BODY
 `/ship --to-main` skips this entire step — go to Step 5. For the default flow, run every check here before the merge hand-off in Step 5.
 
 **Goal:** catch ugliness or bugs on the Vercel preview before the user merges. Headless Playwright in CI cannot exercise the preview because staging gates on Google sign-in; Chrome MCP can, because it operates the user's already-signed-in Chrome profile.
+
+**Boundary with Playwright:** Playwright stays the deterministic CI regression gate and should remain lean: critical cross-module smoke flows only. Chrome MCP is the human-like preview gate: real browser profile, preview URL, console, network, screenshots, and visual/interaction judgment. Do not replace Playwright with Chrome MCP as the only gate; use Chrome MCP to catch environment/auth/layout issues that deterministic CI cannot replay.
 
 ### 3a. Wait for preview ready
 
@@ -410,7 +412,7 @@ PR opened: $PR_URL — preview verified clean over $ITER iteration(s).
 Watch CI live:
   gh pr checks $PR_NUMBER --watch
 
-Merge when all four checks (build, typecheck, test, e2e) are green:
+Merge when all four required checks are green:
   gh pr merge $PR_NUMBER --squash --delete-branch
 
 Staging auto-deploys to the Vercel preview within ~60s of merge.
@@ -418,7 +420,7 @@ Staging auto-deploys to the Vercel preview within ~60s of merge.
 
 Then print the post-ship checklist (don't execute — just remind the user):
 
-- [ ] Wait for all four CI checks green via `gh pr checks <number> --watch`, then run `gh pr merge <number> --squash --delete-branch` yourself
+- [ ] Wait for all four required checks green via `gh pr checks <number> --watch`, then run `gh pr merge <number> --squash --delete-branch` yourself
 - [ ] Once merged, check the Vercel preview deploy on staging succeeded
 - [ ] Smoke-test the feature on the preview URL (follow `## Ship Notes` instructions)
 - [ ] Reclaim disk + reduce next-session noise: `bash scripts/cleanup-merged.sh --yes` from the main checkout. Removes the worktree + local branch for any feat/* PR that was squash-merged. SessionStart already prints the same candidates in `--report` mode on every new session.
@@ -450,8 +452,8 @@ Reference for the preview-verification step. When the cycle's flows need fixture
 
 ## Rules
 
-- **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them — that hook is the only real safety net on this plan (see next bullet). All shipping is PR-based.
+- **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them locally; GitHub branch protection is the server-side boundary. All shipping is PR-based.
 - **Never bypass hooks** (`--no-verify`).
-- **Merge manually when CI is green.** `/ship` opens the PR and stops. You watch `gh pr checks <number> --watch`, wait for all four checks (build, typecheck, test, e2e) to pass, then run `gh pr merge <number> --squash --delete-branch` yourself. Do not merge a PR with red or pending checks — there is no server-side gate to catch that mistake.
-- **Zero server-side enforcement on this plan.** This repo is private on GitHub free, which disables branch protection, required status checks, and "Allow auto-merge" (the API returns `403 Upgrade to GitHub Pro`). That means the only things preventing a broken merge are (a) the `pre-push` hook blocking direct pushes to `staging`/`main`, and (b) the CTO's discipline to wait for green CI before clicking merge. If the repo moves to GitHub Pro, revisit this skill to restore `gh pr merge --auto` and wire up required status checks.
+- **Merge manually when CI is green.** `/ship` opens the PR and stops. You watch `gh pr checks <number> --watch`, wait for all four required checks to pass, then run `gh pr merge <number> --squash --delete-branch` yourself. Do not merge a PR with red or pending checks.
+- **Keep server-side enforcement aligned.** `staging` and `main` must require PRs and these checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`. Local hooks are helpful, but GitHub protection is the real boundary.
 - **Single source of truth.** Don't update README.md or CLAUDE.md in `/ship` — that's `/build`'s job via the cycle doc. `/ship` only moves bits, it doesn't author docs.

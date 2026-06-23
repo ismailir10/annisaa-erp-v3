@@ -25,6 +25,19 @@ case "$SUBJECT" in
   "Merge "*|"Revert "*|"fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
 esac
 
+# Unknown attribution defeats the audit trail. `prepare-commit-msg` appends
+# these trailers before commit-msg runs, so reject stale session-role files here.
+if grep -qE '^Model-Trailer:[[:space:]]*unknown[[:space:]]*$|^Role:[[:space:]]*unknown[[:space:]]*$' "$MSG_FILE"; then
+  echo "commit-msg: Model-Trailer and Role must not be unknown." >&2
+  echo "" >&2
+  echo "  Rewrite .claude/session-role with:" >&2
+  echo "    role=<cto|product-builder>" >&2
+  echo "    model=<your-model-id>" >&2
+  echo "" >&2
+  echo "  Then retry the commit. Unknown attribution breaks the workflow audit trail." >&2
+  exit 1
+fi
+
 # Does the subject start with feat: or perf: (with optional scope + breaking !)?
 if ! printf '%s' "$SUBJECT" | grep -qE '^(feat|perf)(\([^)]+\))?!?:'; then
   exit 0
