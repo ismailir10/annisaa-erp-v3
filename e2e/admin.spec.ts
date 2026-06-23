@@ -435,6 +435,7 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
   });
 
   test("bulk generate plans, confirms, runs sequential batches, lands all in PENDING_PAYMENT_LINK", async ({ page }) => {
+    test.setTimeout(180_000);
     await page.goto("/admin/invoices");
     await expect(page.getByRole("heading", { name: /^Tagihan$/ })).toBeVisible({ timeout: 15_000 });
 
@@ -468,14 +469,13 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     // xenditFailed counts. Real Xendit calls fail (see suite header §2),
     // so we expect "X tagihan dibuat ... link gagal" — see page.tsx:436.
     //
-    // Timeout is 60s (not 30s) because the post-chunk auto-sweep (cycle
+    // Timeout is 150s because the post-chunk auto-sweep (cycle
     // 2026-04-26-finance-robustness-a-b-c) re-runs runBulkRetry against
     // every PENDING_PAYMENT_LINK invoice landed by the chunk loop. With
-    // ~50 seeded students and a fake Xendit key, the sweep does its full
+    // staging-sized student counts and a fake Xendit key, the sweep does its full
     // 3-strike abort cycle on each retry chunk before the orchestrator
-    // flips phase=done. Empirically lands ~35-45s on CI; 60s is the
-    // safe ceiling.
-    await expect(page.getByText(/tagihan dibuat \(/)).toBeVisible({ timeout: 60_000 });
+    // flips phase=done.
+    await expect(page.getByText(/tagihan dibuat \(/)).toBeVisible({ timeout: 150_000 });
   });
 
   test("retry-payment-links endpoint validates payload", async ({ page }) => {

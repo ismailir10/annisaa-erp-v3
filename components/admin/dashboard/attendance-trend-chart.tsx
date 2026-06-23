@@ -1,20 +1,22 @@
 "use client";
-
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { Card } from "@/components/ui/card";
-import { ArrowRight } from "lucide-react";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ArrowRight, ChartNoAxesColumnIncreasing } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/format";
 
@@ -27,9 +29,15 @@ export type WeeklyTrend = {
 
 const chartConfig = {
   present: { label: "Hadir", color: "var(--chart-1)" },
-  late: { label: "Terlambat", color: "var(--chart-2)" },
-  absent: { label: "Tidak Hadir", color: "var(--chart-3)" },
+  late: { label: "Terlambat", color: "var(--chart-3)" },
+  absent: { label: "Tidak Hadir", color: "var(--chart-4)" },
 } satisfies ChartConfig;
+
+const chartColors = {
+  present: "#2F9EA3",
+  late: "#D99A00",
+  absent: "#D62F3E",
+};
 
 export function AttendanceTrendChart({
   data,
@@ -40,6 +48,14 @@ export function AttendanceTrendChart({
 }) {
   const isEmpty =
     data.length === 0 || data.every((d) => d.present + d.late + d.absent === 0);
+  const totals = data.reduce(
+    (acc, day) => ({
+      present: acc.present + day.present,
+      late: acc.late + day.late,
+      absent: acc.absent + day.absent,
+    }),
+    { present: 0, late: 0, absent: 0 },
+  );
 
   const chartData = data.map((d) => ({
     label: formatDate(d.date, { weekday: "short" }),
@@ -49,33 +65,130 @@ export function AttendanceTrendChart({
   }));
 
   return (
-    <Card className={`p-card ${className ?? ""}`}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold">Tren Kehadiran (7 Hari Terakhir)</h3>
-        <Link
-          href="/admin/employee-attendance"
-          className="text-xs text-primary hover:underline flex items-center gap-1"
-        >
-          Lihat detail <ArrowRight size={12} />
-        </Link>
-      </div>
-      {isEmpty ? (
-        <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">
-          Data kehadiran belum tersedia
-        </div>
-      ) : (
-        <ChartContainer config={chartConfig} className="aspect-auto h-32 w-full">
-          <BarChart data={chartData}>
-            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} />
-            <YAxis hide />
-            <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-            <Bar dataKey="present" stackId="a" fill="var(--color-present)" radius={[4, 4, 4, 4]} />
-            <Bar dataKey="late" stackId="a" fill="var(--color-late)" radius={[4, 4, 4, 4]} />
-            <Bar dataKey="absent" stackId="a" fill="var(--color-absent)" radius={[4, 4, 4, 4]} />
-          </BarChart>
-        </ChartContainer>
-      )}
+    <Card className={className}>
+      <CardHeader className="border-b">
+        <CardTitle>Tren Kehadiran</CardTitle>
+        <CardDescription>7 hari kerja terakhir</CardDescription>
+        <CardAction>
+          <Button
+            variant="ghost"
+            size="sm"
+            render={<Link href="/admin/employee-attendance" />}
+          >
+            Lihat detail
+            <ArrowRight />
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-4">
+        {isEmpty ? (
+          <EmptyState
+            icon={ChartNoAxesColumnIncreasing}
+            title="Data kehadiran belum tersedia"
+            description="Rekap harian akan muncul setelah absensi karyawan tercatat."
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <TrendPill
+                label="Hadir"
+                value={totals.present}
+                className="text-primary"
+              />
+              <TrendPill
+                label="Terlambat"
+                value={totals.late}
+                className="text-warning"
+              />
+              <TrendPill
+                label="Tidak hadir"
+                value={totals.absent}
+                className="text-destructive"
+              />
+            </div>
+            <ChartContainer
+              config={chartConfig}
+              className="aspect-auto h-[304px] w-full"
+            >
+              <AreaChart
+                accessibilityLayer
+                data={chartData}
+                margin={{ top: 12, right: 12, left: 12, bottom: 0 }}
+              >
+                <CartesianGrid
+                  vertical={false}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.28}
+                />
+                <XAxis
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent indicator="line" />}
+                />
+                <Area
+                  dataKey="present"
+                  type="linear"
+                  fill={chartColors.present}
+                  fillOpacity={0.28}
+                  stroke={chartColors.present}
+                  strokeWidth={3.25}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 2 }}
+                  isAnimationActive={false}
+                />
+                <Area
+                  dataKey="late"
+                  type="linear"
+                  fill={chartColors.late}
+                  fillOpacity={0.12}
+                  stroke={chartColors.late}
+                  strokeWidth={2.75}
+                  dot={false}
+                  activeDot={{ r: 3, strokeWidth: 2 }}
+                  isAnimationActive={false}
+                />
+                <Area
+                  dataKey="absent"
+                  type="linear"
+                  fill={chartColors.absent}
+                  fillOpacity={0.12}
+                  stroke={chartColors.absent}
+                  strokeWidth={2.75}
+                  dot={false}
+                  activeDot={{ r: 3, strokeWidth: 2 }}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ChartContainer>
+          </>
+        )}
+      </CardContent>
     </Card>
+  );
+}
+
+function TrendPill({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: number;
+  className?: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/30 px-3 py-2">
+      <div className="text-[11px] font-medium text-muted-foreground">
+        {label}
+      </div>
+      <div className={`font-mono text-lg font-semibold ${className ?? ""}`}>
+        {value}
+      </div>
+    </div>
   );
 }

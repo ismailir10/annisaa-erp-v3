@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { CalendarOff, Banknote, UserPlus } from "lucide-react";
@@ -20,9 +20,11 @@ export function PendingActions({
   canSeeLeave: boolean;
 }) {
   return (
-    <Card data-testid="pending-actions" className="p-card flex flex-col">
-      <h3 className="text-sm font-semibold mb-4">Perlu Tindakan</h3>
-      <div className="flex-1 space-y-3">
+    <Card data-testid="pending-actions">
+      <CardHeader className="border-b">
+        <CardTitle>Perlu Tindakan</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
         {canSeeLeave && (
           <Link
             href="/admin/leave-requests"
@@ -86,7 +88,7 @@ export function PendingActions({
             {lastPayroll && <StatusBadge status={lastPayroll.status} />}
           </Link>
         )}
-      </div>
+      </CardContent>
     </Card>
   );
 }
