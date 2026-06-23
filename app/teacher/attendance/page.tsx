@@ -18,7 +18,7 @@ type AttendanceRecord = {
 };
 
 /** Cache key for a given year + month pair (pure helper). */
-export function cacheKey(year: number, month: number): string {
+function cacheKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 

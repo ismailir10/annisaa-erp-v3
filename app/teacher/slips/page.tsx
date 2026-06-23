@@ -7,40 +7,16 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Download, FileText, Clock } from "lucide-react";
-import { formatDateShort, formatMonthLabel } from "@/lib/format";
+import { formatDateShort } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
 import { toast } from "sonner";
+import { hasSlipInMonth, priorMonthLabel } from "./helpers";
 
 type SlipItem = {
   id: string;
   payrollRun: { periodStart: string; periodEnd: string; status: string };
 };
-
-/** Returns { year, month (1-based), label } for the prior calendar month relative to `today`. */
-export function priorMonthLabel(today: Date): { year: number; month: number; label: string } {
-  const d = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1; // 1-based
-  const label = formatMonthLabel(year, month);
-  return { year, month, label };
-}
-
-/** Returns true if `slips` contains any slip whose periodStart falls in the given year+month. */
-export function hasSlipInMonth(
-  slips: Pick<SlipItem, "payrollRun">[],
-  year: number,
-  month: number,
-): boolean {
-  return slips.some((s) => {
-    // Parse only the date portion to avoid timezone offset issues.
-    const dateOnly = s.payrollRun.periodStart.includes("T")
-      ? s.payrollRun.periodStart.split("T")[0]
-      : s.payrollRun.periodStart;
-    const [y, m] = dateOnly.split("-").map(Number);
-    return y === year && m === month;
-  });
-}
 
 export default function TeacherSlipsPage() {
   const [slips, setSlips] = useState<SlipItem[]>([]);

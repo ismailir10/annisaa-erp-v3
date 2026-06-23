@@ -82,19 +82,6 @@ function detectTier(): Tier {
   return "unknown";
 }
 
-/**
- * Test seam — exposed so the route's vitest suite can wipe the cache and
- * the rate-limit store between cases. Not part of the public API surface.
- *
- * `lib/rate-limit.ts` keeps its store in module scope; reaching in to clear
- * it here would require either an exported reset or a per-request key
- * randomization. The simpler approach: the test mocks `getClientIp` to
- * return a unique per-test IP, which sidesteps the shared store entirely.
- */
-export function __resetHealthCacheForTest(): void {
-  globalThis.__xenditHealthCache = undefined;
-}
-
 export async function GET(request: Request): Promise<NextResponse> {
   // Step 1 — Rate limit (per-IP). Must run BEFORE the cache check so cached
   // responses still count against the cap (cycle 2026-04-28 T4 ordering pin).
