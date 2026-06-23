@@ -42,7 +42,7 @@ Invoke `/caveman` and `/using-superpowers` by default. The `SessionStart` hook (
 
 ### Testing gates
 
-Three-tier — fast unit gate between every task, Playwright smoke once per cycle, preview-verify on the open PR before merge hand-off:
+Three-tier — fast unit gate between every task, lean Playwright smoke once per cycle, preview-verify on the open PR before merge hand-off:
 
 | Gate | Command / mechanism | When |
 |------|---------|------|
@@ -50,7 +50,7 @@ Three-tier — fast unit gate between every task, Playwright smoke once per cycl
 | End-of-cycle | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
 | Preview-verify | `/ship` Step 3 — Chrome MCP walks the Vercel preview against the user's Google session, classifies findings, fix-commits + re-verifies until clean | After `/ship` opens the PR, before the merge hand-off |
 
-**Why three tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches headless UI regressions but cannot reach Google-OAuth-gated staging — preview-verify covers that surface with the user's real authenticated session. **Pure-docs cycles may skip Playwright + preview-verify** — record each skip explicitly in Verification. Tests live in `e2e/`; demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
+**Why three tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle Playwright is the deterministic CI regression contract: keep it lean, stable, and focused on critical cross-module smoke flows (auth/demo shell, admin dashboard, students, invoices/payment, attendance, teacher daily flow, parent invoice/report, tenant/security boundaries). Do **not** add Playwright for every UI detail; prefer Vitest/API/component-level tests for business logic, permissions, validation, and local interactions. Preview-verify is the human-like release check: Chrome MCP uses the real preview, signed-in browser state, console, network, screenshots, and UI judgment to catch OAuth/staging/Vercel/layout issues that CI cannot exercise. Chrome MCP complements Playwright; it does not replace the required CI gate because it depends on an interactive browser profile and is harder to replay deterministically. **Pure-docs cycles may skip Playwright + preview-verify** — record each skip explicitly in Verification. Tests live in `e2e/`; demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
 
 ### Standalone: `/uat` — heuristic user-acceptance testing
 
@@ -116,12 +116,12 @@ The exact rule table + every test scenario lives in `scripts/test-hooks.sh` — 
 
 ### GitHub branch protection (the real boundary)
 
-Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Branch protection rules became free for private repositories in February 2023 — no GitHub Pro upgrade needed. Required configuration:
+Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Required configuration:
 
 - `staging` + `main`: require PR, no direct push for anyone (incl. owner), status checks must pass before merge
-- Required CI checks (job names from `.github/workflows/ci.yml`): `Lint, Typecheck & Test`, `Build`, `Playwright E2E`
+- Required checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`
 
-`/ship` opens the PR and stops; the author merges after CI is green. Branch protection on `main` and `staging` is enabled in the Talib production launch — Cycle B (Production Infrastructure). Until then the safety net is `pre-push` blocking direct pushes + CTO discipline. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
+`/ship` opens the PR and stops; the author merges after CI is green. Branch protection on `main` and `staging` is enabled and must require the four checks above; `pre-push` is only a local early-warning guard. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
 
 ### Commit attribution
 

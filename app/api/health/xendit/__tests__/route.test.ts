@@ -15,7 +15,8 @@
  * The route uses `lib/rate-limit.ts` which keeps its store in module scope.
  * To avoid cross-test contamination of the limiter, each test uses a unique
  * IP via the `X-Forwarded-For` header (the route reads this through
- * `getClientIp`). The cache is reset between tests via `__resetHealthCacheForTest`.
+ * `getClientIp`). The cache is reset between tests through the route's
+ * global cache slot.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,7 +33,7 @@ vi.mock("@/lib/xendit/client", async () => {
 });
 
 import { pingXenditBalance } from "@/lib/xendit/client";
-import { GET, __resetHealthCacheForTest } from "../route";
+import { GET } from "../route";
 
 const pingMock = pingXenditBalance as unknown as ReturnType<typeof vi.fn>;
 
@@ -51,7 +52,7 @@ function makeRequest(): Request {
 const ORIGINAL_KEY = process.env.XENDIT_SECRET_KEY;
 
 beforeEach(() => {
-  __resetHealthCacheForTest();
+  globalThis.__xenditHealthCache = undefined;
   pingMock.mockReset();
 });
 

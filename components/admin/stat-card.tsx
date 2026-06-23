@@ -1,7 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { LucideIcon } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function StatCard({
   label,
@@ -28,28 +28,25 @@ export function StatCard({
   const c = colorMap[color];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.08, duration: 0.4, ease: "easeOut" }}
-      className="bg-card border border-border rounded-xl p-5 hover:shadow-md transition-shadow"
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            {label}
-          </p>
-          <p className="font-currency text-display font-bold mt-1.5 tracking-tight">
-            {value}
-          </p>
-          {sublabel && (
-            <p className="text-xs text-muted-foreground mt-1">{sublabel}</p>
-          )}
+    <Card className="transition-shadow hover:shadow-md" data-index={index}>
+      <CardContent>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              {label}
+            </p>
+            <p className="font-currency text-display font-bold mt-1.5 tracking-tight">
+              {value}
+            </p>
+            {sublabel && (
+              <p className="text-xs text-muted-foreground mt-1">{sublabel}</p>
+            )}
+          </div>
+          <div className={`w-10 h-10 rounded-xl ${c.bg} flex items-center justify-center`}>
+            <Icon size={20} className={c.icon} />
+          </div>
         </div>
-        <div className={`w-10 h-10 rounded-xl ${c.bg} flex items-center justify-center`}>
-          <Icon size={20} className={c.icon} />
-        </div>
-      </div>
-    </motion.div>
+      </CardContent>
+    </Card>
   );
 }

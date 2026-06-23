@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDefaultNoteDate } from "../page";
+import { computeDefaultNoteDate } from "../note-date";
 
 describe("computeDefaultNoteDate", () => {
   // Visible week: Mon 2026-04-27 → Fri 2026-05-01

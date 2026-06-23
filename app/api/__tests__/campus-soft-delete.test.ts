@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 // Cat A soft-delete contract for Campus.
 // - DELETE → status: "INACTIVE" (no row removal)
@@ -108,7 +109,7 @@ describe("Campus Cat A soft-delete", () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(adminSession);
 
-    await GET();
+    await GET(new NextRequest("http://localhost/api/config/campuses"));
 
     expect(campusFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
