@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -68,40 +69,55 @@ export function KategoriIndikatorBuilder({
 
       {value.map((cat, ci) => (
         <div key={ci} className="border rounded-lg p-3 mb-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <Input
-              className="flex-1"
-              placeholder="Nama kategori"
-              value={cat.name}
-              onChange={(e) => updateCategoryName(ci, e.target.value)}
-              disabled={disabled}
-            />
+          <div className="flex items-end gap-2">
+            <Field className="flex-1">
+              <FieldLabel htmlFor={`category-${ci}`} required>
+                Nama Kategori
+              </FieldLabel>
+              <Input
+                id={`category-${ci}`}
+                placeholder="Nama kategori"
+                value={cat.name}
+                onChange={(e) => updateCategoryName(ci, e.target.value)}
+                disabled={disabled}
+                required
+              />
+            </Field>
             {value.length > 1 && !disabled && (
               <Button
                 size="sm"
                 variant="ghost"
                 className="text-destructive h-8 w-8 p-0"
                 onClick={() => removeCategory(ci)}
+                aria-label={`Hapus kategori ${ci + 1}`}
               >
                 <Trash2 size={14} />
               </Button>
             )}
           </div>
           {cat.indicators.map((ind, ii) => (
-            <div key={ii} className="flex items-center gap-2 pl-4">
-              <Input
-                className="flex-1 text-sm"
-                placeholder={`Indikator ${ii + 1}`}
-                value={ind}
-                onChange={(e) => updateIndicator(ci, ii, e.target.value)}
-                disabled={disabled}
-              />
+            <div key={ii} className="flex items-end gap-2 pl-4">
+              <Field className="flex-1">
+                <FieldLabel htmlFor={`category-${ci}-indicator-${ii}`} required>
+                  Indikator {ii + 1}
+                </FieldLabel>
+                <Input
+                  id={`category-${ci}-indicator-${ii}`}
+                  className="text-sm"
+                  placeholder={`Indikator ${ii + 1}`}
+                  value={ind}
+                  onChange={(e) => updateIndicator(ci, ii, e.target.value)}
+                  disabled={disabled}
+                  required
+                />
+              </Field>
               {cat.indicators.length > 1 && !disabled && (
                 <Button
                   size="sm"
                   variant="ghost"
                   className="text-destructive h-7 w-7 p-0"
                   onClick={() => removeIndicator(ci, ii)}
+                  aria-label={`Hapus indikator ${ii + 1}`}
                 >
                   <Trash2 size={12} />
                 </Button>
