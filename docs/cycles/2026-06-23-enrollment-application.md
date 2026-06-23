@@ -1,0 +1,64 @@
+# Enrollment Application (Cycle A) — Inquiry-Linked Prefilled Form + Convert
+
+## Context
+
+An Nisaa' Sekolahku collects new-student data on a 5-page paper form (full student bio + health, two-parent Ayah/Ibu blocks, program incl. Dcare, and a 16-clause "SURAT PERSETUJUAN ORANG TUA" with dual signatures). Source: `artifacts/admission-form/` (5 JPEGs, transcribed in-session). Today the digital funnel stops at the thin `Admission` model + public `/daftar` 3-step form — a **lead/inquiry tracker** (child basics + one flat parent block). The intended product flow is **inquiry-first, then emailed continuation**: a parent submits an inquiry (or admin creates one), the admin qualifies the lead and clicks **"Kirim Formulir"**, the parent receives an email with a **tokenized, prefilled** link to the full admission form, completes it (with consent + signatures, resume-able across sessions), and the admin reviews then converts the accepted application into a `Student` + both `Parent` records. This cycle (**Cycle A**) delivers that funnel end-to-end **without** the registration-fee gate. Hardcoded for the An Nisaa' pilot (their programs, options, 16 clauses). The thin `Admission`/`/daftar` lead funnel is reused as the entry point and otherwise left untouched.
+
+**Follow-up — Cycle B (separate doc, specced later):** registration-fee gate. Snapshot the REGISTRATION-category fee for the chosen program from the existing `ProgramFeeStructure` (`/admin/fees`) onto the application at invite time; let admin record a **cash** payment or generate a **Xendit** checkout (reuse `lib/xendit/client.ts` + the `app/api/xendit` webhook, extended for application-fee refs); and **block `ACCEPTED` unless the fee is paid**. Cycle A ships with manual (ungated) acceptance as the interim. The fee can't reuse the `Invoice` table — `Invoice.studentId` is required (FK Restrict) and the fee is charged pre-Student — so Cycle B carries the fee on the application row instead.
+
+## Spec
+
+**Acceptance criteria**
+
+- [ ] New `EnrollmentApplication` Prisma model + migration, **1:1 linked to `Admission`** (`admissionId @unique`), with an unguessable `accessToken @unique` (+ `tokenExpiresAt`), status `INVITED | SUBMITTED | UNDER_REVIEW | ACCEPTED | REJECTED` (converted encoded by `studentId` non-null, per the `Admission` precedent), thin queryable columns (childName, parentEmail, programId, dcareAddon, submittedAt) + JSON blobs `studentData` / `ayahData` / `ibuData` / `consentData` holding the full paper-form field set.
+- [ ] Admin **"Kirim Formulir"** action on an `Admission`: requires the inquiry to have a `parentEmail`, creates an `EnrollmentApplication(INVITED)` prefilled from the Admission (childName, parentName, phone, email, program, relationship), generates a token, and emails the parent a link (`lib/email`); resend refreshes the token + expiry; idempotent (one application per admission).
+- [ ] Public tokenized form `/pendaftaran/[token]` resolves the token server-side to its application, **prefills** known fields, and renders a multi-step wizard: Student → Ayah → Ibu → Program(+Dcare) → Consent(16 clauses + dual signature) → Review. Invalid/expired token → friendly non-leaking page.
+- [ ] The form is **resume-able**: partial progress saves to the application row (`PATCH /api/enrollments/token/[token]`) so the parent can close + reopen the emailed link; final submit flips status to `SUBMITTED` and stamps `submittedAt`.
+- [ ] Consent step renders all 16 An Nisaa' clauses (hardcoded, `consentVersion`), requires an explicit agreement checkbox, and captures a typed full name + drawn signature (PNG via the existing storage-proxy token pattern, like `Parent.ktpUrl`) for **both** Ayah and Ibu before submit is allowed.
+- [ ] Token endpoints are unauthenticated but token-gated, rate-limited, expiry-checked, and non-enumerable (no other-applicant leak), per `security.md`.
+- [ ] Admin `/admin/enrollments` list (paginated, tenant-scoped, admin-gated, status filter) + detail (full record + both rendered signatures + status transitions `SUBMITTED → UNDER_REVIEW → ACCEPTED | REJECTED`) + create/edit (staff transcription path, same field set). `GET /api/enrollments`, `GET/PATCH /api/enrollments/[id]`.
+- [ ] `POST /api/enrollments/[id]/convert` converts an `ACCEPTED` application into a `Student` + two `Parent` rows (Ayah, Ibu) + `StudentGuardian` links (AYAH `isPrimary`, `childOrder` from "anak ke-"), mapping bio/parent fields to first-class `Student`/`Parent` columns and health/sibling/citizenship/religion into `Student.metadata`; reuses `lib/admission/sibling-detect.ts`; idempotent (already-converted → 400) + tenant-scoped + `ACCEPTED`-only.
+- [ ] Unit tests (Vitest) cover validation, consent-version, option-membership, token resolution, and convert field-mapping; one Playwright smoke spec walks invite → tokenized submit → admin accept → convert.
+- [ ] README + CLAUDE doc counts updated (routes, models, e2e specs, file structure); design-system cross-check recorded.
+
+**Non-goals**
+
+- Registration fee + payment gate (cash/Xendit) and payment-gated acceptance → **Cycle B**.
+- Any open, no-inquiry anonymous public full form — the rich form is reachable **only** via the emailed token (every application ties to an `Admission`). Walk-ins: admin creates the inquiry, then sends/fills.
+- Changing the thin `Admission` model's funnel statuses or the `/daftar` form (only **adds** the "Kirim Formulir" action + the relation).
+- Document/file uploads (KK, akta, foto) — not on the paper form.
+- Config-driven / multi-tenant field sets, options, or clauses — hardcoded An Nisaa' pilot.
+- Parent self-edit after submission (admin owns post-submit edits).
+
+**Assumptions** (correct me before `/build`)
+
+1. The rich form is **tokenized/inquiry-first only** (no open anonymous route this cycle).
+2. Drawn signature pad (canvas → PNG via storage proxy) **plus** required typed name, per parent. Say if you'd rather typed-name-only.
+3. Token TTL **14 days**, admin can resend to refresh. One application per Admission (`admissionId @unique`).
+4. Bulk bio/parent/consent fields stored as **JSON blobs** on the application (thin first-class columns only for what we query/gate/display). Validated by `lib/enrollment`. Convert reads the JSON.
+5. Convert creates **two** Parent rows (AYAH set primary billing); Parent reuse for returning/sibling families happens via sibling-detect at convert, not at prefill.
+6. "Keluarga inti yang pernah bersekolah" capped at 4, stored in `studentData` JSON, reference-only.
+7. Pekerjaan options de-dupe the paper's letter gap → ASN-Non-guru / Guru / Karyawan-swasta / Wiraswasta-Pengusaha / TNI-atau-Polri / Lainnya (free text).
+8. In Cycle A, `ACCEPTED` is a manual admin decision (no fee gate yet) — Cycle B adds the payment block.
+
+## Tasks
+
+1. [x] **Schema + pilot constants + token util.** Add `EnrollmentApplication` model (thin columns + `studentData`/`ayahData`/`ibuData`/`consentData` JSON; `admissionId @unique` → `Admission`; `accessToken @unique`, `tokenExpiresAt`; status enum-as-string; `studentId @unique?` → `Student`; `programId?` → `Program`) + back-relation on `Admission`. Migration. `lib/enrollment/constants.ts` (agama, kewarganegaraan, livingWith, birth-delivery/term, education, occupation, income brackets), `lib/enrollment/consent-clauses.ts` (16 clauses + `CONSENT_VERSION`), `lib/enrollment/token.ts` (crypto-random unguessable token). *Accept: `npx prisma migrate` + `npm run build` green; relations resolve. Depends: none.*
+2. **Validation + consent lib + tests.** `lib/enrollment/submit-validation.ts` (required fields per step, option membership, both-parent consent + signature presence, consent-version match) mirroring `lib/admission/submit-validation.ts`. Vitest. *Accept: `npx vitest run lib/enrollment` covers reject-missing-required, reject-bad-option, reject-missing-consent, accept-valid. Depends: 1.*
+3. **Admin invite ("Kirim Formulir") + email.** `POST /api/enrollments/invite` (admin-gated): require `Admission.parentEmail`, create/refresh `EnrollmentApplication(INVITED)` prefilled from the admission, mint token + 14d expiry, send the invitation email via `lib/email`. Button on the `/admin/admissions` detail. *Accept: invite creates one prefilled row + sends email (mocked in test); resend refreshes token; missing email → 422. Depends: 1.*
+4. **Tokenized public form `/pendaftaran/[token]`.** RSC resolves token → application (prefill) or friendly invalid/expired page. Client wizard (Student → Ayah → Ibu → Program+Dcare → Consent[16 clauses + dual signature pad] → Review). `PATCH /api/enrollments/token/[token]` saves partial draft (resume); submit → `SUBMITTED`. Signature pad component → PNG via storage proxy. Rate-limited, non-enumerable. Reuse Shadcn `Field`/`Input`/`NativeSelect`/`Textarea`/`Button`; Islamic-courtesy copy (`voice.md`), emerald `#0C5C3F`; cross-check `design-system.html` §forms + §portal-shells. *Accept: open token → prefilled → save + reopen resumes → submit flips to SUBMITTED. Depends: 2, 3.*
+5. **Admin list / detail / edit.** `/admin/enrollments` list (DataTable, status filter) + detail (full record, both signatures, status transitions) + create/edit (staff transcription). `GET /api/enrollments`, `GET/PATCH /api/enrollments/[id]` (admin-gated, tenant-scoped). Follow `patterns.md` Admin List/Detail + `crud.md`. *Accept: admin lists, opens detail with signatures, changes status, creates + edits. Depends: 1 (parallel with 3/4).*
+6. **Convert to Student.** `POST /api/enrollments/[id]/convert` → `Student` + Parent(Ayah) + Parent(Ibu) + `StudentGuardian` (AYAH primary, `childOrder`), JSON → `Student.metadata` + first-class columns; reuse `lib/admission/sibling-detect.ts`; `ACCEPTED`-only, idempotent, tenant-scoped (mirror `app/api/admissions/[id]/convert`). Field-parity mapping test. *Accept: ACCEPTED app converts once → Student+2 Parents+guardians; re-convert → 400; mapping test green. Depends: 5.*
+7. **E2E smoke + docs.** `e2e/enrollment-application.spec.ts`: admin invite → tokenized `/pendaftaran/[token]` submit → admin accept → convert → student appears. Update README (routes/models/portal counts) + CLAUDE.md (route + e2e + model + File-Structure counts). *Accept: `npx playwright test enrollment-application` green; `/audit-docs` zero fail. Depends: 4, 6.*
+
+## Implementation
+
+- Subagent plan: tasks are sequential — all share the Prisma schema + generated client types + cross-task imports, so parallel subagents would collide. Executed inline in dependency order (T1 foundational; T2/T3/T5 build on T1; T4 on T2+T3; T6 on T5; T7 last).
+- Task 1: Schema + pilot constants + token util — `prisma/schema.prisma` (new `EnrollmentApplication` model + back-relations on `Tenant`/`Program`/`Student`/`Admission`), `prisma/migrations/20260623000000_add_enrollment_application/migration.sql` (additive table + 3 unique indexes + 4 FKs + service-role RLS), `lib/enrollment/constants.ts` (option lists + value sets + status enum), `lib/enrollment/consent-clauses.ts` (16 verbatim clauses + `CONSENT_VERSION`), `lib/enrollment/token.ts` (256-bit base64url token + 14d expiry helpers). Bulk paper-form fields stored as JSON blobs; only queried/gated/displayed fields are first-class columns.
+
+## Verification
+
+- Task 1: gates passed — `npm run build` green (prisma generate + next build), `npx vitest run` 2060 passed / 0 failed / 2 skipped / 42 todo. `npx prisma validate` ✓, client generates clean. `superpowers:code-reviewer` on the staged diff: no blockers — migration↔schema parity confirmed (types, defaults, unique indexes, FK onDelete), RLS present (passes `verify-rls-coverage.sh`), token util 256-bit CSPRNG sound.
+
+## Ship Notes
+<!-- filled by /ship -->

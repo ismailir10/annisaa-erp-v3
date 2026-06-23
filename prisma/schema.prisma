@@ -30,6 +30,7 @@ model Tenant {
   classTracks            ClassTrack[]
   students               Student[]
   admissions             Admission[]
+  enrollmentApplications EnrollmentApplication[]
   feeDefs                FeeComponentDef[]
   feeStructures          ProgramFeeStructure[]
   invoices               Invoice[]
@@ -420,6 +421,7 @@ model Program {
   classSections       ClassSection[]
   classTracks         ClassTrack[]
   admissions          Admission[]
+  enrollmentApplications EnrollmentApplication[]
   feeStructures       ProgramFeeStructure[]
   assessmentTemplates AssessmentTemplate[]
 
@@ -541,6 +543,7 @@ model Student {
   guardians           StudentGuardian[]
   enrollments         StudentEnrollment[]
   admission           Admission?
+  enrollmentApplication EnrollmentApplication?
   invoices            Invoice[]
   studentAttendances  StudentAttendance[]
   assessments         StudentAssessment[]
@@ -662,9 +665,53 @@ model Admission {
   program        Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
   student        Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
   detectedParent Parent?  @relation("AdmissionDetectedParent", fields: [detectedParentId], references: [id], onDelete: SetNull)
+  enrollmentApplication EnrollmentApplication?
 
   @@index([tenantId, status])
   @@index([tenantId, detectedParentId])
+}
+
+// ── ENROLLMENT APPLICATION (Cycle A — 2026-06-23) ────────────
+// Rich admission form digitizing the An Nisaa' paper "Permohonan
+// Penerimaan Murid Baru" + "Surat Persetujuan Orang Tua". 1:1 continuation
+// of an Admission inquiry (admissionId @unique). Bulk paper-form fields
+// live in JSON blobs (studentData/ayahData/ibuData/consentData) whose shape
+// is validated by lib/enrollment — only the columns we query, gate, or list
+// on are first-class.
+// onDelete: tenant Restrict (not a leaf row); admission Cascade (an
+// in-progress application dies with its inquiry); program/student SetNull
+// (survive config/student removal — studentId is set only at convert).
+model EnrollmentApplication {
+  id             String    @id @default(cuid())
+  tenantId       String
+  admissionId    String    @unique // 1:1 continuation of the originating inquiry
+  accessToken    String    @unique // unguessable token emailed to the parent
+  tokenExpiresAt DateTime? // null = no expiry; invite sets +14d
+  status         String    @default("INVITED") // INVITED | SUBMITTED | UNDER_REVIEW | ACCEPTED | REJECTED — converted encoded by studentId IS NOT NULL
+  studentId      String?   @unique // set when converted to a Student
+  programId      String? // chosen program (prefilled from admission, editable in the form)
+  dcareAddon     Boolean   @default(false)
+
+  // Thin queryable/display columns (mirrored from the JSON for list views).
+  childName   String
+  parentEmail String?
+
+  // Bulk paper-form payload — validated shape lives in lib/enrollment.
+  studentData Json? // bio, health, address, siblings, prior-family, birth circumstances
+  ayahData    Json? // father block
+  ibuData     Json? // mother block
+  consentData Json? // { agreed, version, ayah:{name,signatureToken,signedAt}, ibu:{...} }
+
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  admission Admission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  program   Program?  @relation(fields: [programId], references: [id], onDelete: SetNull)
+  student   Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
 }
 
 // ══════════════════════════════════════════════════════════════
