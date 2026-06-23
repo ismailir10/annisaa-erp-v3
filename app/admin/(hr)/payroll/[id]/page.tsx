@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +27,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Download, Send, Check, Pencil, Settings2, Eye, X } from "lucide-react";
+import { ArrowLeft, Download, Send, Check, Pencil, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 import Link from "next/link";
@@ -52,6 +54,8 @@ export default function PayrollDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [bankFilter, setBankFilter] = useState("all");
 
   // Detail sheet
   const [detailItem, setDetailItem] = useState<PayrollItem | null>(null);
@@ -88,11 +92,10 @@ export default function PayrollDetailPage() {
     ]);
     const payData = await payRes.json();
     setData(payData);
-    // Refresh detail sheet if open
-    if (detailItem) {
-      const updated = payData.items?.find((i: PayrollItem) => i.id === detailItem.id);
-      if (updated) setDetailItem(updated);
-    }
+    setDetailItem((current) => {
+      if (!current) return current;
+      return payData.items?.find((i: PayrollItem) => i.id === current.id) ?? current;
+    });
     try {
       const comp = await compRes.json();
       if (comp?.comparison) {
@@ -109,6 +112,30 @@ export default function PayrollDetailPage() {
   }, [id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const payrollItems = data?.items ?? [];
+  const filteredItems = useMemo(() => {
+    const q = employeeSearch.trim().toLowerCase();
+    return payrollItems.filter((item) => {
+      const matchesSearch =
+        !q ||
+        [
+          item.employee.nama,
+          item.employee.kode,
+          item.employee.jabatan,
+          item.employee.bankName ?? "",
+          item.employee.bankAccountNo ?? "",
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
+      const matchesBank =
+        bankFilter === "all" ||
+        (bankFilter === "complete" && Boolean(item.employee.bankAccountNo)) ||
+        (bankFilter === "missing" && !item.employee.bankAccountNo);
+      return matchesSearch && matchesBank;
+    });
+  }, [payrollItems, employeeSearch, bankFilter]);
 
   function openVars(item: PayrollItem) {
     setVarsForm({
@@ -301,9 +328,7 @@ export default function PayrollDetailPage() {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <Button size="sm" variant="ghost" onClick={() => setDetailItem(row.original)}>
-          <Eye size={14} className="mr-1" /> Detail
-        </Button>
+        <DataTableRowActions onView={() => setDetailItem(row.original)} />
       ),
     },
   ];
@@ -414,11 +439,31 @@ export default function PayrollDetailPage() {
       )}
 
       {/* Employee DataTable */}
+      <DataTableToolbar
+        value={employeeSearch}
+        onValueChange={setEmployeeSearch}
+        searchPlaceholder="Cari karyawan, kode, jabatan..."
+        filters={[
+          {
+            key: "bank",
+            label: "Rekening",
+            value: bankFilter,
+            onChange: setBankFilter,
+            options: [
+              { value: "all", label: "Semua Rekening" },
+              { value: "complete", label: "Rekening Lengkap" },
+              { value: "missing", label: "Tanpa Rekening" },
+            ],
+          },
+        ]}
+      />
       <DataTable
         columns={columns}
-        data={data.items}
+        data={filteredItems}
+        pagination={{ page: 1, pageSize: 10, total: filteredItems.length, totalPages: Math.max(1, Math.ceil(filteredItems.length / 10)) }}
         defaultSort={{ field: "nama", order: "asc" }}
         emptyTitle="Tidak ada data karyawan"
+        emptyDescription="Ubah kata kunci atau filter rekening untuk melihat data lain."
       />
 
       {/* Detail Sheet */}

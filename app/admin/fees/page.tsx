@@ -5,11 +5,12 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -34,6 +35,9 @@ export default function FeesPage() {
   const [loading, setLoading] = useState(true);
   const [componentDialog, setComponentDialog] = useState(false);
   const [editingFee, setEditingFee] = useState<FeeComponent | null>(null);
+  const [componentSearch, setComponentSearch] = useState("");
+  const [componentStatus, setComponentStatus] = useState("ACTIVE");
+  const [componentCategory, setComponentCategory] = useState("all");
   const [form, setForm] = useState({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: "0" });
   const [saving, setSaving] = useState(false);
 
@@ -117,6 +121,22 @@ export default function FeesPage() {
 
   if (loading) return <Skeleton className="h-96 rounded-xl" />;
 
+  const filteredComponents = components.filter((c) => {
+    const q = componentSearch.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      [c.code, c.label, CATEGORY_LABELS[c.category] ?? c.category]
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+    const matchesStatus =
+      componentStatus === "all" ||
+      (componentStatus === "ACTIVE" && c.isEnabled) ||
+      (componentStatus === "INACTIVE" && !c.isEnabled);
+    const matchesCategory = componentCategory === "all" || c.category === componentCategory;
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
+
   const feeComponentColumns: ColumnDef<FeeComponent>[] = [
     {
       accessorKey: "sortOrder",
@@ -145,9 +165,15 @@ export default function FeesPage() {
       cell: ({ row }) => <Badge variant="secondary" className="text-xs">{CATEGORY_LABELS[row.original.category] ?? row.original.category}</Badge>,
     },
     {
-      id: "enabled",
-      header: "Aktif",
-      cell: ({ row }) => <Switch checked={row.original.isEnabled} onCheckedChange={() => toggleComponent(row.original)} />,
+      id: "status",
+      accessorFn: (row) => (row.isEnabled ? "ACTIVE" : "INACTIVE"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => (
+        <StatusBadge
+          status={row.original.isEnabled ? "ACTIVE" : "INACTIVE"}
+          label={row.original.isEnabled ? "Aktif" : "Tidak Aktif"}
+        />
+      ),
     },
     {
       id: "actions",
@@ -184,12 +210,42 @@ export default function FeesPage() {
               <Plus size={14} className="mr-1.5" /> Tambah Komponen
             </Button>
           </div>
+          <DataTableToolbar
+            value={componentSearch}
+            onValueChange={setComponentSearch}
+            searchPlaceholder="Cari kode atau komponen..."
+            filters={[
+              {
+                key: "status",
+                label: "Status",
+                value: componentStatus,
+                onChange: setComponentStatus,
+                resetValue: "ACTIVE",
+                options: [
+                  { value: "all", label: "Semua Status" },
+                  { value: "ACTIVE", label: "Aktif" },
+                  { value: "INACTIVE", label: "Tidak Aktif" },
+                ],
+              },
+              {
+                key: "category",
+                label: "Kategori",
+                value: componentCategory,
+                onChange: setComponentCategory,
+                options: [
+                  { value: "all", label: "Semua Kategori" },
+                  ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label })),
+                ],
+              },
+            ]}
+          />
           <DataTable
             columns={feeComponentColumns}
-            data={components}
+            data={filteredComponents}
+            pagination={{ page: 1, pageSize: 10, total: filteredComponents.length, totalPages: Math.max(1, Math.ceil(filteredComponents.length / 10)) }}
             defaultSort={{ field: "sortOrder", order: "asc" }}
             emptyTitle="Belum ada komponen biaya"
-            emptyDescription="Tambahkan komponen seperti SPP, Uang Pangkal, Seragam"
+            emptyDescription="Ubah kata kunci atau filter, atau tambahkan komponen seperti SPP, Uang Pangkal, Seragam."
           />
         </AdminTabsContent>
 

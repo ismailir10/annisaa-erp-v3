@@ -5,13 +5,12 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog";
@@ -44,6 +43,9 @@ export default function SalaryComponentsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Component | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ACTIVE");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [form, setForm] = useState({
     code: "", label: "", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: "0",
   });
@@ -110,6 +112,22 @@ export default function SalaryComponentsPage() {
     toast.success(c.isEnabled ? "Komponen dinonaktifkan" : "Komponen diaktifkan");
     fetchComponents();
   }
+
+  const filteredComponents = components.filter((c) => {
+    const q = search.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      [c.code, c.label, CALC_LABELS[c.calcType] ?? c.calcType]
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "ACTIVE" && c.isEnabled) ||
+      (statusFilter === "INACTIVE" && !c.isEnabled);
+    const matchesCategory = categoryFilter === "all" || c.category === categoryFilter;
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
 
   const columns: ColumnDef<Component>[] = [
     {
@@ -183,22 +201,60 @@ export default function SalaryComponentsPage() {
         }
       />
 
+      <DataTableToolbar
+        value={search}
+        onValueChange={setSearch}
+        searchPlaceholder="Cari kode atau komponen..."
+        filters={[
+          {
+            key: "status",
+            label: "Status",
+            value: statusFilter,
+            onChange: setStatusFilter,
+            resetValue: "ACTIVE",
+            options: [
+              { value: "all", label: "Semua Status" },
+              { value: "ACTIVE", label: "Aktif" },
+              { value: "INACTIVE", label: "Tidak Aktif" },
+            ],
+          },
+          {
+            key: "category",
+            label: "Kategori",
+            value: categoryFilter,
+            onChange: setCategoryFilter,
+            options: [
+              { value: "all", label: "Semua Kategori" },
+              { value: "INCOME", label: "Pendapatan" },
+              { value: "DEDUCTION", label: "Potongan" },
+            ],
+          },
+        ]}
+      />
+
       <DataTable
         columns={columns}
-        data={components}
+        data={filteredComponents}
+        pagination={{ page: 1, pageSize: 10, total: filteredComponents.length, totalPages: Math.max(1, Math.ceil(filteredComponents.length / 10)) }}
         loading={loading}
         defaultSort={{ field: "sortOrder", order: "asc" }}
         emptyTitle="Belum ada komponen gaji"
-        emptyDescription="Tambahkan komponen pendapatan dan potongan."
+        emptyDescription="Ubah kata kunci atau filter, atau tambahkan komponen pendapatan dan potongan."
       />
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Komponen" : "Tambah Komponen"}</DialogTitle>
-            <DialogDescription>Komponen gaji menentukan struktur penggajian</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-field py-2">
+      <ResponsiveFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editing ? "Edit Komponen" : "Tambah Komponen"}
+        description="Komponen gaji menentukan struktur penggajian"
+        contentClassName="max-h-[90vh]"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>Batal</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Komponen"}</Button>
+          </>
+        }
+      >
             {!editing && (
               <Field>
                 <FieldLabel required>Kode</FieldLabel>
@@ -236,17 +292,16 @@ export default function SalaryComponentsPage() {
               <FieldLabel>Urutan</FieldLabel>
               <Input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} />
             </Field>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={form.isProRated} onCheckedChange={(c) => setForm({ ...form, isProRated: !!c })} />
-              Pro-rata (dihitung berdasarkan hari hadir)
-            </label>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Komponen"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Field orientation="horizontal">
+              <Checkbox
+                id="salary-component-prorated"
+                aria-label="Pro-rata dihitung berdasarkan hari hadir"
+                checked={form.isProRated}
+                onCheckedChange={(c) => setForm({ ...form, isProRated: !!c })}
+              />
+              <FieldLabel htmlFor="salary-component-prorated">Pro-rata (dihitung berdasarkan hari hadir)</FieldLabel>
+            </Field>
+      </ResponsiveFormDialog>
 
       {/* Deactivate guard — activation stays single-click (non-destructive) */}
       <AlertDialog open={!!confirmTarget} onOpenChange={(o) => !o && setConfirmTarget(null)}>

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import type { BatchProgressSnapshot, FailureRow } from "@/lib/finance/run-bulk-generate";
 import type { BulkRetrySnapshot, RetryFailureRow } from "@/lib/finance/run-bulk-retry";
@@ -14,8 +15,9 @@ import type { BulkRetrySnapshot, RetryFailureRow } from "@/lib/finance/run-bulk-
  *   - "generate" (default): "Membuat tagihan…" / "Selesai: N dibuat, M gagal Xendit"
  *   - "retry":              "Memperbaiki link pembayaran…" / "Selesai: N link diperbaiki, M masih gagal"
  *
- * Inline Tailwind progress bar (single-bar driven by percent) instead of
- * shadcn `<Progress>` so this card stays self-contained.
+ * Shadcn `<Progress>` keeps the batch indicator aligned with the shared UI
+ * system while this card owns the batch-specific copy, cancellation, and
+ * failure detail disclosure.
  *
  * T4 additions:
  *   - "Batalkan" ghost button while phase === "running" — calls `onCancel`
@@ -124,18 +126,7 @@ function GenerateCard({
         )}
       </div>
 
-      <div
-        className="h-2 bg-muted rounded-full overflow-hidden mb-2"
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div
-          className="h-full bg-primary transition-all"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <Progress value={pct} className="mb-2" />
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span>{progress.xenditOk} link berhasil</span>
@@ -191,18 +182,7 @@ function RetryCard({
         )}
       </div>
 
-      <div
-        className="h-2 bg-muted rounded-full overflow-hidden mb-2"
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div
-          className="h-full bg-primary transition-all"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <Progress value={pct} className="mb-2" />
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span>{progress.fixed} link diperbaiki</span>

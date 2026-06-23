@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { toast } from "sonner";
 
 const STATUSES = [
@@ -40,6 +40,13 @@ export function OverrideModal({
   const [reason, setReason] = useState("");
   const [checkInTime, setCheckInTime] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setStatus(currentStatus ?? "PRESENT");
+    setReason("");
+    setCheckInTime("");
+  }, [currentStatus, open]);
 
   async function handleSave() {
     if (!reason.trim()) { toast.error("Alasan wajib diisi"); return; }
@@ -80,47 +87,48 @@ export function OverrideModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-card">
-        <DialogHeader>
-          <DialogTitle>Override Kehadiran</DialogTitle>
-          <DialogDescription>
-            {employeeName} — {new Date(date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
-            <Label>Status *</Label>
+    <ResponsiveFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Override Kehadiran"
+      description={`${employeeName} — ${new Date(date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Menyimpan..." : "Simpan Override"}
+          </Button>
+        </>
+      }
+    >
+          <Field>
+            <FieldLabel required>Status</FieldLabel>
             <Select value={status} onValueChange={(v) => v && setStatus(v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-required>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
           {(status === "PRESENT" || status === "LATE") && (
-            <div>
-              <Label>Waktu Masuk</Label>
+            <Field>
+              <FieldLabel>Waktu Masuk</FieldLabel>
               <Input type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />
-            </div>
+            </Field>
           )}
-          <div>
-            <Label>Alasan *</Label>
+          <Field>
+            <FieldLabel required>Alasan</FieldLabel>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Contoh: Sakit, konfirmasi via WA"
+              required
+              aria-required
               rows={2}
             />
-          </div>
-        </div>
-        <DialogFooter>
-          <DialogClose><Button variant="outline">Batal</Button></DialogClose>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Menyimpan..." : "Simpan"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </Field>
+    </ResponsiveFormDialog>
   );
 }

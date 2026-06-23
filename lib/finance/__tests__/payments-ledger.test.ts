@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { paymentFindMany } = vi.hoisted(() => ({
+const { paymentFindMany, paymentGroupBy } = vi.hoisted(() => ({
   paymentFindMany: vi.fn(),
+  paymentGroupBy: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
-  prisma: { payment: { findMany: paymentFindMany } },
+  prisma: { payment: { findMany: paymentFindMany, groupBy: paymentGroupBy } },
 }));
 
 import {
@@ -19,6 +20,7 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  paymentGroupBy.mockResolvedValue([]);
 });
 
 describe("isValidYmd", () => {
@@ -66,7 +68,7 @@ describe("getPaymentsLedger", () => {
     amount,
     method,
     reference,
-    invoice: { invoiceNumber, student: { name: studentName } },
+    invoice: { id: `inv-${id}`, invoiceNumber, student: { name: studentName } },
   });
 
   it("maps rows and computes per-method summary", async () => {
@@ -75,12 +77,17 @@ describe("getPaymentsLedger", () => {
       payment("p2", 300000, "BANK_TRANSFER", "Budi", "INV-2", "TRX-9"),
       payment("p3", 200000, "CASH", "Citra", "INV-3"),
     ]);
+    paymentGroupBy.mockResolvedValue([
+      { method: "CASH", _sum: { amount: 700000 }, _count: { _all: 2 } },
+      { method: "BANK_TRANSFER", _sum: { amount: 300000 }, _count: { _all: 1 } },
+    ]);
 
     const { rows, summary } = await getPaymentsLedger("t1", "2026-06-13", "2026-06-13");
 
     expect(rows).toHaveLength(3);
     expect(rows[0]).toMatchObject({
       id: "p1",
+      invoiceId: "inv-p1",
       amount: 500000,
       method: "CASH",
       methodLabel: "Tunai",
@@ -112,6 +119,23 @@ describe("getPaymentsLedger", () => {
     expect(arg.where.paidAt.lt.toISOString()).toBe("2026-06-13T17:00:00.000Z");
   });
 
+  it("applies search, pagination, and sort options", async () => {
+    paymentFindMany.mockResolvedValue([]);
+    await getPaymentsLedger("t1", "2026-06-13", "2026-06-13", undefined, {
+      search: "Aisyah",
+      skip: 20,
+      take: 10,
+      sortBy: "amount",
+      sortOrder: "asc",
+    });
+
+    const arg = paymentFindMany.mock.calls[0][0];
+    expect(arg.skip).toBe(20);
+    expect(arg.take).toBe(10);
+    expect(arg.orderBy).toEqual([{ amount: "asc" }, { id: "asc" }]);
+    expect(arg.where.OR).toHaveLength(3);
+  });
+
   it("omits the method filter when none given", async () => {
     paymentFindMany.mockResolvedValue([]);
     await getPaymentsLedger("t1", "2026-06-13", "2026-06-13");
@@ -129,6 +153,7 @@ describe("getPaymentsLedger", () => {
 describe("buildLedgerCsv", () => {
   const row = (over: Partial<LedgerRow>): LedgerRow => ({
     id: "p1",
+    invoiceId: "inv-1",
     paidAt: "2026-06-13T03:00:00.000Z",
     amount: 500000,
     method: "CASH",
@@ -184,5 +209,51 @@ describe("resolveLedgerRequest", () => {
     paymentFindMany.mockResolvedValue([]);
     const r = await resolveLedgerRequest("t1", new URLSearchParams(), "2026-06-13");
     expect(r).toMatchObject({ ok: true, dateFrom: "2026-06-13", dateTo: "2026-06-13" });
+  });
+
+  it("returns pagination metadata when requested", async () => {
+    paymentFindMany.mockResolvedValue([]);
+    paymentGroupBy.mockResolvedValue([
+      { method: "CASH", _sum: { amount: 100000 }, _count: { _all: 21 } },
+    ]);
+    const r = await resolveLedgerRequest(
+      "t1",
+      new URLSearchParams({ page: "2", pageSize: "10" }),
+      "2026-06-13",
+      { paginate: true },
+    );
+    expect(r).toMatchObject({
+      ok: true,
+      pagination: { page: 2, pageSize: 10, total: 21, totalPages: 3 },
+    });
+  });
+
+  it("rejects malformed pagination when requested", async () => {
+    const r = await resolveLedgerRequest(
+      "t1",
+      new URLSearchParams({ page: "foo", pageSize: "bar" }),
+      "2026-06-13",
+      { paginate: true },
+    );
+    expect(r).toEqual({ ok: false, error: "Pagination tidak valid" });
+    expect(paymentFindMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects pagination that would create an unsafe offset", async () => {
+    const r = await resolveLedgerRequest(
+      "t1",
+      new URLSearchParams({ page: String(Number.MAX_SAFE_INTEGER), pageSize: "100" }),
+      "2026-06-13",
+      { paginate: true },
+    );
+    expect(r).toEqual({ ok: false, error: "Pagination tidak valid" });
+    expect(paymentFindMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid sort inputs", async () => {
+    await expect(
+      resolveLedgerRequest("t1", new URLSearchParams({ sortBy: "studentName" }), "2026-06-13"),
+    ).resolves.toEqual({ ok: false, error: "Kolom urut tidak valid" });
+    expect(paymentFindMany).not.toHaveBeenCalled();
   });
 });
