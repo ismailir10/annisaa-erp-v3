@@ -3,9 +3,12 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, CheckCircle2, ChevronRight, Receipt, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertCircle, CheckCircle2, ChevronRight, Receipt, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { formatRupiah, formatDate } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -74,6 +77,9 @@ export function InvoicesClient({
 
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showAllPaid, setShowAllPaid] = useState(false);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortMode, setSortMode] = useState("due-asc");
   const [recentlyPaidIds, setRecentlyPaidIds] = useState<Set<string>>(new Set());
   const prevDataRef = useRef<InvoiceItem[] | null>(null);
   const loading = data === null;
@@ -155,7 +161,39 @@ export function InvoicesClient({
     return () => clearTimeout(timer);
   }, [data]);
 
-  const todayYmd = new Date().toISOString().slice(0, 10);
+  const todayYmd = useMemo(() => getTodayInTimezone("Asia/Jakarta"), []);
+
+  const filteredData = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (data ?? [])
+      .filter((inv) => {
+        const outstanding = isOutstanding(inv);
+        const overdue = outstanding && inv.dueDate < todayYmd;
+        const paid = isPaid(inv);
+        const matchesQuery =
+          !q ||
+          inv.periodLabel.toLowerCase().includes(q) ||
+          inv.invoiceNumber.toLowerCase().includes(q);
+        const matchesStatus =
+          statusFilter === "all" ||
+          (statusFilter === "due" && outstanding) ||
+          (statusFilter === "overdue" && overdue) ||
+          (statusFilter === "paid" && paid);
+        return matchesQuery && matchesStatus;
+      })
+      .sort((a, b) => {
+        if (sortMode === "due-desc") return b.dueDate.localeCompare(a.dueDate);
+        if (sortMode === "paid-desc") return (b.paidAt ?? b.dueDate).localeCompare(a.paidAt ?? a.dueDate);
+        if (sortMode === "amount-desc") {
+          const amountA = isOutstanding(a) ? a.totalDue - a.totalPaid : a.totalDue;
+          const amountB = isOutstanding(b) ? b.totalDue - b.totalPaid : b.totalDue;
+          return amountB - amountA;
+        }
+        return a.dueDate.localeCompare(b.dueDate);
+      });
+  }, [data, query, statusFilter, sortMode, todayYmd]);
+
+  const showListControls = (data?.length ?? 0) > 10;
 
   const summary = useMemo(() => {
     // Prefer selectedChildSummary when supplied — it is derived from the same
@@ -220,22 +258,32 @@ export function InvoicesClient({
     );
   }
 
-  const due = data
+  const due = filteredData
     .filter(isOutstanding)
     .map((inv) => ({ inv, isOverdue: inv.dueDate < todayYmd }))
-    .sort((a, b) => a.inv.dueDate.localeCompare(b.inv.dueDate));
+    .sort((a, b) => {
+      if (sortMode === "due-desc") return b.inv.dueDate.localeCompare(a.inv.dueDate);
+      if (sortMode === "amount-desc") {
+        return (b.inv.totalDue - b.inv.totalPaid) - (a.inv.totalDue - a.inv.totalPaid);
+      }
+      return a.inv.dueDate.localeCompare(b.inv.dueDate);
+    });
   // Riwayat — newest payment first. paidAt is the authoritative timestamp;
   // periodLabel is a freeform string ("Jan-2026" vs "Januari 2026") and
   // localeCompare on it produces alphabetic chaos. Falls back to dueDate
   // (also reliable) when paidAt is somehow missing on a PAID invoice.
-  const paid = data
+  const paid = filteredData
     .filter(isPaid)
     .sort((a, b) => {
+      if (sortMode === "due-asc") return a.dueDate.localeCompare(b.dueDate);
+      if (sortMode === "due-desc") return b.dueDate.localeCompare(a.dueDate);
+      if (sortMode === "amount-desc") return b.totalDue - a.totalDue;
       const aKey = a.paidAt ?? a.dueDate;
       const bKey = b.paidAt ?? b.dueDate;
       return bKey.localeCompare(aKey);
     });
   const hasAnyOutstanding = due.length > 0;
+  const noFilterResults = showListControls && filteredData.length === 0;
   const RIWAYAT_INITIAL = 12;
   const paidVisible = showAllPaid ? paid : paid.slice(0, RIWAYAT_INITIAL);
   const paidHasMore = paid.length > RIWAYAT_INITIAL;
@@ -321,6 +369,68 @@ export function InvoicesClient({
         </section>
       )}
 
+      {showListControls ? (
+        <section className="space-y-3 rounded-xl border border-border bg-card p-3" aria-label="Filter tagihan">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari periode atau nomor tagihan..."
+              className="pl-9"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={statusFilter} onValueChange={(value) => value && setStatusFilter(value)}>
+              <SelectTrigger aria-label="Filter status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="due">Belum Dibayar</SelectItem>
+                <SelectItem value="overdue">Lewat Tempo</SelectItem>
+                <SelectItem value="paid">Lunas</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortMode} onValueChange={(value) => value && setSortMode(value)}>
+              <SelectTrigger aria-label="Urutkan tagihan">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="due-asc">Jatuh Tempo Terdekat</SelectItem>
+                <SelectItem value="due-desc">Jatuh Tempo Terakhir</SelectItem>
+                <SelectItem value="paid-desc">Pembayaran Terbaru</SelectItem>
+                <SelectItem value="amount-desc">Nominal Terbesar</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {(query || statusFilter !== "all" || sortMode !== "due-asc") ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                setQuery("");
+                setStatusFilter("all");
+                setSortMode("due-asc");
+              }}
+            >
+              Reset
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
+
+      {showListControls && filteredData.length === 0 ? (
+        <EmptyState
+          accent="warm"
+          icon={Receipt}
+          title="Tidak ada tagihan sesuai filter"
+          description="Ubah pencarian, status, atau urutan untuk melihat tagihan lain."
+        />
+      ) : null}
+
       {hasAnyOutstanding && (
         <section>
           <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -372,7 +482,7 @@ export function InvoicesClient({
             </div>
           ) : null}
         </section>
-      ) : !hasAnyOutstanding ? (
+      ) : !hasAnyOutstanding && !noFilterResults ? (
         <EmptyState
           accent="warm"
           icon={Receipt}

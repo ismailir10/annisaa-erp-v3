@@ -1,14 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   Select,
   SelectContent,
@@ -20,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { formatDateShort } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type Mode = "create" | "edit";
 
@@ -41,12 +36,16 @@ export type NoteComposeDialogProps = {
 
 const MAX_LEN = 2000;
 const DEFAULT_PLACEHOLDER = "Tulis catatan rumah di sini...";
+const PORTAL_TIMEZONE = "Asia/Jakarta";
 
-function pickDefaultDate(weekDates: string[], initialDate?: string): string {
-  if (initialDate && weekDates.includes(initialDate)) return initialDate;
-  const today = new Date().toISOString().slice(0, 10);
-  if (weekDates.includes(today)) return today;
-  return weekDates[0] ?? today;
+function pickDefaultDate(
+  dateOptions: string[],
+  today: string,
+  initialDate?: string,
+): string {
+  if (initialDate && dateOptions.includes(initialDate)) return initialDate;
+  if (dateOptions.includes(today)) return today;
+  return dateOptions[0] ?? "";
 }
 
 export function NoteComposeDialog({
@@ -62,8 +61,14 @@ export function NoteComposeDialog({
   placeholder,
   onSaved,
 }: NoteComposeDialogProps) {
+  const today = useMemo(() => getTodayInTimezone(PORTAL_TIMEZONE), [open]);
+  const dateOptions = useMemo(() => {
+    if (mode === "edit") return weekDates;
+    return weekDates.filter((d) => d <= today);
+  }, [mode, weekDates, today]);
+
   const [date, setDate] = useState<string>(() =>
-    pickDefaultDate(weekDates, initialDate),
+    pickDefaultDate(dateOptions, today, initialDate),
   );
   const [body, setBody] = useState<string>(initialBody ?? "");
   const [submitting, setSubmitting] = useState(false);
@@ -72,15 +77,19 @@ export function NoteComposeDialog({
   // Reset form whenever the dialog reopens or its inputs change
   useEffect(() => {
     if (open) {
-      setDate(pickDefaultDate(weekDates, initialDate));
+      setDate(pickDefaultDate(dateOptions, today, initialDate));
       setBody(initialBody ?? "");
       setError(null);
       setSubmitting(false);
     }
-  }, [open, initialDate, initialBody, weekDates]);
+  }, [open, initialDate, initialBody, dateOptions, today]);
 
   const trimmedLen = body.trim().length;
-  const canSubmit = trimmedLen > 0 && trimmedLen <= MAX_LEN && !submitting;
+  const canSubmit =
+    trimmedLen > 0 &&
+    trimmedLen <= MAX_LEN &&
+    !submitting &&
+    (mode === "edit" || dateOptions.includes(date));
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -135,61 +144,16 @@ export function NoteComposeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-card max-w-sm mx-4">
-        <DialogHeader>
-          <DialogTitle>
-            {title ?? (mode === "create" ? "Tulis Catatan" : "Edit Catatan")}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          <Field>
-            <FieldLabel>Tanggal</FieldLabel>
-            <Select
-              value={date}
-              onValueChange={(v) => v && setDate(v)}
-              disabled={mode === "edit"}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Pilih tanggal" />
-              </SelectTrigger>
-              <SelectContent>
-                {weekDates.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {formatDateShort(d)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field>
-            <FieldLabel>Isi Catatan</FieldLabel>
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              maxLength={MAX_LEN}
-              rows={5}
-              placeholder={placeholder ?? DEFAULT_PLACEHOLDER}
-              aria-invalid={error ? true : undefined}
-            />
-            <div className="flex items-center justify-between mt-1">
-              {error ? (
-                <p className="text-xs text-destructive">{error}</p>
-              ) : (
-                <span />
-              )}
-              <span className="text-xs text-muted-foreground">
-                {body.length}/{MAX_LEN}
-              </span>
-            </div>
-          </Field>
-        </div>
-
-        <DialogFooter className="gap-2">
+    <ResponsiveFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title ?? (mode === "create" ? "Tulis Catatan" : "Edit Catatan")}
+      size="sm"
+      contentClassName="p-card"
+      footer={
+        <>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
@@ -198,8 +162,57 @@ export function NoteComposeDialog({
           <Button onClick={handleSubmit} disabled={!canSubmit}>
             {submitting ? "Menyimpan..." : "Simpan"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <Field>
+        <FieldLabel>Tanggal</FieldLabel>
+        <Select
+          value={date}
+          onValueChange={(v) => v && setDate(v)}
+          disabled={mode === "edit" || dateOptions.length === 0}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue
+              placeholder={dateOptions.length > 0 ? "Pilih tanggal" : "Tidak ada tanggal tersedia"}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {dateOptions.map((d) => (
+              <SelectItem key={d} value={d}>
+                {formatDateShort(d)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {mode === "create" && dateOptions.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Catatan hanya bisa dibuat untuk tanggal hari ini atau sebelumnya.
+          </p>
+        ) : null}
+      </Field>
+
+      <Field>
+        <FieldLabel>Isi Catatan</FieldLabel>
+        <Textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          maxLength={MAX_LEN}
+          rows={5}
+          placeholder={placeholder ?? DEFAULT_PLACEHOLDER}
+          aria-invalid={error ? true : undefined}
+        />
+        <div className="flex items-center justify-between mt-1">
+          {error ? (
+            <p className="text-xs text-destructive">{error}</p>
+          ) : (
+            <span />
+          )}
+          <span className="text-xs text-muted-foreground">
+            {body.length}/{MAX_LEN}
+          </span>
+        </div>
+      </Field>
+    </ResponsiveFormDialog>
   );
 }

@@ -3,19 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
+import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
@@ -72,8 +63,6 @@ export default function TeacherStudentWeekPage() {
   // Add-note dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [noteDate, setNoteDate] = useState(today);
-  const [noteBody, setNoteBody] = useState("");
-  const [saving, setSaving] = useState(false);
 
   const loadWeek = useCallback(async (weekStartYmd: string) => {
     setLoading(true);
@@ -105,32 +94,6 @@ export default function TeacherStudentWeekPage() {
 
   function nextWeek() {
     setWs((prev) => addDays(prev, 7));
-  }
-
-  async function handleSaveNote() {
-    if (!noteBody.trim()) {
-      toast.error("Tulis isi catatan dulu ya.");
-      return;
-    }
-    setSaving(true);
-    const res = await fetch("/api/student-journal/notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId, date: noteDate, body: noteBody.trim() }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({} as { error?: string }));
-      const fallback = res.status === 403 ? JOURNAL_FORBIDDEN_MSG : "Gagal menyimpan";
-      toast.error((err as { error?: string }).error || fallback);
-      setSaving(false);
-      return;
-    }
-    toast.success("Catatan tersimpan");
-    setSaving(false);
-    setDialogOpen(false);
-    setNoteBody("");
-    setNoteDate(computeDefaultNoteDate(ws, today));
-    loadWeek(ws);
   }
 
   const weekLabel = data ? formatWeekLabel(data.weekStart, data.dates) : "";
@@ -195,7 +158,6 @@ export default function TeacherStudentWeekPage() {
             variant="outline"
             onClick={() => {
               setNoteDate(computeDefaultNoteDate(ws, today));
-              setNoteBody("");
               setDialogOpen(true);
             }}
           >
@@ -214,50 +176,21 @@ export default function TeacherStudentWeekPage() {
         )}
       </div>
 
-      {/* Add-note dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card max-w-sm mx-4">
-          <DialogHeader>
-            <DialogTitle>Tambah Catatan</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-field py-2">
-            <Field>
-              <FieldLabel>Tanggal</FieldLabel>
-              <Input
-                type="date"
-                value={noteDate}
-                max={today}
-                onChange={(e) => setNoteDate(e.target.value)}
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel>Isi</FieldLabel>
-              <Textarea
-                value={noteBody}
-                onChange={(e) => setNoteBody(e.target.value)}
-                rows={4}
-                maxLength={2000}
-                placeholder="Tulis catatan di sini..."
-              />
-            </Field>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              disabled={saving}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleSaveNote} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <NoteComposeDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        mode="create"
+        studentId={studentId}
+        weekDates={data?.dates ?? [noteDate]}
+        initialDate={noteDate}
+        title="Tambah Catatan"
+        placeholder="Tulis catatan di sini..."
+        onSaved={() => {
+          setDialogOpen(false);
+          setNoteDate(computeDefaultNoteDate(ws, today));
+          loadWeek(ws);
+        }}
+      />
     </div>
   );
 }
