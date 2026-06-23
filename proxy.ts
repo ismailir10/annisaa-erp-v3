@@ -84,7 +84,12 @@ async function proxyImpl(request: NextRequest): Promise<NextResponse> {
     pathname.startsWith("/payment/") ||
     pathname === "/daftar" ||
     pathname.startsWith("/daftar/") ||
-    pathname === "/api/admission/submit"
+    pathname === "/api/admission/submit" ||
+    // Cycle A: tokenized enrollment form + its public token APIs. The
+    // unguessable accessToken gates access in-route; the admin invite route
+    // (/api/enrollments/invite) is NOT public and stays session-gated.
+    pathname.startsWith("/pendaftaran/") ||
+    pathname.startsWith("/api/enrollments/token/")
   ) {
     return NextResponse.next();
   }

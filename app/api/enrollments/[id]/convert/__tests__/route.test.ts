@@ -1,0 +1,144 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
+
+const {
+  appFindUnique, studentCreate, parentUpsert, parentCreate, parentUpdate,
+  guardianCreate, appUpdate, admissionUpdate, getSession, isAdminRole, detectSibling,
+} = vi.hoisted(() => ({
+  appFindUnique: vi.fn(),
+  studentCreate: vi.fn(),
+  parentUpsert: vi.fn(),
+  parentCreate: vi.fn(),
+  parentUpdate: vi.fn(),
+  guardianCreate: vi.fn(),
+  appUpdate: vi.fn(),
+  admissionUpdate: vi.fn(),
+  getSession: vi.fn(),
+  isAdminRole: vi.fn(),
+  detectSibling: vi.fn(),
+}));
+
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    enrollmentApplication: { findUnique: appFindUnique },
+    $transaction: vi.fn((fn: (tx: Record<string, unknown>) => unknown) =>
+      fn({
+        student: { create: studentCreate },
+        parent: { upsert: parentUpsert, create: parentCreate, update: parentUpdate },
+        studentGuardian: { create: guardianCreate },
+        enrollmentApplication: { update: appUpdate },
+        admission: { update: admissionUpdate },
+      }),
+    ),
+  },
+}));
+vi.mock("@/lib/auth", () => ({ getSession, isAdminRole }));
+vi.mock("@/lib/admission/sibling-detect", () => ({ detectSibling }));
+
+import { POST } from "../route";
+
+const ctx = (id = "ea-1") => ({ params: Promise.resolve({ id }) });
+const reqx = () => new NextRequest("http://localhost/api/enrollments/ea-1/convert", { method: "POST" });
+
+function app(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "ea-1",
+    tenantId: "t-1",
+    status: "ACCEPTED",
+    studentId: null,
+    childName: "Aisyah Putri",
+    dcareAddon: true,
+    studentData: {
+      childName: "Aisyah Putri", childGender: "P", birthPlace: "Bekasi", dateOfBirth: "2021-03-15",
+      agama: "ISLAM", kewarganegaraan: "WNI", bloodType: "O", childOrder: "1",
+      weightKg: "14", address: { perumahan: "Taman Aster", kecamatan: "Cikarang" },
+    },
+    ayahData: { name: "Bapak Ahmad", email: "ahmad@test.com", education: "S1_D4", occupation: "KARYAWAN_SWASTA", income: "4793_7000" },
+    ibuData: { name: "Ibu Fatimah", phone: "081234567890" },
+    consentData: {},
+    admission: { id: "adm-1", studentId: null },
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SUPER_ADMIN" });
+  isAdminRole.mockReturnValue(true);
+  studentCreate.mockResolvedValue({ id: "stu-1", name: "Aisyah Putri" });
+  parentUpsert.mockResolvedValue({ id: "par-ayah" });
+  parentCreate.mockResolvedValue({ id: "par-ibu" });
+  parentUpdate.mockResolvedValue({ id: "par-existing" });
+  guardianCreate.mockResolvedValue({});
+  appUpdate.mockResolvedValue({});
+  admissionUpdate.mockResolvedValue({});
+  detectSibling.mockResolvedValue(null);
+});
+
+describe("POST /api/enrollments/[id]/convert", () => {
+  it("403 for non-admin", async () => {
+    isAdminRole.mockReturnValue(false);
+    expect((await POST(reqx(), ctx())).status).toBe(403);
+  });
+
+  it("404 cross-tenant", async () => {
+    appFindUnique.mockResolvedValue(app({ tenantId: "other" }));
+    expect((await POST(reqx(), ctx())).status).toBe(404);
+  });
+
+  it("400 when already converted", async () => {
+    appFindUnique.mockResolvedValue(app({ studentId: "stu-x" }));
+    expect((await POST(reqx(), ctx())).status).toBe(400);
+    expect(studentCreate).not.toHaveBeenCalled();
+  });
+
+  it("400 when not ACCEPTED", async () => {
+    appFindUnique.mockResolvedValue(app({ status: "SUBMITTED" }));
+    expect((await POST(reqx(), ctx())).status).toBe(400);
+  });
+
+  it("creates student + ayah(upsert) + ibu(sibling/create) + 2 guardians, AYAH primary", async () => {
+    appFindUnique.mockResolvedValue(app());
+    const res = await POST(reqx(), ctx());
+    expect(res.status).toBe(200);
+
+    // Student first-class + metadata mapping
+    const sArg = studentCreate.mock.calls[0][0].data;
+    expect(sArg.name).toBe("Aisyah Putri");
+    expect(sArg.gender).toBe("P");
+    expect(sArg.birthPlace).toBe("Bekasi");
+    const meta = JSON.parse(sArg.metadata);
+    expect(meta.religion).toBe("Islam");
+    expect(meta.bloodType).toBe("O");
+    expect(meta.weightKg).toBe(14);
+    expect(meta.dcareAddon).toBe(true);
+
+    // Ayah has email → upsert; Ibu has no email → sibling-detect → create
+    expect(parentUpsert).toHaveBeenCalledTimes(1);
+    expect(parentUpsert.mock.calls[0][0].create.email).toBe("ahmad@test.com");
+    expect(parentUpsert.mock.calls[0][0].create.education).toBe("S1 / D4");
+    expect(detectSibling).toHaveBeenCalledTimes(1);
+    expect(parentCreate).toHaveBeenCalledTimes(1);
+
+    // Two guardians; AYAH primary + childOrder
+    expect(guardianCreate).toHaveBeenCalledTimes(2);
+    const ayahG = guardianCreate.mock.calls.find((c) => c[0].data.relationship === "AYAH")![0].data;
+    expect(ayahG.isPrimary).toBe(true);
+    expect(ayahG.childOrder).toBe(1);
+    const ibuG = guardianCreate.mock.calls.find((c) => c[0].data.relationship === "IBU")![0].data;
+    expect(ibuG.isPrimary).toBe(false);
+
+    // Links application + originating admission
+    expect(appUpdate.mock.calls[0][0].data.studentId).toBe("stu-1");
+    expect(admissionUpdate.mock.calls[0][0].data.studentId).toBe("stu-1");
+  });
+
+  it("links an email-less ibu to a detected sibling parent instead of creating", async () => {
+    appFindUnique.mockResolvedValue(app());
+    detectSibling.mockResolvedValue({ parentId: "par-existing", matchReason: "phone" });
+    const res = await POST(reqx(), ctx());
+    expect(res.status).toBe(200);
+    expect(parentUpdate).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "par-existing" } }));
+    expect(parentCreate).not.toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,78 @@
+// @public — tokenized signature upload for the enrollment consent step. NO
+// session; the unguessable accessToken gates access. See proxy.ts allow-list.
+import { type NextRequest, NextResponse } from "next/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveEnrollmentAccess } from "@/lib/enrollment/resolve-token";
+import { saveFile } from "@/lib/storage";
+import { detectMime } from "@/lib/storage/mime";
+
+const RATE_LIMIT_PER_MIN = 20;
+const RATE_WINDOW_MS = 60_000;
+const MAX_SIGNATURE_BYTES = 1 * 1024 * 1024; // 1 MB — a drawn PNG is a few KB
+
+/**
+ * POST /api/enrollments/token/[token]/signature?which=ayah|ibu
+ *
+ * Accepts a drawn-signature image (PNG/JPEG, magic-byte validated) and returns
+ * its opaque storage token, which the client then includes in the submit
+ * payload as consentData.<which>.signatureToken. The image is stored under the
+ * application id; we do NOT persist the token to the row here — submit owns
+ * that, so an abandoned draft leaves no half-written consent.
+ */
+export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const limit = rateLimit(`enroll-sig:${getClientIp(req)}`, RATE_LIMIT_PER_MIN, RATE_WINDOW_MS);
+  if (!limit.success) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
+
+  const { token } = await params;
+  const { access, id } = await resolveEnrollmentAccess(token, new Date());
+  if (access === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
+  if (access === "SUBMITTED")
+    return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const which = req.nextUrl.searchParams.get("which");
+  if (which !== "ayah" && which !== "ibu") {
+    return NextResponse.json({ error: "Parameter 'which' harus ayah atau ibu" }, { status: 400 });
+  }
+
+  const declaredLen = Number(req.headers.get("content-length") ?? "0");
+  if (declaredLen > MAX_SIGNATURE_BYTES) {
+    return NextResponse.json({ error: "PAYLOAD_TOO_LARGE", maxBytes: MAX_SIGNATURE_BYTES }, { status: 413 });
+  }
+
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json({ error: "Body multipart tidak valid." }, { status: 400 });
+  }
+  const file = form.get("file");
+  if (!(file instanceof File)) {
+    return NextResponse.json({ error: "Field 'file' wajib diisi." }, { status: 400 });
+  }
+  if (file.size === 0) {
+    return NextResponse.json({ error: "File kosong." }, { status: 400 });
+  }
+  if (file.size > MAX_SIGNATURE_BYTES) {
+    return NextResponse.json({ error: "PAYLOAD_TOO_LARGE", maxBytes: MAX_SIGNATURE_BYTES }, { status: 413 });
+  }
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  // imagesOnly — a signature is never a PDF; don't trust file.type.
+  const mime = detectMime(bytes, file.type, { imagesOnly: true });
+  if (!mime.ok) {
+    return NextResponse.json({ error: "UNSUPPORTED_MEDIA_TYPE", detail: mime.error }, { status: 415 });
+  }
+
+  const { token: signatureToken } = await saveFile({
+    entity: "enrollment",
+    entityId: id,
+    field: `${which}-signature`,
+    file: { bytes, mimeType: mime.mimeType, ext: mime.ext },
+  });
+
+  return NextResponse.json({ signatureToken });
+}
