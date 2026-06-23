@@ -110,6 +110,15 @@ describe("buildClassSectionPlan", () => {
     const keys = new Set(plan.map((p) => sectionKey(p)));
     expect(keys.size).toBe(plan.length);
   });
+
+  it("yields 7 distinct (campus, program) pairs — one ClassTrack each", () => {
+    // seedOrg creates one ClassTrack per (campus, program) and links every
+    // section to it. 4 Aster programs + 3 Metland programs = 7 tracks for 14
+    // sections (one track shared across both running years).
+    const plan = buildClassSectionPlan();
+    const pairs = new Set(plan.map((p) => `${p.campusCode}|${p.programCode}`));
+    expect(pairs.size).toBe(7);
+  });
 });
 
 describe("planJournalIndicators", () => {
