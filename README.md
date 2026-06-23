@@ -48,6 +48,7 @@ Nine domain modules — seven stable, plus `curriculum` and `reportCard` mid-cut
 | Portal | Route | Role | Layout | Access |
 |---|---|---|---|---|
 | Public (applicant) | `/daftar` | (none — public) | Mobile-first vertical | Public admission entry — three-step form (applicant → parent → preference) |
+| Public (applicant) | `/pendaftaran/[token]` | (none — tokenized) | Mobile-first vertical | Rich enrollment form reached via emailed token — 6-step wizard (anak → ayah → ibu → program → persetujuan + dual e-signature → tinjau), autosave + resume (Cycle A) |
 | Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop sidebar | Everything incl. payroll, salary, bank |
 | Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions, academics, attendance, invoices, employees (no salary/payroll) |
 | Teacher | `/teacher` | `TEACHER` | Mobile-first `max-w-md` | Own attendance + leave; assigned classes only |
