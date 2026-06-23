@@ -602,11 +602,17 @@ export default function AdmissionsPage() {
       body: JSON.stringify({ admissionId: a.id }),
     });
     if (res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { sent?: boolean };
+      const d = (await res.json().catch(() => ({}))) as { sent?: boolean; formUrl?: string };
       toast.success(
         d.sent
           ? "Formulir pendaftaran dikirim ke email orang tua"
-          : "Formulir disiapkan (email tidak terkirim — periksa konfigurasi)",
+          : "Formulir disiapkan (email tidak terkirim — bagikan tautan manual)",
+        d.formUrl
+          ? {
+              description: "Salin tautan untuk dibagikan via WhatsApp",
+              action: { label: "Salin tautan", onClick: () => void navigator.clipboard?.writeText(d.formUrl!) },
+            }
+          : undefined,
       );
       return;
     }

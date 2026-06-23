@@ -99,7 +99,9 @@ describe("POST /api/enrollments/invite", () => {
     const res = await POST(req({ admissionId: "adm-1" }));
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual({ id: "ea-1", sent: true });
+    expect(json.id).toBe("ea-1");
+    expect(json.sent).toBe(true);
+    expect(json.formUrl).toContain("/pendaftaran/tok-xyz");
 
     const upsertArg = enrollmentUpsert.mock.calls[0][0];
     expect(upsertArg.where).toEqual({ admissionId: "adm-1" });

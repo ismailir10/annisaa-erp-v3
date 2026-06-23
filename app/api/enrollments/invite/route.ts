@@ -152,5 +152,8 @@ export async function POST(req: NextRequest) {
     console.error(`[enrollments/invite] email threw for application ${app.id}`, err);
   }
 
-  return NextResponse.json({ id: app.id, sent });
+  // formUrl is returned ONLY to the inviting admin (who is already trusted and
+  // would receive the same link via the email) so staff can also copy/WhatsApp
+  // it. It is never logged or written to EmailLog.
+  return NextResponse.json({ id: app.id, sent, formUrl });
 }
