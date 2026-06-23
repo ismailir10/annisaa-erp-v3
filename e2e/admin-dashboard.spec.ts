@@ -3,6 +3,14 @@ import { test, expect } from "@playwright/test";
 const SUPER_ADMIN_USER_ID = "u_super_admin";
 const SCHOOL_ADMIN_USER_ID = "u_school_admin";
 
+type DemoUser = {
+  id: string;
+  role: string;
+};
+
+let superAdminUserId = SUPER_ADMIN_USER_ID;
+let schoolAdminUserId = SCHOOL_ADMIN_USER_ID;
+
 async function loginAs(page: import("@playwright/test").Page, userId: string) {
   await page.context().addCookies([{
     name: "school-erp-session",
@@ -14,22 +22,43 @@ async function loginAs(page: import("@playwright/test").Page, userId: string) {
   }]);
 }
 
+test.beforeAll(async ({ request }) => {
+  const res = await request.get("/api/auth/users");
+  expect(res.ok()).toBeTruthy();
+
+  const users = (await res.json()) as DemoUser[];
+  const superAdmin =
+    users.find((user) => user.id === SUPER_ADMIN_USER_ID) ??
+    users.find((user) => user.role === "SUPER_ADMIN");
+  const schoolAdmin =
+    users.find((user) => user.id === SCHOOL_ADMIN_USER_ID) ??
+    users.find((user) => user.role === "SCHOOL_ADMIN");
+
+  expect(superAdmin, "SUPER_ADMIN demo user required").toBeTruthy();
+  expect(schoolAdmin, "SCHOOL_ADMIN demo user required").toBeTruthy();
+
+  superAdminUserId = superAdmin!.id;
+  schoolAdminUserId = schoolAdmin!.id;
+});
+
 test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
   test.beforeEach(async ({ page }) => {
-    await loginAs(page, SUPER_ADMIN_USER_ID);
+    await loginAs(page, superAdminUserId);
     await page.goto("/admin");
-    await page.waitForURL("**/admin", { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
   });
 
   test("renders stat grid with all four metric cards", async ({ page }) => {
-    await expect(page.getByText("Total Karyawan", { exact: false })).toBeVisible();
-    await expect(page.getByText("Hadir Hari Ini", { exact: false })).toBeVisible();
-    await expect(page.getByText("Terlambat", { exact: false })).toBeVisible();
-    await expect(page.getByText("Tidak Hadir", { exact: false })).toBeVisible();
+    const statGrid = page.getByTestId("dashboard-stat-grid");
+    await expect(statGrid.getByText("Total Karyawan", { exact: false })).toBeVisible();
+    await expect(statGrid.getByText("Hadir Hari Ini", { exact: false })).toBeVisible();
+    await expect(statGrid.getByText("Terlambat", { exact: false })).toBeVisible();
+    await expect(statGrid.getByText("Tidak Hadir", { exact: false })).toBeVisible();
   });
 
   test("renders attendance trend chart container or its empty state", async ({ page }) => {
-    await expect(page.getByText("Tren Kehadiran (7 Hari Terakhir)")).toBeVisible();
+    await expect(page.getByText("Tren Kehadiran")).toBeVisible();
+    await expect(page.getByText("7 hari kerja terakhir")).toBeVisible();
     // Either the chart container is rendered (data path), or the empty state copy
     // is visible (zero-data path). Accept either — both are valid.
     const chartEl = page.locator('[data-slot="chart"]');
@@ -67,9 +96,9 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
 
 test.describe("admin dashboard rebuild — SCHOOL_ADMIN gating", () => {
   test.beforeEach(async ({ page }) => {
-    await loginAs(page, SCHOOL_ADMIN_USER_ID);
+    await loginAs(page, schoolAdminUserId);
     await page.goto("/admin");
-    await page.waitForURL("**/admin", { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
   });
 
   test("hides payroll row in pending actions", async ({ page }) => {

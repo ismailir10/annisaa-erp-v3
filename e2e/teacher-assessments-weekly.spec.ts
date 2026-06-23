@@ -1,18 +1,16 @@
 import { test, expect } from "@playwright/test";
 
-// E2E for the C4 walas weekly UI. Demo TEACHER (E003) is HOMEROOM of
-// TKIT_A per prisma/seed.ts l.562, so the walas-gate path renders.
+// E2E for the C4 walas weekly UI. Demo TEACHER resolves to a live HOMEROOM
+// employee in demo mode, so the walas-gate path renders across staging seeds.
 //
 // The seeded curriculum weeks span 2025-07-14..2025-09-05 only — they
 // do not bracket today's date. The page therefore renders the
 // no_active_week branch for today, but the walas-only header
-// "Penilaian Pekanan — TKIT A" still surfaces, proving the homeroom
+// "Penilaian Pekanan — <class>" still surfaces, proving the homeroom
 // + ageGroup detection works end-to-end.
 //
-// For the active-week path we pin to ?date=2025-07-15 (Pekan 1, theme
-// Saya Anak Sehat → Tubuhku). The DB has at least one indicator linked
-// to that theme from prior preview/integration runs, so the picker +
-// roster + tap path render fully.
+// For the active-week path we discover a live week through the curriculum API
+// instead of pinning to stale seed dates.
 //
 // The 12 vitest cases on POST /api/teacher/assessment-entries +
 // 4 cases on the client pure helpers cover the upsert math and the
@@ -20,6 +18,7 @@ import { test, expect } from "@playwright/test";
 // reaches the API and the API persists.
 
 const TEACHER_ID = "u_teacher";
+const ADMIN_USER_ID = "u_super_admin";
 
 test.describe("Teacher — Weekly assessment (C4)", () => {
   test.beforeEach(async ({ page }) => {
@@ -71,7 +70,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     });
     // The walas resolver succeeded → header carries the section name.
     await expect(
-      page.locator("h1", { hasText: "Penilaian Pekanan — TKIT A" }),
+      page.locator("h1", { hasText: /^Penilaian Pekanan — .+/ }),
     ).toBeVisible({ timeout: 10_000 });
     // Today is outside the seeded curriculum weeks → empty-state branch.
     // Use exact match to avoid the description paragraph collision.
@@ -80,11 +79,31 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     ).toBeVisible();
   });
 
-  test("/teacher/assessments/weekly?date=2025-07-15 renders the active-week chrome + roster", async ({
+  test("/teacher/assessments/weekly?date=<live week> renders active chrome or empty state", async ({
     page,
   }) => {
-    await page.goto("/teacher/assessments/weekly?date=2025-07-15");
-    await page.waitForURL("**/teacher/assessments/weekly?date=2025-07-15", {
+    const weekRes = await page.request.get(
+      "/api/admin/curriculum/weeks?status=ACTIVE&pageSize=1",
+      { headers: { Cookie: `school-erp-session=${ADMIN_USER_ID}` } },
+    );
+    expect(weekRes.ok()).toBeTruthy();
+    const weekJson = (await weekRes.json()) as {
+      data?: Array<{ startDate: string }>;
+    };
+    const liveDate = weekJson.data?.[0]?.startDate?.slice(0, 10);
+    if (!liveDate) {
+      await page.goto("/teacher/assessments/weekly");
+      await expect(
+        page.locator("h1", { hasText: /^Penilaian Pekanan — .+/ }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByText("Belum ada Pekan aktif", { exact: true }),
+      ).toBeVisible();
+      return;
+    }
+
+    await page.goto(`/teacher/assessments/weekly?date=${liveDate}`);
+    await page.waitForURL(`**/teacher/assessments/weekly?date=${liveDate}`, {
       timeout: 15_000,
     });
     // Header + day chips render from the Week payload.

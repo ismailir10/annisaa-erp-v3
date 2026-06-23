@@ -432,10 +432,64 @@ async function getDemoSession(): Promise<SessionUser | null> {
   const userId = cookieStore.get("school-erp-session")?.value;
   if (!userId) return null;
 
-  const user = (await prisma.user.findFirst({
+  const legacyRoleFallback: Record<string, "SUPER_ADMIN" | "SCHOOL_ADMIN" | "TEACHER" | "GUARDIAN"> = {
+    u_super_admin: "SUPER_ADMIN",
+    u_school_admin: "SCHOOL_ADMIN",
+    u_teacher: "TEACHER",
+    u_parent: "GUARDIAN",
+  };
+
+  let user = (await prisma.user.findFirst({
     where: { id: userId, status: "ACTIVE" },
     include: { customRole: true },
   })) as CachedUser | null;
+
+  if (!user && userId === "u_teacher") {
+    const homeroomEmployee = await prisma.employee.findFirst({
+      where: {
+        status: "ACTIVE",
+        teachingAssignments: {
+          some: {
+            role: "HOMEROOM",
+            classSection: {
+              status: "ACTIVE",
+              academicYear: { status: "ACTIVE" },
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        email: true,
+        nama: true,
+      },
+      orderBy: { nama: "asc" },
+    });
+
+    if (homeroomEmployee) {
+      return {
+        id: `demo:${homeroomEmployee.id}`,
+        email: homeroomEmployee.email,
+        role: "TEACHER",
+        name: homeroomEmployee.nama,
+        tenantId: homeroomEmployee.tenantId,
+        employeeId: homeroomEmployee.id,
+        parentId: null,
+        permissions: getSystemRolePermissions("TEACHER"),
+        customRoleCode: null,
+      };
+    }
+  }
+
+  if (!user && legacyRoleFallback[userId]) {
+    user = (await prisma.user.findFirst({
+      where: { role: legacyRoleFallback[userId], status: "ACTIVE" },
+      include: { customRole: true },
+      orderBy: { name: "asc" },
+    })) as CachedUser | null;
+  }
+
   if (!user) return null;
 
   let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
