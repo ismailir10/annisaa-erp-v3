@@ -3,7 +3,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { resolveEnrollmentAccess } from "@/lib/enrollment/resolve-token";
+import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
 import { submitEnrollmentSchema, flattenSubmitErrors } from "@/lib/enrollment/submit-validation";
 
 const RATE_LIMIT_PER_MIN = 10;
@@ -17,12 +17,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { token } = await params;
   const now = new Date();
-  const { access, id } = await resolveEnrollmentAccess(token, now);
+  const { access, id, tenantId } = await resolveEnrollmentAccess(token, now);
   if (access === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
   if (access === "SUBMITTED")
     return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
-  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!id || !tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let body: unknown;
   try {
@@ -42,6 +42,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     );
   }
   const data = parsed.data;
+
+  // Guard the chosen program against the application's tenant (IDOR write).
+  if (!(await programBelongsToTenant(data.programId, tenantId))) {
+    return NextResponse.json(
+      { error: "validation_failed", fields: { programId: "Program tidak valid" } },
+      { status: 422 },
+    );
+  }
+
   const nowIso = now.toISOString();
 
   // Server-stamp the signing time — client-supplied signedAt is not trusted.

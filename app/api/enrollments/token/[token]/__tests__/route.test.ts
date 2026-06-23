@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { findUnique, update } = vi.hoisted(() => ({ findUnique: vi.fn(), update: vi.fn() }));
+const { findUnique, update, programFindFirst } = vi.hoisted(() => ({
+  findUnique: vi.fn(),
+  update: vi.fn(),
+  programFindFirst: vi.fn(),
+}));
 
 vi.mock("@/lib/db", () => ({
-  prisma: { enrollmentApplication: { findUnique, update } },
+  prisma: {
+    enrollmentApplication: { findUnique, update },
+    program: { findFirst: programFindFirst },
+  },
 }));
 
 import { PATCH } from "../route";
@@ -24,6 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   __resetRateLimitForTest();
   update.mockResolvedValue({});
+  programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) });
 });
 
 describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
@@ -48,7 +56,7 @@ describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
   });
 
   it("saves only the provided blobs and mirrors childName", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future });
+    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
     const res = await PATCH(req({ studentData: { childName: "  Aisyah  " }, dcareAddon: true }), ctx);
     expect(res.status).toBe(200);
     const arg = update.mock.calls[0][0];
@@ -60,7 +68,7 @@ describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
   });
 
   it("normalizes empty programId to null", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future });
+    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
     await PATCH(req({ programId: "" }), ctx);
     expect(update.mock.calls[0][0].data.programId).toBeNull();
   });

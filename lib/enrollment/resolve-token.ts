@@ -56,12 +56,26 @@ export type ResolvedEnrollment = {
 export async function resolveEnrollmentAccess(
   token: string,
   now: Date,
-): Promise<{ access: EnrollmentAccess; id: string | null }> {
+): Promise<{ access: EnrollmentAccess; id: string | null; tenantId: string | null }> {
   const row = await prisma.enrollmentApplication.findUnique({
     where: { accessToken: token },
-    select: { id: true, status: true, tokenExpiresAt: true },
+    select: { id: true, status: true, tokenExpiresAt: true, tenantId: true },
   });
-  return { access: classifyEnrollmentAccess(row, now), id: row?.id ?? null };
+  return { access: classifyEnrollmentAccess(row, now), id: row?.id ?? null, tenantId: row?.tenantId ?? null };
+}
+
+/**
+ * True when `programId` is a non-empty id owned by `tenantId`. Used by every
+ * write path that persists a client-supplied programId (admin PATCH, public
+ * draft + submit) to prevent a cross-tenant program reference (IDOR write).
+ */
+export async function programBelongsToTenant(programId: string, tenantId: string): Promise<boolean> {
+  if (!programId) return false;
+  const prog = await prisma.program.findFirst({
+    where: { id: programId, tenantId },
+    select: { id: true },
+  });
+  return prog != null;
 }
 
 /**

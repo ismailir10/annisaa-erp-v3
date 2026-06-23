@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { resolveEnrollmentAccess } from "@/lib/enrollment/resolve-token";
+import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
 
 const RATE_LIMIT_PER_MIN = 30; // generous — autosave can fire often
 const RATE_WINDOW_MS = 60_000;
@@ -30,12 +30,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   }
 
   const { token } = await params;
-  const { access, id } = await resolveEnrollmentAccess(token, new Date());
+  const { access, id, tenantId } = await resolveEnrollmentAccess(token, new Date());
   if (access === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
   if (access === "SUBMITTED")
     return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
-  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!id || !tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let body: unknown;
   try {
@@ -60,7 +60,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   if (d.ayahData !== undefined) data.ayahData = d.ayahData;
   if (d.ibuData !== undefined) data.ibuData = d.ibuData;
   if (d.consentData !== undefined) data.consentData = d.consentData;
-  if (d.programId !== undefined) data.programId = d.programId === "" ? null : d.programId;
+  if (d.programId !== undefined) {
+    // Drop a cross-tenant program ref silently — this is an autosave, not a
+    // hard gate; the final submit re-checks and 422s if still invalid.
+    if (d.programId && d.programId !== "" && (await programBelongsToTenant(d.programId, tenantId))) {
+      data.programId = d.programId;
+    } else if (d.programId === "" || d.programId === null) {
+      data.programId = null;
+    }
+  }
   if (d.dcareAddon !== undefined) data.dcareAddon = d.dcareAddon;
 
   await prisma.enrollmentApplication.update({ where: { id }, data });

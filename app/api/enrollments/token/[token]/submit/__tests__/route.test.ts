@@ -2,10 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
-const { findUnique, updateMany } = vi.hoisted(() => ({ findUnique: vi.fn(), updateMany: vi.fn() }));
+const { findUnique, updateMany, programFindFirst } = vi.hoisted(() => ({
+  findUnique: vi.fn(),
+  updateMany: vi.fn(),
+  programFindFirst: vi.fn(),
+}));
 
 vi.mock("@/lib/db", () => ({
-  prisma: { enrollmentApplication: { findUnique, updateMany } },
+  prisma: {
+    enrollmentApplication: { findUnique, updateMany },
+    program: { findFirst: programFindFirst },
+  },
 }));
 
 import { POST } from "../route";
@@ -48,8 +55,9 @@ function req(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   __resetRateLimitForTest();
-  findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future });
+  findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
   updateMany.mockResolvedValue({ count: 1 });
+  programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) }); // program owned by tenant
 });
 
 describe("POST /api/enrollments/token/[token]/submit", () => {
@@ -94,5 +102,13 @@ describe("POST /api/enrollments/token/[token]/submit", () => {
     findUnique.mockResolvedValue(null);
     const res = await POST(req(validBody()), ctx);
     expect(res.status).toBe(404);
+  });
+
+  it("422 when the chosen program is not in the application's tenant (IDOR guard)", async () => {
+    programFindFirst.mockResolvedValue(null);
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields.programId).toBe("Program tidak valid");
+    expect(updateMany).not.toHaveBeenCalled();
   });
 });
