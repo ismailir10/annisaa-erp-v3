@@ -46,7 +46,7 @@ CTO review of the existing UI implementation across admin, finance/HR, curriculu
 
 ## Tasks
 
-1. [ ] **[T1] Shared primitive baseline** — update `DataTableToolbar` to controlled state with reset, remove/rebuild deprecated `FormField`, localize modal close copy, and add/adjust primitive tests. Acceptance: existing admin lists still compile; toolbar query can be reset from parent state; `rg "from \"@/components/ui/form-field\"" app components` returns no live consumers or only the rebuilt primitive.
+1. [x] **[T1] Shared primitive baseline** — update `DataTableToolbar` to controlled state with reset, remove/rebuild deprecated `FormField`, localize modal close copy, and add/adjust primitive tests. Acceptance: existing admin lists still compile; toolbar query can be reset from parent state; `rg "from \"@/components/ui/form-field\"" app components` returns no live consumers or only the rebuilt primitive.
 
 2. [ ] **[T2] Admin list parity sweep** — apply the missing pieces of the canonical toolbar/search/filter/action/pagination shape to highest-impact admin-core gaps: classes list (preserve existing search/filters; add missing pagination/server contract if needed), semesters list, academic-years program/year lists, student-attendance monthly recap, student-journal class roll-up, and monitoring pagination. Acceptance: each touched list has explicit search/filter behavior where useful, proper empty/loading states, sortable headers, and no fake pagination.
 
@@ -62,6 +62,11 @@ CTO review of the existing UI implementation across admin, finance/HR, curriculu
 
 ## Implementation
 
+- Subagent plan: all tasks sequential for now. T1 changes shared primitives used by T2-T6; after T1 stabilizes, later module sweeps may use bounded reviewer/worker subagents only when write sets are disjoint.
+- Task 1: Shared primitive baseline — `components/ui/data-table-toolbar.tsx`, `components/ui/form-field.tsx`, `components/ui/dialog.tsx`, `components/ui/sheet.tsx`, primitive tests, and narrow Next 16 gate unblockers in API/page helper exports — made toolbar search parent-controllable with reset, rebuilt legacy `FormField` on `Field`, localized default close copy to `Tutup`, and moved test-only/page helper exports out of restricted route/page module exports.
+
 ## Verification
+
+- Task 1: gates passed. Design-system cross-check: Forms, DataTable, and Overlays sections. Focused Vitest passed for toolbar/form-field/overlay primitives, campus route, Xendit health route, teacher slip helpers, and student-journal date helper. Production build passed via `prisma generate` + `next build --webpack` with local env loaded; default Turbopack build is blocked in this worktree by the existing `node_modules` symlink layout. Full Vitest passed: 210 files passed, 2 skipped; 2067 tests passed, 42 todo.
 
 ## Ship Notes
