@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { priorMonthLabel, hasSlipInMonth } from "../page";
+import { priorMonthLabel, hasSlipInMonth } from "../helpers";
 
 describe("priorMonthLabel", () => {
   it("returns April 2026 when today is May 2026", () => {

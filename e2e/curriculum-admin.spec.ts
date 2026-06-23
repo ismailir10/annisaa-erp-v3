@@ -29,9 +29,17 @@ test.describe("Admin curriculum", () => {
     await expect(page.getByRole("heading", { name: /Kurikulum.*Semester/i })).toBeVisible({
       timeout: 15_000,
     });
-    // Seeded AY name is "2025/2026" — now renders once per Semester row
-    // (Semester 1 + Semester 2), so scope to the first match.
-    await expect(page.getByText("2025/2026").first()).toBeVisible();
+    const semRes = await page.request.get(
+      "/api/admin/curriculum/semesters?pageSize=1",
+    );
+    expect(semRes.ok()).toBeTruthy();
+    const semJson = (await semRes.json()) as {
+      data?: Array<{ academicYear?: { name?: string } }>;
+    };
+    const academicYearName = semJson.data?.[0]?.academicYear?.name;
+    expect(academicYearName).toBeTruthy();
+    if (!academicYearName) throw new Error("No semester academic year found");
+    await expect(page.getByText(academicYearName).first()).toBeVisible();
     // Sidebar entry: scope to the sidebar nav so the breadcrumb's
     // aria-current page (also role="link" + text "Semester") doesn't
     // collide with the strict-mode resolver.
