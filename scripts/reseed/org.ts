@@ -378,12 +378,32 @@ export async function seedOrg(prisma: PrismaClient): Promise<SeedOrgResult> {
     salaryDefIdByCode[s.code] = row.id;
   }
 
+  // Class tracks — one per (campus, program). Every ClassSection hangs off a
+  // track (classTrackId is required, no default). Track name reuses the shared
+  // section name, which is identical across academic years for a campus+program.
+  const classTrackIdByCampusProgram: Record<string, string> = {};
+  for (const plan of buildClassSectionPlan()) {
+    const trackKey = `${plan.campusCode}|${plan.programCode}`;
+    if (classTrackIdByCampusProgram[trackKey]) continue;
+    const track = await prisma.classTrack.create({
+      data: {
+        tenantId: tenant.id,
+        campusId: campusIdByCode[plan.campusCode],
+        programId: programIdByCode[plan.programCode],
+        name: plan.sectionName,
+      },
+    });
+    classTrackIdByCampusProgram[trackKey] = track.id;
+  }
+
   // Class sections.
   const classSectionIdByKey: Record<string, string> = {};
   for (const plan of buildClassSectionPlan()) {
     const row = await prisma.classSection.create({
       data: {
         tenantId: tenant.id,
+        classTrackId:
+          classTrackIdByCampusProgram[`${plan.campusCode}|${plan.programCode}`],
         programId: programIdByCode[plan.programCode],
         academicYearId: academicYearIdByName[plan.academicYearName],
         campusId: campusIdByCode[plan.campusCode],
