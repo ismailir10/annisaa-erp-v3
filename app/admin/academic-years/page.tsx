@@ -4,11 +4,12 @@
 // (ResponsiveFormDialog overlay, Select, Button states). This page is a
 // single "use client" component — no server wrapper to host the note.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -52,6 +53,13 @@ export default function AcademicPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
   const [programStatusFilter, setProgramStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
+  const [yearStatusFilter, setYearStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE" | "PLANNING" | "ARCHIVED">("all");
+  const [programQuery, setProgramQuery] = useState("");
+  const [yearQuery, setYearQuery] = useState("");
+  const [programPage, setProgramPage] = useState(1);
+  const [programPageSize] = useState(10);
+  const [yearPage, setYearPage] = useState(1);
+  const [yearPageSize] = useState(10);
 
   // Roll forward — clone a source year's active class sections into a target year
   const [rollForwardTarget, setRollForwardTarget] = useState<AcademicYear | null>(null);
@@ -69,6 +77,14 @@ export default function AcademicPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchAll(); }, []);
+
+  useEffect(() => {
+    setProgramPage(1);
+  }, [programStatusFilter, programQuery]);
+
+  useEffect(() => {
+    setYearPage(1);
+  }, [yearStatusFilter, yearQuery]);
 
   async function saveYear() {
     setSaving(true);
@@ -220,9 +236,23 @@ export default function AcademicPage() {
     },
   ];
 
-  const filteredPrograms = programStatusFilter === "all"
-    ? programs
-    : programs.filter(p => p.status === programStatusFilter);
+  const filteredPrograms = useMemo(() => {
+    const needle = programQuery.trim().toLowerCase();
+    return programs.filter((p) => {
+      const statusMatch = programStatusFilter === "all" || p.status === programStatusFilter;
+      const queryMatch = !needle || [p.name, p.code, p.description ?? "", p.type]
+        .some((value) => value.toLowerCase().includes(needle));
+      return statusMatch && queryMatch;
+    });
+  }, [programQuery, programStatusFilter, programs]);
+  const programTotalPages = Math.max(1, Math.ceil(filteredPrograms.length / programPageSize));
+  const safeProgramPage = Math.min(programPage, programTotalPages);
+  const programPagination = {
+    page: safeProgramPage,
+    pageSize: programPageSize,
+    total: filteredPrograms.length,
+    totalPages: programTotalPages,
+  };
 
   const yearColumns: ColumnDef<AcademicYear>[] = [
     {
@@ -288,6 +318,24 @@ export default function AcademicPage() {
     },
   ];
 
+  const filteredYears = useMemo(() => {
+    const needle = yearQuery.trim().toLowerCase();
+    return years.filter((year) => {
+      const statusMatch = yearStatusFilter === "all" || year.status === yearStatusFilter;
+      const queryMatch = !needle || [year.name, year.status]
+        .some((value) => value.toLowerCase().includes(needle));
+      return statusMatch && queryMatch;
+    });
+  }, [yearQuery, yearStatusFilter, years]);
+  const yearTotalPages = Math.max(1, Math.ceil(filteredYears.length / yearPageSize));
+  const safeYearPage = Math.min(yearPage, yearTotalPages);
+  const yearPagination = {
+    page: safeYearPage,
+    pageSize: yearPageSize,
+    total: filteredYears.length,
+    totalPages: yearTotalPages,
+  };
+
   return (
     <>
       <PageHeader title="Akademik" description="Program dan tahun ajaran" />
@@ -302,23 +350,38 @@ export default function AcademicPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-h2 font-semibold">Program</h2>
-          <div className="flex items-center gap-2">
-            <Select value={programStatusFilter} onValueChange={(v) => v && setProgramStatusFilter(v as "all" | "ACTIVE" | "INACTIVE")} items={{ all: "Semua Status", ACTIVE: "Aktif", INACTIVE: "Tidak Aktif" }}>
-              <SelectTrigger className="h-8 w-[160px]" data-testid="program-status-filter">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="ACTIVE">Aktif</SelectItem>
-                <SelectItem value="INACTIVE">Tidak Aktif</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
-              <Plus size={14} className="mr-1.5" /> Tambah Program
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
+            <Plus size={14} className="mr-1.5" /> Tambah Program
+          </Button>
         </div>
-        <DataTable columns={programColumns} data={filteredPrograms} loading={loading} defaultSort={{ field: "name", order: "asc" }} emptyTitle="Belum ada program" emptyDescription="Tambahkan program pendidikan" />
+        <DataTableToolbar
+          value={programQuery}
+          onValueChange={setProgramQuery}
+          searchPlaceholder="Cari program atau kode..."
+          filters={[
+            {
+              key: "programStatus",
+              label: "Status",
+              value: programStatusFilter,
+              resetValue: "ACTIVE",
+              onChange: (v) => setProgramStatusFilter(v as "all" | "ACTIVE" | "INACTIVE"),
+              options: [
+                { value: "all", label: "Semua Status" },
+                { value: "ACTIVE", label: "Aktif" },
+                { value: "INACTIVE", label: "Tidak Aktif" },
+              ],
+            },
+          ]}
+        />
+        <DataTable
+          columns={programColumns}
+          data={filteredPrograms}
+          loading={loading}
+          pagination={programPagination}
+          defaultSort={{ field: "name", order: "asc" }}
+          emptyTitle="Belum ada program"
+          emptyDescription="Tambahkan program pendidikan"
+        />
       </div>
 
       {/* Academic Years Section */}
@@ -329,7 +392,35 @@ export default function AcademicPage() {
             <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
           </Button>
         </div>
-        <DataTable columns={yearColumns} data={years} loading={loading} defaultSort={{ field: "name", order: "desc" }} emptyTitle="Belum ada tahun ajaran" emptyDescription="Tambahkan tahun ajaran" />
+        <DataTableToolbar
+          value={yearQuery}
+          onValueChange={setYearQuery}
+          searchPlaceholder="Cari tahun ajaran..."
+          filters={[
+            {
+              key: "yearStatus",
+              label: "Status",
+              value: yearStatusFilter,
+              onChange: (v) => setYearStatusFilter(v as typeof yearStatusFilter),
+              options: [
+                { value: "all", label: "Semua Status" },
+                { value: "PLANNING", label: "Rencana" },
+                { value: "ACTIVE", label: "Aktif" },
+                { value: "ARCHIVED", label: "Arsip" },
+                { value: "INACTIVE", label: "Tidak Aktif" },
+              ],
+            },
+          ]}
+        />
+        <DataTable
+          columns={yearColumns}
+          data={filteredYears}
+          loading={loading}
+          pagination={yearPagination}
+          defaultSort={{ field: "name", order: "desc" }}
+          emptyTitle="Belum ada tahun ajaran"
+          emptyDescription="Tambahkan tahun ajaran"
+        />
       </div>
 
       {/* Add Year Dialog */}
