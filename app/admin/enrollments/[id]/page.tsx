@@ -100,6 +100,23 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     void load();
   }, [load]);
 
+  async function convert() {
+    if (!confirm("Konversi formulir ini menjadi data siswa? Tindakan ini membuat siswa + data orang tua.")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/enrollments/${id}/convert`, { method: "POST" });
+      const jr = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success("Siswa berhasil dibuat dari formulir");
+        void load();
+      } else {
+        toast.error(jr.error || "Gagal konversi");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function transition(status: string) {
     setBusy(true);
     try {
@@ -221,8 +238,21 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       {d.status === "ACCEPTED" && !d.studentId && (
         <>
           <Separator />
-          <p className="text-sm text-muted-foreground">
-            Formulir sudah diterima. Konversi ke data siswa tersedia pada langkah berikutnya.
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
+            <p className="text-sm text-muted-foreground">
+              Formulir sudah diterima. Konversi menjadi data siswa + orang tua.
+            </p>
+            <Button onClick={convert} disabled={busy}>
+              Konversi ke Siswa
+            </Button>
+          </div>
+        </>
+      )}
+      {d.studentId && (
+        <>
+          <Separator />
+          <p className="text-sm text-emerald-700">
+            Formulir ini sudah dikonversi menjadi data siswa.
           </p>
         </>
       )}
