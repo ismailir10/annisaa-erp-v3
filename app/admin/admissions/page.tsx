@@ -41,7 +41,7 @@ import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight } from "lucide-react";
+import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight, Send } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import { formatAgeFromDob } from "@/lib/admission/age";
@@ -591,6 +591,35 @@ export default function AdmissionsPage() {
     toast.error(d.error || "Gagal konversi");
   }
 
+  // Cycle A: "Kirim Formulir" — invite the parent to complete the rich
+  // enrollment application. Creates/refreshes the EnrollmentApplication +
+  // emails the tokenized link. 422 NO_EMAIL when the inquiry lacks an email;
+  // 409 when the form is already filled/processed.
+  async function sendEnrollmentForm(a: Admission) {
+    const res = await fetch("/api/enrollments/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ admissionId: a.id }),
+    });
+    if (res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { sent?: boolean; formUrl?: string };
+      toast.success(
+        d.sent
+          ? "Formulir pendaftaran dikirim ke email orang tua"
+          : "Formulir disiapkan (email tidak terkirim — bagikan tautan manual)",
+        d.formUrl
+          ? {
+              description: "Salin tautan untuk dibagikan via WhatsApp",
+              action: { label: "Salin tautan", onClick: () => void navigator.clipboard?.writeText(d.formUrl!) },
+            }
+          : undefined,
+      );
+      return;
+    }
+    const d = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+    toast.error(d.message || d.error || "Gagal mengirim formulir");
+  }
+
   function convertToStudent(a: Admission) {
     if (a.detectedParentId) {
       setConvertTarget(a);
@@ -824,6 +853,11 @@ export default function AdmissionsPage() {
             onClick: () => convertToStudent(a),
           });
         }
+        extras.push({
+          label: "Kirim Formulir",
+          icon: <Send size={14} />,
+          onClick: () => void sendEnrollmentForm(a),
+        });
         return (
           <DataTableRowActions
             onEdit={() => {

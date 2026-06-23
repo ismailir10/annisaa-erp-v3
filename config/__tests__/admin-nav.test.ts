@@ -76,6 +76,7 @@ describe("adminNav IA — ordering + grouping", () => {
     const labels = adminNav.groups.find((g) => g.id === "students")!.items.map((i) => i.label);
     expect(labels).toEqual([
       "Pendaftaran",
+      "Formulir Pendaftaran",
       "Siswa",
       "Wali Murid",
     ]);
