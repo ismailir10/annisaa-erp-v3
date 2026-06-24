@@ -38,7 +38,7 @@ Invoke `/caveman` and `/using-superpowers` by default. The `SessionStart` hook (
 - Commit (one commit per task, not per cycle)
 - After the **last task**: run the **end-of-cycle gate** + request code review, then fill Ship Notes
 
-**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP signed into the **role-scoped Google account** for each portal (admin / teacher / parent — mapped in `.claude/verify-accounts.json`) to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` reach the merge step. A **CTO** then watches CI (`gh pr checks <number> --watch`) and **self-merges** (`gh pr merge <number> --squash --delete-branch`) once all four required checks are green — never on red or pending; the Chrome-MCP preview-verify plus the green protected checks are the in-the-loop guarantee. A **product-builder** never merges: its PR is labeled `needs-cto-review` and a CTO reviews, preview-verifies, and merges. **No direct pushes to `staging` or `main` for any role.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it. Playwright must have passed (recorded in cycle doc Verification) before `/ship`.
+**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP signed into the **role-scoped Google account** for each portal (admin / teacher / parent — mapped in `.claude/verify-accounts.json`) to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` reach the merge step. A **CTO** then watches CI (`gh pr checks <number> --watch`) and **self-merges** (`gh pr merge <number> --squash --delete-branch`) once all four required checks are green — never on red or pending; the Chrome-MCP preview-verify plus the green protected checks are the in-the-loop guarantee. A **product-builder** never merges: its PR is labeled `needs-cto-review` and a CTO reviews, preview-verifies, and merges. **No direct pushes to `staging` or `main` for any role.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it. Playwright status must be recorded in cycle doc Verification before `/ship` — a local pass, **or** a deferral to the required CI `Playwright E2E` check for harnesses whose environment cannot run Playwright locally (the CI check still gates the merge).
 
 ### Testing gates
 
@@ -47,7 +47,7 @@ Three-tier — fast unit gate between every task, lean Playwright smoke once per
 | Gate | Command / mechanism | When |
 |------|---------|------|
 | Between-task | `npm run build && npx vitest run` | Before every commit during `/build` |
-| End-of-cycle | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
+| End-of-cycle | `npm run build && npx vitest run && npx playwright test` (Playwright local is best-effort — harnesses that cannot run it locally defer to the required CI `Playwright E2E` check, recorded in Verification) | After the last task, before the final commit |
 | Preview-verify | `/ship` Step 3 — Chrome MCP (both CTO harnesses drive the user's shared signed-in Chrome profile) walks the Vercel preview signed into the role-scoped Google account per portal (`.claude/verify-accounts.json`), classifies findings, fix-commits + re-verifies until clean. opencode (PB) never self-verifies → hands the PR to a CTO. | After `/ship` opens the PR, before the merge |
 
 **Why three tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle Playwright is the deterministic CI regression contract: keep it lean, stable, and focused on critical cross-module smoke flows (auth/demo shell, admin dashboard, students, invoices/payment, attendance, teacher daily flow, parent invoice/report, tenant/security boundaries). Do **not** add Playwright for every UI detail; prefer Vitest/API/component-level tests for business logic, permissions, validation, and local interactions. Preview-verify is the human-like release check: Chrome MCP uses the real preview, signed-in browser state, console, network, screenshots, and UI judgment to catch OAuth/staging/Vercel/layout issues that CI cannot exercise. Chrome MCP complements Playwright; it does not replace the required CI gate because it depends on an interactive browser profile and is harder to replay deterministically. **Pure-docs cycles may skip Playwright + preview-verify** — record each skip explicitly in Verification. Tests live in `e2e/`; demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
@@ -115,6 +115,7 @@ The driver read zero module files and produced zero grep output itself — it re
 
 - **Isolation:** every session has its own worktree + its own gitignored `.claude/session-role`. No two sessions share mutable state, so they cannot clobber each other.
 - **One canonical manual:** edit *this file*. `AGENTS.md` is a symlink to `CLAUDE.md` — Codex + opencode read it, so a single edit propagates to all three harnesses. **Never edit `AGENTS.md` directly** — it is not a separate document.
+- **One canonical skill set:** edit `.claude/skills/*`. Codex resolves its slash-command skills from `.agents/skills/` — which is gitignored (harness-local) and would otherwise drift. `scripts/link-agent-skills.sh` symlinks `.agents/skills/{spec,build,ship,audit-docs,uat}` → `.claude/skills/*` (run by `install-hooks.sh` at setup + on demand), so Codex always reads the canonical skill. **Never hand-edit `.agents/skills/*`** — fix `.claude/skills/*` and re-run the linker.
 - **opencode is product-builder only.** glm-5.2 builds pre-specced slices; it never makes architecture decisions and never self-approves. Every opencode PR is labeled `needs-cto-review`; a CTO harness (Claude or Codex) reviews before the merge hand-off, and runs the preview-verify opencode cannot.
 - **CTOs (Claude, Codex)** own architecture, PR review, and `/ship --to-main`.
 - Shared `sync-staging.sh` + the >5-commits-behind preflight keep every branch close to `origin/staging`, so parallel branches don't diverge.
@@ -209,7 +210,7 @@ Any other staged `.md` is rejected by `pre-commit`.
 ```
 
 **`/ship` preflight:**
-- [ ] `npm run build && npx vitest run && npx playwright test` all green (Playwright skip allowed for pure-docs cycles)
+- [ ] `npm run build && npx vitest run` green; `npx playwright test` green locally **or** deferred to the required CI `Playwright E2E` check (env-can't-run only; recorded in Verification). Playwright skip allowed for pure-docs cycles.
 - [ ] Verification section filled
 - [ ] **README.md updated** if cycle adds/changes modules, routes, or entities
 - [ ] Ship Notes filled
@@ -284,7 +285,7 @@ e2e/                         33 specs (admin, admin-admission-convert-parity, ad
 docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
 .claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
-scripts/                     setup-worktree, install-hooks, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, test-hooks, reseed-staging
+scripts/                     setup-worktree, install-hooks, link-agent-skills, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, test-hooks, reseed-staging
 ```
 
 Demo-mode auth means E2E + local dev need no live Supabase. Lint: `npm run lint`.

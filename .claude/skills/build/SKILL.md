@@ -132,6 +132,11 @@ Then move to the next task.
 ## After the last task
 
 1. Run the full gates one final time: `npm run build && npx vitest run`.
+1b. **Record Playwright status in `## Verification`** (`/ship` Step 1a requires it). Run `npx playwright test` if this harness can; record the pass. If the environment cannot run Playwright locally (no browsers, staging-only `DATABASE_URL`, Turbopack symlink issue, CI-only deps), record the deferral instead — the required CI `Playwright E2E` check gates the merge:
+   ```markdown
+   - Playwright: local run deferred to CI (env cannot execute it — <reason>).
+     Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
+   ```
 2. Fill `## Ship Notes` in the cycle doc with anything the shipper needs to know:
    - Database migrations to run
    - New env vars

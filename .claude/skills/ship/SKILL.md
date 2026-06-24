@@ -44,22 +44,42 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
 
 ## Step 1: Re-run the end-of-cycle gate
 
-**1a. Confirm `/build` recorded a Playwright pass.** Grep the current cycle doc's `## Verification` section for a line mentioning `playwright` (case-insensitive). If none is found, stop:
+**1a. Confirm `/build` recorded Playwright status.** Grep the current cycle doc's `## Verification` section for a line mentioning `playwright` (case-insensitive). A local pass OR an explicit CI-deferral note (see 1b) both satisfy this. If none is found, stop:
 
 ```
-/ship precondition failed: cycle doc Verification section has no Playwright
-pass recorded. Run the end-of-cycle gate in /build first
-(npm run build && npx vitest run && npx playwright test) and commit the
-updated Verification before calling /ship again.
+/ship precondition failed: cycle doc Verification section records no Playwright
+status. Run the end-of-cycle gate in /build first
+(npm run build && npx vitest run && npx playwright test) — or, if this harness
+cannot run Playwright locally, record the CI-deferral note (see 1b) — and
+commit the updated Verification before calling /ship again.
 ```
 
-**1b. Re-run the full gate on the exact commit being shipped** (belt-and-suspenders — catches drift since `/build` last ran):
+**1b. Re-run the gate on the exact commit being shipped** (belt-and-suspenders — catches drift since `/build` last ran).
+
+**Always run the portable gate** — these execute in any harness environment:
 
 ```bash
-npm run build && npx vitest run && npx playwright test
+npm run build && npx vitest run
 ```
 
-If any of the three fails, stop and hand back to the user. Do not open a PR on a broken commit.
+If either fails, stop and hand back to the user. Do not open a PR on a broken commit.
+
+**Playwright — local is best-effort; CI is the real gate.** The required CI check `Playwright E2E` runs on every PR and **blocks the merge** (Step 5: a CTO never merges unless it is green). Local Playwright is fast feedback, not the deterministic gate. Attempt it:
+
+```bash
+npx playwright test
+```
+
+- **Runs, all pass** → proceed.
+- **Runs, a test FAILS** → STOP. Real regression — do not open a PR on a red Playwright run. Hand back to the user.
+- **Cannot execute in this harness's environment** — the run errors during *setup*, before tests execute: Playwright browsers not installed, staging-only `DATABASE_URL` unreachable from local, the known Turbopack `node_modules` symlink issue, or any CI-only dependency. Then **DEFER to CI**: skip the local run and record in the cycle doc `## Verification`:
+
+  ```markdown
+  - Playwright: local run deferred to CI (env cannot execute it — <reason>).
+    Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
+  ```
+
+  Deferral is **only** for environment-can't-run, never to dodge a known test failure. The merge guarantee holds because `Playwright E2E` is a required protected check.
 
 **1c. Soft-skip + DEMO_MODE-skip delta check** (catches new vacuous-green tests landing on the ship gate). A test that 100%-skips in CI exists only to inflate the green-tick count; once accumulated, the suite looks healthy while losing coverage. This check counts the soft-skip + DEMO_MODE-gate occurrences on the current branch and against `origin/staging`. Existing skips are grandfathered (they may be load-bearing in ways the audit cannot see); only the **delta** blocks `/ship`.
 
