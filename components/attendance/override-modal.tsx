@@ -43,6 +43,7 @@ export function OverrideModal({
 
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatus(currentStatus ?? "PRESENT");
     setReason("");
     setCheckInTime("");

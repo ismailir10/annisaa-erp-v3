@@ -79,10 +79,12 @@ export default function AcademicPage() {
   useEffect(() => { fetchAll(); }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProgramPage(1);
   }, [programStatusFilter, programQuery]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setYearPage(1);
   }, [yearStatusFilter, yearQuery]);
 
