@@ -255,17 +255,17 @@ BODY
 
 ### 3.0 Harness capability gate (who runs this step)
 
-Preview-verify requires **Chrome MCP** with the three portal Google accounts (`.claude/verify-accounts.json`) signed into the profile. Route by the harness in `.claude/session-role`:
+Preview-verify requires **Chrome MCP** driving the **user's current signed-in Chrome profile** — the three portal Google accounts (`.claude/verify-accounts.json`) live in that one profile. Route by the harness in `.claude/session-role`:
 
-- **Claude** — has Chrome MCP (`mcp__Claude_in_Chrome__*`). Proceed with Step 3 directly.
-- **opencode** (`role=product-builder`) — **never self-verifies.** Every opencode PR requires CTO review, and opencode lacks the signed-in Chrome profile. Stop after Step 2 and print:
+- **Claude** (CTO) — has Chrome MCP (`mcp__Claude_in_Chrome__*`) on the shared profile. Proceed with Step 3 directly.
+- **Codex** (CTO) — has Chrome MCP on the same shared signed-in profile. Proceed with Step 3 directly.
+- **opencode** (`role=product-builder`) — **never self-verifies.** Every opencode PR is CTO-gated. Stop after Step 2 and print:
   ```
   PB ship: PR $PR_URL opened and labeled needs-cto-review.
   opencode does not run preview-verify — handing to a CTO harness (Claude/Codex)
-  for Step 3 preview-verify + review before the merge hand-off.
+  for Step 3 preview-verify + review + merge.
   ```
   Add the `needs-cto-review` label (`gh pr edit $PR_NUMBER --add-label needs-cto-review`) and exit.
-- **Codex** — if Codex's Chrome MCP is connected with the three accounts signed in, proceed. Otherwise hand the open PR to a Claude session for Step 3 and record in `## Ship Notes`: *"Preview-verify delegated to Claude — Codex lacks Chrome MCP profile."*
 
 ### 3a. Wait for preview ready
 
