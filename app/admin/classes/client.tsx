@@ -6,6 +6,7 @@ import { pickDefaultYear } from "./pick-default-year";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BulkPromoteDialog } from "@/components/admin/classes/bulk-promote-dialog";
-import { ArrowUpRight, Plus, Search } from "lucide-react";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 type ClassRow = {
@@ -82,6 +83,8 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
   const [campusFilter, setCampusFilter] = useState<string>("all");
   const [programFilter, setProgramFilter] = useState<string>("all");
   const [query, setQuery] = useState<string>("");
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize] = useState(10);
   const [loading, setLoading] = useState(true);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -168,6 +171,10 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [yearId, statusFilter, campusFilter, programFilter, query]);
 
   function resetForm() {
     setEditing(null);
@@ -374,6 +381,15 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     },
   ];
 
+  const tableTotalPages = Math.max(1, Math.ceil(rows.length / tablePageSize));
+  const safeTablePage = Math.min(tablePage, tableTotalPages);
+  const tablePagination = {
+    page: safeTablePage,
+    pageSize: tablePageSize,
+    total: rows.length,
+    totalPages: tableTotalPages,
+  };
+
   return (
     <div className="space-y-section">
       <PageHeader
@@ -393,83 +409,56 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={yearId} onValueChange={(v) => v && setYearId(v)}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Pilih tahun ajaran" />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((y) => (
-              <SelectItem key={y.id} value={y.id}>
-                {y.name}
-                {y.status === "ACTIVE" ? " · Aktif" : ""}
-                {y.status === "ARCHIVED" ? " · Arsip" : ""}
-                {y.status === "PLANNING" ? " · Rencana" : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={campusFilter}
-          onValueChange={(v) => setCampusFilter(v ?? "all")}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Semua kampus" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua kampus</SelectItem>
-            {campuses.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={programFilter}
-          onValueChange={(v) => setProgramFilter(v ?? "all")}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Semua program" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua program</SelectItem>
-            {programs.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={statusFilter}
-          onValueChange={(v) =>
-            setStatusFilter((v ?? "ACTIVE") as StatusFilter)
-          }
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua status</SelectItem>
-            <SelectItem value="ACTIVE">Aktif</SelectItem>
-            <SelectItem value="INACTIVE">Tidak aktif</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="relative w-[240px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Cari nama kelas..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-      </div>
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari nama kelas..."
+        filters={[
+          {
+            key: "yearId",
+            label: "Tahun Ajaran",
+            value: yearId,
+            resetValue: pickDefaultYear(years, new Date())?.id ?? yearId,
+            onChange: (v) => setYearId(v),
+            options: years.map((y) => ({
+              value: y.id,
+              label: `${y.name}${y.status === "ACTIVE" ? " · Aktif" : ""}${y.status === "ARCHIVED" ? " · Arsip" : ""}${y.status === "PLANNING" ? " · Rencana" : ""}`,
+            })),
+          },
+          {
+            key: "campus",
+            label: "Kampus",
+            value: campusFilter,
+            onChange: setCampusFilter,
+            options: [
+              { value: "all", label: "Semua Kampus" },
+              ...campuses.map((c) => ({ value: c.id, label: c.name })),
+            ],
+          },
+          {
+            key: "program",
+            label: "Program",
+            value: programFilter,
+            onChange: setProgramFilter,
+            options: [
+              { value: "all", label: "Semua Program" },
+              ...programs.map((p) => ({ value: p.id, label: p.name })),
+            ],
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: statusFilter,
+            resetValue: "ACTIVE",
+            onChange: (v) => setStatusFilter(v as StatusFilter),
+            options: [
+              { value: "all", label: "Semua Status" },
+              { value: "ACTIVE", label: "Aktif" },
+              { value: "INACTIVE", label: "Tidak Aktif" },
+            ],
+          },
+        ]}
+      />
 
       {archivedMode && (
         <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
@@ -477,7 +466,12 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         </div>
       )}
 
-      <DataTable columns={columns} data={rows} loading={loading} />
+      <DataTable
+        columns={columns}
+        data={rows}
+        loading={loading}
+        pagination={tablePagination}
+      />
 
       <BulkPromoteDialog
         open={promoteOpen}

@@ -17,6 +17,7 @@ import { paymentMethodLabel, PAYMENT_METHODS } from "@/lib/constants/payment-met
 
 export type LedgerRow = {
   id: string;
+  invoiceId: string;
   paidAt: string; // ISO timestamp
   amount: number;
   method: string;
@@ -30,6 +31,23 @@ export type LedgerSummary = {
   totalAmount: number;
   totalCount: number;
   byMethod: Array<{ method: string; methodLabel: string; amount: number; count: number }>;
+};
+
+export type LedgerPagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+type LedgerSortKey = "paidAt" | "amount" | "method" | "reference";
+
+type LedgerQueryOptions = {
+  search?: string;
+  skip?: number;
+  take?: number;
+  sortBy?: LedgerSortKey;
+  sortOrder?: "asc" | "desc";
 };
 
 /**
@@ -79,6 +97,14 @@ function jakartaDayStartUtc(ymd: string): Date {
   return new Date(Date.UTC(y, m - 1, d) - JAKARTA_OFFSET_MS);
 }
 
+function parsePositiveInt(raw: string | null, fallback: number, max?: number): number | null {
+  if (raw === null || raw === "") return fallback;
+  if (!/^\d+$/.test(raw)) return null;
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) return null;
+  return max ? Math.min(parsed, max) : parsed;
+}
+
 /**
  * Shared request resolver for the ledger + export routes: validates the date
  * range and method, then runs the query. Keeps the two endpoints from
@@ -88,8 +114,16 @@ export async function resolveLedgerRequest(
   tenantId: string,
   searchParams: URLSearchParams,
   today: string,
+  options: { paginate?: boolean } = {},
 ): Promise<
-  | { ok: true; rows: LedgerRow[]; summary: LedgerSummary; dateFrom: string; dateTo: string }
+  | {
+      ok: true;
+      rows: LedgerRow[];
+      summary: LedgerSummary;
+      dateFrom: string;
+      dateTo: string;
+      pagination?: LedgerPagination;
+    }
   | { ok: false; error: string }
 > {
   const range = parseDateRange(
@@ -104,13 +138,66 @@ export async function resolveLedgerRequest(
     return { ok: false, error: "Metode pembayaran tidak valid" };
   }
 
+  const search = (searchParams.get("search") ?? "").trim();
+  const sortByRaw = searchParams.get("sortBy") ?? "paidAt";
+  if (!["paidAt", "amount", "method", "reference"].includes(sortByRaw)) {
+    return { ok: false, error: "Kolom urut tidak valid" };
+  }
+  const sortOrderRaw = searchParams.get("sortOrder") ?? "desc";
+  if (sortOrderRaw !== "asc" && sortOrderRaw !== "desc") {
+    return { ok: false, error: "Arah urut tidak valid" };
+  }
+
+  let page = 1;
+  let pageSize = 20;
+  let skip: number | undefined;
+  let take: number | undefined;
+  if (options.paginate) {
+    const parsedPage = parsePositiveInt(searchParams.get("page"), 1);
+    const parsedPageSize = parsePositiveInt(searchParams.get("pageSize"), 20, 100);
+    if (parsedPage === null || parsedPageSize === null) {
+      return { ok: false, error: "Pagination tidak valid" };
+    }
+    page = parsedPage;
+    pageSize = parsedPageSize;
+    const skipCandidate = (page - 1) * pageSize;
+    if (!Number.isSafeInteger(skipCandidate)) {
+      return { ok: false, error: "Pagination tidak valid" };
+    }
+    skip = skipCandidate;
+    take = pageSize;
+  }
+
   const { rows, summary } = await getPaymentsLedger(
     tenantId,
     range.dateFrom,
     range.dateTo,
     method,
+    {
+      search,
+      skip,
+      take,
+      sortBy: sortByRaw as LedgerSortKey,
+      sortOrder: sortOrderRaw,
+    },
   );
-  return { ok: true, rows, summary, dateFrom: range.dateFrom, dateTo: range.dateTo };
+  return {
+    ok: true,
+    rows,
+    summary,
+    dateFrom: range.dateFrom,
+    dateTo: range.dateTo,
+    ...(options.paginate
+      ? {
+          pagination: {
+            page,
+            pageSize,
+            total: summary.totalCount,
+            totalPages: Math.max(1, Math.ceil(summary.totalCount / pageSize)),
+          },
+        }
+      : {}),
+  };
 }
 
 export async function getPaymentsLedger(
@@ -118,36 +205,63 @@ export async function getPaymentsLedger(
   dateFrom: string,
   dateTo: string,
   method?: string,
+  options: LedgerQueryOptions = {},
 ): Promise<{ rows: LedgerRow[]; summary: LedgerSummary }> {
   const gte = jakartaDayStartUtc(dateFrom);
   // Exclusive upper bound = start of the day after dateTo.
   const ltDate = new Date(jakartaDayStartUtc(dateTo).getTime() + 24 * 60 * 60 * 1000);
+  const search = options.search?.trim();
+  const where = {
+    status: { not: "REVERSED" },
+    paidAt: { gte, lt: ltDate },
+    ...(method ? { method } : {}),
+    invoice: { tenantId },
+    ...(search
+      ? {
+          OR: [
+            { reference: { contains: search, mode: "insensitive" as const } },
+            { invoice: { invoiceNumber: { contains: search, mode: "insensitive" as const } } },
+            { invoice: { student: { name: { contains: search, mode: "insensitive" as const } } } },
+          ],
+        }
+      : {}),
+  };
 
-  const payments = await prisma.payment.findMany({
-    where: {
-      status: { not: "REVERSED" },
-      paidAt: { gte, lt: ltDate },
-      ...(method ? { method } : {}),
-      invoice: { tenantId },
-    },
-    select: {
-      id: true,
-      paidAt: true,
-      amount: true,
-      method: true,
-      reference: true,
-      invoice: {
-        select: {
-          invoiceNumber: true,
-          student: { select: { name: true } },
+  const [payments, methodSummary] = await Promise.all([
+    prisma.payment.findMany({
+      where,
+      ...(options.skip !== undefined ? { skip: options.skip } : {}),
+      ...(options.take !== undefined ? { take: options.take } : {}),
+      select: {
+        id: true,
+        paidAt: true,
+        amount: true,
+        method: true,
+        reference: true,
+        invoice: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            student: { select: { name: true } },
+          },
         },
       },
-    },
-    orderBy: { paidAt: "desc" },
-  });
+      orderBy: [
+        { [options.sortBy ?? "paidAt"]: options.sortOrder ?? "desc" },
+        { id: "asc" },
+      ],
+    }),
+    prisma.payment.groupBy({
+      by: ["method"],
+      where,
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+  ]);
 
   const rows: LedgerRow[] = payments.map((p) => ({
     id: p.id,
+    invoiceId: p.invoice.id,
     paidAt: p.paidAt.toISOString(),
     amount: Number(p.amount),
     method: p.method,
@@ -157,23 +271,20 @@ export async function getPaymentsLedger(
     studentName: p.invoice.student.name,
   }));
 
-  const methodAgg = new Map<string, { amount: number; count: number }>();
-  let totalAmount = 0;
-  for (const r of rows) {
-    totalAmount += r.amount;
-    const agg = methodAgg.get(r.method) ?? { amount: 0, count: 0 };
-    agg.amount += r.amount;
-    agg.count += 1;
-    methodAgg.set(r.method, agg);
-  }
-
-  const byMethod = [...methodAgg.entries()]
-    .map(([m, agg]) => ({ method: m, methodLabel: paymentMethodLabel(m), ...agg }))
+  const byMethod = methodSummary
+    .map((m) => ({
+      method: m.method,
+      methodLabel: paymentMethodLabel(m.method),
+      amount: Number(m._sum.amount ?? 0),
+      count: m._count._all,
+    }))
     .sort((a, b) => b.amount - a.amount);
+  const totalAmount = byMethod.reduce((sum, m) => sum + m.amount, 0);
+  const totalCount = byMethod.reduce((sum, m) => sum + m.count, 0);
 
   return {
     rows,
-    summary: { totalAmount, totalCount: rows.length, byMethod },
+    summary: { totalAmount, totalCount, byMethod },
   };
 }
 

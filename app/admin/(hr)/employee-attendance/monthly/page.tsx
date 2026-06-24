@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ChevronLeft, ChevronRight, ArrowLeft, CalendarX } from "lucide-react";
 import { formatMonthLabel } from "@/lib/format";
 import Link from "next/link";
 
@@ -110,6 +111,12 @@ export default function MonthlyAttendancePage() {
 
       {loading ? (
         <Skeleton className="h-96 rounded-xl" />
+      ) : data.length === 0 ? (
+        <EmptyState
+          icon={CalendarX}
+          title="Belum ada kehadiran"
+          description="Tidak ada data kehadiran untuk bulan dan kampus ini. Ubah filter atau kembali ke tampilan harian untuk mencatat kehadiran."
+        />
       ) : (
         <div className="overflow-x-auto bg-card border border-border rounded-xl">
           <table className="w-full text-xs">
@@ -169,14 +176,16 @@ export default function MonthlyAttendancePage() {
       )}
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 mt-3 text-xs">
-        {Object.entries(STATUS_COLORS).slice(0, 5).map(([key, bg]) => (
-          <div key={key} className="flex items-center gap-1">
-            <div className={`w-3 h-3 rounded-sm ${bg}`} />
-            <span className="text-muted-foreground">{key}</span>
-          </div>
-        ))}
-      </div>
+      {data.length > 0 && (
+        <div className="flex flex-wrap gap-3 mt-3 text-xs">
+          {Object.entries(STATUS_COLORS).slice(0, 5).map(([key, bg]) => (
+            <div key={key} className="flex items-center gap-1">
+              <div className={`w-3 h-3 rounded-sm ${bg}`} />
+              <span className="text-muted-foreground">{key}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {overrideTarget && (
         <OverrideModal

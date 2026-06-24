@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
@@ -456,8 +456,8 @@ export default function StudentAttendancePage() {
 
 const recapColumns: ColumnDef<RecapRow>[] = [
   {
-    id: "student",
-    header: "Siswa",
+    accessorKey: "name",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Siswa" />,
     cell: ({ row }) => (
       <div>
         <p className="text-sm font-medium">{row.original.name}</p>
@@ -468,8 +468,8 @@ const recapColumns: ColumnDef<RecapRow>[] = [
     ),
   },
   {
-    id: "class",
-    header: "Kelas",
+    accessorKey: "className",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Kelas" />,
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.className}</span>
     ),
@@ -509,6 +509,9 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
     getTodayInTimezone("Asia/Jakarta").slice(0, 7),
   );
   const [classFilter, setClassFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize] = useState(10);
   const [rows, setRows] = useState<RecapRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -549,6 +552,28 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
     };
   }, [month, fetchRecap]);
 
+  useEffect(() => {
+    setTablePage(1);
+  }, [classFilter, query, month]);
+
+  const filteredRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((row) =>
+      [row.name, row.nickname ?? "", row.nis ?? "", row.className].some((value) =>
+        value.toLowerCase().includes(needle),
+      ),
+    );
+  }, [query, rows]);
+  const tableTotalPages = Math.max(1, Math.ceil(filteredRows.length / tablePageSize));
+  const safeTablePage = Math.min(tablePage, tableTotalPages);
+  const tablePagination = {
+    page: safeTablePage,
+    pageSize: tablePageSize,
+    total: filteredRows.length,
+    totalPages: tableTotalPages,
+  };
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -561,17 +586,6 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
             className="h-9 w-44 text-sm"
           />
         </div>
-        <Select value={classFilter} onValueChange={(v) => setClassFilter(v ?? "all")}>
-          <SelectTrigger className="h-9 w-44 text-sm">
-            <SelectValue placeholder="Semua Kelas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Kelas</SelectItem>
-            {classSections.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <Button
           variant="outline"
           size="sm"
@@ -585,10 +599,29 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
         </Button>
       </div>
 
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari siswa, NIS, atau kelas..."
+        filters={[
+          {
+            key: "class",
+            label: "Kelas",
+            value: classFilter,
+            onChange: setClassFilter,
+            options: [
+              { value: "all", label: "Semua Kelas" },
+              ...classSections.map((c) => ({ value: c.id, label: c.name })),
+            ],
+          },
+        ]}
+      />
+
       <DataTable
         columns={recapColumns}
-        data={rows}
+        data={filteredRows}
         loading={loading}
+        pagination={tablePagination}
         emptyTitle="Belum ada data rekap"
         emptyDescription="Rekap bulanan tampil setelah ada siswa terdaftar aktif. Pilih bulan lain atau periksa filter kelas."
       />

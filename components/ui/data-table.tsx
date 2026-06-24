@@ -7,6 +7,7 @@ import {
   useReactTable,
   SortingState,
   getSortedRowModel,
+  getPaginationRowModel,
 } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {
@@ -57,15 +58,45 @@ export function DataTable<TData, TValue>({
       ? [{ id: defaultSort.field, desc: defaultSort.order === "desc" }]
       : []
   );
+  const isClientPaginated = Boolean(pagination && !onPageChange);
+  const [clientPage, setClientPage] = useState(pagination?.page ?? 1);
+  const [clientPageSize, setClientPageSize] = useState(pagination?.pageSize ?? 10);
+  const clientTotalPages = Math.max(1, Math.ceil(data.length / clientPageSize));
+  const displayPagination = pagination
+    ? isClientPaginated
+      ? {
+          page: Math.min(clientPage, clientTotalPages),
+          pageSize: clientPageSize,
+          total: data.length,
+          totalPages: clientTotalPages,
+        }
+      : pagination
+    : undefined;
+
+  useEffect(() => {
+    if (!isClientPaginated) return;
+    setClientPage((page) => Math.min(page, clientTotalPages));
+  }, [clientTotalPages, isClientPaginated]);
 
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: onSortChange ? undefined : getSortedRowModel(),
+    getPaginationRowModel: isClientPaginated ? getPaginationRowModel() : undefined,
     onSortingChange: setSorting,
-    state: { sorting },
-    manualPagination: true,
+    state: {
+      sorting,
+      ...(displayPagination && isClientPaginated
+        ? {
+            pagination: {
+              pageIndex: Math.max(0, displayPagination.page - 1),
+              pageSize: displayPagination.pageSize,
+            },
+          }
+        : {}),
+    },
+    manualPagination: !isClientPaginated,
     manualSorting: !!onSortChange,
     pageCount: pagination?.totalPages ?? -1,
   });
@@ -157,14 +188,25 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      {pagination && (
+      {displayPagination && (
         <DataTablePagination
-          page={pagination.page}
-          pageSize={pagination.pageSize}
-          total={pagination.total}
-          totalPages={pagination.totalPages}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
+          page={displayPagination.page}
+          pageSize={displayPagination.pageSize}
+          total={displayPagination.total}
+          totalPages={displayPagination.totalPages}
+          onPageChange={
+            isClientPaginated
+              ? (page) => setClientPage(Math.min(Math.max(page, 1), clientTotalPages))
+              : onPageChange
+          }
+          onPageSizeChange={
+            isClientPaginated
+              ? (pageSize) => {
+                  setClientPageSize(pageSize);
+                  setClientPage(1);
+                }
+              : onPageSizeChange
+          }
         />
       )}
     </div>

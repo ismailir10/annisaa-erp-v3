@@ -174,6 +174,36 @@ describe("InvoicesClient (cycle-4)", () => {
     });
   });
 
+  describe("Long-list controls", () => {
+    const longInvoices = Array.from({ length: 11 }, (_, index) => ({
+      ...mockInvoices[index % mockInvoices.length],
+      id: `long-${index}`,
+      invoiceNumber: `INV-2024-${String(index + 10).padStart(3, "0")}`,
+      periodLabel: `Periode ${index + 1}`,
+      dueDate: `2024-10-${String(index + 1).padStart(2, "0")}`,
+    }));
+
+    it("renders search, status, sort, and reset controls for lists over 10 rows", async () => {
+      const user = userEvent.setup();
+
+      render(<InvoicesClient data={longInvoices} />);
+
+      const search = screen.getByPlaceholderText("Cari periode atau nomor tagihan...");
+      expect(search).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Filter status" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Urutkan tagihan" })).toBeInTheDocument();
+
+      await user.type(search, "tidak-ada");
+
+      expect(screen.getByText("Tidak ada tagihan sesuai filter")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Reset" }));
+
+      expect(search).toHaveValue("");
+      expect(screen.getByText("Periode 1")).toBeInTheDocument();
+    });
+  });
+
   describe("Xendit return-URL handler", () => {
     it("opens detail sheet, fires success toast, and clears params on ?invoice=&xenditStatus=paid", () => {
       mockSearchParams = new URLSearchParams("invoice=inv-1&xenditStatus=paid");

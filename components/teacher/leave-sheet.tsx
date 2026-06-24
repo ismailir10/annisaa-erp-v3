@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -13,15 +13,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   Sheet,
   SheetContent,
@@ -60,6 +52,7 @@ const TYPE_LABELS: Record<string, string> = {
   PERMISSION: "Izin",
   OTHER: "Lainnya",
 };
+const SHEET_CLOSE_TRANSITION_MS = 240;
 
 /** Count weekdays between two ISO date strings (inclusive). Matches API logic. */
 function countWeekdays(start: string, end: string): number {
@@ -120,6 +113,15 @@ export function LeaveSheet({
     reason: "",
   });
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
+  const pendingOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pendingOverlayTimerRef.current) {
+        clearTimeout(pendingOverlayTimerRef.current);
+      }
+    };
+  }, []);
 
   async function fetchData() {
     setLocalLoading(true);
@@ -189,13 +191,33 @@ export function LeaveSheet({
     if (res.ok) {
       toast.success("Pengajuan dibatalkan");
       refetchAfterMutation();
+      return;
     } else {
       toast.error("Pembatalan tidak tersimpan. Coba lagi ya.");
+      throw new Error("leave cancel failed");
     }
-    setCancelTarget(null);
   }
 
   const dayCount = countWeekdays(form.startDate, form.endDate);
+
+  function openAfterSheetCloses(openNext: () => void) {
+    if (pendingOverlayTimerRef.current) {
+      clearTimeout(pendingOverlayTimerRef.current);
+    }
+    onOpenChange(false);
+    pendingOverlayTimerRef.current = setTimeout(() => {
+      pendingOverlayTimerRef.current = null;
+      openNext();
+    }, SHEET_CLOSE_TRANSITION_MS);
+  }
+
+  function openRequestForm() {
+    openAfterSheetCloses(() => setDialogOpen(true));
+  }
+
+  function openCancelConfirm(id: string) {
+    openAfterSheetCloses(() => setCancelTarget(id));
+  }
 
   return (
     <>
@@ -239,7 +261,7 @@ export function LeaveSheet({
           )}
 
           {/* Request button */}
-          <Button size="sm" className="w-full mb-4" onClick={() => setDialogOpen(true)}>
+          <Button size="sm" className="w-full mb-4" onClick={openRequestForm}>
             <Plus size={14} className="mr-1" /> Ajukan Cuti
           </Button>
 
@@ -256,7 +278,7 @@ export function LeaveSheet({
               title="Belum ada pengajuan cuti"
               description="Ketuk 'Ajukan Cuti' untuk membuat pengajuan baru."
               actionLabel="Ajukan Cuti"
-              onAction={() => setDialogOpen(true)}
+              onAction={openRequestForm}
             />
           ) : (
             <div className="space-y-2">
@@ -285,7 +307,7 @@ export function LeaveSheet({
                         size="sm"
                         variant="ghost"
                         className="text-destructive h-7 shrink-0"
-                        onClick={() => setCancelTarget(r.id)}
+                        onClick={() => openCancelConfirm(r.id)}
                       >
                         Batalkan
                       </Button>
@@ -296,98 +318,95 @@ export function LeaveSheet({
             </div>
           )}
 
-          {/* Cancel confirmation */}
-          <ConfirmDialog
-            open={!!cancelTarget}
-            onOpenChange={(o) => !o && setCancelTarget(null)}
-            title="Batalkan Pengajuan"
-            description="Yakin ingin membatalkan pengajuan cuti ini?"
-            onConfirm={handleCancel}
-            confirmLabel="Ya, Batalkan"
-            destructive
-          />
         </SheetContent>
       </Sheet>
 
-      {/* Submit dialog — renders on top of Sheet */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ajukan Cuti</DialogTitle>
-            <DialogDescription>
-              Pengajuan akan dikirim ke admin untuk persetujuan
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-field">
-            <Field>
-              <FieldLabel>Jenis Cuti</FieldLabel>
-              <Select
-                value={form.leaveType}
-                onValueChange={(v) => v && setForm({ ...form, leaveType: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ANNUAL">
-                    Cuti Tahunan ({balance?.annual.remaining ?? "?"} hari tersisa)
-                  </SelectItem>
-                  <SelectItem value="SICK">
-                    Sakit ({balance?.sick.remaining ?? "?"} hari tersisa)
-                  </SelectItem>
-                  <SelectItem value="PERMISSION">Izin</SelectItem>
-                  <SelectItem value="OTHER">Lainnya</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>Tanggal Mulai</FieldLabel>
-                <Input
-                  type="date"
-                  value={form.startDate}
-                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Tanggal Selesai</FieldLabel>
-                <Input
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-                />
-              </Field>
-            </div>
-            {dayCount > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {dayCount} hari kerja (tidak termasuk akhir pekan)
-              </p>
-            )}
-            {form.startDate && form.endDate && dayCount === 0 && (
-              <p className="text-xs text-destructive">
-                Tanggal selesai harus sama atau setelah tanggal mulai
-              </p>
-            )}
-            <Field>
-              <FieldLabel>Alasan</FieldLabel>
-              <Textarea
-                value={form.reason}
-                onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                placeholder="Jelaskan alasan cuti Anda..."
-                rows={3}
-              />
-            </Field>
-          </div>
-          <DialogFooter>
-            <DialogClose>
-              <Button variant="ghost">Batal</Button>
-            </DialogClose>
+      <ConfirmDialog
+        open={!!cancelTarget}
+        onOpenChange={(o) => !o && setCancelTarget(null)}
+        title="Batalkan Pengajuan"
+        description="Yakin ingin membatalkan pengajuan cuti ini?"
+        onConfirm={handleCancel}
+        confirmLabel="Ya, Batalkan"
+        destructive
+      />
+
+      <ResponsiveFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title="Ajukan Cuti"
+        description="Pengajuan akan dikirim ke admin untuk persetujuan"
+        size="md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
+              Batal
+            </Button>
             <Button onClick={handleSubmit} disabled={saving}>
               {saving ? "Mengirim..." : "Ajukan"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <Field>
+          <FieldLabel>Jenis Cuti</FieldLabel>
+          <Select
+            value={form.leaveType}
+            onValueChange={(v) => v && setForm({ ...form, leaveType: v })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ANNUAL">
+                Cuti Tahunan ({balance?.annual.remaining ?? "?"} hari tersisa)
+              </SelectItem>
+              <SelectItem value="SICK">
+                Sakit ({balance?.sick.remaining ?? "?"} hari tersisa)
+              </SelectItem>
+              <SelectItem value="PERMISSION">Izin</SelectItem>
+              <SelectItem value="OTHER">Lainnya</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field>
+            <FieldLabel>Tanggal Mulai</FieldLabel>
+            <Input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Tanggal Selesai</FieldLabel>
+            <Input
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            />
+          </Field>
+        </div>
+        {dayCount > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {dayCount} hari kerja (tidak termasuk akhir pekan)
+          </p>
+        )}
+        {form.startDate && form.endDate && dayCount === 0 && (
+          <p className="text-xs text-destructive">
+            Tanggal selesai harus sama atau setelah tanggal mulai
+          </p>
+        )}
+        <Field>
+          <FieldLabel>Alasan</FieldLabel>
+          <Textarea
+            value={form.reason}
+            onChange={(e) => setForm({ ...form, reason: e.target.value })}
+            placeholder="Jelaskan alasan cuti Anda..."
+            rows={3}
+          />
+        </Field>
+      </ResponsiveFormDialog>
     </>
   );
 }

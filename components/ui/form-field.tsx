@@ -1,9 +1,13 @@
-import { Label } from "@/components/ui/label";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
 import { ReactNode } from "react";
 
 /**
- * Consistent form field wrapper: label + input + error + help text.
- * Standardizes spacing and error display across all forms.
+ * Backward-compatible form field wrapper built on the canonical Field primitives.
  */
 export function FormField({
   label,
@@ -21,14 +25,11 @@ export function FormField({
   className?: string;
 }) {
   return (
-    <div className={className}>
-      <Label>
-        {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
+    <Field className={className} data-invalid={error ? "true" : undefined}>
+      <FieldLabel required={required}>{label}</FieldLabel>
       {children}
-      {error && <p className="text-xs text-destructive mt-1">{error}</p>}
-      {help && !error && <p className="text-xs text-muted-foreground mt-1">{help}</p>}
-    </div>
+      {error ? <FieldError>{error}</FieldError> : null}
+      {help && !error ? <FieldDescription>{help}</FieldDescription> : null}
+    </Field>
   );
 }

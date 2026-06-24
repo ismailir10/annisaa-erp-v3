@@ -6,6 +6,9 @@ import Link from "next/link";
 import { ChevronLeft, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/portal/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CalendarOff } from "lucide-react";
@@ -289,26 +292,23 @@ export function CenterSessionClient({
       />
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label
-            htmlFor="center-date"
-            className="block text-xs font-medium text-foreground"
-          >
+        <Field>
+          <FieldLabel htmlFor="center-date" required>
             Tanggal
-          </label>
-          <input
+          </FieldLabel>
+          <Input
             id="center-date"
             data-testid="center-date"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            required
           />
-        </div>
-        <div className="space-y-1">
-          <span className="block text-xs font-medium text-foreground">
+        </Field>
+        <Field>
+          <FieldLabel>
             Kelompok usia
-          </span>
+          </FieldLabel>
           <div
             className="grid grid-cols-2 gap-2"
             role="radiogroup"
@@ -333,17 +333,14 @@ export function CenterSessionClient({
               </button>
             ))}
           </div>
-        </div>
+        </Field>
       </div>
 
-      <div className="space-y-1">
-        <label
-          htmlFor="center-activity"
-          className="block text-xs font-medium text-foreground"
-        >
+      <Field>
+        <FieldLabel htmlFor="center-activity" required>
           Kegiatan
-        </label>
-        <input
+        </FieldLabel>
+        <Input
           id="center-activity"
           data-testid="center-activity"
           type="text"
@@ -351,9 +348,9 @@ export function CenterSessionClient({
           onChange={(e) => setActivity(e.target.value)}
           maxLength={200}
           placeholder="Mis. Doa pagi + asmaul husna"
-          className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          required
         />
-      </div>
+      </Field>
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -459,12 +456,12 @@ export function CenterSessionClient({
                           <button
                             type="button"
                             onClick={() => toggleNoteOpen(key)}
-                            className="text-[11px] text-muted-foreground underline"
+                            className="text-xs text-muted-foreground underline"
                           >
                             {noteOpen ? "Sembunyikan catatan" : "Catatan"}
                           </button>
                           {noteOpen && (
-                            <textarea
+                            <Textarea
                               value={cell?.note ?? ""}
                               onChange={(e) =>
                                 setCellNote(student.id, ind.id, e.target.value)
@@ -472,7 +469,7 @@ export function CenterSessionClient({
                               maxLength={500}
                               rows={2}
                               placeholder="Catatan singkat (opsional)"
-                              className="w-full rounded-md border border-input bg-transparent p-2 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                              className="text-xs"
                             />
                           )}
                         </li>
