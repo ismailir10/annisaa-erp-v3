@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Plus, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
@@ -237,12 +238,10 @@ export function LeaveSheet({
                   {balance.annual.remaining}
                 </p>
                 <p className="text-xs text-muted-foreground">dari {balance.annual.total} hari</p>
-                <div className="w-full h-1.5 bg-muted rounded-full mt-2">
-                  <div
-                    className="h-full bg-primary rounded-full"
-                    style={{ width: `${balance.annual.total > 0 ? (balance.annual.remaining / balance.annual.total) * 100 : 0}%` }}
-                  />
-                </div>
+                <Progress
+                  value={balance.annual.total > 0 ? (balance.annual.remaining / balance.annual.total) * 100 : 0}
+                  className="mt-2 h-1.5"
+                />
               </Card>
               <Card className="p-3">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Cuti Sakit</p>
@@ -250,12 +249,10 @@ export function LeaveSheet({
                   {balance.sick.remaining}
                 </p>
                 <p className="text-xs text-muted-foreground">dari {balance.sick.total} hari</p>
-                <div className="w-full h-1.5 bg-muted rounded-full mt-2">
-                  <div
-                    className="h-full bg-status-leave rounded-full"
-                    style={{ width: `${balance.sick.total > 0 ? (balance.sick.remaining / balance.sick.total) * 100 : 0}%` }}
-                  />
-                </div>
+                <Progress
+                  value={balance.sick.total > 0 ? (balance.sick.remaining / balance.sick.total) * 100 : 0}
+                  className="mt-2 h-1.5 [&_[data-slot=progress-indicator]]:bg-status-leave"
+                />
               </Card>
             </div>
           )}

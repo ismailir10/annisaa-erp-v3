@@ -231,7 +231,7 @@ export default function EmployeesPage() {
     fetch("/api/config/campuses")
       .then((r) => r.json())
       .then((c) => setCampuses(Array.isArray(c) ? c : []))
-      .catch((err) => console.error("[employees] campuses fetch failed", err));
+      .catch(() => toast.error("Gagal memuat daftar kampus"));
     fetch("/api/employees/positions")
       .then((r) => r.json())
       .then((p) => {
@@ -246,7 +246,7 @@ export default function EmployeesPage() {
         const DEFAULT_POSITIONS = ["Guru Kelas", "Guru Pendamping", "Kepala Sekolah", "Admin Sekolah"];
         setPositions(arr.length === 0 ? DEFAULT_POSITIONS : arr);
       })
-      .catch((err) => console.error("[employees] positions fetch failed", err));
+      .catch(() => toast.error("Gagal memuat daftar jabatan"));
     // F-6 collapse: single /api/employees/stats endpoint replaces the
     // two pageSize=1 filtered list calls that ran full filtered counts
     // under the hood. Same data, half the round-trips, no full-table
@@ -260,7 +260,7 @@ export default function EmployeesPage() {
           inactive: s.inactive ?? 0,
         }),
       )
-      .catch((err) => console.error("[employees] stats fetch failed", err));
+      .catch(() => toast.error("Gagal memuat ringkasan karyawan"));
   }, []);
 
   const fetchEmployees = useCallback(async () => {

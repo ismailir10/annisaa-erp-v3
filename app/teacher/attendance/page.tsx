@@ -109,9 +109,10 @@ export default function TeacherAttendancePage() {
           if (data !== null && !signal.aborted) {
             cache.current.set(key, data);
           }
-        } catch (err) {
-          // Best-effort: log and move on.
-          console.log(`[attendance-prefetch] failed for ${key}:`, err);
+        } catch {
+          // Best-effort prefetch: surface failure so the teacher knows the
+          // monthly preview may be stale, but don't block the current view.
+          toast.error("Gagal memuat pratinjau kehadiran bulanan");
         }
       };
 

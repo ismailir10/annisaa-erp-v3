@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/portal/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
@@ -337,8 +338,10 @@ export function CenterSessionClient({
       </Field>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
       ) : payload && !payload.ok ? (
         <EmptyState

@@ -10,6 +10,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ArrowLeft, ChevronRight, FileUp, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -243,7 +244,11 @@ function ThemeCard({
       </CardHeader>
       <CardContent className="space-y-2">
         {loading ? (
-          <p className="text-small text-muted-foreground">Memuat…</p>
+          <div className="space-y-2">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-3/4" />
+          </div>
         ) : themes.length === 0 ? (
           <p className="text-small text-muted-foreground">Belum ada tema. Tambahkan untuk mulai mengisi subtema dan pekan.</p>
         ) : (
@@ -469,7 +474,11 @@ function SubThemeCard({
         {!parentTheme ? (
           <p className="text-small text-muted-foreground">Pilih tema di kolom kiri untuk melihat dan menambah subtema.</p>
         ) : loading ? (
-          <p className="text-small text-muted-foreground">Memuat…</p>
+          <div className="space-y-2">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-3/4" />
+          </div>
         ) : subThemes.length === 0 ? (
           <p className="text-small text-muted-foreground">Belum ada subtema. Tambahkan untuk mulai mengisi pekan.</p>
         ) : (
@@ -701,7 +710,11 @@ function WeekCard({
         {!parentSubTheme ? (
           <p className="text-small text-muted-foreground">Pilih subtema di kolom tengah untuk melihat dan menambah pekan.</p>
         ) : loading ? (
-          <p className="text-small text-muted-foreground">Memuat…</p>
+          <div className="space-y-2">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-3/4" />
+          </div>
         ) : weeks.length === 0 ? (
           <p className="text-small text-muted-foreground">Belum ada pekan. Tambahkan Senin–Jumat pada subtema ini.</p>
         ) : (
