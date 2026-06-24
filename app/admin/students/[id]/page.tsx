@@ -469,7 +469,7 @@ export default function StudentDetailPage() {
 
   // --- Withdraw (Keluarkan) ---
   async function handleWithdraw() {
-    if (!withdrawReason.trim()) { toast.error("Alasan wajib diisi"); return; }
+    if (!withdrawReason.trim()) { toast.error("Alasan wajib diisi"); throw new Error("reason-required"); }
     setWithdrawing(true);
     try {
       const res = await fetch(`/api/students/${id}/withdraw`, {
@@ -1085,43 +1085,27 @@ export default function StudentDetailPage() {
       {/* Graduate Confirm */}
       <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi GRADUATED dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
 
-      {/* ---------- Withdraw (description + 1 field) — side="bottom" on mobile ---------- */}
-      {(() => {
-        const withdrawBody = (
-          <div className="space-y-field">
-            <p className="text-sm text-muted-foreground">
-              Mengeluarkan <strong>{student.name}</strong> dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.
-            </p>
-            <Field>
-              <FieldLabel required>Alasan Keluar</FieldLabel>
-              <Textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} placeholder="Masukkan alasan pengeluaran siswa..." rows={3} />
-            </Field>
-          </div>
-        );
-        return isMobile ? (
-          <Sheet open={withdrawDialog} onOpenChange={setWithdrawDialog}>
-            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-              <SheetHeader><SheetTitle>Keluarkan Siswa</SheetTitle></SheetHeader>
-              <div className="px-4 pb-4">{withdrawBody}</div>
-              <SheetFooter>
-                <Button variant="ghost" onClick={() => setWithdrawDialog(false)} disabled={withdrawing}>Batal</Button>
-                <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
-              </SheetFooter>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Dialog open={withdrawDialog} onOpenChange={setWithdrawDialog}>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader><DialogTitle>Keluarkan Siswa</DialogTitle></DialogHeader>
-              <div>{withdrawBody}</div>
-              <DialogFooter>
-                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-                <Button variant="destructive" onClick={handleWithdraw} disabled={withdrawing}>{withdrawing ? "Memproses..." : "Keluarkan"}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        );
-      })()}
+      {/* ---------- Withdraw (destructive AlertDialog — reason required in body) ---------- */}
+      <ConfirmDialog
+        open={withdrawDialog}
+        onOpenChange={setWithdrawDialog}
+        title="Keluarkan Siswa"
+        description={`Mengeluarkan ${student.name} dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.`}
+        confirmLabel={withdrawing ? "Memproses..." : "Keluarkan"}
+        destructive
+        loading={withdrawing}
+        onConfirm={handleWithdraw}
+      >
+        <Field>
+          <FieldLabel required>Alasan Keluar</FieldLabel>
+          <Textarea
+            value={withdrawReason}
+            onChange={(e) => setWithdrawReason(e.target.value)}
+            placeholder="Masukkan alasan pengeluaran siswa..."
+            rows={3}
+          />
+        </Field>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={!!deleteGuardianTarget}

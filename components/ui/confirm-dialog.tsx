@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,7 @@ export function ConfirmDialog({
   onConfirm,
   destructive = false,
   loading = false,
+  children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,6 +44,8 @@ export function ConfirmDialog({
   onConfirm: () => void | Promise<void>;
   destructive?: boolean;
   loading?: boolean;
+  /** Optional body rendered between the description and the footer (e.g. a required Textarea). */
+  children?: ReactNode;
 }) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -73,6 +76,7 @@ export function ConfirmDialog({
             <AlertDialogDescription>{description}</AlertDialogDescription>
           )}
         </AlertDialogHeader>
+        {children}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
