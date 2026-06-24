@@ -42,7 +42,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { StatusBadge, healthTone } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -124,16 +124,8 @@ const ROLE_LABEL: Record<TeachingRole, string> = {
 
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
-// Same palette as `app/admin/classes/client.tsx` — derived from colors.md
-// (status-* tokens), kept inline here to avoid coupling the detail page to
-// the list-page rendering.
-const HEALTH_TONE: Record<HealthBadge, string> = {
-  Sehat: "border-green-200 bg-green-50 text-green-700",
-  Perhatian: "border-amber-200 bg-amber-50 text-amber-700",
-  Kritis: "border-red-200 bg-red-50 text-red-700",
-  "Tidak Aktif": "border-muted bg-muted text-muted-foreground",
-  Libur: "border-blue-200 bg-blue-50 text-blue-700",
-};
+// Health-badge tone now comes from the shared `healthTone()` helper in
+// components/ui/status-badge.ts (single source for both list + detail pages).
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -858,7 +850,7 @@ export function ClassDetailClient({
       />
 
       {archived && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        <div className="rounded-md border border-status-leave bg-status-leave-subtle px-4 py-3 text-sm text-status-leave-text">
           Tahun ajaran ini sudah diarsipkan. Tampilan hanya baca.
         </div>
       )}
@@ -893,7 +885,7 @@ export function ClassDetailClient({
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>Kondisi kelas:</span>
         {healthBadge ? (
-          <Badge variant="outline" className={HEALTH_TONE[healthBadge]}>
+          <Badge variant="outline" className={healthTone(healthBadge)}>
             {healthBadge}
           </Badge>
         ) : (

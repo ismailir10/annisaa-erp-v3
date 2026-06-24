@@ -251,7 +251,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       {d.studentId && (
         <>
           <Separator />
-          <p className="text-sm text-emerald-700">
+          <p className="text-sm text-status-present-text">
             Formulir ini sudah dikonversi menjadi data siswa.
           </p>
         </>
