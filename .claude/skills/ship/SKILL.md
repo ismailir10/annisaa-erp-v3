@@ -1,14 +1,14 @@
 ---
 name: ship
-description: Ship a completed cycle via PR. All roles open a PR from feat/* → staging and print a two-command hand-off so the user can watch CI and merge manually when green. Never pushes directly to staging or main. Supports `/ship --to-main` for CTO-initiated staging → main promotion. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
+description: Ship a completed cycle via PR. Opens a PR from feat/* → staging and preview-verifies it via Chrome MCP. A CTO then watches CI and self-merges when all checks are green; a product-builder hands the needs-cto-review PR to a CTO. Never pushes directly to staging or main. Supports `/ship --to-main` for CTO-initiated staging → main promotion. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
 disable-model-invocation: true
 ---
 
 # /ship — open a PR, hand off to the user for manual merge
 
-You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR and stops — the user watches CI and merges manually when all checks are green. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
+You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR, preview-verifies it via Chrome MCP, then — for a **CTO** — watches CI and merges once all checks are green. A **product-builder** stops at the PR and hands off to a CTO. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
 
-> **Why manual merge:** GitHub branch protection enforces PR + required checks, but the final merge stays human-owned. `/ship` handles gates, PR creation, and preview verification; the author watches CI and merges only when the protected checks are green.
+> **Who merges:** GitHub branch protection enforces PR + required checks. A **CTO** harness may self-merge after Chrome-MCP preview-verify (Step 3) passes AND all four protected checks go green (Step 5) — never on red or pending. A **product-builder** never merges: its PR is labeled `needs-cto-review` and a CTO reviews + merges.
 
 ## Invocation modes
 
@@ -44,22 +44,42 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
 
 ## Step 1: Re-run the end-of-cycle gate
 
-**1a. Confirm `/build` recorded a Playwright pass.** Grep the current cycle doc's `## Verification` section for a line mentioning `playwright` (case-insensitive). If none is found, stop:
+**1a. Confirm `/build` recorded Playwright status.** Grep the current cycle doc's `## Verification` section for a line mentioning `playwright` (case-insensitive). A local pass OR an explicit CI-deferral note (see 1b) both satisfy this. If none is found, stop:
 
 ```
-/ship precondition failed: cycle doc Verification section has no Playwright
-pass recorded. Run the end-of-cycle gate in /build first
-(npm run build && npx vitest run && npx playwright test) and commit the
-updated Verification before calling /ship again.
+/ship precondition failed: cycle doc Verification section records no Playwright
+status. Run the end-of-cycle gate in /build first
+(npm run build && npx vitest run && npx playwright test) — or, if this harness
+cannot run Playwright locally, record the CI-deferral note (see 1b) — and
+commit the updated Verification before calling /ship again.
 ```
 
-**1b. Re-run the full gate on the exact commit being shipped** (belt-and-suspenders — catches drift since `/build` last ran):
+**1b. Re-run the gate on the exact commit being shipped** (belt-and-suspenders — catches drift since `/build` last ran).
+
+**Always run the portable gate** — these execute in any harness environment:
 
 ```bash
-npm run build && npx vitest run && npx playwright test
+npm run build && npx vitest run
 ```
 
-If any of the three fails, stop and hand back to the user. Do not open a PR on a broken commit.
+If either fails, stop and hand back to the user. Do not open a PR on a broken commit.
+
+**Playwright — local is best-effort; CI is the real gate.** The required CI check `Playwright E2E` runs on every PR and **blocks the merge** (Step 5: a CTO never merges unless it is green). Local Playwright is fast feedback, not the deterministic gate. Attempt it:
+
+```bash
+npx playwright test
+```
+
+- **Runs, all pass** → proceed.
+- **Runs, a test FAILS** → STOP. Real regression — do not open a PR on a red Playwright run. Hand back to the user.
+- **Cannot execute in this harness's environment** — the run errors during *setup*, before tests execute: Playwright browsers not installed, staging-only `DATABASE_URL` unreachable from local, the known Turbopack `node_modules` symlink issue, or any CI-only dependency. Then **DEFER to CI**: skip the local run and record in the cycle doc `## Verification`:
+
+  ```markdown
+  - Playwright: local run deferred to CI (env cannot execute it — <reason>).
+    Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
+  ```
+
+  Deferral is **only** for environment-can't-run, never to dodge a known test failure. The merge guarantee holds because `Playwright E2E` is a required protected check.
 
 **1c. Soft-skip + DEMO_MODE-skip delta check** (catches new vacuous-green tests landing on the ship gate). A test that 100%-skips in CI exists only to inflate the green-tick count; once accumulated, the suite looks healthy while losing coverage. This check counts the soft-skip + DEMO_MODE-gate occurrences on the current branch and against `origin/staging`. Existing skips are grandfathered (they may be load-bearing in ways the audit cannot see); only the **delta** blocks `/ship`.
 
@@ -155,6 +175,9 @@ Every role opens a PR from `feat/*` → `staging`, then hands off to the user. T
    CYCLE_TITLE=$(head -1 "$CYCLE_FILE" | sed 's/^# *//')
    MODEL=$(grep '^model=' .claude/session-role | cut -d= -f2-)
    ROLE=$(grep '^role=' .claude/session-role | cut -d= -f2-)
+   # Ensure the model label exists — gh pr create aborts if --label names a
+   # missing label. Each new model id needs its label created once.
+   gh label create "model:$MODEL" --color 5319E7 --description "Built by $MODEL" 2>/dev/null || true
    PR_URL=$(gh pr create \
      --base staging \
      --head "$FEAT_BRANCH" \
@@ -173,6 +196,10 @@ BODY
 )" \
      --label "model:$MODEL")
    PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+   # Product-builder PRs (opencode/glm) always require CTO review before merge.
+   if [ "$ROLE" = "product-builder" ]; then
+     gh pr edit "$PR_NUMBER" --add-label "needs-cto-review" || true
+   fi
    ```
 
 4. **Announce, then proceed to preview verification.** Do not print the merge hand-off here — that lives in **Step 5** after the preview-verify loop clears. Print one line so the user can follow the PR while verification runs:
@@ -249,6 +276,20 @@ BODY
 
 **Boundary with Playwright:** Playwright stays the deterministic CI regression gate and should remain lean: critical cross-module smoke flows only. Chrome MCP is the human-like preview gate: real browser profile, preview URL, console, network, screenshots, and visual/interaction judgment. Do not replace Playwright with Chrome MCP as the only gate; use Chrome MCP to catch environment/auth/layout issues that deterministic CI cannot replay.
 
+### 3.0 Harness capability gate (who runs this step)
+
+Preview-verify requires **Chrome MCP** driving the **user's current signed-in Chrome profile** — the three portal Google accounts (`.claude/verify-accounts.json`) live in that one profile. Route by the harness in `.claude/session-role`:
+
+- **Claude** (CTO) — has Chrome MCP (`mcp__Claude_in_Chrome__*`) on the shared profile. Proceed with Step 3 directly.
+- **Codex** (CTO) — has Chrome MCP on the same shared signed-in profile. Proceed with Step 3 directly.
+- **opencode** (`role=product-builder`) — **never self-verifies.** Every opencode PR is CTO-gated. Stop after Step 2 and print:
+  ```
+  PB ship: PR $PR_URL opened and labeled needs-cto-review.
+  opencode does not run preview-verify — handing to a CTO harness (Claude/Codex)
+  for Step 3 preview-verify + review + merge.
+  ```
+  Add the `needs-cto-review` label (`gh pr edit $PR_NUMBER --add-label needs-cto-review`) and exit.
+
 ### 3a. Wait for preview ready
 
 Prefer the Vercel MCP tool over the CLI fallback:
@@ -289,7 +330,15 @@ For each flow, use Chrome MCP to:
 5. For each interaction in the flow: `mcp__Claude_in_Chrome__left_click` / `form_input` / `navigate`, then re-read console + network.
 6. `mcp__Claude_in_Chrome__screenshot` at each meaningful step (post-load, post-mutation). Save the screenshot path.
 
-Sign-in: when the preview prompts for Google auth, use Chrome MCP to click the account picker and pick the user's already-signed-in Google account. Do **not** type credentials — fail if the user's profile is not already signed in (surface to the user with `AskUserQuestion`).
+**Sign-in — role-scoped account.** Each portal is verified as its own real user. Read `.claude/verify-accounts.json` and pick the account matching the flow's portal:
+
+| Flow / portal | Google account |
+|---|---|
+| admin (`/admin/**`) | `ismailir10@gmail.com` |
+| teacher (`/teacher/**`) | `ismail10rabbanii@gmail.com` |
+| parent (`/parent/**`) | `rightjet.hq@gmail.com` |
+
+When the preview prompts for Google auth, use Chrome MCP to click the account picker and pick the **account for the portal under test** (sign out / switch account between portals so admin flows aren't walked as the parent identity, etc.). Do **not** type credentials — fail if that account is not already signed into the profile (surface to the user with `AskUserQuestion`). Accounts live in `.claude/verify-accounts.json` — read from there, never hardcode in a flow.
 
 ### 3e. Classify findings
 
@@ -402,27 +451,62 @@ When Step 3 returns `blockers == 0`, post the minors-comment (if any) and procee
 - Preview-verify converged on iteration N (clean): $ITER iteration(s), $TOTAL_FIX_COMMITS fix commit(s), final preview $PREVIEW_URL.
 ```
 
-## Step 5: Hand off + post-ship checklist
+## Step 5: Merge (CTO) or hand off (product-builder)
 
-Reached only when Step 3 exits clean (no blockers). Print the merge hand-off (deferred from Step 2) followed by the post-ship reminders:
+Reached only when Step 3 exits clean (no blockers) — i.e. Chrome-MCP preview-verify already passed. Branch on `role` from `.claude/session-role`.
+
+### Step 5 — CTO (`role=cto`): watch checks, then self-merge
+
+Preview-verify is already clean (Step 3). The CTO now **actively watches CI and merges** once green — no hand-off to the user.
+
+1. **Watch the required checks to completion:**
+   ```bash
+   gh pr checks "$PR_NUMBER" --watch
+   ```
+   This blocks until every check resolves.
+
+2. **Confirm all four required checks are green** (`Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`):
+   ```bash
+   gh pr checks "$PR_NUMBER"
+   ```
+   - **Any check failed or pending-then-failed** → STOP. Do not merge. Report the failing check to the user, treat it like a Step 3 blocker (diagnose → fix-commit → push → re-verify), and re-enter from Step 3a after the new preview builds.
+   - **All four green** → proceed to merge.
+
+3. **Merge** (squash, delete the feature branch):
+   ```bash
+   gh pr merge "$PR_NUMBER" --squash --delete-branch
+   ```
+
+4. **Confirm post-merge staging deploy.** Staging auto-deploys within ~60s. Optionally re-check the staging URL via Chrome MCP for a final smoke. Print:
+   ```
+   Merged PR $PR_URL → staging (preview-verified + CI green). Staging deploying (~60s).
+   ```
+
+5. Then print the post-ship checklist below.
+
+**Why the CTO may self-merge:** the human-owned-merge rule existed to keep a person in the loop before code lands. For a CTO harness that rule is satisfied by the combination of (a) Chrome-MCP preview-verify (Step 3) and (b) watching all four protected checks go green here. The CTO never merges on red or pending. Product-builder still hands off — see below.
+
+### Step 5 — product-builder (`role=product-builder`): hand off to a CTO
+
+opencode/PB does **not** self-merge. The PR is labeled `needs-cto-review`. Print the hand-off and stop:
 
 ```
-PR opened: $PR_URL — preview verified clean over $ITER iteration(s).
+PR opened: $PR_URL (labeled needs-cto-review).
 
-Watch CI live:
+A CTO harness (Claude/Codex) must review, run preview-verify, and merge:
   gh pr checks $PR_NUMBER --watch
-
-Merge when all four required checks are green:
   gh pr merge $PR_NUMBER --squash --delete-branch
 
-Staging auto-deploys to the Vercel preview within ~60s of merge.
+Do not merge this yourself — product-builder ships are CTO-gated.
 ```
 
-Then print the post-ship checklist (don't execute — just remind the user):
+### Post-ship checklist (both roles)
 
-- [ ] Wait for all four required checks green via `gh pr checks <number> --watch`, then run `gh pr merge <number> --squash --delete-branch` yourself
+After a CTO merge (or for the user to track after a PB hand-off):
+
+- [ ] (PB only) A CTO reviewed, preview-verified, watched all four checks green, and merged
 - [ ] Once merged, check the Vercel preview deploy on staging succeeded
-- [ ] Smoke-test the feature on the preview URL (follow `## Ship Notes` instructions)
+- [ ] Smoke-test the feature on the staging URL (follow `## Ship Notes` instructions)
 - [ ] Reclaim disk + reduce next-session noise: `bash scripts/cleanup-merged.sh --yes` from the main checkout. Removes the worktree + local branch for any feat/* PR that was squash-merged. SessionStart already prints the same candidates in `--report` mode on every new session.
 - [ ] Staging → main promotion is a separate `/ship --to-main` call, CTO-initiated
 
@@ -454,6 +538,6 @@ Reference for the preview-verification step. When the cycle's flows need fixture
 
 - **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them locally; GitHub branch protection is the server-side boundary. All shipping is PR-based.
 - **Never bypass hooks** (`--no-verify`).
-- **Merge manually when CI is green.** `/ship` opens the PR and stops. You watch `gh pr checks <number> --watch`, wait for all four required checks to pass, then run `gh pr merge <number> --squash --delete-branch` yourself. Do not merge a PR with red or pending checks.
+- **CTO merges when CI is green; product-builder hands off.** For `role=cto`: after preview-verify (Step 3) is clean, watch `gh pr checks <number> --watch`, and once all four required checks pass run `gh pr merge <number> --squash --delete-branch`. Never merge on red or pending. For `role=product-builder`: stop at the PR (labeled `needs-cto-review`) — a CTO reviews + merges.
 - **Keep server-side enforcement aligned.** `staging` and `main` must require PRs and these checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`. Local hooks are helpful, but GitHub protection is the real boundary.
 - **Single source of truth.** Don't update README.md or CLAUDE.md in `/ship` — that's `/build`'s job via the cycle doc. `/ship` only moves bits, it doesn't author docs.

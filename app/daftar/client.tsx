@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CheckCircle2 } from "lucide-react";
 
 type Program = { id: string; name: string };
@@ -241,7 +242,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
       {step === 1 && (
         <div data-testid="daftar-step-1" className="space-y-5">
           <Field>
-            <FieldLabel htmlFor="childName">Nama Lengkap Anak</FieldLabel>
+            <FieldLabel htmlFor="childName" required>Nama Lengkap Anak</FieldLabel>
             <Input
               id="childName"
               name="childName"
@@ -258,7 +259,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="dateOfBirth">Tanggal Lahir</FieldLabel>
+            <FieldLabel htmlFor="dateOfBirth" required>Tanggal Lahir</FieldLabel>
             <Input
               id="dateOfBirth"
               name="dateOfBirth"
@@ -273,33 +274,39 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           </Field>
 
           <Field>
-            <FieldLabel>Jenis Kelamin</FieldLabel>
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Jenis kelamin">
+            <FieldLabel id="childGender-label" required>Jenis Kelamin</FieldLabel>
+            <RadioGroup
+              value={form.childGender}
+              onValueChange={(value) => update("childGender", value as "L" | "P")}
+              aria-labelledby="childGender-label"
+              aria-invalid={!!errors.childGender}
+              aria-required="true"
+              required
+              className="grid grid-cols-2 gap-2"
+            >
               {[
                 { value: "L", label: "Laki-laki" },
                 { value: "P", label: "Perempuan" },
               ].map((opt) => (
-                <label
+                <FieldLabel
                   key={opt.value}
+                  htmlFor={`childGender-${opt.value}`}
                   className={`flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
                     form.childGender === opt.value
                       ? "border-emerald-700 bg-emerald-50 text-emerald-900"
                       : "border-emerald-900/15 bg-white text-emerald-900/80 hover:bg-emerald-50/50"
                   }`}
                 >
-                  <input
-                    type="radio"
-                    name="childGender"
+                  <RadioGroupItem
+                    id={`childGender-${opt.value}`}
                     value={opt.value}
-                    checked={form.childGender === opt.value}
-                    onChange={() => update("childGender", opt.value as "L" | "P")}
                     className="sr-only"
                     data-testid={`field-child-gender-${opt.value.toLowerCase()}`}
                   />
                   {opt.label}
-                </label>
+                </FieldLabel>
               ))}
-            </div>
+            </RadioGroup>
             {errors.childGender && <FieldError>{errors.childGender}</FieldError>}
           </Field>
         </div>
@@ -308,7 +315,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
       {step === 2 && (
         <div data-testid="daftar-step-2" className="space-y-5">
           <Field>
-            <FieldLabel htmlFor="parentName">Nama Lengkap Orang Tua</FieldLabel>
+            <FieldLabel htmlFor="parentName" required>Nama Lengkap Orang Tua</FieldLabel>
             <Input
               id="parentName"
               name="parentName"
@@ -325,7 +332,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="parentPhone">Nomor Telepon</FieldLabel>
+            <FieldLabel htmlFor="parentPhone" required>Nomor Telepon</FieldLabel>
             <Input
               id="parentPhone"
               name="parentPhone"

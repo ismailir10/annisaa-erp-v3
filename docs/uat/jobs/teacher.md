@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-05-15 in cycle `academic-hierarchy-refactor` (added Area: daily-session for session roster + pickup tracking)
+> Last audited: 2026-06-23 in cycle `ui-shadcn-audit` (checked leave overlays and shared student-journal note compose)
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -178,9 +178,11 @@ This file is the living catalog of what a teacher user can and should be able to
   1. Open `/teacher/attendance`
   2. Tap the "Cuti & Izin" card at the top
   3. LeaveSheet opens — review remaining balance
-  4. Pick start date, end date, leave type (cuti / izin / sakit), reason
-  5. Submit
-  6. See success toast + the request appear with status `PENDING`
+  4. Tap "Ajukan Cuti"; the sheet closes before the request form opens, so the screen never contains a stacked Sheet + Dialog overlay
+  5. Pick start date, end date, leave type (cuti / izin / sakit), reason
+  6. Submit
+  7. See success toast, reopen "Cuti & Izin", and verify the request appears with status `PENDING`
+  8. For an existing pending request, tap "Batalkan"; the sheet closes before the destructive confirmation opens, then cancel or confirm the action
 - **Done when:** Request is created in `LeaveRequest` with the correct dates + type. Sheet closes on success. Balance shown in the Sheet reflects the new "pending" deduction (or note clearly that pending requests don't yet decrement the visible balance — verify against current implementation).
 - **Why this job matters:** This is the only standalone leave-request flow in the teacher portal. If submission silently fails or rejects valid input, Bu Sari calls admin via WhatsApp instead — re-introducing the manual workflow the ERP was supposed to retire.
 - **Expected perf:** sheet open <500ms; submit click-to-confirm <1.5s.
@@ -189,6 +191,7 @@ This file is the living catalog of what a teacher user can and should be able to
   - Overlapping with an existing approved leave → 400 with reason
   - Leave-balance exhausted → 400 "Saldo cuti tidak cukup"
   - Sheet dismissed mid-submit → does not double-submit on retry
+  - Opening the request form or cancel confirmation leaves only one `role="dialog"` overlay visible at a time
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -228,17 +231,17 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Steps:**
   1. From the journal picker, drill into a single student's week view (`/teacher/student-journal/students/[id]`)
   2. Use prev/next chevrons to navigate to last week and back to this week
-  3. Tap "+" to open the add-note dialog
+  3. Tap "+" to open the shared add-note composer; desktop renders as a dialog and mobile can render as the responsive sheet variant
   4. Pick a date within this week, write a note (≤2000 chars), save
   5. See the note appear in the thread with `GURU` badge and the chosen date
-- **Done when:** The note is created via `POST /api/student-journal/notes`, attached to the right student + date. Week navigation works on touch (chevrons) without layout shift. The dialog dismisses on success and the thread updates without a full reload.
+- **Done when:** The note is created via `POST /api/student-journal/notes`, attached to the right student + date. Week navigation works on touch (chevrons) without layout shift. The responsive composer dismisses on success and the thread updates without a full reload. The teacher page uses the same shared note composer as the journal thread, not a duplicate local modal.
 - **Why this job matters:** Mid-week observations ("Aisha was withdrawn today after lunch") are how Bu Sari builds the qualitative narrative parents read at term-end. If add-note is buried or breaks, the journal becomes attendance-only and loses its formative value.
 - **Expected perf:** week view load <1.5s; week prev/next <1s; note save click-to-visible-in-thread <1s.
 - **Error scenarios to verify:**
   - Empty body → client-side block
   - Body >2000 chars → server 400 + toast
-  - Date in the future → blocked client-side by `<Input type="date" max={today}>` clamp at `app/teacher/student-journal/students/[id]/page.tsx` line 213
-  - Date from a prior week (out-of-visible-week but past) → accepted today; no server-side week-range gate exists. Documented gap — UAT should NOT assert a server rejection here. If tighter scoping is desired, file a follow-up cycle to add server-side week-range validation in `POST /api/student-journal/notes`.
+  - Date in the future → absent from the shared date select; if the visible week is entirely in the future, submit stays disabled
+  - Date from outside the visible week → absent from the shared date select. Server-side week-range validation is still not the trust boundary in `POST /api/student-journal/notes`, so file a follow-up cycle if API-level rejection is required.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

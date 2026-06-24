@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -10,8 +10,13 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { toast } from "sonner";
-import { ClipboardList, AlertCircle, Plus } from "lucide-react";
+import { ClipboardList, AlertCircle, Pencil, Plus } from "lucide-react";
 import { RaportEditor } from "./raport-editor";
 
 type Term = {
@@ -26,11 +31,31 @@ type ClassRow = { id: string; name: string; status: string };
 type Semester = { id: string; number: number; academicYear: { name: string } };
 type RosterRow = { studentId: string; name: string; nickname: string | null; status: string };
 
+type TermDialogState =
+  | { mode: "create"; term?: undefined }
+  | { mode: "edit"; term: Term }
+  | null;
+
 function termLabel(t: Term) {
   return `Triwulan ${t.number} · Smt ${t.semester.number} ${t.semester.academicYear.name}`;
 }
 
-function StatusBadge({ status }: { status: string }) {
+function toJakartaYmd(value: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .formatToParts(new Date(value))
+    .reduce<Record<string, string>>((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function RaportStatusBadge({ status }: { status: string }) {
   if (status === "PUBLISHED") {
     return (
       <Badge variant="outline" className="bg-status-present/10 text-status-present border-status-present/20">
@@ -54,7 +79,9 @@ export default function AdminRaportPage() {
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [rosterError, setRosterError] = useState<string | null>(null);
   const [selected, setSelected] = useState<RosterRow | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [termDialog, setTermDialog] = useState<TermDialogState>(null);
+  const [rosterSearch, setRosterSearch] = useState("");
+  const [rosterStatus, setRosterStatus] = useState("all");
 
   const loadSelectors = useCallback(async () => {
     // Settle each selector independently — one failing fetch (e.g. the raport
@@ -112,6 +139,53 @@ export default function AdminRaportPage() {
     loadRoster();
   }, [loadRoster]);
 
+  const currentTerm = useMemo(
+    () => (terms ?? []).find((term) => term.id === termId) ?? null,
+    [terms, termId],
+  );
+
+  const filteredRoster = useMemo(() => {
+    const query = rosterSearch.trim().toLowerCase();
+    return (roster ?? []).filter((row) => {
+      const matchesQuery =
+        !query ||
+        row.name.toLowerCase().includes(query) ||
+        (row.nickname ?? "").toLowerCase().includes(query);
+      const matchesStatus = rosterStatus === "all" || row.status === rosterStatus;
+      return matchesQuery && matchesStatus;
+    });
+  }, [roster, rosterSearch, rosterStatus]);
+
+  const rosterColumns = useMemo<ColumnDef<RosterRow>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Siswa" />,
+        cell: ({ row }) => (
+          <div>
+            <p className="font-medium">{row.original.name}</p>
+            {row.original.nickname ? (
+              <p className="text-xs text-muted-foreground">{row.original.nickname}</p>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        cell: ({ row }) => <RaportStatusBadge status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <DataTableRowActions onView={() => setSelected(row.original)} />
+        ),
+      },
+    ],
+    [],
+  );
+
   if (selected && termId) {
     return (
       <RaportEditor
@@ -133,7 +207,13 @@ export default function AdminRaportPage() {
       />
 
       {terms !== null && terms.length === 0 ? (
-        <CreateTermCard semesters={semesters} onCreated={loadSelectors} />
+        <EmptyState
+          icon={ClipboardList}
+          title="Belum ada triwulan."
+          description="Buat triwulan untuk menentukan rentang penilaian dan kehadiran yang dirangkum ke raport."
+          actionLabel="Buat Triwulan"
+          onAction={() => setTermDialog({ mode: "create" })}
+        />
       ) : (
         <>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end mb-6">
@@ -159,20 +239,18 @@ export default function AdminRaportPage() {
                 ))}
               </NativeSelect>
             </Field>
-            <Button variant="outline" size="sm" onClick={() => setShowCreate((s) => !s)}>
+            <Button variant="outline" size="sm" onClick={() => setTermDialog({ mode: "create" })}>
               <Plus className="size-4" /> Triwulan
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => currentTerm && setTermDialog({ mode: "edit", term: currentTerm })}
+              disabled={!currentTerm}
+            >
+              <Pencil className="size-4" /> Edit Triwulan
+            </Button>
           </div>
-
-          {showCreate ? (
-            <CreateTermCard
-              semesters={semesters}
-              onCreated={() => {
-                setShowCreate(false);
-                loadSelectors();
-              }}
-            />
-          ) : null}
 
           {!termId || !classId ? (
             <EmptyState
@@ -200,51 +278,90 @@ export default function AdminRaportPage() {
               description="Pastikan siswa terdaftar aktif pada kelas terpilih."
             />
           ) : roster ? (
-            <Card className="overflow-hidden p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left">
-                  <tr>
-                    <th className="p-3 font-medium">Siswa</th>
-                    <th className="p-3 font-medium">Status</th>
-                    <th className="p-3 font-medium text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roster.map((r) => (
-                    <tr key={r.studentId} className="border-t border-border">
-                      <td className="p-3 font-medium">{r.name}</td>
-                      <td className="p-3">
-                        <StatusBadge status={r.status} />
-                      </td>
-                      <td className="p-3 text-right">
-                        <Button size="sm" variant="outline" onClick={() => setSelected(r)}>
-                          {r.status === "NONE" ? "Buat raport" : "Edit raport"}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
+            <>
+              <DataTableToolbar
+                searchPlaceholder="Cari siswa atau panggilan..."
+                value={rosterSearch}
+                onValueChange={setRosterSearch}
+                filters={[
+                  {
+                    key: "status",
+                    label: "Status",
+                    value: rosterStatus,
+                    resetValue: "all",
+                    onChange: setRosterStatus,
+                    options: [
+                      { value: "all", label: "Semua Status" },
+                      { value: "NONE", label: "Belum Dibuat" },
+                      { value: "DRAFT", label: "Draft" },
+                      { value: "PUBLISHED", label: "Terbit" },
+                    ],
+                  },
+                ]}
+              />
+              <DataTable
+                columns={rosterColumns}
+                data={filteredRoster}
+                pagination={{
+                  page: 1,
+                  pageSize: 10,
+                  total: filteredRoster.length,
+                  totalPages: Math.max(1, Math.ceil(filteredRoster.length / 10)),
+                }}
+                emptyTitle="Tidak ada siswa sesuai filter."
+                emptyDescription="Ubah pencarian atau status raport untuk melihat daftar siswa."
+              />
+            </>
           ) : null}
         </>
       )}
+
+      <TermFormDialog
+        open={termDialog !== null}
+        mode={termDialog?.mode ?? "create"}
+        term={termDialog?.mode === "edit" ? termDialog.term : null}
+        semesters={semesters}
+        onOpenChange={(open) => {
+          if (!open) setTermDialog(null);
+        }}
+        onSaved={(savedTermId) => {
+          setTermDialog(null);
+          setTermId(savedTermId);
+          loadSelectors();
+        }}
+      />
     </div>
   );
 }
 
-function CreateTermCard({
+function TermFormDialog({
+  open,
+  mode,
+  term,
   semesters,
-  onCreated,
+  onOpenChange,
+  onSaved,
 }: {
+  open: boolean;
+  mode: "create" | "edit";
+  term: Term | null;
   semesters: Semester[];
-  onCreated: () => void;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (termId: string) => void;
 }) {
   const [semesterId, setSemesterId] = useState("");
   const [number, setNumber] = useState("1");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setSemesterId(term?.semester.id ?? "");
+    setNumber(String(term?.number ?? 1));
+    setStartDate(term ? toJakartaYmd(term.startDate) : "");
+    setEndDate(term ? toJakartaYmd(term.endDate) : "");
+  }, [open, term]);
 
   const submit = async () => {
     if (!semesterId || !startDate || !endDate) {
@@ -253,33 +370,56 @@ function CreateTermCard({
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/terms", {
-        method: "POST",
+      const res = await fetch(mode === "edit" && term ? `/api/admin/terms/${term.id}` : "/api/admin/terms", {
+        method: mode === "edit" ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ semesterId, number: Number(number), startDate, endDate }),
+        body: JSON.stringify(
+          mode === "edit"
+            ? { number: Number(number), startDate, endDate }
+            : { semesterId, number: Number(number), startDate, endDate },
+        ),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Gagal membuat triwulan.");
+        toast.error(body.error ?? (mode === "edit" ? "Gagal menyimpan triwulan." : "Gagal membuat triwulan."));
         return;
       }
-      toast.success("Triwulan dibuat.");
-      onCreated();
+      const body = (await res.json()) as { data?: { id: string } };
+      toast.success(mode === "edit" ? "Triwulan disimpan." : "Triwulan dibuat.");
+      onSaved(body.data?.id ?? term?.id ?? "");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Card className="p-card mb-6">
-      <h2 className="text-h2 font-semibold mb-1">Buat Triwulan</h2>
-      <p className="text-sm text-muted-foreground mb-4">
-        Triwulan menentukan rentang tanggal penilaian & kehadiran yang dirangkum ke raport.
-      </p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <ResponsiveFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={mode === "edit" ? "Edit Triwulan" : "Buat Triwulan"}
+      description="Triwulan menentukan rentang tanggal penilaian dan kehadiran yang dirangkum ke raport."
+      size="lg"
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+            Batal
+          </Button>
+          <Button type="button" onClick={submit} disabled={saving}>
+            {saving ? "Menyimpan..." : mode === "edit" ? "Simpan Perubahan" : "Tambah Triwulan"}
+          </Button>
+        </>
+      }
+    >
         <Field>
-          <FieldLabel htmlFor="t-sem">Semester</FieldLabel>
-          <NativeSelect id="t-sem" className="w-full" value={semesterId} onChange={(e) => setSemesterId(e.target.value)}>
+          <FieldLabel htmlFor="t-sem" required>Semester</FieldLabel>
+          <NativeSelect
+            id="t-sem"
+            className="w-full"
+            value={semesterId}
+            onChange={(e) => setSemesterId(e.target.value)}
+            required
+            disabled={mode === "edit"}
+          >
             <NativeSelectOption value="">— Pilih —</NativeSelectOption>
             {semesters.map((s) => (
               <NativeSelectOption key={s.id} value={s.id}>
@@ -289,26 +429,20 @@ function CreateTermCard({
           </NativeSelect>
         </Field>
         <Field>
-          <FieldLabel htmlFor="t-num">Triwulan ke-</FieldLabel>
-          <NativeSelect id="t-num" className="w-full" value={number} onChange={(e) => setNumber(e.target.value)}>
+          <FieldLabel htmlFor="t-num" required>Triwulan ke-</FieldLabel>
+          <NativeSelect id="t-num" className="w-full" value={number} onChange={(e) => setNumber(e.target.value)} required>
             <NativeSelectOption value="1">1</NativeSelectOption>
             <NativeSelectOption value="2">2</NativeSelectOption>
           </NativeSelect>
         </Field>
         <Field>
-          <FieldLabel htmlFor="t-start">Mulai</FieldLabel>
-          <Input id="t-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <FieldLabel htmlFor="t-start" required>Mulai</FieldLabel>
+          <Input id="t-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
         </Field>
         <Field>
-          <FieldLabel htmlFor="t-end">Selesai</FieldLabel>
-          <Input id="t-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          <FieldLabel htmlFor="t-end" required>Selesai</FieldLabel>
+          <Input id="t-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
         </Field>
-      </div>
-      <div className="mt-4">
-        <Button onClick={submit} disabled={saving}>
-          {saving ? "Menyimpan…" : "Simpan triwulan"}
-        </Button>
-      </div>
-    </Card>
+    </ResponsiveFormDialog>
   );
 }

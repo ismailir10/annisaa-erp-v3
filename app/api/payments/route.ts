@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { resolveLedgerRequest } from "@/lib/finance/payments-ledger";
 
 /**
- * GET /api/payments?dateFrom=&dateTo=&method=
+ * GET /api/payments?dateFrom=&dateTo=&method=&search=&page=&pageSize=&sortBy=&sortOrder=
  *
  * Payments-received ledger for the admin Penerimaan surface. Read-only,
  * admin-gated, tenant-scoped via the invoice relation. Default range = today
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!session?.tenantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!isAdminRole(session.role)) {
+  if (!isAdminRole(session.role) || !hasPermission(session, "invoices.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
     session.tenantId,
     new URL(req.url).searchParams,
     getTodayInTimezone("Asia/Jakarta"),
+    { paginate: true },
   );
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
@@ -31,6 +33,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     data: result.rows,
     summary: result.summary,
+    pagination: result.pagination,
     dateFrom: result.dateFrom,
     dateTo: result.dateTo,
   });
