@@ -14,11 +14,15 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import {
+  LEVEL_LABEL_SHORT,
+  LEVEL_CHIP_CLASS,
+  LEVEL_CHIP_CLASS_OFF,
+  type Level,
+} from "@/lib/curriculum/level-presentation";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 const MAX_PICKED_INDICATORS = 4;
-
-type Level = "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT";
 
 type Student = {
   id: string;
@@ -56,26 +60,6 @@ type Payload =
       lastActivity: string | null;
     }
   | { ok: false; status: number; error: string; reason?: string };
-
-const LEVEL_LABEL: Record<Level, string> = {
-  CONSISTENT: "Mampu",
-  EMERGING: "Belum",
-  NEEDS_REINFORCEMENT: "Perlu",
-};
-
-const LEVEL_BG: Record<Level, string> = {
-  CONSISTENT: "bg-status-present text-white border-status-present",
-  EMERGING: "bg-status-late text-white border-status-late",
-  NEEDS_REINFORCEMENT: "bg-status-absent text-white border-status-absent",
-};
-
-const LEVEL_BG_OFF: Record<Level, string> = {
-  CONSISTENT:
-    "border-status-present text-status-present-text bg-status-present-subtle",
-  EMERGING: "border-status-late text-status-late bg-status-late/10",
-  NEEDS_REINFORCEMENT:
-    "border-status-absent text-status-absent bg-status-absent/10",
-};
 
 type Cell = { level: Level | null; note: string };
 
@@ -432,7 +416,7 @@ export function CenterSessionClient({
                             role="radiogroup"
                             aria-label={`Tingkat ${student.name} pada ${ind.content}`}
                           >
-                            {(Object.keys(LEVEL_LABEL) as Level[]).map((lv) => {
+                            {(Object.keys(LEVEL_LABEL_SHORT) as Level[]).map((lv) => {
                               const isActive = level === lv;
                               return (
                                 <button
@@ -445,10 +429,10 @@ export function CenterSessionClient({
                                   }
                                   className={cn(
                                     "py-1.5 px-1 rounded-md border text-xs font-medium transition-colors",
-                                    isActive ? LEVEL_BG[lv] : LEVEL_BG_OFF[lv],
+                                    isActive ? LEVEL_CHIP_CLASS[lv] : LEVEL_CHIP_CLASS_OFF[lv],
                                   )}
                                 >
-                                  {LEVEL_LABEL[lv]}
+                                  {LEVEL_LABEL_SHORT[lv]}
                                 </button>
                               );
                             })}
