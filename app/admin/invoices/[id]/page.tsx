@@ -281,9 +281,9 @@ export default function InvoiceDetailPage() {
             <Card className="p-card">
               <SectionHeading label="Kontak Wali" />
               <p className="text-sm font-medium">{guardian.name}</p>
-              {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={10} /> {guardian.phone}</p>}
-              {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={10} /> {guardian.email}</p>}
-              {guardian.whatsapp && <p className="text-xs text-muted-foreground mt-0.5">WA: {guardian.whatsapp}</p>}
+              {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={12} /> {guardian.phone}</p>}
+              {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={12} /> {guardian.email}</p>}
+              {guardian.whatsapp && <p className="text-xs text-muted-foreground mt-0.5">WhatsApp {guardian.whatsapp}</p>}
             </Card>
           )}
 

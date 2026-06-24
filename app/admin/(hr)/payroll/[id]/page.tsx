@@ -502,7 +502,7 @@ export default function PayrollDetailPage() {
                         <span className="font-currency">{formatRupiah(line.finalAmount)}</span>
                         {isDraft && (
                           <button onClick={() => openLineAdj(detailItem, line)} aria-label={`Edit penyesuaian ${line.labelSnapshot}`} className="p-1 rounded hover:bg-accent text-muted-foreground">
-                            <Pencil size={10} />
+                            <Pencil size={12} />
                           </button>
                         )}
                       </div>

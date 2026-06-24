@@ -1031,16 +1031,16 @@ export function ClassDetailClient({
                             onClick={() => openSession(s)}
                             className="rounded-md bg-accent/60 px-1 py-0.5 text-left transition-colors hover:bg-accent"
                           >
-                            <span className="block truncate text-[10px] font-medium text-foreground">
+                            <span className="block truncate text-caption font-medium text-foreground">
                               {SLOT_LABELS[s.slot] ?? s.slot}
                             </span>
-                            <span className="block truncate text-[10px] text-muted-foreground">
+                            <span className="block truncate text-caption text-muted-foreground">
                               {s.teacher?.nama ?? "Belum ada guru"}
                             </span>
                             {isSubstitute && (
                               <Badge
                                 variant="outline"
-                                className="mt-0.5 px-1 py-0 text-[9px] leading-tight"
+                                className="mt-0.5 px-1 py-0 text-caption leading-tight"
                               >
                                 Pengganti
                               </Badge>

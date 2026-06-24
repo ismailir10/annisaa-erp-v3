@@ -314,7 +314,7 @@ export function WeeklyClient({
 
       <p className="flex items-center gap-1 text-xs text-muted-foreground">
         <NotebookPen className="size-3.5" />
-        Cubit untuk menyimpan. Catatan ditambahkan dari halaman detail (segera).
+        Ketuk tingkat untuk menyimpan. Catatan per indikator bisa ditambahkan dari detail siswa.
       </p>
     </div>
   );

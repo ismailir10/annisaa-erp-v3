@@ -135,28 +135,13 @@ export default async function ParentAttendancePage({
 
       {/* Summary card — varies by week state */}
       {bannerState?.kind === "all-present" ? (
-        <section
-          className="rounded-xl border p-4"
-          style={{
-            background: "var(--celebration-gold-subtle)",
-            borderColor: "var(--celebration-gold)",
-          }}
-        >
+        <section className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-4">
           <div className="flex items-center gap-3">
-            <div
-              className="grid size-10 place-items-center rounded-lg"
-              style={{
-                background: "var(--celebration-gold-subtle)",
-                color: "var(--celebration-gold-text)",
-              }}
-            >
+            <div className="grid size-10 place-items-center rounded-lg bg-celebration-gold-subtle text-celebration-gold-text">
               <Sparkles size={18} />
             </div>
             <div>
-              <p
-                className="text-sm font-semibold"
-                style={{ color: "var(--celebration-gold-text)" }}
-              >
+              <p className="text-sm font-semibold text-celebration-gold-text">
                 Hadir 5 dari 5 hari
               </p>
               <p className="mt-1 text-xs text-muted-foreground">

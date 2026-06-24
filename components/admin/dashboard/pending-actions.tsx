@@ -58,7 +58,7 @@ export function PendingActions({
               </div>
               <div>
                 <p className="text-xs font-medium">Pendaftaran Baru</p>
-                <p className="text-xs text-muted-foreground">Inquiry menunggu tindak lanjut</p>
+                <p className="text-xs text-muted-foreground">Pertanyaan baru menunggu ditindaklanjuti</p>
               </div>
             </div>
             {pendingAdmissions > 0 ? (

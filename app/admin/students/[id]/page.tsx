@@ -868,9 +868,9 @@ export default function StudentDetailPage() {
                       </div>
                     </div>
                     <div className="mt-1 space-y-0.5">
-                      {g.parent.phone && <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone size={10} /> {g.parent.phone}</p>}
-                      {g.parent.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail size={10} /> {g.parent.email}</p>}
-                      {g.parent.whatsapp && <p className="text-xs text-muted-foreground flex items-center gap-1">WA: {g.parent.whatsapp}</p>}
+                      {g.parent.phone && <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone size={12} /> {g.parent.phone}</p>}
+                      {g.parent.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail size={12} /> {g.parent.email}</p>}
+                      {g.parent.whatsapp && <p className="text-xs text-muted-foreground flex items-center gap-1">WhatsApp {g.parent.whatsapp}</p>}
                     </div>
                     {(g.parent.education || g.parent.occupation || g.parent.incomeRange) && (
                       <div className="mt-1.5 flex flex-wrap gap-2">

@@ -14,6 +14,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { ArrowLeft, Mail, Phone, MapPin, Briefcase, User, Building, GraduationCap, Wallet, Users, FileText, Baby, Pencil, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { REL_LABELS } from "@/lib/constants/parent-options";
+import { formatRupiah } from "@/lib/format";
 import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 
 // ------------------------------------------------------------------
@@ -465,7 +466,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
                       <div>
                         <p className="text-sm font-medium">{inv.invoiceNumber}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {inv.periodLabel} &middot; Rp {inv.totalDue.toLocaleString("id-ID")}
+                          {inv.periodLabel} &middot; {formatRupiah(inv.totalDue)}
                         </p>
                       </div>
                       <StatusBadge status={inv.status} />
