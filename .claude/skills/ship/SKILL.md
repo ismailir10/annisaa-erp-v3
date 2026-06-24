@@ -155,6 +155,9 @@ Every role opens a PR from `feat/*` → `staging`, then hands off to the user. T
    CYCLE_TITLE=$(head -1 "$CYCLE_FILE" | sed 's/^# *//')
    MODEL=$(grep '^model=' .claude/session-role | cut -d= -f2-)
    ROLE=$(grep '^role=' .claude/session-role | cut -d= -f2-)
+   # Ensure the model label exists — gh pr create aborts if --label names a
+   # missing label. Each new model id needs its label created once.
+   gh label create "model:$MODEL" --color 5319E7 --description "Built by $MODEL" 2>/dev/null || true
    PR_URL=$(gh pr create \
      --base staging \
      --head "$FEAT_BRANCH" \
