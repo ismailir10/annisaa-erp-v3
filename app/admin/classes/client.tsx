@@ -9,7 +9,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { StatusBadge, healthTone } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -63,14 +63,6 @@ type AcademicYear = {
 };
 
 type StatusFilter = "ACTIVE" | "INACTIVE" | "all";
-
-const HEALTH_TONE: Record<ClassRow["health"], string> = {
-  Sehat: "border-green-200 bg-green-50 text-green-700",
-  Perhatian: "border-amber-200 bg-amber-50 text-amber-700",
-  Kritis: "border-red-200 bg-red-50 text-red-700",
-  "Tidak Aktif": "border-muted bg-muted text-muted-foreground",
-  Libur: "border-blue-200 bg-blue-50 text-blue-700",
-};
 
 export function ClassesClient({ canWrite }: { canWrite: boolean }) {
   const router = useRouter();
@@ -349,7 +341,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       cell: ({ row }) => (
         <Badge
           variant="outline"
-          className={HEALTH_TONE[row.original.health]}
+          className={healthTone(row.original.health)}
         >
           {row.original.health}
         </Badge>
@@ -461,7 +453,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       />
 
       {archivedMode && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        <div className="rounded-md border border-status-leave bg-status-leave-subtle px-4 py-3 text-sm text-status-leave-text">
           Tahun ajaran ini sudah diarsipkan. Tampilan hanya baca.
         </div>
       )}

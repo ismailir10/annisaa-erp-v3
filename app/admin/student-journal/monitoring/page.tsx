@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
+import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
@@ -68,12 +69,7 @@ function formatWeekLabel(ws: string): string {
 function CompletionBar({ pct }: { pct: number }) {
   return (
     <div className="flex items-center gap-2 min-w-[80px]">
-      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary rounded-full transition-all"
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
+      <Progress value={Math.min(pct, 100)} className="h-1.5 flex-1" />
       <span className="text-xs tabular-nums w-9 text-right">{pct}%</span>
     </div>
   );

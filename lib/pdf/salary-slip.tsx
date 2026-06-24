@@ -2,11 +2,7 @@ import React from "react";
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import { formatRupiah } from "@/lib/format";
 
-const TEAL = "#5DB4B8";
-const DARK = "#1A2E2F";
-const GRAY = "#6B7280";
-const LIGHT_GRAY = "#F3F4F6";
-const BORDER = "#D1D5DB";
+import { TEAL, DARK, MUTED_FOREGROUND as GRAY, LIGHT_BG as LIGHT_GRAY, BORDER } from "./brand-tokens";
 
 // A4 portrait: 595 pt wide × 842 pt tall (portrait is the @react-pdf default).
 // Content area after padding: 595 - 2×24 = 547 pt — equivalent to ~414 px device

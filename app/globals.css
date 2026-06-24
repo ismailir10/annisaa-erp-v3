@@ -118,7 +118,7 @@
 /*
  * An Nisaa' Sekolahku — Revolut-style layout + school brand colors
  * Primary teal: #5DB4B8 (An Nisaa brand)
- * Accent red: #E63946 (CTAs, destructive)
+ * Accent red: #FF3B3B (CTAs, destructive)
  * Accent yellow: #F4D03F (highlights, badges)
  * Dark sidebar + clean white content
  * Font: Plus Jakarta Sans
@@ -149,7 +149,7 @@
   --accent-foreground: #1C1917;
 
   /* Destructive — An Nisaa red */
-  --destructive: #E63946;
+  --destructive: #FF3B3B;
 
   /* Borders & inputs */
   --border: #E5E2DE;
@@ -173,7 +173,7 @@
   --chart-1: #5DB4B8;
   --chart-2: #A8D08D;
   --chart-3: #F4D03F;
-  --chart-4: #E63946;
+  --chart-4: #FF3B3B;
   --chart-5: #75BABD;
 
   /* Attendance status colors */

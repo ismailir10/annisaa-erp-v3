@@ -290,7 +290,7 @@ export function RaportEditor({
           {saving ? "Menyimpan…" : "Simpan"}
         </Button>
         {status === "PUBLISHED" ? (
-          <Button variant="outline" onClick={() => setConfirmUnpublish(true)} disabled={publishing}>
+          <Button variant="destructive" onClick={() => setConfirmUnpublish(true)} disabled={publishing}>
             Tarik penerbitan
           </Button>
         ) : (

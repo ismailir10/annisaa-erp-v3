@@ -15,6 +15,7 @@ import {
   type RaportLevel,
 } from "@/lib/raport/labels";
 import type { ReportCardData, ReportCardSection } from "@/lib/pdf/report-card";
+import type { Level } from "@/lib/curriculum/level-presentation";
 
 /** Narrow an unknown JSON column to a plain string-keyed object. */
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -46,9 +47,11 @@ export function buildReportSections(
       (BUCKETED_SECTIONS as readonly string[]).includes(key) &&
       SECTION_HAS_SUGGESTION[key as keyof typeof SECTION_HAS_SUGGESTION];
     const lvl = isLevelBearing ? levels[key] : undefined;
+    const valid = lvl && lvl in LEVEL_LABELS ? (lvl as Level) : null;
     return {
       label: SECTION_LABELS[key],
-      level: lvl && lvl in LEVEL_LABELS ? LEVEL_LABELS[lvl] : null,
+      level: valid ? LEVEL_LABELS[valid] : null,
+      levelKey: valid,
       narrative: typeof narratives[key] === "string" ? narratives[key] : "",
     };
   });

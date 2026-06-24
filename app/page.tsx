@@ -134,7 +134,7 @@ function LoginPage() {
             className="flex flex-col items-center"
           >
             <Image src="/logo.png" alt="An Nisaa' Sekolahku" width={64} height={64} className="mb-4 rounded-2xl" />
-            <TalibWordmark size="lg" showSublabel className="items-center text-white" />
+            <TalibWordmark size="lg" showSublabel tone="onDark" className="items-center" />
           </motion.div>
           <p className="text-sidebar-foreground mt-3 text-sm">
             Sahabat belajar anak — kehadiran, jurnal, tagihan dalam satu pintu.
