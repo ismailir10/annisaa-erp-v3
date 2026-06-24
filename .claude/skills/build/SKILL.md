@@ -26,7 +26,7 @@ See CLAUDE.md **§ Harness Roster & Model Tiering** for the full rule. Summary t
 | Harness (from `.claude/session-role`) | Driver keeps | Dirty work delegates to |
 |---|---|---|
 | Claude | Opus 4.8 | `Task`/`Agent` subagent — Sonnet 4.6 (default), Haiku 4.5 (trivial) via `model` override |
-| Codex | gpt-5 high reasoning | gpt-5 low/minimal-effort subagent |
+| Codex | gpt-5.5 high reasoning | gpt-5.5 low/minimal-effort subagent |
 | opencode | glm-5.2 | glm-5.2 subagent (no cheaper tier — keep cycles small; CTO review is the backstop) |
 
 **Mandatory fan-out — no cycle runs in a single context.** Before entering the loop, invoke **`superpowers:subagent-driven-development`** and classify:

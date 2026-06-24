@@ -38,7 +38,7 @@ Invoke `/caveman` and `/using-superpowers` by default. The `SessionStart` hook (
 - Commit (one commit per task, not per cycle)
 - After the **last task**: run the **end-of-cycle gate** + request code review, then fill Ship Notes
 
-**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP signed into the **role-scoped Google account** for each portal (admin / teacher / parent — mapped in `.claude/verify-accounts.json`) to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` print the merge hand-off — the author watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all checks are green. **Both `cto` and `product-builder` use this — no direct pushes to `staging` or `main`.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it. Playwright must have passed (recorded in cycle doc Verification) before `/ship`.
+**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP signed into the **role-scoped Google account** for each portal (admin / teacher / parent — mapped in `.claude/verify-accounts.json`) to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` reach the merge step. A **CTO** then watches CI (`gh pr checks <number> --watch`) and **self-merges** (`gh pr merge <number> --squash --delete-branch`) once all four required checks are green — never on red or pending; the Chrome-MCP preview-verify plus the green protected checks are the in-the-loop guarantee. A **product-builder** never merges: its PR is labeled `needs-cto-review` and a CTO reviews, preview-verifies, and merges. **No direct pushes to `staging` or `main` for any role.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it. Playwright must have passed (recorded in cycle doc Verification) before `/ship`.
 
 ### Testing gates
 
@@ -79,7 +79,7 @@ Three AI harnesses work this repo, in parallel, each in its own worktree. They s
 | Harness | Default role | Driver (reasoning tier) | Dirty-work tier (subagents) | Can down-tier? |
 |---|---|---|---|---|
 | **Claude** | cto | Opus 4.8 | Sonnet 4.6 (default), Haiku 4.5 (trivial/mechanical) | Yes — `Task`/`Agent` tool with `model` override |
-| **Codex** | cto | gpt-5 high reasoning | gpt-5 low / minimal reasoning effort | Yes — spawn subagents at lower effort |
+| **Codex** | cto | gpt-5.5 high reasoning | gpt-5.5 low / minimal reasoning effort | Yes — spawn subagents at lower effort |
 | **opencode** | product-builder | glm-5.2 | glm-5.2 (no cheaper tier exists) | No — single model |
 
 ### The expensive-driver rule
@@ -105,8 +105,8 @@ Three AI harnesses work this repo, in parallel, each in its own worktree. They s
 **No feature or audit cycle runs in a single context.** The driver decomposes the work, fans out parallel subagents — one per independent unit — then only synthesizes + reviews their distilled output.
 
 Worked example — *"audit UI across every module for inconsistencies, produce a fix spec"*:
-1. Driver (Opus 4.8 / gpt-5) lists the modules.
-2. Driver spawns **one Sonnet 4.6 subagent per module** (admin, teacher, parent, billing, attendance, …); each audits its module in parallel and returns a findings list. *(Codex: one low-effort gpt-5 subagent per module. opencode: parallel glm-5.2 subagents — same fan-out shape, no cost down-tier.)*
+1. Driver (Opus 4.8 / gpt-5.5) lists the modules.
+2. Driver spawns **one Sonnet 4.6 subagent per module** (admin, teacher, parent, billing, attendance, …); each audits its module in parallel and returns a findings list. *(Codex: one low-effort gpt-5.5 subagent per module. opencode: parallel glm-5.2 subagents — same fan-out shape, no cost down-tier.)*
 3. Driver dedups + prioritizes the findings, then writes the fix spec into the cycle doc.
 
 The driver read zero module files and produced zero grep output itself — it reasoned over distilled findings. That is the token-efficiency win. `/build`'s Planning step enforces this.
@@ -135,7 +135,7 @@ Every session declares its role on turn one:
 
 ```
 role=cto              # cto or product-builder
-model=claude-opus-4-8 # or gpt-5, glm-5.2, claude-sonnet-4-6, human — must match current assistant
+model=claude-opus-4-8 # or gpt-5.5, glm-5.2, claude-sonnet-4-6, human — must match current assistant
 ```
 
 If missing or stale (>12h), `SessionStart` (`scripts/check-role.sh`) prints an instruction telling the assistant to ask the user. The three slash commands refuse to run until the file is set. **No env var reads** — Claude Code doesn't reliably export `CLAUDE_MODEL` to subprocesses.
@@ -172,7 +172,7 @@ Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is t
 - `staging` + `main`: require PR, no direct push for anyone (incl. owner), status checks must pass before merge
 - Required checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`
 
-`/ship` opens the PR and stops; the author merges after CI is green. Branch protection on `main` and `staging` is enabled and must require the four checks above; `pre-push` is only a local early-warning guard. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
+`/ship` opens the PR; a CTO self-merges after preview-verify is clean and all four checks are green, a product-builder hands the `needs-cto-review` PR to a CTO. Branch protection on `main` and `staging` is enabled and must require the four checks above; `pre-push` is only a local early-warning guard. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
 
 ### Commit attribution
 
