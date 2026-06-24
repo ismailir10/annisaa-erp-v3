@@ -26,6 +26,7 @@ type Employee = {
   id: string; kode: string; nama: string; formalName: string | null; email: string;
   noHp: string | null; jabatan: string; campusId: string; hireDate: string;
   status: string; bankAccountNo?: string | null; bankName?: string | null; bpjsEnrolled?: boolean;
+  leaveBalanceAnnual?: number; leaveBalanceSick?: number;
   campus: { name: string };
 };
 type SalaryValue = {
@@ -50,7 +51,7 @@ export default function EmployeeDetailPage() {
   // F-18: restore confirm dialog state. Symmetrical to deactivate.
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ nama: "", formalName: "", email: "", noHp: "", jabatan: "", campusId: "", hireDate: "", bankName: "", bankAccountNo: "", bpjsEnrolled: false });
+  const [editForm, setEditForm] = useState({ nama: "", formalName: "", email: "", noHp: "", jabatan: "", campusId: "", hireDate: "", bankName: "", bankAccountNo: "", bpjsEnrolled: false, leaveBalanceAnnual: "", leaveBalanceSick: "" });
 
   useEffect(() => {
     Promise.all([
@@ -65,7 +66,7 @@ export default function EmployeeDetailPage() {
 
   function startEditing() {
     if (!employee) return;
-    setEditForm({ nama: employee.nama, formalName: employee.formalName ?? "", email: employee.email, noHp: employee.noHp ?? "", jabatan: employee.jabatan, campusId: employee.campusId, hireDate: employee.hireDate, bankName: employee.bankName ?? "", bankAccountNo: employee.bankAccountNo ?? "", bpjsEnrolled: employee.bpjsEnrolled ?? false });
+    setEditForm({ nama: employee.nama, formalName: employee.formalName ?? "", email: employee.email, noHp: employee.noHp ?? "", jabatan: employee.jabatan, campusId: employee.campusId, hireDate: employee.hireDate, bankName: employee.bankName ?? "", bankAccountNo: employee.bankAccountNo ?? "", bpjsEnrolled: employee.bpjsEnrolled ?? false, leaveBalanceAnnual: employee.leaveBalanceAnnual?.toString() ?? "", leaveBalanceSick: employee.leaveBalanceSick?.toString() ?? "" });
     setIsEditing(true);
   }
 
@@ -256,6 +257,13 @@ export default function EmployeeDetailPage() {
                     <label className="flex items-center gap-2 text-sm"><Checkbox checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
                   </div>
                 </div>}
+                <div>
+                  <SectionHeading label="Saldo Cuti" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field><FieldLabel>Cuti Tahunan</FieldLabel><Input type="number" min={0} max={365} value={editForm.leaveBalanceAnnual} onChange={ev => setEditForm({ ...editForm, leaveBalanceAnnual: ev.target.value })} placeholder="12" /></Field>
+                    <Field><FieldLabel>Cuti Sakit</FieldLabel><Input type="number" min={0} max={365} value={editForm.leaveBalanceSick} onChange={ev => setEditForm({ ...editForm, leaveBalanceSick: ev.target.value })} placeholder="14" /></Field>
+                  </div>
+                </div>
               </div>
             ) : (
               /* ── VIEW MODE ─────────────────────────────────── */
@@ -330,6 +338,20 @@ export default function EmployeeDetailPage() {
                     <div><p className="text-xs text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar"}</p></div>
                   </div>
                 </div>}
+
+                <div>
+                  <SectionHeading label="Saldo Cuti" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3">
+                      <Calendar size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-xs text-muted-foreground">Cuti Tahunan</p><p className="text-sm">{e.leaveBalanceAnnual ?? "—"} hari</p></div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Calendar size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-xs text-muted-foreground">Cuti Sakit</p><p className="text-sm">{e.leaveBalanceSick ?? "—"} hari</p></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </Card>
