@@ -27,6 +27,7 @@ function resolveDatabaseUrl(): string {
 }
 
 const E2E_DATABASE_URL = resolveDatabaseUrl();
+const NODE_BIN = JSON.stringify(process.execPath);
 
 function assertLocalDatabaseForE2E(): void {
   let host = "";
@@ -81,12 +82,16 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "DEMO_MODE=true npm run start",
+    // Use the Next CLI directly instead of `npm run start`. Codex sandbox
+    // sessions can have no bare `npm`/`node` on PATH; process.execPath keeps
+    // the web server on the same Node binary that launched Playwright.
+    command: `${NODE_BIN} node_modules/next/dist/bin/next start`,
     port: 3000,
     reuseExistingServer: !process.env.CI,
     // Production server starts fast — no JIT compilation
     timeout: 30_000,
     env: {
+      DEMO_MODE: "true",
       // Pin the database the child server uses to the exact URL the guard
       // above validated — no drift between what we checked and what runs.
       DATABASE_URL: E2E_DATABASE_URL,

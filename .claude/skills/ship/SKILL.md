@@ -59,6 +59,15 @@ updated Verification before calling /ship again.
 npm run build && npx vitest run && npx playwright test
 ```
 
+Codex fallback: if the sandbox has no bare `npm`/`npx`/`node` on `PATH`, do not stop at "npm unavailable." Use the bundled Node path from `codex_app.load_workspace_dependencies` and run the equivalent Playwright command directly:
+
+```bash
+NODE_BIN=/Users/ismailrabbanii/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+DEMO_MODE=true "$NODE_BIN" node_modules/@playwright/test/cli.js test
+```
+
+`playwright.config.ts` launches Next via `process.execPath`, so the web server uses the same bundled Node binary and does not require npm. The database safety guard still applies; full E2E mutates data, so use a local/ephemeral `DATABASE_URL` unless the user explicitly approves `E2E_ALLOW_REMOTE_DB=1` for staging smoke.
+
 If any of the three fails, stop and hand back to the user. Do not open a PR on a broken commit.
 
 **1c. Soft-skip + DEMO_MODE-skip delta check** (catches new vacuous-green tests landing on the ship gate). A test that 100%-skips in CI exists only to inflate the green-tick count; once accumulated, the suite looks healthy while losing coverage. This check counts the soft-skip + DEMO_MODE-gate occurrences on the current branch and against `origin/staging`. Existing skips are grandfathered (they may be load-bearing in ways the audit cannot see); only the **delta** blocks `/ship`.

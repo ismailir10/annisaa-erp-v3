@@ -52,6 +52,15 @@ Three-tier — fast unit gate between every task, lean Playwright smoke once per
 
 **Why three tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle Playwright is the deterministic CI regression contract: keep it lean, stable, and focused on critical cross-module smoke flows (auth/demo shell, admin dashboard, students, invoices/payment, attendance, teacher daily flow, parent invoice/report, tenant/security boundaries). Do **not** add Playwright for every UI detail; prefer Vitest/API/component-level tests for business logic, permissions, validation, and local interactions. Preview-verify is the human-like release check: Chrome MCP uses the real preview, signed-in browser state, console, network, screenshots, and UI judgment to catch OAuth/staging/Vercel/layout issues that CI cannot exercise. Chrome MCP complements Playwright; it does not replace the required CI gate because it depends on an interactive browser profile and is harder to replay deterministically. **Pure-docs cycles may skip Playwright + preview-verify** — record each skip explicitly in Verification. Tests live in `e2e/`; demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
 
+**Codex runtime note:** Some Codex sandbox sessions expose neither bare `npm` nor bare `node` on `PATH`. Do not report Playwright as blocked only because `npm` is absent. First call `codex_app.load_workspace_dependencies` and use the returned Node executable. `playwright.config.ts` starts the production server with `${NODE_BIN} node_modules/next/dist/bin/next start`, so the Codex-safe E2E command is:
+
+```bash
+NODE_BIN=/Users/ismailrabbanii/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+DEMO_MODE=true "$NODE_BIN" node_modules/@playwright/test/cli.js test
+```
+
+The exact `NODE_BIN` path can change with Codex runtime versions; treat the hardcoded path above as the current example and prefer the tool output. The E2E database guard still applies: full Playwright mutates rows, so use a local/ephemeral `DATABASE_URL`; only set `E2E_ALLOW_REMOTE_DB=1` for a deliberate, user-approved staging smoke, and prefer targeted specs when touching staging.
+
 ### Standalone: `/uat` — heuristic user-acceptance testing
 
 `/uat <area>` is **not** part of the 3-step loop. Run on demand for a synthetic first-pass on UX friction in a portal area (e.g. `/uat parent/invoices`).
@@ -101,7 +110,7 @@ If missing or stale (>12h), `SessionStart` (`scripts/check-role.sh`) prints an i
 
 `setup-worktree.sh` does: `git worktree add .worktrees/<slug> -b feat/<slug> origin/staging` (always latest), symlinks `.env`/`.env.local`/`node_modules` from main checkout, runs `install-hooks.sh`. If `package.json` deps change inside the worktree, run `npm install` to replace the symlink.
 
-Recovery: claude-harness worktrees at `.claude/worktrees/<slug>` bypass setup-worktree and lack env symlinks → `bash scripts/bootstrap-env-symlinks.sh` (idempotent). Cleanup when merged: `bash scripts/cleanup-merged.sh` (default `--report`; `--yes` to remove). Auto-skips dirty/checked-out/un-pushed.
+Recovery: claude-harness and Codex worktrees can bypass setup-worktree and lack `.env`, `.env.local`, or `node_modules` symlinks → `bash scripts/bootstrap-env-symlinks.sh` (idempotent). If Playwright or Next reports missing packages/env in a fresh session, run that bootstrap first and confirm `.env`, `.env.local`, and `node_modules` resolve before debugging app code. Cleanup when merged: `bash scripts/cleanup-merged.sh` (default `--report`; `--yes` to remove). Auto-skips dirty/checked-out/un-pushed.
 
 ### Git hooks (`.githooks/`)
 
