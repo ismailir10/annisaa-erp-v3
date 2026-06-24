@@ -207,9 +207,13 @@ Tasks are grouped by leverage. Dependencies marked with `depends on:`. `/build` 
 
 Filled by `/build` — per-task bullet of files touched + one-line summary. Foundation tasks (T1, T2) land first; independent tasks dispatch to parallel subagents per the dependency graph.
 
+- **T1** — `app/globals.css` (`--destructive`/comment/`--chart-4`: `#E63946`→`#FF3B3B` per colors.md; grep `#E63946`=0), `components/ui/status-badge.tsx` (added `STATUS_MAP.INCOME`/`DEDUCTION` + icon + left-border entries; exported `healthTone()` for Sehat/Perhatian/Kritis/Libur/Tidak Aktif), new `lib/pdf/brand-tokens.ts` (`TEAL/DARK/MUTED_FOREGROUND/BORDER/LIGHT_BG`), `lib/pdf/{invoice-receipt,salary-slip,report-card}.tsx` consume it (aliased to local names to keep bodies untouched). Quick-win folded: moved `STATUS_META`+`StatusChip` out of `app/admin/enrollments/page.tsx` into sibling `app/admin/enrollments/status-chip.tsx` (fixes Next-16 page-export webpack bug from #365), palette routed through status tokens (was raw sky/amber/emerald/red), `page.tsx` + `[id]/page.tsx` imports updated.
+
 ## Verification
 
 Filled by `/build`. Between-task gate (`npm run build && npx vitest run`) per task; end-of-cycle gate adds `npx playwright test`. **Chrome MCP preview-verify is mandatory for this cycle** per AGENTS.md `/ship` Step 3 — not skippable even though the work is mostly cosmetic, because the audit was conducted statically and the user explicitly required live verification to filter false positives before merge. Each fix task's acceptance line names the live staging URL + role session to spot-check.
+
+- **T1 gate** — `npm run build` green; `npx vitest run` green (220 files / 2127 tests); `npm run lint` 0 errors (57 pre-existing warnings, none in T1 files). Playwright deferred to CI per #368. Cross-checked `.claude/standards/colors.md` brand table + design-system.html §Status palette for `--destructive=#FF3B3B` + healthTone tone mapping. Live Chrome MCP spot-check (brand tokens, StatusBadge INCOME/DEDUCTION, enrollments roster chip) deferred to `/ship` preview-verify.
 
 ## Ship Notes
 

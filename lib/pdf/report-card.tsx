@@ -1,11 +1,7 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
-const TEAL = "#5DB4B8";
-const DARK = "#1A2E2F";
-const GRAY = "#6B7280";
-const LIGHT = "#F3F4F6";
-const BORDER = "#D1D5DB";
+import { TEAL, DARK, MUTED_FOREGROUND as GRAY, LIGHT_BG as LIGHT, BORDER } from "./brand-tokens";
 
 export type ReportCardSection = {
   label: string;
