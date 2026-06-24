@@ -218,6 +218,7 @@ Filled by `/build`. Between-task gate (`npm run build && npx vitest run`) per ta
 
 - **T1 gate** — `npm run build` green; `npx vitest run` green (220 files / 2127 tests); `npm run lint` 0 errors (57 pre-existing warnings, none in T1 files). Playwright deferred to CI per #368. Cross-checked `.claude/standards/colors.md` brand table + design-system.html §Status palette for `--destructive=#FF3B3B` + healthTone tone mapping. Live Chrome MCP spot-check (brand tokens, StatusBadge INCOME/DEDUCTION, enrollments roster chip) deferred to `/ship` preview-verify.
 - **T2 gate** — `npm run build` green; `npx vitest run` green (220 files / 2127 tests). Acceptance grep confirmed: `const LEVEL_LABEL\b` / `const LEVEL_BG\b` / `LEVEL_FULL_LABEL` = 0 outside `lib/curriculum/level-presentation.ts`. NEEDS_REINFORCEMENT now resolves to `bg-status-leave`/`text-status-leave-text`/`#0EA5E9` on every screen surface + PDF. Live cross-surface spot-check (weekly, center, parent reports, raport PDF chip) deferred to `/ship` preview-verify (Claude).
+- **T3+T4 gate** — `npm run build` green; `npx vitest run` green (2127 tests). `grep emerald|rose-|#0C5C3F|#f4f6f3` in `app/daftar/**` = 0. Stepper labels now visible on mobile (375px) via Progress redesign. Login wordmark uses `tone="onDark"`. Cross-checked design-system.html §Brand. Live `/daftar` + `/` spot-check deferred to `/ship` preview-verify.
 
 ## Ship Notes
 
