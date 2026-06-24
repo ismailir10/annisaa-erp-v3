@@ -17,17 +17,29 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 5. **Working tree clean?** If not, ask whether to commit existing work, stash it, or abort. Never silently inherit someone else's dirty state.
 6. **Base branch fresh?** Run `git fetch origin staging` and `git rev-list --count $(git merge-base HEAD origin/staging)..origin/staging`. If the count is >5, stop and tell the user: *"This cycle branch is behind origin/staging by <N> commits. Rebase before building: `git fetch origin staging && git rebase origin/staging`."* Do not proceed until the user resolves. This prevents shipping a PR built on a stale base that will conflict at merge time.
 
-## Planning — subagent dispatch decision
+## Planning — model-tiered subagent dispatch
 
-Before entering the loop, invoke **`superpowers:subagent-driven-development`** to classify the cycle's tasks:
+See CLAUDE.md **§ Harness Roster & Model Tiering** for the full rule. Summary the loop enforces:
 
-- **Independent tasks** (no shared files, no sequential deps) → dispatch in parallel via subagents.
-- **Sequential tasks** (shared state, ordering matters) → execute inline in the loop below.
+**The expensive-tier driver never does cheap work.** As the driver you reason — decompose, review, synthesize, decide. Dirty work (file reads, grep/glob sweeps, per-module audits, mechanical edits, scaffolding, fixtures, single pre-specced slices) is delegated to a dirty-work-tier subagent.
 
-Record the classification as a bullet in the cycle doc's `## Implementation` section before starting:
-`- Subagent plan: tasks [N,M] dispatched in parallel; tasks [X,Y,Z] sequential.`
+| Harness (from `.claude/session-role`) | Driver keeps | Dirty work delegates to |
+|---|---|---|
+| Claude | Opus 4.8 | `Task`/`Agent` subagent — Sonnet 4.6 (default), Haiku 4.5 (trivial) via `model` override |
+| Codex | gpt-5 high reasoning | gpt-5 low/minimal-effort subagent |
+| opencode | glm-5.2 | glm-5.2 subagent (no cheaper tier — keep cycles small; CTO review is the backstop) |
 
-If all tasks are sequential, note that and proceed.
+**Mandatory fan-out — no cycle runs in a single context.** Before entering the loop, invoke **`superpowers:subagent-driven-development`** and classify:
+
+- **Independent tasks** (no shared files, no sequential deps) → dispatch in **parallel** via dirty-work-tier subagents, one per independent unit. A per-module audit = one subagent per module.
+- **Sequential tasks** (shared state, ordering matters) → still delegate the *implementation* of each slice to a dirty-work-tier subagent; the driver only sequences + reviews.
+
+The driver reads the subagents' distilled output, not the raw files — that is the token-efficiency contract. Implementing a fully specced slice yourself on the reasoning tier is a rule violation.
+
+Record the plan as a bullet in the cycle doc's `## Implementation` before starting:
+`- Subagent plan: driver=<model>, dirty-work=<model>; tasks [N,M] parallel, tasks [X,Y,Z] sequential.`
+
+If a cycle is small enough that fan-out costs more than it saves (1-2 trivial mechanical tasks), note that explicitly in the bullet and proceed inline — but that is the exception, not the default.
 
 ## The task loop
 

@@ -173,6 +173,10 @@ BODY
 )" \
      --label "model:$MODEL")
    PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+   # Product-builder PRs (opencode/glm) always require CTO review before merge.
+   if [ "$ROLE" = "product-builder" ]; then
+     gh pr edit "$PR_NUMBER" --add-label "needs-cto-review" || true
+   fi
    ```
 
 4. **Announce, then proceed to preview verification.** Do not print the merge hand-off here — that lives in **Step 5** after the preview-verify loop clears. Print one line so the user can follow the PR while verification runs:
@@ -249,6 +253,20 @@ BODY
 
 **Boundary with Playwright:** Playwright stays the deterministic CI regression gate and should remain lean: critical cross-module smoke flows only. Chrome MCP is the human-like preview gate: real browser profile, preview URL, console, network, screenshots, and visual/interaction judgment. Do not replace Playwright with Chrome MCP as the only gate; use Chrome MCP to catch environment/auth/layout issues that deterministic CI cannot replay.
 
+### 3.0 Harness capability gate (who runs this step)
+
+Preview-verify requires **Chrome MCP** with the three portal Google accounts (`.claude/verify-accounts.json`) signed into the profile. Route by the harness in `.claude/session-role`:
+
+- **Claude** — has Chrome MCP (`mcp__Claude_in_Chrome__*`). Proceed with Step 3 directly.
+- **opencode** (`role=product-builder`) — **never self-verifies.** Every opencode PR requires CTO review, and opencode lacks the signed-in Chrome profile. Stop after Step 2 and print:
+  ```
+  PB ship: PR $PR_URL opened and labeled needs-cto-review.
+  opencode does not run preview-verify — handing to a CTO harness (Claude/Codex)
+  for Step 3 preview-verify + review before the merge hand-off.
+  ```
+  Add the `needs-cto-review` label (`gh pr edit $PR_NUMBER --add-label needs-cto-review`) and exit.
+- **Codex** — if Codex's Chrome MCP is connected with the three accounts signed in, proceed. Otherwise hand the open PR to a Claude session for Step 3 and record in `## Ship Notes`: *"Preview-verify delegated to Claude — Codex lacks Chrome MCP profile."*
+
 ### 3a. Wait for preview ready
 
 Prefer the Vercel MCP tool over the CLI fallback:
@@ -289,7 +307,15 @@ For each flow, use Chrome MCP to:
 5. For each interaction in the flow: `mcp__Claude_in_Chrome__left_click` / `form_input` / `navigate`, then re-read console + network.
 6. `mcp__Claude_in_Chrome__screenshot` at each meaningful step (post-load, post-mutation). Save the screenshot path.
 
-Sign-in: when the preview prompts for Google auth, use Chrome MCP to click the account picker and pick the user's already-signed-in Google account. Do **not** type credentials — fail if the user's profile is not already signed in (surface to the user with `AskUserQuestion`).
+**Sign-in — role-scoped account.** Each portal is verified as its own real user. Read `.claude/verify-accounts.json` and pick the account matching the flow's portal:
+
+| Flow / portal | Google account |
+|---|---|
+| admin (`/admin/**`) | `ismailir10@gmail.com` |
+| teacher (`/teacher/**`) | `ismail10rabbanii@gmail.com` |
+| parent (`/parent/**`) | `rightjet.hq@gmail.com` |
+
+When the preview prompts for Google auth, use Chrome MCP to click the account picker and pick the **account for the portal under test** (sign out / switch account between portals so admin flows aren't walked as the parent identity, etc.). Do **not** type credentials — fail if that account is not already signed into the profile (surface to the user with `AskUserQuestion`). Accounts live in `.claude/verify-accounts.json` — read from there, never hardcode in a flow.
 
 ### 3e. Classify findings
 

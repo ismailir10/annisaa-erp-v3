@@ -3,8 +3,9 @@
 #
 # Six rules:
 #  1. Markdown allowlist: any staged .md file must be in the allowlist below.
-#     The allowlist is: README.md, CLAUDE.md, LICENSE.md at repo root;
-#     anything under docs/, .github/, .claude/, .agent-skills/.
+#     The allowlist is: README.md, CLAUDE.md, AGENTS.md, LICENSE.md at repo
+#     root (AGENTS.md is a symlink to CLAUDE.md — canonical manual for Codex +
+#     opencode); anything under docs/, .github/, .claude/, .agent-skills/.
 #  2. Doc sync: if any staged file touches app/, components/, lib/, prisma/,
 #     app/api/ — then the commit must also stage README.md, CLAUDE.md, or a
 #     docs/cycles/*.md file.
@@ -46,7 +47,7 @@ while IFS= read -r f; do
     *) continue ;;
   esac
   case "$f" in
-    README.md|CLAUDE.md|LICENSE.md|CHANGELOG.md|CONTRIBUTING.md) continue ;;
+    README.md|CLAUDE.md|AGENTS.md|LICENSE.md|CHANGELOG.md|CONTRIBUTING.md) continue ;;
     docs/*) continue ;;
     .github/*) continue ;;
     .claude/*) continue ;;
@@ -64,7 +65,7 @@ if [ -n "$BAD_MD" ]; then
   for f in $BAD_MD; do echo "    - $f" >&2; done
   echo "" >&2
   echo "  Allowed locations:" >&2
-  echo "    README.md, CLAUDE.md, LICENSE.md, CHANGELOG.md, CONTRIBUTING.md (root)" >&2
+  echo "    README.md, CLAUDE.md, AGENTS.md, LICENSE.md, CHANGELOG.md, CONTRIBUTING.md (root)" >&2
   echo "    docs/** (including docs/cycles/YYYY-MM-DD-<slug>.md)" >&2
   echo "    .github/**, .claude/**, .agent-skills/**, .githooks/**" >&2
   echo "" >&2

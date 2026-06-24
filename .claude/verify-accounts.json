@@ -1,0 +1,8 @@
+{
+  "_comment": "Google accounts for /ship Step 3 preview-verify, one per portal role. The shipping harness's Chrome MCP profile must have these signed in BEFORE /ship. Single source of truth — /ship reads this, do not hardcode accounts in the skill.",
+  "accounts": {
+    "admin": "ismailir10@gmail.com",
+    "teacher": "ismail10rabbanii@gmail.com",
+    "parent": "rightjet.hq@gmail.com"
+  }
+}
