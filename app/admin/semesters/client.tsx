@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatCard } from "@/components/admin/stat-card";
@@ -57,6 +58,9 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
   const [ayFilter, setAyFilter] = useState<string>("all");
+  const [query, setQuery] = useState("");
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize] = useState(10);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Semester | null>(null);
@@ -90,6 +94,10 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, ayFilter]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [statusFilter, ayFilter, query]);
 
   const stats = useMemo(() => {
     const active = rows.filter((r) => r.status === "ACTIVE");
@@ -245,6 +253,26 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     },
   ];
 
+  const filteredRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((row) =>
+      [
+        row.academicYear.name,
+        NUMBER_LABEL[row.number],
+        row.status,
+      ].some((value) => value.toLowerCase().includes(needle)),
+    );
+  }, [query, rows]);
+  const tableTotalPages = Math.max(1, Math.ceil(filteredRows.length / tablePageSize));
+  const safeTablePage = Math.min(tablePage, tableTotalPages);
+  const tablePagination = {
+    page: safeTablePage,
+    pageSize: tablePageSize,
+    total: filteredRows.length,
+    totalPages: tableTotalPages,
+  };
+
   return (
     <div className="space-y-section">
       <PageHeader
@@ -265,34 +293,42 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
         <StatCard label="Tema terdaftar" value={stats.themes} icon={Layers} color="primary" sublabel="pada semester aktif" index={2} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={ayFilter} onValueChange={(v) => setAyFilter(v ?? "all")}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Semua tahun ajaran" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua tahun ajaran</SelectItem>
-            {academicYears.map((ay) => (
-              <SelectItem key={ay.id} value={ay.id}>
-                {ay.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari semester atau tahun ajaran..."
+        filters={[
+          {
+            key: "academicYear",
+            label: "Tahun Ajaran",
+            value: ayFilter,
+            onChange: setAyFilter,
+            options: [
+              { value: "all", label: "Semua Tahun Ajaran" },
+              ...academicYears.map((ay) => ({ value: ay.id, label: ay.name })),
+            ],
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: statusFilter,
+            resetValue: "ACTIVE",
+            onChange: (v) => setStatusFilter(v as StatusFilter),
+            options: [
+              { value: "all", label: "Semua Status" },
+              { value: "ACTIVE", label: "Aktif" },
+              { value: "INACTIVE", label: "Tidak Aktif" },
+            ],
+          },
+        ]}
+      />
 
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter((v ?? "ACTIVE") as StatusFilter)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua status</SelectItem>
-            <SelectItem value="ACTIVE">Aktif</SelectItem>
-            <SelectItem value="INACTIVE">Tidak aktif</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <DataTable columns={columns} data={rows} loading={loading} />
+      <DataTable
+        columns={columns}
+        data={filteredRows}
+        loading={loading}
+        pagination={tablePagination}
+      />
 
       <ResponsiveFormDialog
         open={createOpen}

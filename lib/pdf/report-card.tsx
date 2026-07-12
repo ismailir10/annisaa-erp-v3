@@ -1,15 +1,13 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
-const TEAL = "#5DB4B8";
-const DARK = "#1A2E2F";
-const GRAY = "#6B7280";
-const LIGHT = "#F3F4F6";
-const BORDER = "#D1D5DB";
+import { TEAL, DARK, MUTED_FOREGROUND as GRAY, LIGHT_BG as LIGHT, BORDER } from "./brand-tokens";
+import { LEVEL_HEX, type Level } from "@/lib/curriculum/level-presentation";
 
 export type ReportCardSection = {
   label: string;
   level: string | null; // already display-formatted (Indonesian) or null
+  levelKey?: Level | null; // raw level key — drives chip color via LEVEL_HEX
   narrative: string;
 };
 
@@ -94,7 +92,11 @@ export function ReportCardPdf({ data }: { data: ReportCardData }) {
             <View key={i} style={s.section} wrap={false}>
               <View style={s.sectionHead}>
                 <Text style={s.sectionTitle}>{sec.label}</Text>
-                {sec.level ? <Text style={s.levelChip}>{sec.level}</Text> : null}
+                {sec.level ? (
+                  <Text style={[s.levelChip, ...(sec.levelKey ? [{ color: LEVEL_HEX[sec.levelKey] }] : [])]}>
+                    {sec.level}
+                  </Text>
+                ) : null}
               </View>
               {sec.narrative ? (
                 <Text style={s.narrative}>{sec.narrative}</Text>

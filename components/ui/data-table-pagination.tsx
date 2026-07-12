@@ -50,16 +50,44 @@ export function DataTablePagination({
         </span>
 
         <div className="flex gap-1">
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => onPageChange?.(1)} disabled={page <= 1}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => onPageChange?.(1)}
+            disabled={page <= 1}
+            aria-label="Halaman pertama"
+          >
             <ChevronsLeft size={14} />
           </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => onPageChange?.(page - 1)} disabled={page <= 1}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => onPageChange?.(page - 1)}
+            disabled={page <= 1}
+            aria-label="Halaman sebelumnya"
+          >
             <ChevronLeft size={14} />
           </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => onPageChange?.(page + 1)} disabled={page >= totalPages}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => onPageChange?.(page + 1)}
+            disabled={page >= totalPages}
+            aria-label="Halaman berikutnya"
+          >
             <ChevronRight size={14} />
           </Button>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => onPageChange?.(totalPages)} disabled={page >= totalPages}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => onPageChange?.(totalPages)}
+            disabled={page >= totalPages}
+            aria-label="Halaman terakhir"
+          >
             <ChevronsRight size={14} />
           </Button>
         </div>

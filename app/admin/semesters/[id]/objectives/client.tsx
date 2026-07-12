@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -243,7 +244,11 @@ export function ObjectivesClient({
       </Card>
 
       {loading ? (
-        <div className="text-small text-muted-foreground">Memuat…</div>
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-3/4" />
+        </div>
       ) : objectives.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-small text-muted-foreground">

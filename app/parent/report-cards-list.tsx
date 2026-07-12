@@ -46,28 +46,13 @@ export function ReportCardsList({ data, studentId, childName }: Props) {
     <>
       <div className="space-y-6">
         {/* Published celebration card */}
-        <section
-          className="rounded-xl border p-4"
-          style={{
-            background: "var(--celebration-gold-subtle)",
-            borderColor: "var(--celebration-gold)",
-          }}
-        >
+        <section className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-4">
           <div className="flex items-center gap-3">
-            <div
-              className="grid size-10 place-items-center rounded-lg"
-              style={{
-                background: "var(--celebration-gold-subtle)",
-                color: "var(--celebration-gold-text)",
-              }}
-            >
+            <div className="grid size-10 place-items-center rounded-lg bg-celebration-gold-subtle text-celebration-gold-text">
               <Sparkles size={18} />
             </div>
             <div>
-              <p
-                className="text-sm font-semibold"
-                style={{ color: "var(--celebration-gold-text)" }}
-              >
+              <p className="text-sm font-semibold text-celebration-gold-text">
                 Rapor {latest.period}
                 {childName ? ` ${childName}` : ""} sudah terbit
               </p>

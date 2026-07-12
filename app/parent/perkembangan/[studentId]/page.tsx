@@ -16,18 +16,7 @@ import {
   formatCurriculumElement,
 } from "@/lib/format";
 import { ElementProgressRow } from "@/components/parent/element-progress-row";
-
-const LEVEL_LABEL: Record<string, string> = {
-  CONSISTENT: "Mampu",
-  EMERGING: "Belum",
-  NEEDS_REINFORCEMENT: "Perlu",
-};
-
-const LEVEL_BG: Record<string, string> = {
-  CONSISTENT: "bg-status-present-subtle text-status-present-text",
-  EMERGING: "bg-status-late/10 text-status-late",
-  NEEDS_REINFORCEMENT: "bg-status-absent/10 text-status-absent",
-};
+import { LEVEL_LABEL_SHORT, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 
 export default async function ParentPerkembanganDetailPage({
   params,
@@ -139,9 +128,9 @@ export default async function ParentPerkembanganDetailPage({
                         </p>
                       </div>
                       <span
-                        className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${LEVEL_BG[entry.level] ?? ""}`}
+                        className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}
                       >
-                        {LEVEL_LABEL[entry.level] ?? entry.level}
+                        {LEVEL_LABEL_SHORT[entry.level] ?? entry.level}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">

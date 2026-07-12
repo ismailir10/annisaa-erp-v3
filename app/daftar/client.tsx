@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field";
-import { CheckCircle2 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Progress } from "@/components/ui/progress";
+import { Check, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Program = { id: string; name: string };
 type Step = 1 | 2 | 3;
@@ -195,22 +198,22 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
     return (
       <section
         data-testid="daftar-confirmation"
-        className="rounded-2xl border border-emerald-200 bg-white p-6 text-center shadow-sm sm:p-10"
+        className="rounded-2xl border border-border bg-card p-6 text-center shadow-sm sm:p-10"
       >
         <CheckCircle2
-          className="mx-auto mb-4 size-12 text-emerald-600"
+          className="mx-auto mb-4 size-12 text-primary"
           aria-hidden
           strokeWidth={1.5}
         />
-        <h2 className="text-xl font-semibold text-emerald-950 sm:text-2xl">
+        <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
           Pendaftaran ananda{" "}
           <span data-testid="confirmation-child-name">{confirmation.childName}</span> tercatat
         </h2>
-        <p className="mt-3 text-sm text-emerald-900/70 sm:text-base">
+        <p className="mt-3 text-sm text-muted-foreground sm:text-base">
           Insya Allah tim kami akan menghubungi Bapak/Ibu dalam 1–3 hari kerja untuk menjadwalkan
           kunjungan.
         </p>
-        <p className="mt-2 text-xs text-emerald-900/50">
+        <p className="mt-2 text-xs text-muted-foreground">
           Nomor pendaftaran: <span className="font-mono">{confirmation.id}</span>
         </p>
         <Button
@@ -234,14 +237,14 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         if (step < 3) nextStep();
         else handleSubmit();
       }}
-      className="rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-8"
+      className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8"
     >
       <Stepper step={step} />
 
       {step === 1 && (
         <div data-testid="daftar-step-1" className="space-y-5">
           <Field>
-            <FieldLabel htmlFor="childName">Nama Lengkap Anak</FieldLabel>
+            <FieldLabel htmlFor="childName" required>Nama Lengkap Anak</FieldLabel>
             <Input
               id="childName"
               name="childName"
@@ -258,7 +261,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="dateOfBirth">Tanggal Lahir</FieldLabel>
+            <FieldLabel htmlFor="dateOfBirth" required>Tanggal Lahir</FieldLabel>
             <Input
               id="dateOfBirth"
               name="dateOfBirth"
@@ -273,33 +276,39 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           </Field>
 
           <Field>
-            <FieldLabel>Jenis Kelamin</FieldLabel>
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Jenis kelamin">
+            <FieldLabel id="childGender-label" required>Jenis Kelamin</FieldLabel>
+            <RadioGroup
+              value={form.childGender}
+              onValueChange={(value) => update("childGender", value as "L" | "P")}
+              aria-labelledby="childGender-label"
+              aria-invalid={!!errors.childGender}
+              aria-required="true"
+              required
+              className="grid grid-cols-2 gap-2"
+            >
               {[
                 { value: "L", label: "Laki-laki" },
                 { value: "P", label: "Perempuan" },
               ].map((opt) => (
-                <label
+                <FieldLabel
                   key={opt.value}
+                  htmlFor={`childGender-${opt.value}`}
                   className={`flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
                     form.childGender === opt.value
-                      ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-                      : "border-emerald-900/15 bg-white text-emerald-900/80 hover:bg-emerald-50/50"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background text-foreground hover:bg-accent"
                   }`}
                 >
-                  <input
-                    type="radio"
-                    name="childGender"
+                  <RadioGroupItem
+                    id={`childGender-${opt.value}`}
                     value={opt.value}
-                    checked={form.childGender === opt.value}
-                    onChange={() => update("childGender", opt.value as "L" | "P")}
                     className="sr-only"
                     data-testid={`field-child-gender-${opt.value.toLowerCase()}`}
                   />
                   {opt.label}
-                </label>
+                </FieldLabel>
               ))}
-            </div>
+            </RadioGroup>
             {errors.childGender && <FieldError>{errors.childGender}</FieldError>}
           </Field>
         </div>
@@ -308,7 +317,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
       {step === 2 && (
         <div data-testid="daftar-step-2" className="space-y-5">
           <Field>
-            <FieldLabel htmlFor="parentName">Nama Lengkap Orang Tua</FieldLabel>
+            <FieldLabel htmlFor="parentName" required>Nama Lengkap Orang Tua</FieldLabel>
             <Input
               id="parentName"
               name="parentName"
@@ -325,7 +334,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="parentPhone">Nomor Telepon</FieldLabel>
+            <FieldLabel htmlFor="parentPhone" required>Nomor Telepon</FieldLabel>
             <Input
               id="parentPhone"
               name="parentPhone"
@@ -346,7 +355,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           <Field>
             <FieldLabel htmlFor="parentWhatsapp">
               Nomor WhatsApp{" "}
-              <span className="font-normal text-emerald-900/50">(opsional)</span>
+              <span className="font-normal text-muted-foreground">(opsional)</span>
             </FieldLabel>
             <Input
               id="parentWhatsapp"
@@ -369,7 +378,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
 
           <Field>
             <FieldLabel htmlFor="parentEmail">
-              Email <span className="font-normal text-emerald-900/50">(opsional)</span>
+              Email <span className="font-normal text-muted-foreground">(opsional)</span>
             </FieldLabel>
             <Input
               id="parentEmail"
@@ -397,7 +406,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
             <Field>
               <FieldLabel htmlFor="programId">
                 Program yang Diminati{" "}
-                <span className="font-normal text-emerald-900/50">(opsional)</span>
+                <span className="font-normal text-muted-foreground">(opsional)</span>
               </FieldLabel>
               <NativeSelect
                 id="programId"
@@ -420,7 +429,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           <Field>
             <FieldLabel htmlFor="notes">
               Catatan untuk Sekolah{" "}
-              <span className="font-normal text-emerald-900/50">(opsional)</span>
+              <span className="font-normal text-muted-foreground">(opsional)</span>
             </FieldLabel>
             <Textarea
               id="notes"
@@ -445,7 +454,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         <p
           role="alert"
           data-testid="daftar-global-error"
-          className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900"
+          className="mt-5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
         >
           {globalError}
         </p>
@@ -486,46 +495,44 @@ function Stepper({ step }: { step: Step }) {
     { step: 2, label: "Data Orang Tua" },
     { step: 3, label: "Preferensi" },
   ];
+  const pct = ((step - 1) / (items.length - 1)) * 100;
   return (
-    <ol
-      aria-label="Langkah pendaftaran"
-      className="mb-6 flex items-center gap-2 text-xs sm:text-sm"
-    >
-      {items.map((item, idx) => {
-        const active = item.step === step;
-        const done = item.step < step;
-        return (
-          <li key={item.step} className="flex flex-1 items-center gap-2">
-            <span
-              aria-current={active ? "step" : undefined}
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
-                done
-                  ? "border-emerald-700 bg-emerald-700 text-white"
-                  : active
-                    ? "border-emerald-700 bg-white text-emerald-900"
-                    : "border-emerald-900/20 bg-white text-emerald-900/40"
-              }`}
-            >
-              {item.step}
-            </span>
-            <span
-              className={`hidden truncate sm:inline ${
-                active ? "text-emerald-950 font-medium" : "text-emerald-900/60"
-              }`}
-            >
-              {item.label}
-            </span>
-            {idx < items.length - 1 && (
+    <div className="mb-6 space-y-2">
+      <Progress value={pct} aria-label={`Langkah ${step} dari ${items.length}`} />
+      <ol
+        aria-label="Langkah pendaftaran"
+        className="flex items-center justify-between text-xs"
+      >
+        {items.map((item) => {
+          const active = item.step === step;
+          const done = item.step < step;
+          return (
+            <li key={item.step} className="flex items-center gap-1.5">
               <span
-                aria-hidden
-                className={`h-px flex-1 ${
-                  done ? "bg-emerald-700" : "bg-emerald-900/15"
-                }`}
-              />
-            )}
-          </li>
-        );
-      })}
-    </ol>
+                aria-current={active ? "step" : undefined}
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full text-caption font-semibold",
+                  done
+                    ? "bg-primary text-primary-foreground"
+                    : active
+                      ? "border border-primary text-primary"
+                      : "border border-border text-muted-foreground",
+                )}
+              >
+                {done ? <Check className="size-3" /> : item.step}
+              </span>
+              <span
+                className={cn(
+                  "truncate",
+                  active ? "font-medium text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {item.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

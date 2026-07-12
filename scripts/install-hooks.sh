@@ -29,3 +29,9 @@ touch .githooks/.installed
 
 echo "install-hooks: active. core.hooksPath = .githooks"
 echo "install-hooks: pre-commit, prepare-commit-msg, commit-msg, pre-push enabled."
+
+# Point Codex's gitignored .agents/skills at canonical .claude/skills so all
+# harnesses read one source of truth (idempotent; safe if .agents is absent).
+if [ -f scripts/link-agent-skills.sh ]; then
+  bash scripts/link-agent-skills.sh || true
+fi

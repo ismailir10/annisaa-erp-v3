@@ -1,18 +1,19 @@
 /**
  * Display labels + section ordering for the raport surface. Shared by the admin
  * editor UI and the PDF renderer so copy never diverges. Indonesian per voice.md.
+ *
+ * Level type + long-form labels are re-exported from the canonical
+ * `lib/curriculum/level-presentation.ts` (single source across teacher
+ * assessment, parent portal, admin raport, and PDF).
  */
 
-export type RaportLevel = "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT";
-
-// Canonical long-form level labels — match the teacher weekly surface
-// (app/teacher/assessments/weekly/client.tsx LEVEL_FULL_LABEL) so the same
-// child's level reads identically across teacher, admin raport, and PDF.
-export const LEVEL_LABELS: Record<RaportLevel, string> = {
-  CONSISTENT: "Mampu dan Konsisten",
-  EMERGING: "Mampu Belum Konsisten",
-  NEEDS_REINFORCEMENT: "Perlu Penguatan",
-};
+// Canonical type + long labels live in level-presentation.ts; re-exported here
+// under the legacy names so existing raport consumers (build.ts, raport-editor,
+// tests) keep compiling without churn. Local alias needed so LEVEL_ORDER /
+// LEVEL_SHORT can reference the type in-file.
+import type { Level } from "@/lib/curriculum/level-presentation";
+export type RaportLevel = Level;
+export { LEVEL_LABEL_LONG as LEVEL_LABELS } from "@/lib/curriculum/level-presentation";
 
 export const LEVEL_ORDER: readonly RaportLevel[] = [
   "CONSISTENT",

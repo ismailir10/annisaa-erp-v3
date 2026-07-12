@@ -10,6 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { ArrowLeft, Download } from "lucide-react";
 import {
@@ -79,6 +89,7 @@ export function RaportEditor({
   const [status, setStatus] = useState("NONE");
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -279,7 +290,7 @@ export function RaportEditor({
           {saving ? "Menyimpan…" : "Simpan"}
         </Button>
         {status === "PUBLISHED" ? (
-          <Button variant="outline" onClick={() => setPublish(false)} disabled={publishing}>
+          <Button variant="destructive" onClick={() => setConfirmUnpublish(true)} disabled={publishing}>
             Tarik penerbitan
           </Button>
         ) : (
@@ -295,6 +306,29 @@ export function RaportEditor({
           <Download className="size-4" /> Unduh PDF
         </Button>
       </div>
+
+      <AlertDialog open={confirmUnpublish} onOpenChange={setConfirmUnpublish}>
+        <AlertDialogContent className="p-card sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tarik penerbitan raport?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Raport akan kembali menjadi draft dan tidak terlihat sebagai raport terbit sampai diterbitkan ulang.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmUnpublish(false);
+                void setPublish(false);
+              }}
+            >
+              Ya, Tarik
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

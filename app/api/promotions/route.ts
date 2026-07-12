@@ -116,6 +116,10 @@ export async function POST(req: NextRequest) {
   const toPromote = enrollments.filter((e) => !excluded.has(e.studentId));
   const skipped = enrollments.length - toPromote.length;
 
+  if (toPromote.length === 0) {
+    return NextResponse.json({ promoted: 0, skipped });
+  }
+
   const today = getTodayInTimezone("Asia/Jakarta");
 
   // Transaction: lock target section, re-check capacity, graduate old

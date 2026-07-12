@@ -6,16 +6,24 @@ import Link from "next/link";
 import { ChevronLeft, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/portal/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import {
+  LEVEL_LABEL_SHORT,
+  LEVEL_CHIP_CLASS,
+  LEVEL_CHIP_CLASS_OFF,
+  type Level,
+} from "@/lib/curriculum/level-presentation";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 const MAX_PICKED_INDICATORS = 4;
-
-type Level = "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT";
 
 type Student = {
   id: string;
@@ -53,26 +61,6 @@ type Payload =
       lastActivity: string | null;
     }
   | { ok: false; status: number; error: string; reason?: string };
-
-const LEVEL_LABEL: Record<Level, string> = {
-  CONSISTENT: "Mampu",
-  EMERGING: "Belum",
-  NEEDS_REINFORCEMENT: "Perlu",
-};
-
-const LEVEL_BG: Record<Level, string> = {
-  CONSISTENT: "bg-status-present text-white border-status-present",
-  EMERGING: "bg-status-late text-white border-status-late",
-  NEEDS_REINFORCEMENT: "bg-status-absent text-white border-status-absent",
-};
-
-const LEVEL_BG_OFF: Record<Level, string> = {
-  CONSISTENT:
-    "border-status-present text-status-present-text bg-status-present-subtle",
-  EMERGING: "border-status-late text-status-late bg-status-late/10",
-  NEEDS_REINFORCEMENT:
-    "border-status-absent text-status-absent bg-status-absent/10",
-};
 
 type Cell = { level: Level | null; note: string };
 
@@ -289,26 +277,23 @@ export function CenterSessionClient({
       />
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label
-            htmlFor="center-date"
-            className="block text-xs font-medium text-foreground"
-          >
+        <Field>
+          <FieldLabel htmlFor="center-date" required>
             Tanggal
-          </label>
-          <input
+          </FieldLabel>
+          <Input
             id="center-date"
             data-testid="center-date"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            required
           />
-        </div>
-        <div className="space-y-1">
-          <span className="block text-xs font-medium text-foreground">
+        </Field>
+        <Field>
+          <FieldLabel>
             Kelompok usia
-          </span>
+          </FieldLabel>
           <div
             className="grid grid-cols-2 gap-2"
             role="radiogroup"
@@ -333,17 +318,14 @@ export function CenterSessionClient({
               </button>
             ))}
           </div>
-        </div>
+        </Field>
       </div>
 
-      <div className="space-y-1">
-        <label
-          htmlFor="center-activity"
-          className="block text-xs font-medium text-foreground"
-        >
+      <Field>
+        <FieldLabel htmlFor="center-activity" required>
           Kegiatan
-        </label>
-        <input
+        </FieldLabel>
+        <Input
           id="center-activity"
           data-testid="center-activity"
           type="text"
@@ -351,13 +333,15 @@ export function CenterSessionClient({
           onChange={(e) => setActivity(e.target.value)}
           maxLength={200}
           placeholder="Mis. Doa pagi + asmaul husna"
-          className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          required
         />
-      </div>
+      </Field>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
         </div>
       ) : payload && !payload.ok ? (
         <EmptyState
@@ -435,7 +419,7 @@ export function CenterSessionClient({
                             role="radiogroup"
                             aria-label={`Tingkat ${student.name} pada ${ind.content}`}
                           >
-                            {(Object.keys(LEVEL_LABEL) as Level[]).map((lv) => {
+                            {(Object.keys(LEVEL_LABEL_SHORT) as Level[]).map((lv) => {
                               const isActive = level === lv;
                               return (
                                 <button
@@ -448,10 +432,10 @@ export function CenterSessionClient({
                                   }
                                   className={cn(
                                     "py-1.5 px-1 rounded-md border text-xs font-medium transition-colors",
-                                    isActive ? LEVEL_BG[lv] : LEVEL_BG_OFF[lv],
+                                    isActive ? LEVEL_CHIP_CLASS[lv] : LEVEL_CHIP_CLASS_OFF[lv],
                                   )}
                                 >
-                                  {LEVEL_LABEL[lv]}
+                                  {LEVEL_LABEL_SHORT[lv]}
                                 </button>
                               );
                             })}
@@ -459,12 +443,12 @@ export function CenterSessionClient({
                           <button
                             type="button"
                             onClick={() => toggleNoteOpen(key)}
-                            className="text-[11px] text-muted-foreground underline"
+                            className="text-xs text-muted-foreground underline"
                           >
                             {noteOpen ? "Sembunyikan catatan" : "Catatan"}
                           </button>
                           {noteOpen && (
-                            <textarea
+                            <Textarea
                               value={cell?.note ?? ""}
                               onChange={(e) =>
                                 setCellNote(student.id, ind.id, e.target.value)
@@ -472,7 +456,7 @@ export function CenterSessionClient({
                               maxLength={500}
                               rows={2}
                               placeholder="Catatan singkat (opsional)"
-                              className="w-full rounded-md border border-input bg-transparent p-2 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                              className="text-xs"
                             />
                           )}
                         </li>

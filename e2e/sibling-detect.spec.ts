@@ -10,20 +10,27 @@ import { test, expect } from "@playwright/test";
  *   3. hover reveals the matched parent's name + linked-student list
  *   4. edit-sheet banner renders inside the Sheet/Dialog
  *
- * Match target: seeded Parent "Siti Nurhaliza Hidayat" — phone "08129876543"
- * (stable across the demo seed). Submitting with parentPhone like
- * "+62 812-9876-543" exercises the +62 → 0 prefix normalisation end-to-end.
+ * Match target: discovered from the live guardian list. Submitting with a
+ * +62-shaped parentPhone exercises the +62 → 0 prefix normalisation end-to-end
+ * without depending on a stale demo parent fixture.
  *
  * Admin auth: demo cookie school-erp-session=u_super_admin (same pattern as
  * e2e/admin.spec.ts).
  */
 
 const ADMIN_USER_ID = "u_super_admin";
-const SEEDED_PARENT_PHONE_NORM = "08129876543"; // canonical 08xxx form
-const APPLICANT_PARENT_PHONE_INPUT = "+62 812-9876-543"; // exercises +62→0 normalisation
 
 const MATCH_CHILD = `E2E Sibling Match ${Date.now()}`;
 const NO_MATCH_CHILD = `E2E Sibling NoMatch ${Date.now()}`;
+let applicantParentPhoneInput = "";
+let matchedParentName = "";
+
+function toApplicantPhoneInput(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("62")) return `+${digits}`;
+  if (digits.startsWith("0")) return `+62${digits.slice(1)}`;
+  return phone;
+}
 
 // Per-request fake source IP routed via X-Forwarded-For. `lib/rate-limit.ts`
 // reads the first comma-separated entry of this header (Vercel-compatible
@@ -42,6 +49,23 @@ test.describe.configure({ mode: "serial", timeout: 60_000 });
 
 test.describe("Phase 1.2 — Sibling auto-detect", () => {
   test.beforeAll(async ({ request }) => {
+    const guardianRes = await request.get("/api/guardians?pageSize=25", {
+      headers: { Cookie: `school-erp-session=${ADMIN_USER_ID}` },
+    });
+    expect(guardianRes.ok()).toBeTruthy();
+    const guardianJson = (await guardianRes.json()) as {
+      data?: Array<{ name: string; phone: string | null; _count?: { guardians?: number } }>;
+    };
+    const matchedGuardian = guardianJson.data?.find(
+      (guardian) => guardian.phone && (guardian._count?.guardians ?? 0) > 0,
+    );
+    expect(matchedGuardian?.phone).toBeTruthy();
+    if (!matchedGuardian?.phone) {
+      throw new Error("No linked guardian with a phone number found");
+    }
+    applicantParentPhoneInput = toApplicantPhoneInput(matchedGuardian.phone);
+    matchedParentName = matchedGuardian.name;
+
     // Pre-insert one matched + one unmatched admission via the public POST.
     // Each insert routes through a distinct X-Forwarded-For so the per-IP
     // rate-limit bucket is isolated from any other suite running before us.
@@ -52,7 +76,7 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
         dateOfBirth: "2020-03-15",
         childGender: "P",
         parentName: "E2E Applicant",
-        parentPhone: APPLICANT_PARENT_PHONE_INPUT,
+        parentPhone: applicantParentPhoneInput,
       },
     });
     expect(matched.status()).toBe(201);
@@ -89,7 +113,7 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
         dateOfBirth: "2020-03-15",
         childGender: "P",
         parentName: "E2E Trust Applicant",
-        parentPhone: APPLICANT_PARENT_PHONE_INPUT,
+        parentPhone: applicantParentPhoneInput,
       },
     });
     expect(res.status()).toBe(201);
@@ -113,7 +137,7 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     await page.getByTestId("field-parent-name").fill("E2E UX Applicant");
     await page
       .getByTestId("field-parent-phone")
-      .fill(APPLICANT_PARENT_PHONE_INPUT);
+      .fill(applicantParentPhoneInput);
     await page.getByTestId("daftar-next").click();
     await expect(page.getByTestId("daftar-step-3")).toBeVisible();
 
@@ -180,7 +204,7 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     const matchedRow = page.locator("tr", { hasText: MATCH_CHILD });
     await matchedRow.getByTestId("admission-row-sibling-chip").hover();
     // Hover content is a Shadcn HoverCard — content lands in a portal.
-    await expect(page.locator("text=Siti Nurhaliza Hidayat")).toBeVisible();
+    await expect(page.getByText(matchedParentName)).toBeVisible();
   });
 
   // CI-only flake: the row-action dropdown trigger click on the matched
@@ -230,9 +254,6 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     ).toBeVisible();
     await expect(
       page.getByTestId("admission-edit-sibling-banner"),
-    ).toContainText("Siti Nurhaliza Hidayat");
+    ).toContainText(matchedParentName);
   });
 });
-
-// Reference the canonical-form phone constant so unused-import doesn't trip.
-void SEEDED_PARENT_PHONE_NORM;

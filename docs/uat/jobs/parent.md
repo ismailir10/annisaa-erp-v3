@@ -1,6 +1,6 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-04-25 in cycle `enrich-uat-jobs`
+> Last audited: 2026-06-23 in cycle `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Portal root: `app/parent/`
 > Default persona: Pak Budi (see `.claude/personas/pak-budi.md`)
 
@@ -48,11 +48,15 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Preconditions:** Logged in as a parent with ≥2 paid invoices in the last 90 days
 - **Steps:**
   1. Open the parent portal → Tagihan
-  2. Filter or scroll to paid/historical invoices
-  3. Confirm each paid invoice shows status `LUNAS`, paid date, and amount
-- **Done when:** Pak Budi can prove to his wife "we already paid March and April". Paid invoices are listed (not hidden after payment) with a clear paid indicator and date.
+  2. When the child has more than 10 invoice/payment rows, use the search input to find a period or invoice number
+  3. Use the status filter to show `LUNAS`, then use the sort control to review newest payment or largest amount ordering
+  4. Confirm each paid invoice shows status `LUNAS`, paid date, and amount
+- **Done when:** Pak Budi can prove to his wife "we already paid March and April". Paid invoices are listed (not hidden after payment) with a clear paid indicator and date. Long invoice lists expose search, status filter, sort, reset, and an empty state when the current filters match nothing.
 - **Why this job matters:** Recordkeeping. When a school admin mistakenly sends a reminder for an already-paid invoice, Pak Budi needs evidence to push back. If paid invoices disappear from the list, he has nothing.
 - **Expected perf:** history list load <1.5s; paid indicator + paid-date visible without opening each item.
+- **Error scenarios to verify:**
+  - Search/status/sort combination with no matches → empty state explains that no invoice matches the current filters
+  - Reset clears search, returns status to all, and restores due-date ascending sort
 
 ---
 

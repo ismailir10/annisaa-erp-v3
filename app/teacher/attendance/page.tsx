@@ -18,7 +18,7 @@ type AttendanceRecord = {
 };
 
 /** Cache key for a given year + month pair (pure helper). */
-export function cacheKey(year: number, month: number): string {
+function cacheKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
@@ -109,9 +109,10 @@ export default function TeacherAttendancePage() {
           if (data !== null && !signal.aborted) {
             cache.current.set(key, data);
           }
-        } catch (err) {
-          // Best-effort: log and move on.
-          console.log(`[attendance-prefetch] failed for ${key}:`, err);
+        } catch {
+          // Best-effort prefetch: surface failure so the teacher knows the
+          // monthly preview may be stale, but don't block the current view.
+          toast.error("Gagal memuat pratinjau kehadiran bulanan");
         }
       };
 

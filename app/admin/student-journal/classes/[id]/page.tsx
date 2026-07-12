@@ -1,16 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState, use } from "react";
+import { useCallback, useEffect, useMemo, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ColumnDef } from "@tanstack/react-table";
+import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { toast } from "sonner";
 import Link from "next/link";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
-import { ArrowLeft, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ------------------------------------------------------------------
@@ -73,12 +77,7 @@ function CompletionBar({
   const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary rounded-full transition-all"
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
+      <Progress value={Math.min(pct, 100)} className="h-1.5 w-20" />
       <span className="text-xs tabular-nums text-muted-foreground">
         {checked}/{total}
       </span>
@@ -106,6 +105,9 @@ export default function ClassWeekPage({
 
   const [rollUp, setRollUp] = useState<RollUpData | null>(null);
   const [classInfo, setClassInfo] = useState<ClassInfo | null>(null);
+  const [query, setQuery] = useState("");
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize] = useState(10);
   const [loading, setLoading] = useState(true);
 
   const fetchRollUp = useCallback(
@@ -152,6 +154,10 @@ export default function ClassWeekPage({
     fetchRollUp(ws);
   }, [fetchRollUp, ws]);
 
+  useEffect(() => {
+    setTablePage(1);
+  }, [query, ws]);
+
   const handleWeekChange = (delta: number) => {
     const newWs = addWeeks(ws, delta);
     setWs(newWs);
@@ -164,6 +170,63 @@ export default function ClassWeekPage({
   const headerTitle = classInfo
     ? `${classInfo.className} — ${classInfo.programName}`
     : "Detail Kelas";
+
+  const columns = useMemo<ColumnDef<StudentRow>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Siswa" />
+        ),
+        cell: ({ row }) => (
+          <p className="text-sm font-medium">{row.original.name}</p>
+        ),
+      },
+      {
+        accessorKey: "checkedCount",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Kelengkapan" />
+        ),
+        cell: ({ row }) => (
+          <CompletionBar
+            checked={row.original.checkedCount}
+            total={row.original.totalCells}
+          />
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <DataTableRowActions
+            onView={() =>
+              router.push(
+                `/admin/student-journal/students/${row.original.studentId}?weekStart=${ws}`,
+              )
+            }
+          />
+        ),
+      },
+    ],
+    [router, ws],
+  );
+
+  const students = rollUp?.students ?? [];
+  const filteredRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return students;
+    return students.filter((student) =>
+      student.name.toLowerCase().includes(needle),
+    );
+  }, [query, students]);
+  const tableTotalPages = Math.max(1, Math.ceil(filteredRows.length / tablePageSize));
+  const safeTablePage = Math.min(tablePage, tableTotalPages);
+  const tablePagination = {
+    page: safeTablePage,
+    pageSize: tablePageSize,
+    total: filteredRows.length,
+    totalPages: tableTotalPages,
+  };
 
   return (
     <>
@@ -207,75 +270,19 @@ export default function ClassWeekPage({
         }
       />
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        {/* Table header */}
-        <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 border-b border-border bg-muted/30">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Siswa
-          </span>
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[140px]">
-            Kelengkapan
-          </span>
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[60px]">
-            Aksi
-          </span>
-        </div>
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari siswa..."
+      />
 
-        {loading ? (
-          <div className="divide-y divide-border/50">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 items-center"
-              >
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-8 w-16" />
-              </div>
-            ))}
-          </div>
-        ) : !rollUp || rollUp.students.length === 0 ? (
-          <EmptyState title="Belum ada siswa aktif di kelas ini" />
-        ) : (
-          <div className="divide-y divide-border/50">
-            {rollUp.students.map((student) => (
-              <div
-                key={student.studentId}
-                className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 items-center hover:bg-muted/20 transition-colors"
-              >
-                <div>
-                  <p className="text-sm font-medium">{student.name}</p>
-                </div>
-                <CompletionBar
-                  checked={student.checkedCount}
-                  total={student.totalCells}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() =>
-                    router.push(
-                      `/admin/student-journal/students/${student.studentId}?weekStart=${ws}`,
-                    )
-                  }
-                >
-                  <Eye size={14} className="mr-1" />
-                  <span className="text-xs">Lihat</span>
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {rollUp && rollUp.students.length > 0 && (
-          <div className="px-4 py-2 border-t border-border bg-muted/10">
-            <p className="text-xs text-muted-foreground">
-              {rollUp.students.length} siswa aktif
-            </p>
-          </div>
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={filteredRows}
+        loading={loading}
+        pagination={tablePagination}
+        emptyTitle="Belum ada siswa aktif di kelas ini"
+      />
     </>
   );
 }

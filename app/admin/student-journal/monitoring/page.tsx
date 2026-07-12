@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
+import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Button } from "@/components/ui/button";
@@ -67,12 +69,7 @@ function formatWeekLabel(ws: string): string {
 function CompletionBar({ pct }: { pct: number }) {
   return (
     <div className="flex items-center gap-2 min-w-[80px]">
-      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary rounded-full transition-all"
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
+      <Progress value={Math.min(pct, 100)} className="h-1.5 flex-1" />
       <span className="text-xs tabular-nums w-9 text-right">{pct}%</span>
     </div>
   );
@@ -86,6 +83,9 @@ export default function MonitoringPage() {
   const router = useRouter();
   const [ws, setWs] = useState<string>(currentMonday);
   const [data, setData] = useState<ClassRow[]>([]);
+  const [query, setQuery] = useState("");
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize] = useState(10);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async (weekStartYmd: string) => {
@@ -111,6 +111,10 @@ export default function MonitoringPage() {
   useEffect(() => {
     fetchData(ws);
   }, [fetchData, ws]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [query, ws]);
 
   // Derived stats from the class list response
   const stats = useMemo(() => {
@@ -191,12 +195,22 @@ export default function MonitoringPage() {
     [router, ws],
   );
 
-  // Fake pagination object — all classes fit in one page for a small school
+  const filteredRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return data;
+    return data.filter((row) =>
+      [row.className, row.programName].some((value) =>
+        value.toLowerCase().includes(needle),
+      ),
+    );
+  }, [data, query]);
+  const tableTotalPages = Math.max(1, Math.ceil(filteredRows.length / tablePageSize));
+  const safeTablePage = Math.min(tablePage, tableTotalPages);
   const pagination = {
-    page: 1,
-    pageSize: data.length || 20,
-    total: data.length,
-    totalPages: 1,
+    page: safeTablePage,
+    pageSize: tablePageSize,
+    total: filteredRows.length,
+    totalPages: tableTotalPages,
   };
 
   return (
@@ -266,13 +280,16 @@ export default function MonitoringPage() {
         />
       </StatsCardsRow>
 
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari kelas atau program..."
+      />
+
       <DataTable
         columns={columns}
-        data={data}
+        data={filteredRows}
         pagination={pagination}
-        onPageChange={() => {}}
-        onPageSizeChange={() => {}}
-        onSortChange={() => {}}
         defaultSort={{ field: "className", order: "asc" }}
         loading={loading}
         emptyTitle="Belum ada kelas aktif"

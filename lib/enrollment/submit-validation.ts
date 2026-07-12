@@ -1,0 +1,148 @@
+import { z } from "zod";
+import { optionalTrimmed } from "@/lib/validations/zod-helpers";
+import { CONSENT_VERSION } from "./consent-clauses";
+import {
+  AGAMA_VALUES,
+  KEWARGANEGARAAN_VALUES,
+  LIVING_WITH_VALUES,
+  BIRTH_DELIVERY_VALUES,
+  BIRTH_TERM_VALUES,
+  BLOOD_TYPE_VALUES,
+  EDUCATION_VALUES,
+  OCCUPATION_VALUES,
+  INCOME_VALUES,
+  MAX_PRIOR_FAMILY_ATTENDEES,
+} from "./constants";
+
+// Mirrors lib/admission/submit-validation.ts shapes — same phone/date/cuid
+// regexes, same optionalTrimmed pattern, same flatten helper — so the rich
+// enrollment form validates consistently with the thin /daftar inquiry.
+const PHONE_REGEX = /^[+\d\s\-()]{6,20}$/;
+const CUID_REGEX = /^c[a-z0-9]{24,}$/i;
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Required membership in an option Set (from constants.ts). */
+const inSet = (set: Set<string>, msg: string) =>
+  z
+    .string()
+    .trim()
+    .refine((v) => set.has(v), msg);
+
+/** Optional membership — empty/unfilled selects pass; non-empty must be valid. */
+const optInSet = (set: Set<string>, msg: string) =>
+  optionalTrimmed(z.string().refine((v) => set.has(v), msg));
+
+/** Optional non-negative number — "" / null / undefined become undefined. */
+const optNumber = (msg: string) =>
+  z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : v),
+    z.coerce.number({ error: msg }).min(0, msg).optional(),
+  );
+
+const addressSchema = z
+  .object({
+    perumahan: optionalTrimmed(z.string().max(120)),
+    blokCluster: optionalTrimmed(z.string().max(60)),
+    rtRw: optionalTrimmed(z.string().max(20)),
+    kecamatan: optionalTrimmed(z.string().max(80)),
+    kodePos: optionalTrimmed(z.string().max(10)),
+  })
+  .optional();
+
+const priorFamilyAttendeeSchema = z.object({
+  name: optionalTrimmed(z.string().max(80)),
+  yearEntered: optionalTrimmed(z.string().max(9)),
+});
+
+const studentSchema = z.object({
+  childName: z.string().trim().min(1, "Nama lengkap anak wajib diisi").max(80, "Nama terlalu panjang"),
+  nickname: optionalTrimmed(z.string().max(40)),
+  childGender: z.enum(["L", "P"], { error: "Pilih jenis kelamin" }),
+  birthPlace: z.string().trim().min(1, "Tempat lahir wajib diisi").max(80),
+  dateOfBirth: z.string().regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)"),
+  agama: inSet(AGAMA_VALUES, "Pilih agama"),
+  kewarganegaraan: inSet(KEWARGANEGARAAN_VALUES, "Pilih kewarganegaraan"),
+  bloodType: optInSet(BLOOD_TYPE_VALUES, "Golongan darah tidak valid"),
+  livingWith: optInSet(LIVING_WITH_VALUES, "Pilihan tempat tinggal tidak valid"),
+  birthDelivery: optInSet(BIRTH_DELIVERY_VALUES, "Pilihan jalan lahir tidak valid"),
+  birthTerm: optInSet(BIRTH_TERM_VALUES, "Pilihan bulan lahir tidak valid"),
+  homeLanguage: optionalTrimmed(z.string().max(60)),
+  foodAllergy: optionalTrimmed(z.string().max(200)),
+  seriousIllness: optionalTrimmed(z.string().max(200)),
+  weightKg: optNumber("Berat badan tidak valid"),
+  heightCm: optNumber("Tinggi badan tidak valid"),
+  headCircumferenceCm: optNumber("Lingkar kepala tidak valid"),
+  siblingsKandung: optNumber("Jumlah saudara kandung tidak valid"),
+  siblingsTiri: optNumber("Jumlah saudara tiri tidak valid"),
+  siblingsAngkat: optNumber("Jumlah saudara angkat tidak valid"),
+  childOrder: optNumber("Anak ke- tidak valid"),
+  siblingsTotal: optNumber("Jumlah saudara tidak valid"),
+  address: addressSchema,
+  priorFamilyAttendees: z
+    .array(priorFamilyAttendeeSchema)
+    .max(MAX_PRIOR_FAMILY_ATTENDEES, `Maksimal ${MAX_PRIOR_FAMILY_ATTENDEES} keluarga`)
+    .optional(),
+});
+
+const parentSchema = z.object({
+  name: z.string().trim().min(1, "Nama wajib diisi").max(80, "Nama terlalu panjang"),
+  birthPlace: optionalTrimmed(z.string().max(80)),
+  dateOfBirth: optionalTrimmed(z.string().regex(ISO_DATE_REGEX, "Tanggal lahir tidak valid (format YYYY-MM-DD)")),
+  agama: optInSet(AGAMA_VALUES, "Agama tidak valid"),
+  phone: optionalTrimmed(z.string().regex(PHONE_REGEX, "Nomor telepon tidak valid")),
+  email: optionalTrimmed(z.string().email("Email tidak valid")),
+  address: addressSchema,
+  education: optInSet(EDUCATION_VALUES, "Pendidikan tidak valid"),
+  occupation: optInSet(OCCUPATION_VALUES, "Pekerjaan tidak valid"),
+  employerName: optionalTrimmed(z.string().max(120)),
+  employerAddress: optionalTrimmed(z.string().max(160)),
+  employerPhone: optionalTrimmed(z.string().regex(PHONE_REGEX, "Nomor telepon kantor tidak valid")),
+  income: optInSet(INCOME_VALUES, "Penghasilan tidak valid"),
+});
+
+// One parent's signature block within consent. signatureToken is the opaque
+// storage token (lib/storage) of the uploaded drawn-signature PNG; the route
+// issues it before submit. signedAt is server-stamped — accepted but not trusted.
+const consentSignerSchema = z.object({
+  name: z.string().trim().min(1, "Nama penandatangan wajib diisi").max(80),
+  signatureToken: z.string().trim().min(1, "Tanda tangan wajib diisi"),
+  signedAt: optionalTrimmed(z.string()),
+});
+
+const consentSchema = z.object({
+  agreed: z.literal(true, { error: "Persetujuan orang tua wajib dicentang" }),
+  version: z
+    .string()
+    .refine((v) => v === CONSENT_VERSION, "Versi surat persetujuan kedaluwarsa — muat ulang halaman"),
+  ayah: consentSignerSchema,
+  ibu: consentSignerSchema,
+});
+
+/**
+ * Full public-submit schema for the rich enrollment form. The route never
+ * trusts client-supplied `status`, `accessToken`, `tenantId`, or `studentId`
+ * — those are server-owned; Zod strip mode drops any such extra keys.
+ */
+export const submitEnrollmentSchema = z.object({
+  programId: z.string().regex(CUID_REGEX, "Program tidak valid"),
+  dcareAddon: z.boolean().optional().default(false),
+  studentData: studentSchema,
+  ayahData: parentSchema,
+  ibuData: parentSchema,
+  consentData: consentSchema,
+});
+
+export type SubmitEnrollmentInput = z.infer<typeof submitEnrollmentSchema>;
+
+/**
+ * Flatten a ZodError into `{ "studentData.childName": message }` shape for the
+ * 422 response. First error per path wins (sufficient for inline form display).
+ */
+export function flattenSubmitErrors(error: z.ZodError): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const path = issue.path.join(".") || "_root";
+    if (!(path in out)) out[path] = issue.message;
+  }
+  return out;
+}

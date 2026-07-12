@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-06-13 in cycle `payments-ledger` (Penerimaan payments-received ledger on /admin/payments — date-range, per-method summary, CSV export)
+> Last audited: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -68,9 +68,11 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
   1. Open Keuangan → Penerimaan (`/admin/payments`)
   2. Default view shows today's payments + Total Penerimaan + Jumlah Transaksi
   3. Widen the date range (e.g. month-to-date) and/or filter by method (Tunai / Transfer Bank / Virtual Account)
-  4. Read the per-method summary badges
-  5. Click "Ekspor CSV"
-- **Done when:** Summary cards + table reconcile (sum of rows = Total Penerimaan), method filter narrows both, CSV downloads with matching totals and a Bahasa filename. REVERSED payments never appear.
+  4. Search by student name, invoice number, or payment reference
+  5. Read the per-method summary badges and paginate if the result set exceeds one page
+  6. Open a payment row via "Lihat" and confirm the linked invoice detail opens
+  7. Click "Ekspor CSV"
+- **Done when:** Summary cards + table reconcile against the filtered range, method/date/search filters narrow both the table and summary, pagination works without duplicate/missing rows, row "Lihat" opens the correct invoice, CSV downloads with matching filtered totals and a Bahasa filename. REVERSED payments never appear.
 - **Why this job matters:** Treasurer daily/period cash recap previously required opening every invoice one by one.
 - **Known friction (from last UAT):** <filled by /uat reports>
 

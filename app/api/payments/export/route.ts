@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { resolveLedgerRequest, buildLedgerCsv } from "@/lib/finance/payments-ledger";
 
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!session?.tenantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!isAdminRole(session.role)) {
+  if (!isAdminRole(session.role) || !hasPermission(session, "invoices.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

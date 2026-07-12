@@ -1,4 +1,5 @@
 import { formatCurriculumElement } from "@/lib/format";
+import { LEVEL_LABEL_SHORT } from "@/lib/curriculum/level-presentation";
 
 type Counts = {
   CONSISTENT: number;
@@ -50,7 +51,7 @@ export function ElementProgressRow({
         aria-label={
           empty
             ? `${label}: belum ada catatan`
-            : `${label}: ${counts.CONSISTENT} Mampu, ${counts.EMERGING} Belum, ${counts.NEEDS_REINFORCEMENT} Perlu dari ${total} catatan`
+            : `${label}: ${counts.CONSISTENT} ${LEVEL_LABEL_SHORT.CONSISTENT}, ${counts.EMERGING} ${LEVEL_LABEL_SHORT.EMERGING}, ${counts.NEEDS_REINFORCEMENT} ${LEVEL_LABEL_SHORT.NEEDS_REINFORCEMENT} dari ${total} catatan`
         }
       >
         {empty ? (
@@ -71,7 +72,7 @@ export function ElementProgressRow({
             )}
             {needsPct > 0 && (
               <div
-                className="h-full bg-status-absent"
+                className="h-full bg-status-leave"
                 style={{ width: `${needsPct}%` }}
               />
             )}
@@ -85,13 +86,13 @@ export function ElementProgressRow({
       ) : (
         <p className="text-xs text-muted-foreground">
           <span className="text-status-present-text">
-            {counts.CONSISTENT} Mampu
+            {counts.CONSISTENT} {LEVEL_LABEL_SHORT.CONSISTENT}
           </span>
           {" · "}
-          <span className="text-status-late">{counts.EMERGING} Belum</span>
+          <span className="text-status-late">{counts.EMERGING} {LEVEL_LABEL_SHORT.EMERGING}</span>
           {" · "}
-          <span className="text-status-absent">
-            {counts.NEEDS_REINFORCEMENT} Perlu
+          <span className="text-status-leave-text">
+            {counts.NEEDS_REINFORCEMENT} {LEVEL_LABEL_SHORT.NEEDS_REINFORCEMENT}
           </span>
         </p>
       )}

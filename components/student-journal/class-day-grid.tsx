@@ -123,7 +123,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                 >
                   <MessageSquarePlus size={18} />
                   {(noteCounts?.[student.id] ?? 0) > 0 ? (
-                    <span className="text-[10px] font-medium text-primary tabular-nums">
+                    <span className="text-xs font-medium text-primary tabular-nums">
                       {noteCounts?.[student.id]}
                     </span>
                   ) : null}

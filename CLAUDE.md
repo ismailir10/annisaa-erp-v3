@@ -38,19 +38,19 @@ Invoke `/caveman` and `/using-superpowers` by default. The `SessionStart` hook (
 - Commit (one commit per task, not per cycle)
 - After the **last task**: run the **end-of-cycle gate** + request code review, then fill Ship Notes
 
-**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP with the user's signed-in Google session to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` print the merge hand-off — the author watches CI (`gh pr checks <number> --watch`) and merges manually (`gh pr merge <number> --squash --delete-branch`) when all checks are green. **Both `cto` and `product-builder` use this — no direct pushes to `staging` or `main`.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it. Playwright must have passed (recorded in cycle doc Verification) before `/ship`.
+**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP signed into the **role-scoped Google account** for each portal (admin / teacher / parent — mapped in `.claude/verify-accounts.json`) to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` reach the merge step. A **CTO** then watches CI (`gh pr checks <number> --watch`) and **self-merges** (`gh pr merge <number> --squash --delete-branch`) once all four required checks are green — never on red or pending; the Chrome-MCP preview-verify plus the green protected checks are the in-the-loop guarantee. A **product-builder** never merges: its PR is labeled `needs-cto-review` and a CTO reviews, preview-verifies, and merges. **No direct pushes to `staging` or `main` for any role.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it. Playwright status must be recorded in cycle doc Verification before `/ship` — a local pass, **or** a deferral to the required CI `Playwright E2E` check for harnesses whose environment cannot run Playwright locally (the CI check still gates the merge).
 
 ### Testing gates
 
-Three-tier — fast unit gate between every task, Playwright smoke once per cycle, preview-verify on the open PR before merge hand-off:
+Three-tier — fast unit gate between every task, lean Playwright smoke once per cycle, preview-verify on the open PR before merge hand-off:
 
 | Gate | Command / mechanism | When |
 |------|---------|------|
 | Between-task | `npm run build && npx vitest run` | Before every commit during `/build` |
-| End-of-cycle | `npm run build && npx vitest run && npx playwright test` | After the last task, before the final commit |
-| Preview-verify | `/ship` Step 3 — Chrome MCP walks the Vercel preview against the user's Google session, classifies findings, fix-commits + re-verifies until clean | After `/ship` opens the PR, before the merge hand-off |
+| End-of-cycle | `npm run build && npx vitest run && npx playwright test` (Playwright local is best-effort — harnesses that cannot run it locally defer to the required CI `Playwright E2E` check, recorded in Verification) | After the last task, before the final commit |
+| Preview-verify | `/ship` Step 3 — Chrome MCP (both CTO harnesses drive the user's shared signed-in Chrome profile) walks the Vercel preview signed into the role-scoped Google account per portal (`.claude/verify-accounts.json`), classifies findings, fix-commits + re-verifies until clean. opencode (PB) never self-verifies → hands the PR to a CTO. | After `/ship` opens the PR, before the merge |
 
-**Why three tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle catches headless UI regressions but cannot reach Google-OAuth-gated staging — preview-verify covers that surface with the user's real authenticated session. **Pure-docs cycles may skip Playwright + preview-verify** — record each skip explicitly in Verification. Tests live in `e2e/`; demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
+**Why three tiers:** Playwright cold-spin is ~2 min; running it between tasks adds 10+ min to a 5-task cycle. End-of-cycle Playwright is the deterministic CI regression contract: keep it lean, stable, and focused on critical cross-module smoke flows (auth/demo shell, admin dashboard, students, invoices/payment, attendance, teacher daily flow, parent invoice/report, tenant/security boundaries). Do **not** add Playwright for every UI detail; prefer Vitest/API/component-level tests for business logic, permissions, validation, and local interactions. Preview-verify is the human-like release check: Chrome MCP uses the real preview, signed-in browser state, console, network, screenshots, and UI judgment to catch OAuth/staging/Vercel/layout issues that CI cannot exercise. Chrome MCP complements Playwright; it does not replace the required CI gate because it depends on an interactive browser profile and is harder to replay deterministically. **Pure-docs cycles may skip Playwright + preview-verify** — record each skip explicitly in Verification. Tests live in `e2e/`; demo-mode cookie auth; runs against production build (`DEMO_MODE=true npm run start`); Chromium-only, workers: 1.
 
 ### Standalone: `/uat` — heuristic user-acceptance testing
 
@@ -72,6 +72,56 @@ Read-only against git. Output is appended to the active cycle doc's `## Verifica
 
 ---
 
+## Harness Roster & Model Tiering
+
+Three AI harnesses work this repo, in parallel, each in its own worktree. They share **one** canonical manual (this file — `AGENTS.md` is a symlink to it, read by Codex + opencode), one `scripts/` set, one `.githooks/` set, and one GitHub branch-protection boundary. No harness has private rules.
+
+| Harness | Default role | Driver (reasoning tier) | Dirty-work tier (subagents) | Can down-tier? |
+|---|---|---|---|---|
+| **Claude** | cto | Opus 4.8 | Sonnet 4.6 (default), Haiku 4.5 (trivial/mechanical) | Yes — `Task`/`Agent` tool with `model` override |
+| **Codex** | cto | gpt-5.5 high reasoning | gpt-5.5 low / minimal reasoning effort | Yes — spawn subagents at lower effort |
+| **opencode** | product-builder | glm-5.2 | glm-5.2 (no cheaper tier exists) | No — single model |
+
+### The expensive-driver rule
+
+**The reasoning-tier driver NEVER does cheap work.** Cheap work is delegated to a subagent on the dirty-work tier. Mandatory for Claude + Codex (which can down-tier). opencode cannot down-tier, so it instead keeps cycles small and is gated by mandatory CTO review (see Parallel harmony).
+
+**Reasoning-tier ONLY** — the driver does these itself, never delegates:
+- Architecture / ADR decisions
+- PR review + final sign-off
+- Spec synthesis + task decomposition (turning a request into `## Tasks`)
+- Resolving conflicts between subagent outputs
+- Anything where being wrong is expensive
+
+**Dirty-work tier** — the driver MUST delegate; it never burns reasoning tokens on these:
+- File reads, grep/glob sweeps, codebase exploration
+- Per-module audits (one subagent per module)
+- Mechanical edits, boilerplate, scaffolding, codemods
+- Test-fixture writing, doc-staleness scans
+- Implementing a single pre-specced slice
+
+### Mandatory subagent fan-out
+
+**No feature or audit cycle runs in a single context.** The driver decomposes the work, fans out parallel subagents — one per independent unit — then only synthesizes + reviews their distilled output.
+
+Worked example — *"audit UI across every module for inconsistencies, produce a fix spec"*:
+1. Driver (Opus 4.8 / gpt-5.5) lists the modules.
+2. Driver spawns **one Sonnet 4.6 subagent per module** (admin, teacher, parent, billing, attendance, …); each audits its module in parallel and returns a findings list. *(Codex: one low-effort gpt-5.5 subagent per module. opencode: parallel glm-5.2 subagents — same fan-out shape, no cost down-tier.)*
+3. Driver dedups + prioritizes the findings, then writes the fix spec into the cycle doc.
+
+The driver read zero module files and produced zero grep output itself — it reasoned over distilled findings. That is the token-efficiency win. `/build`'s Planning step enforces this.
+
+### Parallel harmony
+
+- **Isolation:** every session has its own worktree + its own gitignored `.claude/session-role`. No two sessions share mutable state, so they cannot clobber each other.
+- **One canonical manual:** edit *this file*. `AGENTS.md` is a symlink to `CLAUDE.md` — Codex + opencode read it, so a single edit propagates to all three harnesses. **Never edit `AGENTS.md` directly** — it is not a separate document.
+- **One canonical skill set:** edit `.claude/skills/*`. Codex resolves its slash-command skills from `.agents/skills/` — which is gitignored (harness-local) and would otherwise drift. `scripts/link-agent-skills.sh` symlinks `.agents/skills/{spec,build,ship,audit-docs,uat}` → `.claude/skills/*` (run by `install-hooks.sh` at setup + on demand), so Codex always reads the canonical skill. **Never hand-edit `.agents/skills/*`** — fix `.claude/skills/*` and re-run the linker.
+- **opencode is product-builder only.** glm-5.2 builds pre-specced slices; it never makes architecture decisions and never self-approves. Every opencode PR is labeled `needs-cto-review`; a CTO harness (Claude or Codex) reviews before the merge hand-off, and runs the preview-verify opencode cannot.
+- **CTOs (Claude, Codex)** own architecture, PR review, and `/ship --to-main`.
+- Shared `sync-staging.sh` + the >5-commits-behind preflight keep every branch close to `origin/staging`, so parallel branches don't diverge.
+
+---
+
 ## Multi-LLM Safety
 
 Other LLMs (Sonnet, Haiku, GLM, GPT) may work on this repo. Five mechanisms:
@@ -86,10 +136,12 @@ Every session declares its role on turn one:
 
 ```
 role=cto              # cto or product-builder
-model=claude-opus-4-7 # or claude-sonnet-4-6, glm-5.2, gpt-5, human — must match current assistant
+model=claude-opus-4-8 # or gpt-5.5, glm-5.2, claude-sonnet-4-6, human — must match current assistant
 ```
 
 If missing or stale (>12h), `SessionStart` (`scripts/check-role.sh`) prints an instruction telling the assistant to ask the user. The three slash commands refuse to run until the file is set. **No env var reads** — Claude Code doesn't reliably export `CLAUDE_MODEL` to subprocesses.
+
+**One role file, all harnesses.** `check-role.sh` (run by both Claude's and Codex's `SessionStart` hooks) reads and writes exactly `.claude/session-role`. Every harness writes its role there — Claude, Codex, and opencode alike. A legacy `.codex/session-role` is deprecated: it is symlinked to `.claude/session-role` so any codex tooling that still references it resolves to the canonical file. Do not maintain a separate copy.
 
 **Override on every session start:** if the user's first message declares a role ("you are cto", "act as product-builder", "cto mode", or equivalent), the assistant MUST immediately rewrite `.claude/session-role` with the declared role + own model ID before any other action — even if the file already exists and is fresh. No "already set" exception.
 
@@ -116,12 +168,12 @@ The exact rule table + every test scenario lives in `scripts/test-hooks.sh` — 
 
 ### GitHub branch protection (the real boundary)
 
-Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Branch protection rules became free for private repositories in February 2023 — no GitHub Pro upgrade needed. Required configuration:
+Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is the actual enforcement layer.** Required configuration:
 
 - `staging` + `main`: require PR, no direct push for anyone (incl. owner), status checks must pass before merge
-- Required CI checks (job names from `.github/workflows/ci.yml`): `Lint, Typecheck & Test`, `Build`, `Playwright E2E`
+- Required checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`
 
-`/ship` opens the PR and stops; the author merges after CI is green. Branch protection on `main` and `staging` is enabled in the Talib production launch — Cycle B (Production Infrastructure). Until then the safety net is `pre-push` blocking direct pushes + CTO discipline. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
+`/ship` opens the PR; a CTO self-merges after preview-verify is clean and all four checks are green, a product-builder hands the `needs-cto-review` PR to a CTO. Branch protection on `main` and `staging` is enabled and must require the four checks above; `pre-push` is only a local early-warning guard. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
 
 ### Commit attribution
 
@@ -139,7 +191,7 @@ Auto-appended by `prepare-commit-msg`. If the hook fails, the commit lands with 
 ## One-File-Per-Cycle Rule
 
 **Allowed markdown files:**
-- `README.md`, `CLAUDE.md`, `LICENSE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (root)
+- `README.md`, `CLAUDE.md`, `AGENTS.md` (symlink → CLAUDE.md), `LICENSE.md`, `CHANGELOG.md`, `CONTRIBUTING.md` (root)
 - `docs/**` (incl. `docs/cycles/YYYY-MM-DD-<slug>.md`, **one per cycle**)
 - `.github/**`, `.claude/**`, `.agent-skills/**`, `.githooks/**`
 
@@ -158,7 +210,7 @@ Any other staged `.md` is rejected by `pre-commit`.
 ```
 
 **`/ship` preflight:**
-- [ ] `npm run build && npx vitest run && npx playwright test` all green (Playwright skip allowed for pure-docs cycles)
+- [ ] `npm run build && npx vitest run` green; `npx playwright test` green locally **or** deferred to the required CI `Playwright E2E` check (env-can't-run only; recorded in Verification). Playwright skip allowed for pure-docs cycles.
 - [ ] Verification section filled
 - [ ] **README.md updated** if cycle adds/changes modules, routes, or entities
 - [ ] Ship Notes filled
@@ -182,7 +234,7 @@ Single-source-of-truth contract — every fact has exactly one owner; the other 
 | Document | Owns | Update when |
 |---|---|---|
 | **README.md** | Product identity, tech stack, modules, portals, ADRs (last 60d), setup, environments | Modules/routes/entities change; new ADR; setup/env changes |
-| **CLAUDE.md** | Workflow, multi-LLM safety, hooks, standards table, doc-maintenance, file structure, `/uat`, one-file-per-cycle rule | Workflow/safety/hooks/standards listing change |
+| **CLAUDE.md** | Workflow, harness roster + model tiering, multi-LLM safety, hooks, standards table, doc-maintenance, file structure, `/uat`, one-file-per-cycle rule | Workflow/safety/hooks/standards listing change; harness roster or tiering change |
 | `.claude/standards/*.md` | Domain rules (UI / patterns / voice / CRUD / portal / API / security / colors) | When a standard needs correction |
 | `docs/cycles/YYYY-MM-DD-<slug>.md` | Per-cycle history (one per cycle) | `/spec` creates, `/build`+`/ship` update |
 | `docs/adrs/archive.md` | ADRs > 60d OR codified in CLAUDE.md/standards | When trimming README's active ADR table |
@@ -223,17 +275,17 @@ Domain standards live under `.claude/standards/` — loaded only when relevant f
 ## File Structure
 
 ```
-app/{admin,teacher,parent}/  42 / 14 / 8 portal pages
-app/api/                     175 routes (organized by domain)
-components/ui/               69 Shadcn components
+app/{admin,teacher,parent}/  44 / 14 / 8 portal pages
+app/api/                     184 routes (organized by domain)
+components/ui/               73 Shadcn components
 lib/{api,validations,payroll,xendit,email}/  business logic, retry, integrations
 prisma/                      schema + seed
 proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
-e2e/                         31 specs (admin, admin-admission-convert-parity, admin-attendance-recap, admin-classes, admin-payments, admin-curriculum-objectives, admin-dashboard, admin-dialogs, admin-guardian-detail, admin-guardian-primary-invariant, admin-hydration, admin-raport, admin-school-admin, admin-students-full-crud, branding, curriculum-admin, curriculum-promes-import, daftar-public, design-system, jakarta-tz-server-date, parent, parent-attendance-scoping, parent-perkembangan, parent-raport, parent-signout-bfcache, payment, perf-budget, sibling-detect, teacher, teacher-assessments-center, teacher-assessments-weekly)
+e2e/                         33 specs (admin, admin-admission-convert-parity, admin-attendance-recap, admin-classes, admin-payments, admin-curriculum-objectives, admin-dashboard, admin-dialogs, admin-guardian-detail, admin-guardian-primary-invariant, admin-hydration, admin-raport, admin-school-admin, admin-students-export, admin-students-full-crud, branding, curriculum-admin, curriculum-promes-import, daftar-public, design-system, enrollment-application, jakarta-tz-server-date, parent, parent-attendance-scoping, parent-perkembangan, parent-raport, parent-signout-bfcache, payment, perf-budget, sibling-detect, teacher, teacher-assessments-center, teacher-assessments-weekly)
 docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
 .claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
-scripts/                     setup-worktree, install-hooks, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, test-hooks, reseed-staging
+scripts/                     setup-worktree, install-hooks, link-agent-skills, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, test-hooks, reseed-staging
 ```
 
 Demo-mode auth means E2E + local dev need no live Supabase. Lint: `npm run lint`.

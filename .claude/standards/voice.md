@@ -85,6 +85,18 @@ The school is Islamic PAUD/TKIT. Arabic greetings and honorifics are first-class
 | Templat (assessment / journal template) | Template (the `t` at the end softens Indonesian — both are acceptable but Templat is the canonical loanword form) |
 | Timpa (override an attendance / data entry) | Override, Timpa (Override) (the bilingual gloss is redundant once Timpa is established) |
 
+### Assessment skala (3-level)
+
+The early-childhood assessment scale is **CONSISTENT / EMERGING / NEEDS_REINFORCEMENT**. Single source: `lib/curriculum/level-presentation.ts`. Labels + tone:
+
+| Level | Short (tap-button) | Long (raport, PDF, parent) | Tone |
+|---|---|---|---|
+| CONSISTENT | Mampu | Mampu dan Konsisten | present (green) |
+| EMERGING | Belum | Mampu Belum Konsisten | late (amber) |
+| NEEDS_REINFORCEMENT | Perlu | Perlu Penguatan | **leave (info-blue) — NOT red, NOT teal** |
+
+**Voice call:** NEEDS_REINFORCEMENT renders info-blue everywhere. "Perlu Penguatan" is an honest developmental note to a parent (Ibu Nur reads it on the raport), not an alarm — red is reserved for attendance *Alpa* and destructive actions. Never recolor it absent-red or praise-teal on any surface (screen or PDF).
+
 ## Cross-cutting copy rules
 
 ### Errors

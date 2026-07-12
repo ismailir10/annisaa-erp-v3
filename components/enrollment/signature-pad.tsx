@@ -1,0 +1,120 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Check, Eraser } from "lucide-react";
+
+/**
+ * Drawn-signature pad for the enrollment consent step. The parent draws with a
+ * finger / mouse / stylus; "Simpan" hands the PNG blob up via onSave (the
+ * wizard uploads it to the signature route and stores the returned token).
+ * `saved` shows a confirmed state once the upload round-trips.
+ *
+ * Pointer Events cover mouse + touch + pen uniformly. The canvas backing store
+ * is sized to its CSS box × devicePixelRatio so strokes stay crisp on HiDPI.
+ */
+export function SignaturePad({
+  label,
+  saved,
+  onSave,
+}: {
+  label: string;
+  saved: boolean;
+  onSave: (blob: Blob) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const dirty = useRef(false);
+  const [hasInk, setHasInk] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, 3);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#1A2E2F";
+    }
+  }, []);
+
+  function pos(e: React.PointerEvent<HTMLCanvasElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function start(e: React.PointerEvent<HTMLCanvasElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drawing.current = true;
+    const ctx = canvasRef.current?.getContext("2d");
+    const { x, y } = pos(e);
+    ctx?.beginPath();
+    ctx?.moveTo(x, y);
+  }
+
+  function move(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!drawing.current) return;
+    const ctx = canvasRef.current?.getContext("2d");
+    const { x, y } = pos(e);
+    ctx?.lineTo(x, y);
+    ctx?.stroke();
+    dirty.current = true;
+    if (!hasInk) setHasInk(true);
+  }
+
+  function end() {
+    drawing.current = false;
+  }
+
+  function clear() {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    dirty.current = false;
+    setHasInk(false);
+  }
+
+  function save() {
+    const canvas = canvasRef.current;
+    if (!canvas || !dirty.current) return;
+    canvas.toBlob((blob) => {
+      if (blob) onSave(blob);
+    }, "image/png");
+  }
+
+  return (
+    <div className="rounded-xl border border-emerald-900/15 bg-white p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-medium text-emerald-950">{label}</span>
+        {saved && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+            <Check size={14} /> Tersimpan
+          </span>
+        )}
+      </div>
+      <canvas
+        ref={canvasRef}
+        className="h-40 w-full touch-none rounded-lg border border-dashed border-emerald-900/25 bg-[#fbfdfb]"
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={end}
+        onPointerLeave={end}
+        aria-label={`Area tanda tangan ${label}`}
+      />
+      <div className="mt-2 flex gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={clear} disabled={!hasInk}>
+          <Eraser size={14} /> Hapus
+        </Button>
+        <Button type="button" size="sm" onClick={save} disabled={!hasInk}>
+          Simpan tanda tangan
+        </Button>
+      </div>
+    </div>
+  );
+}
