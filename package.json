@@ -23,7 +23,7 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@react-pdf/renderer": "^4.5.1",
-    "@supabase/ssr": "^0.10.0",
+    "@supabase/ssr": "^0.12.1",
     "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-table": "^8.21.3",
     "@vercel/analytics": "^2.0.1",
