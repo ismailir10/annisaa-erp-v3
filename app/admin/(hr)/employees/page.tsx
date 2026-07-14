@@ -151,6 +151,8 @@ const EMPTY_CREATE_FORM = {
   nama: "", formalName: "", email: "", noHp: "",
   jabatan: "", campusId: "", hireDate: "",
   bankName: "Bank BSI", bankAccountNo: "", bpjsEnrolled: false,
+  // Saldo cuti awal — blank falls back to the schema default (12 / 14).
+  leaveBalanceAnnual: "", leaveBalanceSick: "",
   role: "TEACHER" as "TEACHER" | "SCHOOL_ADMIN",
 };
 
@@ -598,6 +600,16 @@ function CreateEmployeeFormBody({
         </Field>
       </div>
       <Field><FieldLabel>No. Rekening</FieldLabel><Input value={form.bankAccountNo} onChange={(e) => setForm({ ...form, bankAccountNo: e.target.value })} /></Field>
+      <div className="grid grid-cols-2 gap-field">
+        <Field>
+          <FieldLabel>Saldo Cuti Tahunan</FieldLabel>
+          <Input type="number" min={0} max={365} value={form.leaveBalanceAnnual} onChange={(e) => setForm({ ...form, leaveBalanceAnnual: e.target.value })} placeholder="12" />
+        </Field>
+        <Field>
+          <FieldLabel>Saldo Cuti Sakit</FieldLabel>
+          <Input type="number" min={0} max={365} value={form.leaveBalanceSick} onChange={(e) => setForm({ ...form, leaveBalanceSick: e.target.value })} placeholder="14" />
+        </Field>
+      </div>
       <label className="flex items-center gap-2 text-sm">
         <Checkbox checked={form.bpjsEnrolled} onCheckedChange={(c) => setForm({ ...form, bpjsEnrolled: !!c })} />
         BPJS Terdaftar

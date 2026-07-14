@@ -185,6 +185,40 @@ describe("createEmployeeSchema — sanity", () => {
   });
 });
 
+describe("createEmployeeSchema — R1 leave balances", () => {
+  it("omits leave balances when not supplied (Prisma default applies)", () => {
+    const r = createEmployeeSchema.safeParse(baseCreate);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.leaveBalanceAnnual).toBeUndefined();
+      expect(r.data.leaveBalanceSick).toBeUndefined();
+    }
+  });
+
+  it("treats an empty-string input as undefined, not 0", () => {
+    const r = createEmployeeSchema.safeParse({ ...baseCreate, leaveBalanceAnnual: "", leaveBalanceSick: "" });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.leaveBalanceAnnual).toBeUndefined();
+      expect(r.data.leaveBalanceSick).toBeUndefined();
+    }
+  });
+
+  it("coerces string number inputs to ints", () => {
+    const r = createEmployeeSchema.safeParse({ ...baseCreate, leaveBalanceAnnual: "6", leaveBalanceSick: "10" });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.leaveBalanceAnnual).toBe(6);
+      expect(r.data.leaveBalanceSick).toBe(10);
+    }
+  });
+
+  it("rejects negative or out-of-range balances", () => {
+    expect(createEmployeeSchema.safeParse({ ...baseCreate, leaveBalanceAnnual: -1 }).success).toBe(false);
+    expect(createEmployeeSchema.safeParse({ ...baseCreate, leaveBalanceSick: 9999 }).success).toBe(false);
+  });
+});
+
 describe("employeeStatusReasonSchema", () => {
   it("accepts an empty body", () => {
     expect(employeeStatusReasonSchema.safeParse({}).success).toBe(true);
