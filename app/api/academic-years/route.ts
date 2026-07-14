@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { demoteOtherActiveYears, isAcademicYearStatus } from "@/lib/academic-year/activate";
+import { demoteOtherActiveYears } from "@/lib/academic-year/activate";
+import { createAcademicYearSchema } from "@/lib/validations/academic-year";
 
 export const revalidate = 86400; // 24h — academic years rarely change
 
@@ -26,16 +27,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { name, startDate, endDate, status } = await req.json();
-  if (!name?.trim() || !startDate || !endDate) {
-    return NextResponse.json({ error: "Nama, tanggal mulai, dan tanggal selesai wajib diisi" }, { status: 400 });
+  const parsed = createAcademicYearSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Validasi gagal", issues: parsed.error.issues },
+      { status: 400 },
+    );
   }
-  if (status !== undefined && !isAcademicYearStatus(status)) {
-    return NextResponse.json({ error: "Status tahun ajaran tidak valid" }, { status: 400 });
-  }
+  const { name, startDate, endDate, status } = parsed.data;
 
   const tenantId = session.tenantId; // narrow before transaction closure re-widens it
-  const data = { tenantId, name: name.trim(), startDate, endDate, status: status ?? "PLANNING" };
+  const data = { tenantId, name, startDate, endDate, status: status ?? "PLANNING" };
 
   // If created ACTIVE, demote any existing ACTIVE year first — single-active
   // invariant (at most one ACTIVE year per tenant). No exceptId: the new row
