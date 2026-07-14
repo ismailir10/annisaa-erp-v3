@@ -135,6 +135,10 @@ export async function POST(req: NextRequest) {
         bankName: body.bankName?.trim() || null,
         bankAccountNo: body.bankAccountNo?.trim() || null,
         bpjsEnrolled: body.bpjsEnrolled ?? false,
+        // Undefined when the input is left blank — Prisma applies @default(12)
+        // / @default(14). An explicit value (e.g. mid-year hire) is honoured.
+        leaveBalanceAnnual: body.leaveBalanceAnnual,
+        leaveBalanceSick: body.leaveBalanceSick,
       },
     });
 

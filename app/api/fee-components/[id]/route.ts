@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { updateFeeComponentSchema } from "@/lib/validations/fee-component";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -13,17 +14,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const existing = await prisma.feeComponentDef.findFirst({ where: { id, tenantId: session.tenantId } });
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-  const body = await req.json();
-
-  // Toggle enable/disable
-  if ("isEnabled" in body && Object.keys(body).length === 1) {
-    const c = await prisma.feeComponentDef.update({ where: { id }, data: { isEnabled: body.isEnabled } });
-    return NextResponse.json(c);
+  const parsed = updateFeeComponentSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Validasi gagal", issues: parsed.error.issues },
+      { status: 400 },
+    );
   }
 
+  // Partial update — Prisma omits undefined keys, so the enable/disable toggle
+  // (body = { isEnabled }) touches only that column, and a full edit updates
+  // label/category/flags. `label` is already trimmed by the schema.
+  const { label, category, isRecurring, isEnabled, sortOrder } = parsed.data;
   const c = await prisma.feeComponentDef.update({
     where: { id },
-    data: { label: body.label?.trim(), category: body.category, isRecurring: body.isRecurring, sortOrder: body.sortOrder },
+    data: { label, category, isRecurring, isEnabled, sortOrder },
   });
   return NextResponse.json(c);
 }
