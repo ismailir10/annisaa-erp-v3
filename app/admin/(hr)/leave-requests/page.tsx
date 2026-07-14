@@ -556,11 +556,7 @@ export default function AdminLeavePage() {
                   <Button
                     onClick={handleReview}
                     disabled={reviewing}
-                    className={
-                      reviewAction === "reject"
-                        ? "bg-destructive hover:bg-destructive/90"
-                        : ""
-                    }
+                    variant={reviewAction === "reject" ? "destructive" : "default"}
                   >
                     {reviewing
                       ? "Memproses..."

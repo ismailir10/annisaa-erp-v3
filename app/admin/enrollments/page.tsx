@@ -6,9 +6,9 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { StatusChip } from "./status-chip";
 import { formatDateShort } from "@/lib/format";
 
 type Row = {
@@ -22,20 +22,6 @@ type Row = {
   studentId: string | null;
   program: { name: string } | null;
 };
-
-export const STATUS_META: Record<string, { label: string; className: string }> = {
-  INVITED: { label: "Diundang", className: "bg-muted text-muted-foreground" },
-  SUBMITTED: { label: "Terkirim", className: "bg-sky-100 text-sky-800" },
-  UNDER_REVIEW: { label: "Ditinjau", className: "bg-amber-100 text-amber-800" },
-  ACCEPTED: { label: "Diterima", className: "bg-emerald-100 text-emerald-800" },
-  REJECTED: { label: "Ditolak", className: "bg-red-100 text-red-800" },
-};
-
-export function StatusChip({ status, studentId }: { status: string; studentId?: string | null }) {
-  if (studentId) return <Badge className="bg-primary/10 text-primary">Terdaftar</Badge>;
-  const m = STATUS_META[status] ?? { label: status, className: "bg-muted text-muted-foreground" };
-  return <Badge className={m.className}>{m.label}</Badge>;
-}
 
 export default function EnrollmentsPage() {
   const [rows, setRows] = useState<Row[]>([]);

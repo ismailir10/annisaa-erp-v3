@@ -78,7 +78,50 @@ export async function POST(req: NextRequest) {
       throw new Error(`Siswa tidak terdaftar di kelas ini: ${notEnrolled.join(", ")}`);
     }
 
+    // If this class has exactly one ClassSession for this date (the common
+    // single-shift case — KB/TKIT/PopUp), write into that session's row so
+    // this legacy tab and the session-based "Sesi Hari Ini" card can never
+    // both create a row for the same student/day (was silently double-
+    // counting in the admin monthly recap, which groups by status without
+    // deduping by date — see docs/cycles/2026-07-12-pilot-readiness-audit.md
+    // T2). Multi-shift days (DCARE MORNING+AFTERNOON) have >1 session and
+    // fall back to the pre-existing sessionId:null path unchanged — Task 7
+    // still owns fully resolving that case.
+    const daySessions = await tx.classSession.findMany({
+      where: { classSectionId, date },
+      select: { id: true },
+    });
+    const singleSessionId = daySessions.length === 1 ? daySessions[0].id : null;
+
     for (const record of records) {
+      if (singleSessionId) {
+        await tx.studentAttendance.upsert({
+          where: {
+            studentId_sessionId: { studentId: record.studentId, sessionId: singleSessionId },
+          },
+          create: {
+            studentId: record.studentId,
+            classSectionId,
+            sessionId: singleSessionId,
+            date,
+            status: record.status,
+            checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
+            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
+            notes: record.notes ?? null,
+            checkedInBy: session.employeeId!,
+          },
+          update: {
+            status: record.status,
+            checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
+            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
+            notes: record.notes ?? undefined,
+            checkedInBy: session.employeeId!,
+          },
+        });
+        saved++;
+        continue;
+      }
+
       // The legacy @@unique([studentId, date]) was dropped (cycle
       // 2026-05-15 academic-hierarchy-refactor) to allow DCARE multi-shift
       // attendance; uniqueness moved to (studentId, sessionId). This

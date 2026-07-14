@@ -65,7 +65,7 @@ function SiblingDetectBanner({
     .join(", ");
   return (
     <Alert
-      className="border-amber-300 bg-amber-50 text-amber-900"
+      className="border-status-late bg-status-late-subtle text-status-late-text"
       data-testid="admission-edit-sibling-banner"
     >
       <Users2 className="size-4" />

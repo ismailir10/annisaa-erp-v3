@@ -21,18 +21,7 @@ import {
 import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
-
-const LEVEL_LABEL: Record<string, string> = {
-  CONSISTENT: "Mampu",
-  EMERGING: "Belum",
-  NEEDS_REINFORCEMENT: "Perlu",
-};
-
-const LEVEL_BG: Record<string, string> = {
-  CONSISTENT: "bg-status-present-subtle text-status-present-text",
-  EMERGING: "bg-status-late/10 text-status-late",
-  NEEDS_REINFORCEMENT: "bg-status-absent/10 text-status-absent",
-};
+import { LEVEL_LABEL_SHORT, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 const JAKARTA_TZ = "Asia/Jakarta";
@@ -348,9 +337,9 @@ export default async function ParentDashboard() {
                             </p>
                           </div>
                           <span
-                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium ${LEVEL_BG[entry.level] ?? ""}`}
+                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}
                           >
-                            {LEVEL_LABEL[entry.level] ?? entry.level}
+                            {LEVEL_LABEL_SHORT[entry.level] ?? entry.level}
                           </span>
                         </li>
                       ))}

@@ -12,8 +12,13 @@ import {
 } from "@/components/ui/native-select";
 import { PageHeader } from "@/components/portal/page-header";
 import { cn } from "@/lib/utils";
-
-type Level = "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT";
+import {
+  LEVEL_LABEL_SHORT,
+  LEVEL_LABEL_LONG,
+  LEVEL_CHIP_CLASS,
+  LEVEL_CHIP_CLASS_OFF,
+  type Level,
+} from "@/lib/curriculum/level-presentation";
 
 type Student = {
   id: string;
@@ -51,34 +56,6 @@ type ClassSection = {
   id: string;
   name: string;
   ageGroup: "A" | "B" | null;
-};
-
-const LEVEL_LABEL: Record<Level, string> = {
-  CONSISTENT: "Mampu",
-  EMERGING: "Belum",
-  NEEDS_REINFORCEMENT: "Perlu",
-};
-
-const LEVEL_FULL_LABEL: Record<Level, string> = {
-  CONSISTENT: "Mampu dan Konsisten",
-  EMERGING: "Mampu Belum Konsisten",
-  NEEDS_REINFORCEMENT: "Perlu Penguatan",
-};
-
-const LEVEL_BG: Record<Level, string> = {
-  CONSISTENT: "bg-status-present text-white border-status-present",
-  EMERGING: "bg-status-late text-white border-status-late",
-  NEEDS_REINFORCEMENT:
-    "bg-status-absent text-white border-status-absent",
-};
-
-const LEVEL_BG_OFF: Record<Level, string> = {
-  CONSISTENT:
-    "border-status-present text-status-present-text bg-status-present-subtle",
-  EMERGING:
-    "border-status-late text-status-late bg-status-late/10",
-  NEEDS_REINFORCEMENT:
-    "border-status-absent text-status-absent bg-status-absent/10",
 };
 
 /**
@@ -297,7 +274,7 @@ export function WeeklyClient({
                   </span>
                   {current && (
                     <span className="text-xs text-muted-foreground">
-                      {LEVEL_FULL_LABEL[current]}
+                      {LEVEL_LABEL_LONG[current]}
                     </span>
                   )}
                 </div>
@@ -306,7 +283,7 @@ export function WeeklyClient({
                   role="radiogroup"
                   aria-label={`Pilih tingkat untuk ${student.name}`}
                 >
-                  {(Object.keys(LEVEL_LABEL) as Level[]).map((level) => {
+                  {(Object.keys(LEVEL_LABEL_SHORT) as Level[]).map((level) => {
                     const isActive = current === level;
                     return (
                       <button
@@ -319,12 +296,12 @@ export function WeeklyClient({
                         data-testid={`weekly-level-${student.id}-${level}`}
                         className={cn(
                           "py-2 px-1 rounded-md border text-xs font-medium transition-colors",
-                          isActive ? LEVEL_BG[level] : LEVEL_BG_OFF[level],
+                          isActive ? LEVEL_CHIP_CLASS[level] : LEVEL_CHIP_CLASS_OFF[level],
                           (!activeIndicatorId || pending) &&
                             "opacity-60 cursor-not-allowed",
                         )}
                       >
-                        {LEVEL_LABEL[level]}
+                        {LEVEL_LABEL_SHORT[level]}
                       </button>
                     );
                   })}
@@ -337,7 +314,7 @@ export function WeeklyClient({
 
       <p className="flex items-center gap-1 text-xs text-muted-foreground">
         <NotebookPen className="size-3.5" />
-        Cubit untuk menyimpan. Catatan ditambahkan dari halaman detail (segera).
+        Ketuk tingkat untuk menyimpan. Catatan per indikator bisa ditambahkan dari detail siswa.
       </p>
     </div>
   );

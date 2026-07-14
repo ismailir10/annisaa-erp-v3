@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
+import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -76,12 +77,7 @@ function CompletionBar({
   const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary rounded-full transition-all"
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
+      <Progress value={Math.min(pct, 100)} className="h-1.5 w-20" />
       <span className="text-xs tabular-nums text-muted-foreground">
         {checked}/{total}
       </span>
