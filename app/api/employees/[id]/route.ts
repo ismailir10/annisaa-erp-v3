@@ -91,6 +91,10 @@ export async function PUT(
       bankName: body.bankName?.trim() || null,
       bankAccountNo: body.bankAccountNo?.trim() || null,
       bpjsEnrolled: body.bpjsEnrolled ?? false,
+      // Undefined keys are omitted by Prisma — a blank input leaves the
+      // existing balance untouched (no reset to default on every edit).
+      leaveBalanceAnnual: body.leaveBalanceAnnual,
+      leaveBalanceSick: body.leaveBalanceSick,
     },
   });
 

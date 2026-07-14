@@ -106,7 +106,7 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
     });
   });
 
-  it("proceeds for TEACHER assigned to the class", async () => {
+  it("proceeds for TEACHER assigned to the class, no ClassSession that day → legacy sessionId:null path", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession("TEACHER", "emp-1"));
@@ -117,13 +117,16 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
         studentEnrollment: {
           findMany: vi.fn().mockResolvedValue([{ studentId: "s-1" }]),
         },
-        // Route swapped upsert → findFirst + create/update after the
+        // No ClassSession row for this date → falls back to the legacy
+        // sessionId:null upsert (findFirst + create/update) after the
         // @@unique([studentId, date]) drop (cycle 2026-05-15
-        // academic-hierarchy-refactor). findFirst → null → create path.
+        // academic-hierarchy-refactor).
+        classSession: { findMany: vi.fn().mockResolvedValue([]) },
         studentAttendance: {
           findFirst: vi.fn().mockResolvedValue(null),
           create: vi.fn().mockResolvedValue({}),
           update: vi.fn().mockResolvedValue({}),
+          upsert: vi.fn().mockResolvedValue({}),
         },
       };
       return cb(tx);
@@ -134,5 +137,43 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.saved).toBe(1);
+  });
+
+  it("proceeds for TEACHER assigned to the class, exactly one ClassSession that day → writes into that session's row (pilot-readiness-audit T2: prevents double-count vs the session-based flow)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession("TEACHER", "emp-1"));
+    vi.mocked(prisma.teachingAssignment.findFirst).mockResolvedValue({ id: "ta-1" } as never);
+    const upsert = vi.fn().mockResolvedValue({});
+    const legacyFindFirst = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma.$transaction as any).mockImplementation(async (cb: (tx: unknown) => unknown) => {
+      const tx = {
+        studentEnrollment: {
+          findMany: vi.fn().mockResolvedValue([{ studentId: "s-1" }]),
+        },
+        classSession: { findMany: vi.fn().mockResolvedValue([{ id: "sess-1" }]) },
+        studentAttendance: {
+          findFirst: legacyFindFirst,
+          create: vi.fn().mockResolvedValue({}),
+          update: vi.fn().mockResolvedValue({}),
+          upsert,
+        },
+      };
+      return cb(tx);
+    });
+
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(makeReq(validBody) as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.saved).toBe(1);
+    // Wrote into the session's unique row, not the sessionId:null legacy path.
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { studentId_sessionId: { studentId: "s-1", sessionId: "sess-1" } },
+      })
+    );
+    expect(legacyFindFirst).not.toHaveBeenCalled();
   });
 });

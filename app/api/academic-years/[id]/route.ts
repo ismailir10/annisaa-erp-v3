@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { demoteOtherActiveYears, isAcademicYearStatus } from "@/lib/academic-year/activate";
+import { demoteOtherActiveYears } from "@/lib/academic-year/activate";
+import { updateAcademicYearSchema } from "@/lib/validations/academic-year";
 
 // Shared archive guard: block transition-to-ARCHIVED (whether via PUT
 // status update or DELETE soft-delete) if any class section under the
@@ -31,19 +32,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const existing = await prisma.academicYear.findFirst({ where: { id, tenantId: session.tenantId } });
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-  const body = await req.json();
-
-  if (body.status !== undefined && !isAcademicYearStatus(body.status)) {
-    return NextResponse.json({ error: "Status tahun ajaran tidak valid" }, { status: 400 });
+  const parsed = updateAcademicYearSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Validasi gagal", issues: parsed.error.issues },
+      { status: 400 },
+    );
   }
+  const body = parsed.data;
 
   if (body.status === "ARCHIVED") {
     const blocker = await getActiveEnrollmentBlocker(id);
     if (blocker) return blocker;
   }
 
+  // Undefined keys are omitted by Prisma — partial update preserves untouched
+  // columns. `name` is already trimmed by the schema.
   const data = {
-    name: body.name?.trim(),
+    name: body.name,
     startDate: body.startDate,
     endDate: body.endDate,
     status: body.status,
