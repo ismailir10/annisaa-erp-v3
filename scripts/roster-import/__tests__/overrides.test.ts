@@ -22,6 +22,13 @@ describe("overrides", () => {
     it("does not exclude an unrelated student", () => {
       expect(isExcluded({ kelas: "A1", namaLengkap: "Abizard Nabil Muttaqi" })).toBe(false);
     });
+
+    it("excludes the 4 deferred-missing-guardian students found during T3's dry run", () => {
+      expect(isExcluded({ kelas: "KB1", namaLengkap: "Rafan Ghifari" })).toBe(true);
+      expect(isExcluded({ kelas: "KB1", namaLengkap: "Izzam Faeyza Pratama" })).toBe(true);
+      expect(isExcluded({ kelas: "KB1", namaLengkap: "Muhammad Ibrahim" })).toBe(true);
+      expect(isExcluded({ kelas: "TD2", namaLengkap: "Rachel Ceisya Almahira" })).toBe(true);
+    });
   });
 
   describe("isWithdrawn", () => {

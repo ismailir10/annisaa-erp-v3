@@ -219,7 +219,12 @@ function detectColumns(
       colMap.gender = c;
       continue;
     }
-    if (subText === "Tempat" && superText.includes("Kelahiran")) {
+    if (subText === "Tempat" && superText.includes("Kelahiran") && !colMap.birthPlace) {
+      // Guarded to the first match only: on some sheets (e.g. "Data KB4"
+      // in the real workbook) the "Tempat"/"Tanggal" sub-header cells are
+      // merged into one ("H8:I8"), so ExcelJS inherits the "Tempat" text
+      // onto BOTH columns — without this guard, the birthDate column
+      // would wrongly overwrite birthPlace on the second match.
       colMap.birthPlace = c;
       continue;
     }
@@ -311,6 +316,15 @@ function detectColumns(
       colMap.telpIbu = c;
       continue;
     }
+  }
+
+  // Fallback: some sheets never produce a literal "Tanggal" match (the
+  // merged-header quirk above hides it entirely), but "Tempat" is always
+  // immediately followed by the birth-date column in every sheet in this
+  // workbook — use that positional relationship rather than leaving
+  // birthDate unset.
+  if (colMap.birthPlace && !colMap.birthDate) {
+    colMap.birthDate = colMap.birthPlace + 1;
   }
 
   return { colMap, dataStartRow: subHeaderRow + 1 };

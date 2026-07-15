@@ -306,6 +306,41 @@ describe("parseKelasSheet — DC/TD/KB-style layout (offset 1, no Tinggal column
       "Dirandra Ahmad Santoso",
     ]);
   });
+
+  it("handles the 'Data KB4' merged-subheader quirk (Tempat/Tanggal collapsed into one cell) without corrupting birthPlace/birthDateRaw", () => {
+    // Reproduces a real bug found against the actual workbook: on "Data
+    // KB4" specifically, row 8's Tempat/Tanggal sub-header cells are
+    // merged (H8:I8 in the real file) so ExcelJS inherits "Tempat" onto
+    // BOTH columns. Before the fix, the second (inherited) match
+    // overwrote colMap.birthPlace with the date column's index, so
+    // birthPlace ended up holding the raw birth-date value and
+    // birthDateRaw was left null. The fix (a) guards birthPlace against
+    // a second match and (b) falls back to birthPlace-column-plus-1 for
+    // birthDate when "Tanggal" text is never found.
+    const workbook = new ExcelJS.Workbook();
+    const sheet = buildOffset1Sheet(workbook, "KB4");
+    sheet.getRow(3).getCell(9).value = undefined; // no literal "Tanggal" text
+    sheet.mergeCells(3, 8, 3, 9); // H8:I8 — ExcelJS inherits col 8's value onto col 9
+
+    const row = sheet.getRow(4);
+    row.getCell(2).value = 1;
+    row.getCell(3).value = 252629902;
+    row.getCell(5).value = "Aluna Ghaitsa Rizqia";
+    row.getCell(6).value = "Aluna";
+    row.getCell(7).value = "P";
+    row.getCell(8).value = "Bekasi";
+    row.getCell(9).value = new Date("2022-06-20T00:00:00.000Z");
+    row.getCell(23).value = "Aditya Agustian Suherman";
+    row.getCell(30).value = "wulan purnama sari";
+
+    const records = parseKelasSheet(workbook, "KB4");
+    expect(records).toHaveLength(1);
+    const r = records[0];
+
+    expect(r.birthPlace).toBe("Bekasi");
+    expect(r.birthDateRaw).toBeInstanceOf(Date);
+    expect((r.birthDateRaw as Date).toISOString()).toBe("2022-06-20T00:00:00.000Z");
+  });
 });
 
 describe("parseKelasSheet — missing sheet", () => {

@@ -28,6 +28,24 @@ const EXCLUDED_STUDENTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Real, currently-enrolled students found during T3's dry-run pass with
+ * BOTH ayah and ibu name blank in the source sheet — every other record
+ * in the file has at least one parent name. Not caught earlier because the
+ * blank-NIS check (see EXCLUDED_STUDENTS's siblings resolved with shanti)
+ * only looked at the NIS column, not the guardian columns. Deferred to a
+ * follow-up import rather than guessed or imported guardian-less (the
+ * script enforces "every student has ≥1 guardian" everywhere else — these
+ * are the same category of gap as Hasna Azzahra/Linaya Aqila Zalfa's
+ * missing NIS, just a different missing field).
+ */
+const DEFERRED_MISSING_GUARDIAN_STUDENTS: ReadonlySet<string> = new Set([
+  studentKey("KB1", "Rafan Ghifari"),
+  studentKey("KB1", "Izzam Faeyza Pratama"),
+  studentKey("KB1", "Muhammad Ibrahim"),
+  studentKey("TD2", "Rachel Ceisya Almahira"),
+]);
+
+/**
  * Attended, then withdrew — import as `Student.status: "WITHDRAWN"` and
  * `StudentEnrollment.status: "WITHDRAWN"` instead of the default ACTIVE.
  *  - Muhammad Ghaisan Keenandra Ramadhika (B1): "pernah sekolah bbrp
@@ -40,7 +58,8 @@ const WITHDRAWN_STUDENTS: ReadonlySet<string> = new Set([
 ]);
 
 export function isExcluded(record: Pick<RosterRecord, "kelas" | "namaLengkap">): boolean {
-  return EXCLUDED_STUDENTS.has(studentKey(record.kelas, record.namaLengkap));
+  const key = studentKey(record.kelas, record.namaLengkap);
+  return EXCLUDED_STUDENTS.has(key) || DEFERRED_MISSING_GUARDIAN_STUDENTS.has(key);
 }
 
 export function isWithdrawn(record: Pick<RosterRecord, "kelas" | "namaLengkap">): boolean {

@@ -217,11 +217,12 @@ async function main(): Promise<void> {
   // real prod PII write. Assert the expected counts match exactly.
   const totalExcluded = Array.from(excludedCount.values()).reduce((a, b) => a + b, 0);
   const totalWithdrawn = allRecords.filter((r) => isWithdrawn(r)).length;
-  if (totalExcluded !== 2) {
+  if (totalExcluded !== 6) {
     throw new Error(
-      `[roster-import] expected exactly 2 excluded students (Fahreza Arkha Bima, Sholeh Nabil Razzaaq), ` +
-        `found ${totalExcluded} — an override name/kelas in overrides.ts likely doesn't match the source ` +
-        `file anymore. Refusing to proceed rather than silently importing an excluded student.`,
+      `[roster-import] expected exactly 6 excluded students (Fahreza Arkha Bima, Sholeh Nabil Razzaaq, ` +
+        `+ 4 deferred-missing-guardian: Rafan Ghifari, Izzam Faeyza Pratama, Muhammad Ibrahim, Rachel Ceisya ` +
+        `Almahira), found ${totalExcluded} — an override name/kelas in overrides.ts likely doesn't match the ` +
+        `source file anymore. Refusing to proceed rather than silently importing an excluded student.`,
     );
   }
   if (totalWithdrawn !== 2) {
