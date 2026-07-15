@@ -11,21 +11,31 @@
  */
 
 export type CampusCode = "TAMAN_ASTER" | "METLAND";
-export type ProgramCode = "DCARE" | "KB" | "TKIT-A" | "TKIT-B";
+export type ProgramCode = "DCARE" | "KB" | "TKIT";
 export type AgeGroupCode = "A" | "B";
 
-/** Matches `scripts/reseed/org.ts` `CAMPUSES[].name` — the real prod Campus rows. */
+/**
+ * Verified 2026-07-15 directly against prod `Campus` rows (SQL, project
+ * vxwywmvpxetdgnxejjgk) — no "An Nisaa' Sekolahku" prefix in the actual
+ * `name` column, unlike an earlier assumed value here.
+ */
 export const CAMPUS_NAME: Record<CampusCode, string> = {
-  TAMAN_ASTER: "An Nisaa' Sekolahku Taman Aster",
-  METLAND: "An Nisaa' Sekolahku Metland Cibitung",
+  TAMAN_ASTER: "Taman Aster",
+  METLAND: "Metland Cibitung",
 };
 
-/** Matches `scripts/reseed/org.ts` `PROGRAMS[].code`. */
+/**
+ * Verified 2026-07-15 directly against prod `Program` rows (SQL, project
+ * vxwywmvpxetdgnxejjgk). Only ONE `TK Islam Terpadu` program exists — TK A
+ * vs TK B is `ClassSection.ageGroup`, not a separate Program row. An
+ * earlier assumed "TKIT-A"/"TKIT-B" split here was wrong and would have
+ * thrown "Program not found" at commit time (caught before any write, via
+ * the admin UI's own Program dropdown, not silently).
+ */
 export const PROGRAM_NAME: Record<ProgramCode, string> = {
-  DCARE: "D'Care (Day Care)",
+  DCARE: "Day Care",
   KB: "Kelompok Bermain",
-  "TKIT-A": "TK Islam Terpadu Kelas A",
-  "TKIT-B": "TK Islam Terpadu Kelas B",
+  TKIT: "TK Islam Terpadu",
 };
 
 /**
@@ -51,10 +61,11 @@ export const CAMPUS_BY_KELAS: Record<string, CampusCode> = {
 };
 
 /**
- * Program per kelas, derived from the kelas code's prefix: TD → DCARE
- * (closest existing program to "Toddler" — D'Care covers 6-36 months),
- * KB → Kelompok Bermain, A → TK A, B → TK B. Only defined for kelas that
- * also have a confirmed campus above.
+ * Program per kelas, derived from the kelas code's prefix: TD → Day Care
+ * (closest existing program to "Toddler"), KB → Kelompok Bermain, A/B →
+ * TK Islam Terpadu (the single TKIT program — A vs B is `AGE_GROUP_BY_KELAS`
+ * below, not a separate Program). Only defined for kelas that also have a
+ * confirmed campus above.
  */
 export const PROGRAM_BY_KELAS: Record<string, ProgramCode> = {
   TD1: "DCARE",
@@ -62,14 +73,14 @@ export const PROGRAM_BY_KELAS: Record<string, ProgramCode> = {
   KB1: "KB",
   KB3: "KB",
   KB4: "KB",
-  A1: "TKIT-A",
-  A2: "TKIT-A",
-  A3: "TKIT-A",
-  A4: "TKIT-A",
-  B1: "TKIT-B",
-  B2: "TKIT-B",
-  B3: "TKIT-B",
-  B4: "TKIT-B",
+  A1: "TKIT",
+  A2: "TKIT",
+  A3: "TKIT",
+  A4: "TKIT",
+  B1: "TKIT",
+  B2: "TKIT",
+  B3: "TKIT",
+  B4: "TKIT",
 };
 
 /**
