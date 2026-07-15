@@ -52,6 +52,7 @@ import {
   PROGRAM_NAME,
   MAPPED_KELAS_CODES,
 } from "./config";
+import { isExcluded, isWithdrawn, noGuardianOk, TD1_MANUAL_RECORD } from "./overrides";
 
 interface CliArgs {
   file: string;
@@ -179,7 +180,58 @@ async function main(): Promise<void> {
   for (const kelas of MAPPED_KELAS_CODES) {
     recordsByKelas.set(kelas, parseKelasSheet(workbook, kelas));
   }
+  // TD1 has no `Data TD1` biodata sheet — its one student is injected
+  // manually (see overrides.ts for why).
+  if (MAPPED_KELAS_CODES.includes("TD1")) {
+    recordsByKelas.set("TD1", [TD1_MANUAL_RECORD]);
+  }
+
+  // Per-student overrides resolved directly with the owner — see
+  // overrides.ts. Excluded students (never enrolled / future-year cohort)
+  // are dropped entirely before dedup/planning ever sees them.
+  const excludedCount = new Map<string, number>();
+  for (const [kelas, records] of recordsByKelas) {
+    const kept = records.filter((r) => {
+      if (isExcluded(r)) {
+        excludedCount.set(kelas, (excludedCount.get(kelas) ?? 0) + 1);
+        return false;
+      }
+      return true;
+    });
+    recordsByKelas.set(kelas, kept);
+  }
+  if (excludedCount.size > 0) {
+    console.log("[roster-import] excluded (per owner-confirmed overrides):");
+    for (const [kelas, n] of excludedCount) {
+      console.log(`    ${kelas.padEnd(6)} : ${n}`);
+    }
+  }
+
   const allRecords = Array.from(recordsByKelas.values()).flat();
+
+  // Loud-failure guard: the override lists in overrides.ts are hardcoded
+  // name strings resolved directly with the owner for THIS specific
+  // import. A typo in a name/kelas there would silently no-op the
+  // override (the excluded student gets imported normally; the withdrawn
+  // student gets imported as ACTIVE) with no error — unacceptable for a
+  // real prod PII write. Assert the expected counts match exactly.
+  const totalExcluded = Array.from(excludedCount.values()).reduce((a, b) => a + b, 0);
+  const totalWithdrawn = allRecords.filter((r) => isWithdrawn(r)).length;
+  if (totalExcluded !== 2) {
+    throw new Error(
+      `[roster-import] expected exactly 2 excluded students (Fahreza Arkha Bima, Sholeh Nabil Razzaaq), ` +
+        `found ${totalExcluded} — an override name/kelas in overrides.ts likely doesn't match the source ` +
+        `file anymore. Refusing to proceed rather than silently importing an excluded student.`,
+    );
+  }
+  if (totalWithdrawn !== 2) {
+    throw new Error(
+      `[roster-import] expected exactly 2 withdrawn-status students (Muhammad Ghaisan Keenandra Ramadhika, ` +
+        `Muhammad Shaqeel Abil Muksin), found ${totalWithdrawn} — an override name/kelas in overrides.ts ` +
+        `likely doesn't match the source file anymore. Refusing to proceed rather than silently importing ` +
+        `a withdrawn student as ACTIVE.`,
+    );
+  }
 
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
   const prisma = new PrismaClient({ adapter });
@@ -418,6 +470,8 @@ async function commitPlan(
           await createParentInTx(tx, plannedParent);
         }
 
+        const withdrawn = isWithdrawn(record);
+
         const student = await tx.student.create({
           data: {
             tenantId: TENANT.id,
@@ -432,6 +486,7 @@ async function commitPlan(
             nik: record.nikAnak ?? undefined,
             kkNumber: record.kkNumber ?? undefined,
             livingWith,
+            status: withdrawn ? "WITHDRAWN" : undefined, // defaults to ACTIVE otherwise
           },
         });
 
@@ -443,11 +498,13 @@ async function commitPlan(
           })),
         ];
 
-        if (guardianLinks.length === 0) {
+        if (guardianLinks.length === 0 && !noGuardianOk(record)) {
           // Surfaced, not silently swallowed — this row has no AYAH/IBU
           // name at all, a data problem to fix at the source, not a case
           // to import with zero guardians. Throwing here rolls back the
-          // Student create too (see the transaction wrapper).
+          // Student create too (see the transaction wrapper). The single
+          // documented exception (TD1's manual record, see overrides.ts)
+          // is allowed through with zero guardians.
           throw new Error(`no AYAH or IBU guardian name present — data problem, not importable as-is`);
         }
 
@@ -474,6 +531,7 @@ async function commitPlan(
             studentId: student.id,
             classSectionId,
             enrollDate: academicYear.startDate,
+            status: withdrawn ? "WITHDRAWN" : undefined, // defaults to ACTIVE otherwise
           },
         });
       });
