@@ -75,3 +75,28 @@ describe("generatePayrollSchema", () => {
     expect(r.success).toBe(true);
   });
 });
+
+import { adjustPayrollLineSchema } from "@/lib/validations/payroll";
+
+describe("adjustPayrollLineSchema", () => {
+  it("accepts a valid adjustment", () => {
+    const r = adjustPayrollLineSchema.safeParse({ adjustmentAmount: 50000, adjustmentNote: "Lembur" });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts zero (clears a previous adjustment)", () => {
+    const r = adjustPayrollLineSchema.safeParse({ adjustmentAmount: 0, adjustmentNote: "Reset" });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects missing or blank note", () => {
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: 1000 }).success).toBe(false);
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: 1000, adjustmentNote: "  " }).success).toBe(false);
+  });
+
+  it("rejects non-numeric and non-finite amounts", () => {
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: "abc", adjustmentNote: "x" }).success).toBe(false);
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: NaN, adjustmentNote: "x" }).success).toBe(false);
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: Infinity, adjustmentNote: "x" }).success).toBe(false);
+  });
+});

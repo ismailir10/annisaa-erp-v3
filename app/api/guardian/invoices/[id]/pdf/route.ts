@@ -21,7 +21,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params;
 
-  // Verify this invoice belongs to one of the guardian's children
+  // Verify this invoice belongs to one of the guardian's children.
+  // Same parentId-or-nonempty-email guard as the raport-PDF route: a session
+  // carrying neither would match the first null-email parent in the tenant —
+  // a cross-family leak. Flat 404 on the degenerate session, same as a miss.
+  const hasEmail = typeof session.email === "string" && session.email.length > 0;
+  if (!session.parentId && !hasEmail) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const guardian = await prisma.parent.findFirst({
     where: session.parentId
       ? { id: session.parentId, tenantId: session.tenantId }
