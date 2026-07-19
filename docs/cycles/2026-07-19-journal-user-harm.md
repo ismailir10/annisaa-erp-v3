@@ -39,4 +39,6 @@ Assumptions:
 
 ## Verification
 
+- Between-task gate after T1+T2: `npm run build` green; `npx vitest run` 227 files passed / 2 skipped, 2175 passed / 42 todo (+22 new tests vs staging baseline 2153).
+
 ## Ship Notes

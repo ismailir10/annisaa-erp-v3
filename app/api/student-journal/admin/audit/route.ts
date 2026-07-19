@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
+import { enrichAuditsWithChangerNames } from "@/lib/student-journal/note-metadata";
 
 /**
  * GET /api/student-journal/admin/audit
@@ -104,5 +105,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ data: auditRows });
+  const auditRowsWithChangerNames = await enrichAuditsWithChangerNames(
+    session.tenantId,
+    auditRows,
+  );
+
+  return NextResponse.json({ data: auditRowsWithChangerNames });
 }
