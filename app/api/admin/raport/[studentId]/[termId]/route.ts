@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { requirePermission } from "@/lib/auth-guards";
@@ -172,6 +173,14 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
     return entry;
   });
+
+  // A published raport edited in place (typo / level / attendance correction)
+  // must surface on /parent/reports without waiting out the 120s TTL. Only
+  // PUBLISHED entries feed the parent cache, so DRAFT edits skip the evict.
+  // Tag + global-evict behaviour mirror _helpers.ts `setPublishState`.
+  if (saved.status === "PUBLISHED") {
+    revalidateTag("parent-report-cards", { expire: 0 });
+  }
 
   return NextResponse.json({ data: saved });
 }

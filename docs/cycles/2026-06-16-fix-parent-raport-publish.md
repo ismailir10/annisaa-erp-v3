@@ -268,3 +268,5 @@ admin-publish → guardian-see flow on real data:
 - **Follow-up (out of scope):** `admin-raport.spec.ts:25` assumes no Term is seeded and
   now fails against staging (a Term exists from the manual bug repro) — make it tolerant
   of an existing Term.
+
+- **2026-07-19 rescue addendum:** uncommitted follow-up found in worktree — `revalidateTag("parent-report-cards")` on PUBLISHED raport edits so parent cache refreshes immediately (was 120s TTL). Committed by repo audit; needs review + PR.
