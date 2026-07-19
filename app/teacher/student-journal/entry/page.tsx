@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
-import { Save, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/portal/page-header";
@@ -39,6 +39,35 @@ type EntryRow = {
   checked: boolean;
 };
 
+type GridState = Record<string, Record<string, boolean>>;
+
+export function getJournalCellKey(studentId: string, indicatorId: string) {
+  return `${studentId}:${indicatorId}`;
+}
+
+export function applyJournalCellValue(
+  state: GridState,
+  studentId: string,
+  indicatorId: string,
+  checked: boolean,
+): GridState {
+  return {
+    ...state,
+    [studentId]: {
+      ...(state[studentId] ?? {}),
+      [indicatorId]: checked,
+    },
+  };
+}
+
+export function shouldApplyJournalSaveResult(
+  latestRequestIds: Record<string, number | undefined>,
+  cellKey: string,
+  requestId: number,
+) {
+  return latestRequestIds[cellKey] === requestId;
+}
+
 export default function StudentJournalEntryPage() {
   const searchParams = useSearchParams();
   const classId = searchParams.get("classId") ?? "";
@@ -47,9 +76,11 @@ export default function StudentJournalEntryPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   /** state[studentId][indicatorId] = checked */
-  const [gridState, setGridState] = useState<Record<string, Record<string, boolean>>>({});
+  const [gridState, setGridState] = useState<GridState>({});
+  const gridStateRef = useRef<GridState>({});
+  const latestSaveRequestIds = useRef<Record<string, number | undefined>>({});
+  const [pendingCells, setPendingCells] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
 
   // Add-note dialog state + optimistic per-student note counter (resets each grid load)
   const [noteStudent, setNoteStudent] = useState<Student | null>(null);
@@ -91,6 +122,9 @@ export default function StudentJournalEntryPage() {
       if (!initial[entry.studentId]) initial[entry.studentId] = {};
       initial[entry.studentId][entry.indicatorId] = entry.checked;
     }
+    gridStateRef.current = initial;
+    latestSaveRequestIds.current = {};
+    setPendingCells(new Set());
     setGridState(initial);
     setLoading(false);
   }, [classId, date]);
@@ -100,44 +134,89 @@ export default function StudentJournalEntryPage() {
     loadGrid();
   }, [loadGrid]);
 
-  function handleToggle(studentId: string, indicatorId: string) {
-    setGridState((prev) => ({
-      ...prev,
-      [studentId]: {
-        ...(prev[studentId] ?? {}),
-        [indicatorId]: !(prev[studentId]?.[indicatorId] ?? false),
-      },
-    }));
+  function setGridStateNow(next: GridState) {
+    gridStateRef.current = next;
+    setGridState(next);
   }
 
-  async function handleSave() {
-    setSaving(true);
+  function setCellPending(cellKey: string, pending: boolean) {
+    setPendingCells((prev) => {
+      const next = new Set(prev);
+      if (pending) {
+        next.add(cellKey);
+      } else {
+        next.delete(cellKey);
+      }
+      return next;
+    });
+  }
 
-    // Flatten state into entries array — only include entries that are checked
-    // (unchecked = not ticked, still send them so batch can upsert false values too)
-    const entries: { studentId: string; indicatorId: string; checked: boolean }[] = [];
-    for (const [studentId, indicators] of Object.entries(gridState)) {
-      for (const [indicatorId, checked] of Object.entries(indicators)) {
-        entries.push({ studentId, indicatorId, checked });
+  async function saveSingleEntry(
+    studentId: string,
+    indicatorId: string,
+    checked: boolean,
+    previousChecked: boolean,
+    cellKey: string,
+    requestId: number,
+  ) {
+    try {
+      const res = await fetch("/api/student-journal/entries/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classSectionId: classId,
+          date,
+          entries: [{ studentId, indicatorId, checked }],
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("save_failed");
+      }
+    } catch {
+      if (
+        shouldApplyJournalSaveResult(latestSaveRequestIds.current, cellKey, requestId)
+      ) {
+        setGridStateNow(
+          applyJournalCellValue(
+            gridStateRef.current,
+            studentId,
+            indicatorId,
+            previousChecked,
+          ),
+        );
+        toast.error("Catatan belum tersimpan. Ketuk ulang ya.");
+      }
+    } finally {
+      if (
+        shouldApplyJournalSaveResult(latestSaveRequestIds.current, cellKey, requestId)
+      ) {
+        delete latestSaveRequestIds.current[cellKey];
+        setCellPending(cellKey, false);
       }
     }
+  }
 
-    const res = await fetch("/api/student-journal/entries/batch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classSectionId: classId, date, entries }),
-    });
+  function handleToggle(studentId: string, indicatorId: string) {
+    const previousChecked = gridStateRef.current[studentId]?.[indicatorId] ?? false;
+    const checked = !previousChecked;
+    const cellKey = getJournalCellKey(studentId, indicatorId);
+    const requestId = (latestSaveRequestIds.current[cellKey] ?? 0) + 1;
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal menyimpan");
-      setSaving(false);
-      return;
-    }
+    latestSaveRequestIds.current[cellKey] = requestId;
+    setCellPending(cellKey, true);
+    setGridStateNow(
+      applyJournalCellValue(gridStateRef.current, studentId, indicatorId, checked),
+    );
 
-    const { data } = await res.json();
-    toast.success(`Catatan tersimpan · ${data.saved} entri`);
-    setSaving(false);
+    void saveSingleEntry(
+      studentId,
+      indicatorId,
+      checked,
+      previousChecked,
+      cellKey,
+      requestId,
+    );
   }
 
   const dateLabel = date
@@ -146,7 +225,7 @@ export default function StudentJournalEntryPage() {
 
   if (loading) {
     return (
-      <div className="space-y-3 pb-32">
+      <div className="space-y-3">
         <Skeleton className="h-6 w-56 rounded-md" />
         <Skeleton className="h-4 w-36 rounded-md" />
         {[1, 2, 3, 4].map((i) => (
@@ -181,7 +260,7 @@ export default function StudentJournalEntryPage() {
   }
 
   return (
-    <div className="pb-32">
+    <div>
       <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
 
       <ClassDayGrid
@@ -191,6 +270,7 @@ export default function StudentJournalEntryPage() {
         onToggle={handleToggle}
         onAddNote={(s) => setNoteStudent(s)}
         noteCounts={noteCounts}
+        pendingCells={pendingCells}
         visibleDate={date}
       />
 
@@ -216,20 +296,6 @@ export default function StudentJournalEntryPage() {
         />
       )}
 
-      {/* Sticky save bar — sits above PortalBottomNav (z-30, h≈65px). z-40 + bottom-16 prevents the BottomNav from covering the Simpan button (UAT 2026-05-01 blocker B1). */}
-      <div className="fixed bottom-16 inset-x-0 z-40 bg-background border-t border-border px-page-x py-3">
-        <div className="max-w-md mx-auto">
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full"
-            size="lg"
-          >
-            <Save size={16} className="mr-2" />
-            {saving ? "Menyimpan..." : "Simpan"}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
