@@ -3,6 +3,7 @@ import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { enrichNotesWithAuthorMetadata } from "@/lib/student-journal/note-metadata";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /**
@@ -133,11 +134,15 @@ export async function GET(
           id: true,
           date: true,
           authorRole: true,
+          authorUserId: true,
           body: true,
           createdAt: true,
+          updatedAt: true,
         },
       }),
     ]);
+
+  const notesWithAuthor = await enrichNotesWithAuthorMetadata(session.tenantId, notes);
 
   return NextResponse.json({
     data: {
@@ -157,7 +162,7 @@ export async function GET(
       })),
       schoolEntries,
       homeEntries,
-      notes,
+      notes: notesWithAuthor,
     },
   });
 }
