@@ -16,6 +16,7 @@ import {
   getJournalCellKey,
   applyJournalCellValue,
   shouldApplyJournalSaveResult,
+  enqueuePerKey,
   type GridState,
 } from "@/lib/student-journal/optimistic-save";
 
@@ -56,6 +57,7 @@ export default function StudentJournalEntryPage() {
   const [gridState, setGridState] = useState<GridState>({});
   const gridStateRef = useRef<GridState>({});
   const latestSaveRequestIds = useRef<Record<string, number | undefined>>({});
+  const saveQueues = useRef<Record<string, Promise<void> | undefined>>({});
   const [pendingCells, setPendingCells] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
 
@@ -101,6 +103,7 @@ export default function StudentJournalEntryPage() {
     }
     gridStateRef.current = initial;
     latestSaveRequestIds.current = {};
+    saveQueues.current = {};
     setPendingCells(new Set());
     setGridState(initial);
     setLoading(false);
@@ -128,6 +131,9 @@ export default function StudentJournalEntryPage() {
     });
   }
 
+  // Deliberately NOT aborted on unmount: an in-flight save finishing after the
+  // teacher navigates away is exactly what makes taps survive navigation (T8).
+  // Post-unmount setState calls are harmless no-ops in React 18+.
   async function saveSingleEntry(
     studentId: string,
     indicatorId: string,
@@ -186,13 +192,17 @@ export default function StudentJournalEntryPage() {
       applyJournalCellValue(gridStateRef.current, studentId, indicatorId, checked),
     );
 
-    void saveSingleEntry(
-      studentId,
-      indicatorId,
-      checked,
-      previousChecked,
-      cellKey,
-      requestId,
+    // Serialized per cell: guarantees the server receives this cell's writes
+    // in tap order (the requestId guard alone only orders client display).
+    void enqueuePerKey(saveQueues.current, cellKey, () =>
+      saveSingleEntry(
+        studentId,
+        indicatorId,
+        checked,
+        previousChecked,
+        cellKey,
+        requestId,
+      ),
     );
   }
 

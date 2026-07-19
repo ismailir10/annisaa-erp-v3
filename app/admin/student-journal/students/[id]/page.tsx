@@ -425,6 +425,9 @@ export default function StudentJournalDetailPage({
           ) : (
             <NoteThread
               notes={weekData.notes}
+              /* Gates the action icons only. onEdit is deliberately not passed —
+                 admins delete any note but never edit note bodies; wiring onEdit
+                 here later would grant edit-any-note and needs a design decision. */
               canEdit={() => true}
               onDelete={(noteId) => setNoteDeleteTarget(noteId)}
             />
