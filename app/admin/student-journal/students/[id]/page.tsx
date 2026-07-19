@@ -15,13 +15,7 @@ import { NoteThread } from "@/components/student-journal/note-thread";
 import { AuditDiff } from "@/components/student-journal/audit-diff";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
-import { ArrowLeft, ChevronLeft, ChevronRight, MoreVertical, Pencil, X, Check } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Check } from "lucide-react";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ------------------------------------------------------------------
@@ -31,7 +25,15 @@ import { getTodayInTimezone } from "@/lib/attendance/timezone";
 type Indicator = { id: string; label: string; order: number };
 type Category = { id: string; name: string; scope: string; indicators: Indicator[] };
 type Entry = { id?: string; indicatorId: string; date: string; checked: boolean };
-type Note = { id: string; date: string; authorRole: string; body: string; createdAt: string };
+type Note = {
+  id: string;
+  date: string;
+  authorRole: string;
+  authorUserId?: string;
+  authorName?: string;
+  body: string;
+  createdAt: string;
+};
 type AuditRow = {
   id: string;
   entityType: string;
@@ -40,6 +42,7 @@ type AuditRow = {
   beforeJson: unknown;
   afterJson: unknown;
   changedByUserId: string;
+  changedByName?: string;
   changedAt: string;
 };
 
@@ -87,84 +90,6 @@ const ENTITY_LABELS: Record<string, string> = {
   ENTRY: "Entri",
   NOTE: "Catatan",
 };
-
-// ------------------------------------------------------------------
-// Note row with delete dropdown
-// ------------------------------------------------------------------
-
-function NoteRow({
-  note,
-  onDelete,
-}: {
-  note: Note;
-  onDelete: (id: string) => void;
-}) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  async function handleDelete() {
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/student-journal/admin/notes/${note.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal menghapus catatan");
-        return;
-      }
-      toast.success("Catatan dihapus");
-      onDelete(note.id);
-    } catch {
-      toast.error("Gagal menghapus catatan");
-    } finally {
-      setDeleting(false);
-      setConfirmOpen(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="rounded-lg border border-border bg-card p-3 space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs border border-border rounded px-1.5 py-0.5">
-              {note.authorRole === "TEACHER" ? "Guru" : note.authorRole === "GUARDIAN" ? "Orang Tua" : "Admin"}
-            </span>
-            <span className="text-xs text-muted-foreground">{formatDate(note.date)}</span>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="h-7 w-7 p-0" />}>
-              <MoreVertical size={12} />
-              <span className="sr-only">Aksi catatan</span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => setConfirmOpen(true)}
-              >
-                Hapus catatan
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">{note.body}</p>
-      </div>
-
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Hapus catatan?"
-        description="Catatan akan dinonaktifkan dan tidak lagi muncul di jurnal siswa."
-        confirmLabel="Hapus"
-        cancelLabel="Batal"
-        onConfirm={handleDelete}
-        destructive
-        loading={deleting}
-      />
-    </>
-  );
-}
 
 // ------------------------------------------------------------------
 // Page
@@ -331,20 +256,36 @@ export default function StudentJournalDetailPage({
       });
   }
 
-  function handleSaveEditing() {
-    setIsEditing(false);
-    toast.success("Perubahan tersimpan");
-  }
+  // ------------------------------------------------------------------
+  // Note delete (admin can delete any note; confirm before the DELETE call)
+  // ------------------------------------------------------------------
+  const [noteDeleteTarget, setNoteDeleteTarget] = useState<string | null>(null);
+  const [noteDeleting, setNoteDeleting] = useState(false);
 
-  // ------------------------------------------------------------------
-  // Note delete
-  // ------------------------------------------------------------------
-  function handleNoteDeleted(noteId: string) {
-    if (!weekData) return;
-    setWeekData({
-      ...weekData,
-      notes: weekData.notes.filter((n) => n.id !== noteId),
-    });
+  async function handleNoteDeleteConfirm() {
+    if (!noteDeleteTarget || !weekData) return;
+    setNoteDeleting(true);
+    try {
+      const res = await fetch(
+        `/api/student-journal/admin/notes/${noteDeleteTarget}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Gagal menghapus catatan");
+        return;
+      }
+      toast.success("Catatan dihapus");
+      setWeekData({
+        ...weekData,
+        notes: weekData.notes.filter((n) => n.id !== noteDeleteTarget),
+      });
+      setNoteDeleteTarget(null);
+    } catch {
+      toast.error("Gagal menghapus catatan");
+    } finally {
+      setNoteDeleting(false);
+    }
   }
 
   // ------------------------------------------------------------------
@@ -407,27 +348,18 @@ export default function StudentJournalDetailPage({
               <ChevronRight size={14} />
             </Button>
 
-            {/* Edit toggle */}
+            {/* Edit toggle — per-cell edits already PUT immediately (handleToggle),
+                so there is nothing to "save" or "cancel" here: this button only
+                exits edit mode. */}
             {isEditing ? (
-              <>
-                <Button
-                  size="sm"
-                  onClick={handleSaveEditing}
-                  className="gap-1.5"
-                >
-                  <Check size={14} />
-                  Simpan Perubahan
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditing(false)}
-                  className="gap-1.5"
-                >
-                  <X size={14} />
-                  Batal
-                </Button>
-              </>
+              <Button
+                size="sm"
+                onClick={() => setIsEditing(false)}
+                className="gap-1.5"
+              >
+                <Check size={14} />
+                Selesai
+              </Button>
             ) : (
               <Button
                 variant="outline"
@@ -488,19 +420,29 @@ export default function StudentJournalDetailPage({
 
         {/* Catatan tab */}
         <TabsContent value="notes">
-          <div className="space-y-3">
-            {!weekData || weekData.notes.length === 0 ? (
-              <EmptyState title="Belum ada catatan minggu ini" />
-            ) : (
-              weekData.notes.map((note) => (
-                <NoteRow
-                  key={note.id}
-                  note={note}
-                  onDelete={handleNoteDeleted}
-                />
-              ))
-            )}
-          </div>
+          {!weekData || weekData.notes.length === 0 ? (
+            <EmptyState title="Belum ada catatan minggu ini" />
+          ) : (
+            <NoteThread
+              notes={weekData.notes}
+              canEdit={() => true}
+              onDelete={(noteId) => setNoteDeleteTarget(noteId)}
+            />
+          )}
+
+          <ConfirmDialog
+            open={noteDeleteTarget !== null}
+            onOpenChange={(open) => {
+              if (!open) setNoteDeleteTarget(null);
+            }}
+            title="Hapus catatan?"
+            description="Catatan akan dinonaktifkan dan tidak lagi muncul di jurnal siswa."
+            confirmLabel="Hapus"
+            cancelLabel="Batal"
+            onConfirm={handleNoteDeleteConfirm}
+            destructive
+            loading={noteDeleting}
+          />
         </TabsContent>
 
         {/* Audit tab */}
@@ -536,6 +478,11 @@ export default function StudentJournalDetailPage({
                       {ACTION_LABELS[row.action] ?? row.action}
                     </span>
                     <span>{formatDate(row.changedAt)}</span>
+                    {row.changedByName && (
+                      <span className="text-muted-foreground">
+                        oleh {row.changedByName}
+                      </span>
+                    )}
                     <span className="font-mono text-xs truncate max-w-[120px]">
                       {row.entityId}
                     </span>
