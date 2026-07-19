@@ -12,6 +12,12 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/portal/page-header";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import {
+  getJournalCellKey,
+  applyJournalCellValue,
+  shouldApplyJournalSaveResult,
+  type GridState,
+} from "@/lib/student-journal/optimistic-save";
 
 type Student = {
   id: string;
@@ -38,35 +44,6 @@ type EntryRow = {
   indicatorId: string;
   checked: boolean;
 };
-
-type GridState = Record<string, Record<string, boolean>>;
-
-export function getJournalCellKey(studentId: string, indicatorId: string) {
-  return `${studentId}:${indicatorId}`;
-}
-
-export function applyJournalCellValue(
-  state: GridState,
-  studentId: string,
-  indicatorId: string,
-  checked: boolean,
-): GridState {
-  return {
-    ...state,
-    [studentId]: {
-      ...(state[studentId] ?? {}),
-      [indicatorId]: checked,
-    },
-  };
-}
-
-export function shouldApplyJournalSaveResult(
-  latestRequestIds: Record<string, number | undefined>,
-  cellKey: string,
-  requestId: number,
-) {
-  return latestRequestIds[cellKey] === requestId;
-}
 
 export default function StudentJournalEntryPage() {
   const searchParams = useSearchParams();
