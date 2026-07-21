@@ -66,6 +66,8 @@ Intended outcome: viewing an inactive academic year shows each class's real hist
 - Playwright: local run deferred to CI (env cannot execute it — worktree lacks browsers + staging-only DB). Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 - Data reconciliation (prod `vxwywmvpxetdgnxejjgk`, read-only): 5 academic years; 2026/2027 ACTIVE; 130/166 active students carry 2025/2026 history; 0 orphan students. Confirms data present pre-fix.
 
+- Preview-verify iteration 1 (clean) — PR #405, https://annisaa-erp-v3-git-feat-histor-dbb7d2-ismails-projects-196d40d3.vercel.app as admin (ismailir10@gmail.com). Flow: /admin/classes. Active year 2025/2026 rosters render non-zero (no regression). Switched to 2024/2025 (Arsip/ARCHIVED): historical rosters now visible with real counts (DCARE 81/15, KB 28/20, TKIT-A 24/20, ...) where pre-fix showed 0/N; archivedMode read-only banner engaged. GET /api/admin/classes -> 200; 0 console errors; 0 blockers, 0 minors.
+
 ## Ship Notes
 
 **Migrations:** none (no schema change).
