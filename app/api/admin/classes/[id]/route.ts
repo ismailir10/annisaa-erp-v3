@@ -13,6 +13,7 @@ import {
   classDetailSelect,
   classListSelect,
   isUniqueViolation,
+  rosterEnrollmentVisible,
 } from "../_helpers";
 
 export async function GET(
@@ -34,9 +35,16 @@ export async function GET(
       { status: 404 },
     );
   }
+  // Year-aware roster: current-year classes show only ACTIVE enrollments; a
+  // past (non-ACTIVE) year shows its GRADUATED cohort. WITHDRAWN already
+  // excluded by the query.
+  const visibleEnrollments = row.enrollments.filter((e) =>
+    rosterEnrollmentVisible(e.status, row.academicYear.status),
+  );
   return NextResponse.json({
     ...row,
-    enrolledCount: row.enrollments.length,
+    enrollments: visibleEnrollments,
+    enrolledCount: visibleEnrollments.length,
   });
 }
 
