@@ -63,3 +63,7 @@ test-results/
 
 # codex harness-local session state (mirrors .claude/ session files)
 .codex/
+.roster-backup/
+scripts/import-roster/stage.sql
+scripts/import-roster/transform.sql
+scripts/import-roster/rowhashes.tsv
