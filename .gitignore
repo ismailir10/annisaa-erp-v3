@@ -60,3 +60,10 @@ test-results/
 # Local storage adapter uploads (lib/storage). Files written here are served
 # only through auth-proxied API routes — never via Next static handler.
 .data/
+
+# codex harness-local session state (mirrors .claude/ session files)
+.codex/
+.roster-backup/
+scripts/import-roster/stage.sql
+scripts/import-roster/transform.sql
+scripts/import-roster/rowhashes.tsv

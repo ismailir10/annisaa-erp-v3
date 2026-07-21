@@ -46,7 +46,7 @@ CLAUDE_CLAIM=$(grep -E 'admin,teacher,parent.*portal pages' CLAUDE.md | grep -oE
 ### Check 3: Component count
 
 ```bash
-COMPONENT_COUNT=$(find components/ui -name '*.tsx' -type f | wc -l | tr -d ' ')
+COMPONENT_COUNT=$(find components/ui -name '*.tsx' -type f -not -path '*/__tests__/*' | wc -l | tr -d ' ')
 CLAUDE_COMPONENT_CLAIM=$(grep -E 'components/ui' CLAUDE.md | grep -oE '[0-9]+' | head -1)
 ```
 
