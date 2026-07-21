@@ -21,6 +21,7 @@ import {
   classListSelect,
   ensureActiveParent,
   isUniqueViolation,
+  rosterEnrollmentVisible,
 } from "./_helpers";
 
 const JAKARTA_TZ = "Asia/Jakarta";
@@ -110,16 +111,23 @@ export async function GET(req: NextRequest) {
   const enriched = rows.map((row) => {
     const att = attendance.get(row.id);
     const ses = sessions.get(row.id);
+    const { enrollments, ...rest } = row;
+    // Year-aware count: current-year classes count ACTIVE only; past-year
+    // classes count their GRADUATED cohort. WITHDRAWN already excluded by the
+    // query. Prevents promoted-out students inflating a still-current roster.
+    const enrolledCount = enrollments.filter((e) =>
+      rosterEnrollmentVisible(e.status, row.academicYear.status),
+    ).length;
     const badge: HealthBadge = computeHealthBadge({
       status: row.status,
-      enrolledCount: row._count.enrollments,
+      enrolledCount,
       capacity: row.capacity,
       attendance7dPct: att?.attendance7dPct ?? null,
       todaySession: ses?.state ?? (workingDay ? "Missing" : "Holiday"),
     });
     return {
-      ...row,
-      enrolledCount: row._count.enrollments,
+      ...rest,
+      enrolledCount,
       attendance7dPct: att?.attendance7dPct ?? null,
       todaySession: ses?.state ?? (workingDay ? "Missing" : "Holiday"),
       health: badge,

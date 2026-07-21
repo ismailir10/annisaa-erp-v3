@@ -1,13 +1,18 @@
 -- Historical class-history backfill  (tag: histbackfill-20260721)  ADDITIVE / IDEMPOTENT
 -- Generated deterministically; safe to re-run (ON CONFLICT DO NOTHING).
+-- AcademicYear.status corrected 2026-07-21: original generator run emitted the
+-- off-enum 'INACTIVE' (app enum is PLANNING|ACTIVE|ARCHIVED); hand-patched here
+-- to 'ARCHIVED' to match what a regenerated run now produces (see ay_status()
+-- in build-history-backfill.py). ClassTrack/ClassSection 'INACTIVE' below is
+-- unaffected -- that is their own valid ACTIVE|INACTIVE enum.
 INSERT INTO "AcademicYear"(id,"tenantId",name,"startDate","endDate",status) VALUES
- ('hist_ay_2022_2023','tenant_annisaa','2022/2023','2022-07-01','2023-06-30','INACTIVE') ON CONFLICT (id) DO NOTHING;
+ ('hist_ay_2022_2023','tenant_annisaa','2022/2023','2022-07-01','2023-06-30','ARCHIVED') ON CONFLICT (id) DO NOTHING;
 INSERT INTO "AcademicYear"(id,"tenantId",name,"startDate","endDate",status) VALUES
- ('hist_ay_2023_2024','tenant_annisaa','2023/2024','2023-07-01','2024-06-30','INACTIVE') ON CONFLICT (id) DO NOTHING;
+ ('hist_ay_2023_2024','tenant_annisaa','2023/2024','2023-07-01','2024-06-30','ARCHIVED') ON CONFLICT (id) DO NOTHING;
 INSERT INTO "AcademicYear"(id,"tenantId",name,"startDate","endDate",status) VALUES
- ('hist_ay_2024_2025','tenant_annisaa','2024/2025','2024-07-01','2025-06-30','INACTIVE') ON CONFLICT (id) DO NOTHING;
+ ('hist_ay_2024_2025','tenant_annisaa','2024/2025','2024-07-01','2025-06-30','ARCHIVED') ON CONFLICT (id) DO NOTHING;
 INSERT INTO "AcademicYear"(id,"tenantId",name,"startDate","endDate",status) VALUES
- ('hist_ay_2025_2026','tenant_annisaa','2025/2026','2025-07-01','2026-06-30','INACTIVE') ON CONFLICT (id) DO NOTHING;
+ ('hist_ay_2025_2026','tenant_annisaa','2025/2026','2025-07-01','2026-06-30','ARCHIVED') ON CONFLICT (id) DO NOTHING;
 INSERT INTO "ClassTrack"(id,"tenantId","campusId","programId",name,status) VALUES
  ('hist_0db03efe6b00b9ff0f20','tenant_annisaa','campus_taman_aster','program_kb','KB2','INACTIVE') ON CONFLICT (id) DO NOTHING;
 INSERT INTO "ClassTrack"(id,"tenantId","campusId","programId",name,status) VALUES

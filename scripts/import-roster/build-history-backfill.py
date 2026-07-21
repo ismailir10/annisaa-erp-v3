@@ -9,7 +9,15 @@ Decisions encoded:
   - Trust 2025/2026 + 2024/2025 fully; spot-check 2023/2024 + 2022/2023 by age/program, exclude implausible.
   - Campus = student's CURRENT campus; a section whose matched students span >1 current campus is
     AMBIGUOUS -> held out (not written), flagged for manual review.
-  - status: AcademicYear/ClassSection/ClassTrack = INACTIVE; StudentEnrollment = GRADUATED.
+  - status: AcademicYear = computed PLANNING|ACTIVE|ARCHIVED from each year's [start,end] vs. the
+    run date (see ay_status() below) -- matches the app enum (prisma/schema.prisma AcademicYear,
+    lib/classes/year-guard.ts), NEVER the off-enum 'INACTIVE' that PR #404 wrote for past years.
+    ClassTrack/ClassSection = INACTIVE (their own binary ACTIVE|INACTIVE soft-delete enum -- valid,
+    unrelated to AcademicYear's three-state enum; these rows are historical-only so INACTIVE is correct).
+    StudentEnrollment = GRADUATED (one of ACTIVE|GRADUATED|WITHDRAWN, lib/validations/enrollment.ts).
+  - Idempotent re-run: every INSERT is `ON CONFLICT (id) DO NOTHING`, so a year that already exists
+    in the DB (e.g. genuinely ACTIVE for the real current year) is never touched/overwritten by a
+    re-run of this generator, regardless of what ay_status() computes for it this time.
 """
 import openpyxl, json, re, hashlib, sys, unicodedata
 from collections import defaultdict, Counter
@@ -18,6 +26,21 @@ from datetime import date
 TENANT = "tenant_annisaa"
 TAG = "histbackfill-20260721"
 XLSX = "artifacts/Siswa-Talib.xlsx"
+ENROLLMENT_STATUS = "GRADUATED"  # must be one of ACTIVE|GRADUATED|WITHDRAWN (lib/validations/enrollment.ts)
+assert ENROLLMENT_STATUS in {"ACTIVE", "GRADUATED", "WITHDRAWN"}, \
+    f"ENROLLMENT_STATUS {ENROLLMENT_STATUS!r} is off-enum"
+
+def ay_status(sy, ey, today=None):
+    """Map an academic year's [start,end] to the app's AcademicYear enum
+    (PLANNING|ACTIVE|ARCHIVED -- prisma/schema.prisma, lib/classes/year-guard.ts),
+    using the generator's run date as the notion of "current year" since this
+    script has no other current-year signal. Never returns the off-enum
+    'INACTIVE' that PR #404's original version wrote for every past year."""
+    today = today or date.today()
+    start, end = date(sy, 7, 1), date(ey, 6, 30)
+    status = "ACTIVE" if start <= today <= end else ("ARCHIVED" if today > end else "PLANNING")
+    assert status in {"PLANNING", "ACTIVE", "ARCHIVED"}, f"computed status {status!r} is off-enum"
+    return status
 YEARS = {  # sheet -> (ay_id, name, start_year, end_year, trusted)
     "20252026": ("hist_ay_2025_2026", "2025/2026", 2025, 2026, True),
     "20242025": ("hist_ay_2024_2025", "2024/2025", 2024, 2025, True),
@@ -148,8 +171,9 @@ out=[]
 out.append("-- Historical class-history backfill  (tag: %s)  ADDITIVE / IDEMPOTENT" % TAG)
 out.append("-- Generated deterministically; safe to re-run (ON CONFLICT DO NOTHING).")
 for ay_id,(name,sy,ey) in sorted(ay_rows.items()):
+    st = ay_status(sy, ey)
     out.append(f"""INSERT INTO "AcademicYear"(id,"tenantId",name,"startDate","endDate",status) VALUES
- ({q(ay_id)},{q(TENANT)},{q(name)},{q(f'{sy}-07-01')},{q(f'{ey}-06-30')},'INACTIVE') ON CONFLICT (id) DO NOTHING;""")
+ ({q(ay_id)},{q(TENANT)},{q(name)},{q(f'{sy}-07-01')},{q(f'{ey}-06-30')},{q(st)}) ON CONFLICT (id) DO NOTHING;""")
 for trk_id,(cid,prog,name) in sorted(track_rows.items()):
     out.append(f"""INSERT INTO "ClassTrack"(id,"tenantId","campusId","programId",name,status) VALUES
  ({q(trk_id)},{q(TENANT)},{q(cid)},{q(prog)},{q(name)},'INACTIVE') ON CONFLICT (id) DO NOTHING;""")
@@ -159,7 +183,7 @@ for sec_id,(ay_id,trk_id,prog,cid,name,ag) in sorted(section_rows.items()):
 note=q(f"{TAG}; campus-inferred")
 for enr_id,sid,sec_id,ed in enroll_rows:
     out.append(f"""INSERT INTO "StudentEnrollment"(id,"studentId","classSectionId","enrollDate",status,notes) VALUES
- ({q(enr_id)},{q(sid)},{q(sec_id)},{q(ed)},'GRADUATED',{note}) ON CONFLICT ("studentId","classSectionId") DO NOTHING;""")
+ ({q(enr_id)},{q(sid)},{q(sec_id)},{q(ed)},{q(ENROLLMENT_STATUS)},{note}) ON CONFLICT ("studentId","classSectionId") DO NOTHING;""")
 sql="\n".join(out)
 open("scripts/import-roster/history-import.sql","w").write(sql+"\n")
 
