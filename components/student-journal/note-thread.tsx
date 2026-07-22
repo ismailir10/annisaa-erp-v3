@@ -3,26 +3,26 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDateShort } from "@/lib/format";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { formatDateShort, formatTime } from "@/lib/format";
+import {
+  roleLabel,
+  getNoteAuthorInitials,
+  getNoteAuthorLabel,
+} from "@/lib/student-journal/note-display";
 
 type Note = {
   id: string;
   date: string;
   authorRole: string;
   authorUserId?: string;
+  authorName?: string;
   body: string;
   createdAt: string | Date;
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  TEACHER: "Guru",
-  GUARDIAN: "Orang Tua",
-  SCHOOL_ADMIN: "Admin",
-  SUPER_ADMIN: "Admin",
-};
-
-function roleLabel(role: string): string {
-  return ROLE_LABELS[role] ?? role;
+function toIso(value: string | Date): string {
+  return typeof value === "string" ? value : value.toISOString();
 }
 
 type NoteThreadProps = {
@@ -56,11 +56,19 @@ export function NoteThread({
             className="rounded-lg border border-border bg-card p-3 space-y-1.5"
           >
             <div className="flex items-center gap-2 flex-wrap">
+              <Avatar size="sm">
+                <AvatarFallback>
+                  {getNoteAuthorInitials(note.authorName, note.authorRole)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xs font-medium text-foreground">
+                {getNoteAuthorLabel(note.authorName, note.authorRole)}
+              </span>
               <Badge variant="outline" className="text-xs px-1.5 py-0">
                 {roleLabel(note.authorRole)}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                {formatDateShort(note.date)}
+                {formatDateShort(note.date)} &middot; {formatTime(toIso(note.createdAt))}
               </span>
               {editable && (
                 <div className="ml-auto flex items-center gap-1">

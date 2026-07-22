@@ -44,6 +44,23 @@ const employeeBaseObject = z.object({
   bankName: z.string().optional().nullable(),
   bankAccountNo: z.string().optional().nullable(),
   bpjsEnrolled: z.boolean().default(false),
+  // CRUD correctness audit R1: starting leave balances were not settable from
+  // any form — the Employee row always took the schema defaults (12 / 14).
+  // Mid-year hires and carry-over policies need an explicit starting value.
+  // Optional + coerced so an empty HTML number input omits the key (Prisma
+  // applies the @default on create; PUT leaves the column untouched) rather
+  // than writing 0.
+  // Preprocess so an empty/blank HTML number input ("" / null) short-circuits
+  // to undefined — without it z.coerce.number("") would land 0 and overwrite
+  // the default/existing balance. Same pattern as guardian.childOrder.
+  leaveBalanceAnnual: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(0).max(365).optional(),
+  ),
+  leaveBalanceSick: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(0).max(365).optional(),
+  ),
   // F-26: caller-supplied role for the auto-created `User` row. Previously
   // hard-coded to `TEACHER`, which prevented HR from creating non-teaching
   // staff (admin/finance/etc.) through the employee form. Only TEACHER and

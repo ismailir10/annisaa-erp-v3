@@ -277,7 +277,7 @@ Domain standards live under `.claude/standards/` — loaded only when relevant f
 ```
 app/{admin,teacher,parent}/  44 / 14 / 8 portal pages
 app/api/                     184 routes (organized by domain)
-components/ui/               73 Shadcn components
+components/ui/               73 Shadcn components (+ __tests__)
 lib/{api,validations,payroll,xendit,email}/  business logic, retry, integrations
 prisma/                      schema + seed
 proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
