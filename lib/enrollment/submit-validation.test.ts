@@ -135,6 +135,15 @@ describe("submitEnrollmentSchema", () => {
     }
   });
 
+  it("accepts a prefixed (non-cuid) programId — prod Program ids aren't all cuid()-shaped", () => {
+    const p = { ...validPayload(), programId: "program_ab57fd0432e25d5b3013" };
+    const result = submitEnrollmentSchema.safeParse(p);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.programId).toBe("program_ab57fd0432e25d5b3013");
+    }
+  });
+
   it("strips unknown server-owned keys (status, tenantId)", () => {
     const p = { ...validPayload(), status: "ACCEPTED", tenantId: "evil", accessToken: "x" };
     const result = submitEnrollmentSchema.safeParse(p);

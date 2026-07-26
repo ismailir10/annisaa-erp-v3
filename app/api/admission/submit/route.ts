@@ -5,6 +5,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { submitAdmissionSchema, flattenSubmitErrors } from "@/lib/admission/submit-validation";
 import { detectSibling } from "@/lib/admission/sibling-detect";
 import { sendAdmissionSubmittedEmail } from "@/lib/email/admission-submitted";
+import { programBelongsToTenant } from "@/lib/enrollment/resolve-token";
 
 const RATE_LIMIT_PER_MIN = 5;
 const RATE_WINDOW_MS = 60_000;
@@ -65,6 +66,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "submit_failed" }, { status: 500 });
   }
 
+  // Guard against a cross-tenant program reference (IDOR write) — mirrors the
+  // check every enrollment write path already runs. This is an optional field
+  // on a one-shot public submit (not an autosave draft), so an invalid/foreign
+  // programId is dropped to null rather than rejecting the whole submission.
+  let programId: string | null = data.programId ?? null;
+  if (programId && !(await programBelongsToTenant(programId, tenantId))) {
+    programId = null;
+  }
+
   let admissionId: string;
   try {
     const admission = await prisma.admission.create({
@@ -77,7 +87,7 @@ export async function POST(req: NextRequest) {
         parentPhone: data.parentPhone,
         parentWhatsapp: data.parentWhatsapp ?? null,
         parentEmail: data.parentEmail ?? null,
-        programId: data.programId ?? null,
+        programId,
         notes: data.notes ?? null,
         // status defaults to "INQUIRY" via prisma schema; never set explicitly here.
         // source hard-coded server-side — never read from request.

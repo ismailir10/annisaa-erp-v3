@@ -72,4 +72,18 @@ describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
     await PATCH(req({ programId: "" }), ctx);
     expect(update.mock.calls[0][0].data.programId).toBeNull();
   });
+
+  it("persists a prefixed (non-cuid) programId that belongs to the tenant", async () => {
+    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
+    programFindFirst.mockResolvedValue({ id: "program_ab57fd0432e25d5b3013" });
+    await PATCH(req({ programId: "program_ab57fd0432e25d5b3013" }), ctx);
+    expect(update.mock.calls[0][0].data.programId).toBe("program_ab57fd0432e25d5b3013");
+  });
+
+  it("drops (does not persist) a programId that fails the tenant-ownership check", async () => {
+    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
+    programFindFirst.mockResolvedValue(null);
+    await PATCH(req({ programId: "program_from-another-tenant" }), ctx);
+    expect("programId" in update.mock.calls[0][0].data).toBe(false);
+  });
 });

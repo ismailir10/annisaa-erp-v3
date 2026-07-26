@@ -104,6 +104,14 @@ describe("POST /api/enrollments/token/[token]/submit", () => {
     expect(res.status).toBe(404);
   });
 
+  it("submits successfully with a prefixed (non-cuid) programId that belongs to the tenant", async () => {
+    programFindFirst.mockResolvedValue({ id: "program_ab57fd0432e25d5b3013" });
+    const b = { ...validBody(), programId: "program_ab57fd0432e25d5b3013" };
+    const res = await POST(req(b), ctx);
+    expect(res.status).toBe(201);
+    expect(updateMany.mock.calls[0][0].data.programId).toBe("program_ab57fd0432e25d5b3013");
+  });
+
   it("422 when the chosen program is not in the application's tenant (IDOR guard)", async () => {
     programFindFirst.mockResolvedValue(null);
     const res = await POST(req(validBody()), ctx);
