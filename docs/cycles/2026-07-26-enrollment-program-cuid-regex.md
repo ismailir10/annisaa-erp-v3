@@ -136,4 +136,27 @@ really are shaped that way and the check there is correct.
   yet re-verified against a deployed build of this branch (Task 3, pending PR/preview).
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+- **No migrations, no new env vars.** Pure application-code fix — validation logic only, no
+  schema change (`Program.id`'s divergence from its `@default(cuid())` declaration is pre-existing
+  and explicitly out of scope; see Non-goals).
+- **Playwright: local run blocked by design, deferred to CI.** `npx playwright test
+  e2e/enrollment-application.spec.ts` refused to run — `playwright.config.ts`'s
+  `assertLocalDatabaseForE2E` guard correctly detects this worktree's symlinked `DATABASE_URL`
+  points at the real remote Supabase pooler (staging), not a local/ephemeral Postgres, and refuses
+  to run mutation-heavy specs against it (would pollute staging data). This is the documented,
+  expected deferral path — the
+  required CI `Playwright E2E` check (which runs against the Vercel preview with its own
+  disposable-safe setup) gates the merge; not a skipped step.
+- **Manual smoke plan for `/ship`'s preview-verify:** reproduce the exact flow already proven
+  against prod during initial diagnosis — open the Vercel preview's `/pendaftaran/[token]` for a
+  test `EnrollmentApplication` (or seed one via the admin `/admin/admissions` → "Catat Pertanyaan"
+  → "Kirim Formulir" flow, same as the original repro), fill all 6 steps, select a program, submit.
+  Expect `201` and a thank-you state instead of the pre-fix `422 Program tidak valid`. Also spot-
+  check `/daftar`'s program field for the `/daftar` fix (Task 1's post-review addition).
+- **Rollback:** revert this single commit — no data migration, no forward-only state introduced.
+  The only persisted-data side effect of *testing* this fix (not the fix itself) is the
+  `Test Anak Pilot` inquiry (`Admission`) and `EnrollmentApplication` row
+  (`q_nwWB0WE_QXaJ2P21GdIPBELalt77700EDHAzYB5A0`, still `INVITED`, never actually submitted since
+  the bug blocked it) left in **prod** from the original diagnosis session — cleanup is deferred
+  per this cycle's Assumption 3, not part of this PR.
