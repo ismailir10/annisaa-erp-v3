@@ -45,8 +45,8 @@ guard, the way `programId` validation already works for every other write path i
       `programBelongsToTenant` despite Task 1 saying to add it, so the call was added.
 - [x] Regression tests: each of the now-5 call sites (4 original + `/daftar` create) has a test
       asserting a real-shaped `program_...` id passes validation and persists/submits successfully
-- [ ] End-to-end manual smoke on the staging preview: complete `/pendaftaran/[token]` through
-      final submit with a real program selected — pending PR/preview deployment (`/ship`)
+- [x] End-to-end manual smoke on the staging preview: complete `/pendaftaran/[token]` through
+      final submit with a real program selected — done, see Verification
 
 **Non-goals:** reconciling why `Program.id` diverges from its Prisma schema default (`cuid()`)
 — that's a separate seed/migration concern, out of scope here. Not touching any other
@@ -80,7 +80,7 @@ really are shaped that way and the check there is correct.
    `__tests__` files) asserting a `program_<hex>`-shaped id round-trips successfully; keep/extend
    an existing invalid-id test to confirm rejection still works via `programBelongsToTenant`.
    Acceptance: `npx vitest run` green, new tests visibly cover the fixed paths.
-3. [ ] **Manual staging smoke** — after the between-task gate passes, walk `/pendaftaran/[token]` on
+3. [x] **Manual staging smoke** — after the between-task gate passes, walk `/pendaftaran/[token]` on
    the Vercel preview end-to-end (reuse the same flow already proven in prod testing) confirming
    submit succeeds with a real program selected. Acceptance: submit returns `201`, no code
    changes needed after this — pure verification, folded into `/build`'s end-of-cycle step.
@@ -132,8 +132,20 @@ really are shaped that way and the check there is correct.
 - Reproduced the original bug end-to-end in Chrome against prod
   (`https://talib.annisaasekolahku.com/pendaftaran/q_nwWB0WE_QXaJ2P21GdIPBELalt77700EDHAzYB5A0`)
   before the fix: filled all 6 steps, submit hard-failed with `422 Program tidak valid` every time
-  despite a valid tenant-owned program selected. This is the exact failure this fix targets — not
-  yet re-verified against a deployed build of this branch (Task 3, pending PR/preview).
+  despite a valid tenant-owned program selected. This is the exact failure this fix targets.
+- Preview-verify (PR #413, `annisaa-erp-v3-git-feat-fix-en-b1e890-ismails-projects-196d40d3.vercel.app`,
+  commit `f8695200`): signed in as admin (`ismailir10@gmail.com`), seeded a fresh inquiry via
+  `/admin/admissions` → "Catat Pertanyaan" → "Kirim Formulir", retrieved the tokenized link from
+  the delivered email (note: the email's link pointed at prod — this preview's `NEXT_PUBLIC_APP_URL`
+  is unset and falls back to the hardcoded prod default in `lib/email/enrollment-invite.ts`, a
+  pre-existing gap out of scope here — swapped the domain manually to hit the actual preview
+  build). Walked all 6 steps end-to-end on staging's DB (`udbivhchbizpxoryejgz`), selected
+  "Kelompok Bermain" (staging's Program ids happen to already be real `cuid()`-shaped, so this run
+  additionally proves the fix doesn't regress the standard-shape case), saved both parent
+  signatures (confirmed "Tersimpan" — the earlier prod signature-storage fix holds here too), and
+  submitted. Result: `201`, thank-you page ("Jazakumullah khairan, Bapak/Ibu ... sudah kami
+  terima"). Zero console errors, zero blockers. Preview-verify iteration 1 (clean, no fix loop
+  needed): 1 flow walked (`/pendaftaran/[token]` full submit), 0 blockers, 0 minors.
 
 ## Ship Notes
 
