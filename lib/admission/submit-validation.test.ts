@@ -155,6 +155,17 @@ describe("submitAdmissionSchema", () => {
     }
   });
 
+  it("accepts a prefixed (non-cuid) programId — prod Program ids aren't all cuid()-shaped", () => {
+    const result = submitAdmissionSchema.safeParse({
+      ...VALID,
+      programId: "program_ab57fd0432e25d5b3013",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.programId).toBe("program_ab57fd0432e25d5b3013");
+    }
+  });
+
   it("accepts a fully-populated valid payload", () => {
     const result = submitAdmissionSchema.safeParse({
       ...VALID,

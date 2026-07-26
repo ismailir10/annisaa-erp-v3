@@ -3,8 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { programBelongsToTenant } from "@/lib/enrollment/resolve-token";
-
-const CUID_REGEX = /^c[a-z0-9]{24,}$/i;
+import { programIdSchema } from "@/lib/validations/program-id";
 
 // Admin status workflow. INVITED is owned by the parent (pre-submit) and is
 // never an admin target. A converted application (studentId set) is frozen.
@@ -22,7 +21,7 @@ const patchSchema = z
     ayahData: z.object({}).passthrough().optional(),
     ibuData: z.object({}).passthrough().optional(),
     consentData: z.object({}).passthrough().optional(),
-    programId: z.union([z.string().regex(CUID_REGEX), z.literal(""), z.null()]).optional(),
+    programId: z.union([programIdSchema, z.literal(""), z.null()]).optional(),
     dcareAddon: z.boolean().optional(),
   })
   .refine((o) => Object.keys(o).length > 0, "Tidak ada perubahan");
