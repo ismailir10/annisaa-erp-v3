@@ -8,9 +8,12 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import { formatRupiah } from "@/lib/format";
 
 /**
- * Aktivitas Xendit — admin-side audit panel rendered on the invoice detail
- * page (cycle: finance-robustness-a-b-c, T7). Replaces the planned
- * `/admin/webhooks` inspector with a contextual per-invoice feed.
+ * Aktivitas Pembayaran — admin-side audit panel rendered on the invoice
+ * detail page (cycle: finance-robustness-a-b-c, T7; renamed from
+ * `XenditActivityCard`/"Aktivitas Xendit" in 2026-07-27-doku-payment-gateway
+ * T6 — the panel now feeds off whichever gateway is active, so the copy no
+ * longer names a specific vendor). Replaces the planned `/admin/webhooks`
+ * inspector with a contextual per-invoice feed.
  *
  * Empty-state policy (per spec C6): when the invoice has zero stored
  * `WebhookEvent` rows, the card does NOT render at all. ~95% of invoices
@@ -26,8 +29,8 @@ import { formatRupiah } from "@/lib/format";
  *
  * The "Lihat payload" disclosure renders the server-redacted JSON inside a
  * scrollable `<pre>` (max-h-96, x/y overflow). PII (`customer.*`,
- * `billing_information.*`) is already stripped server-side by
- * `redactPayload` before the response leaves the API.
+ * `billing_information.*`, `virtual_account_info.*`) is already stripped
+ * server-side by `redactPayload` before the response leaves the API.
  */
 
 type DisplayFields = {
@@ -50,8 +53,39 @@ type WebhookEventRow = {
   payload: Record<string, unknown> | null;
 };
 
-const METHOD_TOOLTIP =
-  "Metode tidak tercatat di event payment_session.completed; hanya muncul di event payment.succeeded yang belum kami subscribe.";
+// Shown when the underlying event never reports a payment rail (Xendit
+// Payment Link events don't carry it — the DOKU adapter always does via
+// `channel.id`). Deliberately vendor-neutral: describes what the row means,
+// not which provider's event vocabulary produced it.
+const METHOD_TOOLTIP = "Metode pembayaran tidak tercatat untuk event ini.";
+
+// Bank/channel acronyms that stay uppercase when a DOKU `channel.id` like
+// "VIRTUAL_ACCOUNT_BCA" is rendered human-readably, rather than being
+// title-cased into "Bca".
+const CHANNEL_ACRONYMS = new Set(["BCA", "BRI", "BNI", "BTN", "BNC", "CIMB", "DOKU"]);
+
+function titleCaseChannelWord(word: string): string {
+  if (CHANNEL_ACRONYMS.has(word)) return word;
+  if (word.length === 0) return word;
+  return word.charAt(0) + word.slice(1).toLowerCase();
+}
+
+/**
+ * Renders a raw gateway channel enum (e.g. DOKU's `channel.id`
+ * "VIRTUAL_ACCOUNT_BANK_MANDIRI") as human-readable Bahasa copy
+ * ("Virtual Account Bank Mandiri") rather than dumping the enum verbatim.
+ * Xendit rows never populate `paymentMethod`, so this only ever runs on
+ * DOKU-shaped values.
+ */
+function formatPaymentMethod(raw: string): string {
+  const withoutPrefix = raw.startsWith("VIRTUAL_ACCOUNT_")
+    ? raw.slice("VIRTUAL_ACCOUNT_".length)
+    : raw;
+  const words = withoutPrefix.split("_").filter(Boolean).map(titleCaseChannelWord);
+  return raw.startsWith("VIRTUAL_ACCOUNT_")
+    ? `Virtual Account ${words.join(" ")}`
+    : words.join(" ");
+}
 
 function formatPaidAt(iso: string | null): string {
   if (!iso) return "—";
@@ -101,7 +135,7 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-export function XenditActivityCard({ invoiceId }: { invoiceId: string }) {
+export function PaymentActivityCard({ invoiceId }: { invoiceId: string }) {
   const [events, setEvents] = useState<WebhookEventRow[] | null>(null);
 
   useEffect(() => {
@@ -132,7 +166,7 @@ export function XenditActivityCard({ invoiceId }: { invoiceId: string }) {
 
   return (
     <Card className="p-card">
-      <SectionHeading label={`Aktivitas Xendit (${events.length})`} />
+      <SectionHeading label={`Aktivitas Pembayaran (${events.length})`} />
       <TooltipProvider>
         <div className="space-y-3 mt-2">
           {events.map((evt) => {
@@ -176,7 +210,7 @@ export function XenditActivityCard({ invoiceId }: { invoiceId: string }) {
                       <TooltipContent>{METHOD_TOOLTIP}</TooltipContent>
                     </Tooltip>
                   ) : (
-                    <span>Metode: {evt.displayFields.paymentMethod}</span>
+                    <span>Metode: {formatPaymentMethod(evt.displayFields.paymentMethod)}</span>
                   )}
                 </div>
 

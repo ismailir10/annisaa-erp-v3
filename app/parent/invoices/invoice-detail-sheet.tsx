@@ -62,6 +62,9 @@ const METHOD_LABELS: Record<string, string> = {
   CASH: "Tunai",
   BANK_TRANSFER: "Transfer Bank",
   XENDIT: "Virtual Account",
+  // Gateway-paid rows carry the active gateway as their method. Without an
+  // entry here a DOKU payment renders a blank label to the parent.
+  DOKU: "Virtual Account",
   OTHER: "Lainnya",
 };
 
@@ -69,6 +72,7 @@ const METHOD_ICONS: Record<string, LucideIcon> = {
   CASH: Banknote,
   BANK_TRANSFER: Landmark,
   XENDIT: Building2,
+  DOKU: Building2,
   OTHER: Building2,
 };
 
@@ -227,7 +231,7 @@ export function InvoiceDetailSheet({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-foreground">Transfer bank (Virtual Account)</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      BRI · BNI · Mandiri · BCA · Permata
+                      BCA · Mandiri · BRI · BNI · Permata · CIMB
                     </p>
                   </div>
                 </div>
@@ -302,9 +306,9 @@ export function InvoiceDetailSheet({
           {/* Bayar sekarang CTA — rendered when invoice is payable.
               - linkState "ready":   live link button.
               - linkState "pending": disabled button + optimistic "sedang disiapkan" copy
-                                     (Xendit normally provisions in minutes).
+                                     (the gateway normally provisions in minutes).
               - linkState "stale":   no button; direct parent to contact admin.
-                                     Covers the case where the Xendit provision never
+                                     Covers the case where the gateway provision never
                                      completed (UAT 2026-05-12 parent MINOR-02). */}
           {isPayable ? (
             <div className="space-y-2">

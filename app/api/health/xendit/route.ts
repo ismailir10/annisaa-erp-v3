@@ -8,6 +8,15 @@
  * instead of silently accumulating `PENDING_PAYMENT_LINK` rows on the
  * next bulk-create run.
  *
+ * Kept as an alias route in cycle 2026-07-27-doku-payment-gateway T5 —
+ * existing uptime monitors point at this exact path. It now delegates its
+ * rate-limit → cache → ping → format flow to the shared
+ * `lib/payments/health.ts` core (also used by the gateway-aware
+ * `GET /api/health/payments`, AC-18), but is pinned to Xendit: it always
+ * calls `pingXenditBalance` directly and never resolves the active gateway
+ * via `PAYMENT_GATEWAY` / `getGateway()`, so this endpoint's behavior does
+ * not change no matter which gateway is active in production.
+ *
  * ### Security checklist (.claude/standards/security.md)
  * - **Auth posture:** intentionally **public** (no auth) — must be
  *   pingable from Vercel deploy-protection bypass + uptime monitors.
@@ -24,7 +33,11 @@
  * ### Cache + rate-limit ordering (cycle 2026-04-28 T4)
  * Hits flow: rate-limit → cache → Xendit ping. Cached responses still
  * count against the per-IP cap, so a hot cache cannot be used to burn
- * function invocations at unlimited QPS from a single IP.
+ * function invocations at unlimited QPS from a single IP. This route keeps
+ * its own single-slot cache (`__xenditHealthCache`) rather than sharing the
+ * gateway-keyed `Map` in `/api/health/payments` — it is always Xendit, so a
+ * single slot is sufficient and this avoids any coupling between the two
+ * routes' cache lifetimes.
  *
  * ### Tier detection (cycle 2026-04-28 T4)
  * Xendit serves both sandbox and live from `https://api.xendit.co`.
@@ -36,42 +49,18 @@
 
 import { NextResponse } from "next/server";
 
-import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { pingXenditBalance } from "@/lib/xendit/client";
-import { prefixForError } from "@/lib/xendit/error-prefix";
+import {
+  runPaymentsHealthCheck,
+  type PaymentsHealthCacheEntry,
+  type Tier,
+} from "@/lib/payments/health";
 
 export const dynamic = "force-dynamic";
 
-const RATE_LIMIT = 30;
-const RATE_WINDOW_MS = 60_000;
-const CACHE_TTL_MS = 30_000;
-
-type Tier = "live" | "sandbox" | "unknown";
-
-type CachedHealthResult =
-  | {
-      ok: true;
-      source: "xendit";
-      tier: Tier;
-      checkedAt: string;
-    }
-  | {
-      ok: false;
-      source: "xendit";
-      tier: Tier;
-      error: string;
-      code: string;
-      checkedAt: string;
-    };
-
-interface HealthCacheEntry {
-  result: CachedHealthResult;
-  expiresAt: number;
-}
-
 declare global {
   // eslint-disable-next-line no-var
-  var __xenditHealthCache: HealthCacheEntry | undefined;
+  var __xenditHealthCache: PaymentsHealthCacheEntry | undefined;
 }
 
 function detectTier(): Tier {
@@ -83,69 +72,16 @@ function detectTier(): Tier {
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
-  // Step 1 — Rate limit (per-IP). Must run BEFORE the cache check so cached
-  // responses still count against the cap (cycle 2026-04-28 T4 ordering pin).
-  const ip = getClientIp(request);
-  const limit = rateLimit(`health:xendit:${ip}`, RATE_LIMIT, RATE_WINDOW_MS);
-  if (!limit.success) {
-    return NextResponse.json(
-      { error: "Too many requests", retryAfter: RATE_WINDOW_MS / 1000 },
-      { status: 429 },
-    );
-  }
-
-  // Step 2 — Cache check. Single-slot singleton (NOT a Map<tier, ...>) — a
-  // tier-keyed Map would invite cache poisoning if a future change ever lets
-  // `tier` come from a header or query param.
-  const now = Date.now();
-  const cached = globalThis.__xenditHealthCache;
-  if (cached && cached.expiresAt > now) {
-    return NextResponse.json(cached.result, { status: cached.result.ok ? 200 : 503 });
-  }
-
-  // Step 3 — Cache miss → ping Xendit.
-  const tier = detectTier();
-
-  if (tier === "unknown") {
-    // Short-circuit: missing/malformed key. Skip the network ping (it would
-    // throw on `getAuthHeader()` anyway) and report a clean error directly.
-    const result: CachedHealthResult = {
-      ok: false,
-      source: "xendit",
-      tier,
-      error: "XENDIT_SECRET_KEY not configured or has unrecognized prefix",
-      code: "unknown",
-      checkedAt: new Date(now).toISOString(),
-    };
-    globalThis.__xenditHealthCache = { result, expiresAt: now + CACHE_TTL_MS };
-    return NextResponse.json(result, { status: 503 });
-  }
-
-  try {
-    await pingXenditBalance();
-    const result: CachedHealthResult = {
-      ok: true,
-      source: "xendit",
-      tier,
-      checkedAt: new Date(now).toISOString(),
-    };
-    globalThis.__xenditHealthCache = { result, expiresAt: now + CACHE_TTL_MS };
-    return NextResponse.json(result, { status: 200 });
-  } catch (err) {
-    const { prefix, message } = prefixForError(err);
-    const result: CachedHealthResult = {
-      ok: false,
-      source: "xendit",
-      tier,
-      error: message,
-      code: prefix,
-      checkedAt: new Date(now).toISOString(),
-    };
-    // Cache failure results too — repeated failed pings within 30s would
-    // hammer Xendit on a misconfigured deploy. Same TTL as success. If the
-    // caught error wasn't a `XenditApiError` (programmer bug), `prefixForError`
-    // returns `code: "unknown"` and the message is what was thrown.
-    globalThis.__xenditHealthCache = { result, expiresAt: now + CACHE_TTL_MS };
-    return NextResponse.json(result, { status: 503 });
-  }
+  return runPaymentsHealthCheck(request, {
+    rateLimitNamespace: "health:xendit",
+    source: "xendit",
+    detectTier,
+    unknownTierError:
+      "XENDIT_SECRET_KEY not configured or has unrecognized prefix",
+    ping: () => pingXenditBalance(),
+    getCached: () => globalThis.__xenditHealthCache,
+    setCached: (entry) => {
+      globalThis.__xenditHealthCache = entry;
+    },
+  });
 }
