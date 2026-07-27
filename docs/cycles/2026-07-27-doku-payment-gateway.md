@@ -137,7 +137,7 @@ Ship DOKU Checkout as a selectable payment gateway alongside Xendit, with DOKU a
 
 ## Tasks
 
-Status: **T1 ✅ · T2 ✅ · T3 ✅** · T4 ⬜ · T5 ⬜ · T6 ⬜ · T7 ⬜
+Status: **T1 ✅ · T2 ✅ · T3 ✅ · T4 ✅** · T5 ⬜ · T6 ⬜ · T7 ⬜
 
 ### T1 — Gateway port + Xendit adapter, zero behaviour change ✅
 
@@ -163,7 +163,7 @@ While here, close two defects the audit surfaced in `create-session`: `await req
 
 Satisfies AC-24. Gate: `npm run build && npx vitest run`.
 
-### T4 — Shared webhook processor + DOKU notification route
+### T4 — Shared webhook processor + DOKU notification route ✅
 
 Extract the gateway-agnostic core of `app/api/xendit/webhook/route.ts` into `lib/payments/webhook-processor.ts`: `processPaymentEvent(event: NormalizedPaymentEvent)` owning the `WebhookEvent` insert, `P2002` dedup, advisory-lock transaction, amount/currency/payment-id guards, overpayment tolerance, status recomputation, and cache-tag busting. Reduce the Xendit route to `verify → parse → processPaymentEvent`.
 
@@ -207,6 +207,10 @@ Gate: `npm run build && npx vitest run && npx playwright test`.
 - **T3: session creation through the port** — `lib/payments/session.ts` (`resolveAppOrigin`, `createPaymentSessionForInvoice`) replaces `lib/xendit/helpers.ts`, which becomes a shim. Four callers re-pointed: `app/api/xendit/create-session/route.ts`, `app/api/invoices/route.ts`, `app/api/invoices/generate/batch/route.ts`, `lib/finance/xendit-retry.ts`. Log prefix `[PAYMENT SESSION CREATED]` now carries the gateway id. Return URLs emit `?paymentStatus=`; the parent client accepts `paymentStatus` and legacy `xenditStatus`, preferring the former. Both redirect shims updated.
 - **T3 defect fixes:** `app/api/xendit/create-session/route.ts` had an unguarded `await req.json()` (malformed body → unhandled 500) and an uncapped `invoiceIds` array while every sibling bulk route caps at 25. Added `createPaymentSessionSchema` in `lib/validations/invoice.ts`; malformed body → `400 { error: "Malformed body" }`, validation failure → `400 { error: "Validasi gagal", issues }`.
 - **T3 test-seam change:** `lib/__tests__/xendit-helpers{,-app-url}.test.ts` moved their mock seam from `@/lib/xendit/client`'s `createXenditSession` to `@/lib/payments/registry`'s `getGateway()` — required, because `xenditGateway.createSession` closure-binds the module-private function, so stubbing the old export no longer intercepts. Expected URLs in `xendit-helpers-app-url.test.ts` changed `xenditStatus=` → `paymentStatus=`, which is the AC-24 behaviour change itself, not an accommodation.
+- **T4: shared webhook processor + DOKU notification route** — `lib/payments/webhook-processor.ts` (`NormalizedPaymentEvent`, `processPaymentEvent`) now owns the two-phase durable receipt, `P2002` dedup, the `pg_advisory_xact_lock` transaction, every guard, and cache-tag busting; `app/api/xendit/webhook/route.ts` reduced to verify → parse → normalise → delegate. New `app/api/doku/webhook/route.ts` does rate-limit → read raw body once → dual/triple-candidate HMAC verify → parse → normalise → delegate. `payment.create` takes `method` from the event provider. Surface: `"DOKU"` added to `PAYMENT_METHODS` and `recordPaymentSchema`; `webhook-events` filters by `provider: getGateway().id` (AC-16); `proxy.ts` public-path bypass converted from a loose `startsWith` prefix to exact-segment matches for both webhook paths, closing the `/api/xendit/webhook-anything` hole the audit found.
+- **T4 extraction fidelity:** `app/api/__tests__/xendit-webhook.test.ts` has a **zero-line diff** — all 22 tests pass against the extracted processor with no import, mock or assertion change. That is the strongest available evidence the 490-line move preserved behaviour.
+- **T4 signature verification:** `Request-Target` candidates tried in order — `DOKU_NOTIFICATION_TARGET` (operator escape hatch), `url.pathname`, then the query-stripped absolute URL — compared with `timingSafeEqual` behind an equal-length guard. Forging any candidate requires the Secret Key, so trying three costs nothing in security while removing A2's unknown from the trust path. The matching candidate is logged so the first real notification pins it; the secret, the computed HMAC and the received signature are never logged. Timestamp read from `Request-Timestamp`, falling back to `Response-Timestamp`.
+- **T4 driver-added test:** the subagent's AC-13a test covered partial-then-overpayment. Added the likelier VA shape — both links paid **in full** — which pins that the second notification is a silent no-op via the pre-tx `PAID` guard. Safe (no double credit) but incomplete (no record of the second payment, event marked `PROCESSED` not `ERROR`). Recorded in Ship Notes → Reconciliation gap; deliberately not fixed here because the guard order is shared with the Xendit path.
 - **T1 accepted deviation from "zero behaviour change":** `GatewayApiError` sets `this.name = "GatewayApiError"`, so Xendit-path errors now stringify as `GatewayApiError: …` rather than `XenditApiError: …`. One assertion (`lib/__tests__/xendit-client-classifier.test.ts:89`) pinned the old label and was updated. Verified first that nothing branches on `error.name`: the only non-test read is a diagnostic log breadcrumb at `app/api/invoices/route.ts:294`. Reverting was rejected because the class is now shared — a DOKU failure stringifying as `XenditApiError` would be actively misleading in production logs. Ops log-greps keyed on the literal string `XenditApiError` (as opposed to the `[XENDIT …]` prefixes, which are unchanged) would need updating; none are known to exist in this repo.
 
 ## Verification
@@ -231,6 +235,21 @@ The DOKU RSA public key supplied during specification belongs to the SNAP asymme
 ### Credential handling
 
 The Secret Key was pasted into a chat transcript during specification. Treat it as disclosed and rotate it in DOKU Back Office before production use. No credential is written to any tracked file in this repo; `.env.example` carries names only, and real values go into `.env.local` and Vercel environment variables by hand.
+
+### Reconciliation gap — double-paid Virtual Account (new, needs an ops decision)
+
+DOKU permits `invoice_number` reuse (A3), so one invoice can carry several live checkout links, each with its own VA number. A parent who opens the payment page twice can be issued two VA numbers and pay **both**.
+
+Current behaviour, pinned by a test in `app/api/__tests__/doku-webhook.test.ts`:
+
+| Scenario | Outcome | Safe? | Complete? |
+|---|---|---|---|
+| Partial then over-payment | Second credits, then `OVERPAYMENT_FLAGGED` → admin sees an ERROR row | Yes | Yes |
+| **Both paid in full** | Second short-circuits on the pre-transaction `status === "PAID"` guard: no `Payment` row, invoice untouched, event marked **PROCESSED** | Yes — no double credit | **No** |
+
+In the second row the money *was* collected by DOKU but Talib holds no record of it, and because the event is `PROCESSED` rather than `ERROR`, nothing in the admin activity panel signals the discrepancy. Reconciliation would have to come from the DOKU dashboard.
+
+Not fixed in this cycle: the guard order is shared with the Xendit path and is covered by protected tests, so changing it inside a gateway migration would mix two unrelated risks. Options for a follow-up cycle, cheapest first — (a) mark the already-PAID case `ERROR:DUPLICATE_PAYMENT_RECEIVED` instead of `PROCESSED` so it surfaces in the activity panel; (b) record the surplus as a `Payment` row against a credit balance; (c) prevent the cause by voiding the prior DOKU session before minting a new one, if DOKU exposes a cancel API for Checkout.
 
 ### Known debt (deliberate, from the adapter decision)
 
