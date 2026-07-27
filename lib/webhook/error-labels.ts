@@ -30,6 +30,9 @@ export function mapErrorLabel(errorMessage: string | null | undefined): string |
   if (errorMessage === "OVERPAYMENT_FLAGGED") {
     return "Pembayaran melebihi tagihan — sudah dikreditkan, verifikasi manual.";
   }
+  if (errorMessage.startsWith("CURRENCY_MISMATCH")) {
+    return "Mata uang pembayaran bukan IDR — tidak dikreditkan, verifikasi manual.";
+  }
 
   // IGNORED:* suffix family.
   if (errorMessage.endsWith("already_paid")) {

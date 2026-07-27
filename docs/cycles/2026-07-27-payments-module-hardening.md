@@ -39,6 +39,11 @@ Non-goals: `lib/auth.ts` defense-in-depth email guards (User.email is non-nullab
 - `app/api/invoices/[id]/payments/route.ts` — body now parsed via existing `recordPaymentSchema` (method enum CASH/BANK_TRANSFER/XENDIT/OTHER enforced server-side; Payment.method is a plain String column so the enum only lived client-side before). Advisory-lock/overpayment logic untouched.
 - `app/api/__tests__/invoices-record-payment.test.ts` (new, 5 tests): unknown method 400, negative amount 400, malformed JSON 400, method defaults CASH + tenant pre-check, guardian 403.
 
+### Task 3 — webhook currency guard + rate limit
+- `app/api/xendit/webhook/route.ts` — Step 0 per-IP rate limit (60/min, `lib/rate-limit`, before token check; 429 is pre-Phase-1 so Xendit's retry is lossless); currency guard in `handleSessionCompleted` — non-IDR `data.currency` → `markError("CURRENCY_MISMATCH:<cur>")`, 200, no crediting; absent currency unaffected (older payloads omit it).
+- `lib/webhook/error-labels.ts` — Indonesian admin-panel label for `CURRENCY_MISMATCH*`.
+- `app/api/__tests__/xendit-webhook.test.ts` (+3 tests): USD blocked with no invoice lookup, explicit IDR proceeds to resolution, 61st same-IP request 429.
+
 ## Verification
 
 _(gates + results — filled at end of cycle)_
