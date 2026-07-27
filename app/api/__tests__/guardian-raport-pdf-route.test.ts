@@ -56,9 +56,9 @@ describe("GET /api/guardian/raport/[studentId]/[termId]/pdf", () => {
     expect(renderToBuffer).not.toHaveBeenCalled();
   });
 
-  it("403 when unauthenticated", async () => {
+  it("401 when unauthenticated", async () => {
     getSession.mockResolvedValue(null);
-    expect((await GET({} as never, ctx)).status).toBe(403);
+    expect((await GET({} as never, ctx)).status).toBe(401);
   });
 
   it("404 without querying when the session has neither parentId nor email (no null-email global match)", async () => {

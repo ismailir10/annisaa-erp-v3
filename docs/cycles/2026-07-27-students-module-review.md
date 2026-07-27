@@ -61,6 +61,8 @@ Findings verified against source by the CTO driver before task cut. Severity per
 
 ## Ship Notes
 
-_Filled at ship._
+- No migrations, no env-var changes, no new routes/modules/entities (README untouched by design).
+- Behavior changes callers may notice: PUT `/api/students/[id]` now rejects `status: "GRADUATED"` transitions (400, use `/graduate`); duplicate parent email on guardian/parent PUT returns 409 instead of 500; guardian portal unauthenticated requests return 401 (was 403); invalid bodies on enroll/graduate/withdraw/promote/guardian-PATCH return 400 instead of being coerced or crashing; several write endpoints now rate-limited (429 on abuse).
+- Rollback: plain revert of the four cycle commits — no data or schema coupling.
 - Commit trail: one commit per task (T1-T4); full gate run once post-implementation covers all four (files are disjoint).
 - Manual smoke deferred to /ship preview-verify (Chrome MCP): guardian-detail edit round-trip (relationship/isPrimary preserved), student edit dialog on a GRADUATED row (select locked), stat-card refresh after deactivate.

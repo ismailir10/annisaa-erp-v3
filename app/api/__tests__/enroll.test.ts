@@ -17,6 +17,11 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: () => ({ success: true }),
+  getClientIp: () => "127.0.0.1",
+}));
+
 function makeReq(body: unknown) {
   return new Request("http://localhost:3000/api/students/s1/enroll", {
     method: "POST",

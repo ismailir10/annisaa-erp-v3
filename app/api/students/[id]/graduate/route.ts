@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { validateBody } from "@/lib/api/validate";
+import { graduateStudentSchema } from "@/lib/validations/student";
 
 export async function POST(
   req: NextRequest,
@@ -17,8 +19,9 @@ export async function POST(
   }
 
   const { id: studentId } = await params;
-  const body = await req.json().catch(() => ({}));
-  const { graduationDate } = body as { graduationDate?: string };
+  const result = await validateBody(graduateStudentSchema, await req.json().catch(() => ({})));
+  if (result.error) return result.error;
+  const { graduationDate } = result.data;
 
   // Verify student belongs to tenant
   const student = await prisma.student.findFirst({

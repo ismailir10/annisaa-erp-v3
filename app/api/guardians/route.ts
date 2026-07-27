@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       take,
       orderBy,
       include: {
-        _count: { select: { guardians: true } },
+        _count: { select: { guardians: { where: { status: "ACTIVE" } } } },
       },
     }),
     prisma.parent.count({ where }),
