@@ -35,6 +35,10 @@ Non-goals: `lib/auth.ts` defense-in-depth email guards (User.email is non-nullab
 - `app/api/fee-structure/route.ts` — `req.json().catch(() => null)` + `safeParse` → 400; `feeComponentDef.count({ id in ids, tenantId })` ownership gate → 404 before any upsert.
 - `app/api/__tests__/fee-structure-put.test.ts` (new, 6 tests): 403 non-admin, 400 malformed JSON, 400 negative amount, 404 foreign feeComponentId, 404 foreign program, 200 happy path (tenant-stamped upsert, zero allowed).
 
+### Task 2 — manual payment POST uses recordPaymentSchema
+- `app/api/invoices/[id]/payments/route.ts` — body now parsed via existing `recordPaymentSchema` (method enum CASH/BANK_TRANSFER/XENDIT/OTHER enforced server-side; Payment.method is a plain String column so the enum only lived client-side before). Advisory-lock/overpayment logic untouched.
+- `app/api/__tests__/invoices-record-payment.test.ts` (new, 5 tests): unknown method 400, negative amount 400, malformed JSON 400, method defaults CASH + tenant pre-check, guardian 403.
+
 ## Verification
 
 _(gates + results — filled at end of cycle)_
