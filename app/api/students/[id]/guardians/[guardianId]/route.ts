@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
-import { updateGuardianSchema } from "@/lib/validations/guardian";
+import { updateGuardianSchema, toggleGuardianStatusSchema } from "@/lib/validations/guardian";
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; guardianId: string }> }
 ) {
+  const { success } = rateLimit(`guardian-update:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -124,6 +128,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; guardianId: string }> }
 ) {
+  const { success } = rateLimit(`guardian-toggle:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -141,8 +148,9 @@ export async function PATCH(
   });
   if (!guardian) return NextResponse.json({ error: "Wali tidak ditemukan" }, { status: 404 });
 
-  const body = await req.json();
-  const newStatus = body.status === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+  const result = await validateBody(toggleGuardianStatusSchema, await req.json().catch(() => ({})));
+  if (result.error) return result.error;
+  const { status: newStatus } = result.data;
 
   const updated = await prisma.studentGuardian.update({
     where: { id: guardianId },

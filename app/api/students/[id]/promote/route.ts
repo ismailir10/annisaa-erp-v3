@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { validateBody } from "@/lib/api/validate";
+import { promoteStudentSchema } from "@/lib/validations/student";
 
 export async function POST(
   req: NextRequest,
@@ -17,11 +19,9 @@ export async function POST(
   }
 
   const { id: studentId } = await params;
-  const { targetClassSectionId, notes } = await req.json();
-
-  if (!targetClassSectionId) {
-    return NextResponse.json({ error: "Kelas tujuan wajib dipilih" }, { status: 400 });
-  }
+  const result = await validateBody(promoteStudentSchema, await req.json().catch(() => ({})));
+  if (result.error) return result.error;
+  const { targetClassSectionId, notes } = result.data;
 
   // Verify student belongs to tenant
   const student = await prisma.student.findFirst({

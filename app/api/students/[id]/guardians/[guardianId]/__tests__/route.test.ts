@@ -64,6 +64,11 @@ const state = {
   txAttempts: 0,
 };
 
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: () => ({ success: true }),
+  getClientIp: () => "127.0.0.1",
+}));
+
 vi.mock("@/lib/auth", () => ({
   getSession: vi.fn(async () => state.session),
   isAdminRole: (role: string) => role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN",

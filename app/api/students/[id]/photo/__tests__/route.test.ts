@@ -25,6 +25,11 @@ const state = {
   lastUpdate: null as Record<string, unknown> | null,
 };
 
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: () => ({ success: true }),
+  getClientIp: () => "127.0.0.1",
+}));
+
 vi.mock("@/lib/auth", async () => {
   return {
     getSession: vi.fn(async () => state.session),

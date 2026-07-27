@@ -161,7 +161,7 @@ describe("GET /api/guardian/invoices/[id]", () => {
     expect(invoiceFindUnique).not.toHaveBeenCalled();
   });
 
-  it("403 when no session", async () => {
+  it("401 when no session", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(null);
 
@@ -170,7 +170,7 @@ describe("GET /api/guardian/invoices/[id]", () => {
       params: Promise.resolve({ id: "inv-1" }),
     });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(parentFindFirst).not.toHaveBeenCalled();
   });
 

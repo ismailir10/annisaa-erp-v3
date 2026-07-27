@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { saveFile, streamFile, deleteFile } from "@/lib/storage";
 import { detectMime } from "@/lib/storage/mime";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * Student photo upload + auth-proxied read.
@@ -26,6 +27,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { success } = rateLimit(`student-photo:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -184,9 +188,12 @@ export async function GET(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { success } = rateLimit(`student-photo:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
