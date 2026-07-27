@@ -61,4 +61,10 @@ Non-goals: `lib/auth.ts` defense-in-depth email guards (User.email is non-nullab
 
 ## Ship Notes
 
-_(filled by /ship)_
+- **Migrations:** none. No schema change.
+- **Env vars:** none added or changed.
+- **Behavior changes to watch on preview/staging:**
+  - `PUT /api/fee-structure` now 400s on negative amounts / malformed JSON and 404s on a fee component outside the tenant — the admin fees grid's normal payload (numbers, zero for unpriced rows) is unaffected.
+  - `POST /api/invoices/[id]/payments` enforces the method enum (CASH/BANK_TRANSFER/XENDIT/OTHER); the dialog's string `amount` is coerced.
+  - Xendit webhook: >60 req/min from one IP → 429 (pre-Phase-1, lossless for Xendit retries); non-IDR `session.completed` → `CURRENCY_MISMATCH` ERROR row, no crediting, surfaced in the Aktivitas Xendit panel.
+- **Rollback:** revert the five commits on this branch; no data migration to unwind. WebhookEvent rows written with `CURRENCY_MISMATCH` remain as inert audit rows.
