@@ -50,8 +50,9 @@ Non-goals: `lib/auth.ts` defense-in-depth email guards (User.email is non-nullab
 
 ## Verification
 
+- Code review (superpowers:code-reviewer on the full diff): request-changes → **fixed**. Blocker: the record-payment dialog posts its form state verbatim (`JSON.stringify(payForm)`), so `amount` arrives as a string — the newly wired `recordPaymentSchema`'s bare `z.number()` would have 400'd every manual payment. Fixed with `z.coerce.number()` (repo convention for form-originated numerics) + two regression tests that post `amount` as a string / empty string. Reviewer verified everything else in the diff as correct against the real callers.
 - `npm run build` — green (production build completes, all routes compile).
-- `npx vitest run` — 235 files passed, 2 skipped; 2238 tests passed, 42 todo. Includes the 49 tests across the five touched test files (verified with a targeted run).
+- `npx vitest run` — 235 files passed, 2 skipped; 2240 tests passed, 42 todo (re-run after the review fix). Includes the 51 tests across the five touched test files.
 - Gate note: tasks were implemented as one slice (single worktree, no inter-task dependency), so the between-task gate ran once at the end rather than per task; full suite green.
 - Audit-report verification: subagent findings were re-verified against this worktree before acceptance — the reported P0 (missing null-email guard) was a stale-checkout artifact (already fixed in #397); everything fixed here was confirmed live on `origin/staging` by direct file reads.
 - `bash scripts/verify-api-auth.sh` — 184/184 routes carry a session helper or `@public` sentinel.

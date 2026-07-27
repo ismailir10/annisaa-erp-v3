@@ -87,6 +87,25 @@ describe("POST /api/invoices/[id]/payments — validation boundary", () => {
     expect(db.invoice.findFirst).not.toHaveBeenCalled();
   });
 
+  it("accepts amount as a string — the dialog posts payForm verbatim (regression)", async () => {
+    db.invoice.findFirst.mockResolvedValue(null); // stop at pre-check; validation is the target
+    const res = await POST(
+      makeReq({ amount: "50000", method: "CASH", reference: "", notes: "" }) as never,
+      ctx,
+    );
+    expect(res.status).toBe(404); // past validation, failed pre-check as mocked
+    expect(db.invoice.findFirst).toHaveBeenCalled();
+  });
+
+  it("400 for empty-string amount", async () => {
+    const res = await POST(
+      makeReq({ amount: "", method: "CASH", reference: "", notes: "" }) as never,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(db.invoice.findFirst).not.toHaveBeenCalled();
+  });
+
   it("method defaults to CASH and valid body reaches the tenant pre-check", async () => {
     db.invoice.findFirst.mockResolvedValue(null); // cross-tenant/missing → 404
     const res = await POST(makeReq({ amount: 100_000 }) as never, ctx);

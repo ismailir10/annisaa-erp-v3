@@ -14,7 +14,9 @@ export const generateBatchSchema = z.object({
 });
 
 export const recordPaymentSchema = z.object({
-  amount: z.number().positive("Jumlah harus lebih dari 0"),
+  // coerce: the record-payment dialog posts its form state verbatim, so
+  // `amount` arrives as the <Input>'s string value.
+  amount: z.coerce.number().positive("Jumlah harus lebih dari 0"),
   method: z.enum(["CASH", "BANK_TRANSFER", "XENDIT", "OTHER"]).default("CASH"),
   reference: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
