@@ -105,9 +105,10 @@ export default function GuardiansPage() {
   const [editGuardianId, setEditGuardianId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Stats
-  useEffect(() => {
-    Promise.all([
+  // Stats — re-fetched after any mutation (edit / status toggle) so the
+  // cards don't go stale.
+  const fetchStats = useCallback(() => {
+    return Promise.all([
       fetch("/api/guardians?pageSize=1").then(r => r.json()),
       fetch("/api/guardians?pageSize=1&status=ACTIVE").then(r => r.json()),
       fetch("/api/guardians?pageSize=1&status=INACTIVE").then(r => r.json()),
@@ -119,6 +120,8 @@ export default function GuardiansPage() {
       });
     }).catch(() => toast.error("Gagal memuat data"));
   }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const fetchGuardians = useCallback(async () => {
     setLoading(true);
@@ -207,6 +210,7 @@ export default function GuardiansPage() {
     setEditTarget(null);
     setSaving(false);
     fetchGuardians();
+    fetchStats();
   }
 
   async function handleStatusToggle() {
@@ -221,6 +225,7 @@ export default function GuardiansPage() {
     toast.success(newStatus === "ACTIVE" ? "Wali diaktifkan" : "Wali dinonaktifkan");
     setDeactivateTarget(null);
     fetchGuardians();
+    fetchStats();
   }
 
   const columnsWithActions = useMemo<ColumnDef<Guardian>[]>(

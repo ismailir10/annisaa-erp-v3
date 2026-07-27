@@ -211,6 +211,11 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
     setEditForm({
       ...EMPTY_GUARDIAN_FORM,
       name: parent.name,
+      // saveParent() PUTs to /api/guardians/${parent.guardians[0].id} — seed
+      // relationship/isPrimary from that SAME junction row, or the PUT
+      // silently overwrites it back to the empty-form defaults.
+      relationship: parent.guardians[0]?.relationship ?? "WALI",
+      isPrimary: parent.guardians[0]?.isPrimary ?? false,
       email: parent.email ?? "",
       phone: parent.phone ?? "",
       whatsapp: parent.whatsapp ?? "",

@@ -63,3 +63,4 @@ Findings verified against source by the CTO driver before task cut. Severity per
 
 _Filled at ship._
 - Commit trail: one commit per task (T1-T4); full gate run once post-implementation covers all four (files are disjoint).
+- Manual smoke deferred to /ship preview-verify (Chrome MCP): guardian-detail edit round-trip (relationship/isPrimary preserved), student edit dialog on a GRADUATED row (select locked), stat-card refresh after deactivate.
