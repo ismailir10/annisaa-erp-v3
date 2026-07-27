@@ -75,6 +75,46 @@ export async function POST(req: NextRequest) {
   if (result.error) return result.error;
   const body = result.data;
 
+  // Enforce the single-primary-guardian invariant BEFORE creating anything.
+  // createMany below writes isPrimary straight from client input with no DB
+  // constraint backing it — a client sending two `isPrimary: true` guardians
+  // would otherwise persist two primaries for the same student.
+  const guardians = body.guardians ?? [];
+  const primaryCount = guardians.filter((g) => g.isPrimary).length;
+  if (primaryCount > 1) {
+    return NextResponse.json(
+      { error: "Hanya satu wali utama yang diperbolehkan." },
+      { status: 400 },
+    );
+  }
+  // Normalize: if none flagged primary but guardians exist, index 0 wins.
+  const normalizedIsPrimary = guardians.map((g, i) =>
+    primaryCount === 1 ? g.isPrimary === true : i === 0,
+  );
+
+  // Guardian email must not collide with an existing employee account
+  // (mirrors app/api/students/[id]/guardians/route.ts's per-add check).
+  if (guardians.length) {
+    const emails = Array.from(
+      new Set(
+        guardians
+          .map((g) => g.email?.trim())
+          .filter((e): e is string => !!e),
+      ),
+    );
+    if (emails.length) {
+      const emailCollision = await prisma.employee.findFirst({
+        where: { email: { in: emails }, tenantId: session.tenantId },
+      });
+      if (emailCollision) {
+        return NextResponse.json(
+          { error: "Email ini sudah digunakan oleh karyawan. Gunakan email lain untuk orang tua." },
+          { status: 400 },
+        );
+      }
+    }
+  }
+
   const student = await prisma.student.create({
     data: {
       tenantId: session.tenantId,
@@ -114,13 +154,14 @@ export async function POST(req: NextRequest) {
         });
       }),
     );
-    // Insert all StudentGuardian links in a single round-trip.
+    // Insert all StudentGuardian links in a single round-trip. isPrimary
+    // comes from the normalized array above, not client input directly.
     await prisma.studentGuardian.createMany({
       data: body.guardians.map((g, i) => ({
         studentId: student.id,
         parentId: parents[i].id,
         relationship: g.relationship,
-        isPrimary: g.isPrimary,
+        isPrimary: normalizedIsPrimary[i],
       })),
     });
   }

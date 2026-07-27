@@ -62,3 +62,4 @@ Findings verified against source by the CTO driver before task cut. Severity per
 ## Ship Notes
 
 _Filled at ship._
+- Commit trail: one commit per task (T1-T4); full gate run once post-implementation covers all four (files are disjoint).
