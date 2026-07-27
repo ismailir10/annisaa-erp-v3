@@ -137,7 +137,7 @@ Ship DOKU Checkout as a selectable payment gateway alongside Xendit, with DOKU a
 
 ## Tasks
 
-Status: **T1 ✅ · T2 ✅ · T3 ✅ · T4 ✅ · T5 ✅ · T6 ✅** · T7 ⬜
+Status: **T1 ✅ · T2 ✅ · T3 ✅ · T4 ✅ · T5 ✅ · T6 ✅ · T7 ✅**
 
 ### T1 — Gateway port + Xendit adapter, zero behaviour change ✅
 
@@ -187,7 +187,7 @@ Confirm the DOKU legal entity per A4 from a primary source, then update both leg
 
 Satisfies AC-22, AC-23.
 
-### T7 — E2E, docs, README
+### T7 — E2E, docs, README ✅
 
 `e2e/payment.spec.ts` covers both `paymentStatus` and legacy `xenditStatus` params. `e2e/admin.spec.ts`: the suite's whole design rests on "stub key ⇒ 401 ⇒ `PENDING_PAYMENT_LINK`" — confirm the DOKU classifier maps an auth failure the same way, or the suite silently stops testing what it claims to.
 
@@ -226,6 +226,17 @@ Gate: `npm run build && npx vitest run && npx playwright test`.
 - **T2 + T3: gates passed.** `npx tsc --noEmit` clean. `npx vitest run` → 241 files passed, 2 skipped; 2301 tests passed, 0 failed, 42 todo (driver-run, not taken on a subagent's word). `npm run build` → `✓ Compiled successfully`. DOKU adapter alone: 2 files, 39 tests.
 - **T2: verified against the LIVE DOKU sandbox, not just mocks.** Two rounds. (1) A standalone probe of `POST /checkout/v1/payment` and `GET /orders/v1/status/{invoice_number}` with the real Client-Id/Secret Key — 4 calls, all `HTTP 200`, which confirms the signature scheme end to end: 5 components newline-joined with no trailing newline, `Digest` = `base64(sha256(rawBody))`, `Signature: HMACSHA256=<base64 hmac>`, and the `Digest:` line omitted entirely on GET. (2) The **actual `lib/payments/doku/client.ts` module** executed against the sandbox: `createDokuSession` returned a live `staging.doku.com/checkout-link-v2/…` URL with a real `token_id` and ISO8601 `expiresAt`, and `pingDoku()` resolved healthy. Round 2 is what exposed the `response`-envelope bug above — round 1's raw probe could not, because it inspected the JSON by hand rather than through the client.
 - **T1: review passed.** `superpowers:code-reviewer` diffed `lib/payments/xendit/client.ts` against `git show HEAD:lib/xendit/client.ts` line by line and confirmed **no behaviour drift**: request body keys, `pickSessionId` fallback order, `parseRetryAfter` (seconds-only, 3000 ms cap), the status→code classification table, `retriable` flags, `DEMO_MODE` short-circuit, E.164 normalisation, `expires_at` computation and all `[XENDIT …]` log prefixes are verbatim; `PAYMENT_LINK_ERROR_PREFIXES` byte-identical in contents and order; retry constants and backoff precedence unchanged; every shim export accounted for; no `XENDIT_SECRET_KEY` path into a log, error message or response body. Sole finding was the `error.name` deviation, consciously accepted above.
+- **T7: `e2e/payment.spec.ts` updated for AC-24** — `waitForURL` assertions changed from `xenditStatus=` to `paymentStatus=` (T3's shims now emit only the gateway-neutral param), and a new test ("legacy xenditStatus param still opens the invoice detail sheet") opens a real invoice via the normal UI click path to discover its id, then reloads `/parent/invoices?invoice=<id>&xenditStatus=paid` directly and asserts the toast fires, the detail sheet (`role=dialog`) opens, and the query string is stripped — proving `app/parent/invoices/client.tsx`'s `paymentStatusParam = searchParams.get("paymentStatus") ?? searchParams.get("xenditStatus")` fallback actually works end-to-end, not just in the unit-level string logic.
+- **T7: `e2e/admin.spec.ts` assumption re-verified, still holds.** The suite's tagihan tests rest on "stub credential ⇒ auth failure ⇒ `PENDING_PAYMENT_LINK` with `paymentLinkError` set" (header comment, lines 375-406). Checked three things: (1) `playwright.config.ts`'s `webServer.env` block stubs `XENDIT_SECRET_KEY`/`XENDIT_WEBHOOK_TOKEN` **and** now also `DOKU_CLIENT_ID`/`DOKU_SECRET_KEY`/`DOKU_ENV` (T5), but **`PAYMENT_GATEWAY` is left unset** — the config comment says so explicitly ("`PAYMENT_GATEWAY` is unset in this config, so the e2e suite still exercises the Xendit path by default"). (2) `getGateway()` (`lib/payments/registry.ts`) resolves `xenditGateway` when `PAYMENT_GATEWAY` is `undefined` (AC-2), so the suite calls the real `POST https://api.xendit.co/sessions` with the stub key exactly as before T1–T6 — same code path, same 401, same non-retriable classification (`classifyXenditResponse` in `lib/payments/xendit/client.ts:71-72`, byte-identical to the pre-cycle classifier per the T1 code-review diff above). (3) As a symmetry check (not exercised by this suite, since the gateway is never flipped in CI): `classifyDokuResponse` (`lib/payments/doku/client.ts:119-120`) maps a DOKU 401 to `{ code: "401", retriable: false }` — the identical shape Xendit produces — so if a future cycle flips `PAYMENT_GATEWAY=doku` in this config, the same failure-path assumption would still hold without editing the suite. **Conclusion: the assumption is unchanged and the suite still tests exactly what its header claims.** No test edits were needed for `e2e/admin.spec.ts`.
+- **T7: Playwright could not be run in this harness.** `npx playwright test` fails at config-load time: `.env` points `DATABASE_URL` at the shared staging Supabase host (`aws-1-ap-southeast-1.pooler.supabase.com`), `.env.local` sets no local override, and no local/Docker Postgres is reachable (`docker` not installed; nothing listening on 5432). `playwright.config.ts`'s `assertLocalDatabaseForE2E()` guard correctly refuses to run against a non-local host to avoid polluting staging (per the documented 2026-06-04 UAT data-pollution incident) unless `E2E_ALLOW_REMOTE_DB=1` is set — which was **not** set, since forcing it would risk writing `E2E …` rows into the real shared staging database. Deferred to CI per the format below.
+- **Deferral:**
+  ```
+  - Playwright: local run deferred to CI (env cannot execute it — no local/Docker Postgres reachable, and
+    the only available DATABASE_URL points at the shared staging Supabase instance, which
+    playwright.config.ts's assertLocalDatabaseForE2E() guard correctly refuses to run e2e writes against).
+    Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
+  ```
+- **T7: gates passed** (driver-run). `npx tsc --noEmit` → clean (after `npx prisma generate`). `npx vitest run` → 243 files passed, 2 skipped; 2344 tests passed, 0 failed, 42 todo. `npm run build` → `✓ Compiled successfully`, all routes compiled, exit 0. `npx playwright test` → could not run in this environment (see above; deferred to CI).
 
 ## Ship Notes
 
@@ -234,6 +245,56 @@ Gate: `npm run build && npx vitest run && npx playwright test`.
 ### Blocked on
 
 - **Notification URL registration** — the staging and production notification URLs must be registered in DOKU Back Office before any callback arrives. Nothing in the code path can compensate for an unregistered URL: no notification means no payment is ever credited.
+
+### Migrations
+
+**None.** No Prisma column was renamed. `Payment.method` is a `String` column — `"DOKU"` is new *data*, not new DDL. `Invoice.xenditSessionId` / `Invoice.xenditPaymentUrl` / `Payment.xenditPaymentId` are unchanged (see Known debt below). `npx prisma migrate deploy` on this cycle's PR is a no-op.
+
+### Env vars to set before flipping
+
+Per environment (staging, then production — set separately, do not copy one to the other):
+
+- `PAYMENT_GATEWAY=doku`
+- `DOKU_CLIENT_ID`
+- `DOKU_SECRET_KEY`
+- `DOKU_ENV` (`sandbox` for staging, `production` for prod)
+
+All four are now required by `.env.example` (T5), which means `scripts/audit-vercel-env.ts` will **fail the `/ship` preflight** until they exist in the Vercel project's Production environment (and Staging/Preview, if that env target is checked separately). Add them in Vercel → Project → Settings → Environment Variables before running `/ship` on a cycle that flips the flag, or the preflight blocks the PR.
+
+### Cutover order
+
+Do this in order, per environment, to avoid a window where invoices are created against one gateway while notifications arrive for the other:
+
+1. **Register the DOKU notification URL first**, in DOKU Back Office, for that environment (`https://<env-host>/api/doku/webhook`). Do this before anything else — a payment created after step 5 with no registered URL never gets credited.
+2. **Set the four env vars** above in Vercel for that environment.
+3. **Deploy** (env var changes alone need a redeploy to take effect on Vercel).
+4. **Verify `/api/health/payments`** reports `{ tier: "sandbox" | "live", ok: true }` for the gateway now active — this confirms DOKU credentials are valid and reachable before any real parent sees a checkout link.
+5. **Flip `PAYMENT_GATEWAY=doku`** last (it's already set in step 2 — this step is really "confirm it's live and stop here if health failed"). Only once health is green should new invoices be allowed to generate payment links.
+
+Staging and production are cut over independently, each following steps 1–5 in full; do not assume staging's registration or health check covers production.
+
+### Rollback
+
+Set `PAYMENT_GATEWAY=xendit` and redeploy (env var changes need a redeploy to take effect on Vercel — flipping the dashboard value alone does not affect already-running instances).
+
+**What rollback does NOT undo:** any invoice that already carries a DOKU checkout URL in `Invoice.xenditPaymentUrl` keeps pointing at DOKU — the parent's saved link is still the DOKU Virtual Account page. DOKU notifications for those invoices will still arrive at `/api/doku/webhook`, and that route keeps working after rollback because both webhook routes ship permanently (no route is removed by the flag). So a DOKU payment made *after* rollback, against a link minted *before* rollback, is still credited correctly. Rollback only changes which gateway new sessions are created against; it does not retract or invalidate links already issued.
+
+### Manual smoke steps on the preview URL (CTO preview-verify)
+
+DEMO_MODE is on for Vercel previews, so **no real gateway call happens** — this is a UI/wiring smoke, not a live-payment test.
+
+1. Sign in to the admin portal (role-scoped account), go to `/admin/invoices`, open an invoice's detail view or the batch-generate flow. Confirm the "Buat Link Pembayaran" button and activity card render with gateway-neutral copy (no "Xendit" string visible) — AC-22.
+2. Confirm the breakdown popover's auth hint names the *active* gateway's credential env var, not a hardcoded `XENDIT_SECRET_KEY` string.
+3. Sign in to the parent portal, go to `/parent/invoices`. Confirm the page loads and, if any invoice has a paid history row, that its payment method renders as "Virtual Account" (or the correct channel), not a raw `DOKU`/`XENDIT` string.
+4. Hit `/api/health/payments` directly (or via network tab) and confirm it responds `200` with `{ ok: true, source: "<gateway id>", tier: "sandbox" | "live" }` — this exercises the route wiring even under DEMO_MODE.
+5. Do **not** expect an actual DOKU checkout redirect in preview — DEMO_MODE short-circuits session creation, so "Buat Link Pembayaran" will succeed instantly with a synthetic URL rather than a real DOKU sandbox link.
+
+### First real-notification action
+
+The DOKU webhook route logs `[DOKU WEBHOOK] signature verified { target: … }` on every accepted notification, naming which of the three candidate `Request-Target` forms matched (A2). **The first real sandbox or production notification pins which candidate DOKU actually uses.** Once that log line is observed:
+
+1. Record the matching candidate in this doc or a follow-up note.
+2. Open a follow-up cycle to delete the other two candidates from `app/api/doku/webhook/route.ts` (the dual/triple-try exists only because A2 was unresolved at spec time — once resolved, carrying dead candidates is unnecessary attack surface, even though they're cryptographically inert without the Secret Key).
 
 ### Not used
 
