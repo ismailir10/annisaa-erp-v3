@@ -37,6 +37,16 @@ export const retryPaymentLinksSchema = z.object({
   invoiceIds: z.array(z.string().min(1)).max(25).optional(),
 });
 
+// POST /api/xendit/create-session body shape. Accepts the singular
+// `invoiceId` form (single-invoice "Buat Link Pembayaran" action) alongside
+// the bulk `invoiceIds` form (admin multi-select "Kirim Tagihan"), capped at
+// 25 to match every sibling bulk route (`retryPaymentLinksSchema`,
+// `generateBatchSchema`).
+export const createPaymentSessionSchema = z.object({
+  invoiceId: z.string().min(1).optional(),
+  invoiceIds: z.array(z.string().min(1)).max(25).optional(),
+});
+
 export const createManualInvoiceSchema = z
   .object({
     studentId: z.string().min(1),

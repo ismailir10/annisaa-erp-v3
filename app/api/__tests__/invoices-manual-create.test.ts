@@ -34,8 +34,8 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 
 // Mock the Xendit helper at the boundary the route imports it from. Its own
 // DB writes are out of scope here — we control success/failure/null directly.
-vi.mock("@/lib/xendit/helpers", () => ({
-  createXenditSessionForInvoice: vi.fn(),
+vi.mock("@/lib/payments/session", () => ({
+  createPaymentSessionForInvoice: vi.fn(),
 }));
 
 import { POST } from "../invoices/route";
@@ -229,7 +229,7 @@ describe("POST /api/invoices — happy path", () => {
   it("Xendit succeeds → 201, status=SENT, xenditPaymentUrl set, totalDue computed server-side", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
     vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
@@ -245,7 +245,7 @@ describe("POST /api/invoices — happy path", () => {
 
     wireHappyPath();
 
-    vi.mocked(createXenditSessionForInvoice).mockResolvedValue({
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
       paymentUrl: "https://checkout.xendit.co/web/inv-new",
     });
 
@@ -295,7 +295,7 @@ describe("POST /api/invoices — Xendit failure paths", () => {
   it("helper throws → 201, status=PENDING_PAYMENT_LINK, paymentLinkError set, xenditError surfaced", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
     vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
@@ -311,7 +311,7 @@ describe("POST /api/invoices — Xendit failure paths", () => {
 
     wireHappyPath();
 
-    vi.mocked(createXenditSessionForInvoice).mockRejectedValue(new Error("Xendit 503"));
+    vi.mocked(createPaymentSessionForInvoice).mockRejectedValue(new Error("Xendit 503"));
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
@@ -345,7 +345,7 @@ describe("POST /api/invoices — Xendit failure paths", () => {
   it("helper returns null → 201, status=PENDING_PAYMENT_LINK, xenditError = 'Gagal membuat sesi pembayaran'", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
     vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
@@ -363,7 +363,7 @@ describe("POST /api/invoices — Xendit failure paths", () => {
 
     // Helper-returns-null branch: TOCTOU guard tripped (PAID/CANCELLED mid-flight,
     // or remaining went to 0). Should be surfaced as a diagnostic.
-    vi.mocked(createXenditSessionForInvoice).mockResolvedValue(null);
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue(null);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
@@ -398,8 +398,8 @@ describe("POST /api/invoices — P2002 retry loop (T2b)", () => {
   it("retries once on P2002 and returns 201 (single-conflict + retry-success)", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import(
-      "@/lib/xendit/helpers"
+    const { createPaymentSessionForInvoice } = await import(
+      "@/lib/payments/session"
     );
 
     vi.mocked(getSession).mockResolvedValue(adminSession());
@@ -432,7 +432,7 @@ describe("POST /api/invoices — P2002 retry loop (T2b)", () => {
       .mockRejectedValueOnce(p2002)
       .mockResolvedValueOnce({ id: "inv-new" });
 
-    vi.mocked(createXenditSessionForInvoice).mockResolvedValue({
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
       paymentUrl: "https://checkout.xendit.co/web/inv-new",
     });
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);

@@ -7,7 +7,10 @@ import { redirect } from "next/navigation";
  * change the URL after creation. With `expiryDays: 7` on session creation,
  * delete this shim ≥7 days after the cycle ships.
  *
- * New sessions redirect directly to `/parent/invoices?invoice=<id>&xenditStatus=paid`.
+ * New sessions (either gateway) redirect directly to
+ * `/parent/invoices?invoice=<id>&paymentStatus=paid` — this shim now emits
+ * the same gateway-neutral param (cycle 2026-07-27-doku-payment-gateway T3,
+ * AC-24) for the rare pre-2026-04-27 session that still lands here.
  */
 export default async function PaymentSuccessRedirect({
   searchParams,
@@ -17,7 +20,7 @@ export default async function PaymentSuccessRedirect({
   const params = await searchParams;
   const invoiceId = params.invoice ?? "";
   const target = invoiceId
-    ? `/parent/invoices?invoice=${encodeURIComponent(invoiceId)}&xenditStatus=paid`
+    ? `/parent/invoices?invoice=${encodeURIComponent(invoiceId)}&paymentStatus=paid`
     : "/parent/invoices";
   redirect(target);
 }

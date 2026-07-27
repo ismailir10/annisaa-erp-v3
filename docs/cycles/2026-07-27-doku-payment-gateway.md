@@ -137,13 +137,15 @@ Ship DOKU Checkout as a selectable payment gateway alongside Xendit, with DOKU a
 
 ## Tasks
 
-### T1 — Gateway port + Xendit adapter, zero behaviour change
+Status: **T1 ✅ · T2 ✅ · T3 ✅** · T4 ⬜ · T5 ⬜ · T6 ⬜ · T7 ⬜
+
+### T1 — Gateway port + Xendit adapter, zero behaviour change ✅
 
 Create `lib/payments/types.ts` (`PaymentGateway`, `CreateSessionParams`, `GatewaySession`, `GatewayApiError`, `GatewayErrorCode`) and `lib/payments/registry.ts` (`getGateway()`). Re-home `lib/xendit/{client,helpers,with-retry,error-prefix}.ts` into `lib/payments/xendit/` implementing the port, renaming `XenditApiError` → `GatewayApiError` and `withXenditRetry` → `withRetry`. Leave `lib/xendit/*` as thin re-export shims so no consumer moves in this task.
 
 Satisfies AC-1, AC-2, AC-3, AC-4. **Gate: the full existing suite must pass with zero test-file edits other than import paths.** Any assertion that needs rewriting to stay green is a behaviour change and must be reverted, not accommodated.
 
-### T2 — DOKU client + signature
+### T2 — DOKU client + signature ✅
 
 `lib/payments/doku/signature.ts` (`buildDigest`, `buildSignature`, both pure) and `lib/payments/doku/client.ts` implementing `PaymentGateway`. Base URL from `DOKU_ENV`. Error classifier maps DOKU's `error_messages` shape and HTTP bands onto the shared taxonomy. `DEMO_MODE` short-circuit.
 
@@ -153,7 +155,7 @@ Verify A3 against sandbox once `DOKU_CLIENT_ID` is available — record which `i
 
 Satisfies AC-5, AC-6, AC-7, AC-8, AC-9, AC-10.
 
-### T3 — Route session creation through the port
+### T3 — Route session creation through the port ✅
 
 Replace `lib/xendit/helpers.ts` with `lib/payments/session.ts` exporting `createPaymentSessionForInvoice(invoiceId, tenantId, requestOrigin?)`, which resolves the gateway via `getGateway()`. Re-point the four callers: `app/api/xendit/create-session/route.ts`, `app/api/invoices/route.ts` (POST), `app/api/invoices/generate/batch/route.ts`, `lib/finance/xendit-retry.ts`. Add `?paymentStatus=` alongside `?xenditStatus=` in `app/parent/invoices/client.tsx` and both redirect shims.
 

@@ -6,7 +6,7 @@ import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { nextInvoiceNumber, sumDecimals } from "@/lib/finance/invoice-numbers";
-import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
 import { createManualInvoiceSchema } from "@/lib/validations/invoice";
 
@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
   // can retry from the list/detail surface.
   let xenditError: string | undefined;
   try {
-    const result = await createXenditSessionForInvoice(created.id, tenantId, new URL(req.url).origin);
+    const result = await createPaymentSessionForInvoice(created.id, tenantId, new URL(req.url).origin);
     if (result) {
       await prisma.invoice.update({
         where: { id: created.id },
