@@ -44,9 +44,19 @@ Non-goals: `lib/auth.ts` defense-in-depth email guards (User.email is non-nullab
 - `lib/webhook/error-labels.ts` — Indonesian admin-panel label for `CURRENCY_MISMATCH*`.
 - `app/api/__tests__/xendit-webhook.test.ts` (+3 tests): USD blocked with no invoice lookup, explicit IDR proceeds to resolution, 61st same-IP request 429.
 
+### Task 4 — null-email leak regression tests (guard itself shipped in #397)
+- `app/api/__tests__/guardian-invoice-detail.test.ts` (+2 tests): `parentId: null, email: null` and `email: ""` → 404 with `parent.findFirst` never called.
+- `app/api/__tests__/guardian-invoice-pdf-route.test.ts` (new, 6 tests): same two regression cases plus 401/403/cross-family-404/non-PAID-404 for the kuitansi PDF route.
+
 ## Verification
 
-_(gates + results — filled at end of cycle)_
+- `npm run build` — green (production build completes, all routes compile).
+- `npx vitest run` — 235 files passed, 2 skipped; 2238 tests passed, 42 todo. Includes the 49 tests across the five touched test files (verified with a targeted run).
+- Gate note: tasks were implemented as one slice (single worktree, no inter-task dependency), so the between-task gate ran once at the end rather than per task; full suite green.
+- Audit-report verification: subagent findings were re-verified against this worktree before acceptance — the reported P0 (missing null-email guard) was a stale-checkout artifact (already fixed in #397); everything fixed here was confirmed live on `origin/staging` by direct file reads.
+- `bash scripts/verify-api-auth.sh` — 184/184 routes carry a session helper or `@public` sentinel.
+- Playwright: deferred to the required CI `Playwright E2E` check — API-only changes, no UI diff; this harness environment cannot run Playwright locally.
+- No frontend diff → design-system gate not applicable.
 
 ## Ship Notes
 
