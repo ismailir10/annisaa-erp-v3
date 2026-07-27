@@ -1,0 +1,353 @@
+/**
+ * DOKU Checkout API client.
+ * Docs: https://developers.doku.com (Checkout API, non-SNAP symmetric HMAC).
+ *
+ * Added in cycle 2026-07-27-doku-payment-gateway T2 — implements the
+ * `PaymentGateway` port introduced in T1 alongside `../xendit/client.ts`.
+ * Mirrors that file's structure: a classifier function, a plain async
+ * create-session function, a ping/health function, a `DEMO_MODE`
+ * short-circuit, and a `PaymentGateway`-shaped export at the bottom.
+ */
+import { randomUUID } from "crypto";
+
+import {
+  GatewayApiError,
+  type CreateSessionParams,
+  type GatewaySession,
+  type PaymentGateway,
+} from "../types";
+import { parseRetryAfter } from "../xendit/client";
+import { buildDigest, buildSignature } from "./signature";
+
+const DOKU_SANDBOX_API_URL = "https://api-sandbox.doku.com";
+const DOKU_PRODUCTION_API_URL = "https://api.doku.com";
+
+/**
+ * Virtual Account channels only, per the CTO decision (cycle 2026-07-27
+ * doku-payment-gateway — "Channels" row): matches the existing parent-portal
+ * copy "Transfer bank (Virtual Account)" exactly and avoids card MDR.
+ */
+export const DOKU_VIRTUAL_ACCOUNT_METHODS = [
+  "VIRTUAL_ACCOUNT_BCA",
+  "VIRTUAL_ACCOUNT_BANK_MANDIRI",
+  "VIRTUAL_ACCOUNT_BRI",
+  "VIRTUAL_ACCOUNT_BNI",
+  "VIRTUAL_ACCOUNT_BANK_PERMATA",
+  "VIRTUAL_ACCOUNT_BANK_CIMB",
+] as const;
+
+function baseUrl(): string {
+  return process.env.DOKU_ENV === "production"
+    ? DOKU_PRODUCTION_API_URL
+    : DOKU_SANDBOX_API_URL;
+}
+
+function getClientId(): string {
+  const clientId = process.env.DOKU_CLIENT_ID;
+  if (!clientId) throw new Error("DOKU_CLIENT_ID not configured");
+  return clientId;
+}
+
+function getSecretKey(): string {
+  const secretKey = process.env.DOKU_SECRET_KEY;
+  if (!secretKey) throw new Error("DOKU_SECRET_KEY not configured");
+  return secretKey;
+}
+
+/**
+ * UTC ISO8601 at SECOND precision, no milliseconds — `YYYY-MM-DDTHH:mm:ssZ`.
+ * `Date.prototype.toISOString()` always emits `.SSSZ`; strip the fractional
+ * part DOKU's `Request-Timestamp` header does not expect.
+ */
+export function formatDokuTimestamp(date: Date): string {
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/**
+ * Client-side expiry used only when DOKU's response carries neither
+ * `expired_datetime` nor `expired_date`. `GatewaySession.expiresAt` is a
+ * non-optional string; without this the field would silently become
+ * `undefined` and surface as a type lie to every consumer.
+ */
+function fallbackExpiresAt(expiryDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + expiryDays);
+  return d.toISOString();
+}
+
+/**
+ * Map an HTTP response (already known to be non-OK) to a typed
+ * `GatewayApiError`. Body is the parsed JSON (may be `null` if parse failed).
+ *
+ * DOKU's 400 body shape is `{ "error_messages": ["…", "…"] }` — the messages
+ * are joined with `"; "` so the combined string lands in the `4xx:` pending-
+ * link breakdown bucket rather than `unknown:`.
+ */
+export function classifyDokuResponse(
+  response: Response,
+  body: unknown,
+): GatewayApiError {
+  const status = response.status;
+  const errorMessages =
+    body && typeof body === "object" && "error_messages" in body &&
+      Array.isArray((body as { error_messages?: unknown }).error_messages)
+      ? (body as { error_messages: unknown[] }).error_messages.filter(
+          (m): m is string => typeof m === "string",
+        )
+      : null;
+  const message =
+    errorMessages && errorMessages.length > 0
+      ? errorMessages.join("; ")
+      : `DOKU API error: ${status}`;
+
+  if (status >= 500 && status <= 599) {
+    return new GatewayApiError({ status, code: "5xx", retriable: true, message });
+  }
+  if (status === 408) {
+    return new GatewayApiError({ status, code: "408", retriable: true, message });
+  }
+  if (status === 429) {
+    const retryAfterMs = parseRetryAfter(response.headers.get("Retry-After"));
+    return new GatewayApiError({
+      status,
+      code: "429",
+      retriable: true,
+      message,
+      retryAfterMs,
+    });
+  }
+  if (status === 401) {
+    return new GatewayApiError({ status, code: "401", retriable: false, message });
+  }
+  if (status === 403) {
+    return new GatewayApiError({ status, code: "403", retriable: false, message });
+  }
+  if (status === 422) {
+    return new GatewayApiError({ status, code: "422", retriable: false, message });
+  }
+  if (status >= 400 && status <= 499) {
+    return new GatewayApiError({ status, code: "4xx", retriable: false, message });
+  }
+  // Last-resort default: response was non-OK but not in any known band.
+  return new GatewayApiError({
+    status,
+    code: "unknown",
+    retriable: false,
+    message,
+  });
+}
+
+export type { CreateSessionParams };
+
+/**
+ * Create a DOKU Checkout session for an invoice.
+ * Returns the gateway-neutral `GatewaySession` shape.
+ *
+ * DEMO_MODE short-circuit: when `process.env.DEMO_MODE === "true"` (CI
+ * Playwright runs, demo deploys), skip the real DOKU API call and return a
+ * synthetic session, mirroring the Xendit client's same-named short-circuit.
+ */
+export async function createDokuSession(
+  params: CreateSessionParams,
+): Promise<GatewaySession> {
+  const expiryDays = params.expiryDays ?? 7;
+
+  if (process.env.DEMO_MODE === "true") {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiryDays);
+    return {
+      id: `demo_session_${params.referenceId}`,
+      paymentUrl: `https://demo.doku.local/checkout/${params.referenceId}`,
+      status: "PENDING",
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  const clientId = getClientId();
+  const secretKey = getSecretKey();
+
+  const order: Record<string, unknown> = {
+    amount: Math.round(params.amount),
+    invoice_number: params.referenceId,
+    currency: "IDR",
+    callback_url_result: params.successReturnUrl,
+    auto_redirect: false,
+  };
+  if (params.items?.length) {
+    order.line_items = params.items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+  }
+
+  const customer: Record<string, unknown> = {
+    name: params.customerName,
+    ...(params.customerEmail && { email: params.customerEmail }),
+    ...(params.customerPhone && { phone: params.customerPhone }),
+  };
+
+  const payload = {
+    order,
+    payment: {
+      payment_due_date: expiryDays * 24 * 60,
+      payment_method_types: DOKU_VIRTUAL_ACCOUNT_METHODS,
+    },
+    customer,
+  };
+
+  // Serialise ONCE. The digest is computed over this exact string, and the
+  // same string is sent as fetch's body — never re-serialise the object
+  // after this point (AC-6).
+  const rawBody = JSON.stringify(payload);
+  const target = "/checkout/v1/payment";
+  const requestId = randomUUID();
+  const timestamp = formatDokuTimestamp(new Date());
+  const digest = buildDigest(rawBody);
+  const signature = buildSignature({
+    clientId,
+    requestId,
+    timestamp,
+    target,
+    digest,
+    secretKey,
+  });
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}${target}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Client-Id": clientId,
+        "Request-Id": requestId,
+        "Request-Timestamp": timestamp,
+        Signature: signature,
+      },
+      body: rawBody,
+    });
+  } catch (err) {
+    // Fetch itself threw — DNS, TLS, socket reset, etc. No HTTP response to
+    // classify, so retriable network error with status=null.
+    const message = err instanceof Error ? err.message : "DOKU network error";
+    throw new GatewayApiError({
+      status: null,
+      code: "network",
+      retriable: true,
+      message,
+    });
+  }
+
+  if (!response.ok) {
+    const errorBody: unknown = await response.json().catch(() => null);
+    console.error("[DOKU ERROR] Create session failed:", JSON.stringify(errorBody));
+    throw classifyDokuResponse(response, errorBody);
+  }
+
+  const envelope = await response.json();
+  // DOKU nests the entire result under a top-level `response` key:
+  //   { "message": ["SUCCESS"], "response": { "order": {…}, "payment": {…} } }
+  // Confirmed against the live sandbox (probe 2026-07-27). Reading
+  // `envelope.payment` directly yields undefined on every real call.
+  const data = envelope?.response;
+  const paymentUrl: string | undefined = data?.payment?.url;
+  if (!paymentUrl) {
+    // Empty/missing URL would silently break the SENT-transition guard at
+    // app/api/invoices/[id]/route.ts (it gates on truthy xenditPaymentUrl),
+    // mirroring the equivalent Xendit throw.
+    throw new Error("[DOKU] Session response missing payment.url");
+  }
+
+  return {
+    id: typeof data?.payment?.token_id === "string" ? data.payment.token_id : null,
+    paymentUrl,
+    status: "PENDING", // DOKU's create-session response carries no status field.
+    // `expired_datetime` is an undocumented but confirmed-present field
+    // (live sandbox probe, 2026-07-27) carrying proper ISO8601 UTC, e.g.
+    // "2026-08-03T08:49:58Z". Prefer it over the documented `expired_date`,
+    // which is `yyyyMMddHHmmss` in UTC+7 and awkward to parse. Fall back to
+    // `expired_date` only if `expired_datetime` is absent.
+    expiresAt:
+      data?.payment?.expired_datetime ??
+      data?.payment?.expired_date ??
+      fallbackExpiresAt(expiryDays),
+  };
+}
+
+/**
+ * Deploy-time / health-check probe. Signed `GET
+ * /orders/v1/status/healthcheck-<uuid>` with NO Digest header (GET requests
+ * carry no digest per DOKU's docs). Resolves on any response that is not
+ * 401/403 (reachable, credentials accepted); throws a typed `GatewayApiError`
+ * on 401/403. Timeout via `AbortController`; a timeout/abort surfaces as a
+ * `network`-coded error.
+ *
+ * Used by `GET /api/health/payments` (AC-18).
+ */
+export async function pingDoku(timeoutMs: number = 5000): Promise<void> {
+  if (process.env.DEMO_MODE === "true") return; // health check no-op in demo
+
+  const clientId = getClientId();
+  const secretKey = getSecretKey();
+  const target = `/orders/v1/status/healthcheck-${randomUUID()}`;
+  const requestId = randomUUID();
+  const timestamp = formatDokuTimestamp(new Date());
+  const signature = buildSignature({
+    clientId,
+    requestId,
+    timestamp,
+    target,
+    // No digest for GET — DOKU docs: "For GET Method, you don't need to
+    // generate a Digest."
+    secretKey,
+  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}${target}`, {
+      method: "GET",
+      headers: {
+        "Client-Id": clientId,
+        "Request-Id": requestId,
+        "Request-Timestamp": timestamp,
+        Signature: signature,
+      },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "DOKU network error";
+    throw new GatewayApiError({
+      status: null,
+      code: "network",
+      retriable: true,
+      message,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    const errorBody: unknown = await response.json().catch(() => null);
+    throw classifyDokuResponse(response, errorBody);
+  }
+  // Any other status (2xx, 404 for a synthetic order id, etc.) means the
+  // endpoint is reachable and credentials were accepted — healthy. Discard
+  // body, caller only cares about resolve/throw.
+}
+
+/**
+ * `PaymentGateway` implementation backed by DOKU Checkout (Virtual Account
+ * channels only).
+ */
+export const dokuGateway: PaymentGateway = {
+  id: "doku",
+  createSession(params: CreateSessionParams): Promise<GatewaySession> {
+    return createDokuSession(params);
+  },
+  ping(timeoutMs?: number): Promise<void> {
+    return pingDoku(timeoutMs);
+  },
+};

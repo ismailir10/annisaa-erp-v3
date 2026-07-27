@@ -17,7 +17,7 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 | ORM | Prisma 7 |
 | Auth | Supabase Auth (Google OAuth + Magic Link) |
 | UI | Shadcn UI + Tailwind + TanStack Table; fonts Plus Jakarta Sans + JetBrains Mono |
-| Payment | Xendit Checkout Session API |
+| Payment | Pluggable `PaymentGateway` port ([`lib/payments/`](lib/payments/)) — DOKU Checkout (Virtual Account) and Xendit Checkout Session, selected by `PAYMENT_GATEWAY` |
 | Email | Resend |
 | PDF | `@react-pdf/renderer` |
 | Hosting | Vercel (region pinned `sin1`) |
@@ -68,6 +68,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-07-27 | Payment gateway becomes a port: `PaymentGateway` interface in `lib/payments/`, with DOKU Checkout (Virtual Account only) and Xendit as adapters selected by `PAYMENT_GATEWAY`. DB columns keep their `xendit*` names this cycle — recorded debt, renamed when the Xendit adapter is deleted | Pilot moves to DOKU with zero settled payments in prod, so rollback is an env flip rather than a code revert; VA is webhook-completed (parents pay hours later at an ATM), so the notification is the only reliable signal — see [cycle](docs/cycles/2026-07-27-doku-payment-gateway.md) |
 | 2026-06-23 | Enrollment Application (Cycle A, in flight): rich `EnrollmentApplication` model — 1:1 continuation of an `Admission` inquiry reached via an unguessable emailed token; bulk paper-form fields (student bio/health, Ayah+Ibu blocks, 16-clause consent + dual signature) live in JSON blobs, only query/gate/display fields are first-class columns | Digitizes the An Nisaa' paper admission form; thin `Admission`/`/daftar` stays the inquiry funnel; fee-gated acceptance deferred to Cycle B — see [cycle](docs/cycles/2026-06-23-enrollment-application.md) |
 | 2026-06-05 | Single-active invariant: activating an `AcademicYear` (other ACTIVE→PLANNING) or `Semester` (in-year siblings→INACTIVE) demotes siblings in a transaction; year status allowlisted. `/admin/classes` resolves its default year by date-coverage, not API order. `playwright.config` refuses a non-local `DATABASE_URL` (E2E_ALLOW_REMOTE_DB=1 to override) | Multiple simultaneously-ACTIVE years/semesters made current-period unresolvable + Kelas defaulted to an empty E2E year; local e2e wrote to staging (DEMO_MODE switches only auth, not the DB) — UAT 2026-06-04 — see [cycle](docs/cycles/2026-06-05-staging-hygiene-active-year.md) |
 | 2026-05-20 | Curriculum cutover prep: `ClassSection.ageGroup` enum column promoted from `deriveAgeGroup` name-heuristic; legacy assessment page gains tenant-scope; PROMES re-import becomes status-aware | Heuristic silently null'd for non-A/B class names → empty walas indicators + sentra cohort + perkembangan rollup; 3 RLS regressions in 6 weeks justify defense-in-depth scope — see [cycle](docs/cycles/2026-05-20-curriculum-cutover-prep.md) |
@@ -98,6 +99,8 @@ Copy `.env.example` to `.env`. Per-env values:
 | `RESEND_API_KEY` (omit → emails simulated) | — | Resend key | Resend key |
 | `STAGING_EMAIL_OVERRIDE` | — | Admin email | — |
 | `XENDIT_SECRET_KEY` / `XENDIT_WEBHOOK_TOKEN` | — | Sandbox | Production |
+| `PAYMENT_GATEWAY` (`xendit` \| `doku`; unset → `xendit`) | — | `doku` | `doku` |
+| `DOKU_CLIENT_ID` / `DOKU_SECRET_KEY` / `DOKU_ENV` | — | Sandbox, `DOKU_ENV=sandbox` | Production, `DOKU_ENV=production` |
 | `NEXT_PUBLIC_APP_URL` | — | Staging Vercel preview URL² | `https://talib.annisaasekolahku.com`² |
 | `CRON_SECRET` | — | `openssl rand -hex 32` | `openssl rand -hex 32` |
 
