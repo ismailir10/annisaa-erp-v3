@@ -200,6 +200,41 @@ describe("GET /api/guardian/invoices/[id]", () => {
     expect(parentFindFirst).not.toHaveBeenCalled();
   });
 
+  it("404 when session has neither parentId nor email — never queries (null-email leak regression, #397)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    // email: null can occur on degenerate sessions; cast past the string type.
+    vi.mocked(getSession).mockResolvedValue({
+      ...guardianSession({ parentId: null }),
+      email: null,
+    } as never);
+
+    const { GET } = await import("../guardian/invoices/[id]/route");
+    const res = await GET(makeReq() as never, {
+      params: Promise.resolve({ id: "inv-1" }),
+    });
+
+    expect(res.status).toBe(404);
+    // The guard must fire BEFORE any parent lookup — a findFirst with
+    // { email: null } would match the first null-email parent in the tenant.
+    expect(parentFindFirst).not.toHaveBeenCalled();
+    expect(invoiceFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("404 when session has empty-string email and no parentId (null-email leak regression, #397)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(
+      guardianSession({ parentId: null, email: "" }),
+    );
+
+    const { GET } = await import("../guardian/invoices/[id]/route");
+    const res = await GET(makeReq() as never, {
+      params: Promise.resolve({ id: "inv-1" }),
+    });
+
+    expect(res.status).toBe(404);
+    expect(parentFindFirst).not.toHaveBeenCalled();
+  });
+
   it("falls back to email lookup when session has no parentId", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(

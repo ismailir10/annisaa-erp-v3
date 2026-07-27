@@ -6,6 +6,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { sumDecimals } from "@/lib/finance/invoice-numbers";
 import { stripQuery } from "@/lib/xendit/client";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * Xendit Payment Session Webhook handler. Two-phase, durable.
@@ -30,6 +31,16 @@ import { stripQuery } from "@/lib/xendit/client";
  * + a small set of derived non-PII fields.
  */
 export async function POST(req: NextRequest) {
+  // ── Step 0: per-IP rate limit before any parsing. The token check below
+  // is the auth boundary; this only caps unauthenticated flood cost. 60/min
+  // stays far above Xendit's real delivery bursts (bulk send caps at 25
+  // invoices), and a 429 is safe pre-Phase-1 — nothing recorded yet, so a
+  // throttled legitimate delivery just retries later.
+  const { success } = rateLimit(`xendit-webhook:${getClientIp(req)}`, 60, 60_000);
+  if (!success) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   // ── Step 1: verify Xendit token (timing-safe).
   const callbackToken = req.headers.get("x-callback-token");
   const expectedToken = process.env.XENDIT_WEBHOOK_TOKEN;
@@ -169,6 +180,20 @@ async function handleSessionCompleted(
     );
     await markError(eventId, "MISSING_AMOUNT");
     return { ok: true, status: "ERROR:missing_amount", eventId };
+  }
+
+  // Currency guard — the app is IDR-only (create-session always sends IDR)
+  // and Invoice has no currency column, so a settlement in any other currency
+  // would credit its numeric amount 1:1 as IDR. Refuse to credit; leave the
+  // ERROR row for admin review. Absent currency keeps crediting (older
+  // payloads omit it).
+  const currency = typeof data.currency === "string" ? data.currency : null;
+  if (currency && currency !== "IDR") {
+    console.warn(
+      `[XENDIT WEBHOOK] Non-IDR currency=${currency} eventId=${eventId} refId=${refId}`,
+    );
+    await markError(eventId, `CURRENCY_MISMATCH:${currency}`);
+    return { ok: true, status: "ERROR:currency_mismatch", eventId };
   }
 
   if (!paymentId) {
