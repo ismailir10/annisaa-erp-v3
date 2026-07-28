@@ -6,8 +6,8 @@
  * Admin diagnostic surface that wraps the existing "Coba Lagi Link (N)" header
  * button with a Shadcn Popover. On open, lazy-fetches
  * `GET /api/invoices/pending-payment-link/breakdown` and renders a bullet list
- * of non-zero buckets so the operator can tell "Xendit was flaky for 30s" apart
- * from "your XENDIT_SECRET_KEY is wrong" before clicking retry.
+ * of non-zero buckets so the operator can tell "the gateway was flaky for 30s"
+ * apart from "your gateway credential is wrong" before clicking retry.
  *
  * Design notes:
  * - Single Popover trigger covers desktop click + mobile tap with one code path.
@@ -35,9 +35,17 @@ import {
 
 // 401/403-heavy hint threshold: when (401 + 403) / total exceeds this share
 // the warning surfaces. > 50% of total = "not a flake" — consistent auth
-// failures point at a misconfigured XENDIT_SECRET_KEY, not Xendit flakiness.
+// failures point at a misconfigured gateway credential, not gateway flakiness.
 // Strict greater-than (not >=) per spec: a 50/50 split is not yet conclusive.
 const AUTH_HEAVY_THRESHOLD = 0.5;
+
+// Credential env var named per active gateway (AC-22) — this is a client
+// component, so the gateway id is resolved server-side and passed down
+// rather than read from `process.env` here.
+const GATEWAY_SECRET_ENV_VAR: Record<"xendit" | "doku", string> = {
+  xendit: "XENDIT_SECRET_KEY",
+  doku: "DOKU_SECRET_KEY",
+};
 
 type Breakdown = {
   total: number;
@@ -48,12 +56,15 @@ interface Props {
   count: number;
   retrying: boolean;
   onClickRetry: () => void;
+  /** Defaults to "xendit" — matches `getGateway()`'s own unset-env default. */
+  gatewayId?: "xendit" | "doku";
 }
 
 export function PendingLinkBreakdownPopover({
   count,
   retrying,
   onClickRetry,
+  gatewayId = "xendit",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Breakdown | null>(null);
@@ -113,7 +124,7 @@ export function PendingLinkBreakdownPopover({
               Gagal memuat rincian. Coba lagi nanti.
             </p>
           ) : data ? (
-            <BreakdownBody data={data} />
+            <BreakdownBody data={data} gatewayId={gatewayId} />
           ) : (
             <EmptyHint />
           )}
@@ -142,7 +153,13 @@ function EmptyHint() {
   );
 }
 
-function BreakdownBody({ data }: { data: Breakdown }) {
+function BreakdownBody({
+  data,
+  gatewayId,
+}: {
+  data: Breakdown;
+  gatewayId: "xendit" | "doku";
+}) {
   const buckets = PAYMENT_LINK_ERROR_PREFIXES.filter(
     (p) => (data.byPrefix?.[p] ?? 0) > 0,
   ).map((p) => [p, data.byPrefix[p]] as const);
@@ -169,7 +186,8 @@ function BreakdownBody({ data }: { data: Breakdown }) {
       {authHeavy && (
         <div className="rounded-md bg-warning/10 p-2 text-xs text-warning">
           Banyak gagal autentikasi. Periksa{" "}
-          <code className="font-mono">XENDIT_SECRET_KEY</code> di Vercel.
+          <code className="font-mono">{GATEWAY_SECRET_ENV_VAR[gatewayId]}</code>{" "}
+          di Vercel.
         </div>
       )}
     </>

@@ -15,7 +15,15 @@ import { readFileSync } from "fs";
 const ENV_EXAMPLE_PATH = ".env.example";
 
 // Optional in .env.example — surfaced for visibility, never fail the audit.
-const OPTIONAL_VARS = new Set(["ANALYZE", "STAGING_EMAIL_OVERRIDE"]);
+// DOKU_NOTIFICATION_TARGET (cycle 2026-07-27-doku-payment-gateway T5) is a
+// commented-out operator escape hatch in .env.example — parseEnvExample
+// matches commented lines too, so without this it would be treated as a
+// required prod var it is not.
+const OPTIONAL_VARS = new Set([
+  "ANALYZE",
+  "STAGING_EMAIL_OVERRIDE",
+  "DOKU_NOTIFICATION_TARGET",
+]);
 
 export function parseEnvExample(text: string): Set<string> {
   const names = new Set<string>();

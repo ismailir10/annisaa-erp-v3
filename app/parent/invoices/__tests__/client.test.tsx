@@ -251,6 +251,56 @@ describe("InvoicesClient (cycle-4)", () => {
     });
   });
 
+  // Cycle 2026-07-27-doku-payment-gateway AC-24: the gateway-neutral
+  // `paymentStatus` param (new sessions, either gateway) is accepted
+  // alongside the legacy `xenditStatus` param (sessions created before this
+  // cycle), preferring `paymentStatus` when both are present.
+  describe("Payment return-URL handler (paymentStatus, gateway-neutral)", () => {
+    it("opens detail sheet, fires success toast, and clears params on ?invoice=&paymentStatus=paid", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Alhamdulillah"),
+      );
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Agustus 2024"),
+      );
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+      expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
+    });
+
+    it("fires neutral cancel toast on ?invoice=&paymentStatus=cancel", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=cancel");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn).toHaveBeenCalledWith(
+        expect.stringContaining("Pembayaran belum selesai"),
+      );
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+    });
+
+    it("prefers paymentStatus over xenditStatus when both are present", () => {
+      mockSearchParams = new URLSearchParams(
+        "invoice=inv-1&paymentStatus=paid&xenditStatus=cancel",
+      );
+      render(<InvoicesClient data={mockInvoices} />);
+      // paymentStatus=paid wins → success toast, not the cancel toast.
+      expect(toastFn.success).toHaveBeenCalledWith(
+        expect.stringContaining("Alhamdulillah"),
+      );
+      expect(toastFn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Pembayaran belum selesai"),
+      );
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+    });
+
+    it("does nothing when neither paymentStatus nor xenditStatus is present", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(replaceFn).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Webhook → list freshness poll", () => {
     it("polls router.refresh every 30s when an invoice has an active xendit session", () => {
       vi.useFakeTimers();

@@ -31,9 +31,9 @@ export default function TermsPage() {
 
       <h2>3. Pembayaran</h2>
       <p>
-        Pembayaran tagihan diproses melalui Xendit Pte. Ltd. sebagai mitra
-        gerbang pembayaran. Penyelenggara tidak menyimpan data kartu atau
-        rekening bank pengguna.
+        Pembayaran tagihan diproses melalui DOKU (PT Nusa Satu Inti Artha)
+        sebagai mitra gerbang pembayaran. Penyelenggara tidak menyimpan data
+        kartu atau rekening bank pengguna.
       </p>
 
       <h2>4. Pembatasan Tanggung Jawab</h2>

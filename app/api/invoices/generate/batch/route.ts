@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { reserveInvoiceNumbers, sumDecimals } from "@/lib/finance/invoice-numbers";
-import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
 import { generateBatchSchema } from "@/lib/validations/invoice";
 import { limit } from "@/lib/finance/concurrency-limit";
@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
   const settled = await Promise.allSettled(
     txResult.map((row) =>
       runLimit(() =>
-        createXenditSessionForInvoice(row.invoiceId, tenantId, new URL(req.url).origin).then((res) => ({ row, result: res })),
+        createPaymentSessionForInvoice(row.invoiceId, tenantId, new URL(req.url).origin).then((res) => ({ row, result: res })),
       ),
     ),
   );

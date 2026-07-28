@@ -19,11 +19,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { XenditActivityCard } from "@/components/admin/invoices/xendit-activity-card";
+import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
-import { paymentMethodLabel } from "@/lib/constants/payment-methods";
+import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-methods";
 
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = { id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string };
@@ -60,10 +60,11 @@ function PaymentFormBody({
         <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="CASH">Tunai</SelectItem>
-            <SelectItem value="BANK_TRANSFER">Transfer Bank</SelectItem>
-            <SelectItem value="XENDIT">Virtual Account</SelectItem>
-            <SelectItem value="OTHER">Lainnya</SelectItem>
+            {PAYMENT_METHODS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {paymentMethodLabel(m)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Field>
@@ -201,7 +202,7 @@ export default function InvoiceDetailPage() {
               <>
                 {!invoice.xenditPaymentUrl && (
                   <Button size="sm" variant="outline" onClick={handleCreateXenditLink} disabled={creatingXendit}>
-                    {creatingXendit ? "Membuat..." : "Buat Link Xendit"}
+                    {creatingXendit ? "Membuat..." : "Buat Link Pembayaran"}
                   </Button>
                 )}
                 <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
@@ -322,8 +323,8 @@ export default function InvoiceDetailPage() {
             )}
           </Card>
 
-          {/* Aktivitas Xendit — hides itself when 0 events */}
-          <XenditActivityCard invoiceId={invoice.id} />
+          {/* Aktivitas Pembayaran — hides itself when 0 events */}
+          <PaymentActivityCard invoiceId={invoice.id} />
         </div>
       </div>
 

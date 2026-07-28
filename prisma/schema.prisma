@@ -837,7 +837,7 @@ model Payment {
   id              String   @id @default(cuid())
   invoiceId       String
   amount          Decimal  @db.Decimal(15, 2)
-  method          String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | OTHER
+  method          String   @default("CASH") // CASH | BANK_TRANSFER | XENDIT | DOKU | OTHER
   reference       String? // Bank transfer ref
   notes           String?
   status          String   @default("RECORDED") // RECORDED | APPROVED | REVERSED

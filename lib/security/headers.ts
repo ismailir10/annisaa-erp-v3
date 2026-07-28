@@ -10,7 +10,14 @@ const CSP_REPORT_ONLY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   // wss://*.supabase.co for Realtime; vitals.vercel-insights.com for Analytics.
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.xendit.co https://api.resend.com https://vitals.vercel-insights.com",
+  // api.doku.com / api-sandbox.doku.com added in cycle
+  // 2026-07-27-doku-payment-gateway T5 (AC-19) — DOKU Checkout session
+  // creation + health ping are server-side `fetch` calls, so this entry is
+  // defensive-in-depth for any client-side code path, not load-bearing for
+  // the redirect flow itself. script-src is deliberately NOT widened: DOKU
+  // Checkout is a full-page redirect, not a JS SDK, and a top-level
+  // navigation is governed by neither connect-src nor script-src.
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.xendit.co https://api.doku.com https://api-sandbox.doku.com https://api.resend.com https://vitals.vercel-insights.com",
   "frame-ancestors 'none'",
   "report-uri /api/csp-report",
 ].join("; ");
