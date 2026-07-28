@@ -156,10 +156,40 @@ Baseline before this cycle was 2383 passed; the 14 added tests cover the pinned 
 
 **Preview-verify:** not meaningful for this diff, same reason — `DEMO_MODE` returns a synthetic session without constructing the payload. The request body is covered by unit tests against a stubbed `fetch`; the real contract test is the first sandbox checkout (below).
 
-**Not verified — stated plainly.** No live DOKU call was made. The secret lives only in Vercel and this harness has no access to it, so every claim about how DOKU *responds* to the new body rests on documentation, not observation. Two things the first sandbox checkout must confirm:
+### Live end-to-end run against the DOKU sandbox — PR #420 preview, 2026-07-29
 
-1. DOKU tolerates the five newly-requested channels on an account where some are inactive (production has neither BCA nor Mandiri) — filtering them rather than 400-ing the session.
-2. `override_notification_url` is honoured, i.e. the notification arrives at the origin that created the session. The webhook logs `[DOKU WEBHOOK] signature verified { target: … }` on every accepted delivery, and Back Office → Settings → Notification → HTTP Notifications → Notifikasi lists the endpoint URL and delivery status per attempt.
+`DEMO_MODE` is **not** set on Vercel Preview, so the preview deploy talks to the real DOKU sandbox. A full payment was driven through it: manual invoice `INV-2026-0003` (Rp 150.000, Dzakira Nayla Firmansyah) → "Buat Link Pembayaran" → BCA VA `1900800000312425` → paid via the sandbox simulator.
+
+**Confirmed working:**
+
+| Claim | Evidence |
+|---|---|
+| DOKU accepts the 11-channel list | Session created, no `400`; checkout link returned |
+| All 11 channels render | Checkout page lists BCA, Mandiri, BRI, BNI, Permata, DOKU VA (Other Banks), CIMB Niaga, **Danamon, BSI, BNC, BTN** — the five new ones included |
+| `language: "ID"` | Page renders Bahasa throughout ("Pilih Metode Pembayaran", "Ringkasan Transaksi"); selector reads "Indonesia" |
+| `order.callback_url` | "Kembali ke Merchant" back-link present — absent before this cycle |
+| `payment.type: "SALE"` | Accepted |
+| `payment_due_date` | Countdown showed 06 Hari 23 Jam ≈ 7 days |
+| Phone normalisation | Stored `+6281277226711`, sent and displayed as `6281277226711` |
+| `customer.name` / `email` | "Ibu Desi Pratama" / `parent-167@example.test` reached DOKU |
+| Channel captured end to end | Payment row reads "DOKU payment via VIRTUAL_ACCOUNT_BCA", method label renders gateway-neutral "Virtual Account" |
+| Manual reconciliation | "Perbarui pembayaran" → "Pembayaran ditemukan di gateway — tagihan ditandai LUNAS", invoice PAID Rp 150.000 |
+
+**NOT confirmed — `override_notification_url` did not deliver.** After the simulator reported success, the invoice stayed at `Terkirim` / `Dibayar Rp 0` for roughly five minutes across several reloads. It only moved to `Lunas` when the manual refresh polled `GET /orders/v1/status/{invoice_number}`. `AKTIVITAS PEMBAYARAN` then showed exactly **one** event — `manual.refresh.completed → PROCESSED` — and **no webhook event at all**.
+
+So DOKU definitely recorded the payment (the status poll found it), but no notification reached the preview origin in that window. Three candidate explanations, not distinguished here:
+
+1. DOKU ignores `override_notification_url` for Checkout VA and delivered to the per-channel Back Office URL instead. Note that URL is the *staging* branch host, which shares the staging database with previews — had it been delivered and processed there, the invoice would have flipped to PAID without the manual refresh. It did not, which argues against a successful delivery anywhere.
+2. Sandbox notification delivery is simply slower than the observation window.
+3. The notification was delivered and rejected before reaching the processor (e.g. signature `Request-Target` mismatch), which would leave no event row.
+
+Back Office → HTTP Notifications → Notifikasi would settle it, but that session had expired and re-authenticating was out of scope for this run.
+
+**Consequence:** treat `override_notification_url` as *unproven*, exactly as the code comment and Ship Notes already hedge. Per-channel Back Office registration stays load-bearing, and the five channels this cycle adds still need their URLs filled in by hand. The manual-refresh path is the working safety net and behaved correctly.
+
+**Still not verified:** whether DOKU tolerates a channel that is *inactive on the account*. Sandbox has all eleven active, so this run could not exercise it. Production has neither BCA nor Mandiri, so it remains an open risk for the prod cutover.
+
+**Test fixture left behind:** `INV-2026-0003` on the staging database, paid Rp 150.000. Staging already accumulates e2e rows; not cleaned up.
 
 **Production data check (read-only, `vxwywmvpxetdgnxejjgk`):** see Ship Notes — the gating problem is not code.
 
@@ -225,7 +255,8 @@ One asymmetry worth knowing: sessions created *while* this ships carry `override
 
 1. **Guardian contact capture** — the blocker above. 306 of 307 parents have no email. Nothing else in this cycle matters until that moves.
 2. **Support ticket to DOKU** — ask for the Checkout `payment_method_types` enum strings for Maybank, Sinarmas, BJB and Bank Sahabat Sampoerna, all four active on the production merchant account but undocumented for Checkout. Add them once confirmed; do not guess.
-3. **Confirm the two unverified assumptions** on the first sandbox checkout: channel filtering vs. 400, and whether `override_notification_url` is honoured. If DOKU 400s on inactive channels, the constant must become account-aware — likely per-environment env — before production, since production lacks BCA and Mandiri.
-4. **BCA + Mandiri activation on production**, and finishing DOKU account verification ("Your onboarding is almost complete" banner). DOKU-side account work, not code.
-5. **Expiry-reminder window** — Back Office is set to warn the customer *5 minutes* before an order expires. Our `payment_due_date` is 7 days. A 5-minute warning on a 7-day VA is functionally useless; 1-2 days would give a parent time to act.
-6. **Prune the webhook's `Request-Target` candidates** — carried over from the 2026-07-27 cycle, still open, still waiting on the same first real notification.
+3. **Chase the missing notification.** The live sandbox run (Verification) credited only via manual refresh; no webhook event arrived. Check Back Office → HTTP Notifications → Notifikasi for the delivery attempt and its endpoint URL. If `override_notification_url` is being ignored, either drop it as dead weight or keep it purely as defence and rely on Back Office; either way the per-channel URLs for all eleven channels must be filled in.
+4. **Channel filtering vs. 400 on inactive channels** — still unverified; sandbox has all eleven active so the run could not exercise it. Production lacks BCA and Mandiri, so if DOKU 400s rather than filtering, the constant must become per-environment before the prod cutover.
+5. **BCA + Mandiri activation on production**, and finishing DOKU account verification ("Your onboarding is almost complete" banner). DOKU-side account work, not code.
+6. **Expiry-reminder window** — Back Office is set to warn the customer *5 minutes* before an order expires. Our `payment_due_date` is 7 days. A 5-minute warning on a 7-day VA is functionally useless; 1-2 days would give a parent time to act.
+7. **Prune the webhook's `Request-Target` candidates** — carried over from the 2026-07-27 cycle, still open, still waiting on the same first real notification.
