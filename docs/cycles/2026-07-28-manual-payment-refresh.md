@@ -140,6 +140,14 @@ a test, not by review.
 
 ## Verification
 
+- `npx tsc --noEmit` — **clean**. Note: `npm run build` does *not* typecheck,
+  so the first push failed CI's `Lint, Typecheck & Test`. Adding a **required**
+  `fetchPaymentStatus` to the `PaymentGateway` port broke three pre-existing
+  gateway test doubles (`app/api/health/payments/__tests__/route.test.ts`,
+  `lib/__tests__/xendit-helpers{,-app-url}.test.ts`); each gained
+  `fetchPaymentStatus: vi.fn()`. Making the port method optional was rejected —
+  an optional method would let a future adapter silently ship without a status
+  poller, which is exactly the drift this cycle exists to prevent.
 - `npx vitest run` — **245 files passed, 2 skipped; 2377 tests passed, 42
   todo**. Includes 33 new tests across
   `lib/payments/__tests__/gateway-status-parsing.test.ts` (parser + event-id

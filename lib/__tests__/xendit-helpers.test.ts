@@ -96,6 +96,7 @@ describe("createXenditSessionForInvoice — withXenditRetry wrapping", () => {
       id: "xendit",
       createSession: createSessionMock,
       ping: vi.fn(),
+      fetchPaymentStatus: vi.fn(),
     });
 
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
