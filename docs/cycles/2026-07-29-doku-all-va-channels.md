@@ -89,6 +89,22 @@ Kept as belt-and-braces, not a replacement: the Back Office values stay configur
 - `line_items[].sku` / `category` / `url` / `image_url` / `type` — required only for paylater channels.
 - `customer.id` — enables tokenisation, which is a card feature. Not worth handing DOKU another identifier for zero VA benefit.
 
+### Frontend integration (`loadJokulCheckout`) — evaluated, declined (CTO, 2026-07-29)
+
+DOKU ships a [JS library](https://developers.doku.com/accept-payments/doku-checkout/integration-guide/frontend-integration) (`jokul-checkout-1.0.0.js`, served from `sandbox.doku.com` or `jokul.doku.com`) that renders checkout as a modal overlay instead of a redirect. The parent portal currently opens `invoice.xenditPaymentUrl` in a new tab (`app/parent/invoices/invoice-detail-sheet.tsx:316`).
+
+Declined for this cycle. The modal's whole value proposition is *the customer completes payment without leaving your page* — and that does not describe Virtual Account. The parent receives a VA number and leaves to pay at an ATM or in mobile banking, often hours later; the 2026-07-27 cycle already recorded this as the defining behavioural difference from Xendit's card flow. They leave either way. Worse, dismissing a modal can take the VA number with it, whereas a tab keeps it available to re-read.
+
+The cost is concrete, and it is security surface:
+
+- `script-src` must gain `sandbox.doku.com` + `jokul.doku.com`. Cycle 2026-07-27 T5 deliberately left `script-src` alone on the grounds that "DOKU Checkout is a full-page redirect, not a JS SDK" — this would reverse that.
+- `frame-src` would need `*.doku.com` too. There is no `frame-src` directive today, so it inherits `default-src 'self'` and the overlay's frame would be blocked the moment CSP graduates from Report-Only to enforcing.
+- The script is version-pinned at 1.0.0 with no SRI hash on offer — unpinned third-party JS on an authenticated portal page, loaded for every parent viewing an invoice, not just those paying.
+- The script URL is tier-specific, so `DOKU_ENV` (server-only today) would have to reach the client.
+- The portal would have to branch on `gateway === "doku"`, putting gateway-specific knowledge back into a surface the `PaymentGateway` port exists to keep neutral.
+
+Revisit if non-VA channels are ever enabled, since a card or e-wallet flow *does* complete in-session. Until then it is CSP risk bought for no parent-visible gain.
+
 ## Tasks
 
 1. Expand `DOKU_VIRTUAL_ACCOUNT_METHODS` to the eleven documented values, with a comment recording the source and the deliberate VA-only scope.
@@ -146,6 +162,8 @@ Baseline before this cycle was 2383 passed; the 14 added tests cover the pinned 
 2. `override_notification_url` is honoured, i.e. the notification arrives at the origin that created the session. The webhook logs `[DOKU WEBHOOK] signature verified { target: … }` on every accepted delivery, and Back Office → Settings → Notification → HTTP Notifications → Notifikasi lists the endpoint URL and delivery status per attempt.
 
 **Production data check (read-only, `vxwywmvpxetdgnxejjgk`):** see Ship Notes — the gating problem is not code.
+
+**How to actually test a payment (sandbox).** A sandbox VA has no bank behind it, so nothing settles by itself. Fire the payment from [DOKU's sandbox simulator](https://sandbox.doku.com/integration/simulator/): paste the VA number off the checkout page, submit, and DOKU delivers a real `SUCCESS` notification to `/api/doku/webhook` — that is what moves the invoice to `PAID`. Skipping this step leaves the invoice at `SENT` and reads as a bug. Recorded in README footnote ⁴ so it is findable outside this cycle doc.
 
 **Frontend:** no `app/**/*.tsx`, `components/**/*.tsx` or CSS in this diff; the admin activity card was read and confirmed to need no change (Task 3), not modified.
 

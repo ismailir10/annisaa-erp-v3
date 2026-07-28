@@ -101,13 +101,17 @@ Copy `.env.example` to `.env`. Per-env values:
 | `STAGING_EMAIL_OVERRIDE` | — | Admin email | — |
 | `XENDIT_SECRET_KEY` / `XENDIT_WEBHOOK_TOKEN` | — | Sandbox | Production |
 | `PAYMENT_GATEWAY` (`xendit` \| `doku`; unset → `xendit`) | — | `doku` | `doku` |
-| `DOKU_CLIENT_ID` / `DOKU_SECRET_KEY` / `DOKU_ENV` | — | Sandbox, `DOKU_ENV=sandbox` | Production, `DOKU_ENV=production` |
+| `DOKU_CLIENT_ID` / `DOKU_SECRET_KEY` / `DOKU_ENV` | — | Sandbox, `DOKU_ENV=sandbox`⁴ | Production, `DOKU_ENV=production` |
 | `NEXT_PUBLIC_APP_URL` | — | Staging Vercel preview URL² | `https://talib.annisaasekolahku.com`² |
 | `CRON_SECRET` | — | `openssl rand -hex 32` | `openssl rand -hex 32` |
 
 ¹ **`DIRECT_URL` mandatory on Vercel.** `build` runs `prisma migrate deploy`, which needs port 5432 — pooler 6543 (PgBouncer transaction mode) doesn't support advisory locks.
 ² **`NEXT_PUBLIC_APP_URL` per-env, throws if missing.** Origin for payment-gateway return URLs when no request scope (reseed/cron). No silent prod fallback.
 ³ **Gateway health:** `GET /api/health/payments` reports the active gateway (`/api/health/xendit` kept as an alias for existing monitors). Tier comes from the `XENDIT_SECRET_KEY` prefix for Xendit and from `DOKU_ENV` for DOKU, whose keys do not encode tier. Under DOKU the notification is the only reliable completion signal — Virtual Account payments land hours later at an ATM — so each session sends its own origin as `additional_info.override_notification_url` (`<origin>/api/doku/webhook`), and the same URL should *also* be registered per channel in DOKU Back Office (Settings → Payment Settings → Virtual Account → *[channel]* Configure) as the fallback if the override is ever ignored. DOKU Checkout offers all eleven documented Virtual Account channels; card, QRIS, e-wallet and paylater stay disabled.
+
+⁴ **Testing a payment end to end.** A sandbox Virtual Account has no real bank behind it, so nothing ever settles on its own — you must fire the payment yourself from **[DOKU's sandbox simulator](https://sandbox.doku.com/integration/simulator/)**. Paste the VA number from the checkout page, submit, and DOKU sends a real `SUCCESS` notification to `/api/doku/webhook`, which is what moves the invoice to `PAID`. Without the simulator a sandbox invoice sits at `SENT` forever and it looks like a bug.
+
+Two places to watch while testing: Back Office → Settings → Notification → **HTTP Notifications → Notifikasi** lists every delivery attempt with its endpoint URL, transaction status and delivery status; and the app logs `[DOKU WEBHOOK] signature verified { target: … }` on each accepted notification. Note that Vercel preview deploys run `DEMO_MODE=true`, which short-circuits session creation and returns a synthetic URL — the simulator only applies to an environment talking to the real DOKU sandbox.
 
 ---
 
