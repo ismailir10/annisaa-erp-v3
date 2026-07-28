@@ -107,7 +107,7 @@ Copy `.env.example` to `.env`. Per-env values:
 
 ¹ **`DIRECT_URL` mandatory on Vercel.** `build` runs `prisma migrate deploy`, which needs port 5432 — pooler 6543 (PgBouncer transaction mode) doesn't support advisory locks.
 ² **`NEXT_PUBLIC_APP_URL` per-env, throws if missing.** Origin for payment-gateway return URLs when no request scope (reseed/cron). No silent prod fallback.
-³ **Gateway health:** `GET /api/health/payments` reports the active gateway (`/api/health/xendit` kept as an alias for existing monitors). Tier comes from the `XENDIT_SECRET_KEY` prefix for Xendit and from `DOKU_ENV` for DOKU, whose keys do not encode tier. Under DOKU the notification is the only reliable completion signal — Virtual Account payments land hours later at an ATM — so the notification URL (`/api/doku/webhook`) must be registered in DOKU Back Office per environment.
+³ **Gateway health:** `GET /api/health/payments` reports the active gateway (`/api/health/xendit` kept as an alias for existing monitors). Tier comes from the `XENDIT_SECRET_KEY` prefix for Xendit and from `DOKU_ENV` for DOKU, whose keys do not encode tier. Under DOKU the notification is the only reliable completion signal — Virtual Account payments land hours later at an ATM — so each session sends its own origin as `additional_info.override_notification_url` (`<origin>/api/doku/webhook`), and the same URL should *also* be registered per channel in DOKU Back Office (Settings → Payment Settings → Virtual Account → *[channel]* Configure) as the fallback if the override is ever ignored. DOKU Checkout offers all eleven documented Virtual Account channels; card, QRIS, e-wallet and paylater stay disabled.
 
 ---
 

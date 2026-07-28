@@ -63,6 +63,21 @@ export type CreateSessionParams = {
   cancelReturnUrl: string;
   expiryDays?: number; // Default 7 days
   items?: { name: string; quantity: number; price: number }[];
+  /**
+   * Absolute URL this deploy wants gateway notifications delivered to.
+   *
+   * DOKU maps it onto `additional_info.override_notification_url`, which wins
+   * over the per-channel "Payment Notification URL" configured in Back Office
+   * — so a channel whose Back Office field was never filled in still notifies
+   * us, and a preview deploy receives its own notifications instead of
+   * staging's. Xendit ignores it (its callback URL is account-global).
+   *
+   * Belt-and-braces, not a replacement: the Back Office values stay
+   * configured, because if DOKU ever ignores the override the BO value is the
+   * only thing standing between a settled payment and a silently stalled
+   * invoice. Added cycle 2026-07-29-doku-all-va-channels.
+   */
+  notificationUrl?: string;
 };
 
 /** Gateway-neutral session shape returned by every `PaymentGateway.createSession`. */
