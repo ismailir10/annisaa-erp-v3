@@ -13,7 +13,10 @@
 import {
   GatewayApiError,
   type CreateSessionParams,
+  type GatewayPaymentState,
+  type GatewayPaymentStatus,
   type GatewaySession,
+  type GatewayStatusRef,
   type PaymentGateway,
 } from "../types";
 
@@ -322,6 +325,196 @@ export function pickSessionId(data: unknown): string | null {
 }
 
 /**
+ * Map a Xendit session status string onto the gateway-neutral state.
+ *
+ * Xendit documents `ACTIVE | COMPLETED | EXPIRED | CANCELED` for a Checkout
+ * Session, but the vocabulary has drifted across API versions, so synonyms are
+ * accepted. Anything unrecognized falls through to `PENDING` — the no-op
+ * branch. That is the safe default: an unknown status must never credit an
+ * invoice or destroy a live payment link. The raw string is carried through in
+ * `rawStatus` so the admin sees what the gateway actually said.
+ *
+ * Exported for unit testing.
+ */
+export function mapXenditSessionState(raw: string | null): GatewayPaymentState {
+  switch ((raw ?? "").toUpperCase()) {
+    case "COMPLETED":
+    case "SUCCEEDED":
+    case "SUCCESS":
+    case "PAID":
+    case "CAPTURED":
+      return "COMPLETED";
+    case "EXPIRED":
+      return "EXPIRED";
+    case "CANCELED":
+    case "CANCELLED":
+    case "FAILED":
+      return "FAILED";
+    case "REFUNDED":
+      return "REFUNDED";
+    default:
+      return "PENDING";
+  }
+}
+
+/** First string-valued candidate, or null. */
+function firstString(candidates: unknown[]): string | null {
+  for (const c of candidates) {
+    if (typeof c === "string" && c.length > 0) return c;
+  }
+  return null;
+}
+
+/** First finite-number candidate (coercing numeric strings), or null. */
+function firstNumber(candidates: unknown[]): number | null {
+  for (const c of candidates) {
+    if (typeof c === "number" || typeof c === "string") {
+      const n = Number(c);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+
+/**
+ * Distil a `GET /sessions/{id}` body into the gateway-neutral status shape.
+ *
+ * The exact response shape is not pinned down: Xendit's session-retrieve body
+ * has never been captured in this repo (no local credentials — see the cycle
+ * doc's Risks). So every field is read through a candidate list covering the
+ * documented shapes plus the nested `payments[]` collection observed on
+ * multi-attempt sessions. A field that matches nothing stays null, and the
+ * shared webhook processor's existing MISSING_AMOUNT / MISSING_PAYMENT_ID
+ * guards then refuse to credit rather than guessing.
+ *
+ * `paymentId` deliberately uses the SAME fallback chain as the webhook route
+ * (`payment_id` → `payment_session_id`). Both paths must derive an identical
+ * `Payment.xenditPaymentId` for one settlement, otherwise a manual refresh
+ * followed by a late real webhook would insert two Payment rows.
+ *
+ * Exported for unit testing.
+ */
+export function parseXenditSessionStatus(data: unknown): GatewayPaymentStatus {
+  const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const payments = Array.isArray(d.payments)
+    ? (d.payments as unknown[]).filter(
+        (p): p is Record<string, unknown> => !!p && typeof p === "object",
+      )
+    : [];
+  // Prefer a succeeded attempt; a session can carry earlier failed attempts.
+  const settled =
+    payments.find((p) => mapXenditSessionState(firstString([p.status])) === "COMPLETED") ??
+    payments[0] ??
+    {};
+
+  const rawStatus = firstString([d.status, settled.status]);
+
+  return {
+    state: mapXenditSessionState(rawStatus),
+    rawStatus,
+    paymentId: firstString([
+      d.payment_id,
+      settled.payment_id,
+      settled.id,
+      d.payment_session_id,
+      d.id,
+    ]),
+    amount: firstNumber([
+      d.amount,
+      settled.amount,
+      d.captured_amount,
+      d.paid_amount,
+    ]),
+    currency: firstString([d.currency, settled.currency]),
+    channelCode: firstString([d.channel_code, settled.channel_code]),
+    raw: data,
+  };
+}
+
+/**
+ * Read-only poll of a Xendit Checkout Session — `GET /sessions/{id}`.
+ *
+ * Used by the admin "Perbarui pembayaran" action as a webhook fallback. Never
+ * mutates gateway state. Returns `UNAVAILABLE` (rather than throwing) when the
+ * invoice has no recorded session id, which happens for sessions created
+ * before `pickSessionId` could resolve an id from the create response.
+ *
+ * DEMO_MODE short-circuit mirrors `createXenditSession` — CI and demo deploys
+ * have no usable credentials, and the synthetic session is always PENDING so a
+ * demo click is a visible no-op rather than a fake payment.
+ */
+export async function getXenditSessionStatus(
+  ref: GatewayStatusRef,
+  timeoutMs: number = 10_000,
+): Promise<GatewayPaymentStatus> {
+  if (!ref.sessionId) {
+    return {
+      state: "UNAVAILABLE",
+      rawStatus: null,
+      paymentId: null,
+      amount: null,
+      currency: null,
+      channelCode: null,
+      raw: null,
+      unavailableReason: "NO_SESSION_ID",
+    };
+  }
+
+  if (process.env.DEMO_MODE === "true") {
+    return {
+      state: "PENDING",
+      rawStatus: "ACTIVE",
+      paymentId: null,
+      amount: null,
+      currency: "IDR",
+      channelCode: null,
+      raw: { demo: true, id: ref.sessionId, status: "ACTIVE" },
+    };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${XENDIT_API_URL}/sessions/${encodeURIComponent(ref.sessionId)}`,
+      {
+        method: "GET",
+        headers: { Authorization: getAuthHeader() },
+        signal: controller.signal,
+      },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Xendit network error";
+    throw new GatewayApiError({
+      status: null,
+      code: "network",
+      retriable: true,
+      message,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    const errorBody: unknown = await response.json().catch(() => null);
+    console.error(
+      `[XENDIT ERROR] Get session failed status=${response.status}`,
+    );
+    throw classifyXenditResponse(response, errorBody);
+  }
+
+  const data: unknown = await response.json();
+  if (process.env.XENDIT_DEBUG === "1") {
+    // Shape probing on staging — this is the only way to confirm the
+    // session-retrieve body without live credentials locally.
+    console.info("[XENDIT DEBUG] Session status response:", JSON.stringify(data));
+  }
+  return parseXenditSessionStatus(data);
+}
+
+/**
  * `PaymentGateway` implementation backed by Xendit Checkout Sessions.
  * Maps the Xendit-shaped response (`payment_link_url`, `expires_at`, snake
  * case) onto the gateway-neutral `GatewaySession` shape.
@@ -339,5 +532,8 @@ export const xenditGateway: PaymentGateway = {
   },
   ping(timeoutMs?: number): Promise<void> {
     return pingXenditBalance(timeoutMs);
+  },
+  fetchPaymentStatus(ref: GatewayStatusRef): Promise<GatewayPaymentStatus> {
+    return getXenditSessionStatus(ref);
   },
 };

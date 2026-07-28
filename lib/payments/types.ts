@@ -73,9 +73,73 @@ export interface GatewaySession {
   expiresAt: string;
 }
 
+/**
+ * What a gateway needs in order to look a payment up. Both keys are supplied;
+ * each adapter picks whichever its status endpoint is keyed on — Xendit needs
+ * `sessionId` (`GET /sessions/{id}`), DOKU needs `invoiceId` (its
+ * `invoice_number`, `GET /orders/v1/status/{invoice_number}`).
+ */
+export type GatewayStatusRef = {
+  invoiceId: string;
+  sessionId: string | null;
+};
+
+/**
+ * Gateway-neutral lifecycle state, normalized from each provider's own status
+ * vocabulary. Deliberately mirrors the `kind` values
+ * `NormalizedPaymentEvent` already carries, so `lib/payments/reconcile.ts` can
+ * map one onto the other without inventing new transitions:
+ *
+ *   COMPLETED   → kind "PAYMENT_COMPLETED"  (credit the invoice)
+ *   EXPIRED     → kind "SESSION_EXPIRED"    (soft-revert to PENDING_PAYMENT_LINK)
+ *   REFUNDED    → kind "UNHANDLED" + REFUND_UNHANDLED (surface to admin)
+ *   PENDING     → no transition (nobody has paid yet)
+ *   FAILED      → no transition (a failed/voided attempt is not an expiry;
+ *                 the payment link may still be usable for a retry)
+ *   UNAVAILABLE → the gateway could not be queried at all — see
+ *                 `unavailableReason`. No audit row is written for this.
+ */
+export type GatewayPaymentState =
+  | "COMPLETED"
+  | "PENDING"
+  | "EXPIRED"
+  | "FAILED"
+  | "REFUNDED"
+  | "UNAVAILABLE";
+
+/**
+ * Result of a read-only status poll. Field names match
+ * `NormalizedPaymentEvent` so the reconciler is a straight field copy.
+ *
+ * `paymentId` is the inner idempotency key that lands in
+ * `Payment.xenditPaymentId`. Each adapter MUST derive it with the same
+ * fallback chain its webhook route uses, otherwise a manual refresh and a
+ * later real webhook would produce two different keys for one settlement.
+ */
+export type GatewayPaymentStatus = {
+  state: GatewayPaymentState;
+  /** Provider's own status string, verbatim — shown to the admin for triage. */
+  rawStatus: string | null;
+  paymentId: string | null;
+  amount: number | null;
+  currency: string | null;
+  channelCode: string | null;
+  /** Provider response, stored verbatim in `WebhookEvent.payload`. */
+  raw: unknown;
+  /** Only set when `state === "UNAVAILABLE"`. */
+  unavailableReason?: string;
+};
+
 /** Port implemented by each concrete payment gateway (Xendit, DOKU, ...). */
 export interface PaymentGateway {
   readonly id: "xendit" | "doku";
   createSession(params: CreateSessionParams): Promise<GatewaySession>;
   ping(timeoutMs?: number): Promise<void>;
+  /**
+   * Read-only poll of the gateway's authoritative payment state. Added in
+   * cycle 2026-07-28-manual-payment-refresh so an admin can reconcile an
+   * invoice when the webhook never fired. MUST NOT mutate anything on the
+   * gateway side — no capture, no void, no session re-creation.
+   */
+  fetchPaymentStatus(ref: GatewayStatusRef): Promise<GatewayPaymentStatus>;
 }

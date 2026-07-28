@@ -47,6 +47,7 @@ describe("createXenditSessionForInvoice — APP_URL trailing-slash safety", () =
       id: "xendit",
       createSession: createSessionMock,
       ping: vi.fn(),
+      fetchPaymentStatus: vi.fn(),
     });
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv-1",
@@ -95,6 +96,7 @@ describe("createXenditSessionForInvoice — APP_URL trailing-slash safety", () =
       id: "xendit",
       createSession: createSessionMock,
       ping: vi.fn(),
+      fetchPaymentStatus: vi.fn(),
     });
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv-2",

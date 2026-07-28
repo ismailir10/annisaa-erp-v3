@@ -13,7 +13,10 @@ import { randomUUID } from "crypto";
 import {
   GatewayApiError,
   type CreateSessionParams,
+  type GatewayPaymentState,
+  type GatewayPaymentStatus,
   type GatewaySession,
+  type GatewayStatusRef,
   type PaymentGateway,
 } from "../types";
 import { parseRetryAfter } from "../xendit/client";
@@ -339,6 +342,193 @@ export async function pingDoku(timeoutMs: number = 5000): Promise<void> {
 }
 
 /**
+ * Map a DOKU transaction status onto the gateway-neutral state. Vocabulary
+ * taken from the notification handler in `app/api/doku/webhook/route.ts`, so
+ * a manual refresh and a real notification classify identically.
+ *
+ * Unrecognized → `PENDING` (the no-op branch), never a credit or a revert.
+ *
+ * Exported for unit testing.
+ */
+export function mapDokuTransactionState(raw: string | null): GatewayPaymentState {
+  switch ((raw ?? "").toUpperCase()) {
+    case "SUCCESS":
+      return "COMPLETED";
+    case "EXPIRED":
+      return "EXPIRED";
+    case "FAILED":
+    case "VOIDED":
+      return "FAILED";
+    case "REFUNDED":
+      return "REFUNDED";
+    default:
+      return "PENDING";
+  }
+}
+
+/**
+ * Distil a `GET /orders/v1/status/{invoice_number}` body into the
+ * gateway-neutral status shape.
+ *
+ * DOKU's check-status body mirrors its notification payload (`order`,
+ * `transaction`, `channel`, `acquirer`), so the field reads here are the same
+ * ones `app/api/doku/webhook/route.ts` performs — including the
+ * `original_request_id` idempotency key and the float-amount coercion. Some
+ * deployments wrap the result in a top-level `response` envelope (as the
+ * create-session call does), so both shapes are accepted.
+ *
+ * Exported for unit testing.
+ */
+export function parseDokuOrderStatus(envelope: unknown): GatewayPaymentStatus {
+  const top = (envelope && typeof envelope === "object" ? envelope : {}) as Record<
+    string,
+    unknown
+  >;
+  const body = (
+    top.response && typeof top.response === "object" ? top.response : top
+  ) as Record<string, unknown>;
+
+  const obj = (key: string): Record<string, unknown> =>
+    body[key] && typeof body[key] === "object"
+      ? (body[key] as Record<string, unknown>)
+      : {};
+
+  const transaction = obj("transaction");
+  const order = obj("order");
+  const channel = obj("channel");
+
+  const rawStatus =
+    typeof transaction.status === "string" ? transaction.status : null;
+
+  // Same float-tolerant coercion as the notification route — some channels
+  // send `20000.00` rather than `20000`.
+  const amountRaw = order.amount;
+  const amountCoerced =
+    typeof amountRaw === "number" || typeof amountRaw === "string"
+      ? Number(amountRaw)
+      : NaN;
+
+  const amountDetails =
+    transaction.amount_details && typeof transaction.amount_details === "object"
+      ? (transaction.amount_details as Record<string, unknown>)
+      : null;
+
+  return {
+    state: mapDokuTransactionState(rawStatus),
+    rawStatus,
+    // Same idempotency key the notification route uses, so a manual refresh
+    // and a late notification for one settlement collapse onto one Payment row.
+    paymentId:
+      typeof transaction.original_request_id === "string" &&
+      transaction.original_request_id.length > 0
+        ? transaction.original_request_id
+        : null,
+    amount: Number.isFinite(amountCoerced) ? amountCoerced : null,
+    currency:
+      amountDetails && typeof amountDetails.currency === "string"
+        ? amountDetails.currency
+        : null,
+    channelCode: typeof channel.id === "string" ? channel.id : null,
+    raw: envelope,
+  };
+}
+
+/**
+ * Read-only poll of a DOKU order — signed `GET /orders/v1/status/{invoice_number}`
+ * (no Digest header; DOKU omits the digest for GET, same as `pingDoku`).
+ *
+ * Keyed on `invoice_number`, which `createDokuSession` sets to the bare
+ * `Invoice.id` — so unlike Xendit this path needs no stored session id and is
+ * always available.
+ *
+ * A 404 means DOKU has no order for that invoice (no checkout was ever
+ * started) — reported as `UNAVAILABLE`, not an error, since there is nothing
+ * to reconcile.
+ */
+export async function getDokuOrderStatus(
+  ref: GatewayStatusRef,
+  timeoutMs: number = 10_000,
+): Promise<GatewayPaymentStatus> {
+  if (process.env.DEMO_MODE === "true") {
+    return {
+      state: "PENDING",
+      rawStatus: "PENDING",
+      paymentId: null,
+      amount: null,
+      currency: "IDR",
+      channelCode: null,
+      raw: { demo: true, invoiceId: ref.invoiceId, status: "PENDING" },
+    };
+  }
+
+  const clientId = getClientId();
+  const secretKey = getSecretKey();
+  const target = `/orders/v1/status/${encodeURIComponent(ref.invoiceId)}`;
+  const requestId = randomUUID();
+  const timestamp = formatDokuTimestamp(new Date());
+  const signature = buildSignature({
+    clientId,
+    requestId,
+    timestamp,
+    target,
+    // No digest for GET — DOKU docs, mirrored from `pingDoku`.
+    secretKey,
+  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}${target}`, {
+      method: "GET",
+      headers: {
+        "Client-Id": clientId,
+        "Request-Id": requestId,
+        "Request-Timestamp": timestamp,
+        Signature: signature,
+      },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "DOKU network error";
+    throw new GatewayApiError({
+      status: null,
+      code: "network",
+      retriable: true,
+      message,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (response.status === 404) {
+    return {
+      state: "UNAVAILABLE",
+      rawStatus: null,
+      paymentId: null,
+      amount: null,
+      currency: null,
+      channelCode: null,
+      raw: null,
+      unavailableReason: "ORDER_NOT_FOUND",
+    };
+  }
+
+  if (!response.ok) {
+    const errorBody: unknown = await response.json().catch(() => null);
+    console.error(`[DOKU ERROR] Get order status failed status=${response.status}`);
+    throw classifyDokuResponse(response, errorBody);
+  }
+
+  const data: unknown = await response.json();
+  if (process.env.DOKU_DEBUG === "1") {
+    console.info("[DOKU DEBUG] Order status response:", JSON.stringify(data));
+  }
+  return parseDokuOrderStatus(data);
+}
+
+/**
  * `PaymentGateway` implementation backed by DOKU Checkout (Virtual Account
  * channels only).
  */
@@ -349,5 +539,8 @@ export const dokuGateway: PaymentGateway = {
   },
   ping(timeoutMs?: number): Promise<void> {
     return pingDoku(timeoutMs);
+  },
+  fetchPaymentStatus(ref: GatewayStatusRef): Promise<GatewayPaymentStatus> {
+    return getDokuOrderStatus(ref);
   },
 };
