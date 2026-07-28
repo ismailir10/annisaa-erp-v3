@@ -135,7 +135,18 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-export function PaymentActivityCard({ invoiceId }: { invoiceId: string }) {
+/**
+ * `refreshKey` — bump to force a re-fetch. Used by the invoice detail page's
+ * "Perbarui pembayaran" action, which can append a new `WebhookEvent` row that
+ * this panel would otherwise not see until a full page reload.
+ */
+export function PaymentActivityCard({
+  invoiceId,
+  refreshKey = 0,
+}: {
+  invoiceId: string;
+  refreshKey?: number;
+}) {
   const [events, setEvents] = useState<WebhookEventRow[] | null>(null);
 
   useEffect(() => {
@@ -156,7 +167,7 @@ export function PaymentActivityCard({ invoiceId }: { invoiceId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [invoiceId]);
+  }, [invoiceId, refreshKey]);
 
   // Empty-state policy: hide entirely when zero events. Also hide while
   // loading (events === null) — the card has no skeleton state because
