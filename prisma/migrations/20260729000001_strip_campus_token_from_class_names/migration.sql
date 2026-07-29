@@ -1,34 +1,41 @@
 -- Cycle: 2026-07-29 class-picker-year-scoping (T7).
 --
 -- ClassSection.name and ClassTrack.name embed their campus as a token
--- ("TK B Metland 3", "KB Aster 1") purely because the old unique keys
--- were not campus-scoped. 20260729000000_class_section_unique_per_campus
--- (T6, same cycle) widened ClassSection's key to
--- (tenantId, academicYearId, campusId, name) and ClassTrack already keys
--- on (tenantId, campusId, programId, name) — so two campuses can now
--- independently hold the same class name and the token is redundant:
--- Campus is a first-class column, already displayed separately in every
--- picker. This migration strips the token from both tables' `name`.
+-- ("TK B Metland 3", "KB — Aster") purely because the old unique keys were
+-- not campus-scoped. 20260729000000_class_section_unique_per_campus (T6,
+-- same cycle) widened ClassSection's key to
+-- (tenantId, academicYearId, campusId, name) and ClassTrack already keys on
+-- (tenantId, campusId, programId, name) — so two campuses can now
+-- independently hold the same class name and the token is redundant: Campus
+-- is a first-class column, already displayed separately in every picker.
 --
--- Hardcoded name -> token mapping (documented assumption):
--- The token cannot be derived mechanically from Campus.name — it's the
--- second word for one campus and the first word for the other:
---   Campus.name = 'Taman Aster'      -> token 'Aster'
---   Campus.name = 'Metland Cibitung' -> token 'Metland'
--- Production has exactly these two campuses (confirmed pre-deploy). Any
--- row whose campus does not match either name is left completely
--- untouched (token resolves to NULL, guarded out before the regexp) —
--- this migration never blind-strips words it can't attribute to a
--- known campus.
+-- Campus -> token mapping (documented assumption):
+-- The token cannot be derived positionally from Campus.name — it is the
+-- second word in one campus name and the first in the other, and the two
+-- environments prefix them differently:
+--   prod:    'Taman Aster'                      / 'Metland Cibitung'
+--   staging: 'An Nisaa'' Sekolahku Taman Aster' / 'An Nisaa'' Sekolahku Metland Cibitung'
+-- So the match is a case-insensitive CONTAINS, not an equality test. An
+-- earlier draft used `WHEN 'Taman Aster'` equality and would have silently
+-- no-op'd on staging — the migration would have "succeeded" while leaving
+-- every staging class name campus-bearing. Any campus matching neither
+-- pattern yields a NULL token and its rows are left completely untouched;
+-- this migration never blind-strips a word it cannot attribute to a campus.
 --
--- Idempotent: the UPDATE's WHERE clause only touches rows whose name
--- still contains the campus token as a whole word (Postgres advanced
--- regex \y = word boundary), so a second run matches 0 rows.
+-- Separator handling: prod writes "TK B Metland 3" (plain space) while
+-- staging writes "KB — Metland" (em-dash). The regex therefore consumes an
+-- optional preceding " —" / " -" along with the token, so the em-dash form
+-- does not leave a dangling "KB —".
 --
--- Abort-on-collision: a DO block pre-computes what every row's name
--- would become and RAISEs (rolling back the whole transaction) if that
--- would produce a duplicate under either table's unique key, so a bad
--- assumption fails the deploy loudly instead of corrupting names.
+-- Idempotent: the UPDATE's WHERE clause only touches rows whose name still
+-- contains the campus token as a whole word (Postgres advanced regex \y =
+-- word boundary), so a second run matches 0 rows.
+--
+-- Abort-on-collision: the DO block below pre-computes what every row's name
+-- would become and RAISEs (rolling back the whole migration, which Prisma
+-- runs in an implicit transaction) if that would produce a duplicate under
+-- either table's unique key — so a bad assumption fails the deploy loudly
+-- instead of corrupting names.
 --
 -- Hand-checked examples:
 --   'TK B Metland 3'              -> 'TK B 3'
@@ -36,14 +43,15 @@
 --   'Daycare Metland (2-6 th)'    -> 'Daycare (2-6 th)'
 --   'Daycare Aster'               -> 'Daycare'
 --   'Bayi 6-12 Bulan Metland 6'   -> 'Bayi 6-12 Bulan 6'
+--   'KB — Metland'                -> 'KB'        (staging em-dash form)
+--   'TKIT-A — Aster'              -> 'TKIT-A'    (internal hyphen preserved)
+--   'KB — Panduan Contoh'         -> unchanged   (no campus token)
 
 DO $$
 DECLARE
   section_dupes integer;
   track_dupes integer;
 BEGIN
-  -- Pre-flight: would stripping the token collide two ClassSection rows
-  -- under (tenantId, academicYearId, campusId, name)?
   WITH candidate AS (
     SELECT
       cs."tenantId",
@@ -52,7 +60,11 @@ BEGIN
       CASE
         WHEN tok.token IS NOT NULL AND cs.name ~ ('\y' || tok.token || '\y')
           THEN trim(regexp_replace(
-                 regexp_replace(cs.name, '\y' || tok.token || '\y', '', 'g'),
+                 regexp_replace(
+                   cs.name,
+                   '(\s*(—|-))?\s*\y' || tok.token || '\y',
+                   '', 'g'
+                 ),
                  '\s+', ' ', 'g'
                ))
         ELSE cs.name
@@ -60,9 +72,9 @@ BEGIN
     FROM "ClassSection" cs
     JOIN "Campus" c ON c.id = cs."campusId"
     CROSS JOIN LATERAL (
-      SELECT CASE c.name
-        WHEN 'Taman Aster' THEN 'Aster'
-        WHEN 'Metland Cibitung' THEN 'Metland'
+      SELECT CASE
+        WHEN c.name ILIKE '%Aster%'   THEN 'Aster'
+        WHEN c.name ILIKE '%Metland%' THEN 'Metland'
         ELSE NULL
       END AS token
     ) tok
@@ -81,8 +93,6 @@ BEGIN
       section_dupes;
   END IF;
 
-  -- Pre-flight: would stripping the token collide two ClassTrack rows
-  -- under (tenantId, campusId, programId, name)?
   WITH candidate AS (
     SELECT
       ct."tenantId",
@@ -91,7 +101,11 @@ BEGIN
       CASE
         WHEN tok.token IS NOT NULL AND ct.name ~ ('\y' || tok.token || '\y')
           THEN trim(regexp_replace(
-                 regexp_replace(ct.name, '\y' || tok.token || '\y', '', 'g'),
+                 regexp_replace(
+                   ct.name,
+                   '(\s*(—|-))?\s*\y' || tok.token || '\y',
+                   '', 'g'
+                 ),
                  '\s+', ' ', 'g'
                ))
         ELSE ct.name
@@ -99,9 +113,9 @@ BEGIN
     FROM "ClassTrack" ct
     JOIN "Campus" c ON c.id = ct."campusId"
     CROSS JOIN LATERAL (
-      SELECT CASE c.name
-        WHEN 'Taman Aster' THEN 'Aster'
-        WHEN 'Metland Cibitung' THEN 'Metland'
+      SELECT CASE
+        WHEN c.name ILIKE '%Aster%'   THEN 'Aster'
+        WHEN c.name ILIKE '%Metland%' THEN 'Metland'
         ELSE NULL
       END AS token
     ) tok
@@ -124,14 +138,18 @@ END $$;
 -- Strip the campus token from ClassSection.name.
 UPDATE "ClassSection" cs
 SET name = trim(regexp_replace(
-      regexp_replace(cs.name, '\y' || tok.token || '\y', '', 'g'),
+      regexp_replace(
+        cs.name,
+        '(\s*(—|-))?\s*\y' || tok.token || '\y',
+        '', 'g'
+      ),
       '\s+', ' ', 'g'
     ))
 FROM "Campus" c
 CROSS JOIN LATERAL (
-  SELECT CASE c.name
-    WHEN 'Taman Aster' THEN 'Aster'
-    WHEN 'Metland Cibitung' THEN 'Metland'
+  SELECT CASE
+    WHEN c.name ILIKE '%Aster%'   THEN 'Aster'
+    WHEN c.name ILIKE '%Metland%' THEN 'Metland'
     ELSE NULL
   END AS token
 ) tok
@@ -142,14 +160,18 @@ WHERE c.id = cs."campusId"
 -- Strip the campus token from ClassTrack.name.
 UPDATE "ClassTrack" ct
 SET name = trim(regexp_replace(
-      regexp_replace(ct.name, '\y' || tok.token || '\y', '', 'g'),
+      regexp_replace(
+        ct.name,
+        '(\s*(—|-))?\s*\y' || tok.token || '\y',
+        '', 'g'
+      ),
       '\s+', ' ', 'g'
     ))
 FROM "Campus" c
 CROSS JOIN LATERAL (
-  SELECT CASE c.name
-    WHEN 'Taman Aster' THEN 'Aster'
-    WHEN 'Metland Cibitung' THEN 'Metland'
+  SELECT CASE
+    WHEN c.name ILIKE '%Aster%'   THEN 'Aster'
+    WHEN c.name ILIKE '%Metland%' THEN 'Metland'
     ELSE NULL
   END AS token
 ) tok
