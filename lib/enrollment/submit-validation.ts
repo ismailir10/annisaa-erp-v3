@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { optionalTrimmed } from "@/lib/validations/zod-helpers";
+import { programIdSchema } from "@/lib/validations/program-id";
 import { CONSENT_VERSION } from "./consent-clauses";
 import {
   AGAMA_VALUES,
@@ -14,11 +15,10 @@ import {
   MAX_PRIOR_FAMILY_ATTENDEES,
 } from "./constants";
 
-// Mirrors lib/admission/submit-validation.ts shapes — same phone/date/cuid
+// Mirrors lib/admission/submit-validation.ts shapes — same phone/date
 // regexes, same optionalTrimmed pattern, same flatten helper — so the rich
 // enrollment form validates consistently with the thin /daftar inquiry.
 const PHONE_REGEX = /^[+\d\s\-()]{6,20}$/;
-const CUID_REGEX = /^c[a-z0-9]{24,}$/i;
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Required membership in an option Set (from constants.ts). */
@@ -124,7 +124,7 @@ const consentSchema = z.object({
  * — those are server-owned; Zod strip mode drops any such extra keys.
  */
 export const submitEnrollmentSchema = z.object({
-  programId: z.string().regex(CUID_REGEX, "Program tidak valid"),
+  programId: programIdSchema,
   dcareAddon: z.boolean().optional().default(false),
   studentData: studentSchema,
   ayahData: parentSchema,

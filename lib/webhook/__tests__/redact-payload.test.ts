@@ -55,6 +55,24 @@ describe("redactPayload", () => {
     expect(redactPayload(42)).toBe(42);
   });
 
+  it("strips virtual_account_info.* — DOKU notifications can carry an account holder name (2026-07-27-doku-payment-gateway T6)", () => {
+    const dokuNotification = {
+      service: { id: "VIRTUAL_ACCOUNT" },
+      channel: { id: "VIRTUAL_ACCOUNT_BCA" },
+      transaction: { status: "SUCCESS", date: "2026-07-27T10:00:00Z" },
+      order: { invoice_number: "inv1", amount: 400_000 },
+      virtual_account_info: {
+        virtual_account_number: "8808123456789",
+        virtual_account_name: "Should Vanish",
+      },
+    };
+    const out = redactPayload(dokuNotification) as Record<string, unknown>;
+    expect(out.virtual_account_info).toEqual({ REDACTED: true });
+    expect(JSON.stringify(out)).not.toContain("Should Vanish");
+    // Non-PII fields untouched.
+    expect(out.order).toEqual(dokuNotification.order);
+  });
+
   it("recursively redacts customer.* nested under data (Xendit may emit either shape)", () => {
     const nested = {
       event: "payment_session.completed",

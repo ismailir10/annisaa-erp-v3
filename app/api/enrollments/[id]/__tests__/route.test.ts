@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { findUnique, update, getSession, isAdminRole } = vi.hoisted(() => ({
+const { findUnique, update, getSession, isAdminRole, programFindFirst } = vi.hoisted(() => ({
   findUnique: vi.fn(),
   update: vi.fn(),
   getSession: vi.fn(),
   isAdminRole: vi.fn(),
+  programFindFirst: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({ prisma: { enrollmentApplication: { findUnique, update } } }));
+vi.mock("@/lib/db", () => ({
+  prisma: { enrollmentApplication: { findUnique, update }, program: { findFirst: programFindFirst } },
+}));
 vi.mock("@/lib/auth", () => ({ getSession, isAdminRole }));
 
 import { GET, PATCH } from "../route";
@@ -85,5 +88,21 @@ describe("PATCH /api/enrollments/[id]", () => {
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null });
     const res = await PATCH(patchReq({}), ctx());
     expect(res.status).toBe(400);
+  });
+
+  it("accepts a prefixed (non-cuid) programId that belongs to the tenant", async () => {
+    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null });
+    programFindFirst.mockResolvedValue({ id: "program_ab57fd0432e25d5b3013" });
+    const res = await PATCH(patchReq({ programId: "program_ab57fd0432e25d5b3013" }), ctx());
+    expect(res.status).toBe(200);
+    expect(update.mock.calls[0][0].data.programId).toBe("program_ab57fd0432e25d5b3013");
+  });
+
+  it("400 when the chosen program is not in the admin's tenant (IDOR guard)", async () => {
+    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null });
+    programFindFirst.mockResolvedValue(null);
+    const res = await PATCH(patchReq({ programId: "program_from-another-tenant" }), ctx());
+    expect(res.status).toBe(400);
+    expect(update).not.toHaveBeenCalled();
   });
 });

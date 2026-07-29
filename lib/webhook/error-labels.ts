@@ -1,7 +1,7 @@
 /**
  * Pure mapper from `WebhookEvent.errorMessage` (engineer-facing prefix codes
  * like `INVOICE_NOT_FOUND:ref=...`, `MISSING_AMOUNT`, `IGNORED:already_paid`)
- * to humanized Indonesian copy for the admin "Aktivitas Xendit" panel.
+ * to humanized Indonesian copy for the admin "Aktivitas Pembayaran" panel.
  *
  * Per voice.md admin rules: no raw engineer codes leak into the UI. Each
  * known prefix has a polite, action-oriented Indonesian label. Unmatched
@@ -10,7 +10,7 @@
  * expanded payload JSON.
  *
  * Catalog cross-referenced with:
- *   - C6 (Aktivitas Xendit panel spec)
+ *   - C6 (Aktivitas Pembayaran panel spec)
  *   - voice.md admin error rules
  */
 
@@ -25,10 +25,13 @@ export function mapErrorLabel(errorMessage: string | null | undefined): string |
     return "Jumlah pembayaran tidak tercatat di webhook. Verifikasi manual.";
   }
   if (errorMessage === "MISSING_PAYMENT_ID") {
-    return "ID pembayaran Xendit tidak tercatat. Verifikasi manual.";
+    return "ID pembayaran dari gerbang pembayaran tidak tercatat. Verifikasi manual.";
   }
   if (errorMessage === "OVERPAYMENT_FLAGGED") {
     return "Pembayaran melebihi tagihan — sudah dikreditkan, verifikasi manual.";
+  }
+  if (errorMessage.startsWith("CURRENCY_MISMATCH")) {
+    return "Mata uang pembayaran bukan IDR — tidak dikreditkan, verifikasi manual.";
   }
 
   // IGNORED:* suffix family.
@@ -39,7 +42,7 @@ export function mapErrorLabel(errorMessage: string | null | undefined): string |
     return "Tagihan dibatalkan — event diabaikan.";
   }
   if (errorMessage.endsWith("status_not_completed")) {
-    return "Status pembayaran belum selesai (Xendit pending).";
+    return "Status pembayaran belum selesai (masih pending di gerbang pembayaran).";
   }
   if (errorMessage.endsWith("status_not_handled")) {
     return "Tipe event tidak didukung.";

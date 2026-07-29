@@ -41,7 +41,7 @@ export default function PrivacyPage() {
       <ul>
         <li><strong>Supabase</strong> — basis data &amp; autentikasi (host: Singapura)</li>
         <li><strong>Vercel</strong> — hosting aplikasi (host: Singapura)</li>
-        <li><strong>Xendit</strong> — pemrosesan pembayaran (host: Singapura/Indonesia)</li>
+        <li><strong>DOKU (PT Nusa Satu Inti Artha)</strong> — pemrosesan pembayaran (host: Indonesia)</li>
         <li><strong>Resend</strong> — pengiriman email transaksional</li>
         <li><strong>Cloudflare R2</strong> — penyimpanan cadangan terenkripsi</li>
       </ul>

@@ -97,6 +97,7 @@ export async function getStudentRecentActivity(
         where: {
           studentId,
           status: "PUBLISHED",
+          student: { tenantId },
           OR: [
             { publishedAt: { gte: sinceDate } },
             { createdAt: { gte: sinceDate } },

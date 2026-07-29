@@ -276,12 +276,13 @@ Domain standards live under `.claude/standards/` — loaded only when relevant f
 
 ```
 app/{admin,teacher,parent}/  44 / 14 / 8 portal pages
-app/api/                     184 routes (organized by domain)
-components/ui/               73 Shadcn components (+ __tests__)
-lib/{api,validations,payroll,xendit,email}/  business logic, retry, integrations
+app/api/                     186 routes (organized by domain)
+components/ui/               65 Shadcn components (+ 8 __tests__)
+lib/{api,validations,payroll,email}/  business logic, retry, integrations
+lib/payments/                 gateway port + registry (`types.ts`, `registry.ts`, `session.ts`, `webhook-processor.ts`, `health.ts`, `with-retry.ts`, `error-prefix.ts`) with `xendit/` and `doku/` adapters behind it; `lib/xendit/*` are now thin re-export shims (~60 lines total) kept for import-path compatibility
 prisma/                      schema + seed
 proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
-e2e/                         33 specs (admin, admin-admission-convert-parity, admin-attendance-recap, admin-classes, admin-payments, admin-curriculum-objectives, admin-dashboard, admin-dialogs, admin-guardian-detail, admin-guardian-primary-invariant, admin-hydration, admin-raport, admin-school-admin, admin-students-export, admin-students-full-crud, branding, curriculum-admin, curriculum-promes-import, daftar-public, design-system, enrollment-application, jakarta-tz-server-date, parent, parent-attendance-scoping, parent-perkembangan, parent-raport, parent-signout-bfcache, payment, perf-budget, sibling-detect, teacher, teacher-assessments-center, teacher-assessments-weekly)
+e2e/                         33 specs (admin, admin-admission-convert-parity, admin-attendance-recap, admin-classes, admin-curriculum-objectives, admin-dashboard, admin-dialogs, admin-guardian-detail, admin-guardian-primary-invariant, admin-hydration, admin-payments, admin-raport, admin-school-admin, admin-students-export, admin-students-full-crud, branding, curriculum-admin, curriculum-promes-import, daftar-public, design-system, enrollment-application, jakarta-tz-server-date, parent, parent-attendance-scoping, parent-perkembangan, parent-raport, parent-signout-bfcache, payment, perf-budget, sibling-detect, teacher, teacher-assessments-center, teacher-assessments-weekly)
 docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
 .claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
