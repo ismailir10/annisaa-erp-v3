@@ -187,6 +187,33 @@ Back Office → HTTP Notifications → Notifikasi would settle it, but that sess
 
 **Consequence:** treat `override_notification_url` as *unproven*, exactly as the code comment and Ship Notes already hedge. Per-channel Back Office registration stays load-bearing, and the five channels this cycle adds still need their URLs filled in by hand. The manual-refresh path is the working safety net and behaved correctly.
 
+### Follow-up investigation — the DOKU webhook has NEVER fired
+
+Root-caused after the run above. Three findings, in order of how much they change the picture:
+
+**1. It is not new, and not caused by this PR.** Every `WebhookEvent` row on staging, all time:
+
+| provider | eventType | status | when |
+|---|---|---|---|
+| doku | `manual.refresh.completed` | PROCESSED | 2026-07-28 23:43 (this run) |
+| doku | `manual.refresh.completed` | PROCESSED | 2026-07-28 16:27 |
+| **xendit** | **`payment_session.completed`** | PROCESSED | 2026-07-28 11:54 |
+| doku | `manual.refresh.completed` | PROCESSED | 2026-07-28 09:34 |
+
+**Zero DOKU notifications have ever verified.** Every DOKU payment ever made was credited by a human pressing "Perbarui pembayaran". The two earlier rows predate this branch entirely — they ran on staging code with no `override_notification_url`, relying purely on Back Office config, and got no webhook either. Meanwhile the Xendit route has a genuine delivery, which proves inbound webhooks reach this project fine.
+
+**2. Our endpoint is not the problem.** An unsigned `POST` to `/api/doku/webhook` on both the preview and the staging host returns our own `401 {"error":"Invalid signature"}` — our route body, not a Vercel auth wall. So the route is deployed, reachable, and unprotected by deployment protection on both hosts.
+
+**3. Our signature logic matches DOKU's documented spec.** Per [Signature Component from Request Header](https://developers.doku.com/get-started-with-doku-api/signature-component/non-snap/signature-component-from-request-header), the inbound `Request-Target` is *the path of the merchant's notification URL* — and where `override_notification_url` is used, the path of that URL. Both are `/api/doku/webhook`, which is exactly candidate #1 (`url.pathname`) in the route. So a delivered notification should have verified.
+
+Taken together: **nothing was ever delivered.** That points at DOKU-side configuration, not at this codebase. The leading hypothesis is the SNAP/non-SNAP split — every sandbox VA channel shows SNAP status `SNAP`, Back Office carries *separate* "Virtual Account SNAP" and "Virtual Account" settings pages, and Permata/CIMB list distinct SNAP and Non-SNAP rows. If the channel operates under SNAP, the non-SNAP Checkout "Payment Notification URL" on the channel dialog may simply not be the setting in play. Unconfirmed: DOKU Back Office logged the session out and re-authenticating needs a password, which is not something this session will enter.
+
+**Fix shipped: stop depending on the notification.** `POST /api/cron/reconcile-payments` (hourly, `vercel.json`) sweeps every outstanding invoice that has a payment link and reconciles it against the gateway. It reuses `reconcileInvoicePayment` — the exact path the manual button uses — so it routes through `processPaymentEvent` and inherits the durable receipt, the deterministic-`eventId` P2002 dedup, the per-invoice advisory lock, the amount/currency checks and the PAID/CANCELLED short-circuits. Re-running is a no-op by construction; it cannot double-credit.
+
+This does not replace the webhook. A delivered notification still credits instantly and the sweep then dedups. What it removes is the failure mode where a lost notification means money collected by DOKU and *nothing at all* in Talib — the parent believes they paid, the invoice sits at SENT, and no admin has an error to react to. Worst case is now a bounded delay of up to an hour instead of silent, indefinite loss.
+
+Bounds are explicit: 200 invoices per run, 5 concurrent gateway polls, `dueDate asc` (most overdue first). `cappedAtLimit` in the response flags a sustained backlog, since the ordering is a priority, not a rotation — at the pilot's ~179 students it cannot bind. A single invoice throwing is caught and tallied so it cannot strand the rest of the sweep. Credited-by-sweep payments log a `console.warn`, because each one is a notification DOKU failed to deliver and that should be loud.
+
 **Still not verified:** whether DOKU tolerates a channel that is *inactive on the account*. Sandbox has all eleven active, so this run could not exercise it. Production has neither BCA nor Mandiri, so it remains an open risk for the prod cutover.
 
 **Test fixture left behind:** `INV-2026-0003` on the staging database, paid Rp 150.000. Staging already accumulates e2e rows; not cleaned up.
@@ -201,11 +228,15 @@ Back Office → HTTP Notifications → Notifikasi would settle it, but that sess
 
 ### Migrations
 
-**None.** Data-only change to a request body array.
+**None.** Data-only change to a request body array; the new cron route adds no schema.
 
 ### Env vars
 
-**None added or changed.**
+**None added or changed.** The new cron reuses `CRON_SECRET`, already set on Preview and Production.
+
+### New scheduled job
+
+`vercel.json` gains `POST /api/cron/reconcile-payments` on `0 * * * *` (hourly). Vercel registers crons **from the production deployment only**, so it starts running once this reaches `main` — not on staging merge. Until then the manual "Perbarui pembayaran" button remains the fallback. Verify after promotion via Vercel → Project → Cron Jobs, and watch for `[CRON RECONCILE] Credited payments the webhook never delivered` in runtime logs: a non-zero `updated` is a notification DOKU failed to deliver.
 
 ### BLOCKER — no parent can be notified, and it is not a code problem
 
@@ -255,7 +286,7 @@ One asymmetry worth knowing: sessions created *while* this ships carry `override
 
 1. **Guardian contact capture** — the blocker above. 306 of 307 parents have no email. Nothing else in this cycle matters until that moves.
 2. **Support ticket to DOKU** — ask for the Checkout `payment_method_types` enum strings for Maybank, Sinarmas, BJB and Bank Sahabat Sampoerna, all four active on the production merchant account but undocumented for Checkout. Add them once confirmed; do not guess.
-3. **Chase the missing notification.** The live sandbox run (Verification) credited only via manual refresh; no webhook event arrived. Check Back Office → HTTP Notifications → Notifikasi for the delivery attempt and its endpoint URL. If `override_notification_url` is being ignored, either drop it as dead weight or keep it purely as defence and rely on Back Office; either way the per-channel URLs for all eleven channels must be filled in.
+3. **Needs a DOKU Back Office login (blocked here — password required).** Two things to check while signed in: (a) **HTTP Notifications → Notifikasi** — is there any delivery attempt at all for the BCA payment, and what endpoint URL did it target? (b) **Settings → Payment Settings → Virtual Account SNAP** — does the SNAP variant carry its own notification URL, separate from the per-channel non-SNAP field? That would confirm or kill the SNAP hypothesis. The hourly sweep means payments are credited regardless, so this is no longer urgent — but a working webhook turns an hour's delay into seconds.
 4. **Channel filtering vs. 400 on inactive channels** — still unverified; sandbox has all eleven active so the run could not exercise it. Production lacks BCA and Mandiri, so if DOKU 400s rather than filtering, the constant must become per-environment before the prod cutover.
 5. **BCA + Mandiri activation on production**, and finishing DOKU account verification ("Your onboarding is almost complete" banner). DOKU-side account work, not code.
 6. **Expiry-reminder window** — Back Office is set to warn the customer *5 minutes* before an order expires. Our `payment_due_date` is 7 days. A 5-minute warning on a 7-day VA is functionally useless; 1-2 days would give a parent time to act.
