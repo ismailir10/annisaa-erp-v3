@@ -73,7 +73,13 @@ export function InvoicesClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const invoiceParam = searchParams.get("invoice");
-  const xenditStatusParam = searchParams.get("xenditStatus");
+  // Gateway-neutral return param, preferred when present. `xenditStatus` is
+  // the legacy form — sessions created before cycle
+  // 2026-07-27-doku-payment-gateway still redirect back with it, and the
+  // `/payment/success` and `/payment/cancel` shims cannot rewrite an
+  // already-created session's return URL.
+  const paymentStatusParam =
+    searchParams.get("paymentStatus") ?? searchParams.get("xenditStatus");
 
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showAllPaid, setShowAllPaid] = useState(false);
@@ -90,26 +96,27 @@ export function InvoicesClient({
     }
   }, [data]);
 
-  // Xendit return-URL handler. Backend rewires success_return_url and
-  // cancel_return_url to land here with `?invoice=<id>&xenditStatus=paid|cancel`.
-  // Open the detail sheet for the invoice, fire a one-shot toast, then strip
-  // the query params so a refresh does not re-fire the toast. Only acts when
-  // the invoice id resolves against the parent's own data — a stale or
-  // foreign id leaves the params intact for now (a future render with refreshed
-  // data may resolve them).
+  // Payment gateway return-URL handler. Backend rewires successReturnUrl and
+  // cancelReturnUrl to land here with `?invoice=<id>&paymentStatus=paid|cancel`
+  // (or the legacy `?xenditStatus=` form for sessions created before cycle
+  // 2026-07-27-doku-payment-gateway). Open the detail sheet for the invoice,
+  // fire a one-shot toast, then strip the query params so a refresh does not
+  // re-fire the toast. Only acts when the invoice id resolves against the
+  // parent's own data — a stale or foreign id leaves the params intact for
+  // now (a future render with refreshed data may resolve them).
   useEffect(() => {
-    if (!data || !invoiceParam || !xenditStatusParam) return;
+    if (!data || !invoiceParam || !paymentStatusParam) return;
     const found = data.find((i) => i.id === invoiceParam);
     if (!found) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedInvoiceId(invoiceParam);
-    if (xenditStatusParam === "paid") {
+    if (paymentStatusParam === "paid") {
       toast.success(`Alhamdulillah, tagihan ${found.periodLabel} terbayar.`);
-    } else if (xenditStatusParam === "cancel") {
+    } else if (paymentStatusParam === "cancel") {
       toast("Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.");
     }
     router.replace("/parent/invoices", { scroll: false });
-  }, [data, invoiceParam, xenditStatusParam, router]);
+  }, [data, invoiceParam, paymentStatusParam, router]);
 
   // Webhook → list freshness. While at least one outstanding invoice has an
   // active Xendit payment session (xenditPaymentUrl != null), poll the server

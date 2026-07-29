@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
+import { enrichNotesWithAuthorMetadata } from "@/lib/student-journal/note-metadata";
 import {
   JOURNAL_FORBIDDEN_MSG,
   JOURNAL_NOT_ENROLLED_MSG,
@@ -132,8 +133,10 @@ export async function GET(
         id: true,
         date: true,
         authorRole: true,
+        authorUserId: true,
         body: true,
         createdAt: true,
+        updatedAt: true,
       },
     }),
   ]);
@@ -147,7 +150,15 @@ export async function GET(
     lastAdminEdit: lastEditByEntryId.get(e.id) ?? null,
   }));
 
+  const notesWithAuthor = await enrichNotesWithAuthorMetadata(session.tenantId, notes);
+
   return NextResponse.json({
-    data: { weekStart: ws, dates, categories, entries: entriesWithAudit, notes },
+    data: {
+      weekStart: ws,
+      dates,
+      categories,
+      entries: entriesWithAudit,
+      notes: notesWithAuthor,
+    },
   });
 }

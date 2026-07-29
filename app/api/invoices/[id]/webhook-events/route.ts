@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { getGateway } from "@/lib/payments/registry";
 import { redactPayload } from "@/lib/webhook/redact-payload";
 import { extractDisplayFields } from "@/lib/webhook/extract-display-fields";
 import { mapErrorLabel } from "@/lib/webhook/error-labels";
@@ -8,8 +9,12 @@ import { mapErrorLabel } from "@/lib/webhook/error-labels";
 /**
  * GET /api/invoices/[id]/webhook-events
  *
- * Admin-only feed of every Xendit `WebhookEvent` row tied to a single
- * invoice. Powers the "Aktivitas Xendit" panel on the invoice detail page.
+ * Admin-only feed of every `WebhookEvent` row tied to a single invoice,
+ * scoped to the currently active payment gateway (`provider` matches
+ * `getGateway().id` — AC-16, cycle 2026-07-27-doku-payment-gateway T4). This
+ * keeps a future two-provider database from mixing Xendit and DOKU rows
+ * into one activity panel. Powers the "Aktivitas Pembayaran" panel on the
+ * invoice detail page.
  *
  * Tenant-scoped via the invoice ownership check (404 when the invoice does
  * not belong to the caller's tenant — same shape as the sibling `/api/invoices/[id]`
@@ -41,7 +46,7 @@ export async function GET(
   }
 
   const events = await prisma.webhookEvent.findMany({
-    where: { invoiceId: id },
+    where: { invoiceId: id, provider: getGateway().id },
     orderBy: { createdAt: "desc" },
   });
 

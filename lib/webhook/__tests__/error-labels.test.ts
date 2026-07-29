@@ -22,7 +22,7 @@ describe("mapErrorLabel — catalog", () => {
 
   it("MISSING_PAYMENT_ID → humanized", () => {
     expect(mapErrorLabel("MISSING_PAYMENT_ID")).toBe(
-      "ID pembayaran Xendit tidak tercatat. Verifikasi manual.",
+      "ID pembayaran dari gerbang pembayaran tidak tercatat. Verifikasi manual.",
     );
   });
 
@@ -49,7 +49,7 @@ describe("mapErrorLabel — catalog", () => {
 
   it("status_not_completed suffix → humanized", () => {
     expect(mapErrorLabel("IGNORED:status_not_completed")).toBe(
-      "Status pembayaran belum selesai (Xendit pending).",
+      "Status pembayaran belum selesai (masih pending di gerbang pembayaran).",
     );
   });
 

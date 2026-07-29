@@ -1,5 +1,7 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-05-20-curriculum-cutover-prep — seed gained ClassSection.ageGroup explicit per-row + KB Metland normalized to A; adapter unchanged.
+// Last verified: 2026-07-29-class-picker-year-scoping — seed's class-section
+// names went campus-free ("KB Aster" → "KB", now disambiguated by campusId);
+// both sides still construct PrismaPg from DATABASE_URL, adapter unchanged.
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

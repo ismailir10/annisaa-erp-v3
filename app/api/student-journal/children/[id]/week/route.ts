@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireGuardianForStudent } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
+import { enrichNotesWithAuthorMetadata } from "@/lib/student-journal/note-metadata";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function GET(
@@ -122,6 +123,7 @@ export async function GET(
           authorUserId: true,
           body: true,
           createdAt: true,
+          updatedAt: true,
         },
       }),
     ]);
@@ -136,6 +138,8 @@ export async function GET(
     lastAdminEdit: lastEditByEntryId.get(e.id) ?? null,
   });
 
+  const notesWithAuthor = await enrichNotesWithAuthorMetadata(session.tenantId, notes);
+
   return NextResponse.json({
     data: {
       weekStart: ws,
@@ -144,7 +148,7 @@ export async function GET(
       homeCategories,
       schoolEntries: schoolEntries.map(decorate),
       homeEntries: homeEntries.map(decorate),
-      notes,
+      notes: notesWithAuthor,
     },
   });
 }

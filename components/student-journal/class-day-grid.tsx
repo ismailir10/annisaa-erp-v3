@@ -36,9 +36,11 @@ type ClassDayGridProps = {
   noteCounts?: Record<string, number>;
   /** Picker date (YYYY-MM-DD) — passed through as `?week=` when the chevron drills into the per-student week view. */
   visibleDate?: string;
+  /** Set of `${studentId}:${indicatorId}` keys currently saving — renders a subtle saving affordance. */
+  pendingCells?: Set<string>;
 };
 
-export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts, visibleDate }: ClassDayGridProps) {
+export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts, visibleDate, pendingCells }: ClassDayGridProps) {
   const router = useRouter();
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
 
@@ -166,6 +168,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                         <div className="space-y-1">
                           {category.indicators.map((indicator) => {
                             const isChecked = state[student.id]?.[indicator.id] ?? false;
+                            const isPending = pendingCells?.has(`${student.id}:${indicator.id}`) ?? false;
                             return (
                               <button
                                 key={indicator.id}
@@ -174,7 +177,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                                   isChecked
                                     ? "bg-primary/10 border-primary text-primary"
                                     : "bg-transparent border-border text-foreground hover:border-primary/30"
-                                }`}
+                                } ${isPending ? "opacity-60 animate-pulse" : ""}`}
                               >
                                 <div
                                   className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${

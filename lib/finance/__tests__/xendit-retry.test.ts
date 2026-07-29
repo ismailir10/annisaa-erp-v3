@@ -9,8 +9,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/lib/xendit/helpers", () => ({
-  createXenditSessionForInvoice: vi.fn(),
+vi.mock("@/lib/payments/session", () => ({
+  createPaymentSessionForInvoice: vi.fn(),
 }));
 
 import { retryPaymentLinks } from "../xendit-retry";
@@ -22,7 +22,7 @@ beforeEach(() => {
 describe("retryPaymentLinks — empty candidates", () => {
   it("returns zeros and an empty results array when no PENDING invoices match", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
 
     const out = await retryPaymentLinks("tnt-1", null);
@@ -34,7 +34,7 @@ describe("retryPaymentLinks — empty candidates", () => {
       results: [],
     });
     // Helper must not be touched when there's nothing to retry.
-    expect(createXenditSessionForInvoice).not.toHaveBeenCalled();
+    expect(createPaymentSessionForInvoice).not.toHaveBeenCalled();
     expect(prisma.invoice.update).not.toHaveBeenCalled();
   });
 });
@@ -42,7 +42,7 @@ describe("retryPaymentLinks — empty candidates", () => {
 describe("retryPaymentLinks — mixed success/failure", () => {
   it("3 PENDING invoices, 2 succeed + 1 throws → retried=3, succeeded=2, stillFailed=1; updates correct shape per outcome", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
 
     const candidates = [
       { id: "i-1", invoiceNumber: "INV-2026-0001", studentId: "s-1", student: { name: "Aisyah" } },
@@ -52,7 +52,7 @@ describe("retryPaymentLinks — mixed success/failure", () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(candidates as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
-    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
+    vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
       if (invoiceId === "i-3") throw new Error("Xendit 503");
       return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
     });
@@ -105,7 +105,7 @@ describe("retryPaymentLinks — mixed success/failure", () => {
 describe("retryPaymentLinks — invoiceIds filter", () => {
   it('passes id: { in: invoiceIds } to the where clause when invoiceIds is provided', async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
 
     await retryPaymentLinks("tnt-1", ["i1", "i2"]);
@@ -119,7 +119,7 @@ describe("retryPaymentLinks — invoiceIds filter", () => {
     });
     expect(arg?.take).toBe(25);
     expect(arg?.orderBy).toEqual({ createdAt: "asc" });
-    expect(createXenditSessionForInvoice).not.toHaveBeenCalled();
+    expect(createPaymentSessionForInvoice).not.toHaveBeenCalled();
   });
 
   it("does NOT add an id filter when invoiceIds is null (retries all PENDING)", async () => {
@@ -150,7 +150,7 @@ describe("retryPaymentLinks — invoiceIds filter", () => {
 describe("retryPaymentLinks — 25-invoice with 3 Xendit failures", () => {
   it("3 of 25 calls fail → 3 entries with error + studentName populated in results", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
 
     const candidates = Array.from({ length: 25 }, (_, i) => ({
       id: `i-${i + 1}`,
@@ -162,7 +162,7 @@ describe("retryPaymentLinks — 25-invoice with 3 Xendit failures", () => {
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
     const failingIds = new Set(["i-5", "i-12", "i-20"]);
-    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
+    vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
       if (failingIds.has(invoiceId)) throw new Error("Xendit 503");
       return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
     });
@@ -191,7 +191,7 @@ describe("retryPaymentLinks — 25-invoice with 3 Xendit failures", () => {
 describe("retryPaymentLinks — 25-invoice happy path", () => {
   it("fans out 25 candidates in parallel and reports all succeeded", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
 
     const candidates = Array.from({ length: 25 }, (_, i) => ({
       id: `i-${i + 1}`,
@@ -202,7 +202,7 @@ describe("retryPaymentLinks — 25-invoice happy path", () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(candidates as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
-    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
+    vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
       return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
     });
 
@@ -211,6 +211,6 @@ describe("retryPaymentLinks — 25-invoice happy path", () => {
     expect(out.retried).toBe(25);
     expect(out.succeeded).toBe(25);
     expect(out.stillFailed).toBe(0);
-    expect(vi.mocked(createXenditSessionForInvoice)).toHaveBeenCalledTimes(25);
+    expect(vi.mocked(createPaymentSessionForInvoice)).toHaveBeenCalledTimes(25);
   });
 });

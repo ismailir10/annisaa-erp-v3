@@ -50,6 +50,7 @@ type Note = {
   date: string;
   authorRole: string;
   authorUserId?: string;
+  authorName?: string;
   body: string;
   createdAt: string;
 };

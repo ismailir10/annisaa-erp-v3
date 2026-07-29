@@ -19,11 +19,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { XenditActivityCard } from "@/components/admin/invoices/xendit-activity-card";
-import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle } from "lucide-react";
+import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
+import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
-import { paymentMethodLabel } from "@/lib/constants/payment-methods";
+import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-methods";
 
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = { id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string };
@@ -60,10 +60,11 @@ function PaymentFormBody({
         <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="CASH">Tunai</SelectItem>
-            <SelectItem value="BANK_TRANSFER">Transfer Bank</SelectItem>
-            <SelectItem value="XENDIT">Virtual Account</SelectItem>
-            <SelectItem value="OTHER">Lainnya</SelectItem>
+            {PAYMENT_METHODS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {paymentMethodLabel(m)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Field>
@@ -92,6 +93,11 @@ export default function InvoiceDetailPage() {
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
   const [voiding, setVoiding] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [refreshingPayment, setRefreshingPayment] = useState(false);
+  // Bumped after a manual refresh so the activity panel re-fetches — a
+  // reconciliation can append a WebhookEvent row the panel would otherwise
+  // miss until a full page reload.
+  const [activityKey, setActivityKey] = useState(0);
 
   const fetchInvoice = useCallback(async () => {
     const res = await fetch(`/api/invoices/${id}`);
@@ -162,6 +168,36 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  /**
+   * Manual payment reconciliation — asks the server to poll the payment
+   * gateway and apply whatever it reports, using the same transitions the
+   * webhook performs. The fallback for a webhook that never fired.
+   *
+   * Safe to click repeatedly; the server side is idempotent. The toast
+   * distinguishes "we changed something" from "nothing to change" so a
+   * no-op click never reads as a success.
+   */
+  async function handleRefreshPayment() {
+    setRefreshingPayment(true);
+    try {
+      const res = await fetch(`/api/invoices/${id}/refresh-payment`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(d.error || "Gagal memeriksa status pembayaran");
+        return;
+      }
+      if (d.code === "UPDATED") toast.success(d.message);
+      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE") toast.warning(d.message);
+      else toast.info(d.message);
+      await fetchInvoice();
+      setActivityKey((k) => k + 1);
+    } catch {
+      toast.error("Gagal memeriksa status pembayaran");
+    } finally {
+      setRefreshingPayment(false);
+    }
+  }
+
   async function handleVoidInvoice() {
     setVoiding(true);
     const res = await fetch(`/api/invoices/${id}/void`, { method: "POST" });
@@ -186,6 +222,11 @@ export default function InvoiceDetailPage() {
     invoice.status === "DRAFT" ||
     invoice.status === "SENT" ||
     invoice.status === "PENDING_PAYMENT_LINK";
+  // Only meaningful once a checkout exists at the gateway. A CANCELLED
+  // invoice is terminal — the processor refuses to credit it either way, so
+  // offering the action would only produce a confusing no-op.
+  const canRefreshPayment =
+    !!invoice.xenditPaymentUrl && invoice.status !== "CANCELLED";
 
   return (
     <>
@@ -197,11 +238,26 @@ export default function InvoiceDetailPage() {
         badge={<StatusBadge status={invoice.status} />}
         actions={
           <>
+            {canRefreshPayment && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRefreshPayment}
+                disabled={refreshingPayment}
+                data-testid="invoice-refresh-payment-btn"
+              >
+                <RefreshCw
+                  size={14}
+                  className={`mr-1 ${refreshingPayment ? "animate-spin" : ""}`}
+                />
+                {refreshingPayment ? "Memeriksa..." : "Perbarui pembayaran"}
+              </Button>
+            )}
             {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
               <>
                 {!invoice.xenditPaymentUrl && (
                   <Button size="sm" variant="outline" onClick={handleCreateXenditLink} disabled={creatingXendit}>
-                    {creatingXendit ? "Membuat..." : "Buat Link Xendit"}
+                    {creatingXendit ? "Membuat..." : "Buat Link Pembayaran"}
                   </Button>
                 )}
                 <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
@@ -322,8 +378,8 @@ export default function InvoiceDetailPage() {
             )}
           </Card>
 
-          {/* Aktivitas Xendit — hides itself when 0 events */}
-          <XenditActivityCard invoiceId={invoice.id} />
+          {/* Aktivitas Pembayaran — hides itself when 0 events */}
+          <PaymentActivityCard invoiceId={invoice.id} refreshKey={activityKey} />
         </div>
       </div>
 

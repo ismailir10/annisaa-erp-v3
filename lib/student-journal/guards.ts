@@ -117,6 +117,11 @@ export async function requireGuardianForStudent(studentId: string): Promise<
       studentId,
       parentId: user.parentId,
       status: "ACTIVE",
+      // Defense in depth: StudentGuardian has no direct tenantId column, so
+      // scope via the student relation. Without this, a guardian's active
+      // link record for a student in another tenant (shouldn't exist, but
+      // isn't schema-enforced) would silently pass this guard.
+      student: { tenantId: session.tenantId },
     },
   });
   if (!link) {

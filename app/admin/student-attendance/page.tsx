@@ -19,12 +19,14 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatClassOptionLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import {
   AdminTabs,
@@ -52,7 +54,19 @@ type AttendanceRecord = {
   classSection: { id: string; name: string };
 };
 
-type ClassSection = { id: string; name: string };
+type AcademicYearRef = { id: string; name: string; status: string };
+
+// `academicYear`/`capacity`/`_count` are optional so this type still fits a
+// section coming from anywhere upstream that predates the yearStatus/label
+// work — the grouped select below degrades a section with no academicYear
+// by simply dropping it from every group (see `groupClassSectionsByYear`).
+type ClassSection = {
+  id: string;
+  name: string;
+  academicYear?: AcademicYearRef | null;
+  capacity?: number;
+  _count?: { enrollments: number };
+};
 
 type Pagination = { page: number; pageSize: number; total: number; totalPages: number };
 
@@ -77,6 +91,90 @@ const STATUS_OPTIONS = [
   { value: "SICK", label: "Sakit" },
   { value: "PERMISSION", label: "Izin" },
 ];
+
+// ─── Kelas filter — grouped by Tahun Ajaran ────────────────────────────────────
+//
+// This is a read/filter surface over historical attendance data, not a write
+// target — it legitimately needs every academic year (unlike the write-path
+// enroll/promote pickers, which scope to writable years only). Grouping by
+// TA keeps the current year discoverable in a list spanning 5+ years.
+
+const YEAR_STATUS_RANK: Record<string, number> = { ACTIVE: 0, PLANNING: 1, ARCHIVED: 2 };
+
+type ClassSectionYearGroup = { year: AcademicYearRef; sections: ClassSection[] };
+
+/**
+ * Groups class sections by academic year and orders the groups ACTIVE
+ * first, then PLANNING, then ARCHIVED newest-first. Year names sort
+ * correctly as plain strings ("2025/2026" > "2020/2021") because the
+ * format is a consistent "YYYY/YYYY". Sibling copy lives in
+ * `components/admin/student-export-dialog.tsx`'s `groupClassSectionsByYear`
+ * — duplicated rather than pulled into a shared lib module to keep this
+ * cycle's diff scoped to the two picker surfaces it touches.
+ */
+function groupClassSectionsByYear(sections: ClassSection[]): ClassSectionYearGroup[] {
+  const byYear = new Map<string, ClassSectionYearGroup>();
+  for (const section of sections) {
+    const year = section.academicYear;
+    if (!year) continue;
+    let group = byYear.get(year.id);
+    if (!group) {
+      group = { year, sections: [] };
+      byYear.set(year.id, group);
+    }
+    group.sections.push(section);
+  }
+  return Array.from(byYear.values()).sort((a, b) => {
+    const rankDiff =
+      (YEAR_STATUS_RANK[a.year.status] ?? 3) - (YEAR_STATUS_RANK[b.year.status] ?? 3);
+    if (rankDiff !== 0) return rankDiff;
+    return b.year.name.localeCompare(a.year.name);
+  });
+}
+
+/**
+ * Shared "Kelas" filter used by both the Harian list and the Rekap Bulanan
+ * tab. Option text drops the redundant " · TA ..." suffix from
+ * `formatClassOptionLabel` — the enclosing `SelectGroup`'s `SelectLabel`
+ * already states the Tahun Ajaran once per group.
+ */
+function GroupedClassSelect({
+  value,
+  onChange,
+  classSections,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  classSections: ClassSection[];
+  className?: string;
+}) {
+  const groups = useMemo(() => groupClassSectionsByYear(classSections), [classSections]);
+  return (
+    <Select value={value} onValueChange={(v) => { if (v) onChange(v); }}>
+      <SelectTrigger className={className ?? "w-full sm:w-48 h-9"}>
+        <SelectValue placeholder="Kelas" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">Semua Kelas</SelectItem>
+        {groups.map(({ year, sections }) => (
+          <SelectGroup key={year.id}>
+            <SelectLabel>{`TA ${year.name}`}</SelectLabel>
+            {sections.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {formatClassOptionLabel({
+                  name: s.name,
+                  enrolled: s._count?.enrollments ?? 0,
+                  capacity: s.capacity ?? 0,
+                })}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -271,12 +369,6 @@ export default function StudentAttendancePage() {
     },
   ];
 
-  // ── Class section filter options ─────────────────────────────────
-  const classSectionOptions = [
-    { value: "all", label: "Semua Kelas" },
-    ...classSections.map((c) => ({ value: c.id, label: c.name })),
-  ];
-
   // ─────────────────────────────────────────────────────────────────
 
   return (
@@ -327,6 +419,14 @@ export default function StudentAttendancePage() {
             className="h-9 w-40 text-sm"
           />
         </div>
+        <GroupedClassSelect
+          value={classSectionFilter}
+          onChange={(v) => {
+            setClassSectionFilter(v);
+            setPagination((p) => ({ ...p, page: 1 }));
+          }}
+          classSections={classSections}
+        />
         {(dateFrom || dateTo) && (
           <Button
             variant="ghost"
@@ -357,17 +457,16 @@ export default function StudentAttendancePage() {
             },
             options: STATUS_OPTIONS,
           },
-          {
-            key: "classSection",
-            label: "Kelas",
-            value: classSectionFilter,
-            onChange: (v) => {
-              setClassSectionFilter(v);
-              setPagination((p) => ({ ...p, page: 1 }));
-            },
-            options: classSectionOptions,
-          },
         ]}
+        // The Kelas filter moved out of `filters` (it needs SelectGroup/
+        // SelectLabel for the TA grouping, which the generic toolbar filter
+        // doesn't support) — wire it back into the toolbar's "Reset" so
+        // that button keeps clearing it, same as before this change.
+        hasExternalFilter={classSectionFilter !== "all"}
+        onReset={() => {
+          setClassSectionFilter("all");
+          setPagination((p) => ({ ...p, page: 1 }));
+        }}
       />
 
       <DataTable
@@ -586,6 +685,7 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
             className="h-9 w-44 text-sm"
           />
         </div>
+        <GroupedClassSelect value={classFilter} onChange={setClassFilter} classSections={classSections} />
         <Button
           variant="outline"
           size="sm"
@@ -603,18 +703,11 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
         value={query}
         onValueChange={setQuery}
         searchPlaceholder="Cari siswa, NIS, atau kelas..."
-        filters={[
-          {
-            key: "class",
-            label: "Kelas",
-            value: classFilter,
-            onChange: setClassFilter,
-            options: [
-              { value: "all", label: "Semua Kelas" },
-              ...classSections.map((c) => ({ value: c.id, label: c.name })),
-            ],
-          },
-        ]}
+        // The Kelas filter moved above (grouped by TA — SelectGroup/SelectLabel
+        // aren't supported by the generic toolbar filter shape) — wire it back
+        // into "Reset" so that button still clears it, same as before.
+        hasExternalFilter={classFilter !== "all"}
+        onReset={() => setClassFilter("all")}
       />
 
       <DataTable

@@ -77,3 +77,12 @@ export const generatePayrollSchema = z
   );
 
 export type GeneratePayrollInput = z.infer<typeof generatePayrollSchema>;
+
+// PUT /api/payroll/[id]/items/[itemId]/lines/[lineId] — manual line adjustment.
+// Mirrors adjustInvoiceLineSchema; amount 0 clears a previous adjustment.
+export const adjustPayrollLineSchema = z.object({
+  adjustmentAmount: z.number().finite("Jumlah penyesuaian tidak valid"),
+  adjustmentNote: z.string().trim().min(1, "Catatan penyesuaian wajib diisi"),
+});
+
+export type AdjustPayrollLineInput = z.infer<typeof adjustPayrollLineSchema>;

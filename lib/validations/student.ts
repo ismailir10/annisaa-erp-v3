@@ -39,3 +39,27 @@ export const updateStudentSchema = createStudentSchema.partial().extend({
 export const enrollStudentSchema = z.object({
   classSectionId: z.string().min(1, "Kelas wajib dipilih"),
 });
+
+export const graduateStudentSchema = z.object({
+  graduationDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal tidak valid")
+    .optional(),
+});
+
+export const withdrawStudentSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, "Alasan pengunduran diri wajib diisi")
+    .max(500, "Alasan pengunduran diri maksimal 500 karakter"),
+  effectiveDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal tidak valid")
+    .optional(),
+});
+
+export const promoteStudentSchema = z.object({
+  targetClassSectionId: z.string().min(1, "Kelas tujuan wajib dipilih"),
+  notes: z.string().trim().max(500, "Catatan maksimal 500 karakter").optional().nullable(),
+});

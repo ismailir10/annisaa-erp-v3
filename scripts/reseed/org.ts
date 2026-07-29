@@ -172,7 +172,15 @@ export function buildClassSectionPlan(
           campusCode: campus.code,
           programCode,
           academicYearName: year.name,
-          sectionName: `${programCode} — ${campus.code === "TAMAN_ASTER" ? "Aster" : "Metland"}`,
+          // Campus-free name. The ClassSection unique key is
+          // (tenantId, academicYearId, campusId, name) and ClassTrack's is
+          // (tenantId, campusId, programId, name) as of cycle
+          // 2026-07-29-class-picker-year-scoping, so "KB" at both campuses in
+          // one year is a legitimate non-colliding pair — campusId already
+          // differentiates the row and every picker renders kampus as its own
+          // element. Reseeding must not reintroduce the token the T7 data
+          // migration strips.
+          sectionName: programCode,
           capacity: programCode === "DCARE" ? 15 : 20,
           // Reseed plans default ageGroup to A; admin re-classifies per
           // class via the Kelompok Usia select once the cycle is live.

@@ -19,7 +19,6 @@ export const ACTIVE_STATUS_OPTIONS: FilterOption[] = [
 export const STUDENT_STATUS_OPTIONS: FilterOption[] = [
   { value: "all", label: "Semua Status" },
   { value: "ACTIVE", label: "Aktif" },
-  { value: "ENROLLED", label: "Terdaftar di Kelas" },
   { value: "GRADUATED", label: "Lulus" },
   { value: "WITHDRAWN", label: "Keluar" },
   { value: "INACTIVE", label: "Tidak Aktif" },

@@ -40,7 +40,7 @@ export async function PUT(
   // Find existing note
   const existing = await prisma.studentJournalNote.findUnique({
     where: { id },
-    select: { id: true, tenantId: true, authorUserId: true },
+    select: { id: true, tenantId: true, authorUserId: true, body: true },
   });
 
   // Return 404 if missing OR cross-tenant
@@ -53,17 +53,33 @@ export async function PUT(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Update
-  const updated = await prisma.studentJournalNote.update({
-    where: { id },
-    data: { body: parsed.data.body },
-    select: {
-      id: true,
-      date: true,
-      authorRole: true,
-      body: true,
-      createdAt: true,
-    },
+  // Update + audit row in one transaction
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.studentJournalNote.update({
+      where: { id },
+      data: { body: parsed.data.body },
+      select: {
+        id: true,
+        date: true,
+        authorRole: true,
+        body: true,
+        createdAt: true,
+      },
+    });
+
+    await tx.studentJournalAudit.create({
+      data: {
+        tenantId: existing.tenantId,
+        entityType: "NOTE",
+        entityId: id,
+        action: "UPDATE",
+        beforeJson: { body: existing.body },
+        afterJson: { body: result.body },
+        changedByUserId: session.id,
+      },
+    });
+
+    return result;
   });
 
   return NextResponse.json({ data: updated });
@@ -99,9 +115,23 @@ export async function DELETE(
   }
 
   // Soft-delete via status flag — standardized to "INACTIVE" to match admin path + schema default enum.
-  await prisma.studentJournalNote.update({
-    where: { id },
-    data: { status: "INACTIVE" },
+  // Transactional soft-delete + audit row.
+  await prisma.$transaction(async (tx) => {
+    await tx.studentJournalNote.update({
+      where: { id },
+      data: { status: "INACTIVE" },
+    });
+
+    await tx.studentJournalAudit.create({
+      data: {
+        tenantId: existing.tenantId,
+        entityType: "NOTE",
+        entityId: id,
+        action: "DELETE",
+        beforeJson: { status: existing.status },
+        changedByUserId: session.id,
+      },
+    });
   });
 
   return NextResponse.json({ data: { id } });

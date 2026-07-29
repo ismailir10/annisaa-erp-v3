@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
 import { limit } from "@/lib/finance/concurrency-limit";
 
@@ -82,7 +82,7 @@ export async function retryPaymentLinks(
   const settled = await Promise.allSettled(
     candidates.map((c) =>
       runLimit(() =>
-        createXenditSessionForInvoice(c.id, tenantId, requestOrigin).then((res) => ({ row: c, result: res })),
+        createPaymentSessionForInvoice(c.id, tenantId, requestOrigin).then((res) => ({ row: c, result: res })),
       ),
     ),
   );

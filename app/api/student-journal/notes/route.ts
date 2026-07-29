@@ -113,23 +113,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
   }
 
-  // Create note
-  const note = await prisma.studentJournalNote.create({
-    data: {
-      tenantId: noteTenantId,
-      studentId,
-      date,
-      authorUserId: session.id,
-      authorRole: session.role,
-      body: noteBody,
-    },
-    select: {
-      id: true,
-      date: true,
-      authorRole: true,
-      body: true,
-      createdAt: true,
-    },
+  // Create note + audit row in one transaction
+  const note = await prisma.$transaction(async (tx) => {
+    const created = await tx.studentJournalNote.create({
+      data: {
+        tenantId: noteTenantId,
+        studentId,
+        date,
+        authorUserId: session.id,
+        authorRole: session.role,
+        body: noteBody,
+      },
+      select: {
+        id: true,
+        date: true,
+        authorRole: true,
+        body: true,
+        createdAt: true,
+      },
+    });
+
+    await tx.studentJournalAudit.create({
+      data: {
+        tenantId: noteTenantId,
+        entityType: "NOTE",
+        entityId: created.id,
+        action: "CREATE",
+        afterJson: {
+          date: created.date,
+          authorRole: created.authorRole,
+          body: created.body,
+          createdAt: created.createdAt.toISOString(),
+        },
+        changedByUserId: session.id,
+      },
+    });
+
+    return created;
   });
 
   return NextResponse.json({ data: note }, { status: 201 });

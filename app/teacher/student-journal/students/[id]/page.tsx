@@ -24,7 +24,15 @@ type Entry = {
   checked: boolean;
   lastAdminEdit?: { changedAt: string; changedByName: string } | null;
 };
-type Note = { id: string; date: string; authorRole: string; body: string; createdAt: string };
+type Note = {
+  id: string;
+  date: string;
+  authorRole: string;
+  authorUserId?: string;
+  authorName?: string;
+  body: string;
+  createdAt: string;
+};
 
 type WeekData = {
   weekStart: string;

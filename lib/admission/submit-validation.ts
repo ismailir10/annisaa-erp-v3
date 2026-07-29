@@ -1,16 +1,12 @@
 import { z } from "zod";
 import { optionalTrimmed } from "@/lib/validations/zod-helpers";
+import { programIdSchema } from "@/lib/validations/program-id";
 
 // Phone shape: digits, +, spaces, dashes, parens. 6–20 chars.
 // Permissive on purpose — Indonesian families type numbers in many shapes
 // ("0812-3456-7890", "+62 812 3456 7890", "(021) 555-1234"). Server-side
 // trim happens before this regex matches; client-side input mode="tel".
 const PHONE_REGEX = /^[+\d\s\-()]{6,20}$/;
-
-// CUID shape — Prisma cuids are 25 chars starting with c.
-// Loosened to "starts with c, 24+ alphanumeric" to tolerate cuid v2 if that
-// ever lands. Empty/missing programId is allowed (form lets applicant skip).
-const CUID_REGEX = /^c[a-z0-9]{24,}$/i;
 
 // ISO date: YYYY-MM-DD only. HTML5 type="date" emits this exact shape.
 // We do NOT accept full ISO 8601 timestamps — the existing Admission.dateOfBirth
@@ -50,7 +46,7 @@ export const submitAdmissionSchema = z.object({
     .regex(PHONE_REGEX, "Nomor telepon tidak valid"),
   parentWhatsapp: optionalTrimmed(z.string().regex(PHONE_REGEX, "Nomor WhatsApp tidak valid")),
   parentEmail: optionalTrimmed(z.string().email("Email tidak valid")),
-  programId: optionalTrimmed(z.string().regex(CUID_REGEX, "Program tidak valid")),
+  programId: optionalTrimmed(programIdSchema),
   notes: optionalTrimmed(z.string().max(500, "Catatan terlalu panjang (maksimal 500 karakter)")),
 });
 

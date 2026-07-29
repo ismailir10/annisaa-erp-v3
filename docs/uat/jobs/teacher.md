@@ -207,19 +207,19 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Steps:**
   1. Open the teacher portal → Buku Penghubung
   2. Pick the class + today's date
-  3. Tap "Isi Penghubung" — land on the per-student roster list at `/teacher/student-journal/entry?...`; the page renders one row per student showing that student's current completion count (e.g. "Aziz 3/6, Bilal 0/6") with a sticky "Simpan" CTA at the bottom
+  3. Tap "Isi Penghubung" — land on the per-student roster list at `/teacher/student-journal/entry?...`; the page renders one row per student showing that student's current completion count (e.g. "Aziz 3/6, Bilal 0/6"). There is **no Simpan button** — each indicator tap saves immediately (autosave-on-tap, cycle `2026-07-19-journal-user-harm`).
   4. Tap a student row to drill into that student's per-indicator week page (`/teacher/student-journal/students/[id]?week=...`) — this is where the cell grid lives
   5. Toggle indicator checkboxes for that student
   6. Return to the roster, repeat for the next student
-  7. Tap the sticky "Simpan" on the roster page — `POST /api/student-journal/entries/batch`
-  8. See success toast and updated completion counts on reload
-- **Done when:** Every toggled cell for each drilled-into student persists across reload. The roster shows updated completion counts after save. Save is a single batch call on the roster page, not N per-cell calls. The roster list scrolls vertically on mobile; the per-student cell grid is reached only via drill-down.
-- **Why this job matters:** Bu Sari's daily after-circle ritual — 5 minutes max before parents come in for pickup. The roster + drill-down model means she fills one student at a time; UAT must script the drill-down navigation rather than asserting a flat cell grid on the entry page.
-- **Expected perf:** roster load <1.5s for a 25-student class; per-student drill-down load <1s; batch save click-to-confirm <2s; tap-to-toggle latency <100ms (purely client state).
+  7. Each toggle fires `POST /api/student-journal/entries/batch` with a single-entry payload; the tapped cell pulses while saving and settles when persisted
+  8. Navigate away at any point — nothing is lost; reload shows updated completion counts
+- **Done when:** Every toggled cell persists across reload without any explicit save action. A failed save visibly reverts the tapped cell and shows the "Catatan belum tersimpan. Ketuk ulang ya." toast. Rapid re-taps settle to the last tapped state (stale responses ignored). The roster list scrolls vertically on mobile; the per-student cell grid is reached only via drill-down.
+- **Why this job matters:** Bu Sari's daily after-circle ritual — 5 minutes max before parents come in for pickup. Before per-tap save, taps were silently lost when she navigated away without pressing Simpan (ui-sweep T8 user-harm item); autosave-on-tap removes that failure mode entirely.
+- **Expected perf:** roster load <1.5s for a 25-student class; per-student drill-down load <1s; tap-to-toggle latency <100ms (optimistic client state); per-tap save settle <2s.
 - **Error scenarios to verify:**
-  - Save without any toggles → empty payload, server accepts (no-op) or rejects with clear message — verify which
-  - Network drop mid-save → button returns to ready state, no double-submit on retry
-  - Switch class mid-entry → unsaved toggles warn before discard (or auto-save them — verify which)
+  - Network drop on a tap → cell reverts to its pre-tap state + error toast; re-tap retries cleanly (no double-submit — requestId guard)
+  - Rapid repeated taps on one cell → final visible state matches the last tap, no stale-response flicker
+  - Switch class mid-entry → safe: all prior taps are already persisted
 - **Known friction (from last UAT):** Entry page is a roster list, not a cell grid — UAT must drill into individual students to reach the indicator checkboxes.
 
 ---

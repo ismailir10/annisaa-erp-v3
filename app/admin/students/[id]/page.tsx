@@ -16,14 +16,17 @@ import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { formatDateShort } from "@/lib/format";
+import { formatDateShort, formatClassOptionLabel } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   LIVING_WITH_OPTIONS,
   REL_LABELS,
@@ -58,6 +61,110 @@ type ClassSection = { id: string; name: string; program: { name: string }; acade
 type AttendanceRecord = { id: string; date: string; status: string; notes: string | null; classSection: { name: string } };
 type AttendanceSummary = { present: number; absent: number; sick: number; permission: number; total: number };
 
+// Class-section picker for Enroll + Promote — searchable so an admin can type
+// a class name or "TA 2026/2027" to narrow the list instead of scanning every
+// row. `sections` is already year-scoped by the caller's fetch (yearStatus=
+// ACTIVE,PLANNING); this component just renders + filters what it's given.
+// Follows the Popover + Command idiom from
+// components/admin/invoices/manual-invoice-dialog.tsx's StudentPicker, minus
+// the async debounce (the section list here is small and pre-fetched, so
+// cmdk's built-in client-side filtering is enough — no server round-trip
+// per keystroke).
+function ClassSectionCombobox({
+  sections,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+}: {
+  sections: ClassSection[];
+  value: string;
+  onChange: (id: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = sections.find((s) => s.id === value) ?? null;
+
+  function label(s: ClassSection) {
+    return formatClassOptionLabel({
+      name: s.name,
+      academicYearName: s.academicYear.name,
+      enrolled: s._count.enrollments,
+      capacity: s.capacity,
+    });
+  }
+
+  // Class names are campus-free ("TK B 3", not "TK B Metland 3") — kampus was
+  // stripped this cycle because it is already its own column. Grouping by
+  // kampus keeps that context visible as structure instead of re-inflating
+  // every option label, and keeps two campuses' same-numbered classes (now
+  // legal under the per-campus unique key) unambiguous in the picker.
+  // Kampus is the group heading only — it is deliberately NOT part of each
+  // item's search value. Both campus names share the "An Nisaa' Sekolahku "
+  // prefix, and cmdk scores subsequence matches, so folding them in made
+  // typing "Aster" still rank every Metland row (confirmed on preview).
+  // Searching matches the class name + year, which is what an admin types.
+  const byCampus = sections.reduce<Record<string, ClassSection[]>>((acc, s) => {
+    (acc[s.campus.name] ??= []).push(s);
+    return acc;
+  }, {});
+  const campusNames = Object.keys(byCampus).sort((a, b) => a.localeCompare(b));
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        type="button"
+        role="combobox"
+        aria-expanded={open}
+        aria-required="true"
+        disabled={disabled}
+        className={cn(
+          "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-hidden transition-colors hover:bg-accent/30 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+          !selected && "text-muted-foreground",
+        )}
+      >
+        {/* The trigger names the kampus explicitly — in the list it is the
+            group heading, but once collapsed there is no other cue. */}
+        <span className="truncate text-left">
+          {selected ? `${label(selected)} · ${selected.campus.name}` : placeholder}
+        </span>
+        <ChevronDown size={14} className="pointer-events-none shrink-0 opacity-50" />
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--anchor-width] min-w-[var(--anchor-width)] p-0"
+        align="start"
+        sideOffset={4}
+      >
+        <Command>
+          <CommandInput placeholder="Cari kelas..." />
+          <CommandList>
+            <CommandEmpty>Tidak ada kelas yang cocok.</CommandEmpty>
+            {campusNames.map((campusName) => (
+              <CommandGroup key={campusName} heading={campusName}>
+                {byCampus[campusName].map((s) => (
+                  <CommandItem
+                    key={s.id}
+                    // Suffix the id: cmdk keys its selection/highlight state on
+                    // `value`, so two classes with an identical label would
+                    // otherwise share keyboard-navigation state.
+                    value={`${label(s)} ${s.id}`}
+                    onSelect={() => {
+                      onChange(s.id);
+                      setOpen(false);
+                    }}
+                  >
+                    {label(s)}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -396,7 +503,9 @@ export default function StudentDetailPage() {
   // --- Enroll ---
   async function openEnrollDialog() {
     try {
-      const res = await fetch("/api/class-sections");
+      // Scope to the current + upcoming academic year — archived-year classes
+      // are not valid enroll targets (server also 403s them as YEAR_ARCHIVED).
+      const res = await fetch("/api/class-sections?yearStatus=ACTIVE,PLANNING");
       if (!res.ok) { toast.error("Gagal memuat data kelas"); return; }
       setSections(await res.json());
       setSelectedSection("");
@@ -430,7 +539,8 @@ export default function StudentDetailPage() {
   // --- Promote (Naik Kelas) ---
   async function openPromoteDialog() {
     try {
-      const res = await fetch("/api/class-sections");
+      // Same year scoping as Enroll — see comment there.
+      const res = await fetch("/api/class-sections?yearStatus=ACTIVE,PLANNING");
       if (!res.ok) { toast.error("Gagal memuat data kelas"); return; }
       setSections(await res.json());
       setPromoteTarget("");
@@ -1005,12 +1115,12 @@ export default function StudentDetailPage() {
         const enrollBody = (
           <Field>
             <FieldLabel required>Pilih Kelas</FieldLabel>
-            <Select value={selectedSection} onValueChange={v => v && setSelectedSection(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
-              <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
-              <SelectContent>
-                {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <ClassSectionCombobox
+              sections={sections}
+              value={selectedSection}
+              onChange={setSelectedSection}
+              placeholder="Pilih kelas..."
+            />
           </Field>
         );
         return isMobile ? (
@@ -1044,12 +1154,12 @@ export default function StudentDetailPage() {
           <div className="space-y-field">
             <Field>
               <FieldLabel required>Kelas Tujuan</FieldLabel>
-              <Select value={promoteTarget} onValueChange={v => v && setPromoteTarget(v)} items={sections.map(s => ({ label: `${s.name} — ${s.program.name} (${s._count.enrollments}/${s.capacity})`, value: s.id }))}>
-                <SelectTrigger><SelectValue placeholder="Pilih kelas tujuan..." /></SelectTrigger>
-                <SelectContent>
-                  {sections.map(s => <SelectItem key={s.id} value={s.id}>{s.name} — {s.program.name} ({s._count.enrollments}/{s.capacity})</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <ClassSectionCombobox
+                sections={sections}
+                value={promoteTarget}
+                onChange={setPromoteTarget}
+                placeholder="Pilih kelas tujuan..."
+              />
             </Field>
             <Field>
               <FieldLabel>Catatan (opsional)</FieldLabel>

@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
+import { recordPaymentSchema } from "@/lib/validations/invoice";
 
 // Record a manual payment for an invoice
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,13 +13,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id: invoiceId } = await params;
-  const body = await req.json();
-
-  const amountNum = Number(body.amount);
-  if (!amountNum || amountNum <= 0 || Number.isNaN(amountNum)) {
-    return NextResponse.json({ error: "Jumlah pembayaran tidak valid" }, { status: 400 });
+  // recordPaymentSchema existed for exactly this endpoint but was never wired
+  // in — the hand-rolled check let any `method` string persist verbatim
+  // (Payment.method is a plain String column, no DB enum).
+  const body = await req.json().catch(() => null);
+  const parsed = recordPaymentSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Jumlah pembayaran tidak valid" },
+      { status: 400 },
+    );
   }
-  const amountDec = new Prisma.Decimal(body.amount.toString());
+  const amountDec = new Prisma.Decimal(parsed.data.amount.toString());
 
   // Quick tenant-scope check outside the tx so a cross-tenant id bails early.
   const preCheck = await prisma.invoice.findFirst({
@@ -52,9 +58,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         data: {
           invoiceId,
           amount: amountDec,
-          method: body.method ?? "CASH",
-          reference: body.reference?.trim() || null,
-          notes: body.notes?.trim() || null,
+          method: parsed.data.method,
+          reference: parsed.data.reference?.trim() || null,
+          notes: parsed.data.notes?.trim() || null,
         },
       });
 

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const { session } = guard;
 
   // Rate limit after auth (keyed per user)
-  const rl = rateLimit(`sj-teacher-${session.id}`, 30, 60_000);
+  const rl = rateLimit(`sj-teacher-${session.id}`, 300, 60_000);
   if (!rl.success) {
     return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
   }

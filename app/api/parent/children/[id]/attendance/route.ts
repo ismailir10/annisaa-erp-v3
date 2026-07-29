@@ -60,6 +60,9 @@ export async function GET(
   const where = {
     studentId,
     isVoided: false,
+    // Defense in depth: StudentAttendance has no direct tenantId column, so
+    // scope via the student relation using the guard-verified tenant.
+    student: { tenantId: guard.session.tenantId },
     ...(status ? { status } : {}),
     ...(Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {}),
   };

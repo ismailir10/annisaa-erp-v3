@@ -79,8 +79,15 @@ async function proxyImpl(request: NextRequest): Promise<NextResponse> {
 
   // Fully public routes — NO auth check at all (external webhooks, payment pages,
   // public admission entry per Phase 1.1 / cycle 2026-05-10-daftar-public-form).
+  //
+  // Exact-segment match on the webhook paths (cycle 2026-07-27-doku-payment-
+  // gateway T4 / AC-21) — the previous Xendit-only rule used a loose
+  // `startsWith("/api/xendit/webhook")` prefix, which would also bypass a
+  // hypothetical `/api/xendit/webhook-anything` route. Both webhook paths
+  // now require an exact match on the path itself.
   if (
-    pathname.startsWith("/api/xendit/webhook") ||
+    pathname === "/api/xendit/webhook" ||
+    pathname === "/api/doku/webhook" ||
     pathname.startsWith("/payment/") ||
     pathname === "/daftar" ||
     pathname.startsWith("/daftar/") ||
