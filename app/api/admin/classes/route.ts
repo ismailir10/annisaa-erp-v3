@@ -255,7 +255,8 @@ export async function POST(req: NextRequest) {
     if (isUniqueViolation(err)) {
       return NextResponse.json(
         {
-          error: "Kelas dengan nama ini sudah ada untuk tahun ajaran tersebut.",
+          error:
+            "Kelas dengan nama ini sudah ada di kampus dan tahun ajaran tersebut.",
         },
         { status: 409 },
       );

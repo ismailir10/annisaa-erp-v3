@@ -111,6 +111,29 @@ describe("buildClassSectionPlan", () => {
     expect(keys.size).toBe(plan.length);
   });
 
+  it("names sections campus-free, so a reseed cannot reintroduce the token", () => {
+    // The T7 data migration of cycle 2026-07-29-class-picker-year-scoping
+    // strips "Aster"/"Metland" out of every ClassSection/ClassTrack name;
+    // kampus is its own column and its own visual element in every picker.
+    // A reseed that still emitted "KB — Aster" would silently undo that on
+    // staging, which is where the naming is actually looked at.
+    const plan = buildClassSectionPlan();
+    for (const p of plan) {
+      expect(p.sectionName).not.toMatch(/Aster|Metland/);
+      expect(p.sectionName).toBe(p.programCode);
+    }
+  });
+
+  it("keeps section names unique per (year, campus) despite dropping the campus token", () => {
+    // Names are only unique under (tenantId, academicYearId, campusId, name)
+    // now, so two campuses sharing "KB" in one year is fine — but the SAME
+    // campus must never emit a duplicate name within a year, which would hit
+    // the unique index and fail the reseed.
+    const plan = buildClassSectionPlan();
+    const keys = plan.map((p) => `${p.academicYearName}|${p.campusCode}|${p.sectionName}`);
+    expect(new Set(keys).size).toBe(plan.length);
+  });
+
   it("yields 7 distinct (campus, program) pairs — one ClassTrack each", () => {
     // seedOrg creates one ClassTrack per (campus, program) and links every
     // section to it. 4 Aster programs + 3 Metland programs = 7 tracks for 14

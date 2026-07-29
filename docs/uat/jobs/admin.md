@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
+> Last audited: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -44,13 +44,15 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Steps:**
   1. Open a student's detail page
   2. Click "Daftarkan ke Kelas"
-  3. Pick a class section
-  4. Submit
-  5. See success toast + enrollment in the student's "Riwayat Kelas" tab
+  3. Search the class picker by class name ("B 3") or kampus ("Aster") — the picker is a searchable combobox grouped by kampus, and offers only ACTIVE/PLANNING academic years
+  4. Pick a class section
+  5. Submit
+  6. See success toast + enrollment in the student's "Riwayat Kelas" tab
 - **Done when:** Student has an ACTIVE enrollment in the chosen class. If class is full, duplicate enrollment, or age-out-of-range: toast shows the specific error message in Indonesian. "Daftarkan" button never stays stuck (spinner resets on both success and error).
 - **Error scenarios to verify:**
   - Duplicate enrollment → 400 "Siswa sudah terdaftar di kelas lain"
   - Full class → 400 "Kelas penuh (X/Y)"
+  - Archived academic year → 403 "Tahun ajaran sudah diarsipkan. Pilih kelas pada tahun ajaran yang aktif." (the picker no longer offers these, so exercise via direct API call)
   - Network error → toast "Terjadi kesalahan jaringan"
 - **Why this job matters:** Every new student must be enrolled. Button stuck = admin confused.
 - **Known friction (from last UAT):** <filled by /uat reports>

@@ -5,6 +5,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { validateBody } from "@/lib/api/validate";
 import { promoteStudentSchema } from "@/lib/validations/student";
+import { ensureYearWritableById } from "@/lib/classes/year-guard";
 
 export async function POST(
   req: NextRequest,
@@ -43,11 +44,20 @@ export async function POST(
   // transaction below — mirror of the enroll route pattern).
   const targetExists = await prisma.classSection.findFirst({
     where: { id: targetClassSectionId, tenantId: session.tenantId },
-    select: { id: true },
+    select: { id: true, academicYearId: true },
   });
   if (!targetExists) {
     return NextResponse.json({ error: "Kelas tujuan tidak ditemukan" }, { status: 404 });
   }
+
+  // Refuse promotion into a class whose academic year is ARCHIVED — past
+  // years are immutable for audit integrity.
+  const yearGuard = await ensureYearWritableById(
+    targetExists.academicYearId,
+    session.tenantId,
+    "Pilih kelas pada tahun ajaran yang aktif.",
+  );
+  if (yearGuard instanceof NextResponse) return yearGuard;
 
   const today = getTodayInTimezone("Asia/Jakarta");
 

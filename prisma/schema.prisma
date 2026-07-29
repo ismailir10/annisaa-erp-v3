@@ -475,7 +475,7 @@ model ClassSection {
   studentAttendances  StudentAttendance[]
   sessions            ClassSession[]
 
-  @@unique([tenantId, academicYearId, name])
+  @@unique([tenantId, academicYearId, campusId, name])
   @@index([tenantId])
 }
 

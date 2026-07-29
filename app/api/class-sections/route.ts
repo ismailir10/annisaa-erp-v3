@@ -13,16 +13,33 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const programId = searchParams.get("programId");
   const academicYearId = searchParams.get("academicYearId");
+  const yearStatusParam = searchParams.get("yearStatus");
 
   const where: Record<string, unknown> = { tenantId: session.tenantId };
   if (programId) where.programId = programId;
   if (academicYearId) where.academicYearId = academicYearId;
 
+  // yearStatus is an opt-in comma-separated allowlist of AcademicYear.status
+  // values (PLANNING | ACTIVE | ARCHIVED). Unknown/garbage tokens are dropped
+  // rather than rejected with a 400: callers building the class picker send
+  // this straight from UI toggles, and a stray/misspelled token should degrade
+  // to "no filter" (today's behaviour) rather than break the request. If every
+  // token is invalid the param is treated as fully absent, preserving
+  // byte-identical output for the four existing no-param callers.
+  const VALID_YEAR_STATUSES = new Set(["PLANNING", "ACTIVE", "ARCHIVED"]);
+  const yearStatuses = (yearStatusParam ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => VALID_YEAR_STATUSES.has(s));
+  if (yearStatuses.length > 0) {
+    where.academicYear = { status: { in: yearStatuses } };
+  }
+
   const sections = await prisma.classSection.findMany({
     where,
     include: {
       program: { select: { name: true, code: true } },
-      academicYear: { select: { name: true } },
+      academicYear: { select: { id: true, name: true, status: true } },
       campus: { select: { name: true } },
       _count: { select: { enrollments: true } },
     },
