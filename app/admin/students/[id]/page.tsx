@@ -100,7 +100,11 @@ function ClassSectionCombobox({
   // kampus keeps that context visible as structure instead of re-inflating
   // every option label, and keeps two campuses' same-numbered classes (now
   // legal under the per-campus unique key) unambiguous in the picker.
-  // cmdk matches the group heading too, so typing "Aster" narrows to a campus.
+  // Kampus is the group heading only — it is deliberately NOT part of each
+  // item's search value. Both campus names share the "An Nisaa' Sekolahku "
+  // prefix, and cmdk scores subsequence matches, so folding them in made
+  // typing "Aster" still rank every Metland row (confirmed on preview).
+  // Searching matches the class name + year, which is what an admin types.
   const byCampus = sections.reduce<Record<string, ClassSection[]>>((acc, s) => {
     (acc[s.campus.name] ??= []).push(s);
     return acc;
@@ -144,7 +148,7 @@ function ClassSectionCombobox({
                     // Suffix the id: cmdk keys its selection/highlight state on
                     // `value`, so two classes with an identical label would
                     // otherwise share keyboard-navigation state.
-                    value={`${campusName} ${label(s)} ${s.id}`}
+                    value={`${label(s)} ${s.id}`}
                     onSelect={() => {
                       onChange(s.id);
                       setOpen(false);
