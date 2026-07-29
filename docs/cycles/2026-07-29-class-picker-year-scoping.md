@@ -76,6 +76,7 @@ Intended outcome: the write-path pickers offer only writable years (53 → 16 op
 
 ## Verification
 
+- Task 2: `npx vitest run app/api/__tests__/class-sections-year-status.test.ts` → 4 passed (ACTIVE,PLANNING excludes ARCHIVED; omitted param returns all; `yearStatus=BOGUS` behaves as absent; response carries `academicYear.status`). Covered by the batch gate below.
 - Batch A (tasks 1–3): `npm run build` green; `npx vitest run` → **248 test files passed | 2 skipped (250), 2395 tests passed | 42 todo (2437)**, zero failures. Gate run by the driver after the parallel subagents finished, then re-run after the mid-task bulk-promote addition.
 - Subagent test reports claimed pre-existing failures in `admin-classes-historical-roster.test.ts` and `student-lifecycle-validation.test.ts` (`Failed to resolve import "@/lib/generated/prisma/client"`). Verified independently rather than taken at face value: the cause was simply that this fresh worktree had never run `npx prisma generate`. After generating, the full suite is green — there are **no** pre-existing failures on this branch.
 - Prod data check (read-only, project `annisaa-erp-v3-prod-sgp`): 53 `ClassSection` rows across 5 academic years, 16 in the ACTIVE year TA 2026/2027, and every row carries `status = 'ACTIVE'` — confirming class status cannot distinguish current from historical classes and `AcademicYear.status` is the only correct signal.
