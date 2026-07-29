@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { ensureYearWritableById } from "@/lib/classes/year-guard";
 
 /**
  * Domain error whose message is safe to surface to the client. Anything else
@@ -96,11 +97,21 @@ export async function POST(req: NextRequest) {
   // row-locked inside the transaction below.
   const targetExists = await prisma.classSection.findFirst({
     where: { id: targetClassSectionId, tenantId: session.tenantId },
-    select: { id: true },
+    select: { id: true, academicYearId: true },
   });
   if (!targetExists) {
     return NextResponse.json({ error: "Kelas tujuan tidak ditemukan" }, { status: 404 });
   }
+
+  // Refuse promotion into a class whose academic year is ARCHIVED — past
+  // years are immutable for audit integrity. The bulk-promote dialog has its
+  // own year selector, but that is a client-side convenience, not a boundary.
+  const yearGuard = await ensureYearWritableById(
+    targetExists.academicYearId,
+    session.tenantId,
+    "Pilih kelas pada tahun ajaran yang aktif.",
+  );
+  if (yearGuard instanceof NextResponse) return yearGuard;
 
   // Fetch all ACTIVE enrollments in source class
   const enrollments = await prisma.studentEnrollment.findMany({

@@ -69,15 +69,24 @@ export async function POST(req: NextRequest) {
     { name: "TKIT A", programCode: "TKIT", campusId: asterCampusId, capacity: 20, key: "TKIT_A", ageGroup: "A" as const },
     { name: "TKIT B", programCode: "TKIT", campusId: asterCampusId, capacity: 20, key: "TKIT_B", ageGroup: "B" as const },
     // Non-TK programs default to A — see prisma/seed.ts for the rationale.
-    { name: "KB Aster", programCode: "KB", campusId: asterCampusId, capacity: 15, key: "KB_ASTER", ageGroup: "A" as const },
-    { name: "KB Metland", programCode: "KB", campusId: metlandCampusId, capacity: 15, key: "KB_METLAND", ageGroup: "A" as const },
-    { name: "D'Care Aster", programCode: "DCARE", campusId: asterCampusId, capacity: 10, key: "DCARE", ageGroup: "A" as const },
+    { name: "KB", programCode: "KB", campusId: asterCampusId, capacity: 15, key: "KB_ASTER", ageGroup: "A" as const },
+    { name: "KB", programCode: "KB", campusId: metlandCampusId, capacity: 15, key: "KB_METLAND", ageGroup: "A" as const },
+    { name: "D'Care", programCode: "DCARE", campusId: asterCampusId, capacity: 10, key: "DCARE", ageGroup: "A" as const },
     { name: "POPUP Weekend", programCode: "POPUP", campusId: asterCampusId, capacity: 25, key: "POPUP", ageGroup: "A" as const },
   ];
   const classMap: Record<string, string> = {};
   for (const cs of classDefs) {
+    // campusId is part of the match because class names are campus-free as of
+    // the 2026-07-29 class-picker-year-scoping cycle — "KB" now exists at both
+    // Aster and Metland. Without it this lookup would find the first campus's
+    // row and silently skip creating the second.
     let existing = await prisma.classSection.findFirst({
-      where: { tenantId, name: cs.name, academicYearId: academicYear.id },
+      where: {
+        tenantId,
+        name: cs.name,
+        academicYearId: academicYear.id,
+        campusId: cs.campusId,
+      },
     });
     if (!existing) {
       // Resolve-or-create the stable ClassTrack for this section

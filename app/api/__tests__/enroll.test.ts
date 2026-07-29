@@ -22,6 +22,15 @@ vi.mock("@/lib/rate-limit", () => ({
   getClientIp: () => "127.0.0.1",
 }));
 
+// Year-guard is exercised in its own dedicated test file
+// (students-enroll-promote-year-guard.test.ts) — default to "ok" here so the
+// existing capacity/age/duplicate scenarios in this file are unaffected.
+vi.mock("@/lib/classes/year-guard", () => ({
+  ensureYearWritableById: vi
+    .fn()
+    .mockResolvedValue({ ok: true, tenantId: "t1", yearStatus: "ACTIVE" }),
+}));
+
 function makeReq(body: unknown) {
   return new Request("http://localhost:3000/api/students/s1/enroll", {
     method: "POST",

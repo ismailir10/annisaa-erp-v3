@@ -29,6 +29,21 @@ const DOKU_PRODUCTION_API_URL = "https://api.doku.com";
  * Virtual Account channels only, per the CTO decision (cycle 2026-07-27
  * doku-payment-gateway — "Channels" row): matches the existing parent-portal
  * copy "Transfer bank (Virtual Account)" exactly and avoids card MDR.
+ *
+ * This is the COMPLETE set of Virtual Account values DOKU Checkout accepts in
+ * `payment.payment_method_types`, verbatim from developers.doku.com →
+ * DOKU Checkout → Supported Payment Methods (re-verified 2026-07-29, cycle
+ * 2026-07-29-doku-all-va-channels). The original six were an arbitrary subset;
+ * a parent whose only bank was BSI, BTN, Danamon, BNC or DOKU could not pay.
+ *
+ * Deliberately NOT extended beyond Virtual Account — no `CREDIT_CARD`,
+ * `QRIS`, `EMONEY_*` or `PEER_TO_PEER_*` — so the card-MDR avoidance and the
+ * "Transfer bank (Virtual Account)" portal copy both still hold.
+ *
+ * Maybank, Sinarmas, BJB and Sahabat Sampoerna are active on the merchant's
+ * DOKU account but are absent from the documented Checkout enum list, so they
+ * are not addressable here. See the cycle doc's "Channels DOKU activates but
+ * Checkout does not document" note.
  */
 export const DOKU_VIRTUAL_ACCOUNT_METHODS = [
   "VIRTUAL_ACCOUNT_BCA",
@@ -37,6 +52,11 @@ export const DOKU_VIRTUAL_ACCOUNT_METHODS = [
   "VIRTUAL_ACCOUNT_BNI",
   "VIRTUAL_ACCOUNT_BANK_PERMATA",
   "VIRTUAL_ACCOUNT_BANK_CIMB",
+  "VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI",
+  "VIRTUAL_ACCOUNT_BANK_DANAMON",
+  "VIRTUAL_ACCOUNT_BTN",
+  "VIRTUAL_ACCOUNT_BNC",
+  "VIRTUAL_ACCOUNT_DOKU",
 ] as const;
 
 function baseUrl(): string {
@@ -64,6 +84,48 @@ function getSecretKey(): string {
  */
 export function formatDokuTimestamp(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/**
+ * Normalise an Indonesian phone number into the form DOKU's `customer.phone`
+ * expects: digits only, with the 62 calling code, max 16 characters.
+ *
+ * Guardian numbers in Talib are entered by hand and arrive in every local
+ * shape — `081234567890`, `+62 812-3456-7890`, `0812 3456 7890`. DOKU
+ * documents the field as "phone with calling code" and caps it at 16, and a
+ * field that violates the contract can fail the WHOLE session — which would
+ * cost the parent their payment link over a cosmetic formatting difference.
+ *
+ * Returns `undefined` rather than a guess whenever the input cannot be
+ * normalised confidently (too short, too long, or non-Indonesian), because
+ * `customer.phone` is optional for Virtual Account: omitting it is always
+ * safe, sending a malformed one is not.
+ *
+ * Exported for unit testing.
+ */
+export function normalizePhoneForDoku(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 0) return undefined;
+
+  let national: string;
+  if (digits.startsWith("62")) {
+    national = digits.slice(2);
+  } else if (digits.startsWith("0")) {
+    national = digits.replace(/^0+/, "");
+  } else {
+    // No recognisable Indonesian prefix — could be a foreign number or a
+    // typo. Don't invent a country code.
+    return undefined;
+  }
+
+  // Indonesian subscriber numbers run ~9-12 digits after the 62. Outside that
+  // band the value is junk (a NIK pasted into the phone column, a 4-digit
+  // extension), so omit rather than send it.
+  if (national.length < 8 || national.length > 13) return undefined;
+
+  const normalized = `62${national}`;
+  return normalized.length <= 16 ? normalized : undefined;
 }
 
 /**
@@ -173,7 +235,20 @@ export async function createDokuSession(
     amount: Math.round(params.amount),
     invoice_number: params.referenceId,
     currency: "IDR",
+    // `callback_url` powers the "Back to Merchant" button ON the checkout /
+    // VA-instructions page; `callback_url_result` powers it on the result
+    // page; `callback_url_cancel` is where DOKU sends a cancelled order.
+    // Only the middle one was set before this cycle, so a parent staring at a
+    // VA number had no way back to the portal, and `cancelReturnUrl` — which
+    // the caller has always computed and passed — was silently dropped on the
+    // floor by this adapter (the Xendit adapter has always honoured it).
+    callback_url: params.cancelReturnUrl,
     callback_url_result: params.successReturnUrl,
+    callback_url_cancel: params.cancelReturnUrl,
+    // Checkout page renders in Bahasa Indonesia. Every parent-facing surface
+    // in Talib is Bahasa (.claude/standards/voice.md); an English DOKU page
+    // mid-flow is a needless comprehension cliff for the Ibu Nur persona.
+    language: "ID",
     auto_redirect: false,
   };
   if (params.items?.length) {
@@ -184,16 +259,32 @@ export async function createDokuSession(
     }));
   }
 
+  const customerPhone = normalizePhoneForDoku(params.customerPhone);
   const customer: Record<string, unknown> = {
-    name: params.customerName,
-    ...(params.customerEmail && { email: params.customerEmail }),
-    ...(params.customerPhone && { phone: params.customerPhone }),
+    // DOKU caps name at 255 and email at 128; a value over the cap is
+    // rejected for the WHOLE session, so truncate rather than lose the
+    // payment link over a long name.
+    name: params.customerName.slice(0, 255),
+    ...(params.customerEmail && { email: params.customerEmail.slice(0, 128) }),
+    ...(customerPhone && { phone: customerPhone }),
   };
+
+  // `override_notification_url` beats the per-channel Back Office setting, so
+  // a channel whose "Payment Notification URL" was never filled in still
+  // reaches us. See CreateSessionParams.notificationUrl.
+  const additionalInfo = params.notificationUrl
+    ? { override_notification_url: params.notificationUrl }
+    : undefined;
 
   const payload = {
     order,
+    ...(additionalInfo && { additional_info: additionalInfo }),
     payment: {
       payment_due_date: expiryDays * 24 * 60,
+      // Explicit rather than relying on DOKU's default. "SALE" = capture
+      // immediately; the alternatives (INSTALLMENT / AUTHORIZE) are credit
+      // card only and would be wrong for a school VA collection.
+      type: "SALE",
       payment_method_types: DOKU_VIRTUAL_ACCOUNT_METHODS,
     },
     customer,

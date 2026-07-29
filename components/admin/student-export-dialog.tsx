@@ -23,7 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
 } from "@/components/ui/select";
 import {
   Dialog,
@@ -44,6 +46,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { formatClassOptionLabel } from "@/lib/format";
 import {
   STUDENT_EXPORT_COLUMNS,
   EXPORT_GROUP_LABELS,
@@ -53,7 +56,53 @@ import {
 
 type RefItem = { id: string; name: string; programId?: string; academicYearId?: string };
 
+type AcademicYearRef = { id: string; name: string; status: string };
+
+// Class sections carry more than `RefItem` — the Kelas filter needs the
+// nested academic year (for the Tahun-Ajaran grouping) and occupancy
+// (for `formatClassOptionLabel`). `academicYear`/`_count` are optional so
+// this still fits defensively if a caller ever narrows the API select.
+type ClassSectionRef = RefItem & {
+  academicYear?: AcademicYearRef | null;
+  capacity?: number;
+  _count?: { enrollments: number };
+};
+
 const GROUP_ORDER: ExportColumnGroup[] = ["identity", "compliance", "enrollment", "guardian"];
+
+const YEAR_STATUS_RANK: Record<string, number> = { ACTIVE: 0, PLANNING: 1, ARCHIVED: 2 };
+
+export type ClassSectionYearGroup = { year: AcademicYearRef; sections: ClassSectionRef[] };
+
+/**
+ * Groups class sections by academic year and orders the groups ACTIVE
+ * first, then PLANNING, then ARCHIVED newest-first. Year names sort
+ * correctly as plain strings ("2025/2026" > "2020/2021") because the
+ * format is a consistent "YYYY/YYYY". Exported for direct unit coverage —
+ * see `components/admin/__tests__/student-export-dialog.test.tsx`. Sibling
+ * copy lives in `app/admin/student-attendance/page.tsx` — duplicated
+ * rather than pulled into a shared lib module to keep this cycle's diff
+ * scoped to the two picker surfaces it touches.
+ */
+export function groupClassSectionsByYear(sections: ClassSectionRef[]): ClassSectionYearGroup[] {
+  const byYear = new Map<string, ClassSectionYearGroup>();
+  for (const section of sections) {
+    const year = section.academicYear;
+    if (!year) continue;
+    let group = byYear.get(year.id);
+    if (!group) {
+      group = { year, sections: [] };
+      byYear.set(year.id, group);
+    }
+    group.sections.push(section);
+  }
+  return Array.from(byYear.values()).sort((a, b) => {
+    const rankDiff =
+      (YEAR_STATUS_RANK[a.year.status] ?? 3) - (YEAR_STATUS_RANK[b.year.status] ?? 3);
+    if (rankDiff !== 0) return rankDiff;
+    return b.year.name.localeCompare(a.year.name);
+  });
+}
 
 const EXPORT_STATUS_OPTIONS = [
   { value: "all", label: "Semua Status" },
@@ -92,7 +141,7 @@ export function StudentExportDialog({
   // Reference data for the criteria dropdowns.
   const [years, setYears] = useState<RefItem[]>([]);
   const [programs, setPrograms] = useState<RefItem[]>([]);
-  const [sections, setSections] = useState<RefItem[]>([]);
+  const [sections, setSections] = useState<ClassSectionRef[]>([]);
   const [refsLoaded, setRefsLoaded] = useState(false);
 
   useEffect(() => {
@@ -132,6 +181,14 @@ export function StudentExportDialog({
           (academicYearId === "all" || s.academicYearId === academicYearId),
       ),
     [sections, programId, academicYearId],
+  );
+
+  // Grouped by Tahun Ajaran, ACTIVE year first — this is a filter surface
+  // over historical export data (not a write target), so it keeps every
+  // year rather than narrowing to writable ones.
+  const groupedSections = useMemo(
+    () => groupClassSectionsByYear(filteredSections),
+    [filteredSections],
   );
 
   const columnsByGroup = useMemo(() => {
@@ -275,10 +332,19 @@ export function StudentExportDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Kelas</SelectItem>
-                {filteredSections.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
+                {groupedSections.map(({ year, sections: yearSections }) => (
+                  <SelectGroup key={year.id}>
+                    <SelectLabel>{`TA ${year.name}`}</SelectLabel>
+                    {yearSections.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {formatClassOptionLabel({
+                          name: s.name,
+                          enrolled: s._count?.enrollments ?? 0,
+                          capacity: s.capacity ?? 0,
+                        })}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>

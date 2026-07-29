@@ -438,9 +438,13 @@ async function main() {
     // program; assigning every KB+DCARE+POPUP class to A keeps the
     // indicator picker populated. Admin can change per-class via the
     // Kelompok Usia select once the cycle lands.
-    { name: "KB Aster", programCode: "KB", campusSlug: "taman-aster", capacity: 15, ageGroup: "A" as const },
-    { name: "KB Metland", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15, ageGroup: "A" as const },
-    { name: "D'Care Aster", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10, ageGroup: "A" as const },
+    // Campus-free names: the ClassSection unique key is now scoped by
+    // campusId too (2026-07-29 class-picker-year-scoping), so "KB" at both
+    // campuses below is a legitimate, non-colliding pair — the campusSlug
+    // still differentiates each row, it just no longer rides in the name.
+    { name: "KB", programCode: "KB", campusSlug: "taman-aster", capacity: 15, ageGroup: "A" as const },
+    { name: "KB", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15, ageGroup: "A" as const },
+    { name: "D'Care", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10, ageGroup: "A" as const },
     { name: "POPUP Weekend", programCode: "POPUP", campusSlug: "taman-aster", capacity: 25, ageGroup: "A" as const },
   ];
   const classSectionMap: Record<string, string> = {};

@@ -12,6 +12,7 @@ export type YearGuardErr = NextResponse;
 export async function ensureYearWritableForClass(
   classId: string,
   tenantId: string,
+  actionLabel = "Perubahan kelas tidak diizinkan.",
 ): Promise<YearGuardOk | YearGuardErr> {
   const row = await prisma.classSection.findFirst({
     where: { id: classId, tenantId },
@@ -26,8 +27,7 @@ export async function ensureYearWritableForClass(
   if (row.academicYear.status === "ARCHIVED") {
     return NextResponse.json(
       {
-        error:
-          "Tahun ajaran sudah diarsipkan. Perubahan kelas tidak diizinkan.",
+        error: `Tahun ajaran sudah diarsipkan. ${actionLabel}`,
         code: "YEAR_ARCHIVED",
       },
       { status: 403 },
@@ -39,6 +39,7 @@ export async function ensureYearWritableForClass(
 export async function ensureYearWritableById(
   academicYearId: string,
   tenantId: string,
+  actionLabel = "Pembuatan kelas tidak diizinkan.",
 ): Promise<YearGuardOk | YearGuardErr> {
   const year = await prisma.academicYear.findFirst({
     where: { id: academicYearId, tenantId },
@@ -53,8 +54,7 @@ export async function ensureYearWritableById(
   if (year.status === "ARCHIVED") {
     return NextResponse.json(
       {
-        error:
-          "Tahun ajaran sudah diarsipkan. Pembuatan kelas tidak diizinkan.",
+        error: `Tahun ajaran sudah diarsipkan. ${actionLabel}`,
         code: "YEAR_ARCHIVED",
       },
       { status: 403 },
