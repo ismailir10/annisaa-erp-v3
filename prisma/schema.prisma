@@ -550,6 +550,8 @@ model Student {
   assessmentEntries   AssessmentEntry[]
   reportCardEntries   ReportCardEntry[]
   studentMeasurements StudentMeasurement[]
+  journalEntries      StudentJournalEntry[]
+  journalNotes        StudentJournalNote[]
 
   @@index([tenantId, status])
   @@index([nis], map: "Student_nis_idx")
@@ -962,6 +964,7 @@ model StudentJournalEntry {
   updatedAt        DateTime @updatedAt
 
   indicator StudentJournalIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  student   Student                 @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, indicatorId, date, scope])
   @@index([tenantId, classSectionId, date])
@@ -980,7 +983,13 @@ model StudentJournalNote {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@index([tenantId, studentId, date])
+  // FK cascade deletes probe by studentId alone; the composite index above is
+  // tenantId-leading so it cannot serve that predicate. StudentJournalEntry
+  // gets this for free from its @@unique([studentId, ...]).
+  @@index([studentId])
 }
 
 model StudentJournalAudit {
