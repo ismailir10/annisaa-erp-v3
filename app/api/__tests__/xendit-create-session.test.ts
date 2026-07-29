@@ -22,8 +22,8 @@ vi.mock("@/lib/db", () => ({
 // Mock the helper at the boundary the route imports it from. This keeps tests
 // focused on the route's idempotency + paymentLinkError write-back behavior;
 // the helper's own DB updates are out of scope.
-vi.mock("@/lib/xendit/helpers", () => ({
-  createXenditSessionForInvoice: vi.fn(),
+vi.mock("@/lib/payments/session", () => ({
+  createPaymentSessionForInvoice: vi.fn(),
 }));
 
 import { POST } from "../xendit/create-session/route";
@@ -41,7 +41,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
 
   it("existing-session path: returns existing URL, does NOT call Xendit, clears paymentLinkError defensively", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
 
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv-existing",
@@ -73,7 +73,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     });
 
     // The helper (which would call the Xendit API) MUST NOT be invoked.
-    expect(createXenditSessionForInvoice).not.toHaveBeenCalled();
+    expect(createPaymentSessionForInvoice).not.toHaveBeenCalled();
 
     // paymentLinkError cleared defensively.
     expect(prisma.invoice.update).toHaveBeenCalledWith({
@@ -84,7 +84,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
 
   it("Xendit success path: helper called, status flipped to SENT with paymentLinkError null", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
 
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv-fresh",
@@ -100,7 +100,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
       lines: [{ labelSnapshot: "SPP" }],
     } as never);
 
-    vi.mocked(createXenditSessionForInvoice).mockResolvedValue({
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
       paymentUrl: "https://checkout.xendit.co/web/new-url",
     });
 
@@ -115,7 +115,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     expect(body.results).toHaveLength(1);
     expect(body.results[0].paymentUrl).toBe("https://checkout.xendit.co/web/new-url");
 
-    expect(createXenditSessionForInvoice).toHaveBeenCalledWith(
+    expect(createPaymentSessionForInvoice).toHaveBeenCalledWith(
       "inv-fresh",
       "tnt-1",
       expect.stringMatching(/^https?:\/\//),
@@ -131,7 +131,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
 
   it("Xendit failure path: persists status=PENDING_PAYMENT_LINK + paymentLinkError, increments failed", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
 
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv-fail",
@@ -147,7 +147,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
       lines: [{ labelSnapshot: "SPP" }],
     } as never);
 
-    vi.mocked(createXenditSessionForInvoice).mockRejectedValue(
+    vi.mocked(createPaymentSessionForInvoice).mockRejectedValue(
       new Error("Xendit 503 Service Unavailable")
     );
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -175,7 +175,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
 
   it("retry of PENDING_PAYMENT_LINK invoice succeeds: status flips to SENT, paymentLinkError cleared", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
 
     // Invoice was previously flagged after a Xendit failure — has the diagnostic
     // message but no session yet. Admin clicks "Coba Lagi"; helper succeeds.
@@ -193,7 +193,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
       lines: [{ labelSnapshot: "SPP" }],
     } as never);
 
-    vi.mocked(createXenditSessionForInvoice).mockResolvedValue({
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
       paymentUrl: "https://checkout.xendit.co/web/retry-success",
     });
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -214,7 +214,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
 
   it("mixed batch: 1 already-sessioned + 1 success + 1 failure → counts and per-row results align", async () => {
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
 
     // findUnique called once per invoiceId in order.
     vi.mocked(prisma.invoice.findUnique)
@@ -259,7 +259,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
       } as never);
 
     // Helper is called only for B and C. B succeeds, C throws.
-    vi.mocked(createXenditSessionForInvoice)
+    vi.mocked(createPaymentSessionForInvoice)
       .mockResolvedValueOnce({ paymentUrl: "https://checkout.xendit.co/web/B-url" })
       .mockRejectedValueOnce(new Error("Xendit 500"));
 
@@ -282,14 +282,14 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     expect(body.errors).toEqual(["Citra: Xendit 500"]);
 
     // Helper called exactly twice — NOT for inv-a (already sessioned).
-    expect(createXenditSessionForInvoice).toHaveBeenCalledTimes(2);
-    expect(createXenditSessionForInvoice).toHaveBeenNthCalledWith(
+    expect(createPaymentSessionForInvoice).toHaveBeenCalledTimes(2);
+    expect(createPaymentSessionForInvoice).toHaveBeenNthCalledWith(
       1,
       "inv-b",
       "tnt-1",
       expect.stringMatching(/^https?:\/\//),
     );
-    expect(createXenditSessionForInvoice).toHaveBeenNthCalledWith(
+    expect(createPaymentSessionForInvoice).toHaveBeenNthCalledWith(
       2,
       "inv-c",
       "tnt-1",
@@ -312,5 +312,83 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
       status: "PENDING_PAYMENT_LINK",
       paymentLinkError: "unknown: Xendit 500",
     });
+  });
+});
+
+// Cycle 2026-07-27-doku-payment-gateway T3 — two defects the audit surfaced:
+// (1) `await req.json()` was unguarded (a malformed body threw and yielded an
+// unhandled 500); (2) `invoiceIds` had no length cap while every sibling bulk
+// route caps at 25 via zod (`retryPaymentLinksSchema`, `generateBatchSchema`).
+describe("POST /api/xendit/create-session — request validation", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function makeRawReq(rawBody: string) {
+    return new Request("http://localhost:3000/api/xendit/create-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: rawBody,
+    });
+  }
+
+  it("returns 400 'Malformed body' when the request body is not valid JSON", async () => {
+    const { prisma } = await import("@/lib/db");
+
+    const res = await POST(makeRawReq("{not valid json") as never);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body).toEqual({ error: "Malformed body" });
+
+    // Must short-circuit before any DB lookup.
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 'Validasi gagal' with issues when invoiceIds.length > 25", async () => {
+    const overCap = Array.from({ length: 26 }, (_, i) => `inv-${i}`);
+
+    const res = await POST(makeReq({ invoiceIds: overCap }) as never);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Validasi gagal");
+    expect(body.issues).toBeDefined();
+  });
+
+  it("accepts the singular invoiceId form (single-invoice action) and processes it", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv-single",
+      tenantId: "tnt-1",
+      invoiceNumber: "INV-SINGLE-1",
+      status: "DRAFT",
+      totalDue: 100000,
+      totalPaid: 0,
+      xenditSessionId: null,
+      xenditPaymentUrl: null,
+      paymentLinkError: null,
+      student: { name: "Eka" },
+      lines: [{ labelSnapshot: "SPP" }],
+    } as never);
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
+      paymentUrl: "https://checkout.xendit.co/web/single",
+    });
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+
+    const res = await POST(makeReq({ invoiceId: "inv-single" }) as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.total).toBe(1);
+    expect(body.created).toBe(1);
+    expect(body.results[0]).toEqual({
+      studentName: "Eka",
+      invoiceNumber: "INV-SINGLE-1",
+      paymentUrl: "https://checkout.xendit.co/web/single",
+    });
+    expect(createPaymentSessionForInvoice).toHaveBeenCalledWith(
+      "inv-single",
+      "tnt-1",
+      expect.stringMatching(/^https?:\/\//),
+    );
   });
 });

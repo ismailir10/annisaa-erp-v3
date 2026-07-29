@@ -5,25 +5,14 @@ vi.mock("@/lib/db", () => ({
     invoice: { findUnique: vi.fn(), update: vi.fn() },
   },
 }));
-vi.mock("@/lib/xendit/client", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/xendit/client")>(
-      "@/lib/xendit/client",
-    );
-  return {
-    ...actual,
-    createXenditSession: vi.fn(),
-    stripQuery: (url: string | null | undefined) => {
-      if (!url) return null;
-      try {
-        const u = new URL(url);
-        return u.origin + u.pathname;
-      } catch {
-        return null;
-      }
-    },
-  };
-});
+
+// The session helper now resolves the active gateway via `getGateway()`
+// (cycle 2026-07-27-doku-payment-gateway T3) instead of calling the Xendit
+// client concretely, so the seam to mock moved from `@/lib/xendit/client`'s
+// `createXenditSession` to the registry's `getGateway`.
+vi.mock("@/lib/payments/registry", () => ({
+  getGateway: vi.fn(),
+}));
 
 import { resolveAppOrigin } from "../xendit/helpers";
 
@@ -84,14 +73,15 @@ describe("createXenditSessionForInvoice — withXenditRetry wrapping", () => {
   });
 
   // Pinned per cycle 2026-04-27-invoice-create-auto-retry T3. The wrap around
-  // createXenditSession() must surface the typed XenditApiError after the retry
-  // budget is exhausted so route-handler callers (T4) can prefix-tag
-  // paymentLinkError on `error.code`. Regression here would silently re-throw
-  // a generic Error and the prefix tagger would fall through to "unknown:".
+  // the gateway's createSession() must surface the typed XenditApiError
+  // (GatewayApiError) after the retry budget is exhausted so route-handler
+  // callers (T4) can prefix-tag paymentLinkError on `error.code`. Regression
+  // here would silently re-throw a generic Error and the prefix tagger would
+  // fall through to "unknown:".
   it("propagates XenditApiError with code:'5xx' after 3 retry attempts", async () => {
     vi.useFakeTimers();
 
-    const { createXenditSession } = await import("@/lib/xendit/client");
+    const { getGateway } = await import("@/lib/payments/registry");
     const { XenditApiError } = await import("@/lib/xendit/client");
     const { prisma } = await import("@/lib/db");
 
@@ -101,7 +91,13 @@ describe("createXenditSessionForInvoice — withXenditRetry wrapping", () => {
       retriable: true,
       message: "Xendit returned 503",
     });
-    vi.mocked(createXenditSession).mockRejectedValue(transient5xx);
+    const createSessionMock = vi.fn().mockRejectedValue(transient5xx);
+    vi.mocked(getGateway).mockReturnValue({
+      id: "xendit",
+      createSession: createSessionMock,
+      ping: vi.fn(),
+      fetchPaymentStatus: vi.fn(),
+    });
 
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv-5xx",
@@ -130,9 +126,128 @@ describe("createXenditSessionForInvoice — withXenditRetry wrapping", () => {
 
     // Exactly 3 attempts — the retry budget is MAX_ATTEMPTS=3. A 4th would
     // breach the per-request budget math in the cycle spec.
-    expect(vi.mocked(createXenditSession)).toHaveBeenCalledTimes(3);
+    expect(createSessionMock).toHaveBeenCalledTimes(3);
     // DB persist (step 4) must NOT run when the wrapped call throws — the
     // `await` on the wrap short-circuits before `prisma.invoice.update`.
     expect(vi.mocked(prisma.invoice.update)).not.toHaveBeenCalled();
+  });
+});
+
+// Cycle 2026-07-29-doku-all-va-channels. Under DOKU the gateway emails the
+// Virtual Account number to `customer.email`; if the primary guardian has no
+// address the parent never learns which VA to pay and the invoice stalls at
+// SENT with no error anywhere. These pin the passthrough and make the
+// no-email case observable.
+describe("createPaymentSessionForInvoice — guardian contact passthrough", () => {
+  const originalEnv = process.env.NEXT_PUBLIC_APP_URL;
+
+  async function runWith(guardians: unknown[]) {
+    const { getGateway } = await import("@/lib/payments/registry");
+    const { prisma } = await import("@/lib/db");
+
+    const createSession = vi.fn().mockResolvedValue({
+      id: "sess-1",
+      paymentUrl: "https://checkout.example.test/abc",
+      status: "PENDING",
+      expiresAt: "2026-08-05T00:00:00Z",
+    });
+    vi.mocked(getGateway).mockReturnValue({
+      id: "doku",
+      createSession,
+      ping: vi.fn(),
+      fetchPaymentStatus: vi.fn(),
+    });
+
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv-mail",
+      tenantId: "tnt-1",
+      status: "SENT",
+      totalDue: 250000,
+      totalPaid: 0,
+      invoiceNumber: "INV-MAIL",
+      periodLabel: "Jul 2026",
+      student: { name: "Aisy", guardians },
+      lines: [],
+    } as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+    await createPaymentSessionForInvoice("inv-mail", "tnt-1");
+    return createSession;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = "https://talib.annisaasekolahku.com";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (originalEnv === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = originalEnv;
+  });
+
+  it("passes the primary guardian's email + name + whatsapp to the gateway", async () => {
+    const createSession = await runWith([
+      {
+        parent: {
+          name: "Bu Sari",
+          email: "sari@example.test",
+          whatsapp: "081234567890",
+          phone: "0217654321",
+        },
+      },
+    ]);
+
+    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(createSession.mock.calls[0][0]).toMatchObject({
+      customerName: "Bu Sari",
+      customerEmail: "sari@example.test",
+      // whatsapp wins over phone — it is the channel An Nisaa' parents read.
+      customerPhone: "081234567890",
+      // Same origin the request came in on, so preview/staging/prod each get
+      // their own notifications instead of whatever Back Office happens to
+      // have configured.
+      notificationUrl: "https://talib.annisaasekolahku.com/api/doku/webhook",
+    });
+  });
+
+  it("falls back to phone when the guardian has no whatsapp", async () => {
+    const createSession = await runWith([
+      { parent: { name: "Pak Budi", email: "budi@example.test", whatsapp: null, phone: "0217654321" } },
+    ]);
+
+    expect(createSession.mock.calls[0][0]).toMatchObject({
+      customerPhone: "0217654321",
+    });
+  });
+
+  it("sends customerEmail undefined and warns when the primary guardian has no email", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const createSession = await runWith([
+      { parent: { name: "Ibu Nur", email: null, whatsapp: null, phone: null } },
+    ]);
+
+    expect(createSession.mock.calls[0][0].customerEmail).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      "[PAYMENT SESSION NO CUSTOMER EMAIL]",
+      expect.objectContaining({ invoiceId: "inv-mail", hasPrimaryGuardian: true }),
+    );
+  });
+
+  it("warns with hasPrimaryGuardian:false and falls back to the student name when no primary guardian exists", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const createSession = await runWith([]);
+
+    expect(createSession.mock.calls[0][0]).toMatchObject({
+      customerName: "Aisy",
+      customerEmail: undefined,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "[PAYMENT SESSION NO CUSTOMER EMAIL]",
+      expect.objectContaining({ hasPrimaryGuardian: false }),
+    );
   });
 });

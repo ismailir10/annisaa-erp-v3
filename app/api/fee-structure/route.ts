@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { saveFeeStructureSchema } from "@/lib/validations/fee-structure";
 
 // Cache GET responses for 1 day — fee structures change ~once per academic year
 export const revalidate = 86400;
@@ -40,28 +41,49 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body: { programId: string; academicYearId: string; fees: { feeComponentId: string; amount: number; notes?: string }[] } = await req.json();
+  const body = await req.json().catch(() => null);
+  const parsed = saveFeeStructureSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Data tidak valid" },
+      { status: 400 },
+    );
+  }
+  const { programId, academicYearId, fees } = parsed.data;
 
   // Verify tenant ownership of program and academic year
-  const program = await prisma.program.findFirst({ where: { id: body.programId, tenantId: session.tenantId } });
+  const program = await prisma.program.findFirst({ where: { id: programId, tenantId: session.tenantId } });
   if (!program) return NextResponse.json({ error: "Program tidak ditemukan" }, { status: 404 });
-  const year = await prisma.academicYear.findFirst({ where: { id: body.academicYearId, tenantId: session.tenantId } });
+  const year = await prisma.academicYear.findFirst({ where: { id: academicYearId, tenantId: session.tenantId } });
   if (!year) return NextResponse.json({ error: "Tahun ajaran tidak ditemukan" }, { status: 404 });
 
-  for (const fee of body.fees) {
+  // Verify tenant ownership of every fee component (same pattern as
+  // POST /api/invoices) — a foreign cuid would otherwise be durably attached
+  // and readable back through GET's `include: { feeComponent: true }`.
+  const feeIds = [...new Set(fees.map((f) => f.feeComponentId))];
+  if (feeIds.length > 0) {
+    const ownedCount = await prisma.feeComponentDef.count({
+      where: { id: { in: feeIds }, tenantId: session.tenantId },
+    });
+    if (ownedCount !== feeIds.length) {
+      return NextResponse.json({ error: "Komponen biaya tidak ditemukan" }, { status: 404 });
+    }
+  }
+
+  for (const fee of fees) {
     await prisma.programFeeStructure.upsert({
       where: {
         programId_academicYearId_feeComponentId: {
-          programId: body.programId,
-          academicYearId: body.academicYearId,
+          programId,
+          academicYearId,
           feeComponentId: fee.feeComponentId,
         },
       },
       update: { amount: fee.amount, notes: fee.notes ?? null },
       create: {
         tenantId: session.tenantId,
-        programId: body.programId,
-        academicYearId: body.academicYearId,
+        programId,
+        academicYearId,
         feeComponentId: fee.feeComponentId,
         amount: fee.amount,
         notes: fee.notes ?? null,

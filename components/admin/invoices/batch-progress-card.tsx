@@ -12,7 +12,7 @@ import type { BulkRetrySnapshot, RetryFailureRow } from "@/lib/finance/run-bulk-
  * Sticky progress card shown during a bulk-generate or bulk-retry run.
  *
  * `mode` discriminator switches headers + done copy between the two flows:
- *   - "generate" (default): "Membuat tagihan…" / "Selesai: N dibuat, M gagal Xendit"
+ *   - "generate" (default): "Membuat tagihan…" / "Selesai: N dibuat, M link gagal"
  *   - "retry":              "Memperbaiki link pembayaran…" / "Selesai: N link diperbaiki, M masih gagal"
  *
  * Shadcn `<Progress>` keeps the batch indicator aligned with the shared UI
@@ -110,9 +110,9 @@ function GenerateCard({
         <span className="text-sm font-medium">
           {progress.phase === "running" && `Membuat tagihan… ${progress.done}/${progress.total}`}
           {progress.phase === "done" &&
-            `Selesai: ${progress.created} dibuat, ${progress.xenditFailed} gagal Xendit`}
+            `Selesai: ${progress.created} dibuat, ${progress.xenditFailed} link gagal`}
           {progress.phase === "aborted" &&
-            `Dibatalkan: ${progress.created} dibuat, ${progress.xenditFailed} gagal Xendit`}
+            `Dibatalkan: ${progress.created} dibuat, ${progress.xenditFailed} link gagal`}
         </span>
         {isRunning && onCancel && (
           <Button

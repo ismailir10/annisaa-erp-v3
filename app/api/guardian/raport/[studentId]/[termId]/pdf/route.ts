@@ -23,7 +23,10 @@ type Ctx = { params: Promise<{ studentId: string; termId: string }> };
  */
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "GUARDIAN") {
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!session.tenantId || session.role !== "GUARDIAN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { studentId, termId } = await ctx.params;

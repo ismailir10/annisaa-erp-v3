@@ -9,7 +9,10 @@ import { getSession } from "@/lib/auth";
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || session.role !== "GUARDIAN") {
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!session.tenantId || session.role !== "GUARDIAN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

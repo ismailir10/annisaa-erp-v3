@@ -505,6 +505,79 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
   });
 
+  it("currency guard — non-IDR completed event → ERROR:currency_mismatch, no credit", async () => {
+    const { prisma } = await import("@/lib/db");
+    const res = await POST(
+      makeReq({
+        id: "evt-usd",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv1",
+          status: "COMPLETED",
+          payment_id: "pay-usd",
+          amount: 100_000,
+          currency: "USD",
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "ERROR:currency_mismatch" });
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "evt-usd" },
+        data: expect.objectContaining({
+          status: "ERROR",
+          errorMessage: "CURRENCY_MISMATCH:USD",
+        }),
+      }),
+    );
+  });
+
+  it("currency guard — explicit IDR still proceeds to invoice resolution", async () => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null);
+    const res = await POST(
+      makeReq({
+        id: "evt-idr",
+        event: "payment_session.completed",
+        data: {
+          reference_id: "inv-missing",
+          status: "COMPLETED",
+          payment_id: "pay-idr",
+          amount: 100_000,
+          currency: "IDR",
+        },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    // Passed the currency guard — reached invoice resolution (which misses here).
+    expect(prisma.invoice.findUnique).toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ status: "ERROR:invoice_not_found" });
+  });
+
+  it("rate limit — 61st request from one IP inside a minute → 429 before token check", async () => {
+    const ip = "203.0.113.77"; // dedicated IP so other tests' quota untouched
+    const flood = () =>
+      new Request("http://localhost/api/xendit/webhook", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": ip,
+        },
+        body: JSON.stringify({}),
+      });
+    let last: Response | null = null;
+    for (let i = 0; i < 60; i++) {
+      last = await POST(flood() as never);
+      expect(last.status).toBe(401); // no token — but not yet throttled
+    }
+    const throttled = await POST(flood() as never);
+    expect(throttled.status).toBe(429);
+  });
+
   it("T5d — overpayment is credited but flagged ERROR:OVERPAYMENT_FLAGGED", async () => {
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({

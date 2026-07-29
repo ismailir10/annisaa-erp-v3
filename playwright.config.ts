@@ -100,6 +100,15 @@ export default defineConfig({
       // tests that mock `createXenditSessionForInvoice` directly.
       XENDIT_SECRET_KEY: process.env.XENDIT_SECRET_KEY ?? "test-secret",
       XENDIT_WEBHOOK_TOKEN: process.env.XENDIT_WEBHOOK_TOKEN ?? "test-webhook-token",
+      // Stub DOKU credentials so `lib/payments/doku/client.ts` doesn't throw
+      // at module-init/first-call time either (cycle
+      // 2026-07-27-doku-payment-gateway T5). `PAYMENT_GATEWAY` is unset in
+      // this config, so the e2e suite still exercises the Xendit path by
+      // default — these stubs only guard against module-init throws if a
+      // spec (or a future cycle) flips PAYMENT_GATEWAY=doku locally.
+      DOKU_CLIENT_ID: process.env.DOKU_CLIENT_ID ?? "test-doku-client-id",
+      DOKU_SECRET_KEY: process.env.DOKU_SECRET_KEY ?? "test-doku-secret-key",
+      DOKU_ENV: process.env.DOKU_ENV ?? "sandbox",
     },
   },
 });

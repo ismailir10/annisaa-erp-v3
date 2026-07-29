@@ -3,8 +3,9 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { createXenditSessionForInvoice } from "@/lib/xendit/helpers";
+import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
+import { createPaymentSessionSchema } from "@/lib/validations/invoice";
 
 /**
  * Create Xendit Checkout Sessions — single or bulk.
@@ -23,8 +24,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const invoiceIds: string[] = body.invoiceIds ?? (body.invoiceId ? [body.invoiceId] : []);
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Malformed body" }, { status: 400 });
+  }
+
+  const parsed = createPaymentSessionSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Validasi gagal", issues: parsed.error.issues },
+      { status: 400 }
+    );
+  }
+
+  const invoiceIds: string[] =
+    parsed.data.invoiceIds ?? (parsed.data.invoiceId ? [parsed.data.invoiceId] : []);
 
   if (invoiceIds.length === 0) {
     return NextResponse.json({ error: "Pilih minimal satu tagihan" }, { status: 400 });
@@ -80,7 +96,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const result = await createXenditSessionForInvoice(invoiceId, session.tenantId, new URL(req.url).origin);
+      const result = await createPaymentSessionForInvoice(invoiceId, session.tenantId, new URL(req.url).origin);
 
       if (result) {
         // Update status to SENT (helper only stores Xendit fields).

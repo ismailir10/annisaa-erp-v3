@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -96,24 +97,35 @@ export async function PUT(
   // `nik` key map to the same Parent.nik column. `parentNik` wins on conflict.
   const nikInput = d.parentNik !== undefined ? d.parentNik : d.nik;
 
-  const updated = await prisma.parent.update({
-    where: { id },
-    data: {
-      name: d.name?.trim() ?? parent.name,
-      phone: d.phone !== undefined ? (d.phone?.trim() || null) : parent.phone,
-      email: d.email !== undefined ? (d.email?.trim() || null) : parent.email,
-      whatsapp: d.whatsapp !== undefined ? (d.whatsapp?.trim() || null) : parent.whatsapp,
-      address: d.address !== undefined ? (d.address?.trim() || null) : parent.address,
-      nik: nikInput !== undefined ? (nikInput?.trim() || null) : undefined,
-      education: d.education !== undefined ? (d.education?.trim() || null) : undefined,
-      occupation: d.occupation !== undefined ? (d.occupation?.trim() || null) : undefined,
-      employer: d.employer !== undefined ? (d.employer?.trim() || null) : undefined,
-      employerAddress: d.employerAddress !== undefined ? (d.employerAddress?.trim() || null) : undefined,
-      employerCity: d.employerCity !== undefined ? (d.employerCity?.trim() || null) : undefined,
-      incomeRange: d.incomeRange !== undefined ? (d.incomeRange?.trim() || null) : undefined,
-      childrenTotal: d.childrenTotal !== undefined ? d.childrenTotal : undefined,
-    },
-  });
+  let updated;
+  try {
+    updated = await prisma.parent.update({
+      where: { id },
+      data: {
+        name: d.name?.trim() ?? parent.name,
+        phone: d.phone !== undefined ? (d.phone?.trim() || null) : parent.phone,
+        email: d.email !== undefined ? (d.email?.trim() || null) : parent.email,
+        whatsapp: d.whatsapp !== undefined ? (d.whatsapp?.trim() || null) : parent.whatsapp,
+        address: d.address !== undefined ? (d.address?.trim() || null) : parent.address,
+        nik: nikInput !== undefined ? (nikInput?.trim() || null) : undefined,
+        education: d.education !== undefined ? (d.education?.trim() || null) : undefined,
+        occupation: d.occupation !== undefined ? (d.occupation?.trim() || null) : undefined,
+        employer: d.employer !== undefined ? (d.employer?.trim() || null) : undefined,
+        employerAddress: d.employerAddress !== undefined ? (d.employerAddress?.trim() || null) : undefined,
+        employerCity: d.employerCity !== undefined ? (d.employerCity?.trim() || null) : undefined,
+        incomeRange: d.incomeRange !== undefined ? (d.incomeRange?.trim() || null) : undefined,
+        childrenTotal: d.childrenTotal !== undefined ? d.childrenTotal : undefined,
+      },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json(
+        { error: "Email sudah digunakan oleh wali lain." },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
 
   return NextResponse.json(updated);
 }
@@ -122,6 +134,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { success } = rateLimit(`parent-toggle:${getClientIp(req)}`, 10, 60_000);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

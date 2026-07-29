@@ -86,7 +86,7 @@ describe("createXenditSession — XenditApiError classification", () => {
       vi.fn(async () => mockErrorResponse({ status: 500 })),
     );
     await expect(createXenditSession(baseParams)).rejects.toMatchObject({
-      name: "XenditApiError",
+      name: "GatewayApiError",
       status: 500,
       code: "5xx",
       retriable: true,

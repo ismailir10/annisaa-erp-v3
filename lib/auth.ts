@@ -372,9 +372,17 @@ async function _getSession(): Promise<SessionUser | null> {
     let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
     let displayName: string | null = user.name;
     if (user.role === "GUARDIAN") {
+      // Email-fallback lookup only runs when email is a non-empty string —
+      // an empty/falsy email would otherwise hit `findFirst({ where: { email: "" } })`,
+      // which is a leak-class query if any parent row shares that value.
+      // Tenant-scoped: Parent.email is unique PER TENANT (see schema
+      // @@unique([tenantId, email])), not globally, so an unscoped lookup
+      // could also match another tenant's parent sharing the same email.
       const parent = parentId
         ? await prisma.parent.findFirst({ where: { id: parentId }, select: { id: true, name: true } })
-        : await prisma.parent.findFirst({ where: { email: user.email }, select: { id: true, name: true } });
+        : user.email
+          ? await prisma.parent.findFirst({ where: { email: user.email, tenantId: user.tenantId }, select: { id: true, name: true } })
+          : null;
       if (parent) {
         parentId = parent.id;
         displayName = parent.name;
@@ -495,9 +503,14 @@ async function getDemoSession(): Promise<SessionUser | null> {
   let parentId: string | null = (user as { parentId?: string | null }).parentId ?? null;
   let displayName: string | null = user.name;
   if (user.role === "GUARDIAN") {
+    // Email-fallback lookup only runs when email is a non-empty string, and
+    // is tenant-scoped — same rationale as the production getSession() path
+    // above (Parent.email is unique PER TENANT, not globally).
     const parent = parentId
       ? await prisma.parent.findFirst({ where: { id: parentId }, select: { id: true, name: true } })
-      : await prisma.parent.findFirst({ where: { email: user.email }, select: { id: true, name: true } });
+      : user.email
+        ? await prisma.parent.findFirst({ where: { email: user.email, tenantId: user.tenantId }, select: { id: true, name: true } })
+        : null;
     if (parent) {
       parentId = parent.id;
       displayName = parent.name;

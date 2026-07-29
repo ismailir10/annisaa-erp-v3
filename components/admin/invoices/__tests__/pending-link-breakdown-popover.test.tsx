@@ -169,6 +169,32 @@ describe("PendingLinkBreakdownPopover", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("names DOKU_SECRET_KEY when gatewayId=\"doku\" (AC-22)", async () => {
+    const fetchMock = mockBreakdown(
+      6,
+      makeByPrefix({ "401": 3, "403": 1, "5xx": 2 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(
+      <PendingLinkBreakdownPopover
+        count={6}
+        retrying={false}
+        onClickRetry={() => {}}
+        gatewayId="doku"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Coba Lagi Link/ }));
+
+    expect(
+      await screen.findByText(/Banyak gagal autentikasi/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("DOKU_SECRET_KEY")).toBeInTheDocument();
+    expect(screen.queryByText("XENDIT_SECRET_KEY")).not.toBeInTheDocument();
+  });
+
   it("does NOT render the auth-heavy warning at exactly the 0.5 boundary (strict >)", async () => {
     // 2 / 4 = 0.5 — equal to threshold, must NOT trigger (locks in `>` not `>=`).
     const fetchMock = mockBreakdown(

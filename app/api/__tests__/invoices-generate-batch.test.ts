@@ -34,8 +34,8 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 // Mock the helper at the boundary the route imports it from. The helper's
 // internal Xendit + DB write is out of scope here; we control its outcomes
 // directly to exercise success / failure / TOCTOU branches.
-vi.mock("@/lib/xendit/helpers", () => ({
-  createXenditSessionForInvoice: vi.fn(),
+vi.mock("@/lib/payments/session", () => ({
+  createPaymentSessionForInvoice: vi.fn(),
 }));
 
 import { POST } from "../invoices/generate/batch/route";
@@ -216,7 +216,7 @@ describe("POST /api/invoices/generate/batch — happy path", () => {
   it("creates 5 invoices, all Xendit succeed → 5 SENT, created=5, skipped=0", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
     const studentIds = ["s-1", "s-2", "s-3", "s-4", "s-5"];
@@ -230,7 +230,7 @@ describe("POST /api/invoices/generate/batch — happy path", () => {
     wireHappyTx(studentIds);
 
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
-    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (id) => ({
+    vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (id) => ({
       paymentUrl: `https://checkout.xendit.co/web/${id}`,
     }));
 
@@ -262,7 +262,7 @@ describe("POST /api/invoices/generate/batch — mixed Xendit outcomes", () => {
   it("4 succeed + 1 fails → 4 SENT + 1 PENDING_PAYMENT_LINK with paymentLinkError persisted", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
     const studentIds = ["s-1", "s-2", "s-3", "s-4", "s-5"];
@@ -278,7 +278,7 @@ describe("POST /api/invoices/generate/batch — mixed Xendit outcomes", () => {
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
     // Helper succeeds for inv-s-1..s-4, throws for inv-s-5.
-    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
+    vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
       if (invoiceId === "inv-s-5") throw new Error("Xendit 503");
       return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
     });
@@ -323,7 +323,7 @@ describe("POST /api/invoices/generate/batch — skipped students", () => {
   it("3 studentIds (1 eligible, 1 already-invoiced, 1 no-enrollment) → created=1, skipped=2", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
     // s-1: eligible. s-2: already-invoiced (same period). s-3: no enrollment.
@@ -355,7 +355,7 @@ describe("POST /api/invoices/generate/batch — skipped students", () => {
     wireHappyTx(["s-1"]);
 
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
-    vi.mocked(createXenditSessionForInvoice).mockResolvedValue({
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
       paymentUrl: "https://checkout.xendit.co/web/inv-s-1",
     });
 
@@ -378,7 +378,7 @@ describe("POST /api/invoices/generate/batch — 25-student with 3 Xendit failure
   it("3 of 25 Xendit calls fail → 3 entries in results[] with error + studentName populated", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
     const studentIds = Array.from({ length: 25 }, (_, i) => `s-${i + 1}`);
@@ -395,7 +395,7 @@ describe("POST /api/invoices/generate/batch — 25-student with 3 Xendit failure
 
     // Fail s-7, s-13, s-22 → invoice ids inv-s-7, inv-s-13, inv-s-22.
     const failingInvoiceIds = new Set(["inv-s-7", "inv-s-13", "inv-s-22"]);
-    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
+    vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
       if (failingInvoiceIds.has(invoiceId)) throw new Error("Xendit 503");
       return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
     });
@@ -426,7 +426,7 @@ describe("POST /api/invoices/generate/batch — 25-student happy path", () => {
   it("fans out 25 Xendit calls in parallel and returns all SENT", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import("@/lib/xendit/helpers");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
     const studentIds = Array.from({ length: 25 }, (_, i) => `s-${i + 1}`);
@@ -441,7 +441,7 @@ describe("POST /api/invoices/generate/batch — 25-student happy path", () => {
 
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
-    vi.mocked(createXenditSessionForInvoice).mockImplementation(async (invoiceId) => {
+    vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
       return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
     });
 
@@ -451,6 +451,6 @@ describe("POST /api/invoices/generate/batch — 25-student happy path", () => {
 
     expect(body.created).toBe(25);
     expect(body.results).toHaveLength(25);
-    expect(vi.mocked(createXenditSessionForInvoice)).toHaveBeenCalledTimes(25);
+    expect(vi.mocked(createPaymentSessionForInvoice)).toHaveBeenCalledTimes(25);
   });
 });
