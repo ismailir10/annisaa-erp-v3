@@ -821,7 +821,8 @@ export function ClassDetailClient({
       {/* ── Section A — Page header ─────────────────────────────── */}
       <PageHeader
         title={`${data.name} · ${data.academicYear.name}`}
-        description={`${data.campus.name} · ${data.program.name}${homeroomLabel}`}
+        description={`${data.program.name}${homeroomLabel}`}
+        badge={<Badge variant="outline">{data.campus.name}</Badge>}
         actions={
           writeAllowed ? (
             <>
