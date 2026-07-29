@@ -215,6 +215,23 @@ Everything else in Back Office checks out:
 - BCA's per-channel **Payment Notification URL** is populated and persisted with the staging webhook URL, and that URL is reachable (point 2).
 - The **SNAP hypothesis is dead**: Settings → "Virtual Account SNAP" resolves to `/bo/configuration/virtual-account-snap`, which renders the *same* Payment Virtual Account page as the non-SNAP link. There is no separate SNAP notification URL to have missed.
 
+### Second run, after the "maybe our setup is wrong" challenge
+
+Re-tested end to end rather than trusting the first result. New manual invoice `INV-2026-0007` (Rp 175.000) → BCA VA `1900800000312458`.
+
+**The SNAP theory is now positively excluded, not just argued away.** Back Office's own Payment Simulator lists two groups — *Virtual Account (SNAP)* and *Virtual Account (Non SNAP)*. Feeding the Checkout-minted VA to **Bank BCA (SNAP)** returns:
+
+> Invalid Bill/Virtual Account [Virtual account not found.]
+
+So a DOKU Checkout order mints a **non-SNAP** VA. The first test, which used the non-SNAP "Bank BCA" simulator, was on the correct rail all along — and the non-SNAP per-channel "Payment Notification URL" is therefore the right setting, and it *is* populated. (The `SNAP` badge in the channel list reflects what the channel supports for the Direct API, not what Checkout mints.)
+
+Paying the new VA on the non-SNAP simulator returned Payment Success. Then, after a ~100s wait:
+
+- `WebhookEvent` — no new row. Still only the three `manual.refresh.completed` rows and the one genuine Xendit webhook.
+- Notification Center → Notifikasi — still **"Tidak ada data"**, 0 entries.
+
+Two independent settled payments, zero notification attempts logged by DOKU. Same outcome on code that does and does not send `override_notification_url`, which also rules the override out as the cause.
+
 **Root cause: DOKU is not emitting merchant notifications for this account.** Order recorded, payment SUCCESS, notification URL configured and reachable, signature contract satisfied, zero delivery attempts logged on DOKU's side. Nothing in this repository can fix that — it needs a DOKU support ticket quoting order `cms5as9q2000004jxdq21orae`, its `SUCCESS` at 29/07/2026 06:41:27 GMT+7, and the empty Notification Center.
 
 **Fix shipped: stop depending on the notification.** `POST /api/cron/reconcile-payments` (daily 00:30 UTC, `vercel.json`) sweeps every outstanding invoice that has a payment link and reconciles it against the gateway. It reuses `reconcileInvoicePayment` — the exact path the manual button uses — so it routes through `processPaymentEvent` and inherits the durable receipt, the deterministic-`eventId` P2002 dedup, the per-invoice advisory lock, the amount/currency checks and the PAID/CANCELLED short-circuits. Re-running is a no-op by construction; it cannot double-credit.
