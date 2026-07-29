@@ -75,6 +75,91 @@ describe("extractDisplayFields — fallback chain", () => {
   });
 });
 
+describe("extractDisplayFields — DOKU notification shape (2026-07-27-doku-payment-gateway T6)", () => {
+  function makeDokuNotification(overrides: {
+    order?: Record<string, unknown>;
+    transaction?: Record<string, unknown>;
+    channel?: Record<string, unknown>;
+  } = {}) {
+    return {
+      service: { id: "VIRTUAL_ACCOUNT" },
+      acquirer: { id: "BCA" },
+      channel: { id: "VIRTUAL_ACCOUNT_BCA", ...(overrides.channel ?? {}) },
+      transaction: {
+        status: "SUCCESS",
+        date: "2026-07-27T10:00:00Z",
+        original_request_id: "req-default",
+        ...(overrides.transaction ?? {}),
+      },
+      order: {
+        invoice_number: "inv1",
+        amount: 400_000,
+        ...(overrides.order ?? {}),
+      },
+    };
+  }
+
+  it("reports a live paymentMethod from channel.id — unlike Xendit's hardcoded null", () => {
+    const fields = extractDisplayFields(makeDokuNotification());
+    expect(fields.paymentMethod).toBe("VIRTUAL_ACCOUNT_BCA");
+  });
+
+  it("parses paidAt from transaction.date", () => {
+    const fields = extractDisplayFields(makeDokuNotification());
+    expect(fields.paidAt?.toISOString()).toBe("2026-07-27T10:00:00.000Z");
+  });
+
+  it("parses amount from order.amount", () => {
+    const fields = extractDisplayFields(makeDokuNotification());
+    expect(fields.amount).toBe(400_000);
+  });
+
+  it("coerces a float order.amount (some channels send e.g. 20000.00)", () => {
+    const fields = extractDisplayFields(
+      makeDokuNotification({ order: { amount: 20000.0 } }),
+    );
+    expect(fields.amount).toBe(20000);
+  });
+
+  it("parses paymentId from transaction.original_request_id", () => {
+    const fields = extractDisplayFields(
+      makeDokuNotification({ transaction: { original_request_id: "req-abc-123" } }),
+    );
+    expect(fields.paymentId).toBe("req-abc-123");
+  });
+
+  it("returns sessionId = null — DOKU notifications carry no session/token id", () => {
+    const fields = extractDisplayFields(makeDokuNotification());
+    expect(fields.sessionId).toBeNull();
+  });
+
+  it("parses currency from transaction.amount_details.currency when present", () => {
+    const fields = extractDisplayFields(
+      makeDokuNotification({ transaction: { amount_details: { currency: "IDR" } } }),
+    );
+    expect(fields.currency).toBe("IDR");
+  });
+
+  it("returns currency = null when amount_details is absent", () => {
+    const fields = extractDisplayFields(makeDokuNotification());
+    expect(fields.currency).toBeNull();
+  });
+
+  it("does not match the DOKU branch when only one of order/transaction is present", () => {
+    // Guards the structural-detection boundary: a malformed/partial payload
+    // must fall through to all-null, not throw or half-populate.
+    const fields = extractDisplayFields({ order: { amount: 1000 } });
+    expect(fields).toEqual({
+      paidAt: null,
+      paymentMethod: null,
+      amount: null,
+      currency: null,
+      sessionId: null,
+      paymentId: null,
+    });
+  });
+});
+
 describe("extractDisplayFields — unparseable input", () => {
   it("returns all-null for null input", () => {
     expect(extractDisplayFields(null)).toEqual({

@@ -104,10 +104,21 @@ type StudentFormValues = typeof EMPTY_CREATE_FORM;
 function StudentFormBody({
   form,
   setForm,
+  mode,
 }: {
   form: StudentFormValues;
   setForm: (v: StudentFormValues) => void;
+  /**
+   * Create mode keeps all four statuses (historical-import intent — see
+   * EMPTY_CREATE_FORM comment above). Edit mode never lets GRADUATED/WITHDRAWN
+   * be set or changed here: those lifecycle transitions run through the
+   * dedicated Luluskan/Keluarkan actions on the detail page (graduationDate +
+   * enrollment cascade), which a plain status PUT bypasses — the API now
+   * rejects GRADUATED on PUT.
+   */
+  mode: "create" | "edit";
 }) {
+  const lockedLifecycle = mode === "edit" && (form.status === "GRADUATED" || form.status === "WITHDRAWN");
   return (
     <div className="space-y-field">
       <SectionHeading label="Data Anak" />
@@ -151,7 +162,7 @@ function StudentFormBody({
             type="date"
             value={form.dateOfBirth}
             onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-            max={new Date().toISOString().split("T")[0]}
+            max={new Date().toLocaleDateString("en-CA")}
           />
         </Field>
       </div>
@@ -245,15 +256,33 @@ function StudentFormBody({
         <Select
           value={form.status}
           onValueChange={(v) => v && setForm({ ...form, status: v })}
+          disabled={lockedLifecycle}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="ACTIVE">Aktif</SelectItem>
-            <SelectItem value="INACTIVE">Nonaktif</SelectItem>
-            <SelectItem value="GRADUATED">Lulus</SelectItem>
-            <SelectItem value="WITHDRAWN">Keluar</SelectItem>
+            {lockedLifecycle ? (
+              <SelectItem value={form.status}>
+                {form.status === "GRADUATED" ? "Lulus" : "Keluar"}
+              </SelectItem>
+            ) : (
+              <>
+                <SelectItem value="ACTIVE">Aktif</SelectItem>
+                <SelectItem value="INACTIVE">Nonaktif</SelectItem>
+                {mode === "create" && (
+                  <>
+                    <SelectItem value="GRADUATED">Lulus</SelectItem>
+                    <SelectItem value="WITHDRAWN">Keluar</SelectItem>
+                  </>
+                )}
+              </>
+            )}
           </SelectContent>
         </Select>
+        {lockedLifecycle && (
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Status lulus/keluar diubah melalui aksi Luluskan atau Keluarkan di halaman detail siswa.
+          </p>
+        )}
       </Field>
     </div>
   );
@@ -399,23 +428,24 @@ export default function StudentsPage() {
   const [editForm, setEditForm] = useState(EMPTY_CREATE_FORM);
   const [editing, setEditing] = useState(false);
 
-  // Stats fetch once — single groupBy endpoint, not three pageSize=1 list calls
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/students/stats");
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          total: number;
-          active: number;
-          graduated: number;
-        };
-        setStats(data);
-      } catch (err) {
-        console.error("[students] stats fetch failed", err);
-      }
-    })();
+  // Single groupBy endpoint, not three pageSize=1 list calls. Re-run after
+  // any mutation (create/edit/status toggle) so the cards don't go stale.
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/students/stats");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        total: number;
+        active: number;
+        graduated: number;
+      };
+      setStats(data);
+    } catch (err) {
+      console.error("[students] stats fetch failed", err);
+    }
   }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -482,6 +512,7 @@ export default function StudentsPage() {
     toast.success(newStatus === "ACTIVE" ? "Siswa diaktifkan kembali" : "Siswa dinonaktifkan");
     setDeactivateTarget(null);
     fetchStudents();
+    fetchStats();
   }
 
   async function openEdit(student: Student) {
@@ -550,6 +581,7 @@ export default function StudentsPage() {
       toast.success("Data siswa diperbarui");
       setEditTarget(null);
       fetchStudents();
+      fetchStats();
     }
     setEditing(false);
   }
@@ -588,6 +620,7 @@ export default function StudentsPage() {
       toast.success("Siswa ditambahkan");
       setCreateOpen(false);
       setCreateForm(EMPTY_CREATE_FORM);
+      fetchStats();
       router.push(`/admin/students/${student.id}`);
     }
     setCreating(false);
@@ -601,13 +634,19 @@ export default function StudentsPage() {
         header: "",
         cell: ({ row }) => {
           const s = row.original;
-          const isActive = s.status !== "INACTIVE";
+          // GRADUATED/WITHDRAWN are terminal lifecycle states reached via the
+          // dedicated Luluskan/Keluarkan actions on the detail page (with
+          // graduationDate + enrollment cascade). Nonaktifkan/Aktifkan here
+          // only toggle the binary ACTIVE<->INACTIVE soft-delete state — never
+          // offer them for GRADUATED/WITHDRAWN rows.
+          const isActive = s.status === "ACTIVE";
+          const isInactive = s.status === "INACTIVE";
           return (
             <DataTableRowActions
               onView={() => router.push(`/admin/students/${s.id}`)}
               onEdit={() => openEdit(s)}
               onDeactivate={isActive ? () => setDeactivateTarget(s) : undefined}
-              onActivate={!isActive ? () => setDeactivateTarget(s) : undefined}
+              onActivate={isInactive ? () => setDeactivateTarget(s) : undefined}
               isActive={isActive}
             />
           );
@@ -688,7 +727,7 @@ export default function StudentsPage() {
               <SheetTitle>Edit Siswa</SheetTitle>
             </SheetHeader>
             <div className="p-card">
-              <StudentFormBody form={editForm} setForm={setEditForm} />
+              <StudentFormBody form={editForm} setForm={setEditForm} mode="edit" />
             </div>
             <SheetFooter>
               <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
@@ -709,7 +748,7 @@ export default function StudentsPage() {
             {/* flex-1 min-h-0 overflow-y-auto: T2 expanded the form to 3 sections;
                 without inner scroll the Status field falls below the 90vh dialog cap. */}
             <div className="p-card flex-1 min-h-0 overflow-y-auto">
-              <StudentFormBody form={editForm} setForm={setEditForm} />
+              <StudentFormBody form={editForm} setForm={setEditForm} mode="edit" />
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
@@ -734,7 +773,7 @@ export default function StudentsPage() {
               <SheetTitle>Tambah Siswa</SheetTitle>
             </SheetHeader>
             <div className="p-card">
-              <StudentFormBody form={createForm} setForm={setCreateForm} />
+              <StudentFormBody form={createForm} setForm={setCreateForm} mode="create" />
             </div>
             <SheetFooter>
               <Button
@@ -761,7 +800,7 @@ export default function StudentsPage() {
             </DialogHeader>
             {/* flex-1 min-h-0 overflow-y-auto: see Edit dialog above. */}
             <div className="p-card flex-1 min-h-0 overflow-y-auto">
-              <StudentFormBody form={createForm} setForm={setCreateForm} />
+              <StudentFormBody form={createForm} setForm={setCreateForm} mode="create" />
             </div>
             <DialogFooter>
               <Button

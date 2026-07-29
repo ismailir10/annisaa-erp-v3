@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { validateBody } from "@/lib/api/validate";
+import { withdrawStudentSchema } from "@/lib/validations/student";
 
 export async function POST(
   req: NextRequest,
@@ -17,11 +19,9 @@ export async function POST(
   }
 
   const { id: studentId } = await params;
-  const { reason, effectiveDate } = await req.json();
-
-  if (!reason) {
-    return NextResponse.json({ error: "Alasan pengunduran diri wajib diisi" }, { status: 400 });
-  }
+  const result = await validateBody(withdrawStudentSchema, await req.json().catch(() => ({})));
+  if (result.error) return result.error;
+  const { reason, effectiveDate } = result.data;
 
   // Verify student belongs to tenant
   const student = await prisma.student.findFirst({

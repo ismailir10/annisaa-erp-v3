@@ -5,6 +5,10 @@ export type GuardEnv = {
   DATABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   XENDIT_SECRET_KEY?: string;
+  PAYMENT_GATEWAY?: string;
+  DOKU_CLIENT_ID?: string;
+  DOKU_SECRET_KEY?: string;
+  DOKU_ENV?: string;
 };
 
 export type GuardResult = {
@@ -96,13 +100,33 @@ export function validateReseedEnv(env: GuardEnv): GuardResult {
     errors.push("SUPABASE_SERVICE_ROLE_KEY is required.");
   }
 
-  const xenditKey = env.XENDIT_SECRET_KEY?.trim();
-  if (!xenditKey) {
-    errors.push("XENDIT_SECRET_KEY is required.");
-  } else if (!xenditKey.startsWith("xnd_development_")) {
-    errors.push(
-      "XENDIT_SECRET_KEY must be a sandbox key (prefix 'xnd_development_'). Refusing to run against production Xendit.",
-    );
+  // Gateway-aware production-credential refusal (cycle
+  // 2026-07-27-doku-payment-gateway T5, AC-20). PAYMENT_GATEWAY unset or
+  // "xendit" keeps the original Xendit-only check byte-for-byte; "doku"
+  // applies the equivalent DOKU refusal instead.
+  if (env.PAYMENT_GATEWAY === "doku") {
+    const dokuClientId = env.DOKU_CLIENT_ID?.trim();
+    if (!dokuClientId) {
+      errors.push("DOKU_CLIENT_ID is required.");
+    }
+    const dokuSecretKey = env.DOKU_SECRET_KEY?.trim();
+    if (!dokuSecretKey) {
+      errors.push("DOKU_SECRET_KEY is required.");
+    }
+    if (env.DOKU_ENV === "production") {
+      errors.push(
+        "DOKU_ENV must not be 'production'. Refusing to run against production DOKU.",
+      );
+    }
+  } else {
+    const xenditKey = env.XENDIT_SECRET_KEY?.trim();
+    if (!xenditKey) {
+      errors.push("XENDIT_SECRET_KEY is required.");
+    } else if (!xenditKey.startsWith("xnd_development_")) {
+      errors.push(
+        "XENDIT_SECRET_KEY must be a sandbox key (prefix 'xnd_development_'). Refusing to run against production Xendit.",
+      );
+    }
   }
 
   return {

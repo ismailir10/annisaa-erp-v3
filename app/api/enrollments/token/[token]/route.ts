@@ -5,11 +5,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
+import { programIdSchema } from "@/lib/validations/program-id";
 
 const RATE_LIMIT_PER_MIN = 30; // generous — autosave can fire often
 const RATE_WINDOW_MS = 60_000;
-
-const CUID_REGEX = /^c[a-z0-9]{24,}$/i;
 
 // Draft save is intentionally loose — the parent may save a half-filled form.
 // Blobs are stored as-is (validated only at final submit). passthrough() keeps
@@ -19,7 +18,7 @@ const draftSchema = z.object({
   ayahData: z.object({}).passthrough().optional(),
   ibuData: z.object({}).passthrough().optional(),
   consentData: z.object({}).passthrough().optional(),
-  programId: z.union([z.string().regex(CUID_REGEX), z.literal(""), z.null()]).optional(),
+  programId: z.union([programIdSchema, z.literal(""), z.null()]).optional(),
   dcareAddon: z.boolean().optional(),
 });
 

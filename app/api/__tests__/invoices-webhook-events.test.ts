@@ -186,9 +186,11 @@ describe("GET /api/invoices/[id]/webhook-events — happy path", () => {
       "Jumlah pembayaran tidak tercatat di webhook. Verifikasi manual.",
     );
 
-    // Query was scoped + ordered.
+    // Query was scoped (invoice + active gateway, per AC-16) + ordered.
+    // PAYMENT_GATEWAY is unset in this test env, so the active gateway
+    // defaults to "xendit" (registry.ts getGateway()).
     const arg = vi.mocked(prisma.webhookEvent.findMany).mock.calls[0][0];
-    expect(arg?.where).toEqual({ invoiceId: "inv-1" });
+    expect(arg?.where).toEqual({ invoiceId: "inv-1", provider: "xendit" });
     expect(arg?.orderBy).toEqual({ createdAt: "desc" });
   });
 

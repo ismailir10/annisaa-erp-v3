@@ -164,6 +164,49 @@ describe("validateReseedEnv", () => {
   });
 });
 
+// Gateway-aware production-credential refusal (cycle
+// 2026-07-27-doku-payment-gateway T5, AC-20).
+describe("validateReseedEnv — PAYMENT_GATEWAY=doku", () => {
+  const dokuEnv = {
+    ...okEnv,
+    PAYMENT_GATEWAY: "doku",
+    DOKU_CLIENT_ID: "BRN-0249-1785138907502",
+    DOKU_SECRET_KEY: "SK-sandbox-abc",
+    DOKU_ENV: "sandbox",
+  };
+
+  it("accepts a fully-configured sandbox DOKU env (Xendit key ignored)", () => {
+    const res = validateReseedEnv({ ...dokuEnv, XENDIT_SECRET_KEY: undefined });
+    expect(res.ok).toBe(true);
+    expect(res.errors).toEqual([]);
+  });
+
+  it("rejects a missing DOKU_CLIENT_ID", () => {
+    const res = validateReseedEnv({ ...dokuEnv, DOKU_CLIENT_ID: undefined });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.includes("DOKU_CLIENT_ID"))).toBe(true);
+  });
+
+  it("rejects a missing DOKU_SECRET_KEY", () => {
+    const res = validateReseedEnv({ ...dokuEnv, DOKU_SECRET_KEY: undefined });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.includes("DOKU_SECRET_KEY"))).toBe(true);
+  });
+
+  it("rejects DOKU_ENV=production", () => {
+    const res = validateReseedEnv({ ...dokuEnv, DOKU_ENV: "production" });
+    expect(res.ok).toBe(false);
+    expect(
+      res.errors.some((e) => e.includes("Refusing to run against production DOKU")),
+    ).toBe(true);
+  });
+
+  it("does not require XENDIT_SECRET_KEY when PAYMENT_GATEWAY=doku", () => {
+    const res = validateReseedEnv({ ...dokuEnv, XENDIT_SECRET_KEY: undefined });
+    expect(res.errors.some((e) => e.includes("XENDIT_SECRET_KEY"))).toBe(false);
+  });
+});
+
 describe("formatGuardErrors", () => {
   it("renders a multi-line error block", () => {
     const out = formatGuardErrors(["err A", "err B"]);

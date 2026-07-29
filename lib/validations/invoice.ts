@@ -14,8 +14,10 @@ export const generateBatchSchema = z.object({
 });
 
 export const recordPaymentSchema = z.object({
-  amount: z.number().positive("Jumlah harus lebih dari 0"),
-  method: z.enum(["CASH", "BANK_TRANSFER", "XENDIT", "OTHER"]).default("CASH"),
+  // coerce: the record-payment dialog posts its form state verbatim, so
+  // `amount` arrives as the <Input>'s string value.
+  amount: z.coerce.number().positive("Jumlah harus lebih dari 0"),
+  method: z.enum(["CASH", "BANK_TRANSFER", "XENDIT", "DOKU", "OTHER"]).default("CASH"),
   reference: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
@@ -32,6 +34,16 @@ export const updateInvoiceSchema = z.object({
 });
 
 export const retryPaymentLinksSchema = z.object({
+  invoiceIds: z.array(z.string().min(1)).max(25).optional(),
+});
+
+// POST /api/xendit/create-session body shape. Accepts the singular
+// `invoiceId` form (single-invoice "Buat Link Pembayaran" action) alongside
+// the bulk `invoiceIds` form (admin multi-select "Kirim Tagihan"), capped at
+// 25 to match every sibling bulk route (`retryPaymentLinksSchema`,
+// `generateBatchSchema`).
+export const createPaymentSessionSchema = z.object({
+  invoiceId: z.string().min(1).optional(),
   invoiceIds: z.array(z.string().min(1)).max(25).optional(),
 });
 

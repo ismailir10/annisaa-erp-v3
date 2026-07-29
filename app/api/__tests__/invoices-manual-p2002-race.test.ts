@@ -49,8 +49,8 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
-vi.mock("@/lib/xendit/helpers", () => ({
-  createXenditSessionForInvoice: vi.fn(),
+vi.mock("@/lib/payments/session", () => ({
+  createPaymentSessionForInvoice: vi.fn(),
 }));
 
 import { POST } from "../invoices/route";
@@ -99,8 +99,8 @@ describe("POST /api/invoices — P2002 race regression (T0)", () => {
   it("FAILS PRE-T2b: should return 201 once retry-once lands (P2002 bubbles unhandled today)", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
-    const { createXenditSessionForInvoice } = await import(
-      "@/lib/xendit/helpers"
+    const { createPaymentSessionForInvoice } = await import(
+      "@/lib/payments/session"
     );
 
     vi.mocked(getSession).mockResolvedValue(adminSession);
@@ -124,7 +124,7 @@ describe("POST /api/invoices — P2002 race regression (T0)", () => {
       paymentLinkError: null,
       lines: [],
     } as never);
-    vi.mocked(createXenditSessionForInvoice).mockResolvedValue({
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
       sessionId: "ps-1",
       paymentUrl: "https://x/y",
     } as never);
