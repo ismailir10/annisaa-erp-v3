@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["sin1"],
   "crons": [
-    { "path": "/api/cron/finance-maintenance", "schedule": "0 1 * * *" },
-    { "path": "/api/cron/reconcile-payments", "schedule": "0 * * * *" }
+    { "path": "/api/cron/reconcile-payments", "schedule": "30 0 * * *" },
+    { "path": "/api/cron/finance-maintenance", "schedule": "0 1 * * *" }
   ]
 }

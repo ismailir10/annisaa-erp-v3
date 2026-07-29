@@ -5,8 +5,21 @@ import { limit } from "@/lib/finance/concurrency-limit";
 import { reconcileInvoicePayment } from "@/lib/payments/reconcile";
 
 /**
- * Hourly payment reconciliation sweep — the safety net for a gateway
+ * Daily payment reconciliation sweep — the safety net for a gateway
  * notification that never arrives.
+ *
+ * ### Schedule, and why it is not hourly
+ *
+ * Runs at 00:30 UTC (07:30 WIB), deliberately **before**
+ * `/api/cron/finance-maintenance` at 01:00 UTC: reconcile first, so an
+ * invoice a parent actually paid is not then promoted to OVERDUE and chased.
+ *
+ * Hourly would be better — worst-case credit delay would be an hour instead
+ * of a day — but Vercel's Hobby plan permits cron jobs *once per day* and at
+ * most two per project, and a deployment carrying `0 * * * *` is rejected
+ * outright (verified: PR #420 build failed on exactly that). Moving to Pro
+ * would allow the tighter schedule. Until then the admin "Perbarui
+ * pembayaran" button remains the way to credit a payment immediately.
  *
  * ### Why this exists
  *
@@ -45,14 +58,14 @@ import { reconcileInvoicePayment } from "@/lib/payments/reconcile";
 /**
  * Cap per run. Each candidate costs one outbound gateway call, and Vercel
  * caps function duration — an unbounded sweep over a full billing cycle's
- * invoices would time out and reconcile nothing at all.
+ * invoices would time out and reconcile nothing at all. At the pilot's ~179
+ * students one daily run covers the whole outstanding set several times over.
  *
  * Ordering is `dueDate asc` (indexed, and the most-overdue invoice is the one
  * whose missing payment hurts most). Note this is a *priority* order, not a
  * rotation: if outstanding invoices ever exceed this cap for a sustained
  * period, the newest-due tail would never be polled. `cappedAtLimit` in the
- * response exists to make that visible before it becomes a problem — with the
- * pilot's ~179 students it is not one today.
+ * response exists to make that visible before it becomes a problem.
  */
 const MAX_PER_RUN = 200;
 
