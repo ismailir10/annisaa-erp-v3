@@ -93,6 +93,12 @@ export async function createPaymentSessionForInvoice(
         customerPhone: guardianParent?.whatsapp ?? guardianParent?.phone ?? undefined,
         successReturnUrl,
         cancelReturnUrl,
+        // Same origin the parent is browsing, so a preview/staging/prod
+        // deploy each receive their own notifications. DOKU maps this onto
+        // `additional_info.override_notification_url`, which outranks the
+        // per-channel Back Office setting — the one place a missing Back
+        // Office value would otherwise mean a paid invoice never credits.
+        notificationUrl: `${appOrigin}/api/doku/webhook`,
         expiryDays: 7,
         items: invoice.lines.map((line) => ({
           name: line.labelSnapshot,
@@ -115,13 +121,30 @@ export async function createPaymentSessionForInvoice(
   // can grep by sessionId and match against the webhook PROCESSED line.
   // Stripped URLs leave `?invoice=` ids out of logs while preserving the
   // origin (preview/staging/prod) — the field operators need to verify.
+  //
+  // `customerEmailPresent` is a boolean, never the address itself — the
+  // address is PII and `lib/webhook/redact-payload.ts` strips it everywhere
+  // else, so logging it here would defeat that. Under DOKU the gateway emails
+  // the Virtual Account number to `customer.email`; when the primary guardian
+  // has no address on file the parent is never told which VA to pay and the
+  // invoice silently stalls at SENT. That is invisible without this flag —
+  // the session still succeeds and still returns a payment URL.
+  const customerEmailPresent = Boolean(guardianParent?.email);
   console.info("[PAYMENT SESSION CREATED]", {
     gateway: gateway.id,
     invoiceId,
     sessionId: session.id,
+    customerEmailPresent,
     successOrigin: stripQuery(successReturnUrl),
     cancelOrigin: stripQuery(cancelReturnUrl),
   });
+  if (!customerEmailPresent) {
+    console.warn("[PAYMENT SESSION NO CUSTOMER EMAIL]", {
+      gateway: gateway.id,
+      invoiceId,
+      hasPrimaryGuardian: Boolean(guardianParent),
+    });
+  }
 
   return { paymentUrl: session.paymentUrl };
 }

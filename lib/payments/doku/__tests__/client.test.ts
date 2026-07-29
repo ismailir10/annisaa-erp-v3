@@ -16,6 +16,7 @@ import {
   createDokuSession,
   pingDoku,
   formatDokuTimestamp,
+  normalizePhoneForDoku,
   DOKU_VIRTUAL_ACCOUNT_METHODS,
 } from "../client";
 import { GatewayApiError } from "../../types";
@@ -70,6 +71,64 @@ describe("formatDokuTimestamp", () => {
   it("strips milliseconds, keeping second precision + trailing Z", () => {
     const d = new Date("2020-08-11T08:45:42.123Z");
     expect(formatDokuTimestamp(d)).toBe("2020-08-11T08:45:42Z");
+  });
+});
+
+describe("normalizePhoneForDoku", () => {
+  it.each([
+    ["081234567890", "6281234567890"],
+    ["+62 812-3456-7890", "6281234567890"],
+    ["0812 3456 7890", "6281234567890"],
+    ["6281234567890", "6281234567890"],
+    ["(0812) 3456-7890", "6281234567890"],
+  ])("normalises %s → %s", (input, expected) => {
+    expect(normalizePhoneForDoku(input)).toBe(expected);
+  });
+
+  it.each([
+    ["undefined input", undefined],
+    ["empty string", ""],
+    ["punctuation only", "-- --"],
+    ["too short", "0812"],
+    ["too long — a NIK pasted into the phone column", "3204012345678901"],
+    ["foreign / unrecognised prefix", "441234567890"],
+  ])("returns undefined for %s rather than guessing", (_label, input) => {
+    expect(normalizePhoneForDoku(input)).toBeUndefined();
+  });
+
+  it("never returns a value longer than DOKU's 16-char cap", () => {
+    for (const input of ["081234567890", "+62 812-3456-7890", "62812345678901"]) {
+      const out = normalizePhoneForDoku(input);
+      if (out !== undefined) expect(out.length).toBeLessThanOrEqual(16);
+    }
+  });
+});
+
+describe("DOKU_VIRTUAL_ACCOUNT_METHODS", () => {
+  // Pins the exact enum list rather than asserting it against itself (the
+  // create-session body test compares to the same constant, so it cannot
+  // catch a channel being dropped). Verbatim from developers.doku.com →
+  // DOKU Checkout → Supported Payment Methods, re-verified 2026-07-29.
+  it("is the complete documented DOKU Checkout Virtual Account set", () => {
+    expect([...DOKU_VIRTUAL_ACCOUNT_METHODS]).toEqual([
+      "VIRTUAL_ACCOUNT_BCA",
+      "VIRTUAL_ACCOUNT_BANK_MANDIRI",
+      "VIRTUAL_ACCOUNT_BRI",
+      "VIRTUAL_ACCOUNT_BNI",
+      "VIRTUAL_ACCOUNT_BANK_PERMATA",
+      "VIRTUAL_ACCOUNT_BANK_CIMB",
+      "VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI",
+      "VIRTUAL_ACCOUNT_BANK_DANAMON",
+      "VIRTUAL_ACCOUNT_BTN",
+      "VIRTUAL_ACCOUNT_BNC",
+      "VIRTUAL_ACCOUNT_DOKU",
+    ]);
+  });
+
+  it("contains only Virtual Account channels — no card, QRIS, e-wallet or paylater", () => {
+    for (const method of DOKU_VIRTUAL_ACCOUNT_METHODS) {
+      expect(method.startsWith("VIRTUAL_ACCOUNT_")).toBe(true);
+    }
   });
 });
 
@@ -305,7 +364,16 @@ describe("createDokuSession", () => {
     expect(body.order.invoice_number).toBe("inv-test-1");
     expect(body.order.currency).toBe("IDR");
     expect(body.order.callback_url_result).toBe(baseParams.successReturnUrl);
+    // All three return URLs are sent. `callback_url_cancel` in particular was
+    // computed by the caller but dropped by this adapter before cycle
+    // 2026-07-29-doku-all-va-channels.
+    expect(body.order.callback_url).toBe(baseParams.cancelReturnUrl);
+    expect(body.order.callback_url_cancel).toBe(baseParams.cancelReturnUrl);
+    expect(body.order.language).toBe("ID");
     expect(body.order.auto_redirect).toBe(false);
+    expect(body.payment.type).toBe("SALE");
+    // Local guardian format is normalised to DOKU's calling-code form.
+    expect(body.customer.phone).toBe("6281234567890");
     expect(body.order.line_items).toEqual([
       { name: "SPP Juli", quantity: 1, price: 100000 },
     ]);
@@ -316,8 +384,11 @@ describe("createDokuSession", () => {
     expect(body.customer).toEqual({
       name: "Test Customer",
       email: "guardian@example.test",
-      phone: "081234567890",
+      phone: "6281234567890",
     });
+    // No notificationUrl in baseParams → the key is omitted entirely rather
+    // than sent as null/empty, which DOKU would treat as an override to "".
+    expect(body.additional_info).toBeUndefined();
 
     const headers = capturedInit!.headers as Record<string, string>;
     expect(headers["Client-Id"]).toBe(CLIENT_ID);
@@ -355,6 +426,57 @@ describe("createDokuSession", () => {
     const body = JSON.parse(capturedInit!.body as string);
     expect("email" in body.customer).toBe(false);
     expect("phone" in body.customer).toBe(false);
+  });
+
+  it("omits customer.phone when the stored number cannot be normalised", async () => {
+    let capturedInit: RequestInit | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        capturedInit = init;
+        return mockOkResponse({
+          payment: {
+            url: "https://staging.doku.com/checkout-link-v2/badphone",
+            token_id: "badphone-01",
+            expired_datetime: "2026-08-03T08:49:58Z",
+          },
+        });
+      }),
+    );
+
+    // A NIK pasted into the phone column — must not reach DOKU, since a
+    // malformed customer.phone can fail the whole session.
+    await createDokuSession({ ...baseParams, customerPhone: "3204012345678901" });
+
+    const body = JSON.parse(capturedInit!.body as string);
+    expect("phone" in body.customer).toBe(false);
+  });
+
+  it("sends additional_info.override_notification_url when notificationUrl is supplied", async () => {
+    let capturedInit: RequestInit | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        capturedInit = init;
+        return mockOkResponse({
+          payment: {
+            url: "https://staging.doku.com/checkout-link-v2/notif",
+            token_id: "notif-01",
+            expired_datetime: "2026-08-03T08:49:58Z",
+          },
+        });
+      }),
+    );
+
+    await createDokuSession({
+      ...baseParams,
+      notificationUrl: "https://talib.annisaasekolahku.com/api/doku/webhook",
+    });
+
+    const body = JSON.parse(capturedInit!.body as string);
+    expect(body.additional_info).toEqual({
+      override_notification_url: "https://talib.annisaasekolahku.com/api/doku/webhook",
+    });
   });
 
   it("falls back to expired_date when expired_datetime is absent", async () => {
