@@ -166,3 +166,44 @@ export function formatCurriculumElement(element: string): string {
     CURRICULUM_ELEMENT_LABELS[element as CurriculumElementKey] ?? element
   );
 }
+
+/**
+ * Structural input for `formatClassOptionLabel` — deliberately narrower than
+ * either wire shape that produces it. `GET /api/class-sections` returns
+ * `academicYear: { name }` + `_count: { enrollments }`; `GET /api/admin/classes`
+ * returns a flattened `enrolledCount` and no nested academic year object.
+ * Callers map their response shape into this before calling the helper —
+ * keeps the helper dumb and shape-agnostic instead of accepting a union of
+ * two wire formats.
+ */
+export interface ClassOptionLabelInput {
+  name: string;
+  /** Omit or pass null/undefined when the academic year is unknown — the
+   *  " · TA …" segment is dropped rather than rendering "TA undefined". */
+  academicYearName?: string | null;
+  enrolled: number;
+  capacity: number;
+}
+
+/**
+ * Class dropdown option label — single source of truth for every class
+ * picker (student enroll/promote dialogs, and future callers). Academic
+ * year is the only field that disambiguates same-named classes across
+ * years, so it's included; program name is redundant with the class name
+ * (which already carries the level, e.g. "TK B 3") and is deliberately
+ * left out.
+ *
+ * `<nama> · TA <tahun ajaran> · <terisi>/<kapasitas>`
+ * e.g. "TK B 3 · TA 2026/2027 · 10/25"
+ */
+export function formatClassOptionLabel({
+  name,
+  academicYearName,
+  enrolled,
+  capacity,
+}: ClassOptionLabelInput): string {
+  const segments = [name];
+  if (academicYearName) segments.push(`TA ${academicYearName}`);
+  segments.push(`${enrolled}/${capacity}`);
+  return segments.join(" · ");
+}

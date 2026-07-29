@@ -256,15 +256,15 @@ BODY
    PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
    ```
 
-5. **Stop and hand off to the user.** Do not invoke `gh pr merge`. Print the PR URL followed by exactly these two commands, with the real PR number substituted. Note: no `--delete-branch` — `staging` is a permanent branch.
+5. **Stop and hand off to the user.** Do not invoke `gh pr merge`. Print the PR URL followed by exactly these two commands, with the real PR number substituted. Two deviations from the `feat/* → staging` flow, both deliberate: **`--merge`, never `--squash`** (a squashed promotion collapses staging's commits into one new SHA on main, so git can no longer see staging as an ancestor and the two branches permanently diverge — this is what broke PR #381 → #406), and no `--delete-branch` (`staging` is a permanent branch).
    ```
    staging → main PR opened: $PR_URL
 
    Watch CI live:
      gh pr checks $PR_NUMBER --watch
 
-   Merge when all four required checks are green:
-     gh pr merge $PR_NUMBER --squash
+   Merge when all four required checks are green (merge commit — NOT squash):
+     gh pr merge $PR_NUMBER --merge
    ```
    Exit after printing. Do not proceed past Step 2. The CTO is responsible for waiting for green and running the merge command themselves.
 
@@ -539,5 +539,6 @@ Reference for the preview-verification step. When the cycle's flows need fixture
 - **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them locally; GitHub branch protection is the server-side boundary. All shipping is PR-based.
 - **Never bypass hooks** (`--no-verify`).
 - **CTO merges when CI is green; product-builder hands off.** For `role=cto`: after preview-verify (Step 3) is clean, watch `gh pr checks <number> --watch`, and once all four required checks pass run `gh pr merge <number> --squash --delete-branch`. Never merge on red or pending. For `role=product-builder`: stop at the PR (labeled `needs-cto-review`) — a CTO reviews + merges.
+- **Promotions merge, feature PRs squash.** `feat/* → staging` uses `--squash --delete-branch`. `staging → main` (and any reconcile PR) uses **`--merge`**, with no `--delete-branch`. Squashing a promotion rewrites staging's commits into a single new SHA on main, so staging stops being an ancestor of main and the branches diverge for good — PR #381 did exactly that and the next promotion (#406) came up CONFLICTING and had to be closed.
 - **Keep server-side enforcement aligned.** `staging` and `main` must require PRs and these checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`. Local hooks are helpful, but GitHub protection is the real boundary.
 - **Single source of truth.** Don't update README.md or CLAUDE.md in `/ship` — that's `/build`'s job via the cycle doc. `/ship` only moves bits, it doesn't author docs.
