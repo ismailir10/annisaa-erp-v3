@@ -60,6 +60,38 @@ describe("ensureYearWritableForClass", () => {
     }
   });
 
+  it("keeps the original class-CRUD message for existing callers that omit the actionLabel (optional-param refactor guard)", async () => {
+    classSectionFindFirst.mockResolvedValue({
+      academicYear: { status: "ARCHIVED" },
+    });
+    const r = await ensureYearWritableForClass("class-1", "tenant-1");
+    expect(r).toBeInstanceOf(NextResponse);
+    if (r instanceof NextResponse) {
+      const body = await r.json();
+      expect(body.error).toBe(
+        "Tahun ajaran sudah diarsipkan. Perubahan kelas tidak diizinkan.",
+      );
+    }
+  });
+
+  it("substitutes a caller-supplied actionLabel into the message", async () => {
+    classSectionFindFirst.mockResolvedValue({
+      academicYear: { status: "ARCHIVED" },
+    });
+    const r = await ensureYearWritableForClass(
+      "class-1",
+      "tenant-1",
+      "Pilih kelas pada tahun ajaran yang aktif.",
+    );
+    expect(r).toBeInstanceOf(NextResponse);
+    if (r instanceof NextResponse) {
+      const body = await r.json();
+      expect(body.error).toBe(
+        "Tahun ajaran sudah diarsipkan. Pilih kelas pada tahun ajaran yang aktif.",
+      );
+    }
+  });
+
   it("scopes the lookup to the provided tenantId", async () => {
     classSectionFindFirst.mockResolvedValue(null);
     await ensureYearWritableForClass("class-1", "tenant-1");
@@ -101,6 +133,34 @@ describe("ensureYearWritableById", () => {
       expect(r.status).toBe(403);
       const body = await r.json();
       expect(body.code).toBe("YEAR_ARCHIVED");
+    }
+  });
+
+  it("keeps the original class-CRUD message for existing callers that omit the actionLabel (optional-param refactor guard)", async () => {
+    academicYearFindFirst.mockResolvedValue({ status: "ARCHIVED" });
+    const r = await ensureYearWritableById("year-1", "tenant-1");
+    expect(r).toBeInstanceOf(NextResponse);
+    if (r instanceof NextResponse) {
+      const body = await r.json();
+      expect(body.error).toBe(
+        "Tahun ajaran sudah diarsipkan. Pembuatan kelas tidak diizinkan.",
+      );
+    }
+  });
+
+  it("substitutes a caller-supplied actionLabel into the message (e.g. the student enroll/promote routes)", async () => {
+    academicYearFindFirst.mockResolvedValue({ status: "ARCHIVED" });
+    const r = await ensureYearWritableById(
+      "year-1",
+      "tenant-1",
+      "Pilih kelas pada tahun ajaran yang aktif.",
+    );
+    expect(r).toBeInstanceOf(NextResponse);
+    if (r instanceof NextResponse) {
+      const body = await r.json();
+      expect(body.error).toBe(
+        "Tahun ajaran sudah diarsipkan. Pilih kelas pada tahun ajaran yang aktif.",
+      );
     }
   });
 });

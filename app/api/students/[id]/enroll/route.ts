@@ -5,6 +5,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { validateBody } from "@/lib/api/validate";
 import { enrollStudentSchema } from "@/lib/validations/student";
+import { ensureYearWritableById } from "@/lib/classes/year-guard";
 
 export async function POST(
   req: NextRequest,
@@ -35,6 +36,15 @@ export async function POST(
     include: { program: true },
   });
   if (!sectionInfo) return NextResponse.json({ error: "Kelas tidak ditemukan" }, { status: 404 });
+
+  // Refuse enrolment into a class whose academic year is ARCHIVED — past
+  // years are immutable for audit integrity.
+  const yearGuard = await ensureYearWritableById(
+    sectionInfo.academicYearId,
+    session.tenantId,
+    "Pilih kelas pada tahun ajaran yang aktif.",
+  );
+  if (yearGuard instanceof NextResponse) return yearGuard;
 
   if (student?.dateOfBirth && sectionInfo.program.ageMin) {
     const dob = new Date(student.dateOfBirth);

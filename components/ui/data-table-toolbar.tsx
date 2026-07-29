@@ -13,6 +13,14 @@ interface DataTableToolbarProps {
   onValueChange?: (search: string) => void;
   onSearchChange?: (search: string) => void;
   onReset?: () => void;
+  /**
+   * Marks the Reset button active for filters this toolbar does not own.
+   * Needed when a control cannot live in `filters` — e.g. the grouped Kelas
+   * select on /admin/student-attendance, which needs SelectGroup headings that
+   * the flat `{value,label}[]` shape here cannot express. Without this, Reset
+   * renders disabled while that filter is the only active one.
+   */
+  hasExternalFilter?: boolean;
   filters?: {
     key: string;
     label: string;
@@ -32,6 +40,7 @@ export function DataTableToolbar({
   onSearchChange,
   onReset,
   filters,
+  hasExternalFilter = false,
   actions,
 }: DataTableToolbarProps) {
   const [internalSearch, setInternalSearch] = useState(defaultValue);
@@ -43,7 +52,8 @@ export function DataTableToolbar({
     const resetValue = filter.resetValue ?? filter.options[0]?.value ?? "";
     return filter.value !== resetValue;
   };
-  const canReset = Boolean(search) || Boolean(filters?.some(filterIsActive));
+  const canReset =
+    Boolean(search) || Boolean(filters?.some(filterIsActive)) || hasExternalFilter;
 
   const setSearch = (nextSearch: string) => {
     if (!isControlled) {
