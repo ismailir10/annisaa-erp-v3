@@ -19,25 +19,25 @@ Intended outcome: the write-path pickers offer only writable years (53 → 16 op
 ### Acceptance criteria
 
 **Server correctness (highest value — ship even if the rest slips)**
-- [ ] `POST /api/students/[id]/enroll` rejects a `classSectionId` whose academic year is `ARCHIVED`, reusing `ensureYearWritableById` from `lib/classes/year-guard.ts` — no new guard logic. Keeps that helper's existing contract (**403** + `code: "YEAR_ARCHIVED"`), with the message adapted to the enrolment context via an optional action label.
-- [ ] `POST /api/students/[id]/promote` applies the same guard to `targetClassSectionId`.
-- [ ] `POST /api/promotions` (bulk promote) applies the same guard to `targetClassSectionId`. **Added mid-build** — the code-review pass found the identical hole at roster scale. The original non-goal excluded the bulk-promote *dialog's year selector*; that selector is client-side convenience, not an enforcement boundary, so a direct API call graduates and re-enrols an entire roster into an archived year.
-- [ ] Vitest covers both: archived-year target → 403 `YEAR_ARCHIVED`; active-year target → success path reached.
+- [x] `POST /api/students/[id]/enroll` rejects a `classSectionId` whose academic year is `ARCHIVED`, reusing `ensureYearWritableById` from `lib/classes/year-guard.ts` — no new guard logic. Keeps that helper's existing contract (**403** + `code: "YEAR_ARCHIVED"`), with the message adapted to the enrolment context via an optional action label.
+- [x] `POST /api/students/[id]/promote` applies the same guard to `targetClassSectionId`.
+- [x] `POST /api/promotions` (bulk promote) applies the same guard to `targetClassSectionId`. **Added mid-build** — the code-review pass found the identical hole at roster scale. The original non-goal excluded the bulk-promote *dialog's year selector*; that selector is client-side convenience, not an enforcement boundary, so a direct API call graduates and re-enrols an entire roster into an archived year.
+- [x] Vitest covers both: archived-year target → 403 `YEAR_ARCHIVED`; active-year target → success path reached.
 
 **Picker scoping + labels**
-- [ ] `GET /api/class-sections` accepts a `yearStatus` query param (comma-separated subset of `PLANNING|ACTIVE|ARCHIVED`). Omitted → current behaviour (all years), so existing callers are unaffected.
-- [ ] Response includes `academicYear.{id,name,status}` for every section.
-- [ ] Enroll and Promote dialogs on `app/admin/students/[id]/page.tsx` request `yearStatus=ACTIVE,PLANNING`.
-- [ ] A single shared helper formats every class option label as `` `<nama> · TA <tahun> · <terisi>/<kapasitas>` `` — program name removed. All class pickers use the helper; no dialog builds the string inline.
-- [ ] Enroll and Promote pickers are searchable (typing `B 3` narrows to matching classes) rather than a plain scrolling `Select`.
-- [ ] Read/filter surfaces that legitimately need history — `app/admin/student-attendance/page.tsx` and `components/admin/student-export-dialog.tsx` — keep all years but group options by Tahun Ajaran, ACTIVE year group first.
+- [x] `GET /api/class-sections` accepts a `yearStatus` query param (comma-separated subset of `PLANNING|ACTIVE|ARCHIVED`). Omitted → current behaviour (all years), so existing callers are unaffected.
+- [x] Response includes `academicYear.{id,name,status}` for every section.
+- [x] Enroll and Promote dialogs on `app/admin/students/[id]/page.tsx` request `yearStatus=ACTIVE,PLANNING`.
+- [x] A single shared helper formats every class option label as `` `<nama> · TA <tahun> · <terisi>/<kapasitas>` `` — program name removed. All class pickers use the helper; no dialog builds the string inline.
+- [x] Enroll and Promote pickers are searchable (typing `B 3` narrows to matching classes) rather than a plain scrolling `Select`.
+- [x] Read/filter surfaces that legitimately need history — `app/admin/student-attendance/page.tsx` and `components/admin/student-export-dialog.tsx` — keep all years but group options by Tahun Ajaran, ACTIVE year group first.
 
 **Class naming (Tier 2, option B)**
-- [ ] `ClassSection` unique key changes from `[tenantId, academicYearId, name]` to `[tenantId, academicYearId, campusId, name]`, so two campuses may independently use the same class number within one year.
-- [ ] A data migration strips the campus token from `ClassSection.name` and `ClassTrack.name` (`TK B Metland 3` → `TK B 3`, `Daycare Metland (2-6 th)` → `Daycare (2-6 th)`). The migration is idempotent and aborts without writing if its pre-flight collision check finds any duplicate under the new unique key.
-- [ ] The 409 duplicate-name copy in `app/api/admin/classes/route.ts` is updated to say the conflict is per-year **and per-kampus**.
-- [ ] Kampus is rendered as its own element (badge) beside the class name on admin class surfaces where it was previously only implied by the name.
-- [ ] `prisma/seed.ts` and `scripts/import-roster/build-import-sql.ts` produce campus-free class names, so a reseed or a re-import does not reintroduce the token.
+- [x] `ClassSection` unique key changes from `[tenantId, academicYearId, name]` to `[tenantId, academicYearId, campusId, name]`, so two campuses may independently use the same class number within one year.
+- [x] A data migration strips the campus token from `ClassSection.name` and `ClassTrack.name` (`TK B Metland 3` → `TK B 3`, `Daycare Metland (2-6 th)` → `Daycare (2-6 th)`). The migration is idempotent and aborts without writing if its pre-flight collision check finds any duplicate under the new unique key.
+- [x] The 409 duplicate-name copy in `app/api/admin/classes/route.ts` is updated to say the conflict is per-year **and per-kampus**.
+- [x] Kampus is rendered as its own element (badge) beside the class name on admin class surfaces where it was previously only implied by the name.
+- [x] `prisma/seed.ts` and `scripts/import-roster/build-import-sql.ts` produce campus-free class names, so a reseed or a re-import does not reintroduce the token.
 
 ### Non-goals
 
@@ -64,7 +64,7 @@ Intended outcome: the write-path pickers offer only writable years (53 → 16 op
 6. [x] **Unique-key migration.** Prisma migration moving `ClassSection` `@@unique` to `[tenantId, academicYearId, campusId, name]`; update the 409 copy in `app/api/admin/classes/route.ts` to mention kampus. *Accept:* `npx prisma migrate dev` applies cleanly against a seeded DB; creating same-name classes at two campuses in one year succeeds; same campus + same name + same year still 409s. Depends on nothing (must land before task 7).
 7. [x] **Campus-token strip migration.** Idempotent data migration over `ClassSection.name` and `ClassTrack.name`, driven by each row's own campus (`Taman Aster` → `Aster`, `Metland Cibitung` → `Metland`). Pre-flight query asserts zero post-rename duplicates under both unique keys and aborts the transaction if any are found. *Accept:* dry-run output lists the 53 prod renames and reports zero collisions; applying twice is a no-op the second time. Depends on 6.
 8. [x] **Kampus badge + generator naming.** Add the kampus badge beside the class name on the admin classes list and class detail header; update `prisma/seed.ts` and `scripts/import-roster/build-import-sql.ts` to emit campus-free names. Cross-check `design-system` for badge variant + placement. *Accept:* `npx prisma db seed` produces names with no campus token and no unique-key violation; class detail header shows nama + kampus badge. Depends on 6.
-9. [ ] **Docs.** Update README (class naming convention + the per-campus uniqueness rule) and fill this cycle's Implementation / Verification. *Accept:* `/audit-docs` reports zero `fail`. Depends on all.
+9. [x] **Docs.** Update README (class naming convention + the per-campus uniqueness rule) and fill this cycle's Implementation / Verification. *Accept:* `/audit-docs` reports zero `fail`. Depends on all.
 
 ## Implementation
 
@@ -82,6 +82,8 @@ Intended outcome: the write-path pickers offer only writable years (53 → 16 op
 
 ## Verification
 
+- Playwright: local run deferred to CI (env cannot execute it — `playwright.config.ts` refuses a non-local `DATABASE_URL`, and every worktree points at shared staging Supabase; verified by running `npx playwright test --list`, which exits with that guard).
+  Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 - Tasks 4, 5, 7, 8 + review follow-ups: `npm run build` green; `npx vitest run` → **250 test files passed | 2 skipped (252), 2401 tests passed | 42 todo (2443)**, zero failures.
 - Task 7 regex validated against **real production data** rather than by inspection: ran the migration's exact CASE/regex expression as a read-only SELECT over all 53 rows and confirmed every transformation (`TK B Metland 3` → `TK B 3`, `Daycare Metland (Bayi 6-24 bln)` → `Daycare (Bayi 6-24 bln)`, `Bayi 6-12 Bulan Metland 6` → `Bayi 6-12 Bulan 6`, …), with no row left holding `Aster`/`Metland` as a whole word and no double spaces.
 - `app/api/admin/seed/route.ts` was a third generator neither the spec nor task 8 named. Its idempotency lookup matched on `(tenantId, name, academicYearId)` with no `campusId`, so renaming both KB entries to a bare "KB" would have made the second campus silently reuse the first campus's row. Lookup now includes `campusId`; the `ClassTrack` upsert already keyed on it.
@@ -97,4 +99,35 @@ Intended outcome: the write-path pickers offer only writable years (53 → 16 op
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+### Migrations — two, ordered, both must run
+
+1. `20260729000000_class_section_unique_per_campus` — swaps the `ClassSection` unique index to `(tenantId, academicYearId, campusId, name)`. Catalog-only on a 53-row table. Widening a unique key can only relax it, so it cannot fail on existing data.
+2. `20260729000001_strip_campus_token_from_class_names` — rewrites `ClassSection.name` and `ClassTrack.name`. **Must run after #1** — it depends on the widened key. Self-defending: a `DO $$` pre-flight raises and rolls the whole migration back if any rename would collide, so a bad assumption fails the deploy loudly instead of corrupting names.
+
+Neither has been applied anywhere. `DATABASE_URL` in every worktree points at shared staging, so nothing was run locally at any point.
+
+**The rename is user-visible and effectively one-way in practice.** A rollback migration is trivial to write mechanically, but it cannot reconstruct which campus token belonged to which row once stripped — it would have to re-derive them from `campusId`, which is exactly what the forward migration does in reverse. If this needs reverting after the fact, restore names from a pre-migration snapshot rather than writing an inverse migration.
+
+### Env vars
+
+None.
+
+### Preview-verify must cover (no automated coverage exists for these)
+
+The migration SQL has no Prisma Client surface, and neither `app/admin/students/[id]/page.tsx` nor `app/admin/student-attendance/page.tsx` has any page-level test harness in this repo. So preview-verify is the only gate on the headline behaviour:
+
+1. **Enroll picker** (`/admin/students/<id>` → "Daftarkan ke Kelas"): only TA 2026/2027 classes appear (16, not 53); options are grouped under kampus headings; typing `B 3` narrows by class and `Aster` narrows by kampus; the collapsed trigger names the kampus. Submit and confirm the enrolment lands on the right class.
+2. **Promote picker** ("Naik Kelas") — same checks; confirm the "Catatan (opsional)" textarea still works.
+3. **Archived-year rejection is server-side.** The UI no longer offers archived classes, so exercise the guard directly: `POST /api/students/<id>/enroll` with a `classSectionId` from TA 2025/2026 must return 403 `YEAR_ARCHIVED`. Repeat for `/promote` and `/api/promotions`.
+4. **Names post-migration**: no `ClassSection`/`ClassTrack` row still contains `Aster` or `Metland` as a whole word; no double spaces or leading/trailing whitespace; row counts unchanged (only `name` mutated).
+5. **Grouped filters** on `/admin/student-attendance` (both Harian and Rekap Bulanan tabs) and the students export dialog: TA 2026/2027 group first, archived years below newest-first; picking an archived class still filters correctly; the toolbar **Reset** button is enabled when Kelas is the only active filter and clears it.
+6. **Class detail header** shows nama + kampus badge, with no duplicated campus text in the description line.
+
+### Rollback
+
+Code is safely revertible — every change is additive or behind an optional param. The data migration is not, per above. If only the picker behaviour is wrong, revert the code and leave the migrations applied: the renamed classes and widened key are independently correct.
+
+### Follow-ups deliberately not done
+
+- The TD-vs-Daycare naming drift in TA 2026/2027 (`Daycare (2-6 th)` vs the older `TD 1` convention) survives the strip. Bu Shanti should decide the convention.
+- Bu Shanti's literal suggestion was `B1 TA 2026/2027`; this ships `TK B 1 · TA 2026/2027`. Confirm the level prefix is wanted before shortening further.
