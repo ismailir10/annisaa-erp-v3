@@ -1079,8 +1079,11 @@ export function ClassDetailClient({
       >
         <div className="space-y-field">
           <Field>
-            <FieldLabel>Nama kelas</FieldLabel>
+            <FieldLabel htmlFor="class-detail-name" required>Nama kelas</FieldLabel>
             <Input
+              id="class-detail-name"
+              required
+              aria-required="true"
               value={editForm.name}
               onChange={(e) =>
                 setEditForm((f) => ({ ...f, name: e.target.value }))
@@ -1089,8 +1092,11 @@ export function ClassDetailClient({
             />
           </Field>
           <Field>
-            <FieldLabel>Kapasitas</FieldLabel>
+            <FieldLabel htmlFor="class-detail-capacity" required>Kapasitas</FieldLabel>
             <Input
+              id="class-detail-capacity"
+              required
+              aria-required="true"
               type="number"
               min={1}
               max={200}
@@ -1104,7 +1110,7 @@ export function ClassDetailClient({
             />
           </Field>
           <Field>
-            <FieldLabel>Pola slot</FieldLabel>
+            <FieldLabel htmlFor="class-detail-slot-template" required>Pola slot</FieldLabel>
             <Select
               value={editForm.slotTemplate}
               onValueChange={(v) =>
@@ -1114,7 +1120,7 @@ export function ClassDetailClient({
                 }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id="class-detail-slot-template" aria-required="true">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1152,12 +1158,12 @@ export function ClassDetailClient({
       >
         <div className="space-y-field">
           <Field>
-            <FieldLabel>Siswa</FieldLabel>
+            <FieldLabel htmlFor="class-student" required>Siswa</FieldLabel>
             <Select
               value={selectedStudentId}
               onValueChange={(v) => setSelectedStudentId(v ?? "")}
             >
-              <SelectTrigger>
+              <SelectTrigger id="class-student" aria-required="true">
                 <SelectValue placeholder="Pilih siswa..." />
               </SelectTrigger>
               <SelectContent>
@@ -1226,12 +1232,12 @@ export function ClassDetailClient({
       >
         <div className="space-y-field">
           <Field>
-            <FieldLabel>Guru</FieldLabel>
+            <FieldLabel htmlFor="class-teacher" required>Guru</FieldLabel>
             <Select
               value={selectedEmployeeId}
               onValueChange={(v) => setSelectedEmployeeId(v ?? "")}
             >
-              <SelectTrigger>
+              <SelectTrigger id="class-teacher" aria-required="true">
                 <SelectValue placeholder="Pilih guru..." />
               </SelectTrigger>
               <SelectContent>
@@ -1256,14 +1262,14 @@ export function ClassDetailClient({
             )}
           </Field>
           <Field>
-            <FieldLabel>Peran</FieldLabel>
+            <FieldLabel htmlFor="class-teaching-role" required>Peran</FieldLabel>
             <Select
               value={selectedRole}
               onValueChange={(v) =>
                 setSelectedRole((v as TeachingRole) ?? "HOMEROOM")
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id="class-teaching-role" aria-required="true">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1370,14 +1376,14 @@ export function ClassDetailClient({
                 {canWrite ? (
                   <>
                     <Field>
-                      <FieldLabel>Guru pengganti</FieldLabel>
+                      <FieldLabel htmlFor="session-substitute-teacher">Guru pengganti</FieldLabel>
                       <Select
                         value={swapTeacherId}
                         onValueChange={(v) =>
                           setSwapTeacherId(String(v ?? ""))
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="session-substitute-teacher">
                           <SelectValue placeholder="Pilih guru" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1397,8 +1403,9 @@ export function ClassDetailClient({
                     </Field>
 
                     <Field>
-                      <FieldLabel>Alasan pengganti</FieldLabel>
+                      <FieldLabel htmlFor="session-substitute-reason">Alasan pengganti</FieldLabel>
                       <Textarea
+                        id="session-substitute-reason"
                         value={swapReason}
                         onChange={(e) => setSwapReason(e.target.value)}
                         placeholder="Contoh: wali kelas sedang cuti"

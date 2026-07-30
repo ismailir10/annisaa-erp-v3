@@ -503,7 +503,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       >
         <div className="space-y-field">
           <Field>
-            <FieldLabel>Kampus</FieldLabel>
+            <FieldLabel htmlFor="class-campus" required>Kampus</FieldLabel>
             <Select
               value={form.campusId}
               onValueChange={(v) =>
@@ -511,7 +511,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
               }
               disabled={!!editing}
             >
-              <SelectTrigger>
+              <SelectTrigger id="class-campus" aria-required="true">
                 <SelectValue placeholder="Pilih kampus" />
               </SelectTrigger>
               <SelectContent>
@@ -530,7 +530,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel>Program</FieldLabel>
+            <FieldLabel htmlFor="class-program" required>Program</FieldLabel>
             <Select
               value={form.programId}
               onValueChange={(v) =>
@@ -538,7 +538,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
               }
               disabled={!!editing}
             >
-              <SelectTrigger>
+              <SelectTrigger id="class-program" aria-required="true">
                 <SelectValue placeholder="Pilih program" />
               </SelectTrigger>
               <SelectContent>
@@ -557,8 +557,11 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel>Nama kelas</FieldLabel>
+            <FieldLabel htmlFor="class-name" required>Nama kelas</FieldLabel>
             <Input
+              id="class-name"
+              required
+              aria-required="true"
               value={form.name}
               placeholder="mis. TKIT A"
               onChange={(e) =>
@@ -568,8 +571,11 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel>Kapasitas</FieldLabel>
+            <FieldLabel htmlFor="class-capacity" required>Kapasitas</FieldLabel>
             <Input
+              id="class-capacity"
+              required
+              aria-required="true"
               type="number"
               min={1}
               max={200}
@@ -584,7 +590,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel>Pola slot</FieldLabel>
+            <FieldLabel htmlFor="class-slot-template" required>Pola slot</FieldLabel>
             <Select
               value={form.slotTemplate}
               onValueChange={(v) =>
@@ -594,7 +600,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
                 }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id="class-slot-template" aria-required="true">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -607,7 +613,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel>Kelompok usia</FieldLabel>
+            <FieldLabel htmlFor="class-age-group" required>Kelompok usia</FieldLabel>
             <Select
               value={form.ageGroup}
               onValueChange={(v) =>
@@ -617,7 +623,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
                 }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id="class-age-group" aria-required="true">
                 <SelectValue placeholder="Pilih kelompok usia" />
               </SelectTrigger>
               <SelectContent>
