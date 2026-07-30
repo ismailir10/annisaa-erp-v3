@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { CategoryAccordion } from "@/components/student-journal/category-accordion";
 
@@ -23,7 +22,6 @@ describe("CategoryAccordion deactivation confirmation", () => {
   });
 
   it("keeps the confirmation open after failure and allows retry", async () => {
-    const user = userEvent.setup();
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -56,9 +54,9 @@ describe("CategoryAccordion deactivation confirmation", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Buka menu kategori" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Nonaktifkan" }));
-    await user.click(screen.getByRole("button", { name: "Ya, Nonaktifkan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buka menu kategori" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Nonaktifkan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ya, Nonaktifkan" }));
 
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith("Kategori masih digunakan");
@@ -68,7 +66,7 @@ describe("CategoryAccordion deactivation confirmation", () => {
       screen.getByRole("button", { name: "Ya, Nonaktifkan" }),
     ).toBeEnabled();
 
-    await user.click(screen.getByRole("button", { name: "Ya, Nonaktifkan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ya, Nonaktifkan" }));
 
     await waitFor(() => {
       expect(toastSuccess).toHaveBeenCalledWith("Kategori diperbarui");
