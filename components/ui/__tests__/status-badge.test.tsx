@@ -39,6 +39,16 @@ describe("StatusBadge", () => {
     expect(screen.getByText("Alpa")).toBeInTheDocument();
   });
 
+  it("preserves assessment copy through a PUBLISHED label override", () => {
+    const { rerender } = render(
+      <StatusBadge status="PUBLISHED" label="Dipublikasi" />,
+    );
+    expect(screen.getByText("Dipublikasi")).toBeInTheDocument();
+
+    rerender(<StatusBadge status="PUBLISHED" />);
+    expect(screen.getByText("Terbit")).toBeInTheDocument();
+  });
+
   it.each([
     ["REGISTERED", "Terdaftar", "bg-status-present-subtle"],
     ["UNDER_REVIEW", "Ditinjau", "bg-status-late-subtle"],

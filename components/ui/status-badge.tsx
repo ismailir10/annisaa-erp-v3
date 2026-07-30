@@ -111,13 +111,9 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   OTHER: { label: "Lainnya", className: "bg-muted text-muted-foreground" },
 
   // Assessment / Raport
-  // Label reconciled to "Terbit" (finding F10 — component half): voice.md's
-  // glossary + every parent-facing copy example (toast/email/SMS) uses
-  // "rapor sudah terbit" for this state; raport/page.tsx + raport-editor.tsx
-  // already hand-roll "Terbit" locally. Assessment consumers
-  // (app/admin/assessments/[id]/page.tsx, teacher assessment client) always
-  // pass an explicit `label` override ("Dipublikasi"/"Dipublikasikan"), so
-  // this default only affects unoverridden (raport) callers.
+  // The shared default is parent-facing raport copy: voice.md and the
+  // toast/email/SMS examples use "rapor sudah terbit". Assessment surfaces
+  // that need "Dipublikasi"/"Dipublikasikan" pass an explicit label override.
   PUBLISHED: { label: "Terbit", className: "bg-status-present-subtle text-status-present-text" },
 
   // Data completeness (e.g. missing bank account)
