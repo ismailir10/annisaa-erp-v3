@@ -153,6 +153,7 @@ export default function CampusesPage() {
       <div className="mb-4 inline-flex rounded-lg border border-border p-0.5 bg-muted/40">
         <button
           onClick={() => setStatusFilter("ACTIVE")}
+          aria-pressed={statusFilter === "ACTIVE"}
           className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
             statusFilter === "ACTIVE" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
           }`}
@@ -161,6 +162,7 @@ export default function CampusesPage() {
         </button>
         <button
           onClick={() => setStatusFilter("INACTIVE")}
+          aria-pressed={statusFilter === "INACTIVE"}
           className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
             statusFilter === "INACTIVE" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
           }`}
@@ -276,8 +278,8 @@ export default function CampusesPage() {
             </Button>
           </div>
           <DialogFooter>
-            <DialogClose>
-              <Button variant="ghost">Batal</Button>
+            <DialogClose render={<Button variant="ghost" />}>
+              Batal
             </DialogClose>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kampus"}

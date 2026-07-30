@@ -56,7 +56,7 @@ Non-goals: no findings dropped from the capped-15 report are in scope (phone `ty
 ## Tasks
 
 - [x] Cluster 0 — shared components (button contrast, checkbox indeterminate, status-badge keys, week-grid 3 fixes)
-2. Cluster 1 — Settings
+- [x] Cluster 1 — Settings
 3. Cluster 2 — Admissions + Enrollments
 4. Cluster 3 — Assessments + Raport
 5. Cluster 4 — Attendance + Journal
@@ -70,6 +70,7 @@ Clusters 1-6 touch disjoint files and only consume Cluster 0's shared components
 _(filled by /build)_
 
 - `c3c2e2f2` updated shared components: `app/globals.css` contrast tokens; `components/ui/button.tsx` default-button contrast; `components/ui/checkbox.tsx` indeterminate state; `components/ui/status-badge.tsx` admission/enrollment/audit mappings; `components/admin/dashboard/pending-actions.tsx` count-badge contrast; and `components/portal/week-grid.tsx` today-state, editable-past-day, and Jakarta-date fixes. Review fixes also updated the WeekGrid callers in `app/admin/student-journal/students/[id]/page.tsx` and `app/admin/students/[id]/page.tsx`. Added focused mapping coverage in `components/ui/__tests__/status-badge.test.tsx` and WeekGrid coverage in `components/portal/__tests__/week-grid.test.ts`.
+- Cluster 1 — Settings: `app/admin/settings/{campuses,holidays,roles}/page.tsx`, `app/admin/settings/roles/__tests__/page.test.tsx`, `components/admin/deactivate-confirm-dialog.tsx`, and `components/admin/__tests__/deactivate-confirm-dialog.test.tsx` — corrected DialogClose composition and filter state semantics, paired required role fields with labels, standardized the role delete confirmation to `Ya, Hapus`, and ensured a failed delete keeps the dialog open for retry.
 - Subagent plan: driver=`gpt-5.5`; dirty-work=`gpt-5.6-terra` (low). Clusters 2–6 are independent and run in parallel by cluster after sequential Cluster 0/1 repair.
 
 ## Verification
@@ -78,6 +79,7 @@ _(filled by /build)_
 
 - Focused StatusBadge assertions: `npx vitest run components/ui/__tests__/status-badge.test.tsx` — 10 passed. Cross-checked the `design-system` status-badge palette families for representative admission/enrollment/audit statuses.
 - Focused WeekGrid assertions: 2 passed. Full gate: build and Vitest passed — 253 files passed, 2 skipped; 2,455 tests passed, 42 todo.
+- Cluster 1 — Settings: focused dialog and role-delete retry tests passed — 2 files, 3 tests. Final full gate passed: build and Vitest — 254 files passed, 2 skipped; 2,456 tests passed, 42 todo. Cross-checked the `design-system` AlertDialog reference and `ui.md` destructive-confirm contract for the exact `Ya, Hapus` label, pending behavior, and failure retry.
 
 ## Ship Notes
 
