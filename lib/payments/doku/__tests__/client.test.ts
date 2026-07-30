@@ -17,7 +17,7 @@ import {
   pingDoku,
   formatDokuTimestamp,
   normalizePhoneForDoku,
-  DOKU_VIRTUAL_ACCOUNT_METHODS,
+  resolveCheckoutTarget,
 } from "../client";
 import { GatewayApiError } from "../../types";
 import { buildDigest } from "../signature";
@@ -104,30 +104,50 @@ describe("normalizePhoneForDoku", () => {
   });
 });
 
-describe("DOKU_VIRTUAL_ACCOUNT_METHODS", () => {
-  // Pins the exact enum list rather than asserting it against itself (the
-  // create-session body test compares to the same constant, so it cannot
-  // catch a channel being dropped). Verbatim from developers.doku.com →
-  // DOKU Checkout → Supported Payment Methods, re-verified 2026-07-29.
-  it("is the complete documented DOKU Checkout Virtual Account set", () => {
-    expect([...DOKU_VIRTUAL_ACCOUNT_METHODS]).toEqual([
-      "VIRTUAL_ACCOUNT_BCA",
-      "VIRTUAL_ACCOUNT_BANK_MANDIRI",
-      "VIRTUAL_ACCOUNT_BRI",
-      "VIRTUAL_ACCOUNT_BNI",
-      "VIRTUAL_ACCOUNT_BANK_PERMATA",
-      "VIRTUAL_ACCOUNT_BANK_CIMB",
-      "VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI",
-      "VIRTUAL_ACCOUNT_BANK_DANAMON",
-      "VIRTUAL_ACCOUNT_BTN",
-      "VIRTUAL_ACCOUNT_BNC",
-      "VIRTUAL_ACCOUNT_DOKU",
-    ]);
+describe("resolveCheckoutTarget", () => {
+  it("defaults to v1 when DOKU_CHECKOUT_VERSION is unset", () => {
+    expect(resolveCheckoutTarget(undefined)).toBe("/checkout/v1/payment");
   });
 
-  it("contains only Virtual Account channels — no card, QRIS, e-wallet or paylater", () => {
-    for (const method of DOKU_VIRTUAL_ACCOUNT_METHODS) {
-      expect(method.startsWith("VIRTUAL_ACCOUNT_")).toBe(true);
+  it.each([
+    ["v1", "/checkout/v1/payment"],
+    ["v2", "/checkout/v2/payment"],
+    // Case and stray whitespace are tolerated — a value pasted into the Vercel
+    // env UI routinely arrives as "V2" or with a trailing space, and failing on
+    // that would look identical to "v2 doesn't work".
+    ["V2", "/checkout/v2/payment"],
+    [" v2 ", "/checkout/v2/payment"],
+    ["V1", "/checkout/v1/payment"],
+  ])("resolves %o to %s", (input, expected) => {
+    expect(resolveCheckoutTarget(input)).toBe(expected);
+  });
+
+  it.each(["v3", "2", "", "  ", "latest", "checkout/v2"])(
+    "throws on %o rather than silently falling back to v1",
+    (input) => {
+      // Silently defaulting would corrupt the experiment this flag exists for:
+      // a typo'd value would present as "we switched to v2 and the
+      // notification still never arrived".
+      expect(() => resolveCheckoutTarget(input)).toThrow(
+        /DOKU_CHECKOUT_VERSION must be "v1" or "v2"/,
+      );
+    },
+  );
+
+  it("names the offending value in the error, so a typo is self-diagnosing", () => {
+    expect(() => resolveCheckoutTarget("v22")).toThrow(/got "v22"/);
+  });
+
+  it("reads process.env.DOKU_CHECKOUT_VERSION when called with no argument", () => {
+    const original = process.env.DOKU_CHECKOUT_VERSION;
+    try {
+      process.env.DOKU_CHECKOUT_VERSION = "v2";
+      expect(resolveCheckoutTarget()).toBe("/checkout/v2/payment");
+      delete process.env.DOKU_CHECKOUT_VERSION;
+      expect(resolveCheckoutTarget()).toBe("/checkout/v1/payment");
+    } finally {
+      if (original === undefined) delete process.env.DOKU_CHECKOUT_VERSION;
+      else process.env.DOKU_CHECKOUT_VERSION = original;
     }
   });
 });
@@ -215,11 +235,15 @@ describe("createDokuSession", () => {
   const originalClientId = process.env.DOKU_CLIENT_ID;
   const originalSecretKey = process.env.DOKU_SECRET_KEY;
   const originalDemoMode = process.env.DEMO_MODE;
+  const originalCheckoutVersion = process.env.DOKU_CHECKOUT_VERSION;
 
   beforeEach(() => {
     process.env.DOKU_CLIENT_ID = CLIENT_ID;
     process.env.DOKU_SECRET_KEY = SECRET;
     delete process.env.DEMO_MODE;
+    // Unset per test so the default-v1 assertions below cannot be silently
+    // flipped by a v2 value leaking in from the ambient environment.
+    delete process.env.DOKU_CHECKOUT_VERSION;
     vi.restoreAllMocks();
   });
 
@@ -230,6 +254,9 @@ describe("createDokuSession", () => {
     else process.env.DOKU_SECRET_KEY = originalSecretKey;
     if (originalDemoMode === undefined) delete process.env.DEMO_MODE;
     else process.env.DEMO_MODE = originalDemoMode;
+    if (originalCheckoutVersion === undefined)
+      delete process.env.DOKU_CHECKOUT_VERSION;
+    else process.env.DOKU_CHECKOUT_VERSION = originalCheckoutVersion;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -378,9 +405,15 @@ describe("createDokuSession", () => {
       { name: "SPP Juli", quantity: 1, price: 100000 },
     ]);
     expect(body.payment.payment_due_date).toBe(7 * 24 * 60);
-    expect(body.payment.payment_method_types).toEqual(
-      DOKU_VIRTUAL_ACCOUNT_METHODS,
-    );
+    // `payment_method_types` must be ABSENT, not empty. DOKU rejects the whole
+    // session with `PAYMENT CHANNEL IS INACTIVE` if the list names a channel
+    // that is not active on the merchant account, and production has neither
+    // BCA nor Mandiri. Omitting the key makes Checkout show whatever is active.
+    // Asserted on the raw string too, because `"payment_method_types":null`
+    // would satisfy an `in`/undefined check on the parsed object in some
+    // shapes but is still a value DOKU would see on the wire.
+    expect("payment_method_types" in body.payment).toBe(false);
+    expect(capturedInit!.body as string).not.toContain("payment_method_types");
     expect(body.customer).toEqual({
       name: "Test Customer",
       email: "guardian@example.test",
@@ -403,6 +436,71 @@ describe("createDokuSession", () => {
     expect(session.id).toBe("abc123-01");
     expect(session.status).toBe("PENDING");
     expect(session.expiresAt).toBe("2026-08-03T08:49:58Z");
+  });
+
+  it("DOKU_CHECKOUT_VERSION=v2 posts to /checkout/v2/payment and signs that same path", async () => {
+    process.env.DOKU_CHECKOUT_VERSION = "v2";
+    let capturedUrl: string | undefined;
+    let capturedBody: string | undefined;
+    let capturedHeaders: Record<string, string> | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        capturedUrl = url;
+        capturedBody = init.body as string;
+        capturedHeaders = init.headers as Record<string, string>;
+        return mockOkResponse({
+          payment: {
+            url: "https://staging.doku.com/checkout-link-v2/v2test",
+            token_id: "v2test-01",
+            expired_datetime: "2026-08-06T08:49:58Z",
+          },
+        });
+      }),
+    );
+
+    await createDokuSession(baseParams);
+
+    expect(capturedUrl).toBe("https://api-sandbox.doku.com/checkout/v2/payment");
+
+    // The `Request-Target` component is invisible on the wire — it exists only
+    // inside the signed string — so a mismatch between the signed path and the
+    // posted path would surface at DOKU as `invalid_signature` and read as a
+    // credential problem. Recompute the HMAC over the v2 path and require it to
+    // equal what was actually sent.
+    const { buildSignature } = await import("../signature");
+    const expectedSignature = buildSignature({
+      clientId: capturedHeaders!["Client-Id"],
+      requestId: capturedHeaders!["Request-Id"],
+      timestamp: capturedHeaders!["Request-Timestamp"],
+      target: "/checkout/v2/payment",
+      digest: buildDigest(capturedBody as string),
+      secretKey: SECRET,
+    });
+    expect(capturedHeaders!["Signature"]).toBe(expectedSignature);
+
+    // Signing v1 while posting to v2 is the failure this guards against — it
+    // must NOT match.
+    const v1Signature = buildSignature({
+      clientId: capturedHeaders!["Client-Id"],
+      requestId: capturedHeaders!["Request-Id"],
+      timestamp: capturedHeaders!["Request-Timestamp"],
+      target: "/checkout/v1/payment",
+      digest: buildDigest(capturedBody as string),
+      secretKey: SECRET,
+    });
+    expect(capturedHeaders!["Signature"]).not.toBe(v1Signature);
+  });
+
+  it("throws on an unrecognised DOKU_CHECKOUT_VERSION before any network call", async () => {
+    process.env.DOKU_CHECKOUT_VERSION = "v3";
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(createDokuSession(baseParams)).rejects.toThrow(
+      /DOKU_CHECKOUT_VERSION must be "v1" or "v2"/,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("omits customer.email / customer.phone entirely when undefined", async () => {
