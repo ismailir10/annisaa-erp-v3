@@ -211,7 +211,7 @@ export default function HolidaysPage() {
             </label>
           </div>
           <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+            <DialogClose render={<Button variant="ghost" />}>Batal</DialogClose>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Hari Libur"}
             </Button>

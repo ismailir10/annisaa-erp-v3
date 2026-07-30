@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusChip } from "../status-chip";
 import {
   AGAMA_OPTIONS, KEWARGANEGARAAN_OPTIONS, LIVING_WITH_OPTIONS, BIRTH_DELIVERY_OPTIONS,
@@ -84,6 +85,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const [d, setD] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,17 +103,27 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   }, [load]);
 
   async function convert() {
-    if (!confirm("Konversi formulir ini menjadi data siswa? Tindakan ini membuat siswa + data orang tua.")) return;
     setBusy(true);
+    let errorToasted = false;
     try {
       const res = await fetch(`/api/enrollments/${id}/convert`, { method: "POST" });
-      const jr = await res.json().catch(() => ({}));
       if (res.ok) {
         toast.success("Siswa berhasil dibuat dari formulir");
         void load();
-      } else {
-        toast.error(jr.error || "Gagal konversi");
+        return;
       }
+
+      const jr = (await res.json()) as { error?: string };
+      errorToasted = true;
+      toast.error(jr.error || "Gagal konversi");
+      throw new Error("Enrollment conversion failed");
+    } catch (error) {
+      if (!errorToasted) {
+        toast.error("Gagal mengonversi formulir. Coba lagi.");
+      }
+      throw error instanceof Error
+        ? error
+        : new Error("Enrollment conversion failed");
     } finally {
       setBusy(false);
     }
@@ -242,7 +254,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
             <p className="text-sm text-muted-foreground">
               Formulir sudah diterima. Konversi menjadi data siswa + orang tua.
             </p>
-            <Button onClick={convert} disabled={busy}>
+            <Button onClick={() => setConvertOpen(true)} disabled={busy}>
               Konversi ke Siswa
             </Button>
           </div>
@@ -256,6 +268,15 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
           </p>
         </>
       )}
+      <ConfirmDialog
+        open={convertOpen}
+        onOpenChange={setConvertOpen}
+        title="Konversi menjadi siswa?"
+        description="Tindakan ini membuat data siswa dan data orang tua dari formulir pendaftaran ini."
+        confirmLabel="Konversi ke Siswa"
+        loading={busy}
+        onConfirm={convert}
+      />
     </div>
   );
 }

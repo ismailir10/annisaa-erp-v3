@@ -168,7 +168,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
   );
 }
 
-function ThemeCard({
+export function ThemeCard({
   themes,
   loading,
   canWrite,
@@ -253,39 +253,42 @@ function ThemeCard({
           <p className="text-small text-muted-foreground">Belum ada tema. Tambahkan untuk mulai mengisi subtema dan pekan.</p>
         ) : (
           themes.map((t) => (
-            <button
+            <div
               key={t.id}
-              type="button"
-              onClick={() => onSelect(t.id)}
-              className={`w-full flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-left hover:bg-muted/40 ${
+              className={`flex w-full items-center rounded-lg border border-border hover:bg-muted/40 ${
                 selectedId === t.id ? "bg-muted ring-1 ring-primary/20" : ""
               }`}
               data-testid="theme-row"
             >
-              <div>
-                <p className="text-sm font-medium">{t.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  Urutan {t.order} · {t._count.subThemes} subtema
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={t.status} />
-                {canWrite ? (
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEdit(t);
-                    }}
-                    aria-label="Ubah tema"
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                ) : null}
-                <ChevronRight className="size-4 text-muted-foreground" />
-              </div>
-            </button>
+              <button
+                type="button"
+                aria-pressed={selectedId === t.id}
+                onClick={() => onSelect(t.id)}
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-lg px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <div>
+                  <p className="text-sm font-medium">{t.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Urutan {t.order} · {t._count.subThemes} subtema
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={t.status} />
+                  <ChevronRight className="size-4 text-muted-foreground" />
+                </div>
+              </button>
+              {canWrite ? (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="mr-2 shrink-0"
+                  onClick={() => openEdit(t)}
+                  aria-label="Ubah tema"
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
           ))
         )}
         {canWrite && themes.length > 0 ? (
@@ -333,8 +336,11 @@ function ThemeCard({
       >
         <div className="space-y-field">
           <Field>
-            <FieldLabel>Nama tema</FieldLabel>
+            <FieldLabel htmlFor="theme-name" required>Nama tema</FieldLabel>
             <Input
+              id="theme-name"
+              required
+              aria-required="true"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="Saya Anak Sehat"
@@ -342,8 +348,11 @@ function ThemeCard({
             />
           </Field>
           <Field>
-            <FieldLabel>Urutan</FieldLabel>
+            <FieldLabel htmlFor="theme-order" required>Urutan</FieldLabel>
             <Input
+              id="theme-order"
+              required
+              aria-required="true"
               type="number"
               min={0}
               value={form.order}
@@ -389,7 +398,7 @@ function ThemeCard({
   );
 }
 
-function SubThemeCard({
+export function SubThemeCard({
   subThemes,
   loading,
   canWrite,
@@ -483,39 +492,42 @@ function SubThemeCard({
           <p className="text-small text-muted-foreground">Belum ada subtema. Tambahkan untuk mulai mengisi pekan.</p>
         ) : (
           subThemes.map((s) => (
-            <button
+            <div
               key={s.id}
-              type="button"
-              onClick={() => onSelect(s.id)}
-              className={`w-full flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-left hover:bg-muted/40 ${
+              className={`flex w-full items-center rounded-lg border border-border hover:bg-muted/40 ${
                 selectedId === s.id ? "bg-muted ring-1 ring-primary/20" : ""
               }`}
               data-testid="subtheme-row"
             >
-              <div>
-                <p className="text-sm font-medium">{s.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  Urutan {s.order} · {s._count.weeks} pekan
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={s.status} />
-                {canWrite ? (
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEdit(s);
-                    }}
-                    aria-label="Ubah subtema"
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                ) : null}
-                <ChevronRight className="size-4 text-muted-foreground" />
-              </div>
-            </button>
+              <button
+                type="button"
+                aria-pressed={selectedId === s.id}
+                onClick={() => onSelect(s.id)}
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-lg px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <div>
+                  <p className="text-sm font-medium">{s.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Urutan {s.order} · {s._count.weeks} pekan
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={s.status} />
+                  <ChevronRight className="size-4 text-muted-foreground" />
+                </div>
+              </button>
+              {canWrite ? (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="mr-2 shrink-0"
+                  onClick={() => openEdit(s)}
+                  aria-label="Ubah subtema"
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
           ))
         )}
         {canWrite && subThemes.length > 0 ? (
@@ -563,8 +575,11 @@ function SubThemeCard({
       >
         <div className="space-y-field">
           <Field>
-            <FieldLabel>Nama subtema</FieldLabel>
+            <FieldLabel htmlFor="subtheme-name" required>Nama subtema</FieldLabel>
             <Input
+              id="subtheme-name"
+              required
+              aria-required="true"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="Tubuhku"
@@ -572,8 +587,11 @@ function SubThemeCard({
             />
           </Field>
           <Field>
-            <FieldLabel>Urutan</FieldLabel>
+            <FieldLabel htmlFor="subtheme-order" required>Urutan</FieldLabel>
             <Input
+              id="subtheme-order"
+              required
+              aria-required="true"
               type="number"
               min={0}
               value={form.order}
@@ -775,8 +793,11 @@ function WeekCard({
       >
         <div className="space-y-field">
           <Field>
-            <FieldLabel>Nomor pekan</FieldLabel>
+            <FieldLabel htmlFor="week-number" required>Nomor pekan</FieldLabel>
             <Input
+              id="week-number"
+              required
+              aria-required="true"
               type="number"
               min={1}
               value={form.number}
@@ -785,8 +806,11 @@ function WeekCard({
           </Field>
           <div className="grid grid-cols-2 gap-field">
             <Field>
-              <FieldLabel>Mulai (Senin)</FieldLabel>
+              <FieldLabel htmlFor="week-start-date" required>Mulai (Senin)</FieldLabel>
               <Input
+                id="week-start-date"
+                required
+                aria-required="true"
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
@@ -794,8 +818,11 @@ function WeekCard({
               />
             </Field>
             <Field>
-              <FieldLabel>Selesai (Jumat)</FieldLabel>
+              <FieldLabel htmlFor="week-end-date" required>Selesai (Jumat)</FieldLabel>
               <Input
+                id="week-end-date"
+                required
+                aria-required="true"
                 type="date"
                 value={form.endDate}
                 onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}

@@ -257,19 +257,19 @@ export default function SalaryComponentsPage() {
       >
             {!editing && (
               <Field>
-                <FieldLabel required>Kode</FieldLabel>
-                <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="tunjangan_baru" />
+                <FieldLabel htmlFor="salary-component-code" required>Kode</FieldLabel>
+                <Input id="salary-component-code" required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="tunjangan_baru" />
               </Field>
             )}
             <Field>
-              <FieldLabel required>Label</FieldLabel>
-              <Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Tunjangan Baru" />
+              <FieldLabel htmlFor="salary-component-label" required>Label</FieldLabel>
+              <Input id="salary-component-label" required value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Tunjangan Baru" />
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field>
-                <FieldLabel>Kategori</FieldLabel>
+                <FieldLabel htmlFor="salary-component-category">Kategori</FieldLabel>
                 <Select value={form.category} onValueChange={(v) => v && setForm({ ...form, category: v })} items={{ INCOME: "Pendapatan", DEDUCTION: "Potongan" }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="salary-component-category"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="INCOME">Pendapatan</SelectItem>
                     <SelectItem value="DEDUCTION">Potongan</SelectItem>
@@ -277,9 +277,9 @@ export default function SalaryComponentsPage() {
                 </Select>
               </Field>
               <Field>
-                <FieldLabel>Tipe Kalkulasi</FieldLabel>
+                <FieldLabel htmlFor="salary-component-calc-type">Tipe Kalkulasi</FieldLabel>
                 <Select value={form.calcType} onValueChange={(v) => v && setForm({ ...form, calcType: v })} items={{ FIXED: "Tetap", PCT_OF_BASE: "% Gaji Pokok", ATTENDANCE_BASED: "Berbasis Kehadiran" }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="salary-component-calc-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FIXED">Tetap</SelectItem>
                     <SelectItem value="PCT_OF_BASE">% Gaji Pokok</SelectItem>
@@ -289,8 +289,8 @@ export default function SalaryComponentsPage() {
               </Field>
             </div>
             <Field>
-              <FieldLabel>Urutan</FieldLabel>
-              <Input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} />
+              <FieldLabel htmlFor="salary-component-sort-order">Urutan</FieldLabel>
+              <Input id="salary-component-sort-order" type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} />
             </Field>
             <Field orientation="horizontal">
               <Checkbox

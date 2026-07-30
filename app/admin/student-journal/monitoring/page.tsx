@@ -226,6 +226,7 @@ export default function MonitoringPage() {
               className="h-8 w-8 p-0"
               onClick={() => setWs((w) => addWeeks(w, -1))}
               title="Minggu sebelumnya"
+              aria-label="Minggu sebelumnya"
             >
               <ChevronLeft size={14} />
             </Button>
@@ -238,6 +239,7 @@ export default function MonitoringPage() {
               className="h-8 w-8 p-0"
               onClick={() => setWs((w) => addWeeks(w, 1))}
               title="Minggu berikutnya"
+              aria-label="Minggu berikutnya"
             >
               <ChevronRight size={14} />
             </Button>

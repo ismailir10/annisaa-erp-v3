@@ -18,16 +18,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Shield, ShieldCheck, Lock } from "lucide-react";
@@ -376,19 +367,22 @@ export default function RolesPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/roles/${deleteTarget.id}`, {
-        method: "DELETE",
+      const res = await fetch(
+        `/api/roles/${deleteTarget.id}`,
+        { method: "DELETE" },
+      ).catch((error) => {
+        toast.error("Terjadi kesalahan");
+        throw error;
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal menghapus");
-        return;
+        const message = err.error || "Gagal menghapus";
+        toast.error(message);
+        throw new Error(message);
       }
       toast.success("Peran dihapus");
       setDeleteTarget(null);
       fetchRoles();
-    } catch {
-      toast.error("Terjadi kesalahan");
     } finally {
       setDeleting(false);
     }
@@ -456,21 +450,27 @@ export default function RolesPage() {
 
           <div className="space-y-field py-2">
             <Field>
-              <FieldLabel>Nama Peran</FieldLabel>
+              <FieldLabel htmlFor="role-name" required>Nama Peran</FieldLabel>
               <Input
+                id="role-name"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="Contoh: Admin Keuangan"
+                required
+                aria-required="true"
               />
             </Field>
 
             <Field>
-              <FieldLabel>Kode</FieldLabel>
+              <FieldLabel htmlFor="role-code" required>Kode</FieldLabel>
               <Input
+                id="role-code"
                 value={formCode}
                 onChange={(e) => setFormCode(e.target.value.toUpperCase())}
                 placeholder="Contoh: FINANCE_ADMIN"
                 disabled={!!editTarget}
+                required
+                aria-required="true"
               />
               <FieldDescription>
                 Huruf kapital, angka, dan underscore. Tidak bisa diubah setelah dibuat.
@@ -507,31 +507,15 @@ export default function RolesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete AlertDialog */}
-      <AlertDialog
+      {/* Delete confirm */}
+      <DeactivateConfirmDialog
         open={!!deleteTarget}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Peran</AlertDialogTitle>
-            <AlertDialogDescription>
-              Apakah Anda yakin ingin menghapus peran &quot;{deleteTarget?.name}
-              &quot;? Tindakan ini tidak bisa dibatalkan.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? "Menghapus..." : "Hapus"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        entityName={deleteTarget?.name ?? ""}
+        action="delete"
+        onConfirm={handleDelete}
+        pending={deleting}
+      />
     </>
   );
 }

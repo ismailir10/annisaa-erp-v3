@@ -84,7 +84,12 @@ const columns: ColumnDef<StudentAssessment>[] = [
   {
     accessorKey: "status",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-    cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    cell: ({ row }) => (
+      <StatusBadge
+        status={row.original.status}
+        label={row.original.status === "PUBLISHED" ? "Dipublikasi" : undefined}
+      />
+    ),
   },
 ];
 

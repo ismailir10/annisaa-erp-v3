@@ -30,7 +30,7 @@ const CONFIRM_LABEL: Record<Action, string> = {
   deactivate: "Nonaktifkan",
   void: "Ya, Batalkan",
   cancel: "Ya, Batalkan",
-  delete: "Hapus",
+  delete: "Ya, Hapus",
 };
 
 const IS_DESTRUCTIVE: Record<Action, boolean> = {

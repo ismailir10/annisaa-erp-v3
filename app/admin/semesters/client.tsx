@@ -351,13 +351,13 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
       >
         <div className="space-y-field">
           <Field>
-            <FieldLabel>Tahun ajaran</FieldLabel>
+            <FieldLabel htmlFor="semester-academic-year" required>Tahun ajaran</FieldLabel>
             <Select
               value={form.academicYearId}
               onValueChange={(v) => setForm((f) => ({ ...f, academicYearId: v ?? "" }))}
               disabled={!!editing}
             >
-              <SelectTrigger>
+              <SelectTrigger id="semester-academic-year" aria-required="true">
                 <SelectValue placeholder="Pilih tahun ajaran" />
               </SelectTrigger>
               <SelectContent>
@@ -377,9 +377,9 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel>Nomor semester</FieldLabel>
+            <FieldLabel htmlFor="semester-number" required>Nomor semester</FieldLabel>
             <Select value={form.number} onValueChange={(v) => setForm((f) => ({ ...f, number: (v ?? "1") as "1" | "2" }))}>
-              <SelectTrigger>
+              <SelectTrigger id="semester-number" aria-required="true">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -391,16 +391,22 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
 
           <div className="grid grid-cols-2 gap-field">
             <Field>
-              <FieldLabel>Tanggal mulai</FieldLabel>
+              <FieldLabel htmlFor="semester-start-date" required>Tanggal mulai</FieldLabel>
               <Input
+                id="semester-start-date"
+                required
+                aria-required="true"
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
               />
             </Field>
             <Field>
-              <FieldLabel>Tanggal selesai</FieldLabel>
+              <FieldLabel htmlFor="semester-end-date" required>Tanggal selesai</FieldLabel>
               <Input
+                id="semester-end-date"
+                required
+                aria-required="true"
                 type="date"
                 value={form.endDate}
                 onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}

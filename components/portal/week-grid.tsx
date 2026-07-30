@@ -2,6 +2,7 @@
 
 import { Check, Pencil } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type Indicator = {
   id: string;
@@ -35,6 +36,15 @@ type WeekGridProps = {
   dates: string[];
   editable?: boolean;
   onToggle?: (indicatorId: string, date: string, next: boolean) => void | Promise<void>;
+  /**
+   * When `editable` + `onToggle` are set, restrict editing to today's column
+   * only (parent-portal anti-backfill rule for the "Di Rumah" flow — UAT
+   * 2026-05-01 cycle T4). Defaults to `true` to preserve that behavior.
+   * Admin callers (e.g. student-journal student detail "Ubah" toggle) need
+   * to correct past days too, so they pass `false`. Future dates remain
+   * locked for every caller (finding F5b).
+   */
+  disablePastDays?: boolean;
 };
 
 // Deterministic month abbrevs — toLocaleDateString("id-ID") silently falls back
@@ -58,7 +68,23 @@ function formatColDate(ymd: string): string {
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"];
 
-export function WeekGrid({ categories, entries, dates, editable = false, onToggle }: WeekGridProps) {
+export function isWeekGridDateEditable(
+  date: string,
+  todayYmd: string,
+  disablePastDays: boolean,
+): boolean {
+  if (date === todayYmd) return true;
+  return !disablePastDays && date < todayYmd;
+}
+
+export function WeekGrid({
+  categories,
+  entries,
+  dates,
+  editable = false,
+  onToggle,
+  disablePastDays = true,
+}: WeekGridProps) {
   // Build lookup: `${indicatorId}|${date}` -> checked
   const lookup = new Map<string, boolean>();
   // Parallel lookup: `${indicatorId}|${date}` -> lastAdminEdit (when entry was overridden by admin)
@@ -69,14 +95,11 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
     if (e.lastAdminEdit) adminEditLookup.set(k, e.lastAdminEdit);
   }
 
-  // Today's YYYY-MM-DD in local time — used to highlight today's column.
-  const todayYmd = (() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  })();
+  // Today's YYYY-MM-DD in Jakarta time — used to highlight today's column.
+  // Canonical helper (not raw browser-local `new Date()`) so this lines up
+  // with every other date computation in the app regardless of the host's
+  // timezone (finding F5c).
+  const todayYmd = getTodayInTimezone("Asia/Jakarta");
 
   if (categories.length === 0) {
     return (
@@ -101,8 +124,12 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                 <th
                   key={d}
                   className={`text-center py-2 px-1 text-xs min-w-[44px] w-[44px] ${
+                    // Neutral "today" accent (not the success/hadir-subtle token) — the
+                    // header spans every indicator row, most of which aren't filled in
+                    // yet, so tinting it green misleads admins scanning for incomplete
+                    // entries into reading an empty column as done (finding F5a).
                     isToday
-                      ? "bg-status-present-subtle text-primary font-semibold border-t-2 border-primary"
+                      ? "bg-primary/5 text-primary font-semibold border-t-2 border-primary"
                       : "font-medium text-muted-foreground"
                   }`}
                 >
@@ -153,13 +180,26 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                     const isToday = d === todayYmd;
                     const todayBottomAccent = isToday && isLastRowOverall ? " border-b-2 border-primary" : "";
                     const adminEditDateLabel = adminEdit ? formatAdminEditDate(adminEdit.changedAt) : null;
+                    // Success/hadir-subtle tint is reserved for cells actually checked —
+                    // an unfilled today cell gets the neutral "today" accent instead, so
+                    // an empty entry never visually reads as "done" (finding F5a).
+                    const todayCellBg = isToday
+                      ? checked
+                        ? " bg-status-present-subtle"
+                        : " bg-primary/5"
+                      : "";
                     return (
                       <td
                         key={d}
-                        className={`text-center p-0 align-middle relative${isToday ? " bg-status-present-subtle" : ""}${todayBottomAccent}`}
+                        className={`text-center p-0 align-middle relative${todayCellBg}${todayBottomAccent}`}
                       >
                         {editable && onToggle ? (
-                          isToday ? (
+                          // Today is always editable. Past days are editable
+                          // when the caller opts out of the anti-backfill restriction via
+                          // `disablePastDays={false}` — e.g. the admin student-journal
+                          // detail page, which needs to correct past days. Future days
+                          // are never editable, preventing accidental pre-filling.
+                          isWeekGridDateEditable(d, todayYmd, disablePastDays) ? (
                             <button
                               type="button"
                               onClick={() => onToggle(ind.id, d, !checked)}
@@ -173,8 +213,8 @@ export function WeekGrid({ categories, entries, dates, editable = false, onToggl
                               )}
                             </button>
                           ) : (
-                            // Past- or future-day cell while in editable mode (parent "Di Rumah").
-                            // UAT 2026-05-01 cycle T4 — only today is editable to prevent silent backfill.
+                            // Locked past/future cell in the parent "Di Rumah" flow, or
+                            // a future cell in admin correction mode.
                             <button
                               type="button"
                               disabled

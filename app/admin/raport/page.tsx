@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -15,6 +14,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { ClipboardList, AlertCircle, Pencil, Plus } from "lucide-react";
 import { RaportEditor } from "./raport-editor";
@@ -53,20 +53,6 @@ function toJakartaYmd(value: string): string {
       return acc;
     }, {});
   return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-function RaportStatusBadge({ status }: { status: string }) {
-  if (status === "PUBLISHED") {
-    return (
-      <Badge variant="outline" className="bg-status-present/10 text-status-present border-status-present/20">
-        Terbit
-      </Badge>
-    );
-  }
-  if (status === "DRAFT") {
-    return <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Draft</Badge>;
-  }
-  return <Badge variant="outline" className="text-muted-foreground">Belum dibuat</Badge>;
 }
 
 export default function AdminRaportPage() {
@@ -173,7 +159,7 @@ export default function AdminRaportPage() {
       {
         accessorKey: "status",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-        cell: ({ row }) => <RaportStatusBadge status={row.original.status} />,
+        cell: ({ row }) => <StatusBadge status={row.original.status} label={row.original.status === "NONE" ? "Belum dibuat" : undefined} />,
       },
       {
         id: "actions",

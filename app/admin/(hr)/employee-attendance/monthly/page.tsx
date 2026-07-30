@@ -28,6 +28,16 @@ const STATUS_COLORS: Record<string, string> = {
   PRESENT_NO_CHECKOUT: "bg-status-late",
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  PRESENT: "Hadir",
+  LATE: "Terlambat",
+  ABSENT: "Alpa",
+  LEAVE: "Izin",
+  HOLIDAY: "Libur",
+  HALF_DAY: "Setengah hari",
+  PRESENT_NO_CHECKOUT: "Hadir tanpa check-out",
+};
+
 export default function MonthlyAttendancePage() {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -151,14 +161,21 @@ export default function MonthlyAttendancePage() {
                       const record = recordMap.get(dateStr);
                       const dow = new Date(year, month - 1, d).getDay();
                       const isWeekend = dow === 0 || dow === 6;
+                      const status = record
+                        ? STATUS_LABELS[record.status] ?? record.status
+                        : isWeekend
+                          ? "Akhir pekan"
+                          : "Tidak ada data";
                       return (
                         <td key={d} className="px-0.5 py-1 text-center">
                           <button
                             onClick={() => handleCellClick(emp, d)}
+                            aria-label={`${emp.employee.nama}, ${dateStr}, ${status}${record?.isLocked ? ", terkunci" : ""}`}
+                            disabled={record?.isLocked}
                             className={`w-5 h-5 rounded-sm inline-block ${
                               record ? STATUS_COLORS[record.status] ?? "bg-muted" : isWeekend ? "bg-muted/30" : ""
                             } ${record?.isLocked ? "opacity-50 cursor-not-allowed" : "hover:ring-1 hover:ring-primary cursor-pointer"}`}
-                            title={record ? record.status : isWeekend ? "Akhir Pekan" : "Tidak ada data"}
+                            title={status}
                           />
                         </td>
                       );
