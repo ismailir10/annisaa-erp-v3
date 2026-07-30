@@ -270,6 +270,24 @@ Domain standards live under `.claude/standards/` — loaded only when relevant f
 
 **Frontend gate (pre-commit Rule 4):** frontend diffs (`app/**/*.{tsx,css}`, `components/**/*.tsx`, `tailwind.config.*`) require the staged cycle doc to contain the literal token `design-system`. A one-line Verification bullet ("Cross-checked design-system.html §N for Z") satisfies the gate. Keeps the reference alive against silent drift.
 
+### Interface-craft skills (vendored)
+
+The `.claude/standards/*` files above cover **this product** — Talib's tokens, page recipes, personas, Indonesian copy. They say nothing about general interface craft (focus rings, motion easing, OKLCH gamut, text wrapping, hit areas). That gap is filled by the vendored [`interfaces`](https://github.com/jakubkrehel/skills) collection (MIT, upstream sha + license in `.claude/skills/VENDORED.md`), checked in under `.claude/skills/better-*` so all three harnesses read one copy.
+
+| Skill | Covers | Load on |
+|---|---|---|
+| `better-ui` | Radius, shadows, borders, optical alignment, icons, animation + micro-interaction restraint, perf | `components/**`, `components/ui/**`, any hover/focus/active/loading/empty state or motion diff |
+| `better-typography` | Font loading, variable fonts + OpenType, type scale, heading hierarchy, tabular numerals, `text-wrap`, truncation, iOS input zoom | Any text-styling diff; `app/globals.css`, `app/**/layout.tsx` font config, table/number cells |
+| `better-colors` | OKLCH, palette generation, contrast measurement, gamut/display-p3, semantic tokens, light/dark theming | `app/globals.css`, `tailwind.config.*`, arbitrary-color classNames — **paired with `colors.md`** |
+| `better-accessibility` | Focus + keyboard, focus traps, semantics/ARIA, form errors, screen readers, hit areas, `prefers-reduced-motion` | `components/ui/**`, any Dialog/Sheet/Popover/Menu/custom widget, every form diff |
+| `better-layout` | Grouping, alignment, negative space, reading order, progressive disclosure, breakpoints/container queries, safe area, logical properties | `app/*/page.tsx`, `app/**/client.tsx`, `app/**/layout.tsx` — **paired with `patterns.md`** |
+| `better-writing` | Button + link labels, error messages, empty states, placeholders, settings labels, capitalization | Any user-facing copy diff — **paired with `voice.md`** |
+| `better-interface` | Orchestrator only — cross-discipline review across the six above. User-invoked (`/better-interface [quick\|full] <area>`) | On demand; not auto-loaded by `/build` |
+
+**Precedence — project standard wins.** These are craft *defaults*, not overrides. On any conflict the order is: `.claude/standards/*` + `design-system.html` → then the `better-*` principle. Concretely: Shadcn-FIRST (`ui.md`) beats a hand-rolled component the skills would let you build; Talib's brand tokens and `bg-status-*` scale beat a generated OKLCH palette; `voice.md`'s Indonesian personas + Islamic courtesy layer beat `better-writing`'s English-microcopy examples. Reach for a `better-*` rule where the project standard is **silent**, never to contradict it.
+
+`/build` Step 1 loads the union of matching `.claude/standards/*` **and** matching `better-*` skills per task. `/ship`'s preview-verify and `/uat` may cite `better-accessibility` + `better-ui` findings as minor. Do **not** hand-edit `.claude/skills/better-*` — they are vendored; re-vendor from upstream instead (see `VENDORED.md`).
+
 ---
 
 ## File Structure
