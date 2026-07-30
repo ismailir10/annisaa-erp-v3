@@ -73,6 +73,7 @@ export function CategoryAccordion({
 
   async function patchCategory(id: string, data: Record<string, unknown>) {
     setPending(`cat:${id}`);
+    let errorToasted = false;
     try {
       const res = await fetch(`/api/student-journal/categories/${id}`, {
         method: "PUT",
@@ -81,11 +82,20 @@ export function CategoryAccordion({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error ?? "Gagal memperbarui kategori");
-        return;
+        const message = err.error ?? "Gagal memperbarui kategori";
+        errorToasted = true;
+        toast.error(message);
+        throw new Error(message);
       }
       toast.success("Kategori diperbarui");
       await onRefresh();
+    } catch (error) {
+      if (!errorToasted) {
+        toast.error("Gagal memperbarui kategori. Coba lagi.");
+      }
+      throw error instanceof Error
+        ? error
+        : new Error("Gagal memperbarui kategori");
     } finally {
       setPending(null);
     }
@@ -93,6 +103,7 @@ export function CategoryAccordion({
 
   async function patchIndicator(id: string, data: Record<string, unknown>) {
     setPending(`ind:${id}`);
+    let errorToasted = false;
     try {
       const res = await fetch(`/api/student-journal/indicators/${id}`, {
         method: "PUT",
@@ -101,11 +112,20 @@ export function CategoryAccordion({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error ?? "Gagal memperbarui indikator");
-        return;
+        const message = err.error ?? "Gagal memperbarui indikator";
+        errorToasted = true;
+        toast.error(message);
+        throw new Error(message);
       }
       toast.success("Indikator diperbarui");
       await onRefresh();
+    } catch (error) {
+      if (!errorToasted) {
+        toast.error("Gagal memperbarui indikator. Coba lagi.");
+      }
+      throw error instanceof Error
+        ? error
+        : new Error("Gagal memperbarui indikator");
     } finally {
       setPending(null);
     }
@@ -120,7 +140,7 @@ export function CategoryAccordion({
     void Promise.all([
       patchCategory(a.id, { order: b.order }),
       patchCategory(b.id, { order: a.order }),
-    ]);
+    ]).catch(() => undefined);
   }
 
   function reorderIndicator(cat: CategoryDTO, idx: number, dir: -1 | 1) {
@@ -130,7 +150,7 @@ export function CategoryAccordion({
     void Promise.all([
       patchIndicator(a.id, { order: b.order }),
       patchIndicator(b.id, { order: a.order }),
-    ]);
+    ]).catch(() => undefined);
   }
 
   if (loading) {
@@ -187,6 +207,7 @@ export function CategoryAccordion({
                       reorderCategory(idx, -1);
                     }}
                     title="Naik"
+                    aria-label={`Naikkan kategori ${cat.name}`}
                   >
                     <ArrowUp className="h-3.5 w-3.5" />
                   </Button>
@@ -200,6 +221,7 @@ export function CategoryAccordion({
                       reorderCategory(idx, 1);
                     }}
                     title="Turun"
+                    aria-label={`Turunkan kategori ${cat.name}`}
                   >
                     <ArrowDown className="h-3.5 w-3.5" />
                   </Button>
@@ -272,6 +294,7 @@ export function CategoryAccordion({
                         disabled={iIdx === 0 || pending !== null}
                         onClick={() => reorderIndicator(cat, iIdx, -1)}
                         title="Naik"
+                        aria-label={`Naikkan indikator ${ind.label}`}
                       >
                         <ArrowUp className="h-3.5 w-3.5" />
                       </Button>
@@ -282,6 +305,7 @@ export function CategoryAccordion({
                         disabled={iIdx === cat.indicators.length - 1 || pending !== null}
                         onClick={() => reorderIndicator(cat, iIdx, 1)}
                         title="Turun"
+                        aria-label={`Turunkan indikator ${ind.label}`}
                       >
                         <ArrowDown className="h-3.5 w-3.5" />
                       </Button>
@@ -362,7 +386,7 @@ export function CategoryAccordion({
             : "Item akan disembunyikan dari isian harian, data lama tetap tersimpan."
         }
         destructive={confirm?.activate === false}
-        confirmLabel={confirm?.activate ? "Aktifkan" : "Nonaktifkan"}
+        confirmLabel={confirm?.activate ? "Aktifkan" : "Ya, Nonaktifkan"}
         onConfirm={async () => {
           if (!confirm) return;
           const status = confirm.activate ? "ACTIVE" : "INACTIVE";

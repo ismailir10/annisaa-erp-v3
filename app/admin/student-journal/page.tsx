@@ -276,8 +276,10 @@ export default function StudentJournalAdminPage() {
           {categoryForm && (
             <div className="space-y-field">
               <Field>
-                <FieldLabel>Nama Kategori</FieldLabel>
+                <FieldLabel htmlFor="journal-category-name" required>Nama Kategori</FieldLabel>
                 <Input
+                  id="journal-category-name"
+                  required
                   value={categoryForm.name}
                   onChange={(e) =>
                     setCategoryForm({ ...categoryForm, name: e.target.value })
@@ -287,7 +289,7 @@ export default function StudentJournalAdminPage() {
                 />
               </Field>
               <Field>
-                <FieldLabel>Lingkup</FieldLabel>
+                <FieldLabel htmlFor="journal-category-scope" required>Lingkup</FieldLabel>
                 <Select
                   value={categoryForm.scope}
                   onValueChange={(v) =>
@@ -295,7 +297,7 @@ export default function StudentJournalAdminPage() {
                   }
                   items={{ SCHOOL: SCOPE_LABEL.SCHOOL, HOME: SCOPE_LABEL.HOME }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="journal-category-scope" aria-required="true">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -337,8 +339,10 @@ export default function StudentJournalAdminPage() {
           {indicatorForm && (
             <div className="space-y-field">
               <Field>
-                <FieldLabel>Label Indikator</FieldLabel>
+                <FieldLabel htmlFor="journal-indicator-label" required>Label Indikator</FieldLabel>
                 <Input
+                  id="journal-indicator-label"
+                  required
                   value={indicatorForm.label}
                   onChange={(e) =>
                     setIndicatorForm({ ...indicatorForm, label: e.target.value })

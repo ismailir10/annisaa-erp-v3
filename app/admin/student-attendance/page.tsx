@@ -292,16 +292,29 @@ export default function StudentAttendancePage() {
   async function handleVoid() {
     if (!voidTarget) return;
     setVoiding(true);
-    const res = await fetch(`/api/student-attendance/${voidTarget.id}`, { method: "DELETE" });
-    if (res.ok) {
+    let errorToasted = false;
+    try {
+      const res = await fetch(`/api/student-attendance/${voidTarget.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        const message = d.error || "Gagal membatalkan";
+        errorToasted = true;
+        toast.error(message);
+        throw new Error(message);
+      }
       toast.success("Record kehadiran dibatalkan");
       setVoidTarget(null);
-      fetchData();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal membatalkan");
+      void fetchData();
+    } catch (error) {
+      if (!errorToasted) {
+        toast.error("Gagal membatalkan record kehadiran. Coba lagi.");
+      }
+      throw error instanceof Error
+        ? error
+        : new Error("Gagal membatalkan record kehadiran");
+    } finally {
+      setVoiding(false);
     }
-    setVoiding(false);
   }
 
   // ── Columns ─────────────────────────────────────────────────────
@@ -541,7 +554,7 @@ export default function StudentAttendancePage() {
             ? `Record kehadiran ${voidTarget.student.name} pada ${voidTarget.date} akan dibatalkan dan tidak muncul di laporan.`
             : undefined
         }
-        confirmLabel="Batalkan Record"
+        confirmLabel="Ya, Batalkan"
         destructive
         loading={voiding}
         onConfirm={handleVoid}
