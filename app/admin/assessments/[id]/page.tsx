@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import { toast } from "sonner";
 import { Save, Send } from "lucide-react";
@@ -46,17 +47,26 @@ const SCORE_COLORS: Record<string, string> = {
   BSB: "bg-status-present-subtle text-status-present-text border-transparent",
 };
 
+const AUTOSAVE_INTERVAL_MS = 2_000;
+
 export default function AssessmentDetailPage() {
   const params = useParams<{ id: string }>();
   const assessmentId = params?.id;
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [explicitSaving, setExplicitSaving] = useState(false);
   const [scoreMap, setScoreMap] = useState<Record<string, string>>({});
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
+  const scoreMapRef = useRef<Record<string, string>>({});
+  const confirmedScoreMapRef = useRef<Record<string, string>>({});
+  const notesMapRef = useRef<Record<string, string>>({});
+  const scoreRevisionRef = useRef<Record<string, number>>({});
+  const pendingRevisionRef = useRef<Record<string, number>>({});
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveInFlightRef = useRef<Promise<boolean> | null>(null);
+  const lastSaveStartedAtRef = useRef(Number.NEGATIVE_INFINITY);
 
-  /* eslint-disable react-hooks/set-state-in-effect -- data fetching: setState in async .then callback is intentional */
   useEffect(() => {
     if (!assessmentId) { setLoading(false); return; }
     fetch(`/api/assessments/student/${assessmentId}`)
@@ -72,32 +82,157 @@ export default function AssessmentDetailPage() {
           if (s.score) sMap[s.indicatorId] = s.score;
           if (s.notes) nMap[s.indicatorId] = s.notes;
         }
+        scoreMapRef.current = sMap;
+        confirmedScoreMapRef.current = sMap;
+        notesMapRef.current = nMap;
         setScoreMap(sMap);
         setNotesMap(nMap);
       })
       .catch(() => toast.error("Penilaian tidak ditemukan"))
       .finally(() => setLoading(false));
   }, [assessmentId]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => () => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+  }, []);
+
+  function scheduleAutosave() {
+    if (autosaveTimerRef.current || autosaveInFlightRef.current) return;
+    const delay = Math.max(
+      0,
+      lastSaveStartedAtRef.current + AUTOSAVE_INTERVAL_MS - Date.now(),
+    );
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void startSaveBatch();
+    }, delay);
+  }
+
+  async function startSaveBatch(
+    status?: "PUBLISHED",
+    force = false,
+  ): Promise<boolean> {
+    if (!assessment) return false;
+    if (autosaveInFlightRef.current) return autosaveInFlightRef.current;
+
+    const saveTask = (async () => {
+      const throttleDelay = Math.max(
+        0,
+        lastSaveStartedAtRef.current + AUTOSAVE_INTERVAL_MS - Date.now(),
+      );
+      if (throttleDelay > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, throttleDelay));
+      }
+
+      // Capture immediately before the request so taps received during the
+      // throttle window are coalesced into this latest full-state payload.
+      const revisions = { ...pendingRevisionRef.current };
+      pendingRevisionRef.current = {};
+      if (!force && Object.keys(revisions).length === 0) return true;
+
+      const scoreSnapshot = { ...scoreMapRef.current };
+      lastSaveStartedAtRef.current = Date.now();
+
+      try {
+        const res = await fetch(`/api/assessments/student/${assessment.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scores: Object.entries(scoreSnapshot).map(([indicatorId, score]) => ({
+              indicatorId,
+              score,
+              notes: notesMapRef.current[indicatorId] || null,
+            })),
+            status,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(body.error || "Gagal menyimpan nilai");
+        }
+
+        confirmedScoreMapRef.current = scoreSnapshot;
+        return true;
+      } catch (error) {
+        let rolledBack = false;
+        const rolledBackScores = { ...scoreMapRef.current };
+
+        for (const [indicatorId, revision] of Object.entries(revisions)) {
+          // Revisions, not value equality, make this ABA-safe: if the user
+          // tapped A → B → A while this request was in flight, the newer A
+          // carries a different token and must survive the stale failure.
+          if (scoreRevisionRef.current[indicatorId] !== revision) continue;
+          const confirmedScore = confirmedScoreMapRef.current[indicatorId];
+          if (confirmedScore) rolledBackScores[indicatorId] = confirmedScore;
+          else delete rolledBackScores[indicatorId];
+          rolledBack = true;
+        }
+
+        if (rolledBack) {
+          scoreMapRef.current = rolledBackScores;
+          setScoreMap(rolledBackScores);
+          toast.error(
+            `${error instanceof Error ? error.message : "Gagal menyimpan nilai"}. Nilai dikembalikan; pilih lagi untuk mencoba ulang.`,
+          );
+        } else if (Object.keys(revisions).length > 0) {
+          toast.error(
+            `${error instanceof Error ? error.message : "Gagal menyimpan nilai"}. Perubahan terbaru akan dicoba berikutnya.`,
+          );
+        } else {
+          toast.error(
+            `${error instanceof Error ? error.message : "Gagal menyimpan"}. Periksa koneksi lalu coba lagi.`,
+          );
+        }
+        return false;
+      }
+    })();
+
+    autosaveInFlightRef.current = saveTask;
+    try {
+      return await saveTask;
+    } finally {
+      autosaveInFlightRef.current = null;
+      if (Object.keys(pendingRevisionRef.current).length > 0) scheduleAutosave();
+    }
+  }
+
+  function handleScoreChange(indicatorId: string, nextScore: string) {
+    if (!assessment) return;
+
+    const revision = (scoreRevisionRef.current[indicatorId] ?? 0) + 1;
+    scoreRevisionRef.current[indicatorId] = revision;
+    pendingRevisionRef.current[indicatorId] = revision;
+
+    const optimisticScores = { ...scoreMapRef.current, [indicatorId]: nextScore };
+    scoreMapRef.current = optimisticScores;
+    setScoreMap(optimisticScores);
+    scheduleAutosave();
+  }
 
   async function handleSave(publish: boolean) {
     if (!assessment) return;
-    setSaving(true);
-    const scores = Object.entries(scoreMap).map(([indicatorId, score]) => ({
-      indicatorId,
-      score,
-      notes: notesMap[indicatorId] || null,
-    }));
-    const res = await fetch(`/api/assessments/student/${assessment.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scores, status: publish ? "PUBLISHED" : undefined }),
-    });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); toast.error(e.error || "Gagal menyimpan"); setSaving(false); return; }
-    toast.success(publish ? "Penilaian dipublikasi" : "Nilai disimpan");
-    setSaving(false);
-    if (publish) {
-      setAssessment({ ...assessment, status: "PUBLISHED" });
+    setExplicitSaving(true);
+
+    try {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      if (autosaveInFlightRef.current) await autosaveInFlightRef.current;
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+
+      const saved = await startSaveBatch(publish ? "PUBLISHED" : undefined, true);
+      if (!saved) return;
+
+      toast.success(publish ? "Penilaian dipublikasi" : "Nilai disimpan");
+      if (publish) {
+        setAssessment({ ...assessment, status: "PUBLISHED" });
+      }
+    } finally {
+      setExplicitSaving(false);
     }
   }
 
@@ -126,11 +261,11 @@ export default function AssessmentDetailPage() {
         badge={<StatusBadge status={assessment.status} label={assessment.status === "PUBLISHED" ? "Dipublikasi" : "Draf"} />}
         actions={
           <>
-            <Button variant="outline" onClick={() => handleSave(false)} disabled={saving}>
-              <Save size={14} className="mr-1.5" /> {saving ? "Menyimpan..." : "Simpan Draf"}
+            <Button variant="outline" onClick={() => handleSave(false)} disabled={explicitSaving}>
+              <Save size={14} className="mr-1.5" /> {explicitSaving ? "Menyimpan..." : "Simpan Draf"}
             </Button>
             {assessment.status !== "PUBLISHED" && (
-              <Button onClick={() => handleSave(true)} disabled={saving}>
+              <Button onClick={() => handleSave(true)} disabled={explicitSaving}>
                 <Send size={14} className="mr-1.5" /> Publikasi
               </Button>
             )}
@@ -150,15 +285,22 @@ export default function AssessmentDetailPage() {
               <div key={ind.id} className="flex flex-col sm:flex-row sm:items-center gap-2 py-2 border-b border-border last:border-0">
                 <span className="text-sm flex-1">{ind.description}</span>
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex gap-1">
+                  <ToggleGroup
+                    value={scoreMap[ind.id] ? [scoreMap[ind.id]] : []}
+                    onValueChange={(value) => {
+                      const score = value[0];
+                      if (score) handleScoreChange(ind.id, score);
+                    }}
+                    aria-label={`Nilai untuk ${ind.description}`}
+                    spacing={1}
+                  >
                     {SCORE_OPTIONS.map((opt) => {
                       const selected = scoreMap[ind.id] === opt.value;
                       return (
-                        <button
+                        <ToggleGroupItem
                           key={opt.value}
-                          type="button"
-                          title={opt.desc}
-                          onClick={() => setScoreMap({ ...scoreMap, [ind.id]: opt.value })}
+                          value={opt.value}
+                          aria-label={`${opt.label}: ${opt.desc}`}
                           className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
                             selected
                               ? SCORE_COLORS[opt.value]
@@ -166,15 +308,21 @@ export default function AssessmentDetailPage() {
                           }`}
                         >
                           {opt.label}
-                        </button>
+                        </ToggleGroupItem>
                       );
                     })}
-                  </div>
+                  </ToggleGroup>
                   <Input
+                    id={`assessment-note-${ind.id}`}
+                    aria-label={`Catatan untuk ${ind.description}`}
                     className="w-32 text-xs h-8"
                     placeholder="Catatan"
                     value={notesMap[ind.id] || ""}
-                    onChange={(e) => setNotesMap({ ...notesMap, [ind.id]: e.target.value })}
+                    onChange={(e) => {
+                      const nextNotes = { ...notesMapRef.current, [ind.id]: e.target.value };
+                      notesMapRef.current = nextNotes;
+                      setNotesMap(nextNotes);
+                    }}
                   />
                 </div>
               </div>

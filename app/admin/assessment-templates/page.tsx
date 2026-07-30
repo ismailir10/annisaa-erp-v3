@@ -386,19 +386,19 @@ export default function AssessmentTemplatesPage() {
         }
       >
         <div className="space-y-field">
-            <Field><FieldLabel required>Nama Template</FieldLabel><Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
+            <Field><FieldLabel htmlFor="create-template-name" required>Nama Template</FieldLabel><Input id="create-template-name" required aria-required="true" value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Laporan Perkembangan Semester 1" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field>
-                <FieldLabel required>Program</FieldLabel>
+                <FieldLabel htmlFor="create-template-program" required>Program</FieldLabel>
                 <Select value={createForm.programId} onValueChange={(v) => v && setCreateForm({ ...createForm, programId: v })} items={programs.map((p) => ({ label: p.name, value: p.id }))}>
-                  <SelectTrigger><SelectValue placeholder="Pilih program" /></SelectTrigger>
+                  <SelectTrigger id="create-template-program" aria-required="true"><SelectValue placeholder="Pilih program" /></SelectTrigger>
                   <SelectContent>{programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
               <Field>
-                <FieldLabel>Tipe</FieldLabel>
+                <FieldLabel htmlFor="create-template-type">Tipe</FieldLabel>
                 <Select value={createForm.type} onValueChange={(v) => v && setCreateForm({ ...createForm, type: v })} items={{ SEMESTER: "Semester", QUARTERLY: "Kuartal", MONTHLY: "Bulanan" }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="create-template-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="SEMESTER">Semester</SelectItem>
                     <SelectItem value="QUARTERLY">Kuartal</SelectItem>
@@ -428,11 +428,11 @@ export default function AssessmentTemplatesPage() {
           </>
         }
       >
-        <Field><FieldLabel required>Nama</FieldLabel><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
+        <Field><FieldLabel htmlFor="edit-template-name" required>Nama</FieldLabel><Input id="edit-template-name" required aria-required="true" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
         <Field>
-          <FieldLabel>Tipe</FieldLabel>
+          <FieldLabel htmlFor="edit-template-type">Tipe</FieldLabel>
           <Select value={editForm.type} onValueChange={(v) => v && setEditForm({ ...editForm, type: v })} items={{ SEMESTER: "Semester", QUARTERLY: "Kuartal", MONTHLY: "Bulanan" }}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id="edit-template-type"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="SEMESTER">Semester</SelectItem>
               <SelectItem value="QUARTERLY">Kuartal</SelectItem>
