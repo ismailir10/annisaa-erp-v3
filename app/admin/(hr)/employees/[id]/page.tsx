@@ -195,19 +195,19 @@ export default function EmployeeDetailPage() {
                 <div>
                   <SectionHeading label="Identitas" />
                   <div className="grid grid-cols-2 gap-4">
-                    <Field><FieldLabel>Kode</FieldLabel><Input value={e.kode} disabled /></Field>
-                    <Field><FieldLabel required>Nama</FieldLabel><Input value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-code">Kode</FieldLabel><Input id="employee-detail-code" value={e.kode} disabled /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-nama" required>Nama</FieldLabel><Input id="employee-detail-nama" required value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
                   </div>
                   <div className="mt-3">
-                    <Field><FieldLabel>Nama Formal</FieldLabel><Input value={editForm.formalName} onChange={ev => setEditForm({ ...editForm, formalName: ev.target.value })} /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-formal-name">Nama Formal</FieldLabel><Input id="employee-detail-formal-name" value={editForm.formalName} onChange={ev => setEditForm({ ...editForm, formalName: ev.target.value })} /></Field>
                   </div>
                 </div>
 
                 <div>
                   <SectionHeading label="Kontak" />
                   <div className="grid grid-cols-2 gap-4">
-                    <Field><FieldLabel required>Email</FieldLabel><Input value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
-                    <Field><FieldLabel>No. HP</FieldLabel><Input value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-email" required>Email</FieldLabel><Input id="employee-detail-email" required value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-phone">No. HP</FieldLabel><Input id="employee-detail-phone" value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
                   </div>
                 </div>
 
@@ -215,9 +215,9 @@ export default function EmployeeDetailPage() {
                   <SectionHeading label="Kepegawaian" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
-                      <FieldLabel required>Jabatan</FieldLabel>
+                      <FieldLabel htmlFor="employee-detail-position" required>Jabatan</FieldLabel>
                       <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })} items={{ ...Object.fromEntries(positions.map(p => [p, p])), ...(!positions.includes(editForm.jabatan) && editForm.jabatan ? { [editForm.jabatan]: editForm.jabatan } : {}) }}>
-                        <SelectTrigger><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
+                        <SelectTrigger id="employee-detail-position" aria-required="true"><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
                         <SelectContent>
                           {positions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                           {!positions.includes(editForm.jabatan) && editForm.jabatan && (
@@ -227,15 +227,15 @@ export default function EmployeeDetailPage() {
                       </Select>
                     </Field>
                     <Field>
-                      <FieldLabel required>Kampus</FieldLabel>
+                      <FieldLabel htmlFor="employee-detail-campus" required>Kampus</FieldLabel>
                       <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger id="employee-detail-campus" aria-required="true"><SelectValue /></SelectTrigger>
                         <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </Field>
                   </div>
                   <div className="mt-3">
-                    <Field><FieldLabel>Tanggal Masuk</FieldLabel><Input type="date" value={editForm.hireDate} onChange={ev => setEditForm({ ...editForm, hireDate: ev.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-hire-date">Tanggal Masuk</FieldLabel><Input id="employee-detail-hire-date" type="date" value={editForm.hireDate} onChange={ev => setEditForm({ ...editForm, hireDate: ev.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
                   </div>
                 </div>
 
@@ -243,25 +243,25 @@ export default function EmployeeDetailPage() {
                   <SectionHeading label="Rekening & BPJS" />
                   <div className="grid grid-cols-2 gap-4">
                     <Field>
-                      <FieldLabel>Bank</FieldLabel>
+                      <FieldLabel htmlFor="employee-detail-bank">Bank</FieldLabel>
                       <Select value={editForm.bankName} onValueChange={v => v && setEditForm({ ...editForm, bankName: v })}>
-                        <SelectTrigger><SelectValue placeholder="Pilih bank" /></SelectTrigger>
+                        <SelectTrigger id="employee-detail-bank"><SelectValue placeholder="Pilih bank" /></SelectTrigger>
                         <SelectContent>
                           {INDONESIAN_BANKS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </Field>
-                    <Field><FieldLabel>No. Rekening</FieldLabel><Input value={editForm.bankAccountNo} onChange={ev => setEditForm({ ...editForm, bankAccountNo: ev.target.value })} /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-bank-account">No. Rekening</FieldLabel><Input id="employee-detail-bank-account" value={editForm.bankAccountNo} onChange={ev => setEditForm({ ...editForm, bankAccountNo: ev.target.value })} /></Field>
                   </div>
                   <div className="mt-3">
-                    <label className="flex items-center gap-2 text-sm"><Checkbox checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
+                    <label htmlFor="employee-detail-bpjs" className="flex items-center gap-2 text-sm"><Checkbox id="employee-detail-bpjs" checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
                   </div>
                 </div>}
                 <div>
                   <SectionHeading label="Saldo Cuti" />
                   <div className="grid grid-cols-2 gap-4">
-                    <Field><FieldLabel>Cuti Tahunan</FieldLabel><Input type="number" min={0} max={365} value={editForm.leaveBalanceAnnual} onChange={ev => setEditForm({ ...editForm, leaveBalanceAnnual: ev.target.value })} placeholder="12" /></Field>
-                    <Field><FieldLabel>Cuti Sakit</FieldLabel><Input type="number" min={0} max={365} value={editForm.leaveBalanceSick} onChange={ev => setEditForm({ ...editForm, leaveBalanceSick: ev.target.value })} placeholder="14" /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-annual-leave">Cuti Tahunan</FieldLabel><Input id="employee-detail-annual-leave" type="number" min={0} max={365} value={editForm.leaveBalanceAnnual} onChange={ev => setEditForm({ ...editForm, leaveBalanceAnnual: ev.target.value })} placeholder="12" /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-sick-leave">Cuti Sakit</FieldLabel><Input id="employee-detail-sick-leave" type="number" min={0} max={365} value={editForm.leaveBalanceSick} onChange={ev => setEditForm({ ...editForm, leaveBalanceSick: ev.target.value })} placeholder="14" /></Field>
                   </div>
                 </div>
               </div>
@@ -373,7 +373,7 @@ export default function EmployeeDetailPage() {
                       </div>
                     </div>
                     <div className="w-40">
-                      <Input type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" />
+                      <Input aria-label={`Nilai ${sv.componentDef.label}`} type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" />
                       {sv.value > 0 && (
                         <p className="mt-1 text-right text-xs text-muted-foreground font-currency">{formatRupiah(sv.value)}</p>
                       )}

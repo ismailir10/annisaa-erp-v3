@@ -533,19 +533,19 @@ function CreateEmployeeFormBody({
   return (
     <>
       <div className="grid grid-cols-2 gap-field">
-        <Field className="col-span-2 sm:col-span-1"><FieldLabel required>Nama</FieldLabel><Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></Field>
-        <Field className="col-span-2 sm:col-span-1"><FieldLabel>Nama Formal</FieldLabel><Input value={form.formalName} onChange={(e) => setForm({ ...form, formalName: e.target.value })} /></Field>
+        <Field className="col-span-2 sm:col-span-1"><FieldLabel htmlFor="employee-nama" required>Nama</FieldLabel><Input id="employee-nama" required value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></Field>
+        <Field className="col-span-2 sm:col-span-1"><FieldLabel htmlFor="employee-formal-name">Nama Formal</FieldLabel><Input id="employee-formal-name" value={form.formalName} onChange={(e) => setForm({ ...form, formalName: e.target.value })} /></Field>
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field><FieldLabel required>Email</FieldLabel><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-        <Field><FieldLabel>No. HP</FieldLabel><Input value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} placeholder="081234567890" /></Field>
+        <Field><FieldLabel htmlFor="employee-email" required>Email</FieldLabel><Input id="employee-email" required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+        <Field><FieldLabel htmlFor="employee-phone">No. HP</FieldLabel><Input id="employee-phone" value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} placeholder="081234567890" /></Field>
       </div>
       <div className="grid grid-cols-2 gap-field">
         <Field>
-          <FieldLabel required>Jabatan</FieldLabel>
+          <FieldLabel htmlFor="employee-position" required>Jabatan</FieldLabel>
           {customPosition ? (
             <div className="flex gap-2">
-              <Input value={form.jabatan} onChange={(e) => setForm({ ...form, jabatan: e.target.value })} placeholder="Jabatan baru..." autoFocus />
+              <Input id="employee-position" required value={form.jabatan} onChange={(e) => setForm({ ...form, jabatan: e.target.value })} placeholder="Jabatan baru..." autoFocus />
               <Button variant="outline" size="sm" onClick={() => setCustomPosition(false)} className="shrink-0">Batal</Button>
             </div>
           ) : (
@@ -553,7 +553,7 @@ function CreateEmployeeFormBody({
               if (v === "__custom__") { setCustomPosition(true); setForm({ ...form, jabatan: "" }); }
               else if (v) setForm({ ...form, jabatan: v });
             }} items={{ ...Object.fromEntries(positions.map((p) => [p, p])), __custom__: "+ Tambah jabatan baru" }}>
-              <SelectTrigger><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
+              <SelectTrigger id="employee-position" aria-required="true"><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
               <SelectContent>
                 {positions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 <SelectItem value="__custom__">+ Tambah jabatan baru</SelectItem>
@@ -562,9 +562,9 @@ function CreateEmployeeFormBody({
           )}
         </Field>
         <Field>
-          <FieldLabel required>Kampus</FieldLabel>
+          <FieldLabel htmlFor="employee-campus" required>Kampus</FieldLabel>
           <Select value={form.campusId} onValueChange={(v) => v && setForm({ ...form, campusId: v })} items={campuses.map((c) => ({ label: c.name, value: c.id }))}>
-            <SelectTrigger><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
+            <SelectTrigger id="employee-campus" aria-required="true"><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
             <SelectContent>
               {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
             </SelectContent>
@@ -572,15 +572,15 @@ function CreateEmployeeFormBody({
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field><FieldLabel required>Tanggal Masuk</FieldLabel><Input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+        <Field><FieldLabel htmlFor="employee-hire-date" required>Tanggal Masuk</FieldLabel><Input id="employee-hire-date" required type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
         <Field>
-          <FieldLabel required>Peran Akun</FieldLabel>
+          <FieldLabel htmlFor="employee-role" required>Peran Akun</FieldLabel>
           <Select
             value={form.role}
             onValueChange={(v) => v && setForm({ ...form, role: v as "TEACHER" | "SCHOOL_ADMIN" })}
             items={{ TEACHER: "Guru", SCHOOL_ADMIN: "Admin Sekolah" }}
           >
-            <SelectTrigger><SelectValue placeholder="Pilih peran" /></SelectTrigger>
+            <SelectTrigger id="employee-role" aria-required="true"><SelectValue placeholder="Pilih peran" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="TEACHER">Guru</SelectItem>
               <SelectItem value="SCHOOL_ADMIN">Admin Sekolah</SelectItem>
@@ -590,28 +590,28 @@ function CreateEmployeeFormBody({
       </div>
       <div className="grid grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Bank</FieldLabel>
+          <FieldLabel htmlFor="employee-bank">Bank</FieldLabel>
           <Select value={form.bankName} onValueChange={(v) => v && setForm({ ...form, bankName: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id="employee-bank"><SelectValue /></SelectTrigger>
             <SelectContent>
               {INDONESIAN_BANKS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
             </SelectContent>
           </Select>
         </Field>
       </div>
-      <Field><FieldLabel>No. Rekening</FieldLabel><Input value={form.bankAccountNo} onChange={(e) => setForm({ ...form, bankAccountNo: e.target.value })} /></Field>
+      <Field><FieldLabel htmlFor="employee-bank-account">No. Rekening</FieldLabel><Input id="employee-bank-account" value={form.bankAccountNo} onChange={(e) => setForm({ ...form, bankAccountNo: e.target.value })} /></Field>
       <div className="grid grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Saldo Cuti Tahunan</FieldLabel>
-          <Input type="number" min={0} max={365} value={form.leaveBalanceAnnual} onChange={(e) => setForm({ ...form, leaveBalanceAnnual: e.target.value })} placeholder="12" />
+          <FieldLabel htmlFor="employee-annual-leave">Saldo Cuti Tahunan</FieldLabel>
+          <Input id="employee-annual-leave" type="number" min={0} max={365} value={form.leaveBalanceAnnual} onChange={(e) => setForm({ ...form, leaveBalanceAnnual: e.target.value })} placeholder="12" />
         </Field>
         <Field>
-          <FieldLabel>Saldo Cuti Sakit</FieldLabel>
-          <Input type="number" min={0} max={365} value={form.leaveBalanceSick} onChange={(e) => setForm({ ...form, leaveBalanceSick: e.target.value })} placeholder="14" />
+          <FieldLabel htmlFor="employee-sick-leave">Saldo Cuti Sakit</FieldLabel>
+          <Input id="employee-sick-leave" type="number" min={0} max={365} value={form.leaveBalanceSick} onChange={(e) => setForm({ ...form, leaveBalanceSick: e.target.value })} placeholder="14" />
         </Field>
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox checked={form.bpjsEnrolled} onCheckedChange={(c) => setForm({ ...form, bpjsEnrolled: !!c })} />
+      <label htmlFor="employee-bpjs" className="flex items-center gap-2 text-sm">
+        <Checkbox id="employee-bpjs" checked={form.bpjsEnrolled} onCheckedChange={(c) => setForm({ ...form, bpjsEnrolled: !!c })} />
         BPJS Terdaftar
       </label>
     </>
