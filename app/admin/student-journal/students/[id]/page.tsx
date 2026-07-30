@@ -396,6 +396,7 @@ export default function StudentJournalDetailPage({
               entries={weekData?.schoolEntries ?? []}
               dates={weekData?.dates ?? []}
               editable={isEditing}
+              disablePastDays={false}
               onToggle={(indicatorId, date, next) =>
                 handleToggle(indicatorId, date, next, "SCHOOL")
               }
@@ -411,6 +412,7 @@ export default function StudentJournalDetailPage({
               entries={weekData?.homeEntries ?? []}
               dates={weekData?.dates ?? []}
               editable={isEditing}
+              disablePastDays={false}
               onToggle={(indicatorId, date, next) =>
                 handleToggle(indicatorId, date, next, "HOME")
               }

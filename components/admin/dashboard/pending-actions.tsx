@@ -40,7 +40,9 @@ export function PendingActions({
               </div>
             </div>
             {pendingLeave > 0 ? (
-              <Badge className="bg-warning text-primary-foreground text-xs">{pendingLeave}</Badge>
+              // Subtle bg + darker text (StatusBadge pattern) — bg-warning/text-primary-foreground
+              // (white on #FF8C00) was ~2.34:1, fails WCAG AA 4.5:1 (finding F2).
+              <Badge className="bg-status-late-subtle text-status-late-text text-xs">{pendingLeave}</Badge>
             ) : (
               <span className="text-xs text-muted-foreground">0</span>
             )}
@@ -62,7 +64,9 @@ export function PendingActions({
               </div>
             </div>
             {pendingAdmissions > 0 ? (
-              <Badge className="bg-primary text-primary-foreground text-xs">{pendingAdmissions}</Badge>
+              // Subtle bg + darker text — same contrast fix as the leave-count badge above,
+              // reusing the existing secondary (light-teal) token pairing (finding F2).
+              <Badge className="bg-secondary text-secondary-foreground text-xs">{pendingAdmissions}</Badge>
             ) : (
               <span className="text-xs text-muted-foreground">0</span>
             )}

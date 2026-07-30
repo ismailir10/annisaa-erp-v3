@@ -148,8 +148,15 @@
   --accent: #E8F5F6;
   --accent-foreground: #1C1917;
 
-  /* Destructive — An Nisaa red */
-  --destructive: #FF3B3B;
+  /*
+   * Destructive — An Nisaa red, darkened from the original #FF3B3B brand
+   * accent for WCAG AA text contrast. #FF3B3B on white is ~3.5:1 (fails the
+   * 4.5:1 normal-text floor) — used widely as plain `text-destructive`
+   * (delete actions, error copy), not just as a subtle-tinted background.
+   * #DC2626 (Tailwind red-600) keeps the same hue family and is ~4.83:1 on
+   * white/card. See finding F2, .claude/standards/colors.md.
+   */
+  --destructive: #DC2626;
 
   /* Borders & inputs */
   --border: #E5E2DE;

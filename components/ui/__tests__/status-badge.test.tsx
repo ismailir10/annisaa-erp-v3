@@ -38,4 +38,19 @@ describe("StatusBadge", () => {
     render(<StatusBadge status="ABSENT" />);
     expect(screen.getByText("Alpa")).toBeInTheDocument();
   });
+
+  it.each([
+    ["REGISTERED", "Terdaftar", "bg-status-present-subtle"],
+    ["UNDER_REVIEW", "Ditinjau", "bg-status-late-subtle"],
+    ["SUBMITTED", "Terkirim", "bg-status-leave-subtle"],
+    ["DELETE", "Dihapus", "bg-status-absent-subtle"],
+    ["UPDATE", "Diubah", "bg-status-leave-subtle"],
+  ])(
+    "maps the new %s status to its canonical label and visual family",
+    (status, label, classFamily) => {
+      render(<StatusBadge status={status} />);
+      const badge = screen.getByText(label);
+      expect(badge).toHaveClass(classFamily);
+    },
+  );
 });

@@ -87,6 +87,19 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   ENROLLED: { label: "Terdaftar di Kelas", className: "bg-status-present-subtle text-status-present-text" },
   GRADUATED: { label: "Lulus", className: "bg-status-holiday-subtle text-status-holiday-text" },
   WITHDRAWN: { label: "Keluar", className: "bg-muted text-muted-foreground" },
+  // Registered-but-not-yet-tallied — the "Terdaftar" chip hand-rolled by
+  // admin/admissions and admin/enrollments/status-chip when an ADMITTED /
+  // ACCEPTED row already has a linked studentId. Ported from those local
+  // `bg-primary/10 text-primary` badges (finding F10 — component half).
+  REGISTERED: { label: "Terdaftar", className: "bg-status-present-subtle text-status-present-text" },
+
+  // Enrollment application (ported from app/admin/enrollments/status-chip.tsx
+  // `STATUS_META` — finding F10 — component half. REJECTED already existed
+  // above with an identical label/className and is reused as-is.)
+  INVITED: { label: "Diundang", className: "bg-muted text-muted-foreground" },
+  SUBMITTED: { label: "Terkirim", className: "bg-status-leave-subtle text-status-leave-text" },
+  UNDER_REVIEW: { label: "Ditinjau", className: "bg-status-late-subtle text-status-late-text" },
+  ACCEPTED: { label: "Diterima", className: "bg-status-present-subtle text-status-present-text" },
 
   // Student attendance (future)
   // Fixed in cycle 3: SICK is warn-severity (amber), not danger (red).
@@ -97,11 +110,26 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   ANNUAL: { label: "Cuti Tahunan", className: "bg-status-leave-subtle text-status-leave-text" },
   OTHER: { label: "Lainnya", className: "bg-muted text-muted-foreground" },
 
-  // Assessment
-  PUBLISHED: { label: "Dipublikasi", className: "bg-status-present-subtle text-status-present-text" },
+  // Assessment / Raport
+  // Label reconciled to "Terbit" (finding F10 — component half): voice.md's
+  // glossary + every parent-facing copy example (toast/email/SMS) uses
+  // "rapor sudah terbit" for this state; raport/page.tsx + raport-editor.tsx
+  // already hand-roll "Terbit" locally. Assessment consumers
+  // (app/admin/assessments/[id]/page.tsx, teacher assessment client) always
+  // pass an explicit `label` override ("Dipublikasi"/"Dipublikasikan"), so
+  // this default only affects unoverridden (raport) callers.
+  PUBLISHED: { label: "Terbit", className: "bg-status-present-subtle text-status-present-text" },
 
   // Data completeness (e.g. missing bank account)
   UNFILLED: { label: "Belum diisi", className: "bg-status-absent-subtle text-status-absent-text" },
+
+  // Student-journal audit-trail actions (ported from
+  // app/admin/student-journal/students/[id]/page.tsx `ACTION_LABELS` +
+  // its inline text-destructive/text-primary/text-status-present ternary —
+  // finding F10 — component half).
+  CREATE: { label: "Dibuat", className: "bg-status-present-subtle text-status-present-text" },
+  UPDATE: { label: "Diubah", className: "bg-status-leave-subtle text-status-leave-text" },
+  DELETE: { label: "Dihapus", className: "bg-status-absent-subtle text-status-absent-text" },
 };
 
 /**
@@ -132,20 +160,28 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   APPROVED: CheckCircle2,
   PAID: CheckCircle2,
   ENROLLED: CheckCircle2,
+  ACCEPTED: CheckCircle2,
+  REGISTERED: CheckCircle2,
+  CREATE: CheckCircle2,
 
   // Negative / attention
   REJECTED: AlertTriangle,
   OVERDUE: AlertTriangle,
   UNFILLED: AlertTriangle,
+  DELETE: X,
 
   // In-progress / pending
   PENDING: CircleDot,
   PARTIALLY_PAID: CircleDot,
+  UNDER_REVIEW: CircleDot,
 
   // Transit / sent
   SENT: ArrowRight,
   INQUIRY: ArrowRight,
   VISIT_SCHEDULED: ArrowRight,
+  SUBMITTED: ArrowRight,
+  INVITED: ArrowRight,
+  UPDATE: Info,
 
   // Celebration
   PUBLISHED: Sparkles,
@@ -176,9 +212,13 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   ENROLLED: "border-l-status-present",
   ADMITTED: "border-l-status-present",
   PUBLISHED: "border-l-status-present",
+  ACCEPTED: "border-l-status-present",
+  REGISTERED: "border-l-status-present",
+  CREATE: "border-l-status-present",
 
   // Red / absent
   ABSENT: "border-l-status-absent",
+  DELETE: "border-l-status-absent",
 
   // Red / danger (attention-required)
   OVERDUE: "border-l-destructive",
@@ -193,6 +233,7 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   HALF_DAY: "border-l-status-late",
   PRESENT_NO_CHECKOUT: "border-l-status-late",
   VISIT_SCHEDULED: "border-l-status-late",
+  UNDER_REVIEW: "border-l-status-late",
 
   // Blue / info
   PERMISSION: "border-l-status-leave",
@@ -201,6 +242,8 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   INQUIRY: "border-l-status-leave",
   ANNUAL: "border-l-status-leave",
   EXPORTED: "border-l-status-leave",
+  SUBMITTED: "border-l-status-leave",
+  UPDATE: "border-l-status-leave",
 
   // Purple / holiday
   HOLIDAY: "border-l-status-holiday",
@@ -214,6 +257,7 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   CANCELLED: "border-l-border",
   WITHDRAWN: "border-l-border",
   OTHER: "border-l-border",
+  INVITED: "border-l-border",
   // Salary component types
   INCOME: "border-l-status-present",
   DEDUCTION: "border-l-status-absent",
