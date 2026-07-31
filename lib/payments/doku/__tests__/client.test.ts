@@ -643,6 +643,88 @@ describe("createDokuSession", () => {
     expect(session.status).toBe("PENDING");
   });
 
+  /**
+   * Verbatim capture from the first successful signed call to
+   * `/checkout/v2/payment` (`POST /api/doku/probe`, sandbox, 2026-07-31).
+   *
+   * v2 answers with a DIFFERENT envelope from v1: flat (no `response`
+   * wrapper), `token` instead of `token_id`, `message` a string instead of an
+   * array, and no expiry field at all. Before this was handled, v2 returned
+   * 2xx and the adapter threw "missing payment.url" — which reads as "v2
+   * rejected us" and would have killed the whole notification experiment on a
+   * parsing bug.
+   */
+  it("parses a verbatim live-sandbox v2 response envelope", async () => {
+    process.env.DOKU_CHECKOUT_VERSION = "v2";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          message: "SUCCESS",
+          payment: {
+            token: "0e7be3ab1c794bfdb03643e8b59f021420262731092711404",
+            url: "https://sandbox.doku.com/checkout/link/0e7be3ab1c794bfdb03643e8b59f021420262731092711404",
+          },
+        }),
+      })) as unknown as typeof fetch,
+    );
+
+    const session = await createDokuSession(baseParams);
+    expect(session.paymentUrl).toBe(
+      "https://sandbox.doku.com/checkout/link/0e7be3ab1c794bfdb03643e8b59f021420262731092711404",
+    );
+    expect(session.id).toBe("0e7be3ab1c794bfdb03643e8b59f021420262731092711404");
+    expect(session.status).toBe("PENDING");
+    // v2 carries no expiry, so the client-side fallback is the live path —
+    // a real ISO timestamp, not undefined leaking through a non-optional field.
+    expect(() => new Date(session.expiresAt).toISOString()).not.toThrow();
+  });
+
+  it("passes the checkoutVersion override without touching process.env", async () => {
+    process.env.DOKU_CHECKOUT_VERSION = "v1";
+    const fetchSpy = vi.fn(async () =>
+      mockOkResponse({
+        payment: { url: "https://sandbox.doku.com/checkout/link/x", token: "x" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await createDokuSession(baseParams, { checkoutVersion: "v2" });
+
+    expect(fetchSpy.mock.calls[0][0]).toContain("/checkout/v2/payment");
+    // The ambient flag must survive: the probe route runs both arms inside one
+    // warm container that is concurrently serving real payment links.
+    expect(process.env.DOKU_CHECKOUT_VERSION).toBe("v1");
+  });
+
+  it("captureRaw receives the undistilled envelope", async () => {
+    const envelope = {
+      message: "SUCCESS",
+      payment: { token: "tok-raw", url: "https://sandbox.doku.com/checkout/link/raw" },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => envelope,
+      })) as unknown as typeof fetch,
+    );
+
+    let captured: unknown = null;
+    await createDokuSession(baseParams, {
+      captureRaw: (e) => {
+        captured = e;
+      },
+    });
+
+    expect(captured).toEqual(envelope);
+  });
+
   it("throws when response.payment.url is missing", async () => {
     vi.stubGlobal(
       "fetch",

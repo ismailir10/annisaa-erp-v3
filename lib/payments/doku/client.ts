@@ -398,11 +398,20 @@ export async function createDokuSession(
 
   const envelope = await response.json();
   overrides?.captureRaw?.(envelope);
-  // DOKU nests the entire result under a top-level `response` key:
-  //   { "message": ["SUCCESS"], "response": { "order": {…}, "payment": {…} } }
-  // Confirmed against the live sandbox (probe 2026-07-27). Reading
-  // `envelope.payment` directly yields undefined on every real call.
-  const data = envelope?.response;
+  // The two Checkout versions answer with DIFFERENT envelopes — both confirmed
+  // against the live sandbox by `POST /api/doku/probe` on 2026-07-31:
+  //
+  //   v1  { "message": ["SUCCESS"],
+  //        "response": { "order": {…},
+  //                      "payment": { "url", "token_id", "expired_datetime" } } }
+  //   v2  { "message": "SUCCESS",
+  //        "payment": { "url", "token" } }
+  //
+  // v2 is flat (no `response` wrapper), names the id `token` rather than
+  // `token_id`, and carries no expiry at all. Falling back to `envelope`
+  // itself covers v2 without disturbing v1, where `envelope.payment` is
+  // undefined and the `response` branch always wins.
+  const data = envelope?.response ?? envelope;
   const paymentUrl: string | undefined = data?.payment?.url;
   if (!paymentUrl) {
     // Empty/missing URL would silently break the SENT-transition guard at
@@ -412,7 +421,15 @@ export async function createDokuSession(
   }
 
   return {
-    id: typeof data?.payment?.token_id === "string" ? data.payment.token_id : null,
+    // v1 calls it `token_id`, v2 calls it `token`. Nothing in Talib keys off
+    // this value — DOKU's status endpoint is keyed on `invoice_number` — but
+    // it is the id DOKU support asks for, so keep it populated on both.
+    id:
+      typeof data?.payment?.token_id === "string"
+        ? data.payment.token_id
+        : typeof data?.payment?.token === "string"
+          ? data.payment.token
+          : null,
     paymentUrl,
     status: "PENDING", // DOKU's create-session response carries no status field.
     // `expired_datetime` is an undocumented but confirmed-present field

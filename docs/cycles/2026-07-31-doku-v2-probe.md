@@ -168,6 +168,25 @@ answer with `response.payment.url` the way v1 does. What it answers with is
 what T5 was added to capture; run recorded in the next section once the
 redeployed preview is live.
 
+**The v2 envelope, captured** — `PROBE-V2-1785464831199`:
+
+```json
+{"message":"SUCCESS",
+ "payment":{"token":"0e7be3ab1c794bfdb03643e8b59f021420262731092711404",
+            "url":"https://sandbox.doku.com/checkout/link/0e7be3ab…"}}
+```
+
+**`/checkout/v2/payment` works.** It answers a different shape from v1 —
+flat (no `response` wrapper), `token` not `token_id`, `message` a string not
+an array, and no expiry field at all. The adapter now accepts both
+(`envelope?.response ?? envelope`, and `token_id ?? token`), with the v2
+capture replayed verbatim as a regression test. Under v2 the client-side
+`fallbackExpiresAt` becomes the live path; it agrees with the
+`payment_due_date` we send, both being `expiryDays` out.
+
+Note the host also differs: v2 links live at
+`sandbox.doku.com/checkout/link/…`, v1 at `staging.doku.com/checkout-link-v2/…`.
+
 Incidental confirmation: v1's `paymentUrl` host is
 `staging.doku.com/checkout-link-**v2**/…`. DOKU's *link* generation has been
 "v2" all along while the *API* path we post to is v1 — which is exactly the
