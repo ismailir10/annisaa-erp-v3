@@ -64,9 +64,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  console.log(
-    `Tahun ajaran: ${academicYear.name} (${ymd(academicYear.startDate)} → ${ymd(academicYear.endDate)})\n`,
-  );
+  // AcademicYear stores YYYY-MM-DD as String (unlike Semester/Week, which
+  // use UTC-midnight DateTime) — no conversion needed here.
+  const yearStart = academicYear.startDate;
+  const yearEnd = academicYear.endDate;
+  console.log(`Tahun ajaran: ${academicYear.name} (${yearStart} → ${yearEnd})\n`);
 
   const semesterRows = await prisma.semester.findMany({
     where: { tenantId, academicYearId: academicYear.id, status: "ACTIVE" },
@@ -157,8 +159,8 @@ async function main(): Promise<void> {
     checkLinkedIndicators(linkedIndicators),
     checkHolidays(
       holidayRows.map((h) => h.date),
-      ymd(academicYear.startDate),
-      ymd(academicYear.endDate),
+      yearStart,
+      yearEnd,
     ),
   ];
 
