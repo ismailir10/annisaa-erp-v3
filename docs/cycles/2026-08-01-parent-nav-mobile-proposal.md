@@ -209,13 +209,19 @@ Full gate, all green on `feat/parent-nav-mobile-proposal`:
 | Build | `npm run build` | exit 0 |
 | API auth | `bash scripts/verify-api-auth.sh` | 185 / 185 routes covered |
 | RLS | `bash scripts/verify-rls-coverage.sh` | 39 / 39 models covered |
-| E2E | `E2E_ALLOW_REMOTE_DB=1 npx playwright test e2e/parent.spec.ts e2e/teacher.spec.ts` | **19 passed, 2 skipped (pre-existing skips)** |
+| E2E (local, read-only specs) | `E2E_ALLOW_REMOTE_DB=1 npx playwright test e2e/parent*.spec.ts e2e/teacher.spec.ts` | **33 passed, 2 skipped (pre-existing skips)** |
+| E2E (CI, full suite) | required `Playwright E2E` check on the PR | see PR status |
 
 E2E note: `playwright.config.ts` refuses a non-local `DATABASE_URL` because most specs
 create rows. The parent + teacher specs run here are read-only page loads and navigation,
 so they were run against the staging DB behind the documented `E2E_ALLOW_REMOTE_DB=1`
-override. **No rows were written.** The remaining 31 specs are deferred to the required
-CI `Playwright E2E` check.
+override. **No rows were written.** The remaining specs are covered by the required CI
+`Playwright E2E` check.
+
+The first CI run caught a spec this local subset had missed:
+`e2e/parent-perkembangan.spec.ts` asserted a top-level `Capaian` bottom-nav link, which
+is now inside the `Lainnya` sheet. Rewritten to assert both halves of the new contract —
+`Capaian` is absent from the bar **and** present in the sheet with the right href.
 
 ### Measured, both HIGH findings closed
 
