@@ -26,20 +26,40 @@
 
 **Teacher Portal** (mobile-first, max-w-md):
 - Header: logo + school name + user name + logout button
-- Bottom nav: 5 tabs with icons + labels + active indicator
+- Bottom nav: 5 tabs (Beranda, Kehadiran, Kelas, Jurnal, Penilaian) with icons + labels + active indicator
 - Content: centered `max-w-md`
 
 **Parent Portal** (mobile-first, max-w-md — MUST match teacher pattern):
 - Header: logo + school name + user name + logout button (same as teacher)
-- Bottom nav: 4 tabs (Beranda, Tagihan, Kehadiran, Rapor) with icons + active indicator
+- Bottom nav: 4 destination tabs (Beranda, Tagihan, Kehadiran, Jurnal) **+ a `Lainnya` overflow tab** — icons + labels + active indicator
+- `Lainnya` opens a bottom sheet (`components/parent/more-sheet.tsx`) holding the weekly/semester/account surfaces: Capaian, Rapor, Profil
+- New parent destinations go into `PARENT_MORE_ITEMS`, **never** into the tab array
 - Content: centered `max-w-md` (NOT max-w-2xl — parents are mobile users)
 - Logout: accessible from header (same pattern as teacher)
 
 **Both portals MUST have:**
 - Active state on current tab (teal underline + icon color)
 - Logout button in header with `title="Keluar"` for accessibility
-- Framer Motion `layoutId` for smooth active indicator animation
+- Framer Motion `layoutId` for smooth active indicator animation, guarded by `useReducedMotion()`
 - Safe area padding for mobile (`safe-area-bottom` on bottom nav)
+- A visible `focus-visible` ring on every tab (keyboard users get no usable default inside a fixed bar)
+
+### Bottom-nav width budget — hard limit, 5 slots
+
+Each slot carries `px-1` (8 px), so the usable label width is `viewport / n − 8`:
+
+| Slots | Slot @375 | Label budget @375 | Label budget @360 | Verdict |
+|---|---|---|---|---|
+| 4 | 93.8 px | 85.8 px | 82.0 px | roomy — fits `Penghubung` (73.5 px) |
+| 5 | 75.0 px | 67.0 px | 64.0 px | **ceiling** — fits `Kehadiran` (57.8 px) at both widths |
+| 6 | 62.5 px | 54.5 px | — | **broken** — last slot lands 27.4 px past a 375 px viewport and is absent entirely at 360 px |
+
+Reference label widths at `text-xs font-medium`: `Kelas` 31, `Jurnal` ~40, `Lainnya` 43, `Tagihan` 44, `Beranda` 49, `Penilaian` 51, `Kehadiran` 58, `Penghubung` 73 (**does not fit a 5-slot bar at any supported width** — both portals use `Jurnal` for this surface).
+
+Measured 2026-08-01 (cycle `parent-nav-mobile-proposal`) after the parent bar had drifted to 6 tabs. Two rules follow:
+
+1. **Never exceed 5 slots.** Beyond 4 destinations, the 5th slot is an overflow trigger.
+2. **Slots must use `flex-1 basis-0`, not bare `flex-1`.** With `flex-basis: auto` each slot is sized by its own label, so the row's width is the sum of the labels and it can overflow its container. `basis-0` forces identical `container / n` slots, which caps the row and keeps tap targets uniform.
 
 ## Empty State Contract
 
@@ -164,15 +184,22 @@ Shared sticky top-of-page header for parent + teacher portals. Located at `compo
 
 ## PortalBottomNav Primitive
 
-Shared fixed bottom navigation bar for parent + teacher portals. Located at `components/portal/portal-bottom-nav.tsx`. 4–5 tabs with icons + labels + animated active indicator.
+Shared fixed bottom navigation bar for parent + teacher portals. Located at `components/portal/portal-bottom-nav.tsx`. 4–5 tabs with icons + labels + animated active indicator. See the width budget above — 5 is a hard ceiling, not a style preference.
 
 **Props:**
 
 | Prop | Type | Notes |
 |---|---|---|
-| `items` | `{ label, href, icon, matcher? }[]` | `matcher` lets a tab own multiple routes |
+| `items` | `PortalBottomNavItem[]` | Union of link and action items, max 5 |
 | `layoutId?` | `string` | Framer Motion layoutId for the active pill; default `"portal-bottom-nav-active"` |
 | `ariaLabel` | `string` | Applied to the `<nav>` element |
+
+**Item variants:**
+
+| Variant | Shape | Renders as |
+|---|---|---|
+| link (default) | `{ kind?: "link", label, href, icon, matcher? }` | `<Link>` with `aria-current="page"` when active. `matcher` lets a tab own multiple routes |
+| action | `{ kind: "action", label, icon, onSelect, expanded?, active? }` | `<button aria-haspopup="dialog" aria-expanded>` — for an overflow sheet. Not a destination, so it must not carry `aria-current` |
 
 Canonical consumers: `components/parent/bottom-nav.tsx` and `components/teacher/bottom-nav.tsx`.
 

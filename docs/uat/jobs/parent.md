@@ -117,12 +117,12 @@ This file is the living catalog of what a parent user can and should be able to 
   - Logged in as a parent whose child has ≥1 school-side journal entry this week (teacher filled the class-day checklist + wrote ≥1 note)
   - Demo cookie set (pattern from `e2e/parent.spec.ts`)
 - **Steps (user intent, not UI clicks):**
-  1. Open the parent portal → Buku Penghubung
+  1. Open the parent portal → Jurnal
   2. Confirm the right child is selected (multi-child households)
   3. Land on the "Sekolah" tab
   4. Read each day's checklist status (what the teacher filled) and any notes the teacher wrote this week
 - **Done when:** Pak Budi can answer his wife's question "what did Aisha do at school this week?" without calling the teacher. Each day's indicator checklist is readable at a glance; notes are grouped by date with the author role visible as `GURU` / `WALI`.
-- **Why this job matters:** Buku Penghubung is the primary trust artifact for PAUD/TKIT parents — they pay for visibility into the school day. If this page fails to render the teacher's daily entries, the school looks absent.
+- **Why this job matters:** the Jurnal (Buku Penghubung, staff-side) is the primary trust artifact for PAUD/TKIT parents — they pay for visibility into the school day. If this page fails to render the teacher's daily entries, the school looks absent.
 - **Expected perf:** week grid load <1.5s; week navigation prev/next click-to-update <1s.
 - **Error scenarios to verify:**
   - No entries for the week yet → empty state reads "Belum ada catatan minggu ini" (not a blank grid)
@@ -136,7 +136,7 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Role:** GUARDIAN
 - **Preconditions:** Logged in as a parent whose child has at least one home-side journal indicator configured for this week
 - **Steps:**
-  1. Open the parent portal → Buku Penghubung
+  1. Open the parent portal → Jurnal
   2. Switch to the "Rumah" tab
   3. For today's column, toggle the habits Aisha completed (e.g. sholat shubuh, mandi, tidur siang)
   4. Confirm the toggle persists immediately — no separate save button (`POST /api/student-journal/entries/home` fires synchronously on each tap, week re-fetches after)
@@ -155,7 +155,7 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Role:** GUARDIAN
 - **Preconditions:** Logged in as a parent whose child has an active journal for this week
 - **Steps:**
-  1. Open the parent portal → Buku Penghubung → "Catatan" tab
+  1. Open the parent portal → Jurnal → "Catatan" tab
   2. Pick today's date and write a note ("Aisha batuk semalam, mungkin kurang fit hari ini")
   3. Save. See the note appear in the thread with a `WALI` badge and today's date.
   4. Edit the note (correct a typo) and save again. See the updated text.

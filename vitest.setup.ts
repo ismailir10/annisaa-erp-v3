@@ -23,6 +23,26 @@ vi.mock("next/cache", () => ({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (Element.prototype as any).scrollIntoView = vi.fn();
 
+// jsdom does not implement matchMedia. framer-motion's `useReducedMotion`
+// (PortalBottomNav) subscribes to `(prefers-reduced-motion: reduce)` on mount.
+// Default to "no preference" so animated code paths are the ones under test;
+// override per-test to assert reduced-motion behaviour.
+if (!window.matchMedia) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  });
+}
+
 // Cleanup after each test
 afterEach(() => {
   cleanup();
