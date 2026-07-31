@@ -132,6 +132,64 @@ const DEMO_OBJECTIVES: DemoObjective[] = [
   },
 ];
 
+/**
+ * Demo kisi-kisi. One narrative per (section × level) plus the 3 closing
+ * sections — the 18 slots the authoring UI shows. Deliberately generic so the
+ * same text reads sensibly for either age group; the real school writes
+ * cohort-specific wording.
+ */
+const DEMO_SECTION_NARRATIVES: Record<string, Record<string, string>> = {
+  INTRODUCTION: {
+    CONSISTENT:
+      "Alhamdulillah, ananda menjalani triwulan ini dengan antusias dan menunjukkan perkembangan yang menggembirakan di berbagai aspek.",
+    EMERGING:
+      "Alhamdulillah, ananda menjalani triwulan ini dengan ceria dan mulai menunjukkan perkembangan di berbagai aspek.",
+    NEEDS_REINFORCEMENT:
+      "Alhamdulillah, ananda hadir dengan ceria pada triwulan ini dan masih memerlukan pendampingan pada beberapa aspek.",
+  },
+  RELIGIOUS_MORAL: {
+    CONSISTENT:
+      "Ananda terbiasa mengucap kalimat thayyibah, menjalankan adab harian, dan mengenali ciptaan Allah di sekitarnya tanpa perlu diingatkan.",
+    EMERGING:
+      "Ananda mulai terbiasa mengucap kalimat thayyibah dan menjalankan adab harian, sesekali masih perlu diingatkan guru.",
+    NEEDS_REINFORCEMENT:
+      "Ananda masih memerlukan pendampingan untuk membiasakan kalimat thayyibah dan adab harian. Pembiasaan di rumah akan sangat membantu.",
+  },
+  IDENTITY: {
+    CONSISTENT:
+      "Ananda mengenali identitas dirinya dengan baik, mandiri dalam kegiatan harian, dan mampu menyampaikan keinginannya dengan santun.",
+    EMERGING:
+      "Ananda mulai mandiri dalam kegiatan harian dan sedang belajar menyampaikan keinginannya dengan kalimat yang lebih jelas.",
+    NEEDS_REINFORCEMENT:
+      "Ananda masih memerlukan bimbingan untuk mandiri dalam kegiatan harian dan menyampaikan keinginannya secara verbal.",
+  },
+  STEAM: {
+    CONSISTENT:
+      "Ananda menunjukkan rasa ingin tahu yang besar, aktif bereksplorasi, serta mengenal konsep bilangan dan bentuk melalui kegiatan bermain.",
+    EMERGING:
+      "Ananda mulai menunjukkan rasa ingin tahu dan sedang mengembangkan pemahaman konsep bilangan serta bentuk melalui bermain.",
+    NEEDS_REINFORCEMENT:
+      "Ananda memerlukan pendampingan lebih untuk mengenal konsep bilangan dan bentuk. Kegiatan bermain sambil berhitung di rumah dapat membantu.",
+  },
+  PERFORMANCE_SHOWCASE: {
+    CONSISTENT:
+      "Ananda bergerak dengan terkoordinasi, terampil menggunakan alat tulis dan gunting, serta percaya diri menampilkan karyanya.",
+    EMERGING:
+      "Ananda mulai terampil menggunakan alat tulis dan gunting, serta sedang tumbuh kepercayaan dirinya dalam menampilkan karya.",
+    NEEDS_REINFORCEMENT:
+      "Ananda masih berlatih mengoordinasikan gerak dan menggunakan alat tulis. Latihan motorik halus di rumah akan membantu.",
+  },
+};
+
+const DEMO_CLOSING_NARRATIVES: Record<string, string> = {
+  CLOSING:
+    "Terima kasih atas kerja sama Ayah dan Bunda selama triwulan ini. Semoga Allah SWT senantiasa menjaga ananda dan memudahkan setiap langkah perkembangannya.",
+  FOLLOW_UP_PLAN:
+    "Pada triwulan berikutnya, ananda akan didampingi untuk memperkuat kemandirian, pembiasaan ibadah harian, dan keterampilan motorik halus.",
+  HOME_ACTIVITIES:
+    "Kegiatan yang disarankan di rumah: membaca buku cerita bersama, membiasakan doa harian, serta melibatkan ananda dalam pekerjaan rumah sederhana.",
+};
+
 const SUBTHEMES: Record<string, string[]> = {
   [THEME_A]: [`Tubuhku ${DEMO_SUFFIX}`, `Panca Indera ${DEMO_SUFFIX}`],
   [THEME_B]: [`Rumahku ${DEMO_SUFFIX}`, `Sekolahku ${DEMO_SUFFIX}`],
@@ -215,6 +273,7 @@ async function main(): Promise<void> {
         `  ${DEMO_OBJECTIVES.length} tujuan pembelajaran × 2 = ${DEMO_OBJECTIVES.length * 2}\n` +
         `  ${indicatorCount} indikator × 2 = ${indicatorCount * 2}\n` +
         `  ${linkCount} kaitan IKTP×Tema × 2 = ${linkCount * 2}\n` +
+        `  1 triwulan (shared) + 18 kisi-kisi × 2 = 36\n` +
         `\nRe-run with --commit to write.`,
     );
     return;
@@ -228,6 +287,9 @@ async function main(): Promise<void> {
     objectives: 0,
     indicators: 0,
     links: 0,
+    terms: 0,
+    narrativeTemplates: 0,
+    closingTemplates: 0,
   };
 
   await prisma.$transaction(
@@ -401,6 +463,82 @@ async function main(): Promise<void> {
           }
         }
       }
+      // ── Triwulan + kisi-kisi ──────────────────────────────────────
+      // Without a Term the whole raport chain is unreachable: no roster, no
+      // auto-draft, nowhere to hang the kisi-kisi. Window matches the demo
+      // semester so the attendance + penilaian aggregation has data to find.
+      let term = await tx.term.findFirst({
+        where: { tenantId: TENANT_ID, semesterId: semester.id, number: 1, deletedAt: null },
+        select: { id: true },
+      });
+      if (!term) {
+        term = await tx.term.create({
+          data: {
+            tenantId: TENANT_ID,
+            semesterId: semester.id,
+            number: 1,
+            startDate: utcMidnight(semesterStart),
+            endDate: utcMidnight(semesterEnd),
+          },
+          select: { id: true },
+        });
+        created.terms++;
+      }
+
+      for (const ageGroup of ["A", "B"] as const) {
+        for (const [section, byLevel] of Object.entries(DEMO_SECTION_NARRATIVES)) {
+          for (const [level, content] of Object.entries(byLevel)) {
+            const existing = await tx.reportNarrativeTemplate.findUnique({
+              where: {
+                tenantId_termId_ageGroup_section_level: {
+                  tenantId: TENANT_ID,
+                  termId: term.id,
+                  ageGroup,
+                  section: section as never,
+                  level: level as never,
+                },
+              },
+              select: { id: true },
+            });
+            if (existing) continue;
+            await tx.reportNarrativeTemplate.create({
+              data: {
+                tenantId: TENANT_ID,
+                termId: term.id,
+                ageGroup,
+                section: section as never,
+                level: level as never,
+                content: `${content} ${DEMO_SUFFIX}`,
+              },
+            });
+            created.narrativeTemplates++;
+          }
+        }
+        for (const [section, content] of Object.entries(DEMO_CLOSING_NARRATIVES)) {
+          const existing = await tx.reportClosingTemplate.findUnique({
+            where: {
+              tenantId_termId_ageGroup_section: {
+                tenantId: TENANT_ID,
+                termId: term.id,
+                ageGroup,
+                section: section as never,
+              },
+            },
+            select: { id: true },
+          });
+          if (existing) continue;
+          await tx.reportClosingTemplate.create({
+            data: {
+              tenantId: TENANT_ID,
+              termId: term.id,
+              ageGroup,
+              section: section as never,
+              content: `${content} ${DEMO_SUFFIX}`,
+            },
+          });
+          created.closingTemplates++;
+        }
+      }
     },
     { timeout: 120_000 },
   );
@@ -414,6 +552,9 @@ async function main(): Promise<void> {
       `  tujuan          : ${created.objectives}\n` +
       `  indikator       : ${created.indicators}\n` +
       `  kaitan tema     : ${created.links}\n` +
+      `  triwulan        : ${created.terms}\n` +
+      `  kisi-kisi narasi: ${created.narrativeTemplates}\n` +
+      `  kisi-kisi penutup: ${created.closingTemplates}\n` +
       `\nZero counts on a re-run mean the rows already existed (idempotent).`,
   );
 }
