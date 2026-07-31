@@ -162,16 +162,16 @@ test.describe("Parent flows", () => {
     await expect(page.locator("text=An Nisaa").first()).toBeVisible();
   });
 
-  test("parent can open Penghubung tab with Di Sekolah/Di Rumah/Catatan tabs", async ({ page }) => {
+  test("parent can open Jurnal tab with Di Sekolah/Di Rumah/Catatan tabs", async ({ page }) => {
     await page.goto("/parent/student-journal");
     await page.waitForURL("**/parent/student-journal", { timeout: 15_000 });
     // Page heading always renders regardless of whether the guardian has a child.
-    // Match by role+name to avoid strict-mode violation — "Buku Penghubung" also
-    // appears as a sidebar nav link, so a bare text selector resolves to two
-    // elements.
+    // Parent-facing label is "Jurnal" (the bottom-nav tab has to match, and
+    // "Penghubung" does not fit a 5-tab bar at 375px). The route slug is still
+    // /parent/student-journal — the rename is copy-only.
     await expect(
       page
-        .getByRole("heading", { name: /^Buku Penghubung$/ })
+        .getByRole("heading", { name: /^Jurnal$/ })
         .or(page.getByText(/Belum ada data anak/))
     ).toBeVisible({ timeout: 10_000 });
     // If week data loads the tabs appear — conditional check (empty DB is fine)
@@ -182,5 +182,79 @@ test.describe("Parent flows", () => {
       await expect(page.getByRole("tab", { name: /Di Rumah/i })).toBeVisible();
       await expect(page.getByRole("tab", { name: /Catatan/i })).toBeVisible();
     }
+  });
+
+  // ── Bottom nav (fixed 2026-08-01) ──────────────────────────────────
+  // The bar had drifted to 6 tabs; at 375px the last slot rendered 27.4px past
+  // the viewport and at 360px it did not render at all. These tests pin the
+  // 5-slot ceiling and prove nothing is clipped at either width.
+  test("bottom nav shows 5 slots and nothing is clipped at 375px", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/parent");
+    await page.waitForURL("**/parent", { timeout: 15_000 });
+
+    const nav = page.getByRole("navigation", { name: "Navigasi utama orang tua" });
+    await expect(nav).toBeVisible();
+    await expect(nav.getByRole("link")).toHaveCount(4);
+    await expect(nav.getByRole("button", { name: "Lainnya" })).toBeVisible();
+
+    for (const label of ["Beranda", "Tagihan", "Kehadiran", "Jurnal"]) {
+      await expect(nav.getByRole("link", { name: label })).toBeVisible();
+    }
+
+    // Every slot must sit fully inside the viewport.
+    const viewport = page.viewportSize()!.width;
+    const slots = await nav.locator("a, button").all();
+    for (const slot of slots) {
+      const box = await slot.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport + 0.5);
+      // Tap target minimum.
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test("bottom nav is fully visible at 360px too", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto("/parent");
+    await page.waitForURL("**/parent", { timeout: 15_000 });
+
+    const nav = page.getByRole("navigation", { name: "Navigasi utama orang tua" });
+    const viewport = 360;
+    const slots = await nav.locator("a, button").all();
+    expect(slots).toHaveLength(5);
+    for (const slot of slots) {
+      const box = await slot.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport + 0.5);
+    }
+  });
+
+  test("Lainnya opens the overflow sheet and navigates to Rapor", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/parent");
+    await page.waitForURL("**/parent", { timeout: 15_000 });
+
+    // CSS locator, not getByRole: while the drawer is open it is modal, so the
+    // bar behind it is removed from the accessibility tree and a role query for
+    // the trigger finds nothing. That is correct modal behaviour — assert the
+    // attribute through the DOM instead.
+    const trigger = page.locator(
+      'nav[aria-label="Navigasi utama orang tua"] button:has-text("Lainnya")',
+    );
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await trigger.click();
+
+    const sheet = page.getByRole("navigation", { name: "Menu lainnya" });
+    await expect(sheet).toBeVisible({ timeout: 10_000 });
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    for (const label of ["Capaian", "Rapor", "Profil"]) {
+      await expect(sheet.getByRole("link", { name: new RegExp(label) })).toBeVisible();
+    }
+
+    await sheet.getByRole("link", { name: /Rapor/ }).click();
+    await page.waitForURL("**/parent/reports", { timeout: 15_000 });
   });
 });

@@ -1,9 +1,11 @@
-# Parent Portal Mobile Navigation — Proposal (owner review, not built)
+# Parent Portal Mobile Navigation — Option A built
 
-> **Status: PROPOSAL ONLY.** No production code changed. The only files added are a
-> throwaway mockup route (`app/nav-proposal/`), a capture script, and the screenshots
-> under `docs/proposals/parent-nav/`. Nothing is shipped, no PR is open. Delete the
-> mockup route before the real implementation cycle.
+> **Status: BUILT, staging only.** Owner reviewed the three options on 2026-08-01 and
+> picked **Option A** (5 tabs + a "Lainnya" overflow sheet), with `Penghubung` renamed to
+> `Jurnal`. This document keeps the original audit and options for context; the
+> Implementation / Verification / Ship Notes sections below describe what was actually
+> built. The throwaway mockup route from the proposal pass has been deleted.
+> **Not promoted to production** — awaiting owner confirmation.
 
 ## Context
 
@@ -145,71 +147,116 @@ rows with live meta ("2 catatan baru dari Bu Sari").
   hub over one child and risks reading as a pointless extra layer, so it needs a
   single-child collapse rule.
 
-## Recommendation
 
-**Option A now; Option C as the follow-on**, in two separate cycles.
+## Decision
 
-The nav is not merely cramped — a tab is **unreachable on the pilot's most common screen
-width**. That is a live defect on prod and deserves the smallest, fastest correct fix, not
-a coupled IA redesign. Option A restores the documented contract, needs no new routes and
-no URL migration, and can ship in one cycle behind the normal gates.
-
-Option C is the better long-term structure and is where I would put the next cycle, but it
-should be validated first — run `/uat parent` against a click-through of the hub before
-committing to the build, specifically to test whether single-child parents read `Anak` as
-useful or as an extra tap.
-
-Option B is the one I would not build: it stacks two horizontal tab rows and coins a new
-umbrella noun, spending most of Option C's comprehension risk for less of its benefit.
-
-**Open decision for the owner (blocks Option A):** what replaces `Penghubung` in a 75 px
-slot? Candidates: `Pesan`, `Jurnal`, `Catatan`, `Buku`. Alternatively take variant A′
-(4 tabs) and keep the real name.
+Owner picked **Option A**, with `Penghubung` → `Jurnal`. Options B and C are not built;
+Option C stays on the table as a possible follow-on cycle and should be validated with
+`/uat parent` before anyone commits to it.
 
 ## Tasks
 
-Not decomposed — this cycle intentionally stops at the proposal. `/spec` will decompose
-whichever option the owner picks.
+1. Teach `PortalBottomNav` an `action` item variant (button + `aria-haspopup`/`aria-expanded`) and make slots equal-width.
+2. Build the `Lainnya` overflow sheet holding Capaian, Rapor, Profil.
+3. Recut the parent tab array to 4 destinations + the overflow trigger; rename the journal tab to `Jurnal`.
+4. Align the parent journal page copy to `Jurnal` (label only — no route, API or DB change).
+5. Update the Portal Consistency Standard with the measured width budget and the 5-slot ceiling.
+6. Cover the whole contract with unit + e2e tests, including the 375/360 no-clip assertions.
 
 ## Implementation
 
-None. Mockup + capture harness only:
+| Task | Files |
+|---|---|
+| 1 | [components/portal/portal-bottom-nav.tsx](../../components/portal/portal-bottom-nav.tsx) — `PortalBottomNavItem` is now a `link \| action` union; slots use `flex-1 basis-0 min-w-0` and `px-1`; added `focus-visible` ring, `truncate` guard, and a `useReducedMotion()` guard on the indicator spring |
+| 2 | [components/parent/more-sheet.tsx](../../components/parent/more-sheet.tsx) — new. vaul `Drawer` (bottom, modal, swipe-dismiss, drag handle). Rows are `min-h-14`, labelled `nav aria-label="Menu lainnya"`, and forward `?child=` |
+| 3 | [components/parent/bottom-nav.tsx](../../components/parent/bottom-nav.tsx) — `Beranda · Tagihan · Kehadiran · Jurnal · Lainnya`; `Lainnya` stays lit while on any of its destinations |
+| 4 | [app/parent/student-journal/page.tsx](../../app/parent/student-journal/page.tsx) — `PageHeader` title and two toast strings now say `Jurnal` |
+| 5 | [.claude/standards/portal.md](../../.claude/standards/portal.md) — width-budget table, 5-slot ceiling, `basis-0` rule, item-variant table |
+| 6 | [components/portal/__tests__/portal-bottom-nav.test.tsx](../../components/portal/__tests__/portal-bottom-nav.test.tsx), [components/parent/__tests__/bottom-nav.test.tsx](../../components/parent/__tests__/bottom-nav.test.tsx), [e2e/parent.spec.ts](../../e2e/parent.spec.ts) |
+| — | [components/teacher/bottom-nav.tsx](../../components/teacher/bottom-nav.tsx) — see "Scope note" below |
+| — | [vitest.setup.ts](../../vitest.setup.ts) — global `matchMedia` stub, needed by `useReducedMotion()` under jsdom |
+| — | [scripts/capture-parent-nav.mjs](../../scripts/capture-parent-nav.mjs) — screenshots both widths **and** fails if any slot is clipped or under 44 px |
 
-- `app/nav-proposal/page.tsx`, `app/nav-proposal/mock-nav.tsx` — throwaway static route,
-  no auth, no DB, no network. `?v=current|a|a-sheet|b|c`.
-- `scripts/capture-nav-proposal.mjs` — Playwright capture into `docs/proposals/parent-nav/`.
-- `next.config.ts` — `devIndicators: false` so the dev badge does not sit over the first
-  tab in screenshots. **Mockup-only; revert with the branch.**
+### Scope note — the teacher tab was renamed too
+
+Equal-width slots exposed that `Penghubung` (73 px) does not fit a 5-slot bar at **any**
+supported width: the budget is 67 px at 375 px and 64 px at 360 px. It only ever rendered
+whole because `flex-basis: auto` let it steal width from its narrow `Kelas` neighbour —
+the same defect that pushed the parent portal's 6th tab off-screen.
+
+Leaving the teacher bar alone would have shipped a truncated `Penghubu…`, so the teacher
+**nav label** is now `Jurnal` as well. This also satisfies the standard's own rule that
+the parent portal must match the teacher pattern; divergent labels for one surface would
+have violated it. Teacher and admin **page** headings, the `/teacher/student-journal`
+route, `/api/student-journal/*` and every DB field are untouched — this is a nav-label
+change only. Flagged for the owner: this was not in the original ask.
+
+### Deliberately not done
+
+- No route, redirect, API-path or schema change. `student-journal` remains the slug everywhere.
+- Admin + teacher page copy still says "Buku Penghubung" (staff vocabulary).
+- Options B and C not built.
 
 ## Verification
 
-- `npx tsc --noEmit` — clean, no errors in the added files.
-- Measured `getBoundingClientRect()` on every nav slot at 375 px and 360 px in the
-  Browser pane; numbers in the Context table above are that raw output, not estimates.
-- Rendered and screenshotted all five states at 375 px (plus the 360 px baseline) via
-  `node scripts/capture-nav-proposal.mjs`; six PNGs written to `docs/proposals/parent-nav/`.
-- Cross-checked `design-system.html` §14 Portal Shell and `.claude/standards/portal.md`
-  lines 29–43 + 167–177 — both fix the parent bar at 4 tabs and the shared primitive at
-  4–5; the shipped 6-tab bar violates both.
-- Text-size gate: `grep -rn 'text-\[10px\]\|text-\[11px\]' app/parent components/parent
-  components/portal` → zero. All options stay on `text-xs`.
-- Contrast: nav label `--muted-foreground` `#57534E` on `--card` `#FFFFFF` ≈ **7.6:1**,
-  passes AA and AAA. No colour change needed in any option.
-- **Not run:** `npm run build`, `npx vitest run`, `npx playwright test` — proposal branch,
-  no production code touched. Required before any implementation cycle ships.
-- **Not run:** preview-verify — nothing is pushed, no PR, no Vercel preview.
+Full gate, all green on `feat/parent-nav-mobile-proposal`:
 
-### Pre-existing defects found in the shared bar (out of scope, worth their own cycle)
+| Gate | Command | Result |
+|---|---|---|
+| Typecheck | `npx tsc --noEmit` | exit 0 |
+| Lint | `npm run lint` | exit 0, 0 errors (55 pre-existing warnings, none in changed files) |
+| Unit | `npx vitest run` | **257 files passed, 2 skipped; 2548 tests passed, 42 todo** |
+| Build | `npm run build` | exit 0 |
+| API auth | `bash scripts/verify-api-auth.sh` | 185 / 185 routes covered |
+| RLS | `bash scripts/verify-rls-coverage.sh` | 39 / 39 models covered |
+| E2E | `E2E_ALLOW_REMOTE_DB=1 npx playwright test e2e/parent.spec.ts e2e/teacher.spec.ts` | **19 passed, 2 skipped (pre-existing skips)** |
 
-Both affect the **teacher** portal too, since they live in `PortalBottomNav`:
+E2E note: `playwright.config.ts` refuses a non-local `DATABASE_URL` because most specs
+create rows. The parent + teacher specs run here are read-only page loads and navigation,
+so they were run against the staging DB behind the documented `E2E_ALLOW_REMOTE_DB=1`
+override. **No rows were written.** The remaining 31 specs are deferred to the required
+CI `Playwright E2E` check.
 
-1. No `focus-visible` ring on the tab links ([portal-bottom-nav.tsx:43](../../components/portal/portal-bottom-nav.tsx)),
-   and `app/globals.css` defines no global focus style — keyboard users get only the UA
-   default outline, which the layered fixed bar largely swallows.
-2. The `layoutId` spring ([portal-bottom-nav.tsx:48-52](../../components/portal/portal-bottom-nav.tsx))
-   has no `prefers-reduced-motion` guard, and `globals.css` has no global reduced-motion block.
+### Measured, both HIGH findings closed
+
+`node scripts/capture-parent-nav.mjs` — the script exits non-zero if any slot is clipped
+or under 44 px:
+
+```
+375px — 5 slots     Beranda/Tagihan/Kehadiran/Jurnal/Lainnya, 75.0px each, 0.0 → 375.0
+360px — 5 slots     Beranda/Tagihan/Kehadiran/Jurnal/Lainnya, 72.0px each, 0.0 → 360.0
+All slots inside the viewport, all tap targets >= 44px.
+```
+
+- **HIGH #1 (clipped tab)** — closed. Was 402.4 px of content in a 375 px viewport; now exactly 375.0.
+- **HIGH #2 (sub-44 px tap target)** — closed. Was 50.7 px allocated / ~23 px visible; now a uniform 75.0 px × 64 px.
+- **MED #3 (77 % slot-width spread)** — closed. Every slot identical at both widths.
+- **MED #4 (label does not fit)** — closed. Zero truncation on either portal at 375 px or 360 px (`label_needed == label_shown` for all 10 labels).
+
+Screenshots in `docs/proposals/parent-nav/`: `00-current-375.png` / `01-current-360.png`
+are the broken before-state; `fixed-375-nav.png`, `fixed-375-sheet.png`,
+`fixed-360-nav.png`, `fixed-360-sheet.png` are the shipped state.
+
+### Interface review (better-interface, `full`)
+
+- **Accessibility** — overflow trigger is a `<button aria-haspopup="dialog" aria-expanded>`, never `aria-current`; `aria-current="page"` still marks the active destination; `focus-visible:ring-2` added to every slot (there is no global focus style in `app/globals.css`, so tabs previously had none); sheet rows are `min-h-14`; keyboard Tab + Enter covered by unit test. Reduced-motion guard added to the indicator spring.
+- **Layout** — `flex-1 basis-0` caps the row; `truncate` is the last-resort guard for sub-360 px screens; sheet anchors to the bottom, inside the one-hand thumb arc.
+- **Writing** — `Lainnya` + "Halaman yang tidak dibuka setiap hari" tells the parent what is behind the tab; each row carries a plain-language description rather than a bare noun.
+- **Typography** — all labels stay at `text-xs`; the banned `text-[10px]`/`text-[11px]` grep returns zero.
+- **Colors** — no token changes. Nav label `--muted-foreground` `#57534E` on `--card` `#FFFFFF` ≈ 7.6:1, AA + AAA.
+- **UI** — cross-checked `design-system.html` §14 Portal Shell; the bar keeps its `h-16` / `max-w-md` / `safe-area-bottom` contract, and the sheet reuses the existing vaul `Drawer` rather than introducing a new overlay primitive.
+
+### Not verified
+
+- Real-device testing on a physical mid-range Android — emulated viewports only.
+- The other 31 e2e specs locally (deferred to the required CI check).
+- Vercel preview walk-through — recorded separately on the PR.
 
 ## Ship Notes
 
-Nothing to ship. Branch `feat/parent-nav-mobile-proposal` is local; no PR opened, no
-deploy, per the owner-review-first instruction.
+- **Migrations:** none.
+- **Env vars:** none.
+- **Data changes:** none. Label-only rename; no route, redirect, API path or DB field moved.
+- **Rollback:** revert the PR. No state to unwind.
+- **User-visible change to communicate:** the parent bottom bar drops from 6 tabs to 5; Capaian, Rapor and Profil now live behind "Lainnya". `Penghubung` reads `Jurnal` in both the parent and teacher navs.
+- **Promotion:** staging only. Production ship is held pending owner confirmation.
