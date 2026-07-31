@@ -210,6 +210,23 @@ export function classifyDokuResponse(
 export type { CreateSessionParams };
 
 /**
+ * Per-call escape hatches. Deliberately NOT part of `CreateSessionParams` and
+ * therefore invisible to the `PaymentGateway` port — the gateway wrapper at the
+ * bottom of this file never passes them, so every production call behaves
+ * exactly as it did before this argument existed.
+ *
+ * `checkoutVersion` exists solely for `POST /api/doku/probe`, which has to run
+ * v1 and v2 back-to-back inside one deployment to attribute a difference to the
+ * endpoint. Doing that through `DOKU_CHECKOUT_VERSION` would mean mutating
+ * `process.env` mid-request, which in a warm serverless container leaks into
+ * whatever concurrent request is creating a real parent's payment link.
+ */
+export interface CreateDokuSessionOverrides {
+  /** `"v1"` | `"v2"`; falls through to `DOKU_CHECKOUT_VERSION` when absent. */
+  checkoutVersion?: string;
+}
+
+/**
  * Create a DOKU Checkout session for an invoice.
  * Returns the gateway-neutral `GatewaySession` shape.
  *
@@ -219,6 +236,7 @@ export type { CreateSessionParams };
  */
 export async function createDokuSession(
   params: CreateSessionParams,
+  overrides?: CreateDokuSessionOverrides,
 ): Promise<GatewaySession> {
   const expiryDays = params.expiryDays ?? 7;
 
@@ -320,7 +338,9 @@ export async function createDokuSession(
   // the fetch URL below. Signing over one path and posting to another fails as
   // `invalid_signature`, which reads as a credential problem and would send
   // the next investigation down the wrong hole.
-  const target = resolveCheckoutTarget();
+  const target = resolveCheckoutTarget(
+    overrides?.checkoutVersion ?? process.env.DOKU_CHECKOUT_VERSION,
+  );
   const requestId = randomUUID();
   const timestamp = formatDokuTimestamp(new Date());
   const digest = buildDigest(rawBody);

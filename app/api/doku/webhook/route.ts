@@ -51,8 +51,34 @@ export async function POST(req: NextRequest) {
     req.headers.get("Request-Timestamp") ?? req.headers.get("Response-Timestamp");
   const secretKey = process.env.DOKU_SECRET_KEY;
 
+  // ── Step 3a: arrival receipt, emitted BEFORE any rejection can occur.
+  //
+  // This merchant has never received a DOKU notification (cycle
+  // 2026-07-29-doku-all-va-channels: two settled sandbox payments, zero
+  // delivery attempts in DOKU's own log). A rejected notification writes no
+  // WebhookEvent row, so until now the two hypotheses that matter — "DOKU
+  // never sent it" and "DOKU sent it and we rejected it" — produced the same
+  // observable: nothing. One unconditional line separates them, and names the
+  // header that was missing rather than the useless generic verdict below.
+  //
+  // Header PRESENCE only. Never the secret, the computed HMAC, or the
+  // received signature — a logged signature plus a logged body is a forgeable
+  // pair.
+  console.info("[DOKU WEBHOOK] inbound", {
+    hasClientId: Boolean(clientId),
+    hasRequestId: Boolean(requestId),
+    hasSignature: Boolean(signature),
+    hasTimestamp: Boolean(timestamp),
+    // A missing server-side key is our misconfiguration, not DOKU's — worth
+    // distinguishing from a malformed inbound request at a glance.
+    hasSecretKey: Boolean(secretKey),
+    bodyBytes: rawBody.length,
+    path: new URL(req.url).pathname,
+    userAgent: req.headers.get("user-agent") ?? null,
+  });
+
   if (!secretKey || !clientId || !requestId || !signature || !timestamp) {
-    console.error("[DOKU WEBHOOK] Invalid signature");
+    console.error("[DOKU WEBHOOK] Invalid signature — missing required header");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
@@ -91,7 +117,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (!matchedTarget) {
-    console.error("[DOKU WEBHOOK] Invalid signature");
+    // Log the candidates that were TRIED, not the signature that failed —
+    // an inbound target we never guessed is the single most likely cause, and
+    // the fix is to set DOKU_NOTIFICATION_TARGET to whatever DOKU actually
+    // signs over.
+    console.error("[DOKU WEBHOOK] Invalid signature — no candidate target matched", {
+      candidates,
+    });
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
   console.info("[DOKU WEBHOOK] signature verified", { target: matchedTarget });
