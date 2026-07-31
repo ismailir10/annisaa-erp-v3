@@ -6,6 +6,10 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
+  // MOCKUP-ONLY (feat/parent-nav-mobile-proposal): the dev overlay badge sits
+  // bottom-left, directly over the first bottom-nav tab, and would obscure the
+  // proposal screenshots. Revert with the rest of this throwaway branch.
+  devIndicators: false,
   images: {
     formats: ["image/avif", "image/webp"],
   },
