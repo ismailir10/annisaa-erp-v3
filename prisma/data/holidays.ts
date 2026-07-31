@@ -1,5 +1,14 @@
-// Indonesia National Holidays + Cuti Bersama 2026
+// Indonesia National Holidays + Cuti Bersama
 // Sources: ForPublic.id, timeanddate.com, SKB 3 Menteri 2025
+//
+// ⚠ This file is organised by CALENDAR year; the school runs on ACADEMIC
+// years (July → June). Academic year 2026/2027 therefore spans two blocks
+// here: Jul–Dec 2026 (below) and Jan–Jun 2027 (`holidays2027`).
+//
+// `scripts/verify-curriculum-readiness.ts` fails its "Kalender libur"
+// check when the second half of an academic year has no holiday rows,
+// because an empty second semester silently inflates the raport's
+// `totalSchoolDays` denominator.
 export const holidays = [
   // January
   { date: "2026-01-01", name: "Tahun Baru 2026 Masehi", type: "NATIONAL" },
@@ -40,3 +49,23 @@ export const holidays = [
   { date: "2026-12-24", name: "Cuti Bersama Natal", type: "NATIONAL" },
   { date: "2026-12-25", name: "Hari Raya Natal", type: "NATIONAL" },
 ];
+
+/**
+ * Jan–Jun 2027 — second semester of academic year 2026/2027.
+ *
+ * TODO(owner-input): populate from SKB 3 Menteri 2027 once the decree is
+ * published / supplied by the school. Deliberately left empty rather than
+ * estimated: Idul Fitri, Nyepi, Waisak and every cuti bersama move year to
+ * year, and a wrong date here silently mis-counts school days on every
+ * raport for the term.
+ *
+ * Shape matches `holidays` above; append to that array's consumers by
+ * spreading `allHolidays` rather than importing this one directly.
+ */
+export const holidays2027: typeof holidays = [];
+
+/**
+ * Every known holiday across both calendar years. Prefer this over
+ * `holidays` in anything that reasons about an academic-year window.
+ */
+export const allHolidays = [...holidays, ...holidays2027];

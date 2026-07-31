@@ -129,7 +129,7 @@ SKB 3 Menteri 2027 dates. Columns: `date,name,type` where type is `NATIONAL` or 
 
 ## Verification
 
-*(filled by `/build`)*
+- **T1/T2 — Cross-checked `design-system.html` §alert** for the two new IKTP×Tema panels on `/admin/semesters/[id]/import`. Both reuse the existing `Alert` / `AlertTitle` / `AlertDescription` primitives already used by the active/inactive conflict panels on the same screen — default (non-destructive) variant, `role="status"` rather than `role="alert"` since neither blocks the commit. No new visual primitives, no new colour tokens, no bespoke spacing.
 
 ## Ship Notes
 

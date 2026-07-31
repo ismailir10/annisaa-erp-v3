@@ -291,6 +291,21 @@ export interface PromesPreviewPayload {
     indicators: number;
   };
   /**
+   * IKTP×Tema resolution for the theme-marker columns (cols E+) in the
+   * workbook, resolved against the target Semester's `Theme` rows.
+   *
+   * `matched` counts (indicator × theme) pairs that WOULD be written on
+   * commit; `unmatched` lists theme-column names with no `Theme` row in
+   * this semester. Unmatched names are non-blocking — the import proceeds
+   * and links only the matched themes — but they are the difference
+   * between a walas seeing indicators in Penilaian Pekanan and seeing an
+   * empty list, so the preview surfaces them prominently.
+   */
+  themeLinks: {
+    matched: number;
+    unmatched: string[];
+  };
+  /**
    * Per-row conflict report. Each entry identifies an existing
    * LearningObjective row that would collide on the
    * (tenantId, semesterId, ageGroup, element, number) unique key.
@@ -343,6 +358,10 @@ export interface PromesCommitPayload {
     reactivated: number;
     skipped: number;
     indicators: number;
+    /** IKTP×Tema link rows written (skipDuplicates — re-import is a no-op). */
+    themeLinks: number;
+    /** Theme-column names with no matching Theme row in this semester. */
+    themeLinksUnmatched: string[];
   };
 }
 
