@@ -88,6 +88,7 @@ export const adminNav: NavConfig = {
       items: [
         { label: "Pemantauan", href: "/admin/penilaian", icon: ClipboardCheck, permission: "assessments.read" },
         { label: "Raport", href: "/admin/raport", icon: FileText, permission: "reportCard.read" },
+        { label: "Kisi-kisi", href: "/admin/raport/templates", icon: NotebookPen, permission: "reportCard.template" },
       ],
     },
     {

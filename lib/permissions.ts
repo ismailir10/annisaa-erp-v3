@@ -82,6 +82,7 @@ export const PERMISSION_GROUPS = {
       "reportCard.read": "Lihat raport triwulan",
       "reportCard.write": "Kelola raport triwulan (buat / ubah / override)",
       "reportCard.publish": "Terbitkan / tarik raport triwulan",
+      "reportCard.template": "Susun kisi-kisi narasi raport",
     },
   },
 } as const;
@@ -162,6 +163,9 @@ export function getSystemRolePermissions(role: string): string[] {
         "reportCard.read",
         "reportCard.write",
         "reportCard.publish",
+        // Separate from reportCard.write so walas template authoring can be
+        // granted without also granting per-student raport writes.
+        "reportCard.template",
       ];
     case "TEACHER":
       // Self-service permissions: a TEACHER can see their own attendance

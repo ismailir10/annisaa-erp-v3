@@ -46,6 +46,8 @@ model Tenant {
   assessmentEntries      AssessmentEntry[]
   terms                  Term[]
   reportCardEntries      ReportCardEntry[]
+  reportNarrativeTemplates ReportNarrativeTemplate[]
+  reportClosingTemplates   ReportClosingTemplate[]
   studentMeasurements    StudentMeasurement[]
 }
 
@@ -1320,6 +1322,8 @@ model Term {
   semester          Semester             @relation(fields: [semesterId], references: [id], onDelete: Restrict)
   reportCardEntries ReportCardEntry[]
   measurements      StudentMeasurement[]
+  narrativeTemplates ReportNarrativeTemplate[]
+  closingTemplates   ReportClosingTemplate[]
 
   @@unique([tenantId, semesterId, number])
   @@index([tenantId])
@@ -1376,6 +1380,56 @@ model ReportCardEntry {
   @@unique([tenantId, studentId, termId])
   @@index([tenantId, termId])
   @@index([tenantId, studentId])
+}
+
+/// Kisi-kisi: the cohort-level narrative a walas team authors ONCE per
+/// (term x ageGroup x section x level), then assigns per student. 5 bucketed
+/// sections x 3 levels = 15 rows per (term, ageGroup). Master design 2.3.
+///
+/// Per-student text lives on `ReportCardEntry.sectionNarratives`; these rows
+/// are only the starting point the editor copies from, so editing a template
+/// never rewrites a raport that already used it.
+model ReportNarrativeTemplate {
+  id       String @id @default(cuid())
+  tenantId String
+  termId   String
+  ageGroup AgeGroup
+  section  ReportSection // one of the bucketed (level-bearing) sections
+  level    AchievementLevel
+  content  String // markdown narrative, Indonesian
+
+  authoredById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  term   Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, termId, ageGroup, section, level])
+  @@index([tenantId, termId])
+}
+
+/// Kisi-kisi for the 3 single-content closing sections (Penutup, Rencana
+/// Tindak Lanjut, Kegiatan Disarankan di Rumah) — no level dimension.
+model ReportClosingTemplate {
+  id       String @id @default(cuid())
+  tenantId String
+  termId   String
+  ageGroup AgeGroup
+  section  ReportSection // CLOSING | FOLLOW_UP_PLAN | HOME_ACTIVITIES
+  content  String
+
+  authoredById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  term   Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, termId, ageGroup, section])
+  @@index([tenantId, termId])
 }
 
 /// Optional height/weight per student per term (raport header metadata).
