@@ -19,8 +19,12 @@
  * script is the next step: sign a real request against whichever version you
  * pick and see what comes back.
  *
- * Credentials are read from the environment and never printed. Get them with
- * `vercel env pull .env.doku-probe` (or export them yourself), then:
+ * Credentials are read from the environment and never printed. NOTE:
+ * `vercel env pull` does NOT work for these — `DOKU_CLIENT_ID` and
+ * `DOKU_SECRET_KEY` are marked Sensitive in Vercel and pull back as empty
+ * strings. Export them out-of-band, or use `POST /api/doku/probe` instead,
+ * which runs this same experiment from inside a deployment where the
+ * credentials already live. Then:
  *
  *   set -a; . ./.env.doku-probe; set +a
  *   node scripts/doku-probe-checkout.mjs --version v2
@@ -74,9 +78,23 @@ const baseUrl =
 const invoiceNumber = `PROBE-${version.toUpperCase()}-${Date.now()}`;
 const returnUrl = "https://example.test/parent/invoices";
 
-// Byte-for-byte the body `createDokuSession` builds (lib/payments/doku/client.ts),
-// including payment_method_types, so a difference in outcome is attributable to
-// the endpoint version and nothing else.
+// Byte-for-byte the body `createDokuSession` builds (lib/payments/doku/client.ts)
+// so a difference in outcome is attributable to the endpoint version and
+// nothing else.
+//
+// `payment.payment_method_types` is OMITTED by default, matching the adapter
+// since PR #436. DOKU support confirmed (2026-07-30) that naming a channel
+// which is not active on the account rejects the WHOLE session with
+// `PAYMENT CHANNEL IS INACTIVE` — it does not filter. A probe that still sent
+// the old hardcoded eleven would fail on any account missing one of them (prod
+// has neither BCA nor Mandiri) and the v1-vs-v2 experiment would be answered by
+// the channel list rather than by the endpoint. `--channels a,b` re-adds the
+// field for anyone deliberately testing channel availability.
+const channelsArg = arg("channels", null);
+const channels = channelsArg
+  ? channelsArg.split(",").map((c) => c.trim()).filter(Boolean)
+  : null;
+
 const payload = {
   order: {
     amount: 10000,
@@ -92,19 +110,7 @@ const payload = {
   payment: {
     payment_due_date: 7 * 24 * 60,
     type: "SALE",
-    payment_method_types: [
-      "VIRTUAL_ACCOUNT_BCA",
-      "VIRTUAL_ACCOUNT_BANK_MANDIRI",
-      "VIRTUAL_ACCOUNT_BRI",
-      "VIRTUAL_ACCOUNT_BNI",
-      "VIRTUAL_ACCOUNT_BANK_PERMATA",
-      "VIRTUAL_ACCOUNT_BANK_CIMB",
-      "VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI",
-      "VIRTUAL_ACCOUNT_BANK_DANAMON",
-      "VIRTUAL_ACCOUNT_BTN",
-      "VIRTUAL_ACCOUNT_BNC",
-      "VIRTUAL_ACCOUNT_DOKU",
-    ],
+    ...(channels && { payment_method_types: channels }),
   },
   customer: {
     name: "Probe Wali Murid",

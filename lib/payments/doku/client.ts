@@ -210,6 +210,35 @@ export function classifyDokuResponse(
 export type { CreateSessionParams };
 
 /**
+ * Per-call escape hatches. Deliberately NOT part of `CreateSessionParams` and
+ * therefore invisible to the `PaymentGateway` port — the gateway wrapper at the
+ * bottom of this file never passes them, so every production call behaves
+ * exactly as it did before this argument existed.
+ *
+ * `checkoutVersion` exists solely for `POST /api/doku/probe`, which has to run
+ * v1 and v2 back-to-back inside one deployment to attribute a difference to the
+ * endpoint. Doing that through `DOKU_CHECKOUT_VERSION` would mean mutating
+ * `process.env` mid-request, which in a warm serverless container leaks into
+ * whatever concurrent request is creating a real parent's payment link.
+ */
+export interface CreateDokuSessionOverrides {
+  /** `"v1"` | `"v2"`; falls through to `DOKU_CHECKOUT_VERSION` when absent. */
+  checkoutVersion?: string;
+  /**
+   * Invoked with the parsed success envelope before it is distilled into a
+   * `GatewaySession`, and therefore before the `missing payment.url` throw.
+   *
+   * v2's response contract is undocumented; the first signed call to it
+   * returned 2xx and then failed that throw, which tells us the endpoint
+   * accepts our body but says nothing about what it answered with. A callback
+   * rather than a `console.log` because the envelope may carry a VA number,
+   * and rather than widening the thrown error because that error is on the
+   * real parent-facing path.
+   */
+  captureRaw?: (envelope: unknown) => void;
+}
+
+/**
  * Create a DOKU Checkout session for an invoice.
  * Returns the gateway-neutral `GatewaySession` shape.
  *
@@ -219,6 +248,7 @@ export type { CreateSessionParams };
  */
 export async function createDokuSession(
   params: CreateSessionParams,
+  overrides?: CreateDokuSessionOverrides,
 ): Promise<GatewaySession> {
   const expiryDays = params.expiryDays ?? 7;
 
@@ -320,7 +350,9 @@ export async function createDokuSession(
   // the fetch URL below. Signing over one path and posting to another fails as
   // `invalid_signature`, which reads as a credential problem and would send
   // the next investigation down the wrong hole.
-  const target = resolveCheckoutTarget();
+  const target = resolveCheckoutTarget(
+    overrides?.checkoutVersion ?? process.env.DOKU_CHECKOUT_VERSION,
+  );
   const requestId = randomUUID();
   const timestamp = formatDokuTimestamp(new Date());
   const digest = buildDigest(rawBody);
@@ -365,11 +397,21 @@ export async function createDokuSession(
   }
 
   const envelope = await response.json();
-  // DOKU nests the entire result under a top-level `response` key:
-  //   { "message": ["SUCCESS"], "response": { "order": {…}, "payment": {…} } }
-  // Confirmed against the live sandbox (probe 2026-07-27). Reading
-  // `envelope.payment` directly yields undefined on every real call.
-  const data = envelope?.response;
+  overrides?.captureRaw?.(envelope);
+  // The two Checkout versions answer with DIFFERENT envelopes — both confirmed
+  // against the live sandbox by `POST /api/doku/probe` on 2026-07-31:
+  //
+  //   v1  { "message": ["SUCCESS"],
+  //        "response": { "order": {…},
+  //                      "payment": { "url", "token_id", "expired_datetime" } } }
+  //   v2  { "message": "SUCCESS",
+  //        "payment": { "url", "token" } }
+  //
+  // v2 is flat (no `response` wrapper), names the id `token` rather than
+  // `token_id`, and carries no expiry at all. Falling back to `envelope`
+  // itself covers v2 without disturbing v1, where `envelope.payment` is
+  // undefined and the `response` branch always wins.
+  const data = envelope?.response ?? envelope;
   const paymentUrl: string | undefined = data?.payment?.url;
   if (!paymentUrl) {
     // Empty/missing URL would silently break the SENT-transition guard at
@@ -379,7 +421,15 @@ export async function createDokuSession(
   }
 
   return {
-    id: typeof data?.payment?.token_id === "string" ? data.payment.token_id : null,
+    // v1 calls it `token_id`, v2 calls it `token`. Nothing in Talib keys off
+    // this value — DOKU's status endpoint is keyed on `invoice_number` — but
+    // it is the id DOKU support asks for, so keep it populated on both.
+    id:
+      typeof data?.payment?.token_id === "string"
+        ? data.payment.token_id
+        : typeof data?.payment?.token === "string"
+          ? data.payment.token
+          : null,
     paymentUrl,
     status: "PENDING", // DOKU's create-session response carries no status field.
     // `expired_datetime` is an undocumented but confirmed-present field
