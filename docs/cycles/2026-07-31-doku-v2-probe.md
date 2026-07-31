@@ -193,6 +193,53 @@ Incidental confirmation: v1's `paymentUrl` host is
 kind of vocabulary collision that makes support's "supported for the API V2
 Checkout" ambiguous, and is worth quoting back at them.
 
+### The answer: v2 does NOT fix the notification
+
+End-to-end run on v2, `PROBE-V2-1785465169298`:
+
+1. `POST /api/doku/probe {"version":"v2"}` → checkout link, with
+   `override_notification_url` pointing at this preview's own
+   `/api/doku/webhook`.
+2. Opened the link, chose **BCA** under ATM/Transfer Bank → VA
+   **1900800000314139**, page showing `Menunggu Pembayaran`.
+3. Settled it in DOKU's sandbox simulator (BCA VA → Inquiry → Pay Now).
+   Inquiry echoed `Probe Wali Murid` / `IDR 10000.00`; result page:
+   **Payment Success**.
+4. Waited ~4 minutes, then checked all three observation points.
+
+**Result — nothing arrived.** Vercel preview runtime logs for the window show
+`/api/doku/probe` 16 times and **`/api/doku/webhook` zero times**; the only
+`[DOKU …]` lines are our own `[DOKU PROBE] session created`. `WebhookEvent`
+still holds exactly 3 DOKU rows, all `manual.refresh.completed`, latest
+`2026-07-28 23:43:20` — nothing since.
+
+This is the first time that statement is *evidence* rather than an absence.
+The arrival log added in T3 fires unconditionally, before every rejection
+branch, so a delivered-but-rejected notification would have appeared in those
+logs. It did not. DOKU dispatched nothing.
+
+**So `override_notification_url` on v2 changes nothing, and the "notification
+dispatch is wired on v2" hypothesis is dead.** `DOKU_CHECKOUT_VERSION` stays
+`v1`: v2 is undocumented, offers no benefit we can measure, and could change
+shape under us without notice. The daily reconcile sweep remains the mechanism
+that credits DOKU payments.
+
+### Channel exposure, observed rather than assumed
+
+The v2 checkout page rendered **every** method group active on the sandbox
+account: Credit Card, Direct Debit, Virtual Account, E-Money, Minimarket,
+Kartu Kredit, QRIS, Digital Banking, Pay Later, Internet Banking. Under the VA
+group alone, 17 channels — including five the code could never have named
+(`VIRTUAL_ACCOUNT_SINARMAS`, `VIRTUAL_ACCOUNT_BANK_BJB`,
+`VIRTUAL_ACCOUNT_BSS`, `VIRTUAL_ACCOUNT_BANK_OCBC`,
+`VIRTUAL_ACCOUNT_BPD_BALI`).
+
+That is the documented consequence of omitting `payment_method_types`, now
+seen directly instead of reasoned about: **a parent on this account would be
+offered QRIS and credit card next to the VA list.** Harmless on sandbox,
+not on production. The Back Office VA-only audit is the only control and it is
+a hard go-live gate, not a nice-to-have.
+
 ## Ship Notes
 
 - **New env var:** none. The route reuses `CRON_SECRET`, `DOKU_CLIENT_ID`,

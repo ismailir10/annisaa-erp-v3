@@ -1,7 +1,7 @@
 // @public — bearer-gated diagnostic, auth via CRON_SECRET (no user session).
 import { NextRequest, NextResponse } from "next/server";
 
-import { createDokuSession } from "@/lib/payments/doku/client";
+import { createDokuSession, getDokuOrderStatus } from "@/lib/payments/doku/client";
 import { GatewayApiError } from "@/lib/payments/types";
 
 /**
@@ -103,6 +103,48 @@ export async function POST(req: NextRequest) {
     string,
     unknown
   >;
+
+  // ── Status mode. `{"checkReference":"PROBE-V2-…"}` polls DOKU's own
+  // `GET /orders/v1/status/{invoice_number}` for a reference this route minted
+  // earlier, instead of creating a new session.
+  //
+  // This is the control that turns "no notification arrived" into evidence. A
+  // settled VA that DOKU reports as SUCCESS while our webhook logged no
+  // inbound request at all can only mean DOKU never dispatched — it rules out
+  // a failed payment, a signature rejection, and a wrong URL in one call.
+  // Without it the ticket is "we didn't get anything", which their first reply
+  // already deflected.
+  const checkReference =
+    typeof input.checkReference === "string" && input.checkReference.length > 0
+      ? input.checkReference
+      : null;
+  if (checkReference) {
+    try {
+      const status = await getDokuOrderStatus({
+        invoiceId: checkReference,
+        sessionId: null,
+      });
+      return NextResponse.json({ ok: true, checkReference, status });
+    } catch (err) {
+      if (err instanceof GatewayApiError) {
+        return NextResponse.json(
+          {
+            ok: false,
+            checkReference,
+            gatewayStatus: err.status,
+            code: err.code,
+            message: err.message,
+          },
+          { status: 502 },
+        );
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      return NextResponse.json(
+        { ok: false, checkReference, message },
+        { status: 500 },
+      );
+    }
+  }
 
   // `resolveCheckoutTarget` throws on anything but v1/v2 — let it, and report
   // the message. A typo must not silently run the version it was meant to be
