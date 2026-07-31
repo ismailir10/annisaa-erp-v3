@@ -118,6 +118,11 @@ export async function POST(req: NextRequest) {
   // and any notification that arrives all name the arm of the experiment.
   const referenceId = `PROBE-${(version ?? "env").toUpperCase()}-${Date.now()}`;
 
+  // Captured out here so a failed distillation still reports what DOKU
+  // actually answered — the whole point of the v2 arm, whose response contract
+  // is undocumented.
+  let raw: unknown = null;
+
   try {
     const session = await createDokuSession(
       {
@@ -132,7 +137,12 @@ export async function POST(req: NextRequest) {
         // linger in the merchant's outstanding list for a week.
         expiryDays: 1,
       },
-      { checkoutVersion: version },
+      {
+        checkoutVersion: version,
+        captureRaw: (envelope) => {
+          raw = envelope;
+        },
+      },
     );
 
     console.info("[DOKU PROBE] session created", {
@@ -147,6 +157,7 @@ export async function POST(req: NextRequest) {
       version: version ?? process.env.DOKU_CHECKOUT_VERSION ?? "v1",
       notificationUrl,
       session,
+      raw,
       next: [
         "Open session.paymentUrl, pick a VA channel, copy the VA number.",
         "Settle it at https://sandbox.doku.com/integration/simulator/ (NON-SNAP row — Checkout mints non-SNAP VAs).",
@@ -165,12 +176,16 @@ export async function POST(req: NextRequest) {
           gatewayStatus: err.status,
           code: err.code,
           message: err.message,
+          raw,
         },
         { status: 502 },
       );
     }
     const message = err instanceof Error ? err.message : String(err);
     console.error("[DOKU PROBE] failed", { referenceId, message });
-    return NextResponse.json({ ok: false, referenceId, message }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, referenceId, message, raw },
+      { status: 500 },
+    );
   }
 }

@@ -119,6 +119,19 @@ cause and `DOKU_NOTIFICATION_TARGET` is the fix.
 through `--channels`. Header comment corrected: `vercel env pull` does not work
 for these credentials, and points at the new route instead.
 
+**T5 — raw-envelope capture** (added after the first live run)
+The first signed call to `/checkout/v2/payment` returned **2xx** and then
+failed on `[DOKU] Session response missing payment.url`, while the v1 control
+returned a working checkout link. That is the single most informative result of
+the cycle — v2 accepts our exact body — but the adapter distils the envelope
+and discards it, so what v2 *answered* was unobservable. Added
+`captureRaw?: (envelope: unknown) => void` to `CreateDokuSessionOverrides`,
+invoked with the parsed success envelope before distillation and therefore
+before that throw. A callback rather than a `console.log` because a Checkout
+envelope can carry a VA number, and rather than widening the thrown error
+because that error sits on the real parent-facing path. The route holds the
+captured value outside the `try`, so a failed distillation still reports it.
+
 ## Verification
 
 - `npm run build && npx vitest run` — recorded below.
@@ -127,7 +140,39 @@ for these credentials, and points at the new route instead.
   no UI.
 - Preview-verify: the probe route has no UI to walk. Verified instead by
   calling `POST /api/doku/probe` against the preview deployment with the
-  `CRON_SECRET` bearer — results recorded below.
+  `CRON_SECRET` bearer — results below.
+
+### Live run — preview `feat/doku-v2-probe`, 2026-07-31
+
+Preview health: `{"ok":true,"source":"doku","tier":"sandbox"}` — real DOKU
+sandbox, not `DEMO_MODE`.
+
+**v1 (control)** — `PROBE-V1-1785464553873`, HTTP 200:
+
+```
+token_id    09c53a328e2d446599d367948384dd8420262231092234044
+paymentUrl  https://staging.doku.com/checkout-link-v2/09c53a32…
+expiresAt   2026-08-01T02:22:33Z
+```
+
+**v2** — `PROBE-V2-1785464554736`:
+`{"ok":false,"message":"[DOKU] Session response missing payment.url"}`
+
+That failure is **not** an HTTP error. `createDokuSession` throws
+`GatewayApiError` for any non-OK response and the probe reports it as a 502
+with DOKU's own `error_messages`; this run reached the *success* path and fell
+over on distillation instead. So `/checkout/v2/payment` **accepted a signed
+request carrying our exact production body and answered 2xx** — the signature
+scheme, the headers and the payload all validate on v2. It simply does not
+answer with `response.payment.url` the way v1 does. What it answers with is
+what T5 was added to capture; run recorded in the next section once the
+redeployed preview is live.
+
+Incidental confirmation: v1's `paymentUrl` host is
+`staging.doku.com/checkout-link-**v2**/…`. DOKU's *link* generation has been
+"v2" all along while the *API* path we post to is v1 — which is exactly the
+kind of vocabulary collision that makes support's "supported for the API V2
+Checkout" ambiguous, and is worth quoting back at them.
 
 ## Ship Notes
 

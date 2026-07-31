@@ -224,6 +224,18 @@ export type { CreateSessionParams };
 export interface CreateDokuSessionOverrides {
   /** `"v1"` | `"v2"`; falls through to `DOKU_CHECKOUT_VERSION` when absent. */
   checkoutVersion?: string;
+  /**
+   * Invoked with the parsed success envelope before it is distilled into a
+   * `GatewaySession`, and therefore before the `missing payment.url` throw.
+   *
+   * v2's response contract is undocumented; the first signed call to it
+   * returned 2xx and then failed that throw, which tells us the endpoint
+   * accepts our body but says nothing about what it answered with. A callback
+   * rather than a `console.log` because the envelope may carry a VA number,
+   * and rather than widening the thrown error because that error is on the
+   * real parent-facing path.
+   */
+  captureRaw?: (envelope: unknown) => void;
 }
 
 /**
@@ -385,6 +397,7 @@ export async function createDokuSession(
   }
 
   const envelope = await response.json();
+  overrides?.captureRaw?.(envelope);
   // DOKU nests the entire result under a top-level `response` key:
   //   { "message": ["SUCCESS"], "response": { "order": {…}, "payment": {…} } }
   // Confirmed against the live sandbox (probe 2026-07-27). Reading
