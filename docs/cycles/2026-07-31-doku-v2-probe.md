@@ -137,6 +137,13 @@ captured value outside the `try`, so a failed distillation still reports it.
 - `npm run build` — pass. `npx vitest run` — 2449 passed, 42 todo, 2 skipped.
 - `scripts/verify-api-auth.sh` — 189/189 routes carry a session helper or the
   `@public` sentinel.
+- `npx tsc --noEmit` — clean. CI's first run failed here on
+  `fetchSpy.mock.calls[0][0]` (TS2493: `vi.fn(async () => …)` infers an empty
+  parameter tuple), which `vitest run` executes happily. Fixed by capturing the
+  URL in a closure. Worth remembering: a green local vitest does **not** imply
+  a green typecheck for mock-heavy tests.
+- `npm run lint` — 0 errors, 58 pre-existing warnings, none in files this cycle
+  touched.
 - Playwright: deferred to the required CI `Playwright E2E` check. No
   parent/admin-facing surface changed; the probe route is bearer-gated and has
   no UI.

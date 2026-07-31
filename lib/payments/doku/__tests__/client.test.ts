@@ -685,16 +685,20 @@ describe("createDokuSession", () => {
 
   it("passes the checkoutVersion override without touching process.env", async () => {
     process.env.DOKU_CHECKOUT_VERSION = "v1";
-    const fetchSpy = vi.fn(async () =>
-      mockOkResponse({
-        payment: { url: "https://sandbox.doku.com/checkout/link/x", token: "x" },
-      }),
+    let calledUrl = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calledUrl = url;
+        return mockOkResponse({
+          payment: { url: "https://sandbox.doku.com/checkout/link/x", token: "x" },
+        });
+      }) as unknown as typeof fetch,
     );
-    vi.stubGlobal("fetch", fetchSpy);
 
     await createDokuSession(baseParams, { checkoutVersion: "v2" });
 
-    expect(fetchSpy.mock.calls[0][0]).toContain("/checkout/v2/payment");
+    expect(calledUrl).toContain("/checkout/v2/payment");
     // The ambient flag must survive: the probe route runs both arms inside one
     // warm container that is concurrently serving real payment links.
     expect(process.env.DOKU_CHECKOUT_VERSION).toBe("v1");
