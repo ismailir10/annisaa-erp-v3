@@ -30,11 +30,6 @@ async function main() {
   await prisma.programFeeStructure.deleteMany();
   await prisma.feeComponentDef.deleteMany();
   await prisma.admission.deleteMany();
-  await prisma.studentAssessmentScore.deleteMany();
-  await prisma.studentAssessment.deleteMany();
-  await prisma.assessmentIndicator.deleteMany();
-  await prisma.assessmentCategory.deleteMany();
-  await prisma.assessmentTemplate.deleteMany();
   // Curriculum (C1) — children before parents.
   await prisma.indicatorThemeLink.deleteMany();
   await prisma.achievementIndicator.deleteMany();
@@ -1389,87 +1384,6 @@ async function main() {
       },
     });
     console.log(`✅ Leave requests: 3 (PENDING/APPROVED/REJECTED)`);
-  }
-
-  // 11g. ASSESSMENTS — 1 template (2 cat × 2 ind) + 1 PUBLISHED StudentAssessment w/ 4 scores.
-  const assessmentTemplate = await prisma.assessmentTemplate.create({
-    data: {
-      tenantId: tenant.id,
-      programId: programMap["TKIT"],
-      name: "Laporan Perkembangan Semester 1 (Demo)",
-      type: "SEMESTER",
-      categories: {
-        create: [
-          {
-            name: "Perkembangan Motorik Halus",
-            sortOrder: 0,
-            indicators: {
-              create: [
-                { description: "Dapat memegang pensil dengan benar", sortOrder: 0 },
-                { description: "Mampu menggunting mengikuti pola", sortOrder: 1 },
-              ],
-            },
-          },
-          {
-            name: "Perkembangan Bahasa",
-            sortOrder: 1,
-            indicators: {
-              create: [
-                { description: "Mampu menceritakan pengalaman sederhana", sortOrder: 0 },
-                { description: "Mengenal huruf A-Z", sortOrder: 1 },
-              ],
-            },
-          },
-        ],
-      },
-    },
-    include: { categories: { include: { indicators: true } } },
-  });
-  const allIndicators = assessmentTemplate.categories.flatMap((c) => c.indicators);
-  if (rightjetPrimaryChild && allIndicators.length === 4) {
-    const scoreSamples = ["BSH", "BSB", "MB", "BSH"];
-    await prisma.studentAssessment.create({
-      data: {
-        studentId: rightjetPrimaryChild.id,
-        templateId: assessmentTemplate.id,
-        period: "Semester 1 2025/2026",
-        status: "PUBLISHED",
-        createdBy: adminUser.id,
-        publishedAt: new Date(),
-        scores: {
-          create: allIndicators.map((ind, i) => ({
-            indicatorId: ind.id,
-            score: scoreSamples[i],
-            notes: i === 0 ? "Perkembangan baik, terus dimotivasi." : null,
-          })),
-        },
-      },
-    });
-    // Sibling coverage — second + third rightjet kids each get ≥1 score entry.
-    const siblingForScores: Array<{ id: string; samples: string[] }> = [];
-    if (secondChildId) siblingForScores.push({ id: secondChildId, samples: ["BSH", "MB", "BSH", "BB"] });
-    if (thirdChildId) siblingForScores.push({ id: thirdChildId, samples: ["BSB", "BSH", "BSH", "MB"] });
-    for (const sib of siblingForScores) {
-      await prisma.studentAssessment.create({
-        data: {
-          studentId: sib.id,
-          templateId: assessmentTemplate.id,
-          period: "Semester 1 2025/2026",
-          status: "PUBLISHED",
-          createdBy: adminUser.id,
-          publishedAt: new Date(),
-          scores: {
-            create: allIndicators.map((ind, i) => ({
-              indicatorId: ind.id,
-              score: sib.samples[i],
-            })),
-          },
-        },
-      });
-    }
-    console.log(`✅ Assessment: template + ${1 + siblingForScores.length} PUBLISHED student assessments`);
-  } else {
-    console.log(`✅ Assessment template created (no student assessment — missing child)`);
   }
 
   // 11h. STUDENT JOURNAL ENTRIES + NOTES — 3 students × last 3 weekdays × scope mix.

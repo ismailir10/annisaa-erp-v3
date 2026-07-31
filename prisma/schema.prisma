@@ -423,7 +423,6 @@ model Program {
   admissions          Admission[]
   enrollmentApplications EnrollmentApplication[]
   feeStructures       ProgramFeeStructure[]
-  assessmentTemplates AssessmentTemplate[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -546,7 +545,6 @@ model Student {
   enrollmentApplication EnrollmentApplication?
   invoices            Invoice[]
   studentAttendances  StudentAttendance[]
-  assessments         StudentAssessment[]
   assessmentEntries   AssessmentEntry[]
   reportCardEntries   ReportCardEntry[]
   studentMeasurements StudentMeasurement[]
@@ -996,82 +994,6 @@ model StudentJournalAudit {
 
   @@index([tenantId, entityType, entityId])
   @@index([tenantId, changedAt])
-}
-
-// ══════════════════════════════════════════════════════════════
-// PHASE 7: Report Cards / Assessments
-// ══════════════════════════════════════════════════════════════
-
-// Restrict on Program — templates are configuration; don't drop with the program.
-model AssessmentTemplate {
-  id        String  @id @default(cuid())
-  tenantId  String
-  programId String
-  name      String // "Laporan Perkembangan Semester 1"
-  type      String  @default("SEMESTER") // SEMESTER | QUARTERLY | MONTHLY
-  isActive  Boolean @default(true)
-
-  program     Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
-  categories  AssessmentCategory[]
-  assessments StudentAssessment[]
-
-  @@unique([tenantId, programId, name, type])
-  @@index([tenantId])
-}
-
-// Cascade — categories belong to a template.
-model AssessmentCategory {
-  id         String @id @default(cuid())
-  templateId String
-  name       String // "Perkembangan Motorik Halus"
-  sortOrder  Int    @default(0)
-
-  template   AssessmentTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  indicators AssessmentIndicator[]
-}
-
-// Cascade — indicators belong to a category.
-model AssessmentIndicator {
-  id          String @id @default(cuid())
-  categoryId  String
-  description String // "Dapat memegang pensil dengan benar"
-  sortOrder   Int    @default(0)
-
-  category AssessmentCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  scores   StudentAssessmentScore[]
-}
-
-// Restrict on both — academic record; never silently lose a student's
-// rapor by deleting the parent template or student.
-model StudentAssessment {
-  id          String    @id @default(cuid())
-  studentId   String
-  templateId  String
-  period      String // "Semester 1 2025/2026"
-  status      String    @default("DRAFT") // DRAFT | PUBLISHED
-  createdBy   String
-  publishedAt DateTime?
-  createdAt   DateTime  @default(now())
-
-  student  Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  template AssessmentTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  scores   StudentAssessmentScore[]
-
-  @@unique([studentId, templateId, period])
-}
-
-// Cascade — scores belong to an assessment + indicator pair.
-model StudentAssessmentScore {
-  id           String  @id @default(cuid())
-  assessmentId String
-  indicatorId  String
-  score        String? // BB | MB | BSH | BSB
-  notes        String?
-
-  assessment StudentAssessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  indicator  AssessmentIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-
-  @@unique([assessmentId, indicatorId])
 }
 
 // ── AUDIT LOG ────────────────────────────────────────────────
