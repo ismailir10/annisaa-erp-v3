@@ -10,6 +10,9 @@ const learningObjectiveFindMany = vi.fn();
 const learningObjectiveCreateMany = vi.fn();
 const learningObjectiveUpdateMany = vi.fn();
 const achievementIndicatorCreateMany = vi.fn();
+const achievementIndicatorFindMany = vi.fn();
+const themeFindMany = vi.fn();
+const indicatorThemeLinkCreateMany = vi.fn();
 const auditLogCreate = vi.fn();
 const transactionFn = vi.fn();
 
@@ -21,7 +24,12 @@ vi.mock("@/lib/db", () => ({
       createMany: learningObjectiveCreateMany,
       updateMany: learningObjectiveUpdateMany,
     },
-    achievementIndicator: { createMany: achievementIndicatorCreateMany },
+    achievementIndicator: {
+      createMany: achievementIndicatorCreateMany,
+      findMany: achievementIndicatorFindMany,
+    },
+    theme: { findMany: themeFindMany },
+    indicatorThemeLink: { createMany: indicatorThemeLinkCreateMany },
     auditLog: { create: auditLogCreate },
     $transaction: transactionFn,
   },
@@ -162,13 +170,24 @@ function happyParsedShape() {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  // The route rate-limits per client IP (30 writes/min). Every test in
+  // this file shares the same synthetic IP, so without a reset the suite
+  // starts 429-ing partway through as cases are added.
+  const { __resetRateLimitForTest } = await import("@/lib/rate-limit");
+  __resetRateLimitForTest();
   semesterFindFirst.mockResolvedValue({ id: "sem-1" });
   learningObjectiveFindMany.mockResolvedValue([]);
   learningObjectiveCreateMany.mockResolvedValue({ count: 0 });
   learningObjectiveUpdateMany.mockResolvedValue({ count: 0 });
   achievementIndicatorCreateMany.mockResolvedValue({ count: 0 });
+  achievementIndicatorFindMany.mockResolvedValue([]);
+  // Default: semester has no Theme rows, so every theme-marker column in
+  // the workbook lands in `themeLinks.unmatched` and no link is written.
+  // Tests that exercise the link path override this.
+  themeFindMany.mockResolvedValue([]);
+  indicatorThemeLinkCreateMany.mockResolvedValue({ count: 0 });
   auditLogCreate.mockResolvedValue({ id: "a-1" });
   parsePromesWorkbookMock.mockResolvedValue(happyParsedShape());
   // Default $transaction shape — run the callback against a tx mock
@@ -183,7 +202,9 @@ beforeEach(() => {
       },
       achievementIndicator: {
         createMany: achievementIndicatorCreateMany,
+        findMany: achievementIndicatorFindMany,
       },
+      indicatorThemeLink: { createMany: indicatorThemeLinkCreateMany },
       auditLog: { create: auditLogCreate },
     });
   });
@@ -679,13 +700,24 @@ describe("POST /api/admin/curriculum/import-promes — commit branch", () => {
     expect(learningObjectiveCreateMany).not.toHaveBeenCalled();
     expect(learningObjectiveUpdateMany).not.toHaveBeenCalled();
     const body = (await res.json()) as {
-      applied: { created: number; reactivated: number; skipped: number };
+      applied: {
+        created: number;
+        reactivated: number;
+        skipped: number;
+        indicators: number;
+        themeLinks: number;
+        themeLinksUnmatched: string[];
+      };
     };
     expect(body.applied).toEqual({
       created: 0,
       reactivated: 0,
       skipped: 1,
       indicators: 0,
+      themeLinks: 0,
+      // No Theme rows in the default mock, so the workbook's single
+      // theme-marker column is reported as unmatched rather than linked.
+      themeLinksUnmatched: ["Saya Anak Sehat"],
     });
   });
 
@@ -937,5 +969,226 @@ describe("POST /api/admin/curriculum/import-promes — Zod row rejection", () =>
     const res = await POST(makeReq({ form }) as never);
     expect(res.status).toBe(400);
     expect(transactionFn).not.toHaveBeenCalled();
+  });
+});
+
+// ── IKTP×Tema links (2026-07-31 content-enablement cycle) ─────────────
+// Before this cycle the parsed theme markers were counted and discarded
+// (`themeLinksDeferred`), which left the walas Penilaian Pekanan picker
+// permanently empty — it filters indicators purely on theme link.
+describe("POST /api/admin/curriculum/import-promes — IKTP×Tema links", () => {
+  /** Wire the tx mocks so one objective + two indicators land with ids. */
+  function wireWrittenRows() {
+    learningObjectiveFindMany.mockResolvedValue([
+      { id: "obj-1", element: "RELIGIOUS_MORAL", number: 1 },
+    ]);
+    achievementIndicatorFindMany.mockResolvedValue([
+      { id: "ind-1", objectiveId: "obj-1", order: 1 },
+      { id: "ind-2", objectiveId: "obj-1", order: 2 },
+    ]);
+  }
+
+  it("preview reports matched pair count and no unmatched names", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([
+      { id: "th-1", name: "Saya Anak Sehat" },
+    ]);
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(makeReq({ form }) as never);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      themeLinks: { matched: number; unmatched: string[] };
+    };
+    expect(body.themeLinks).toEqual({ matched: 1, unmatched: [] });
+    expect(transactionFn).not.toHaveBeenCalled();
+  });
+
+  it("preview lists unmatched theme names without blocking (still 200)", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([{ id: "th-9", name: "Tanaman" }]);
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(makeReq({ form }) as never);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      themeLinks: { matched: number; unmatched: string[] };
+    };
+    expect(body.themeLinks).toEqual({
+      matched: 0,
+      unmatched: ["Saya Anak Sehat"],
+    });
+  });
+
+  it("matches theme names across capitalisation + whitespace drift", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([
+      { id: "th-1", name: "  saya   ANAK sehat " },
+    ]);
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(makeReq({ form }) as never);
+    const body = (await res.json()) as {
+      themeLinks: { matched: number; unmatched: string[] };
+    };
+    expect(body.themeLinks).toEqual({ matched: 1, unmatched: [] });
+  });
+
+  it("commit writes IndicatorThemeLink rows for matched themes", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([
+      { id: "th-1", name: "Saya Anak Sehat" },
+    ]);
+    wireWrittenRows();
+    indicatorThemeLinkCreateMany.mockResolvedValue({ count: 1 });
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(
+      makeReq({
+        url: "http://l/api/admin/curriculum/import-promes?commit=true",
+        form,
+      }) as never,
+    );
+    expect(res.status).toBe(201);
+    expect(indicatorThemeLinkCreateMany).toHaveBeenCalledTimes(1);
+    expect(indicatorThemeLinkCreateMany).toHaveBeenCalledWith({
+      // Only indicator order 1 carries a theme marker in the fixture.
+      data: [{ indicatorId: "ind-1", themeId: "th-1" }],
+      skipDuplicates: true,
+    });
+    const body = (await res.json()) as {
+      applied: { themeLinks: number; themeLinksUnmatched: string[] };
+    };
+    expect(body.applied.themeLinks).toBe(1);
+    expect(body.applied.themeLinksUnmatched).toEqual([]);
+  });
+
+  it("scopes the Theme lookup to the caller's tenant AND the target semester", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([
+      { id: "th-1", name: "Saya Anak Sehat" },
+    ]);
+    wireWrittenRows();
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    await POST(makeReq({ form }) as never);
+    // IndicatorThemeLink has no tenantId column — this query is the only
+    // tenant gate on every link the commit path writes.
+    expect(themeFindMany).toHaveBeenCalledWith({
+      where: { tenantId: "t-import", semesterId: "sem-1", status: "ACTIVE" },
+      select: { id: true, name: true },
+    });
+  });
+
+  it("commit skips link writing entirely when no theme matches", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([{ id: "th-9", name: "Tanaman" }]);
+    wireWrittenRows();
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(
+      makeReq({
+        url: "http://l/api/admin/curriculum/import-promes?commit=true",
+        form,
+      }) as never,
+    );
+    expect(res.status).toBe(201);
+    expect(indicatorThemeLinkCreateMany).not.toHaveBeenCalled();
+    const body = (await res.json()) as {
+      applied: { themeLinks: number; themeLinksUnmatched: string[] };
+    };
+    expect(body.applied.themeLinks).toBe(0);
+    expect(body.applied.themeLinksUnmatched).toEqual(["Saya Anak Sehat"]);
+  });
+
+  it("uses skipDuplicates so a re-import cannot duplicate links", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([
+      { id: "th-1", name: "Saya Anak Sehat" },
+    ]);
+    wireWrittenRows();
+    // Second import: composite PK (indicatorId, themeId) already present,
+    // so Postgres reports zero inserted rows rather than erroring.
+    indicatorThemeLinkCreateMany.mockResolvedValue({ count: 0 });
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    const res = await POST(
+      makeReq({
+        url: "http://l/api/admin/curriculum/import-promes?commit=true",
+        form,
+      }) as never,
+    );
+    expect(res.status).toBe(201);
+    expect(indicatorThemeLinkCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
+    const body = (await res.json()) as { applied: { themeLinks: number } };
+    expect(body.applied.themeLinks).toBe(0);
+  });
+
+  it("records themeLinksCreated + themeLinksSkippedUnmatched in the audit trail", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([
+      { id: "th-1", name: "Saya Anak Sehat" },
+    ]);
+    wireWrittenRows();
+    indicatorThemeLinkCreateMany.mockResolvedValue({ count: 1 });
+    const form = makeForm({
+      file: xlsxFile(),
+      semesterId: "sem-1",
+      ageGroup: "A",
+    });
+    await POST(
+      makeReq({
+        url: "http://l/api/admin/curriculum/import-promes?commit=true",
+        form,
+      }) as never,
+    );
+    expect(auditLogCreate).toHaveBeenCalledTimes(1);
+    const call = auditLogCreate.mock.calls[0][0] as {
+      data: { after: unknown };
+    };
+    const after = call.data.after as Record<string, unknown>;
+    expect(after.themeLinksCreated).toBe(1);
+    expect(after.themeLinksSkippedUnmatched).toBe(0);
+    // Replaced the old forward-compat counter.
+    expect(after).not.toHaveProperty("themeLinksDeferred");
   });
 });

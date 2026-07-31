@@ -286,7 +286,7 @@ e2e/                         33 specs (admin, admin-admission-convert-parity, ad
 docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
 .claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
-scripts/                     setup-worktree, install-hooks, link-agent-skills, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, test-hooks, reseed-staging
+scripts/                     setup-worktree, install-hooks, link-agent-skills, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, verify-curriculum-readiness, import-curriculum-calendar, seed-demo-curriculum, test-hooks, reseed-staging
 ```
 
 Demo-mode auth means E2E + local dev need no live Supabase. Lint: `npm run lint`.

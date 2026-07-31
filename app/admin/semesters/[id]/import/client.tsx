@@ -67,6 +67,7 @@ type Preview = {
   filename: string;
   byElement: Partial<Record<CurriculumElement, PreviewObjective[]>>;
   counts: { objectives: number; indicators: number };
+  themeLinks: { matched: number; unmatched: string[] };
   conflicts: {
     active: ActiveConflict[];
     inactive: InactiveConflict[];
@@ -128,6 +129,8 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
   const inactiveConflicts = preview?.conflicts.inactive ?? [];
   const hasActiveConflicts = activeConflicts.length > 0;
   const hasInactiveConflicts = inactiveConflicts.length > 0;
+  const themeLinks = preview?.themeLinks ?? { matched: 0, unmatched: [] };
+  const unmatchedThemes = themeLinks.unmatched;
   const mismatchInferred = useMemo(() => {
     if (!preview || !preview.inferredAgeGroup) return false;
     return preview.inferredAgeGroup !== preview.ageGroup;
@@ -207,7 +210,14 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       const body = (await res.json()) as {
         error?: string;
         counts?: { objectives: number; indicators: number };
-        applied?: { created: number; reactivated: number; skipped: number; indicators: number };
+        applied?: {
+          created: number;
+          reactivated: number;
+          skipped: number;
+          indicators: number;
+          themeLinks: number;
+          themeLinksUnmatched: string[];
+        };
       };
       if (!res.ok) {
         setFormError(body.error ?? `Gagal menyimpan (status ${res.status}).`);
@@ -221,12 +231,21 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
         if (applied.reactivated > 0) parts.push(`${applied.reactivated} diaktifkan ulang`);
         if (applied.skipped > 0) parts.push(`${applied.skipped} dilewati`);
         parts.push(`${applied.indicators} indikator`);
+        parts.push(`${applied.themeLinks} kaitan tema`);
         toast.success(`PROMES tersimpan: ${parts.join(", ")}.`);
       } else {
         const objectives = body.counts?.objectives ?? 0;
         const indicators = body.counts?.indicators ?? 0;
+        const links = applied?.themeLinks ?? 0;
         toast.success(
-          `PROMES berhasil diimpor: ${objectives} tujuan pembelajaran, ${indicators} indikator.`,
+          `PROMES berhasil diimpor: ${objectives} tujuan pembelajaran, ${indicators} indikator, ${links} kaitan tema.`,
+        );
+      }
+      const unmatchedAfterCommit = applied?.themeLinksUnmatched ?? [];
+      if (unmatchedAfterCommit.length > 0) {
+        // Warn, don't block — the objectives/indicators did save.
+        toast.warning(
+          `${unmatchedAfterCommit.length} tema pada berkas belum ada di semester ini, jadi indikatornya belum terkait: ${unmatchedAfterCommit.slice(0, 3).join(", ")}${unmatchedAfterCommit.length > 3 ? ", …" : ""}`,
         );
       }
       router.push(`/admin/semesters/${semester.id}/themes`);
@@ -492,6 +511,54 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
               </Card>
             );
           })}
+
+          {/* IKTP×Tema resolution. Non-blocking by design: the import still
+              runs, but an IKTP with no theme link never appears in the walas
+              Penilaian Pekanan picker (it filters purely on theme link), so
+              the admin needs to see this before confirming. */}
+          {unmatchedThemes.length > 0 && (
+            <Alert role="status">
+              <AlertTitle>
+                {unmatchedThemes.length} tema pada berkas belum ada di semester
+                ini
+              </AlertTitle>
+              <AlertDescription>
+                <p className="mb-2">
+                  Tema berikut belum ada di semester ini — buat tema dulu di
+                  halaman Tema, atau perbaiki nama kolomnya di berkas. Impor
+                  tetap bisa dilanjutkan, tetapi indikator untuk tema ini tidak
+                  akan muncul di Penilaian Pekanan walas.
+                </p>
+                <ul className="list-disc list-inside text-sm">
+                  {unmatchedThemes.slice(0, 10).map((name) => (
+                    <li key={name}>{name}</li>
+                  ))}
+                  {unmatchedThemes.length > 10 && (
+                    <li>… dan {unmatchedThemes.length - 10} tema lainnya</li>
+                  )}
+                </ul>
+                {themeLinks.matched > 0 && (
+                  <p className="mt-2 text-sm">
+                    {themeLinks.matched} kaitan IKTP×Tema lain sudah cocok dan
+                    akan tersimpan.
+                  </p>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {unmatchedThemes.length === 0 && themeLinks.matched > 0 && (
+            <Alert role="status">
+              <AlertTitle>
+                {themeLinks.matched} kaitan IKTP×Tema siap disimpan
+              </AlertTitle>
+              <AlertDescription>
+                Semua nama tema pada berkas cocok dengan tema di semester ini.
+                Indikator akan langsung muncul di Penilaian Pekanan walas pada
+                pekan yang memakai tema tersebut.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {formError && (
             <Alert variant="destructive">
