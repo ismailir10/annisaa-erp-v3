@@ -151,6 +151,8 @@ npx tsx --env-file=.env scripts/seed-demo-curriculum.ts --commit
 
 Dry-run by default; **hard-refuses to run against the prod database ref**. Everything it writes is suffixed `(Demo)`. Idempotent.
 
-It creates a Semester + 8 Mon–Fri pekan brackets around *today* so `getCurrentWeek` resolves, 2 themes × 2 sub-themes, and the 5 curriculum elements' objectives + indicators + theme links for both age groups.
+It creates a Semester + 8 Mon–Fri pekan brackets around *today* so `getCurrentWeek` resolves, 2 themes × 2 sub-themes, the 5 curriculum elements' objectives + indicators + theme links for both age groups, and — so the raport chain is reachable too — a Triwulan plus the full 18-slot kisi-kisi for each age group.
+
+It deliberately seeds **no `AssessmentEntry` rows**: those are what a tester creates by walking the walas flow, and pre-filling them would hide whether that flow actually works.
 
 **Known staging artifact:** the demo tenant's ACTIVE academic year is 2025/2026 (ends 2026-06-19) while real time has moved past it, and 2026/2027 is `PLANNING` with no classes. The seeder therefore places its semester window around today, outside its parent year's window. `verify-curriculum-readiness.ts` reports this honestly rather than hiding it. Do not copy this shape to prod — prod's year, semester and pekan windows should agree.
