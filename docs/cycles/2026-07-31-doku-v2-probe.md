@@ -134,7 +134,9 @@ captured value outside the `try`, so a failed distillation still reports it.
 
 ## Verification
 
-- `npm run build && npx vitest run` — recorded below.
+- `npm run build` — pass. `npx vitest run` — 2449 passed, 42 todo, 2 skipped.
+- `scripts/verify-api-auth.sh` — 189/189 routes carry a session helper or the
+  `@public` sentinel.
 - Playwright: deferred to the required CI `Playwright E2E` check. No
   parent/admin-facing surface changed; the probe route is bearer-gated and has
   no UI.
@@ -224,6 +226,40 @@ dispatch is wired on v2" hypothesis is dead.** `DOKU_CHECKOUT_VERSION` stays
 shape under us without notice. The daily reconcile sweep remains the mechanism
 that credits DOKU payments.
 
+### The control: DOKU knows it was paid, and knows where to send it
+
+`POST /api/doku/probe {"checkReference":"PROBE-V2-1785465169298"}` — DOKU's own
+`GET /orders/v1/status/{invoice_number}`, ~4 min after settlement:
+
+```json
+{"state":"COMPLETED","rawStatus":"SUCCESS","channelCode":"VIRTUAL_ACCOUNT_BCA",
+ "amount":10000,"paymentId":"525c1a38-5b5a-453c-8eff-7b725e1e8758",
+ "raw":{"transaction":{"status":"SUCCESS","date":"2026-07-31T02:35:12Z"},
+        "virtual_account_payment":{"status":"SUCCESS","reference_number":"50428"},
+        "additional_info":{
+          "override_notification_url":
+            "https://annisaa-erp-v3-git-feat-doku-v2-probe-…/api/doku/webhook",
+          "origin":{"product":"CHECKOUT","api_format":"JOKUL","source":"direct"}}}}
+```
+
+Three things are true simultaneously, and together they leave DOKU nowhere to
+stand:
+
+1. **DOKU recorded the settlement** — `transaction.status: SUCCESS` at
+   `2026-07-31T02:35:12Z`, with a bank reference number. Not a failed payment.
+2. **DOKU stored our notification URL and echoes it back** — the override we
+   sent is right there in `additional_info` on their own status response. Not a
+   misconfiguration, not an unregistered channel, not a URL they never received.
+3. **Our endpoint logged no inbound request whatsoever** — and it now logs
+   unconditionally, before signature verification. Not a signature rejection.
+
+The only remaining explanation is that DOKU's notification dispatch never
+fires for this merchant. Quote this order in the ticket alongside
+`cms5as9q2000004jxdq21orae`, and ask specifically for the **server-side
+dispatch log** for both — their first reply merely restated the docs and
+pointed at the Notification Center, which shows zero entries and is therefore
+consistent with exactly this.
+
 ### Channel exposure, observed rather than assumed
 
 The v2 checkout page rendered **every** method group active on the sandbox
@@ -250,6 +286,19 @@ a hard go-live gate, not a nice-to-have.
 - **Migrations:** none.
 - **Rollback:** revert the commit. `DOKU_CHECKOUT_VERSION` stays unset →
   `v1` → today's behaviour.
+- **`DOKU_CHECKOUT_VERSION` stays unset (`v1`).** v2 mints working links but
+  does not notify either, so it buys nothing and costs an undocumented
+  contract. The daily reconcile sweep remains how DOKU payments get credited —
+  which means this branch must reach `main`, not just `staging`, before real
+  billing: Vercel registers crons only from the production deployment.
+- **Escalate the DOKU ticket** with order `PROBE-V2-1785465169298`: settled
+  `SUCCESS`, `override_notification_url` echoed back on DOKU's own status
+  response, zero inbound requests at that URL. Ask for the server-side dispatch
+  log.
+- **Back Office VA-only audit is now a hard gate, not a note** — the v2
+  checkout page rendered QRIS, credit card, e-money and paylater alongside the
+  VA list on sandbox. Production must be audited on both brands before any
+  parent sees a link.
 - **Still open before the prod cutover** (unchanged by this cycle): activate
   BCA + Mandiri via DOKU Sales; audit both Back Office accounts for non-VA
   channels now that the VA-only guarantee lives there and not in code; get BTN
