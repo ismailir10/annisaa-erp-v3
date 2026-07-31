@@ -85,7 +85,9 @@ test.describe("Admin flows", () => {
 
   test("legacy assessment URLs redirect to the consolidated penilaian monitor", async ({ page }) => {
     // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
-    // admin surfaces retired → all redirect to /admin/penilaian.
+    // admin surfaces retired → all redirect to /admin/penilaian. The page
+    // files were deleted in the 2026-07-31 retirement cycle, so this rule is
+    // now the only thing standing between an old bookmark and a 404.
     await page.goto("/admin/assessments/templates");
     await expect(page).toHaveURL("/admin/penilaian");
     await expect(page.getByRole("heading", { name: "Penilaian" })).toBeVisible();

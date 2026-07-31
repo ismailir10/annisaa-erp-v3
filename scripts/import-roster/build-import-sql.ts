@@ -293,7 +293,7 @@ async function main() {
   }
   p(``)
   p(`-- 3. Wipe student-linked history + the Student graph. Parents are NOT touched.`)
-  for (const tbl of ['StudentAttendance', 'StudentMeasurement', 'ReportCardEntry', 'AssessmentEntry', 'StudentAssessment', 'Admission', 'Invoice']) {
+  for (const tbl of ['StudentAttendance', 'StudentMeasurement', 'ReportCardEntry', 'AssessmentEntry', 'Admission', 'Invoice']) {
     p(`DELETE FROM public."${tbl}";`)
   }
   p(`UPDATE public."EnrollmentApplication" SET "studentId"=NULL WHERE "studentId" IS NOT NULL;`)

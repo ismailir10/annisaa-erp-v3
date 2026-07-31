@@ -29,6 +29,11 @@ const nextConfig: NextConfig = {
       {
         // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
         // admin surfaces retired → single new monitor at /admin/penilaian.
+        //
+        // As of 2026-07-31 the page files behind these paths are deleted, so
+        // these rules are no longer masking dead code — they ARE the handler.
+        // Kept deliberately: staff bookmarks from the pre-consolidation UI
+        // would otherwise 404, and a redirect rule costs nothing.
         source: "/admin/assessments",
         destination: "/admin/penilaian",
         permanent: true,
