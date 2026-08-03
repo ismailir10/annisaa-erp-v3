@@ -253,7 +253,7 @@ export function WeeklyClient({
               key={d}
               htmlFor={`weekly-day-${d}`}
               className={cn(
-                "cursor-pointer rounded-lg border px-3 py-2 text-sm transition-colors",
+                "min-h-11 cursor-pointer rounded-lg border px-3 py-2 text-sm transition-colors",
                 "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2",
                 isActive
                   ? "bg-primary text-primary-foreground border-primary"

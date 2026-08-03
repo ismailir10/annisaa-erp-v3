@@ -77,6 +77,8 @@ describe("WeeklyClient radio groups", () => {
     renderWeeklyClient();
     const days = within(screen.getByRole("radiogroup", { name: "Hari dalam pekan" }));
     const monday = days.getByRole("radio", { name: "Sen 11" });
+    expect(monday.closest("label")).toHaveClass("min-h-11");
+    expect(monday.closest("label")).toHaveClass("has-[input:focus-visible]:ring-2");
     const tuesday = days.getByRole("radio", { name: "Sel 12" });
     const wednesday = days.getByRole("radio", { name: "Rab 13" });
     const friday = days.getByRole("radio", { name: "Jum 15" });
