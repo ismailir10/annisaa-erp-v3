@@ -62,8 +62,8 @@ describe("PortalHeader", () => {
     expect(onLogout).not.toHaveBeenCalled();
     expect(screen.getByText("Yakin ingin keluar?")).toBeInTheDocument();
 
-    // Clicking the dialog's "Ya, Keluar" button fires onLogout.
-    await user.click(screen.getByRole("button", { name: "Ya, Keluar" }));
+    // Clicking the dialog's explicit logout action fires onLogout.
+    await user.click(screen.getByRole("button", { name: "Keluar dari akun" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
   });
 

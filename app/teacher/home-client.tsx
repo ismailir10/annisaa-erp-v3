@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   MapPin,
   BookHeart,
@@ -68,6 +68,7 @@ export function TeacherHomeClient({
   todaySessions?: TodaySession[];
 }) {
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
   const [record, setRecord] = useState(initialRecord);
   const [time, setTime] = useState(new Date());
   const [loading, setLoading] = useState(false);
@@ -205,9 +206,9 @@ export function TeacherHomeClient({
     <div>
       {/* Greeting */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: reduceMotion ? 0 : 0.4 }}
       >
         <PageHeader
           title={`Selamat ${greeting}, Ustadz/Ustadzah ${userName}`}
@@ -218,9 +219,9 @@ export function TeacherHomeClient({
 
       {/* Clock + Check-in button */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={reduceMotion ? false : { opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.15, duration: 0.4 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.15, duration: 0.4 }}
         className="mt-8 flex flex-col items-center"
       >
         <p className="font-currency text-display font-bold tracking-tight mb-6">
@@ -228,19 +229,20 @@ export function TeacherHomeClient({
         </p>
 
         <div className="relative">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={!reduceMotion}>
             {success ? (
               <motion.div
                 key="success"
-                initial={{ scale: 0.8, opacity: 0 }}
+                initial={reduceMotion ? false : { scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
+                exit={reduceMotion ? undefined : { scale: 0.8, opacity: 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.4 }}
                 className="w-36 h-36 rounded-full bg-status-present flex items-center justify-center"
               >
                 <motion.span
-                  initial={{ scale: 0 }}
+                  initial={reduceMotion ? false : { scale: 0 }}
                   animate={{ scale: [0, 1.3, 1] }}
-                  transition={{ duration: 0.4 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.4 }}
                   className="text-white text-4xl"
                 >
                   ✓
@@ -249,8 +251,8 @@ export function TeacherHomeClient({
             ) : (
               <motion.button
                 key="button"
-                whileHover={!hasCheckedOut && !loading ? { scale: 1.03 } : {}}
-                whileTap={!hasCheckedOut && !loading ? { scale: 0.95 } : {}}
+                whileHover={!reduceMotion && !hasCheckedOut && !loading ? { scale: 1.03 } : {}}
+                whileTap={!reduceMotion && !hasCheckedOut && !loading ? { scale: 0.95 } : {}}
                 onClick={handleAction}
                 disabled={hasCheckedOut || loading}
                 className={`w-36 h-36 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg transition-colors ${
@@ -282,13 +284,14 @@ export function TeacherHomeClient({
         </p>
 
         {/* Inline error (voice.md: supportive, non-blame) */}
-        <AnimatePresence>
+        <AnimatePresence initial={!reduceMotion}>
           {actionError && (
             <motion.p
               key="action-error"
-              initial={{ opacity: 0, y: -4 }}
+              initial={reduceMotion ? false : { opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.2 }}
               className="mt-3 text-xs text-status-late-text text-center px-4"
               role="alert"
             >
@@ -306,9 +309,9 @@ export function TeacherHomeClient({
 
       {/* Quick links */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25, duration: 0.4 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.25, duration: 0.4 }}
         className="mt-6"
       >
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -350,9 +353,9 @@ export function TeacherHomeClient({
       {/* Today's class sessions — additive card (academic-hierarchy-refactor
           Task 7). Each row links to the session roster page. */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.28, duration: 0.4 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.28, duration: 0.4 }}
         className="mt-6"
       >
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -393,9 +396,9 @@ export function TeacherHomeClient({
 
       {/* Today status */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.4 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.3, duration: 0.4 }}
         className="mt-6"
       >
         <Card className="p-card">

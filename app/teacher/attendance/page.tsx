@@ -9,6 +9,8 @@ import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "@/components/t
 import { PageHeader } from "@/components/portal/page-header";
 import { toast } from "sonner";
 
+type LeavePrefetchState = "loading" | "ready" | "error";
+
 type AttendanceRecord = {
   id: string;
   date: string;
@@ -50,24 +52,26 @@ export default function TeacherAttendancePage() {
   // Prefetch leave data on page mount so the sheet opens with instant content.
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[] | null>(null);
-  const [leaveLoading, setLeaveLoading] = useState(true);
+  const [leavePrefetchState, setLeavePrefetchState] =
+    useState<LeavePrefetchState>("loading");
 
   const fetchLeaveData = useCallback(async () => {
-    setLeaveLoading(true);
+    setLeavePrefetchState("loading");
     try {
       const [balRes, reqRes] = await Promise.all([
         fetch("/api/leave/balance"),
         fetch("/api/leave/my"),
       ]);
-      if (balRes.ok && reqRes.ok) {
-        setLeaveBalance(await balRes.json());
-        setLeaveRequests(await reqRes.json());
+      if (!balRes.ok || !reqRes.ok) {
+        setLeavePrefetchState("error");
+        return;
       }
-      // On error: leave state null so the sheet falls back to its own fetch.
+      setLeaveBalance(await balRes.json());
+      setLeaveRequests(await reqRes.json());
+      setLeavePrefetchState("ready");
     } catch {
-      // Silent — sheet will handle its own error path on open.
+      setLeavePrefetchState("error");
     }
-    setLeaveLoading(false);
   }, []);
 
   /**
@@ -234,20 +238,23 @@ export default function TeacherAttendancePage() {
       <PageHeader title="Kehadiran Saya" />
 
       {/* Cuti action card — opens Sheet instead of navigating */}
-      <Card
-        className="p-card mb-4 cursor-pointer hover:border-primary/30 transition-colors"
+      <button
+        type="button"
+        className="w-full mb-4 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         onClick={() => setLeaveSheetOpen(true)}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <CalendarDays size={20} className="text-primary" />
+        <Card className="p-card hover:border-primary/30 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <CalendarDays size={20} className="text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold">Cuti &amp; Izin</p>
+              <p className="text-xs text-muted-foreground">Lihat saldo dan ajukan cuti</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold">Cuti &amp; Izin</p>
-            <p className="text-xs text-muted-foreground">Lihat saldo dan ajukan cuti</p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </button>
 
       {loading ? (
         <div className="space-y-3">
@@ -269,7 +276,7 @@ export default function TeacherAttendancePage() {
         onOpenChange={setLeaveSheetOpen}
         prefetchedBalance={leaveBalance}
         prefetchedRequests={leaveRequests}
-        prefetchLoading={leaveLoading}
+        prefetchState={leavePrefetchState}
         onRefetch={fetchLeaveData}
       />
     </div>
