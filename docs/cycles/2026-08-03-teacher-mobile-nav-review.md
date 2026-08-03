@@ -94,7 +94,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Focused tests prove rejected fetch, failure-not-empty rendering, retry, and successful calendar recovery.
   - Dependencies: None.
 
-- [ ] **Task 5 — Harden class-attendance daily entry.** Add fetch recovery, stack class/date controls at narrow widths, expose current state through accessible cycle-button labels/focus, and render autosave progress/result.
+- [x] **Task 5 — Harden class-attendance daily entry.** Add fetch recovery, stack class/date controls at narrow widths, expose current state through accessible cycle-button labels/focus, and render autosave progress/result.
   - Acceptance: Focused tests prove rejected fetch and retry; class attendance remains operable at 320px and announces each row state plus save status.
   - Dependencies: None.
 
@@ -141,6 +141,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 2: Replace fifth direct-link layout with selected navigation IA — `components/teacher/bottom-nav.tsx`, `components/teacher/__tests__/bottom-nav.test.tsx` — changed teacher navigation to four direct teaching destinations plus `Lainnya`, preserving nested direct and overflow active states through shared primitives.
 - Task 3: Improve teacher home hierarchy and loading feedback — `app/teacher/home-client.tsx`, `app/teacher/__tests__/home-motion.test.tsx` — replaced blank hydration with an accessible skeleton, moved current-day status beside the clock flow, and added visible keyboard focus to dashboard links.
 - Task 4: Add personal-attendance fetch recovery — `app/teacher/attendance/page.tsx`, `app/teacher/attendance/__tests__/page.test.tsx` — added explicit current-month failure/retry, kept background prefetch quiet, and prevented stale or aborted month requests from overwriting cached foreground state.
+- Task 5: Harden class-attendance daily entry — `app/teacher/class-attendance/page.tsx`, `app/teacher/class-attendance/__tests__/page.test.tsx` — added assignment/roster recovery, responsive selectors, accessible cycle controls, live save feedback, stale-roster guards, and per-student serialized saves so last tap wins in UI and persistence.
 
 ## Verification
 
@@ -148,5 +149,6 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 2: gates passed (`npm run build`; `npx vitest run` — 261 files passed, 2 skipped; 2,565 tests passed, 42 todo); focused teacher/shared navigation tests 21/21 passed; mandatory staged review clean; `design-system.html` portal shell, five-slot width, focus, motion, and safe-area rules preserved.
 - Task 3: gates passed (`npm run build`; `npx vitest run` — 261 files passed, 2 skipped; 2,566 tests passed, 42 todo); focused home hierarchy/motion tests 2/2 passed; mandatory staged review clean; cross-checked `design-system.html` §14 teacher dashboard order, Shadcn Skeleton, and focus rules.
 - Task 4: gates passed after review fixes (`npm run build`; `npx vitest run` — 262 files passed, 2 skipped; 2,568 tests passed, 42 todo); focused attendance recovery/race tests 2/2 passed; first review found foreground month races, fixes re-gated, second mandatory review clean; teacher error/retry copy matches voice rules and `design-system.html` network-loss guidance.
+- Task 5: gates passed after race hardening (`npm run build`; `npx vitest run` — 263 files passed, 2 skipped; 2,573 tests passed, 42 todo); focused class-attendance tests 5/5 passed; mandatory review iterations found stale roster, stale UI/toast, and persisted write-order races, all fixed and re-gated; fourth review clean; `design-system.html` §16 cycle-tap, 44px focus, responsive toolbar, and live-save guidance preserved.
 
 ## Ship Notes
