@@ -73,6 +73,7 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 - End-of-cycle gate: `npm run build` passed; `npx vitest run` passed (259 files passed / 2 skipped; 2554 tests passed / 42 todo). Initial red run was diagnosed as local-server resource contention plus a test-only async transition race; focused reruns and clean full rerun passed.
 - Playwright: local run deferred to CI because `playwright.config.ts` safely refused the non-local staging Supabase `DATABASE_URL`. Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 - Ship fix iteration 1: CI exposed two stale test contracts rather than product regressions. The motion mock now types and strips every scoped Framer-only prop; the leave-sheet harness uses `prefetchState="ready"`; and the parent logout E2E follows the shared exact `Keluar dari akun` accessible name. `npm run typecheck`, both focused Vitest files (4 tests), focused E2E ESLint, and `git diff --check` passed before the staging rebase.
+- Ship fix iteration 1 rebase gate: rebased cleanly onto `origin/staging` (`f11cee33`); `npm run build` passed including TypeScript, and `npx vitest run` passed (259 files passed / 2 skipped; 2554 tests passed / 42 todo).
 
 ## Ship Notes
 
