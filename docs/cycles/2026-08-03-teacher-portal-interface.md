@@ -42,7 +42,7 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 - [ ] **Task 2 — Separate leave error recovery from empty state** (independent): represent leave-request loading, success, empty, and fetch failure explicitly; add a retry path and consequence-specific destructive copy.  
   Acceptance: request failure renders actionable error copy, empty renders only after a successful empty response, and confirmations name the action.
 
-- [ ] **Task 3 — Complete assessment keyboard interaction** (independent): replace or complete custom weekly day/level radio behavior using the established component and APG keyboard pattern.  
+- [x] **Task 3 — Complete assessment keyboard interaction** (independent): replace or complete custom weekly day/level radio behavior using the established component and APG keyboard pattern.  
   Acceptance: Tab enters each group once; Arrow keys, Home, End, Enter/Space, checked state, and focus state work without pointer input.
 
 - [ ] **Task 4 — Respect reduced motion in routine teacher surfaces** (independent): add reduced-motion handling to dashboard transitions and remove cumulative roster entrance staggering from daily attendance/session flows.  
@@ -55,9 +55,11 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 
 - Subagent plan: driver=gpt-5.5 high, dirty-work=gpt-5.6-terra low; Tasks 1 and 3 parallel, Tasks 2 and 4 sequential after overlapping-file slices, Task 5 sequential verification.
 - Task 1: Repair daily-flow semantics and labels — `app/teacher/attendance/page.tsx`, `app/teacher/class-attendance/page.tsx`, `app/teacher/sessions/[id]/client.tsx`, `components/teacher/leave-sheet.tsx`, `components/teacher/__tests__/leave-sheet.test.tsx` — converted the leave card to a semantic button and associated visible labels with scoped controls.
+- Task 3: Complete assessment keyboard interaction — `app/teacher/assessments/weekly/client.tsx`, `app/teacher/assessments/weekly/__tests__/client.test.tsx` — replaced click-only custom radios with native grouped inputs plus wrapping Arrow/Home/End and Enter/Space behavior while preserving visual treatment.
 
 ## Verification
 
 - Task 1: focused leave-sheet tests passed (2); TypeScript passed; full gate passed after network-enabled font fetch (`npm run build`, 258 Vitest files passed / 2 skipped, 2552 tests passed / 42 todo).
+- Task 3: focused weekly-assessment tests passed (7 across client and helper suites); full build and Vitest gate covered the staged implementation and passed with Task 1.
 
 ## Ship Notes
