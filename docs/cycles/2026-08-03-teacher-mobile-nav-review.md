@@ -122,7 +122,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Focused tests prove rejected fetch, failure-not-empty rendering, retry, and successful list recovery.
   - Dependencies: None.
 
-- [ ] **Task 12 — Align shared account focus behavior.** Add visible focus treatment to shared header actions and the profile salary link without changing account hierarchy.
+- [x] **Task 12 — Align shared account focus behavior.** Add visible focus treatment to shared header actions and the profile salary link without changing account hierarchy.
   - Acceptance: Shared header and profile tests assert visible focus styling while existing link/logout behavior remains intact.
   - Dependencies: None.
 
@@ -148,10 +148,12 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 8: Clarified journal week history — retryable error distinct from empty, stale week request guard, deterministic back, 44px/focus controls, readonly caption and contextual accessible ✓/— glyphs; focused tests added.
 - Task 10: Center assessment now uses native keyboard radios with min-44/focus, retry and stale-request guard, API writable contract, truly read-only disabled controls/copy, and a writable-only safe-area save footer; focused client/API tests added.
 - Task 11: Salary slips now distinguish loading, fetch failure, and a successful empty response; rejected and non-OK requests show a local retry state, request IDs prevent stale results, and the retry CTA meets 44px and visible-focus requirements.
+- Task 12: Shared parent/teacher PortalHeader profile and logout controls now meet min-44/focus treatment; the teacher profile salary link has matching focus treatment; focused tests added.
 
 ## Verification
 
 - Task 7: focused Vitest 3/3 passed; full `npm run build` passed and `npx vitest run` passed (2,579 passed / 42 todo); staged review clean.
+- Task 12: focused Vitest 9/9 passed; full build passed; full Vitest 2,595 passed / 42 todo; staged review clean; design-system shared portal parity checked.
 - Task 10: focused Vitest 13/13 passed; full build passed; full Vitest 2,590 passed / 42 todo; review clean; design-system, portal, and security checks completed.
 - Task 9: focused Vitest 5/5 passed; full `npm run build` passed and `npx vitest run` passed (2,585 passed / 42 todo); staged review clean. Cross-checked design-system mobile targets and recovery behavior.
 - Task 11: focused Vitest 3/3 passed; full build passed; full Vitest 2,593 passed / 42 todo; staged review clean. Cross-checked design-system and portal recovery behavior.

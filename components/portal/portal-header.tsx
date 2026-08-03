@@ -81,7 +81,7 @@ export function PortalHeader({
           {profileHref ? (
             <Link
               href={profileHref}
-              className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-accent transition-colors"
+              className="flex min-h-11 items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {userBlock}
             </Link>
@@ -91,7 +91,7 @@ export function PortalHeader({
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
-            className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label="Keluar"
           >
             <LogOut size={16} />
