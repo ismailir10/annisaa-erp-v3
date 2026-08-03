@@ -106,7 +106,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Focused tests prove malformed-link recovery, rejected fetch, failure-not-empty rendering, retry, and successful grid recovery.
   - Dependencies: None.
 
-- [ ] **Task 8 — Clarify journal week history.** Add week-fetch recovery, enlarge/focus-style week navigation, use deterministic back navigation, and replace checkbox-like read-only cells with explicit history semantics.
+- [x] **Task 8 — Clarify journal week history.** Add week-fetch recovery, enlarge/focus-style week navigation, use deterministic back navigation, and replace checkbox-like read-only cells with explicit history semantics.
   - Acceptance: Focused tests prove rejected fetch/retry; navigation targets meet 44px; history announces and looks read-only.
   - Dependencies: None.
 
@@ -144,10 +144,12 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 4: Add personal-attendance fetch recovery — `app/teacher/attendance/page.tsx`, `app/teacher/attendance/__tests__/page.test.tsx` — added explicit current-month failure/retry, kept background prefetch quiet, and prevented stale or aborted month requests from overwriting cached foreground state.
 - Task 5: Harden class-attendance daily entry — `app/teacher/class-attendance/page.tsx`, `app/teacher/class-attendance/__tests__/page.test.tsx` — added assignment/roster recovery, responsive selectors, accessible cycle controls, live save feedback, stale-roster guards, and per-student serialized saves so last tap wins in UI and persistence.
 - Task 6: Fix session attendance mobile controls — `app/teacher/sessions/[id]/client.tsx`, `app/teacher/sessions/[id]/__tests__/client.test.tsx` — moved sticky save above nav plus safe area, enlarged/focus-styled status controls, exposed current state, and clarified batch-save copy.
+- Task 8: Clarified journal week history — retryable error distinct from empty, stale week request guard, deterministic back, 44px/focus controls, readonly caption and contextual accessible ✓/— glyphs; focused tests added.
 
 ## Verification
 
 - Task 7: focused Vitest 3/3 passed; full `npm run build` passed and `npx vitest run` passed (2,579 passed / 42 todo); staged review clean.
+- Task 8: focused Vitest 6/6 passed; full build passed; full Vitest 2,583 passed / 42 todo; staged review clean; cross-checked `design-system.html` and portal readonly/target guidance.
 
 - Task 1: gates passed (`npm run build`; `npx vitest run` — 260 files passed, 2 skipped; 2,557 tests passed, 42 todo); focused More-sheet tests 3/3 passed; mandatory staged review clean; cross-checked `design-system.html` §14 portal shell and accessibility rules.
 - Task 2: gates passed (`npm run build`; `npx vitest run` — 261 files passed, 2 skipped; 2,565 tests passed, 42 todo); focused teacher/shared navigation tests 21/21 passed; mandatory staged review clean; `design-system.html` portal shell, five-slot width, focus, motion, and safe-area rules preserved.
