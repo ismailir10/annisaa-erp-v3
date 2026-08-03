@@ -346,12 +346,12 @@ export function LeaveSheet({
         }
       >
         <Field>
-          <FieldLabel>Jenis Cuti</FieldLabel>
+          <FieldLabel htmlFor="leave-type">Jenis Cuti</FieldLabel>
           <Select
             value={form.leaveType}
             onValueChange={(v) => v && setForm({ ...form, leaveType: v })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="leave-type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -368,16 +368,18 @@ export function LeaveSheet({
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field>
-            <FieldLabel>Tanggal Mulai</FieldLabel>
+            <FieldLabel htmlFor="leave-start-date">Tanggal Mulai</FieldLabel>
             <Input
+              id="leave-start-date"
               type="date"
               value={form.startDate}
               onChange={(e) => setForm({ ...form, startDate: e.target.value })}
             />
           </Field>
           <Field>
-            <FieldLabel>Tanggal Selesai</FieldLabel>
+            <FieldLabel htmlFor="leave-end-date">Tanggal Selesai</FieldLabel>
             <Input
+              id="leave-end-date"
               type="date"
               value={form.endDate}
               onChange={(e) => setForm({ ...form, endDate: e.target.value })}
@@ -395,8 +397,9 @@ export function LeaveSheet({
           </p>
         )}
         <Field>
-          <FieldLabel>Alasan</FieldLabel>
+          <FieldLabel htmlFor="leave-reason">Alasan</FieldLabel>
           <Textarea
+            id="leave-reason"
             value={form.reason}
             onChange={(e) => setForm({ ...form, reason: e.target.value })}
             placeholder="Jelaskan alasan cuti Anda..."

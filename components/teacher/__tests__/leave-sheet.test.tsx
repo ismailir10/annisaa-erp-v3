@@ -86,4 +86,18 @@ describe("LeaveSheet", () => {
       expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     }, { timeout: 1000 });
   });
+
+  it("associates every leave-request control with its visible label", async () => {
+    const user = userEvent.setup();
+
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Ajukan Cuti" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Jenis Cuti")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Tanggal Mulai")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tanggal Selesai")).toBeInTheDocument();
+    expect(screen.getByLabelText("Alasan")).toBeInTheDocument();
+  });
 });

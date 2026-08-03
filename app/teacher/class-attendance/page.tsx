@@ -177,8 +177,11 @@ export default function ClassAttendancePage() {
 
       {/* Class + Date toolbar */}
       <div className="flex gap-2 mb-4">
+        <label htmlFor="class-attendance-class" className="sr-only">
+          Pilih kelas
+        </label>
         <Select value={selectedClass} onValueChange={v => v && setSelectedClass(v)} items={assignments.map(a => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
-          <SelectTrigger className="flex-1">
+          <SelectTrigger id="class-attendance-class" className="flex-1">
             <SelectValue placeholder="Pilih kelas">
               {(() => {
                 const a = assignments.find(a => a.classSection.id === selectedClass);
@@ -194,7 +197,10 @@ export default function ClassAttendancePage() {
             ))}
           </SelectContent>
         </Select>
-        <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-36" />
+        <label htmlFor="class-attendance-date" className="sr-only">
+          Tanggal kehadiran
+        </label>
+        <Input id="class-attendance-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="w-36" />
       </div>
 
       {/* Live summary trio (quad — includes Izin) */}

@@ -230,6 +230,9 @@ export function SessionRosterClient({
                       <p className="text-xs font-medium text-muted-foreground">
                         Dijemput oleh
                       </p>
+                      <label htmlFor={`pickup-relation-${r.studentId}`} className="sr-only">
+                        Hubungan penjemput {r.name}
+                      </label>
                       <Select
                         value={r.pickedUpByRelation ?? ""}
                         onValueChange={(v) =>
@@ -238,7 +241,7 @@ export function SessionRosterClient({
                           })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id={`pickup-relation-${r.studentId}`} className="w-full">
                           <SelectValue placeholder="Pilih hubungan" />
                         </SelectTrigger>
                         <SelectContent>
@@ -250,23 +253,29 @@ export function SessionRosterClient({
                         </SelectContent>
                       </Select>
                       {r.pickedUpByRelation && (
-                        <Input
-                          value={r.pickedUpByName ?? ""}
-                          onChange={(e) =>
-                            update(r.studentId, {
-                              pickedUpByName: e.target.value,
-                            })
-                          }
-                          placeholder={
-                            r.pickedUpByRelation === "OTHER"
-                              ? "Nama penjemput (wajib)"
-                              : "Nama penjemput (opsional)"
-                          }
-                          aria-invalid={
-                            r.pickedUpByRelation === "OTHER" &&
-                            !r.pickedUpByName?.trim()
-                          }
-                        />
+                        <>
+                          <label htmlFor={`pickup-name-${r.studentId}`} className="sr-only">
+                            Nama penjemput {r.name}
+                          </label>
+                          <Input
+                            id={`pickup-name-${r.studentId}`}
+                            value={r.pickedUpByName ?? ""}
+                            onChange={(e) =>
+                              update(r.studentId, {
+                                pickedUpByName: e.target.value,
+                              })
+                            }
+                            placeholder={
+                              r.pickedUpByRelation === "OTHER"
+                                ? "Nama penjemput (wajib)"
+                                : "Nama penjemput (opsional)"
+                            }
+                            aria-invalid={
+                              r.pickedUpByRelation === "OTHER" &&
+                              !r.pickedUpByName?.trim()
+                            }
+                          />
+                        </>
                       )}
                     </div>
                   )}
