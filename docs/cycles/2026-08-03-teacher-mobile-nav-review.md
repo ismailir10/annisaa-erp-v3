@@ -114,7 +114,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Touch and keyboard operation remain correct, and the error-state instruction always maps to an available control.
   - Dependencies: None.
 
-- [ ] **Task 10 — Align center-assessment controls and sticky states.** Reuse the weekly native-radio keyboard/focus pattern, raise controls to 44px, add retry while preserving entered context where practical, and hide the sticky footer for non-writable states.
+- [x] **Task 10 — Align center-assessment controls and sticky states.** Reuse the weekly native-radio keyboard/focus pattern, raise controls to 44px, add retry while preserving entered context where practical, and hide the sticky footer for non-writable states.
   - Acceptance: Focused tests prove rejected fetch/retry and footer suppression; controls work by touch and keyboard; sticky save clears navigation and safe area.
   - Dependencies: Task 2 for final bottom-navigation clearance verification.
 
@@ -146,10 +146,12 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 5: Harden class-attendance daily entry — `app/teacher/class-attendance/page.tsx`, `app/teacher/class-attendance/__tests__/page.test.tsx` — added assignment/roster recovery, responsive selectors, accessible cycle controls, live save feedback, stale-roster guards, and per-student serialized saves so last tap wins in UI and persistence.
 - Task 6: Fix session attendance mobile controls — `app/teacher/sessions/[id]/client.tsx`, `app/teacher/sessions/[id]/__tests__/client.test.tsx` — moved sticky save above nav plus safe area, enlarged/focus-styled status controls, exposed current state, and clarified batch-save copy.
 - Task 8: Clarified journal week history — retryable error distinct from empty, stale week request guard, deterministic back, 44px/focus controls, readonly caption and contextual accessible ✓/— glyphs; focused tests added.
+- Task 10: Center assessment now uses native keyboard radios with min-44/focus, retry and stale-request guard, API writable contract, truly read-only disabled controls/copy, and a writable-only safe-area save footer; focused client/API tests added.
 
 ## Verification
 
 - Task 7: focused Vitest 3/3 passed; full `npm run build` passed and `npx vitest run` passed (2,579 passed / 42 todo); staged review clean.
+- Task 10: focused Vitest 13/13 passed; full build passed; full Vitest 2,590 passed / 42 todo; review clean; design-system, portal, and security checks completed.
 - Task 9: focused Vitest 5/5 passed; full `npm run build` passed and `npx vitest run` passed (2,585 passed / 42 todo); staged review clean. Cross-checked design-system mobile targets and recovery behavior.
 - Task 8: focused Vitest 6/6 passed; full build passed; full Vitest 2,583 passed / 42 todo; staged review clean; cross-checked `design-system.html` and portal readonly/target guidance.
 
