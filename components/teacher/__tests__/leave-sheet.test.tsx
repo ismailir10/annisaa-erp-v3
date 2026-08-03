@@ -100,4 +100,26 @@ describe("LeaveSheet", () => {
     expect(screen.getByLabelText("Tanggal Selesai")).toBeInTheDocument();
     expect(screen.getByLabelText("Alasan")).toBeInTheDocument();
   });
+
+  it("shows a retryable error instead of an empty state when leave prefetch fails", async () => {
+    const onRefetch = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <LeaveSheet
+        open
+        onOpenChange={() => {}}
+        prefetchedBalance={null}
+        prefetchedRequests={null}
+        prefetchState="error"
+        onRefetch={onRefetch}
+      />,
+    );
+
+    expect(screen.getByText("Data cuti tidak dapat dimuat")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada pengajuan cuti")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Coba lagi" }));
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+  });
 });

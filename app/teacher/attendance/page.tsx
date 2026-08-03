@@ -9,6 +9,8 @@ import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "@/components/t
 import { PageHeader } from "@/components/portal/page-header";
 import { toast } from "sonner";
 
+type LeavePrefetchState = "loading" | "ready" | "error";
+
 type AttendanceRecord = {
   id: string;
   date: string;
@@ -50,24 +52,26 @@ export default function TeacherAttendancePage() {
   // Prefetch leave data on page mount so the sheet opens with instant content.
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[] | null>(null);
-  const [leaveLoading, setLeaveLoading] = useState(true);
+  const [leavePrefetchState, setLeavePrefetchState] =
+    useState<LeavePrefetchState>("loading");
 
   const fetchLeaveData = useCallback(async () => {
-    setLeaveLoading(true);
+    setLeavePrefetchState("loading");
     try {
       const [balRes, reqRes] = await Promise.all([
         fetch("/api/leave/balance"),
         fetch("/api/leave/my"),
       ]);
-      if (balRes.ok && reqRes.ok) {
-        setLeaveBalance(await balRes.json());
-        setLeaveRequests(await reqRes.json());
+      if (!balRes.ok || !reqRes.ok) {
+        setLeavePrefetchState("error");
+        return;
       }
-      // On error: leave state null so the sheet falls back to its own fetch.
+      setLeaveBalance(await balRes.json());
+      setLeaveRequests(await reqRes.json());
+      setLeavePrefetchState("ready");
     } catch {
-      // Silent — sheet will handle its own error path on open.
+      setLeavePrefetchState("error");
     }
-    setLeaveLoading(false);
   }, []);
 
   /**
@@ -272,7 +276,7 @@ export default function TeacherAttendancePage() {
         onOpenChange={setLeaveSheetOpen}
         prefetchedBalance={leaveBalance}
         prefetchedRequests={leaveRequests}
-        prefetchLoading={leaveLoading}
+        prefetchState={leavePrefetchState}
         onRefetch={fetchLeaveData}
       />
     </div>

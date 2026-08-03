@@ -47,6 +47,8 @@ export type LeaveRequest = {
   createdAt: string;
 };
 
+type LeavePrefetchState = "loading" | "ready" | "error";
+
 const TYPE_LABELS: Record<string, string> = {
   ANNUAL: "Cuti Tahunan",
   SICK: "Sakit",
@@ -78,8 +80,8 @@ type LeaveSheetProps = {
   prefetchedBalance?: LeaveBalance | null;
   /** Requests prefetched by the parent page on mount. */
   prefetchedRequests?: LeaveRequest[] | null;
-  /** True while the parent's prefetch is in-flight (shows skeleton until resolved). */
-  prefetchLoading?: boolean;
+  /** Explicit parent prefetch state so a failure cannot render as an empty list. */
+  prefetchState?: LeavePrefetchState;
   /** Callback to re-trigger the parent's prefetch after a mutation (submit / cancel). */
   onRefetch?: () => void;
 };
@@ -89,21 +91,24 @@ export function LeaveSheet({
   onOpenChange,
   prefetchedBalance,
   prefetchedRequests,
-  prefetchLoading = false,
+  prefetchState,
   onRefetch,
 }: LeaveSheetProps) {
   // Local state is used only when prefetch data is absent (cold open before prefetch resolves,
   // or fallback when the parent page didn't pass props).
-  const hasPrefetch = prefetchedBalance !== undefined && prefetchedRequests !== undefined;
+  const hasPrefetch =
+    prefetchState !== undefined ||
+    (prefetchedBalance !== undefined && prefetchedRequests !== undefined);
 
   const [localBalance, setLocalBalance] = useState<LeaveBalance | null>(null);
   const [localRequests, setLocalRequests] = useState<LeaveRequest[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
+  const [localError, setLocalError] = useState(false);
 
   const balance = hasPrefetch ? prefetchedBalance : localBalance;
   const requests = hasPrefetch ? (prefetchedRequests ?? []) : localRequests;
-  // Show skeleton while: prefetch in-flight OR (no prefetch + local fetch in-flight on open).
-  const loading = hasPrefetch ? prefetchLoading : localLoading;
+  const loading = hasPrefetch ? prefetchState === "loading" : localLoading;
+  const loadError = hasPrefetch ? prefetchState === "error" : localError;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -126,6 +131,7 @@ export function LeaveSheet({
 
   async function fetchData() {
     setLocalLoading(true);
+    setLocalError(false);
     try {
       const [balRes, reqRes] = await Promise.all([
         fetch("/api/leave/balance"),
@@ -133,15 +139,17 @@ export function LeaveSheet({
       ]);
       if (!balRes.ok || !reqRes.ok) {
         toast.error("Data cuti tidak bisa dimuat. Coba lagi sebentar ya.");
-        setLocalLoading(false);
+        setLocalError(true);
         return;
       }
       setLocalBalance(await balRes.json());
       setLocalRequests(await reqRes.json());
     } catch {
       toast.error("Data cuti tidak bisa dimuat. Coba lagi sebentar ya.");
+      setLocalError(true);
+    } finally {
+      setLocalLoading(false);
     }
-    setLocalLoading(false);
   }
 
   useEffect(() => {
@@ -269,6 +277,14 @@ export function LeaveSheet({
                 <Skeleton key={i} className="h-20 w-full rounded-xl" />
               ))}
             </div>
+          ) : loadError ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="Data cuti tidak dapat dimuat"
+              description="Periksa koneksi lalu coba lagi."
+              actionLabel="Coba lagi"
+              onAction={onRefetch ?? fetchData}
+            />
           ) : requests.length === 0 ? (
             <EmptyState
               icon={CalendarDays}
@@ -324,7 +340,7 @@ export function LeaveSheet({
         title="Batalkan Pengajuan"
         description="Yakin ingin membatalkan pengajuan cuti ini?"
         onConfirm={handleCancel}
-        confirmLabel="Ya, Batalkan"
+        confirmLabel="Batalkan pengajuan"
         destructive
       />
 

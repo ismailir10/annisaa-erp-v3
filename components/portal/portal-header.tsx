@@ -103,7 +103,7 @@ export function PortalHeader({
         onOpenChange={setConfirmOpen}
         title="Yakin ingin keluar?"
         description="Anda perlu masuk lagi untuk mengakses akun setelah keluar."
-        confirmLabel="Ya, Keluar"
+        confirmLabel="Keluar dari akun"
         cancelLabel="Batal"
         onConfirm={onLogout}
         destructive
