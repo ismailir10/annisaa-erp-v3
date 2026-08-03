@@ -309,12 +309,40 @@ test.describe("Teacher flows", () => {
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
 
     const detail = page.locator('a[href^="/teacher/slips/"]').first();
-    if (!(await detail.isVisible({ timeout: 10_000 }).catch(() => false))) {
-      test.skip(true, "demo seed has no available salary slip");
-      return;
-    }
+    await expect(detail).toBeVisible({ timeout: 10_000 });
+    const detailHref = await detail.getAttribute("href");
+    expect(detailHref).toMatch(/^\/teacher\/slips\/[^/]+$/);
     await detail.click();
     await page.waitForURL(/\/teacher\/slips\/[^/?#]+$/, { timeout: 15_000 });
+
+    // `Tunjangan Transport` is a stable, multi-word component in the demo
+    // payroll seed. Exercise the real line at both narrow supported widths,
+    // then check a final content row clears the fixed bottom navigation.
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 812 });
+      await page.goto(detailHref!);
+      await page.waitForURL(/\/teacher\/slips\/[^/?#]+$/, { timeout: 15_000 });
+
+      const longComponent = page.getByText("Tunjangan Transport", { exact: true });
+      await expect(longComponent).toBeVisible({ timeout: 10_000 });
+      expect(await page.evaluate(() =>
+        document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      )).toBe(true);
+
+      const bottomContent = page.getByText(
+        "Slip ini dihasilkan otomatis oleh sistem An Nisaa' ERP. Dokumen resmi.",
+        { exact: true },
+      );
+      await bottomContent.scrollIntoViewIfNeeded();
+      const [contentBox, navBox] = await Promise.all([
+        bottomContent.boundingBox(),
+        page.getByRole("navigation", { name: "Navigasi utama guru" }).boundingBox(),
+      ]);
+      expect(contentBox).not.toBeNull();
+      expect(navBox).not.toBeNull();
+      expect(contentBox!.bottom).toBeLessThanOrEqual(navBox!.y + 0.5);
+    }
+
     await page.getByRole("link", { name: /Kembali ke Slip Gaji/ }).click();
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
     await expect(page.getByRole("heading", { name: "Slip Gaji" })).toBeVisible();

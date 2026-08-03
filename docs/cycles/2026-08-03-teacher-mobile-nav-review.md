@@ -151,6 +151,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 12: Shared parent/teacher PortalHeader profile and logout controls now meet min-44/focus treatment; the teacher profile salary link has matching focus treatment; focused tests added.
 - Task 13: Salary detail now uses the shared PageHeader and formatDate with Jakarta-safe current-date handling, keeps back/PDF actions at 44px with visible focus, and keeps long labels wrapping beside non-shrinking tabular amounts; focused tests include the Jakarta date-boundary case.
 - Task 14: Portal standards now codify teacher four-direct-plus-`Lainnya` overflow, active-state, and parent/teacher parity rules; affected teacher JTBDs reconcile shipped autosave, read-only, recovery, and salary flows; teacher E2E adds 320/360/375 five-slot geometry, overflow/direct active states, and `Lainnya` → `Slip Gaji` → detail → Back traversal.
+- Task 14 holistic-review P2 resolution: salary-detail E2E now uses a stable seeded multiword component at 320px and 375px, asserts no document horizontal overflow, footer clearance above the fixed nav, and does not silently skip when no slip is available; re-review clean.
 
 ## Verification
 
@@ -169,5 +170,12 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 4: gates passed after review fixes (`npm run build`; `npx vitest run` — 262 files passed, 2 skipped; 2,568 tests passed, 42 todo); focused attendance recovery/race tests 2/2 passed; first review found foreground month races, fixes re-gated, second mandatory review clean; teacher error/retry copy matches voice rules and `design-system.html` network-loss guidance.
 - Task 5: gates passed after race hardening (`npm run build`; `npx vitest run` — 263 files passed, 2 skipped; 2,573 tests passed, 42 todo); focused class-attendance tests 5/5 passed; mandatory review iterations found stale roster, stale UI/toast, and persisted write-order races, all fixed and re-gated; fourth review clean; `design-system.html` §16 cycle-tap, 44px focus, responsive toolbar, and live-save guidance preserved.
 - Task 6: gates passed (`npm run build`; `npx vitest run` — 264 files passed, 2 skipped; 2,576 tests passed, 42 todo); focused session tests 3/3 passed; mandatory staged review clean; `design-system.html` §16 sticky action, 44px target, focus, and safe-area rules preserved.
+- End-of-cycle: final `npm run build` passed; `npx vitest run` passed (271 files passed / 2 skipped; 2,598 passed / 42 todo); `npm run lint` exited 0 with 0 errors and 60 existing warnings. `npx playwright test` was attempted and safely refused the remote DB host `aws-1-ap-southeast-1.pooler.supabase.com`, so it is deferred to the required CI `Playwright E2E` check per project policy. Holistic review is clean after the P2 coverage fix.
 
 ## Ship Notes
+
+- No migrations or new environment variables.
+- No route, entity, or module additions; README update is not required.
+- Rollout changes teacher mobile navigation placement (four direct destinations plus `Lainnya`) and page resilience/accessibility only.
+- Roll back by reverting this cycle/PR.
+- Preview verification remains required during `/ship`; it was not performed during `/build`.
