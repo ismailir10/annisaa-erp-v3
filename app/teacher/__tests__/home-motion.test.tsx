@@ -39,14 +39,26 @@ vi.mock("framer-motion", async () => {
 import { TeacherHomeClient } from "../home-client";
 
 describe("TeacherHomeClient motion", () => {
-  it("skips all entrance states when the system requests reduced motion", async () => {
-    render(
+  function renderHome() {
+    return render(
       <TeacherHomeClient
         userName="Sari"
         todayRecord={null}
-        todaySessions={[]}
+        homeroomClassSectionName="TK-B Anggur"
+        todaySessions={[
+          {
+            id: "session-1",
+            slot: "MORNING",
+            className: "TK-B Anggur",
+            rosterCount: 12,
+          },
+        ]}
       />,
     );
+  }
+
+  it("skips all entrance states when the system requests reduced motion", async () => {
+    renderHome();
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Selamat/ })).toBeInTheDocument();
@@ -54,5 +66,26 @@ describe("TeacherHomeClient motion", () => {
 
     expect(document.querySelectorAll('[data-motion-initial="[object Object]"]')).toHaveLength(0);
     expect(document.querySelectorAll('[data-motion-initial="false"]')).not.toHaveLength(0);
+  });
+
+  it("puts today status before secondary links and gives dashboard links a visible focus ring", async () => {
+    renderHome();
+
+    await waitFor(() => {
+      expect(screen.getByText("Status Hari Ini")).toBeInTheDocument();
+    });
+
+    const status = screen.getByText("Status Hari Ini");
+    const quickLinks = screen.getByText("Akses Cepat");
+    expect(status.compareDocumentPosition(quickLinks) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    for (const link of [
+      screen.getByRole("link", { name: /Buku Penghubung/ }),
+      screen.getByRole("link", { name: /Penilaian Pekanan/ }),
+      screen.getByRole("link", { name: /Pagi.*12 siswa/ }),
+    ]) {
+      expect(link.className).toContain("focus-visible:ring-2");
+      expect(link.className).toContain("focus-visible:ring-ring");
+    }
   });
 });

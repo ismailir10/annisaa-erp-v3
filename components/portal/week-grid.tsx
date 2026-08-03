@@ -230,12 +230,12 @@ export function WeekGrid({
                             </button>
                           )
                         ) : (
-                          <span className="flex items-center justify-center h-[36px]">
-                            {checked ? (
-                              <Check size={14} className="text-primary" strokeWidth={2.5} />
-                            ) : (
-                              <span className="w-3.5 h-3.5 rounded border border-muted-foreground/30 block" />
-                            )}
+                          <span
+                            className="flex h-[36px] cursor-default items-center justify-center text-sm font-semibold text-muted-foreground"
+                            role="img"
+                            aria-label={`${ind.label} ${d} — ${checked ? "diisi" : "belum diisi"} (hanya-baca)`}
+                          >
+                            {checked ? "✓" : "—"}
                           </span>
                         )}
                         {adminEdit && adminEditDateLabel ? (

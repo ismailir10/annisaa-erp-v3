@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
 import { formatDate, formatTime } from "@/lib/format";
 
@@ -195,9 +196,22 @@ export function TeacherHomeClient({
   // initial render than after one animation tick.
   if (!mounted) {
     return (
-      <div className="min-h-[60vh]" aria-busy="true" suppressHydrationWarning>
-        {/* Reserve vertical space so the layout doesn't jump when the real
-            content mounts; the bottom-tab nav is the only persistent UI. */}
+      <div
+        className="space-y-6"
+        aria-busy="true"
+        aria-label="Memuat beranda"
+        suppressHydrationWarning
+      >
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-64 rounded-md" />
+          <Skeleton className="h-4 w-40 rounded-md" />
+        </div>
+        <div className="flex flex-col items-center gap-4 pt-2">
+          <Skeleton className="h-8 w-28 rounded-md" />
+          <Skeleton className="h-36 w-36 rounded-full" />
+          <Skeleton className="h-4 w-48 rounded-md" />
+        </div>
+        <Skeleton className="h-28 w-full rounded-xl" />
       </div>
     );
   }
@@ -307,6 +321,43 @@ export function TeacherHomeClient({
         </div>
       </motion.div>
 
+      {/* Today status follows the primary clock flow, before secondary links. */}
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.2, duration: 0.4 }}
+        className="mt-6"
+      >
+        <Card className="p-card">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Status Hari Ini
+          </p>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Masuk</p>
+              <p className="font-currency text-sm font-semibold mt-0.5">
+                {formatTime(record?.checkInTime ?? null)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Pulang</p>
+              <p className="font-currency text-sm font-semibold mt-0.5">
+                {formatTime(record?.checkOutTime ?? null)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Status</p>
+              <p className="text-sm font-semibold mt-0.5">
+                {record?.status === "PRESENT" && <span className="text-status-present-text">Hadir</span>}
+                {record?.status === "LATE" && <span className="text-status-late-text">Terlambat</span>}
+                {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-status-late-text">Hadir</span>}
+                {!record && <span className="text-muted-foreground">—</span>}
+              </p>
+            </div>
+          </div>
+        </Card>
+      </motion.div>
+
       {/* Quick links */}
       <motion.div
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
@@ -320,7 +371,7 @@ export function TeacherHomeClient({
         <div className="space-y-2">
           <Link
             href="/teacher/student-journal"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <BookHeart size={20} className="text-primary" />
@@ -333,7 +384,7 @@ export function TeacherHomeClient({
           {homeroomClassSectionName && (
             <Link
               href="/teacher/assessments/weekly"
-              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               data-testid="home-weekly-card"
             >
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -367,7 +418,7 @@ export function TeacherHomeClient({
               <Link
                 key={s.id}
                 href={`/teacher/sessions/${s.id}`}
-                className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <ClipboardList size={20} className="text-primary" />
@@ -394,42 +445,6 @@ export function TeacherHomeClient({
         )}
       </motion.div>
 
-      {/* Today status */}
-      <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={reduceMotion ? { duration: 0 } : { delay: 0.3, duration: 0.4 }}
-        className="mt-6"
-      >
-        <Card className="p-card">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Status Hari Ini
-          </p>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-xs text-muted-foreground">Masuk</p>
-              <p className="font-currency text-sm font-semibold mt-0.5">
-                {formatTime(record?.checkInTime ?? null)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Pulang</p>
-              <p className="font-currency text-sm font-semibold mt-0.5">
-                {formatTime(record?.checkOutTime ?? null)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Status</p>
-              <p className="text-sm font-semibold mt-0.5">
-                {record?.status === "PRESENT" && <span className="text-status-present-text">Hadir</span>}
-                {record?.status === "LATE" && <span className="text-status-late-text">Terlambat</span>}
-                {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-status-late-text">Hadir</span>}
-                {!record && <span className="text-muted-foreground">—</span>}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </motion.div>
     </div>
   );
 }

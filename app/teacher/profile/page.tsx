@@ -51,7 +51,7 @@ export default async function TeacherProfilePage() {
       <Card className="p-0 overflow-hidden mb-4">
         <Link
           href="/teacher/slips"
-          className="flex items-center gap-3 px-4 py-3.5 hover:bg-accent transition-colors"
+          className="flex min-h-11 items-center gap-3 px-4 py-3.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           <Wallet size={16} className="text-muted-foreground shrink-0" />
           <div className="min-w-0 flex-1">

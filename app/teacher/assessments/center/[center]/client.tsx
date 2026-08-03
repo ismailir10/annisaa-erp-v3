@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Loader2, Save } from "lucide-react";
@@ -59,6 +59,7 @@ type Payload =
       indicators: Indicator[];
       entries: Entry[];
       lastActivity: string | null;
+      writable: boolean;
     }
   | { ok: false; status: number; error: string; reason?: string };
 
@@ -87,10 +88,13 @@ export function CenterSessionClient({
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
+  const [reloadKey, setReloadKey] = useState(0);
+  const loadRequestId = useRef(0);
 
   // Fetch payload whenever date/ageGroup changes.
   useEffect(() => {
     let cancelled = false;
+    const requestId = ++loadRequestId.current;
     async function load() {
       setLoading(true);
       // Reset session-scoped state before fetching so stale picks from a
@@ -106,7 +110,7 @@ export function CenterSessionClient({
           `/api/teacher/assessment-entries/center/${center}?date=${date}&ageGroup=${ageGroup}`,
         );
         const body = await res.json();
-        if (cancelled) return;
+        if (cancelled || requestId !== loadRequestId.current) return;
         if (!res.ok) {
           setPayload({
             ok: false,
@@ -135,7 +139,7 @@ export function CenterSessionClient({
           setActivity((curr) => curr || body.lastActivity || "");
         }
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled || requestId !== loadRequestId.current) return;
         setPayload({
           ok: false,
           status: 0,
@@ -143,17 +147,51 @@ export function CenterSessionClient({
             err instanceof Error ? err.message : "Tidak bisa terhubung ke server.",
         });
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && requestId === loadRequestId.current) setLoading(false);
       }
     }
     load();
     return () => {
       cancelled = true;
     };
-  }, [center, date, ageGroup]);
+  }, [center, date, ageGroup, reloadKey]);
 
   const indicators = payload?.ok ? payload.indicators : [];
   const students = payload?.ok ? payload.students : [];
+  const isWritable = payload?.ok && payload.writable;
+
+  function handleAgeGroupKeyDown(
+    event: KeyboardEvent<HTMLInputElement>,
+  ): void {
+    const values: Array<"A" | "B"> = ["A", "B"];
+    const currentIndex = values.indexOf(ageGroup);
+    let nextIndex = currentIndex;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        nextIndex = (currentIndex + 1) % values.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        nextIndex = (currentIndex - 1 + values.length) % values.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = values.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const next = values[nextIndex]!;
+    setAgeGroup(next);
+    event.currentTarget
+      .closest('[role="radiogroup"]')
+      ?.querySelector<HTMLInputElement>(`input[value="${next}"]`)
+      ?.focus();
+  }
 
   const pickedIndicators = useMemo(
     () => indicators.filter((i) => pickedIndicatorIds.includes(i.id)),
@@ -209,7 +247,7 @@ export function CenterSessionClient({
   }
 
   async function save(): Promise<void> {
-    if (!payload?.ok) return;
+    if (!payload?.ok || !payload.writable) return;
     if (!activity.trim()) {
       toast.error("Isi kegiatan dulu sebelum menyimpan.");
       return;
@@ -287,6 +325,7 @@ export function CenterSessionClient({
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
+            disabled={!isWritable}
             required
           />
         </Field>
@@ -300,22 +339,30 @@ export function CenterSessionClient({
             aria-label="Kelompok usia"
           >
             {(["A", "B"] as const).map((g) => (
-              <button
+              <label
                 key={g}
-                type="button"
-                role="radio"
-                aria-checked={ageGroup === g}
-                data-testid={`agegroup-${g}`}
-                onClick={() => setAgeGroup(g)}
                 className={cn(
-                  "h-9 rounded-lg border text-sm transition-colors",
+                  "flex min-h-11 cursor-pointer items-center justify-center rounded-lg border text-sm transition-colors",
+                  "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2",
                   ageGroup === g
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-background text-foreground border-input",
                 )}
               >
+                <input
+                  className="sr-only"
+                  type="radio"
+                  name="center-age-group"
+                  value={g}
+                  checked={ageGroup === g}
+                  onChange={() => setAgeGroup(g)}
+                  onKeyDown={handleAgeGroupKeyDown}
+                  disabled={!isWritable}
+                  data-testid={`agegroup-${g}`}
+                  aria-label={`TK ${g}`}
+                />
                 TK {g}
-              </button>
+              </label>
             ))}
           </div>
         </Field>
@@ -331,6 +378,7 @@ export function CenterSessionClient({
           type="text"
           value={activity}
           onChange={(e) => setActivity(e.target.value)}
+          disabled={!isWritable}
           maxLength={200}
           placeholder="Mis. Doa pagi + asmaul husna"
           required
@@ -344,17 +392,30 @@ export function CenterSessionClient({
           <Skeleton className="h-10 w-full" />
         </div>
       ) : payload && !payload.ok ? (
-        <EmptyState
-          icon={CalendarOff}
-          title={
-            payload.reason === "no_active_week"
-              ? "Belum ada Pekan aktif"
-              : "Tidak bisa memuat sentra"
-          }
-          description={payload.error}
-        />
+        <div role="alert" className="space-y-3">
+          <EmptyState
+            icon={CalendarOff}
+            title={
+              payload.reason === "no_active_week"
+                ? "Belum ada Pekan aktif"
+                : "Tidak bisa memuat sentra"
+            }
+            description={payload.error}
+          />
+          <Button type="button" variant="outline" onClick={() => setReloadKey((key) => key + 1)}>
+            Coba lagi
+          </Button>
+        </div>
       ) : (
         <>
+          {!isWritable && (
+            <p
+              role="status"
+              className="rounded-lg border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+            >
+              Sesi ini hanya-baca. Anda dapat melihat penilaian, tetapi tidak dapat mengubahnya.
+            </p>
+          )}
           <div className="space-y-2">
             <p className="text-xs font-medium text-foreground">
               Pilih IKTP (maks {MAX_PICKED_INDICATORS})
@@ -373,6 +434,7 @@ export function CenterSessionClient({
                         type="button"
                         onClick={() => toggleIndicator(ind.id)}
                         aria-pressed={picked}
+                        disabled={!isWritable}
                         className={cn(
                           "w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors",
                           picked
@@ -430,6 +492,7 @@ export function CenterSessionClient({
                                   onClick={() =>
                                     setCellLevel(student.id, ind.id, lv)
                                   }
+                                  disabled={!isWritable}
                                   className={cn(
                                     "py-1.5 px-1 rounded-md border text-xs font-medium transition-colors",
                                     isActive ? LEVEL_CHIP_CLASS[lv] : LEVEL_CHIP_CLASS_OFF[lv],
@@ -443,16 +506,23 @@ export function CenterSessionClient({
                           <button
                             type="button"
                             onClick={() => toggleNoteOpen(key)}
+                            disabled={!isWritable}
                             className="text-xs text-muted-foreground underline"
                           >
                             {noteOpen ? "Sembunyikan catatan" : "Catatan"}
                           </button>
+                          {!isWritable && cell?.note && (
+                            <p className="rounded-md bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+                              Catatan: {cell.note}
+                            </p>
+                          )}
                           {noteOpen && (
                             <Textarea
                               value={cell?.note ?? ""}
                               onChange={(e) =>
                                 setCellNote(student.id, ind.id, e.target.value)
                               }
+                              disabled={!isWritable}
                               maxLength={500}
                               rows={2}
                               placeholder="Catatan singkat (opsional)"
@@ -482,7 +552,8 @@ export function CenterSessionClient({
         </>
       )}
 
-      <div className="sticky bottom-20 -mx-page-x bg-background/95 px-page-x py-3 border-t border-border">
+      {isWritable && (
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] -mx-page-x border-t border-border bg-background/95 px-page-x py-3">
         <Button
           type="button"
           onClick={save}
@@ -507,6 +578,7 @@ export function CenterSessionClient({
           )}
         </Button>
       </div>
+      )}
     </div>
   );
 }

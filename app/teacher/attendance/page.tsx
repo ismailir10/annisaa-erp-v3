@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { AttendanceCalendar } from "@/components/attendance/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CalendarDays } from "lucide-react";
 import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "@/components/teacher/leave-sheet";
@@ -40,6 +41,7 @@ export default function TeacherAttendancePage() {
   const [year, setYear] = useState(now.getFullYear());
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [monthError, setMonthError] = useState(false);
 
   // Client-side LRU-lite cache: keyed by cacheKey(year, month) → records[].
   const cache = useRef<Map<string, AttendanceRecord[]>>(new Map());
@@ -108,15 +110,9 @@ export default function TeacherAttendancePage() {
       const prefetchOne = async (py: number, pm: number) => {
         const key = cacheKey(py, pm);
         if (cache.current.has(key)) return; // already warm
-        try {
-          const data = await fetchMonth(py, pm, signal);
-          if (data !== null && !signal.aborted) {
-            cache.current.set(key, data);
-          }
-        } catch {
-          // Best-effort prefetch: surface failure so the teacher knows the
-          // monthly preview may be stale, but don't block the current view.
-          toast.error("Gagal memuat pratinjau kehadiran bulanan");
+        const data = await fetchMonth(py, pm, signal);
+        if (data !== null && !signal.aborted) {
+          cache.current.set(key, data);
         }
       };
 
@@ -167,10 +163,12 @@ export default function TeacherAttendancePage() {
 
       // Current month drives the UI.
       if (currentData === null) {
+        setMonthError(true);
         toast.error("Gagal memuat kehadiran. Coba lagi sebentar ya.");
       } else {
         cache.current.set(cacheKey(initYear, initMonth), currentData);
         setRecords(currentData);
+        setMonthError(false);
       }
       setLoading(false);
     };
@@ -198,11 +196,18 @@ export default function TeacherAttendancePage() {
     const key = cacheKey(y, m);
     const cached = cache.current.get(key);
 
+    // A foreground month change supersedes every prior foreground request.
+    // Without this, a slow response for month A can land after the teacher has
+    // already switched to month B and overwrite B's calendar.
+    abortRef.current?.abort();
+
     if (cached !== undefined) {
       // Cache hit — instant render, no loading state.
       setMonth(m);
       setYear(y);
       setRecords(cached);
+      setMonthError(false);
+      setLoading(false);
 
       // Keep the buffer warm: prefetch new adjacent months in background.
       const controller = new AbortController();
@@ -218,19 +223,43 @@ export default function TeacherAttendancePage() {
       const { signal } = controller;
 
       setLoading(true);
+      setMonthError(false);
       fetchMonth(y, m, signal).then((data) => {
         if (signal.aborted) return;
         if (data === null) {
+          setMonthError(true);
           toast.error("Gagal memuat kehadiran. Coba lagi sebentar ya.");
         } else {
           cache.current.set(key, data);
           setRecords(data);
+          setMonthError(false);
         }
         setLoading(false);
         // After rendering, prefetch adjacent months to keep buffer warm.
         prefetchAdjacent(y, m, signal);
       });
     }
+  }
+
+  function retryCurrentMonth() {
+    const key = cacheKey(year, month);
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+
+    setLoading(true);
+    setMonthError(false);
+    fetchMonth(year, month, controller.signal).then((data) => {
+      if (controller.signal.aborted) return;
+      if (data === null) {
+        setMonthError(true);
+      } else {
+        cache.current.set(key, data);
+        setRecords(data);
+        prefetchAdjacent(year, month, controller.signal);
+      }
+      setLoading(false);
+    });
   }
 
   return (
@@ -262,6 +291,18 @@ export default function TeacherAttendancePage() {
             <Skeleton key={i} className="h-20 w-full rounded-xl" />
           ))}
         </div>
+      ) : monthError ? (
+        <Card className="p-card text-center" role="alert">
+          <p className="text-sm font-medium text-foreground">
+            Kehadiran tidak bisa dimuat
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Periksa koneksi, lalu coba lagi.
+          </p>
+          <Button className="mt-4" variant="outline" onClick={retryCurrentMonth}>
+            Coba lagi
+          </Button>
+        </Card>
       ) : (
         <AttendanceCalendar
           records={records}

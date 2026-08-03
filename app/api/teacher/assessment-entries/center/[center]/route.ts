@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
 import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import {
@@ -173,5 +174,6 @@ export async function GET(
       activity: e.activity,
     })),
     lastActivity,
+    writable: hasPermission(session, "assessments.write"),
   });
 }

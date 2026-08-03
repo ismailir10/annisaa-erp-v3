@@ -11,6 +11,7 @@ import { Users } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/portal/page-header";
+import { Button } from "@/components/ui/button";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import {
   getJournalCellKey,
@@ -60,6 +61,8 @@ export default function StudentJournalEntryPage() {
   const saveQueues = useRef<Record<string, Promise<void> | undefined>>({});
   const [pendingCells, setPendingCells] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const loadRequestId = useRef(0);
 
   // Add-note dialog state + optimistic per-student note counter (resets each grid load)
   const [noteStudent, setNoteStudent] = useState<Student | null>(null);
@@ -71,20 +74,25 @@ export default function StudentJournalEntryPage() {
   );
 
   const loadGrid = useCallback(async () => {
-    if (!classId || !date) return;
+    const requestId = ++loadRequestId.current;
+    if (!classId || !date) { setLoading(false); return; }
     setLoading(true);
-
+    setLoadError(false);
+    try {
     const res = await fetch(
       `/api/student-journal/class-grid?classSectionId=${encodeURIComponent(classId)}&date=${encodeURIComponent(date)}`
     );
+    if (requestId !== loadRequestId.current) return;
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      if (requestId !== loadRequestId.current) return;
       toast.error(err.error || "Gagal memuat data kelas");
-      setLoading(false);
+      setLoadError(true); setLoading(false);
       return;
     }
 
     const { data } = await res.json();
+    if (requestId !== loadRequestId.current) return;
     const loadedStudents: Student[] = data.students;
     const loadedCategories: Category[] = data.categories;
     const loadedEntries: EntryRow[] = data.entries;
@@ -107,6 +115,12 @@ export default function StudentJournalEntryPage() {
     setPendingCells(new Set());
     setGridState(initial);
     setLoading(false);
+    } catch {
+      if (requestId !== loadRequestId.current) return;
+      setLoadError(true);
+      toast.error("Gagal memuat data kelas. Coba lagi sebentar ya.");
+      setLoading(false);
+    }
   }, [classId, date]);
 
   useEffect(() => {
@@ -228,10 +242,16 @@ export default function StudentJournalEntryPage() {
         <EmptyState
           icon={Users}
           title="Parameter tidak valid"
-          description="Kembali ke halaman sebelumnya dan pilih kelas serta tanggal."
+          description="Pilih kelas dan tanggal terlebih dahulu untuk mengisi penghubung."
+          actionLabel="Pilih kelas dan tanggal"
+          actionHref="/teacher/student-journal"
         />
       </div>
     );
+  }
+
+  if (loadError) {
+    return <div className="space-y-4"><EmptyState icon={Users} title="Data kelas tidak bisa dimuat" description="Periksa koneksi, lalu coba lagi." /><div className="text-center"><Button variant="outline" onClick={loadGrid}>Coba lagi</Button></div></div>;
   }
 
   if (students.length === 0) {
