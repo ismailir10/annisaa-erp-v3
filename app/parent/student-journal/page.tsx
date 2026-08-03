@@ -170,13 +170,13 @@ export default function ParentStudentJournalPage() {
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast.error((err as { error?: string }).error ?? "Buku penghubung belum bisa dimuat. Coba lagi sebentar ya.");
+          toast.error((err as { error?: string }).error ?? "Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
           return;
         }
         const json = await res.json() as { data: WeekData };
         setData(json.data);
       } catch {
-        toast.error("Buku penghubung belum bisa dimuat. Coba lagi sebentar ya.");
+        toast.error("Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
       } finally {
         setLoading(false);
       }
@@ -221,8 +221,15 @@ export default function ParentStudentJournalPage() {
   return (
     <div className="space-y-section">
       {/* Header */}
+      {/*
+        Parent-facing label is "Jurnal" — it has to match the bottom-nav tab,
+        and "Penghubung" does not fit a 5-tab bar at 375 px. The route slug,
+        the `/api/student-journal/*` paths and every DB field keep the
+        `student-journal` name; this is a copy change only. Teacher + admin
+        surfaces still say "Buku Penghubung" (staff vocabulary, own cycle).
+      */}
       <PageHeader
-        title="Buku Penghubung"
+        title="Jurnal"
         subtitle="Pantau kegiatan harian di sekolah dan rumah"
       />
 

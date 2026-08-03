@@ -5,8 +5,10 @@ import { test, expect } from "@playwright/test";
 // the new surface end-to-end.
 //
 // Coverage:
-// 1. Bottom-nav now exposes the "Capaian" entry routing to
-//    /parent/perkembangan.
+// 1. The "Capaian" entry routes to /parent/perkembangan. As of 2026-08-01 it
+//    lives in the bottom nav's "Lainnya" overflow sheet, not as a top-level
+//    tab — the 6-tab bar overflowed the 375px viewport (see cycle
+//    2026-08-01-parent-nav-mobile-proposal).
 // 2. /parent/perkembangan resolves — either auto-redirects to a single
 //    kid's detail page or renders the multi-kid list. Both paths land
 //    on chrome that contains the perkembangan UI markers.
@@ -46,12 +48,25 @@ test.describe("Parent — Perkembangan (C6)", () => {
     ]);
   });
 
-  test("bottom-nav exposes the Capaian entry pointing to /parent/perkembangan", async ({
+  test("Lainnya sheet exposes the Capaian entry pointing to /parent/perkembangan", async ({
     page,
   }) => {
     await page.goto("/parent");
     await page.waitForURL("**/parent", { timeout: 15_000 });
-    const link = page.getByRole("link", { name: "Capaian" });
+
+    // Capaian is a weekly-cadence surface, so it sits in the overflow sheet
+    // rather than owning a permanent slot in the 5-tab bar.
+    await expect(page.getByRole("link", { name: "Capaian" })).toHaveCount(0);
+
+    await page
+      .getByRole("navigation", { name: "Navigasi utama orang tua" })
+      .getByRole("button", { name: "Lainnya" })
+      .click();
+
+    const sheet = page.getByRole("navigation", { name: "Menu lainnya" });
+    await expect(sheet).toBeVisible({ timeout: 10_000 });
+
+    const link = sheet.getByRole("link", { name: /Capaian/ });
     await expect(link).toBeVisible({ timeout: 10_000 });
     await expect(link).toHaveAttribute("href", /\/parent\/perkembangan/);
   });

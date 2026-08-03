@@ -7,7 +7,6 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -183,16 +182,20 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
     <>
       <div className="grid grid-cols-2 gap-3">
         <Field>
-          <FieldLabel required>Nama Anak</FieldLabel>
+          <FieldLabel required htmlFor="admission-childName">Nama Anak</FieldLabel>
           <Input
+            id="admission-childName"
+            required
+            aria-required="true"
             value={form.childName}
             onChange={(e) => setForm({ ...form, childName: e.target.value })}
             placeholder="Aisyah"
           />
         </Field>
         <Field>
-          <FieldLabel>Tanggal Lahir</FieldLabel>
+          <FieldLabel htmlFor="admission-dateOfBirth">Tanggal Lahir</FieldLabel>
           <Input
+            id="admission-dateOfBirth"
             type="date"
             value={form.dateOfBirth}
             onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
@@ -205,13 +208,13 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
         </Field>
       </div>
       <Field>
-        <FieldLabel>Jenis Kelamin</FieldLabel>
+          <FieldLabel htmlFor="admission-childGender">Jenis Kelamin</FieldLabel>
         <Select
           value={form.childGender}
           onValueChange={(v) => v && setForm({ ...form, childGender: v })}
           items={{ L: "Laki-laki", P: "Perempuan" }}
         >
-          <SelectTrigger>
+          <SelectTrigger id="admission-childGender">
             <SelectValue placeholder="Pilih" />
           </SelectTrigger>
           <SelectContent>
@@ -222,16 +225,20 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field>
-          <FieldLabel required>Nama Orang Tua</FieldLabel>
+          <FieldLabel required htmlFor="admission-parentName">Nama Orang Tua</FieldLabel>
           <Input
+            id="admission-parentName"
+            required
+            aria-required="true"
             value={form.parentName}
             onChange={(e) => setForm({ ...form, parentName: e.target.value })}
             placeholder="Ibu Fatimah"
           />
         </Field>
         <Field>
-          <FieldLabel>WhatsApp</FieldLabel>
+          <FieldLabel htmlFor="admission-parentWhatsapp">WhatsApp</FieldLabel>
           <Input
+            id="admission-parentWhatsapp"
             value={form.parentWhatsapp}
             onChange={(e) => setForm({ ...form, parentWhatsapp: e.target.value })}
             placeholder="081234567890"
@@ -239,13 +246,13 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
         </Field>
       </div>
       <Field>
-        <FieldLabel>Hubungan dengan Anak</FieldLabel>
+        <FieldLabel htmlFor="admission-parentRelationship">Hubungan dengan Anak</FieldLabel>
         <Select
           value={form.parentRelationship}
           onValueChange={(v) => v && setForm({ ...form, parentRelationship: v })}
           items={Object.fromEntries(RELATIONSHIP_OPTIONS.map((o) => [o.value, o.label]))}
         >
-          <SelectTrigger>
+          <SelectTrigger id="admission-parentRelationship">
             <SelectValue placeholder="Pilih" />
           </SelectTrigger>
           <SelectContent>
@@ -257,8 +264,9 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
       </Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Email</FieldLabel>
+          <FieldLabel htmlFor="admission-parentEmail">Email</FieldLabel>
           <Input
+            id="admission-parentEmail"
             type="email"
             value={form.parentEmail}
             onChange={(e) => setForm({ ...form, parentEmail: e.target.value })}
@@ -266,8 +274,9 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
           />
         </Field>
         <Field>
-          <FieldLabel>No. HP</FieldLabel>
+          <FieldLabel htmlFor="admission-parentPhone">No. HP</FieldLabel>
           <Input
+            id="admission-parentPhone"
             value={form.parentPhone}
             onChange={(e) => setForm({ ...form, parentPhone: e.target.value })}
             placeholder="081234567890"
@@ -276,13 +285,13 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field>
-          <FieldLabel>Pendidikan Orang Tua</FieldLabel>
+          <FieldLabel htmlFor="admission-parentEducation">Pendidikan Orang Tua</FieldLabel>
           <Select
             value={form.parentEducation}
             onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
             items={Object.fromEntries(EDUCATION_OPTIONS.map((o) => [o.value, o.label]))}
           >
-            <SelectTrigger>
+            <SelectTrigger id="admission-parentEducation">
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
@@ -293,13 +302,13 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Pekerjaan</FieldLabel>
+          <FieldLabel htmlFor="admission-parentOccupation">Pekerjaan</FieldLabel>
           <Select
             value={form.parentOccupation}
             onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
             items={Object.fromEntries(OCCUPATION_OPTIONS.map((o) => [o.value, o.label]))}
           >
-            <SelectTrigger>
+            <SelectTrigger id="admission-parentOccupation">
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
@@ -310,13 +319,13 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Penghasilan</FieldLabel>
+          <FieldLabel htmlFor="admission-parentIncome">Penghasilan</FieldLabel>
           <Select
             value={form.parentIncome}
             onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
             items={Object.fromEntries(INCOME_OPTIONS.map((o) => [o.value, o.label]))}
           >
-            <SelectTrigger>
+            <SelectTrigger id="admission-parentIncome">
               <SelectValue placeholder="Pilih" />
             </SelectTrigger>
             <SelectContent>
@@ -329,13 +338,13 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Program Diminati</FieldLabel>
+          <FieldLabel htmlFor="admission-programId">Program Diminati</FieldLabel>
           <Select
             value={form.programId}
             onValueChange={(v) => v && setForm({ ...form, programId: v })}
             items={programs.map((p) => ({ label: p.name, value: p.id }))}
           >
-            <SelectTrigger>
+            <SelectTrigger id="admission-programId">
               <SelectValue placeholder="Pilih program" />
             </SelectTrigger>
             <SelectContent>
@@ -348,13 +357,13 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Preferensi Kampus</FieldLabel>
+          <FieldLabel htmlFor="admission-campusPreference">Preferensi Kampus</FieldLabel>
           <Select
             value={form.campusPreference}
             onValueChange={(v) => v && setForm({ ...form, campusPreference: v })}
             items={campuses.map((c) => ({ label: c.name, value: c.id }))}
           >
-            <SelectTrigger>
+            <SelectTrigger id="admission-campusPreference">
               <SelectValue placeholder="Pilih kampus" />
             </SelectTrigger>
             <SelectContent>
@@ -369,7 +378,7 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Sumber</FieldLabel>
+          <FieldLabel required htmlFor="admission-source">Sumber</FieldLabel>
           <Select
             value={form.source}
             onValueChange={(v) => v && setForm({ ...form, source: v })}
@@ -381,7 +390,7 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
               OTHER: "Lainnya",
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger id="admission-source" aria-required="true">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -394,8 +403,9 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Tanggal Follow Up</FieldLabel>
+          <FieldLabel htmlFor="admission-followUpDate">Tanggal Follow Up</FieldLabel>
           <Input
+            id="admission-followUpDate"
             type="date"
             value={form.followUpDate}
             onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
@@ -403,8 +413,9 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
         </Field>
       </div>
       <Field>
-        <FieldLabel>Catatan</FieldLabel>
+        <FieldLabel htmlFor="admission-notes">Catatan</FieldLabel>
         <Input
+          id="admission-notes"
           value={form.notes}
           onChange={(e) => setForm({ ...form, notes: e.target.value })}
           placeholder="Catatan tambahan..."
@@ -783,7 +794,7 @@ export default function AdmissionsPage() {
       cell: ({ row }) => {
         const a = row.original;
         if (a.status === "ADMITTED" && a.studentId) {
-          return <Badge variant="secondary" className="bg-primary/10 text-primary">Terdaftar</Badge>;
+          return <StatusBadge status="REGISTERED" />;
         }
         return <StatusBadge status={a.status} />;
       },
@@ -801,14 +812,14 @@ export default function AdmissionsPage() {
           <HoverCard>
             <HoverCardTrigger
               render={
-                <Badge
-                  variant="secondary"
-                  className="cursor-help gap-1"
+                <button
+                  type="button"
+                  className="inline-flex cursor-help items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground"
                   data-testid="admission-row-sibling-chip"
                 >
-                  <Users2 size={12} />
+                  <Users2 size={12} aria-hidden="true" />
                   Saudara terdeteksi
-                </Badge>
+                </button>
               }
             />
 

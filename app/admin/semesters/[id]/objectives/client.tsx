@@ -277,7 +277,7 @@ export function ObjectivesClient({
   );
 }
 
-function FilterGroup({
+export function FilterGroup({
   label,
   value,
   options,
@@ -296,6 +296,7 @@ function FilterGroup({
           key={opt.value}
           size="sm"
           variant={value === opt.value ? "default" : "outline"}
+          aria-pressed={value === opt.value}
           onClick={() => onChange(opt.value)}
         >
           {opt.label}

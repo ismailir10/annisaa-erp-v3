@@ -16,11 +16,6 @@ import { createAdmissionSchema, updateAdmissionSchema } from "../admission";
 import { recordPaymentSchema, updateInvoiceSchema } from "../invoice";
 import { updateStudentAttendanceSchema } from "../student-attendance";
 import { createCategorySchema } from "../student-journal";
-import {
-  createAssessmentTemplateSchema,
-  updateAssessmentTemplateSchema,
-  studentAssessmentSaveSchema,
-} from "../assessment-template";
 import { updateTeachingAssignmentSchema } from "../teaching-assignment";
 import { createLeaveRequestSchema } from "../leave";
 
@@ -149,9 +144,6 @@ const FIELDS: Row[] = [
   { model: "Payment", field: "method", schema: recordPaymentSchema, key: "method", label: "Payment.method / recordPaymentSchema" },
   { model: "StudentAttendance", field: "status", schema: updateStudentAttendanceSchema, key: "status", label: "StudentAttendance.status / updateStudentAttendanceSchema" },
   { model: "StudentJournalCategory", field: "scope", schema: createCategorySchema, key: "scope", label: "StudentJournalCategory.scope / createCategorySchema" },
-  { model: "AssessmentTemplate", field: "type", schema: createAssessmentTemplateSchema, key: "type", label: "AssessmentTemplate.type / createAssessmentTemplateSchema" },
-  { model: "AssessmentTemplate", field: "type", schema: updateAssessmentTemplateSchema, key: "type", label: "AssessmentTemplate.type / updateAssessmentTemplateSchema" },
-  { model: "StudentAssessment", field: "status", schema: studentAssessmentSaveSchema, key: "status", label: "StudentAssessment.status / studentAssessmentSaveSchema" },
   { model: "TeachingAssignment", field: "role", schema: updateTeachingAssignmentSchema, key: "role", label: "TeachingAssignment.role / updateTeachingAssignmentSchema" },
   { model: "LeaveRequest", field: "leaveType", schema: createLeaveRequestSchema, key: "leaveType", label: "LeaveRequest.leaveType / createLeaveRequestSchema" },
 ];

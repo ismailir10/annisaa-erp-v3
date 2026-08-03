@@ -46,6 +46,8 @@ model Tenant {
   assessmentEntries      AssessmentEntry[]
   terms                  Term[]
   reportCardEntries      ReportCardEntry[]
+  reportNarrativeTemplates ReportNarrativeTemplate[]
+  reportClosingTemplates   ReportClosingTemplate[]
   studentMeasurements    StudentMeasurement[]
 }
 
@@ -423,7 +425,6 @@ model Program {
   admissions          Admission[]
   enrollmentApplications EnrollmentApplication[]
   feeStructures       ProgramFeeStructure[]
-  assessmentTemplates AssessmentTemplate[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -546,7 +547,6 @@ model Student {
   enrollmentApplication EnrollmentApplication?
   invoices            Invoice[]
   studentAttendances  StudentAttendance[]
-  assessments         StudentAssessment[]
   assessmentEntries   AssessmentEntry[]
   reportCardEntries   ReportCardEntry[]
   studentMeasurements StudentMeasurement[]
@@ -998,82 +998,6 @@ model StudentJournalAudit {
   @@index([tenantId, changedAt])
 }
 
-// ══════════════════════════════════════════════════════════════
-// PHASE 7: Report Cards / Assessments
-// ══════════════════════════════════════════════════════════════
-
-// Restrict on Program — templates are configuration; don't drop with the program.
-model AssessmentTemplate {
-  id        String  @id @default(cuid())
-  tenantId  String
-  programId String
-  name      String // "Laporan Perkembangan Semester 1"
-  type      String  @default("SEMESTER") // SEMESTER | QUARTERLY | MONTHLY
-  isActive  Boolean @default(true)
-
-  program     Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
-  categories  AssessmentCategory[]
-  assessments StudentAssessment[]
-
-  @@unique([tenantId, programId, name, type])
-  @@index([tenantId])
-}
-
-// Cascade — categories belong to a template.
-model AssessmentCategory {
-  id         String @id @default(cuid())
-  templateId String
-  name       String // "Perkembangan Motorik Halus"
-  sortOrder  Int    @default(0)
-
-  template   AssessmentTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  indicators AssessmentIndicator[]
-}
-
-// Cascade — indicators belong to a category.
-model AssessmentIndicator {
-  id          String @id @default(cuid())
-  categoryId  String
-  description String // "Dapat memegang pensil dengan benar"
-  sortOrder   Int    @default(0)
-
-  category AssessmentCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  scores   StudentAssessmentScore[]
-}
-
-// Restrict on both — academic record; never silently lose a student's
-// rapor by deleting the parent template or student.
-model StudentAssessment {
-  id          String    @id @default(cuid())
-  studentId   String
-  templateId  String
-  period      String // "Semester 1 2025/2026"
-  status      String    @default("DRAFT") // DRAFT | PUBLISHED
-  createdBy   String
-  publishedAt DateTime?
-  createdAt   DateTime  @default(now())
-
-  student  Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  template AssessmentTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  scores   StudentAssessmentScore[]
-
-  @@unique([studentId, templateId, period])
-}
-
-// Cascade — scores belong to an assessment + indicator pair.
-model StudentAssessmentScore {
-  id           String  @id @default(cuid())
-  assessmentId String
-  indicatorId  String
-  score        String? // BB | MB | BSH | BSB
-  notes        String?
-
-  assessment StudentAssessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  indicator  AssessmentIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-
-  @@unique([assessmentId, indicatorId])
-}
-
 // ── AUDIT LOG ────────────────────────────────────────────────
 // Append-only history of mutating actions on sensitive entities.
 // Every row is keyed to a tenant + actor; `before` and `after` capture
@@ -1398,6 +1322,8 @@ model Term {
   semester          Semester             @relation(fields: [semesterId], references: [id], onDelete: Restrict)
   reportCardEntries ReportCardEntry[]
   measurements      StudentMeasurement[]
+  narrativeTemplates ReportNarrativeTemplate[]
+  closingTemplates   ReportClosingTemplate[]
 
   @@unique([tenantId, semesterId, number])
   @@index([tenantId])
@@ -1454,6 +1380,56 @@ model ReportCardEntry {
   @@unique([tenantId, studentId, termId])
   @@index([tenantId, termId])
   @@index([tenantId, studentId])
+}
+
+/// Kisi-kisi: the cohort-level narrative a walas team authors ONCE per
+/// (term x ageGroup x section x level), then assigns per student. 5 bucketed
+/// sections x 3 levels = 15 rows per (term, ageGroup). Master design 2.3.
+///
+/// Per-student text lives on `ReportCardEntry.sectionNarratives`; these rows
+/// are only the starting point the editor copies from, so editing a template
+/// never rewrites a raport that already used it.
+model ReportNarrativeTemplate {
+  id       String @id @default(cuid())
+  tenantId String
+  termId   String
+  ageGroup AgeGroup
+  section  ReportSection // one of the bucketed (level-bearing) sections
+  level    AchievementLevel
+  content  String // markdown narrative, Indonesian
+
+  authoredById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  term   Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, termId, ageGroup, section, level])
+  @@index([tenantId, termId])
+}
+
+/// Kisi-kisi for the 3 single-content closing sections (Penutup, Rencana
+/// Tindak Lanjut, Kegiatan Disarankan di Rumah) — no level dimension.
+model ReportClosingTemplate {
+  id       String @id @default(cuid())
+  tenantId String
+  termId   String
+  ageGroup AgeGroup
+  section  ReportSection // CLOSING | FOLLOW_UP_PLAN | HOME_ACTIVITIES
+  content  String
+
+  authoredById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  term   Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, termId, ageGroup, section])
+  @@index([tenantId, termId])
 }
 
 /// Optional height/weight per student per term (raport header metadata).

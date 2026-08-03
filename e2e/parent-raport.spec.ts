@@ -49,7 +49,9 @@ test.describe("Parent rapor (ReportCardEntry)", () => {
 
     // The legacy StudentAssessment template ("Laporan Perkembangan Semester 1
     // (Demo)" with Motorik/Bahasa categories) must no longer appear anywhere on
-    // the parent rapor surface.
+    // the parent rapor surface. Since the 2026-07-31 retirement cycle the
+    // tables themselves are gone, so this now guards against a regression that
+    // could only come back via a re-seed.
     await expect(page.getByText("Laporan Perkembangan Semester 1")).toHaveCount(0);
     await expect(page.getByText("Perkembangan Motorik Halus")).toHaveCount(0);
 

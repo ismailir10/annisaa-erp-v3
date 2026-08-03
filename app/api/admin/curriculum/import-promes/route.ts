@@ -57,6 +57,7 @@ import {
   CURRICULUM_WRITE_WINDOW_MS,
   isUniqueViolation,
 } from "../_helpers";
+import { indexThemes, resolveThemeNames } from "@/lib/curriculum/theme-match";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MiB
 // Row-count caps defend against parameter-exhaustion DoS: Postgres allows
@@ -189,7 +190,10 @@ export async function POST(req: NextRequest) {
   // ── flatten parsed rows + Zod row-level validate ───────────────────
   const objectiveRows: ObjectiveCreateInput[] = [];
   const indicatorRows: IndicatorCreateInput[] = [];
-  // Theme links collected forward-compat for C3 — not written in C2.
+  // IKTP×Tema markers from the workbook's E+ columns. Written as
+  // `IndicatorThemeLink` rows on commit (2026-07-31) — before that they
+  // were parsed and discarded, which left the walas Penilaian Pekanan
+  // picker permanently empty because it filters purely on theme link.
   const themeLinkPlan: Array<{
     element: CurriculumElementInput;
     objectiveNumber: number;
@@ -341,6 +345,26 @@ export async function POST(req: NextRequest) {
       })),
   };
 
+  // ── resolve IKTP×Tema markers against this semester's Theme rows ────
+  // Tenant + semester scoped: `IndicatorThemeLink` has no `tenantId` of
+  // its own (bare join table, isolation is transitive through
+  // indicator→objective→semester and theme→semester), so this query is
+  // the tenant gate for every link written below.
+  const semesterThemes = await prisma.theme.findMany({
+    where: { tenantId: session.tenantId, semesterId, status: "ACTIVE" },
+    select: { id: true, name: true },
+  });
+  const themeIndex = indexThemes(semesterThemes);
+  const themeLinkUnmatched: string[] = [];
+  let themeLinkPairCount = 0;
+  for (const plan of themeLinkPlan) {
+    const resolved = resolveThemeNames(plan.themeNames, themeIndex);
+    themeLinkPairCount += resolved.themeIds.length;
+    for (const name of resolved.unmatched) {
+      if (!themeLinkUnmatched.includes(name)) themeLinkUnmatched.push(name);
+    }
+  }
+
   // ── build preview shape (used by both preview AND commit responses) ─
   const previewByElement: PromesPreviewPayload["byElement"] = {};
   for (const [elementKey, objectives] of Object.entries(parsed.byElement)) {
@@ -366,6 +390,10 @@ export async function POST(req: NextRequest) {
     counts: {
       objectives: objectiveRows.length,
       indicators: indicatorRows.length,
+    },
+    themeLinks: {
+      matched: themeLinkPairCount,
+      unmatched: themeLinkUnmatched,
     },
     conflicts,
   };
@@ -440,6 +468,9 @@ export async function POST(req: NextRequest) {
         )
       : indicatorRows;
 
+  // Assigned inside the transaction, read after it commits.
+  let themeLinksCreated = 0;
+
   try {
     await prisma.$transaction(async (tx) => {
       if (filteredObjectiveRows.length > 0) {
@@ -505,6 +536,62 @@ export async function POST(req: NextRequest) {
         await tx.achievementIndicator.createMany({ data: indicatorData });
       }
 
+      // ── IKTP×Tema links ───────────────────────────────────────────
+      // `createMany` returns no ids in Postgres, so re-read the rows we
+      // just wrote and key them by (objectiveId, order) — unique within
+      // this import because every parent objective here is freshly
+      // created (ACTIVE conflicts 409 upstream, INACTIVE ones had their
+      // indicator rows filtered out).
+      if (indicatorData.length > 0 && themeLinkPlan.length > 0) {
+        const writtenObjectiveIds = Array.from(
+          new Set(indicatorData.map((i) => i.objectiveId)),
+        );
+        const writtenIndicators = await tx.achievementIndicator.findMany({
+          where: {
+            tenantId: session.tenantId,
+            objectiveId: { in: writtenObjectiveIds },
+          },
+          select: { id: true, objectiveId: true, order: true },
+        });
+        const indicatorIdByKey = new Map<string, string>();
+        for (const row of writtenIndicators) {
+          indicatorIdByKey.set(`${row.objectiveId}:${row.order}`, row.id);
+        }
+
+        const linkRows: Array<{ indicatorId: string; themeId: string }> = [];
+        const seenPairs = new Set<string>();
+        for (const plan of themeLinkPlan) {
+          // Objectives skipped by the inactive-conflict filter have no
+          // freshly written indicators — nothing to link.
+          if (inactiveKeys.has(`${plan.element}:${plan.objectiveNumber}`)) {
+            continue;
+          }
+          const objectiveId = idByKey.get(
+            `${plan.element}:${plan.objectiveNumber}`,
+          );
+          if (!objectiveId) continue;
+          const indicatorId = indicatorIdByKey.get(
+            `${objectiveId}:${plan.order}`,
+          );
+          if (!indicatorId) continue;
+          const { themeIds } = resolveThemeNames(plan.themeNames, themeIndex);
+          for (const themeId of themeIds) {
+            const pair = `${indicatorId}:${themeId}`;
+            if (seenPairs.has(pair)) continue;
+            seenPairs.add(pair);
+            linkRows.push({ indicatorId, themeId });
+          }
+        }
+        if (linkRows.length > 0) {
+          // Composite PK (indicatorId, themeId) makes this idempotent.
+          const linkResult = await tx.indicatorThemeLink.createMany({
+            data: linkRows,
+            skipDuplicates: true,
+          });
+          themeLinksCreated = linkResult.count;
+        }
+      }
+
       await recordAudit(
         {
           tenantId: session.tenantId,
@@ -522,7 +609,8 @@ export async function POST(req: NextRequest) {
             objectivesSkipped:
               objectiveRows.length - filteredObjectiveRows.length - inactiveIdsToReactivate.length,
             indicatorsCount: filteredIndicatorRows.length,
-            themeLinksDeferred: themeLinkPlan.length,
+            themeLinksCreated,
+            themeLinksSkippedUnmatched: themeLinkUnmatched.length,
             filename: file.name,
           },
         },
@@ -577,6 +665,8 @@ export async function POST(req: NextRequest) {
       skipped:
         objectiveRows.length - filteredObjectiveRows.length - inactiveIdsToReactivate.length,
       indicators: filteredIndicatorRows.length,
+      themeLinks: themeLinksCreated,
+      themeLinksUnmatched: themeLinkUnmatched,
     },
   };
   return NextResponse.json(commitResponse, { status: 201 });

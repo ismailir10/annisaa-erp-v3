@@ -270,4 +270,28 @@ describe("reportCard permissions (C8 admin-raport-mvp)", () => {
     const perms = getSystemRolePermissions("GUARDIAN");
     expect(hasPermission({ role: "GUARDIAN", permissions: perms }, "reportCard.read")).toBe(false);
   });
+
+  // Kisi-kisi templates (2026-07-31). Split from reportCard.write so cycle 4
+  // can grant walas template authoring without per-student raport writes.
+  it("ALL_PERMISSIONS includes reportCard.template", () => {
+    expect(ALL_PERMISSIONS).toContain("reportCard.template");
+  });
+
+  it("SUPER_ADMIN + SCHOOL_ADMIN get reportCard.template; TEACHER and GUARDIAN do not", () => {
+    expect(
+      hasPermission({ role: "SUPER_ADMIN", permissions: [] }, "reportCard.template"),
+    ).toBe(true);
+    const admin = getSystemRolePermissions("SCHOOL_ADMIN");
+    expect(
+      hasPermission({ role: "SCHOOL_ADMIN", permissions: admin }, "reportCard.template"),
+    ).toBe(true);
+    const teacher = getSystemRolePermissions("TEACHER");
+    expect(
+      hasPermission({ role: "TEACHER", permissions: teacher }, "reportCard.template"),
+    ).toBe(false);
+    const guardian = getSystemRolePermissions("GUARDIAN");
+    expect(
+      hasPermission({ role: "GUARDIAN", permissions: guardian }, "reportCard.template"),
+    ).toBe(false);
+  });
 });

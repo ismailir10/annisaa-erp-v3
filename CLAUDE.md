@@ -38,7 +38,7 @@ Invoke `/caveman` and `/using-superpowers` by default. The `SessionStart` hook (
 - Commit (one commit per task, not per cycle)
 - After the **last task**: run the **end-of-cycle gate** + request code review, then fill Ship Notes
 
-**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP signed into the **role-scoped Google account** for each portal (admin / teacher / parent — mapped in `.claude/verify-accounts.json`) to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` reach the merge step. A **CTO** then watches CI (`gh pr checks <number> --watch`) and **self-merges** (`gh pr merge <number> --squash --delete-branch`) once all four required checks are green — never on red or pending; the Chrome-MCP preview-verify plus the green protected checks are the in-the-loop guarantee. A **product-builder** never merges: its PR is labeled `needs-cto-review` and a CTO reviews, preview-verifies, and merges. **No direct pushes to `staging` or `main` for any role.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it. Playwright status must be recorded in cycle doc Verification before `/ship` — a local pass, **or** a deferral to the required CI `Playwright E2E` check for harnesses whose environment cannot run Playwright locally (the CI check still gates the merge).
+**`/ship`** — preflight gates the run on `/audit-docs` (doc-staleness check, A-scope), then opens a PR from `feat/*` → `staging`. After the PR is open, `/ship` enters the **preview-verification loop**: waits for the Vercel preview ready (Vercel MCP `get_deployment`), uses Chrome MCP signed into the **role-scoped Google account** for each portal (admin / teacher / parent — mapped in `.claude/verify-accounts.json`) to walk 2-4 cycle-derived flows (seeding fixtures via UI CRUD), classifies findings as blocker / minor, fix-commits + re-verifies until clean (no iteration cap; soft-escalate every 3 via `AskUserQuestion`). Only after a clean preview does `/ship` reach the merge step. A **CTO** then watches CI (`gh pr checks <number> --watch`) and **self-merges** (`gh pr merge <number> --squash --delete-branch`) once all four required checks are green — never on red or pending; the Chrome-MCP preview-verify plus the green protected checks are the in-the-loop guarantee. A **product-builder** never merges: its PR is labeled `needs-cto-review` and a CTO reviews, preview-verifies, and merges. **No direct pushes to `staging` or `main` for any role.** `/ship --to-main` opens the staging → main PR (CTO-initiated, explicit ask only); skips preview-verify since the constituent feat → staging PRs already exercised it, and merges with **`gh pr merge <number> --merge`** — a promotion must be a merge commit, never a squash, or staging stops being an ancestor of main and the branches diverge permanently. Playwright status must be recorded in cycle doc Verification before `/ship` — a local pass, **or** a deferral to the required CI `Playwright E2E` check for harnesses whose environment cannot run Playwright locally (the CI check still gates the merge).
 
 ### Testing gates
 
@@ -275,8 +275,8 @@ Domain standards live under `.claude/standards/` — loaded only when relevant f
 ## File Structure
 
 ```
-app/{admin,teacher,parent}/  44 / 14 / 8 portal pages
-app/api/                     188 routes (organized by domain)
+app/{admin,teacher,parent}/  41 / 13 / 8 portal pages
+app/api/                     185 routes (organized by domain)
 components/ui/               65 Shadcn components (+ 8 __tests__)
 lib/{api,validations,payroll,email}/  business logic, retry, integrations
 lib/payments/                 gateway port + registry (`types.ts`, `registry.ts`, `session.ts`, `webhook-processor.ts`, `health.ts`, `with-retry.ts`, `error-prefix.ts`) with `xendit/` and `doku/` adapters behind it; `lib/xendit/*` are now thin re-export shims (~60 lines total) kept for import-path compatibility
@@ -286,7 +286,7 @@ e2e/                         33 specs (admin, admin-admission-convert-parity, ad
 docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
 .claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
-scripts/                     setup-worktree, install-hooks, link-agent-skills, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, test-hooks, reseed-staging
+scripts/                     setup-worktree, install-hooks, link-agent-skills, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, verify-curriculum-readiness, import-curriculum-calendar, seed-demo-curriculum, test-hooks, reseed-staging
 ```
 
 Demo-mode auth means E2E + local dev need no live Supabase. Lint: `npm run lint`.

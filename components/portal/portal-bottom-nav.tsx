@@ -2,25 +2,80 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export type PortalBottomNavItem = {
+/** A tab that navigates to a route. */
+export type PortalBottomNavLinkItem = {
+  kind?: "link";
   label: string;
   href: string;
   icon: LucideIcon;
   matcher?: (pathname: string) => boolean;
 };
 
+/**
+ * A tab that runs an in-page action instead of navigating — used for the
+ * parent portal's "Lainnya" overflow sheet. Rendered as a `<button>` so
+ * assistive tech announces it as a control, not a destination, and so it can
+ * carry `aria-haspopup` / `aria-expanded`.
+ */
+export type PortalBottomNavActionItem = {
+  kind: "action";
+  label: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+  /** Reflects the open state of the surface this button controls. */
+  expanded?: boolean;
+  /** Marks the tab active while its surface is open. */
+  active?: boolean;
+};
+
+export type PortalBottomNavItem =
+  | PortalBottomNavLinkItem
+  | PortalBottomNavActionItem;
+
 export type PortalBottomNavProps = {
+  /**
+   * 4-5 items. More than 5 overflows the 375 px design target: at 6 the last
+   * slot renders past the viewport edge and is unreachable (measured 27.4 px
+   * past the edge at 375 px, entirely absent at 360 px). Put anything beyond
+   * 5 behind an `action` item that opens an overflow sheet.
+   */
   items: PortalBottomNavItem[];
   layoutId?: string;
   ariaLabel: string;
 };
 
+/**
+ * `basis-0` is load-bearing. Plain `flex-1` leaves `flex-basis: auto`, so each
+ * slot is sized by its own label and the row's total width becomes the sum of
+ * the label widths — which is what let the 6-tab parent bar overflow. With
+ * `basis-0` every slot resolves to an identical `container / n`, so the row can
+ * never exceed its container and tap targets stay uniform.
+ */
+/**
+ * `px-1`, not `px-2`. Horizontal padding is pure label budget here — the 20 px
+ * icon never needs it, and the slot's tap width is set by `flex-1 basis-0`
+ * regardless. At 360 px (the most common Android width in the pilot) `px-2`
+ * left 56 px for a label and truncated "Kehadiran" (57.8 px) to "Kehadir…";
+ * `px-1` leaves 64 px and it renders in full. `truncate` stays as the
+ * last-resort guard for narrower screens.
+ */
+const SLOT_CLASS =
+  "flex flex-col items-center justify-center gap-1 relative py-1 px-1 flex-1 basis-0 min-w-0 " +
+  "rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 " +
+  "focus-visible:ring-offset-card";
+
+const LABEL_CLASS = "text-xs font-medium max-w-full truncate";
+
 export function PortalBottomNav({ items, layoutId, ariaLabel }: PortalBottomNavProps) {
   const pathname = usePathname();
   const layout = layoutId ?? "portal-bottom-nav-active";
+  // The sliding indicator is decorative. Respect the OS reduced-motion
+  // setting and snap instead of spring.
+  const reduceMotion = useReducedMotion();
 
   return (
     <nav
@@ -30,40 +85,72 @@ export function PortalBottomNav({ items, layoutId, ariaLabel }: PortalBottomNavP
       <div className="flex items-center justify-around h-16 max-w-md mx-auto">
         {items.map((item, index) => {
           const Icon = item.icon;
-          const isActive = item.matcher
-            ? item.matcher(pathname)
-            : index === 0
-              ? pathname === item.href.split("?")[0]
-              : pathname.startsWith(item.href.split("?")[0]);
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex flex-col items-center justify-center gap-1 relative py-1 px-2 flex-1"
-              aria-label={item.label}
-              aria-current={isActive ? "page" : undefined}
-            >
+          const isActive =
+            item.kind === "action"
+              ? !!item.active
+              : item.matcher
+                ? item.matcher(pathname)
+                : index === 0
+                  ? pathname === item.href.split("?")[0]
+                  : pathname.startsWith(item.href.split("?")[0]);
+
+          const inner = (
+            <>
               {isActive && (
                 <motion.div
                   layoutId={layout}
                   className="absolute -top-0 w-8 h-0.5 bg-primary rounded-full"
-                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  transition={
+                    reduceMotion
+                      ? { duration: 0 }
+                      : { type: "spring", stiffness: 350, damping: 30 }
+                  }
                 />
               )}
               <Icon
                 size={20}
                 strokeWidth={isActive ? 2 : 1.5}
-                className={isActive ? "text-primary" : "text-muted-foreground"}
+                className={cn(
+                  "shrink-0",
+                  isActive ? "text-primary" : "text-muted-foreground",
+                )}
                 aria-hidden="true"
               />
               <span
-                className={`text-xs font-medium ${
-                  isActive ? "text-primary" : "text-muted-foreground"
-                }`}
+                className={cn(
+                  LABEL_CLASS,
+                  isActive ? "text-primary" : "text-muted-foreground",
+                )}
               >
                 {item.label}
               </span>
+            </>
+          );
+
+          if (item.kind === "action") {
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={item.onSelect}
+                className={SLOT_CLASS}
+                aria-haspopup="dialog"
+                aria-expanded={item.expanded ?? false}
+              >
+                {inner}
+              </button>
+            );
+          }
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={SLOT_CLASS}
+              aria-current={isActive ? "page" : undefined}
+            >
+              {inner}
             </Link>
           );
         })}

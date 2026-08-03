@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { formatDateShort, formatRupiah } from "@/lib/format";
+import { formatTermLabel } from "@/lib/raport/build";
 import type { ParentActivityItem } from "@/lib/validations/parent-activity";
 
 const ATTENDANCE_LABEL: Record<string, string> = {
@@ -93,11 +94,17 @@ export async function getStudentRecentActivity(
           createdAt: true,
         },
       }),
-      prisma.studentAssessment.findMany({
+      // Raport activity reads the CURRENT stack (`ReportCardEntry`), the
+      // same rows `/parent/reports` renders. The 2026-06-16 parent-raport
+      // fix repointed the reports page off the legacy `StudentAssessment`
+      // but missed this feed, so "Rapor tersedia" kept tracking rows no
+      // parent surface displayed any more.
+      prisma.reportCardEntry.findMany({
         where: {
           studentId,
+          tenantId,
           status: "PUBLISHED",
-          student: { tenantId },
+          deletedAt: null,
           OR: [
             { publishedAt: { gte: sinceDate } },
             { createdAt: { gte: sinceDate } },
@@ -107,10 +114,19 @@ export async function getStudentRecentActivity(
         take: limit,
         select: {
           id: true,
-          period: true,
           publishedAt: true,
           createdAt: true,
-          template: { select: { name: true } },
+          term: {
+            select: {
+              number: true,
+              semester: {
+                select: {
+                  number: true,
+                  academicYear: { select: { name: true } },
+                },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -195,8 +211,12 @@ export async function getStudentRecentActivity(
       id: `report-${a.id}`,
       timestamp: ts.toISOString(),
       kind: "REPORT_PUBLISHED",
-      title: `Rapor ${a.period} tersedia`,
-      detail: a.template.name,
+      title: `Rapor Triwulan ${a.term.number} tersedia`,
+      detail: formatTermLabel(
+        a.term.number,
+        a.term.semester.number,
+        a.term.semester.academicYear.name,
+      ),
       href: `/parent/reports${childQuery}`,
     });
   }

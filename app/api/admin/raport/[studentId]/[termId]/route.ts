@@ -13,6 +13,7 @@ import {
   reportCardEntrySelect,
   resolveTerm,
 } from "../../_helpers";
+import { loadTemplateGrid } from "../../templates/_shared";
 
 type Ctx = { params: Promise<{ studentId: string; termId: string }> };
 
@@ -21,6 +22,24 @@ async function loadStudent(tenantId: string, studentId: string) {
     where: { id: studentId, tenantId },
     select: { id: true, name: true, nickname: true },
   });
+}
+
+/**
+ * Which kisi-kisi cohort this student belongs to. Read off the active
+ * enrolment's class section (`ageGroup` is NOT NULL since the 2026-05-20
+ * cycle). Null when the student has no active enrolment — the editor then
+ * simply offers no templates rather than guessing a cohort.
+ */
+async function resolveAgeGroup(
+  tenantId: string,
+  studentId: string,
+): Promise<"A" | "B" | null> {
+  const enrolment = await prisma.studentEnrollment.findFirst({
+    where: { studentId, status: "ACTIVE", classSection: { tenantId } },
+    select: { classSection: { select: { ageGroup: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  return (enrolment?.classSection.ageGroup as "A" | "B" | undefined) ?? null;
 }
 
 /**
@@ -44,7 +63,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   if (!term) return NextResponse.json({ error: "Triwulan tidak ditemukan." }, { status: 404 });
   if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan." }, { status: 404 });
 
-  const [saved, measurement, draft] = await Promise.all([
+  const [saved, measurement, draft, ageGroup] = await Promise.all([
     prisma.reportCardEntry.findFirst({
       where: { tenantId: session.tenantId, studentId, termId, deletedAt: null },
       select: reportCardEntrySelect,
@@ -54,7 +73,14 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       select: { heightCm: true, weightKg: true },
     }),
     loadRaportDraft(session.tenantId, studentId, term),
+    resolveAgeGroup(session.tenantId, studentId),
   ]);
+
+  // Kisi-kisi for this student's cohort, so the editor can pre-fill empty
+  // narratives instead of handing the admin 8 blank textareas per child.
+  const templates = ageGroup
+    ? await loadTemplateGrid(session.tenantId, termId, ageGroup)
+    : null;
 
   return NextResponse.json({
     data: {
@@ -65,6 +91,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
         semesterNumber: term.semester.number,
         academicYear: term.semester.academicYear.name,
       },
+      ageGroup,
+      templates,
       saved,
       measurement,
       draft,

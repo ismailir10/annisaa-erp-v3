@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
@@ -79,12 +80,6 @@ function formatWeekLabel(ws: string): string {
   const friYmd = fri.toISOString().slice(0, 10);
   return `${formatDate(ws, opts)} – ${formatDate(friYmd, opts)}`;
 }
-
-const ACTION_LABELS: Record<string, string> = {
-  UPDATE: "Diubah",
-  DELETE: "Dihapus",
-  CREATE: "Dibuat",
-};
 
 const ENTITY_LABELS: Record<string, string> = {
   ENTRY: "Entri",
@@ -265,6 +260,7 @@ export default function StudentJournalDetailPage({
   async function handleNoteDeleteConfirm() {
     if (!noteDeleteTarget || !weekData) return;
     setNoteDeleting(true);
+    let errorToasted = false;
     try {
       const res = await fetch(
         `/api/student-journal/admin/notes/${noteDeleteTarget}`,
@@ -272,8 +268,10 @@ export default function StudentJournalDetailPage({
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal menghapus catatan");
-        return;
+        const message = err.error || "Gagal menghapus catatan";
+        errorToasted = true;
+        toast.error(message);
+        throw new Error(message);
       }
       toast.success("Catatan dihapus");
       setWeekData({
@@ -281,8 +279,13 @@ export default function StudentJournalDetailPage({
         notes: weekData.notes.filter((n) => n.id !== noteDeleteTarget),
       });
       setNoteDeleteTarget(null);
-    } catch {
-      toast.error("Gagal menghapus catatan");
+    } catch (error) {
+      if (!errorToasted) {
+        toast.error("Gagal menghapus catatan. Coba lagi.");
+      }
+      throw error instanceof Error
+        ? error
+        : new Error("Gagal menghapus catatan");
     } finally {
       setNoteDeleting(false);
     }
@@ -332,6 +335,7 @@ export default function StudentJournalDetailPage({
               className="h-8 w-8 p-0"
               onClick={() => handleWeekChange(-1)}
               title="Minggu sebelumnya"
+              aria-label="Minggu sebelumnya"
             >
               <ChevronLeft size={14} />
             </Button>
@@ -344,6 +348,7 @@ export default function StudentJournalDetailPage({
               className="h-8 w-8 p-0"
               onClick={() => handleWeekChange(1)}
               title="Minggu berikutnya"
+              aria-label="Minggu berikutnya"
             >
               <ChevronRight size={14} />
             </Button>
@@ -396,6 +401,7 @@ export default function StudentJournalDetailPage({
               entries={weekData?.schoolEntries ?? []}
               dates={weekData?.dates ?? []}
               editable={isEditing}
+              disablePastDays={false}
               onToggle={(indicatorId, date, next) =>
                 handleToggle(indicatorId, date, next, "SCHOOL")
               }
@@ -411,6 +417,7 @@ export default function StudentJournalDetailPage({
               entries={weekData?.homeEntries ?? []}
               dates={weekData?.dates ?? []}
               editable={isEditing}
+              disablePastDays={false}
               onToggle={(indicatorId, date, next) =>
                 handleToggle(indicatorId, date, next, "HOME")
               }
@@ -440,7 +447,7 @@ export default function StudentJournalDetailPage({
             }}
             title="Hapus catatan?"
             description="Catatan akan dinonaktifkan dan tidak lagi muncul di jurnal siswa."
-            confirmLabel="Hapus"
+            confirmLabel="Ya, Hapus"
             cancelLabel="Batal"
             onConfirm={handleNoteDeleteConfirm}
             destructive
@@ -469,17 +476,7 @@ export default function StudentJournalDetailPage({
                     <span className="font-medium text-foreground">
                       {ENTITY_LABELS[row.entityType] ?? row.entityType}
                     </span>
-                    <span
-                      className={
-                        row.action === "DELETE"
-                          ? "text-destructive"
-                          : row.action === "UPDATE"
-                          ? "text-primary"
-                          : "text-status-present"
-                      }
-                    >
-                      {ACTION_LABELS[row.action] ?? row.action}
-                    </span>
+                    <StatusBadge status={row.action} />
                     <span>{formatDate(row.changedAt)}</span>
                     {row.changedByName && (
                       <span className="text-muted-foreground">

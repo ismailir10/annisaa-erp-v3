@@ -26,38 +26,43 @@ const DOKU_SANDBOX_API_URL = "https://api-sandbox.doku.com";
 const DOKU_PRODUCTION_API_URL = "https://api.doku.com";
 
 /**
- * Virtual Account channels only, per the CTO decision (cycle 2026-07-27
- * doku-payment-gateway — "Channels" row): matches the existing parent-portal
- * copy "Transfer bank (Virtual Account)" exactly and avoids card MDR.
+ * Resolve the Checkout endpoint path from `DOKU_CHECKOUT_VERSION`.
  *
- * This is the COMPLETE set of Virtual Account values DOKU Checkout accepts in
- * `payment.payment_method_types`, verbatim from developers.doku.com →
- * DOKU Checkout → Supported Payment Methods (re-verified 2026-07-29, cycle
- * 2026-07-29-doku-all-va-channels). The original six were an arbitrary subset;
- * a parent whose only bank was BSI, BTN, Danamon, BNC or DOKU could not pay.
+ * DOKU's published docs expose only `/checkout/v1/payment`, but a `/checkout/v2/payment`
+ * path is really routed on both hosts — an unauthenticated probe (2026-07-30)
+ * showed `/checkout/v9/payment` returning `404 {"message":"No static resource …"}`
+ * while `/checkout/v2/payment` returned DOKU's real header validation
+ * (`request_time_out_of_range`, then `invalid_signature`), i.e. the same
+ * two-stage check as v1 and therefore the same non-SNAP HMAC scheme.
  *
- * Deliberately NOT extended beyond Virtual Account — no `CREDIT_CARD`,
- * `QRIS`, `EMONEY_*` or `PEER_TO_PEER_*` — so the card-MDR avoidance and the
- * "Transfer bank (Virtual Account)" portal copy both still hold.
+ * Why this is a flag and not a switch: DOKU support (ticket 1115484:1806761,
+ * 2026-07-30) stated `additional_info.override_notification_url` "is supported
+ * for the API V2 Checkout" — which may explain why this merchant has NEVER
+ * received a notification (cycle 2026-07-29-doku-all-va-channels: two settled
+ * payments, zero delivery attempts in DOKU's own log). But v2's request-body
+ * contract is undocumented and untested. Defaulting to `v1` keeps today's
+ * behaviour; flipping the env var runs the experiment. Getting it wrong on v2
+ * means every session creation 400s and no parent can obtain a payment link,
+ * which is strictly worse than the delayed-but-working reconcile sweep we have.
  *
- * Maybank, Sinarmas, BJB and Sahabat Sampoerna are active on the merchant's
- * DOKU account but are absent from the documented Checkout enum list, so they
- * are not addressable here. See the cycle doc's "Channels DOKU activates but
- * Checkout does not document" note.
+ * Throws on an unrecognised value rather than falling back. A typo'd flag that
+ * silently kept v1 would present as "we switched to v2 and the notification
+ * still did not arrive" — corrupting the only experiment that distinguishes
+ * these two endpoints.
+ *
+ * Exported for unit testing.
  */
-export const DOKU_VIRTUAL_ACCOUNT_METHODS = [
-  "VIRTUAL_ACCOUNT_BCA",
-  "VIRTUAL_ACCOUNT_BANK_MANDIRI",
-  "VIRTUAL_ACCOUNT_BRI",
-  "VIRTUAL_ACCOUNT_BNI",
-  "VIRTUAL_ACCOUNT_BANK_PERMATA",
-  "VIRTUAL_ACCOUNT_BANK_CIMB",
-  "VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI",
-  "VIRTUAL_ACCOUNT_BANK_DANAMON",
-  "VIRTUAL_ACCOUNT_BTN",
-  "VIRTUAL_ACCOUNT_BNC",
-  "VIRTUAL_ACCOUNT_DOKU",
-] as const;
+export function resolveCheckoutTarget(
+  raw: string | undefined = process.env.DOKU_CHECKOUT_VERSION,
+): string {
+  const version = (raw ?? "v1").trim().toLowerCase();
+  if (version !== "v1" && version !== "v2") {
+    throw new Error(
+      `DOKU_CHECKOUT_VERSION must be "v1" or "v2", got "${raw}"`,
+    );
+  }
+  return `/checkout/${version}/payment`;
+}
 
 function baseUrl(): string {
   return process.env.DOKU_ENV === "production"
@@ -205,6 +210,35 @@ export function classifyDokuResponse(
 export type { CreateSessionParams };
 
 /**
+ * Per-call escape hatches. Deliberately NOT part of `CreateSessionParams` and
+ * therefore invisible to the `PaymentGateway` port — the gateway wrapper at the
+ * bottom of this file never passes them, so every production call behaves
+ * exactly as it did before this argument existed.
+ *
+ * `checkoutVersion` exists solely for `POST /api/doku/probe`, which has to run
+ * v1 and v2 back-to-back inside one deployment to attribute a difference to the
+ * endpoint. Doing that through `DOKU_CHECKOUT_VERSION` would mean mutating
+ * `process.env` mid-request, which in a warm serverless container leaks into
+ * whatever concurrent request is creating a real parent's payment link.
+ */
+export interface CreateDokuSessionOverrides {
+  /** `"v1"` | `"v2"`; falls through to `DOKU_CHECKOUT_VERSION` when absent. */
+  checkoutVersion?: string;
+  /**
+   * Invoked with the parsed success envelope before it is distilled into a
+   * `GatewaySession`, and therefore before the `missing payment.url` throw.
+   *
+   * v2's response contract is undocumented; the first signed call to it
+   * returned 2xx and then failed that throw, which tells us the endpoint
+   * accepts our body but says nothing about what it answered with. A callback
+   * rather than a `console.log` because the envelope may carry a VA number,
+   * and rather than widening the thrown error because that error is on the
+   * real parent-facing path.
+   */
+  captureRaw?: (envelope: unknown) => void;
+}
+
+/**
  * Create a DOKU Checkout session for an invoice.
  * Returns the gateway-neutral `GatewaySession` shape.
  *
@@ -214,6 +248,7 @@ export type { CreateSessionParams };
  */
 export async function createDokuSession(
   params: CreateSessionParams,
+  overrides?: CreateDokuSessionOverrides,
 ): Promise<GatewaySession> {
   const expiryDays = params.expiryDays ?? 7;
 
@@ -285,7 +320,24 @@ export async function createDokuSession(
       // immediately; the alternatives (INSTALLMENT / AUTHORIZE) are credit
       // card only and would be wrong for a school VA collection.
       type: "SALE",
-      payment_method_types: DOKU_VIRTUAL_ACCOUNT_METHODS,
+      // `payment_method_types` is deliberately ABSENT. DOKU support confirmed
+      // (2026-07-30) that naming a channel which is not active on the merchant
+      // account rejects the WHOLE session with
+      // `{"message":["PAYMENT CHANNEL IS INACTIVE"]}` — it does not filter the
+      // channel out. Production (BRN-0223-1785136973187) has neither BCA nor
+      // Mandiri active, so the previously hardcoded eleven-channel list would
+      // have 400'd every single session on the prod cutover: no payment links
+      // for anybody. Omitting the field is DOKU's own recommendation and makes
+      // Checkout render whatever is active on the account, so a channel
+      // activation needs no deploy and no enum guessing (Maybank, Sinarmas,
+      // BJB and Sahabat Sampoerna were never addressable by name).
+      //
+      // TRADE-OFF, accepted knowingly (CTO, 2026-07-30): the
+      // Virtual-Account-only guarantee of cycle 2026-07-27 now lives in DOKU
+      // Back Office, not here. If a card / QRIS / e-money / paylater channel is
+      // ever activated on either account, parents will see it and the school
+      // pays card MDR. The Back Office VA-only audit in that cycle's Ship Notes
+      // is the only remaining control.
     },
     customer,
   };
@@ -294,7 +346,13 @@ export async function createDokuSession(
   // same string is sent as fetch's body — never re-serialise the object
   // after this point (AC-6).
   const rawBody = JSON.stringify(payload);
-  const target = "/checkout/v1/payment";
+  // ONE evaluation, feeding both the `Request-Target` signature component and
+  // the fetch URL below. Signing over one path and posting to another fails as
+  // `invalid_signature`, which reads as a credential problem and would send
+  // the next investigation down the wrong hole.
+  const target = resolveCheckoutTarget(
+    overrides?.checkoutVersion ?? process.env.DOKU_CHECKOUT_VERSION,
+  );
   const requestId = randomUUID();
   const timestamp = formatDokuTimestamp(new Date());
   const digest = buildDigest(rawBody);
@@ -339,11 +397,21 @@ export async function createDokuSession(
   }
 
   const envelope = await response.json();
-  // DOKU nests the entire result under a top-level `response` key:
-  //   { "message": ["SUCCESS"], "response": { "order": {…}, "payment": {…} } }
-  // Confirmed against the live sandbox (probe 2026-07-27). Reading
-  // `envelope.payment` directly yields undefined on every real call.
-  const data = envelope?.response;
+  overrides?.captureRaw?.(envelope);
+  // The two Checkout versions answer with DIFFERENT envelopes — both confirmed
+  // against the live sandbox by `POST /api/doku/probe` on 2026-07-31:
+  //
+  //   v1  { "message": ["SUCCESS"],
+  //        "response": { "order": {…},
+  //                      "payment": { "url", "token_id", "expired_datetime" } } }
+  //   v2  { "message": "SUCCESS",
+  //        "payment": { "url", "token" } }
+  //
+  // v2 is flat (no `response` wrapper), names the id `token` rather than
+  // `token_id`, and carries no expiry at all. Falling back to `envelope`
+  // itself covers v2 without disturbing v1, where `envelope.payment` is
+  // undefined and the `response` branch always wins.
+  const data = envelope?.response ?? envelope;
   const paymentUrl: string | undefined = data?.payment?.url;
   if (!paymentUrl) {
     // Empty/missing URL would silently break the SENT-transition guard at
@@ -353,7 +421,15 @@ export async function createDokuSession(
   }
 
   return {
-    id: typeof data?.payment?.token_id === "string" ? data.payment.token_id : null,
+    // v1 calls it `token_id`, v2 calls it `token`. Nothing in Talib keys off
+    // this value — DOKU's status endpoint is keyed on `invoice_number` — but
+    // it is the id DOKU support asks for, so keep it populated on both.
+    id:
+      typeof data?.payment?.token_id === "string"
+        ? data.payment.token_id
+        : typeof data?.payment?.token === "string"
+          ? data.payment.token
+          : null,
     paymentUrl,
     status: "PENDING", // DOKU's create-session response carries no status field.
     // `expired_datetime` is an undocumented but confirmed-present field

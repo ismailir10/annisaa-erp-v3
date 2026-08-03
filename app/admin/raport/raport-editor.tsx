@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { templateFor } from "@/lib/raport/templates";
 import { toast } from "sonner";
 import { ArrowLeft, Download } from "lucide-react";
 import {
@@ -61,9 +62,18 @@ type Saved = {
   status: string;
   publishedAt: string | null;
 } | null;
+type TemplateGridPayload = {
+  bucketed: Record<string, string>;
+  closing: Record<string, string>;
+  filledCount: number;
+  totalSlots: number;
+};
 type Payload = {
   student: { id: string; name: string; nickname: string | null };
   term: { id: string; number: number; semesterNumber: number; academicYear: string };
+  ageGroup: "A" | "B" | null;
+  /** Kisi-kisi for this student's cohort; null when no active enrolment. */
+  templates: TemplateGridPayload | null;
   saved: Saved;
   measurement: { heightCm: string | null; weightKg: string | null } | null;
   draft: Draft;
@@ -111,9 +121,15 @@ export function RaportEditor({
       }
       setLevels(initLevels);
 
+      // Narratives: saved text wins; otherwise fall back to the cohort's
+      // kisi-kisi for the level we just initialised. Only ever fills an EMPTY
+      // field, so re-opening a saved raport never rewrites authored text.
       const initNarr: Record<string, string> = {};
       for (const s of [...BUCKETED_SECTIONS, ...CLOSING_SECTIONS]) {
-        initNarr[s] = p.saved?.sectionNarratives?.[s] ?? "";
+        const savedText = p.saved?.sectionNarratives?.[s] ?? "";
+        initNarr[s] =
+          savedText ||
+          (p.templates ? (templateFor(p.templates, s, initLevels[s]) ?? "") : "");
       }
       setNarratives(initNarr);
 
@@ -228,7 +244,7 @@ export function RaportEditor({
       />
 
       <div className="flex items-center gap-2 mb-6">
-        <StatusBadge status={status} />
+        <StatusBadge status={status} label={status === "NONE" ? "Belum disimpan" : undefined} />
         {data.saved?.publishedAt && status === "PUBLISHED" ? (
           <span className="text-xs text-muted-foreground">Terbit</span>
         ) : null}
@@ -247,6 +263,9 @@ export function RaportEditor({
             narrative={narratives[s] ?? ""}
             onNarrative={(v) => setNarratives((p) => ({ ...p, [s]: v }))}
             suggestion={data.draft.sections[s]}
+            templateText={
+              data.templates ? templateFor(data.templates, s, levels[s]) : null
+            }
           />
         ))}
         {CLOSING_SECTIONS.map((s) => (
@@ -259,6 +278,7 @@ export function RaportEditor({
             narrative={narratives[s] ?? ""}
             onNarrative={(v) => setNarratives((p) => ({ ...p, [s]: v }))}
             suggestion={null}
+            templateText={data.templates ? templateFor(data.templates, s, null) : null}
           />
         ))}
       </Card>
@@ -270,14 +290,14 @@ export function RaportEditor({
           Kehadiran terisi otomatis dari data presensi pada rentang triwulan — sunting bila perlu.
         </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <NumField label="Sakit" value={att.sick} onChange={(v) => setAtt((p) => ({ ...p, sick: v }))} />
-          <NumField label="Izin" value={att.permitted} onChange={(v) => setAtt((p) => ({ ...p, permitted: v }))} />
-          <NumField label="Alpa" value={att.unexcused} onChange={(v) => setAtt((p) => ({ ...p, unexcused: v }))} />
-          <NumField label="Hari sekolah" value={att.total} onChange={(v) => setAtt((p) => ({ ...p, total: v }))} />
+          <NumField id="absence-sick" label="Sakit" value={att.sick} onChange={(v) => setAtt((p) => ({ ...p, sick: v }))} />
+          <NumField id="absence-permitted" label="Izin" value={att.permitted} onChange={(v) => setAtt((p) => ({ ...p, permitted: v }))} />
+          <NumField id="absence-unexcused" label="Alpa" value={att.unexcused} onChange={(v) => setAtt((p) => ({ ...p, unexcused: v }))} />
+          <NumField id="absence-total" label="Hari sekolah" value={att.total} onChange={(v) => setAtt((p) => ({ ...p, total: v }))} />
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mt-4">
-          <NumField label="Tinggi (cm)" value={height} onChange={setHeight} step="0.1" />
-          <NumField label="Berat (kg)" value={weight} onChange={setWeight} step="0.1" />
+          <NumField id="measurement-height" label="Tinggi (cm)" value={height} onChange={setHeight} step="0.1" />
+          <NumField id="measurement-weight" label="Berat (kg)" value={weight} onChange={setWeight} step="0.1" />
         </div>
         <Field className="mt-4">
           <FieldLabel htmlFor="hafalan">Hafalan (surah / hadis / doa)</FieldLabel>
@@ -341,20 +361,6 @@ function BackBar({ onBack }: { onBack: () => void }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === "PUBLISHED") {
-    return (
-      <Badge variant="outline" className="bg-status-present/10 text-status-present border-status-present/20">
-        Terbit
-      </Badge>
-    );
-  }
-  if (status === "DRAFT") {
-    return <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Draft</Badge>;
-  }
-  return <Badge variant="outline" className="text-muted-foreground">Belum disimpan</Badge>;
-}
-
 function SectionField({
   section,
   hasLevel,
@@ -363,6 +369,7 @@ function SectionField({
   narrative,
   onNarrative,
   suggestion,
+  templateText,
 }: {
   section: ReportSectionKey;
   hasLevel: boolean;
@@ -371,7 +378,13 @@ function SectionField({
   narrative: string;
   onNarrative: (v: string) => void;
   suggestion: { suggested: RaportLevel | null; counts: ElementCounts } | null;
+  /** Cohort kisi-kisi for the currently selected level, if any. */
+  templateText: string | null;
 }) {
+  // Offer the action only when it would change something — no point showing
+  // "Pakai kisi-kisi" when the field already holds exactly that text.
+  const canApplyTemplate =
+    templateText !== null && templateText.trim() !== narrative.trim();
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -410,16 +423,28 @@ function SectionField({
         onChange={(e) => onNarrative(e.target.value)}
         placeholder={`Tulis narasi ${SECTION_LABELS[section].toLowerCase()}…`}
       />
+      {canApplyTemplate ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onNarrative(templateText)}
+        >
+          {narrative.trim() ? "Ganti dengan kisi-kisi" : "Pakai kisi-kisi"}
+        </Button>
+      ) : null}
     </div>
   );
 }
 
 function NumField({
+  id,
   label,
   value,
   onChange,
   step,
 }: {
+  id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
@@ -427,8 +452,8 @@ function NumField({
 }) {
   return (
     <Field>
-      <FieldLabel>{label}</FieldLabel>
-      <Input type="number" min="0" step={step} value={value} onChange={(e) => onChange(e.target.value)} />
+      <FieldLabel htmlFor={id} required>{label}</FieldLabel>
+      <Input id={id} type="number" min="0" step={step} required aria-required="true" value={value} onChange={(e) => onChange(e.target.value)} />
     </Field>
   );
 }

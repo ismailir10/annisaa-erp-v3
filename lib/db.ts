@@ -1,7 +1,8 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-07-29-class-picker-year-scoping — seed's class-section
-// names went campus-free ("KB Aster" → "KB", now disambiguated by campusId);
-// both sides still construct PrismaPg from DATABASE_URL, adapter unchanged.
+// Last verified: 2026-07-31-retire-legacy-assessment — seed dropped its §11g
+// legacy AssessmentTemplate/StudentAssessment block and the matching wipe
+// lines; both sides still construct PrismaPg from DATABASE_URL, adapter
+// unchanged.
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

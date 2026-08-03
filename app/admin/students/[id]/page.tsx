@@ -969,7 +969,7 @@ export default function StudentDetailPage() {
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">{g.parent.name}</p>
                         <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
-                        {g.isPrimary && <Badge className="bg-primary/10 text-primary text-xs">Utama</Badge>}
+                        {g.isPrimary && <Badge className="bg-status-present-subtle text-status-present-text text-xs">Utama</Badge>}
                         {g.childOrder && <Badge variant="outline" className="text-xs">Anak ke-{g.childOrder}</Badge>}
                       </div>
                       <div className="flex gap-1">

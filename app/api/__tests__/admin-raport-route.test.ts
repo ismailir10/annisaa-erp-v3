@@ -10,10 +10,12 @@ const {
     term: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     semester: { findFirst: vi.fn() },
     classSection: { findFirst: vi.fn() },
-    studentEnrollment: { findMany: vi.fn() },
+    studentEnrollment: { findMany: vi.fn(), findFirst: vi.fn() },
     student: { findFirst: vi.fn() },
     reportCardEntry: { findFirst: vi.fn(), findMany: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     studentMeasurement: { findFirst: vi.fn(), upsert: vi.fn() },
+    reportNarrativeTemplate: { findMany: vi.fn(), findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+    reportClosingTemplate: { findMany: vi.fn(), findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
   };
   return {
@@ -55,6 +57,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(db));
   loadRaportDraft.mockResolvedValue({ sections: {}, attendance: { totalSchoolDays: 0 } });
+  // Entry GET resolves the student's cohort then loads its kisi-kisi.
+  db.studentEnrollment.findFirst.mockResolvedValue(null);
+  db.reportNarrativeTemplate.findMany.mockResolvedValue([]);
+  db.reportClosingTemplate.findMany.mockResolvedValue([]);
 });
 
 describe("GET /api/admin/terms", () => {
