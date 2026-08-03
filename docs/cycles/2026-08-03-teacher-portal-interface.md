@@ -74,3 +74,14 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 - Playwright: local run deferred to CI because `playwright.config.ts` safely refused the non-local staging Supabase `DATABASE_URL`. Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 
 ## Ship Notes
+
+- Database migrations: none.
+- New environment variables: none.
+- Preview smoke:
+  1. Sign in as teacher and inspect dashboard at 320px and 375px widths.
+  2. Open `Kehadiran` → `Cuti & Izin`; verify keyboard activation, labeled request fields, successful empty state, and retryable network-error state.
+  3. Open `Kelas`; verify class/date labels and stable roster rows with reduced motion enabled.
+  4. Open `Penilaian Pekanan`; verify one Tab stop per radio group plus Arrow/Home/End/Enter/Space behavior without changing unrelated assessment data.
+  5. Open logout confirmation; verify `Keluar dari akun`, then cancel.
+- Playwright remains required in CI because local configuration correctly blocked the staging Supabase database.
+- Rollback: revert commits `1d0fe1c4`, `7a80e05b`, `0647220b`, `6fcba981`, and `1b3fc799` in reverse order; no data rollback required.
