@@ -82,7 +82,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Component tests prove all three existing destinations and accessible open, close, focus, and keyboard interaction.
   - Dependencies: None.
 
-- [ ] **Task 2 — Replace fifth direct-link layout with selected navigation IA.** Wire teacher bottom navigation as `Beranda`, `Kelas`, `Jurnal`, `Penilaian`, `Lainnya`; preserve direct and overflow active states through the shared `PortalBottomNav`.
+- [x] **Task 2 — Replace fifth direct-link layout with selected navigation IA.** Wire teacher bottom navigation as `Beranda`, `Kelas`, `Jurnal`, `Penilaian`, `Lainnya`; preserve direct and overflow active states through the shared `PortalBottomNav`.
   - Acceptance: Unit tests prove exact order, five-slot ceiling, sheet open/close behavior, and active state across direct and overflow routes.
   - Dependencies: Task 1.
 
@@ -138,9 +138,11 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 
 - Subagent plan: driver=gpt-5.5 high reasoning, dirty-work=gpt-5.6-terra low reasoning; Tasks 1→2→6/10→14 are dependency-sequenced, Tasks 3–5/7–9/11–13 are scope-independent but implementation is serialized in the shared cycle worktree so each task receives an isolated build+Vitest gate and commit; parallel subagents perform bounded context preparation and mandatory review.
 - Task 1: Add teacher overflow sheet and focused tests — `components/teacher/more-sheet.tsx`, `components/teacher/__tests__/more-sheet.test.tsx` — added parent-consistent teacher overflow destinations with nested-route active state, safe-area layout, focus treatment, and focused interaction coverage.
+- Task 2: Replace fifth direct-link layout with selected navigation IA — `components/teacher/bottom-nav.tsx`, `components/teacher/__tests__/bottom-nav.test.tsx` — changed teacher navigation to four direct teaching destinations plus `Lainnya`, preserving nested direct and overflow active states through shared primitives.
 
 ## Verification
 
 - Task 1: gates passed (`npm run build`; `npx vitest run` — 260 files passed, 2 skipped; 2,557 tests passed, 42 todo); focused More-sheet tests 3/3 passed; mandatory staged review clean; cross-checked `design-system.html` §14 portal shell and accessibility rules.
+- Task 2: gates passed (`npm run build`; `npx vitest run` — 261 files passed, 2 skipped; 2,565 tests passed, 42 todo); focused teacher/shared navigation tests 21/21 passed; mandatory staged review clean; `design-system.html` portal shell, five-slot width, focus, motion, and safe-area rules preserved.
 
 ## Ship Notes
