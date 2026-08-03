@@ -98,7 +98,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Focused tests prove rejected fetch and retry; class attendance remains operable at 320px and announces each row state plus save status.
   - Dependencies: None.
 
-- [ ] **Task 6 — Fix session attendance mobile controls.** Make the sticky save area safe-area aware, enlarge/focus-style status controls, and use an explicit batch-save label.
+- [x] **Task 6 — Fix session attendance mobile controls.** Make the sticky save area safe-area aware, enlarge/focus-style status controls, and use an explicit batch-save label.
   - Acceptance: Save CTA never overlaps bottom navigation or gesture inset, every cycle control is at least 44px, and CTA states the affected student count.
   - Dependencies: Task 2 for final bottom-navigation clearance verification.
 
@@ -142,6 +142,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 3: Improve teacher home hierarchy and loading feedback — `app/teacher/home-client.tsx`, `app/teacher/__tests__/home-motion.test.tsx` — replaced blank hydration with an accessible skeleton, moved current-day status beside the clock flow, and added visible keyboard focus to dashboard links.
 - Task 4: Add personal-attendance fetch recovery — `app/teacher/attendance/page.tsx`, `app/teacher/attendance/__tests__/page.test.tsx` — added explicit current-month failure/retry, kept background prefetch quiet, and prevented stale or aborted month requests from overwriting cached foreground state.
 - Task 5: Harden class-attendance daily entry — `app/teacher/class-attendance/page.tsx`, `app/teacher/class-attendance/__tests__/page.test.tsx` — added assignment/roster recovery, responsive selectors, accessible cycle controls, live save feedback, stale-roster guards, and per-student serialized saves so last tap wins in UI and persistence.
+- Task 6: Fix session attendance mobile controls — `app/teacher/sessions/[id]/client.tsx`, `app/teacher/sessions/[id]/__tests__/client.test.tsx` — moved sticky save above nav plus safe area, enlarged/focus-styled status controls, exposed current state, and clarified batch-save copy.
 
 ## Verification
 
@@ -150,5 +151,6 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 3: gates passed (`npm run build`; `npx vitest run` — 261 files passed, 2 skipped; 2,566 tests passed, 42 todo); focused home hierarchy/motion tests 2/2 passed; mandatory staged review clean; cross-checked `design-system.html` §14 teacher dashboard order, Shadcn Skeleton, and focus rules.
 - Task 4: gates passed after review fixes (`npm run build`; `npx vitest run` — 262 files passed, 2 skipped; 2,568 tests passed, 42 todo); focused attendance recovery/race tests 2/2 passed; first review found foreground month races, fixes re-gated, second mandatory review clean; teacher error/retry copy matches voice rules and `design-system.html` network-loss guidance.
 - Task 5: gates passed after race hardening (`npm run build`; `npx vitest run` — 263 files passed, 2 skipped; 2,573 tests passed, 42 todo); focused class-attendance tests 5/5 passed; mandatory review iterations found stale roster, stale UI/toast, and persisted write-order races, all fixed and re-gated; fourth review clean; `design-system.html` §16 cycle-tap, 44px focus, responsive toolbar, and live-save guidance preserved.
+- Task 6: gates passed (`npm run build`; `npx vitest run` — 264 files passed, 2 skipped; 2,576 tests passed, 42 todo); focused session tests 3/3 passed; mandatory staged review clean; `design-system.html` §16 sticky action, 44px target, focus, and safe-area rules preserved.
 
 ## Ship Notes

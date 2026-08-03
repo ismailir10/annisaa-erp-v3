@@ -21,6 +21,13 @@ import { formatDate, formatTime } from "@/lib/format";
 const ROTATION = ["PRESENT", "ABSENT", "SICK", "PERMISSION"] as const;
 type Status = (typeof ROTATION)[number];
 
+const STATUS_LABEL: Record<Status, string> = {
+  PRESENT: "Hadir",
+  ABSENT: "Alpa",
+  SICK: "Sakit",
+  PERMISSION: "Izin",
+};
+
 // Mirrors .claude/standards/portal.md Daily Data Entry recipe — cycle-tap the
 // status, row-tinted by current state for a 3 m glance.
 const ROW_TINT: Record<Status, string> = {
@@ -187,8 +194,8 @@ export function SessionRosterClient({
                     <button
                       type="button"
                       onClick={() => cycleStatus(r.studentId, r.status)}
-                      className="shrink-0"
-                      aria-label={`Ubah status ${r.name}`}
+                      className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      aria-label={`Ubah status ${r.name}, saat ini ${STATUS_LABEL[status]}. Ketuk untuk mengubah status.`}
                     >
                       <StatusBadge status={status} />
                     </button>
@@ -280,14 +287,14 @@ export function SessionRosterClient({
             })}
           </div>
 
-          <div className="sticky bottom-20 mt-4">
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 mt-4 border-t border-border bg-background px-3 py-3">
             <Button
               type="button"
               className="w-full"
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan Absensi..." : `Simpan Absensi · ${rows.length} siswa`}
             </Button>
           </div>
 
