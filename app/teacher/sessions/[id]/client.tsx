@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
 import { LogIn, LogOut, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
@@ -168,14 +167,11 @@ export function SessionRosterClient({
       ) : (
         <>
           <div className="space-y-2">
-            {rows.map((r, i) => {
+            {rows.map((r) => {
               const status = r.status as Status;
               return (
-                <motion.div
+                <div
                   key={r.studentId}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.02 }}
                   data-testid="roster-row"
                   className={`rounded-lg border border-border p-3 ${ROW_TINT[status]}`}
                 >
@@ -279,7 +275,7 @@ export function SessionRosterClient({
                       )}
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
           </div>

@@ -7,7 +7,6 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users, Check } from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
 
@@ -231,10 +230,10 @@ export default function ClassAttendancePage() {
         </div>
       ) : (
         <div className="space-y-1.5">
-          {students.map((s, i) => {
+          {students.map((s) => {
             const status = statuses[s.student.id] ?? "PRESENT";
             return (
-              <motion.div key={s.student.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}>
+              <div key={s.student.id}>
                 <button
                   data-testid="roster-row"
                   onClick={() => cycleStatus(s.student.id)}
@@ -251,7 +250,7 @@ export default function ClassAttendancePage() {
                   </div>
                   <StatusBadge status={status} />
                 </button>
-              </motion.div>
+              </div>
             );
           })}
         </div>

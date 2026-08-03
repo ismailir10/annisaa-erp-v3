@@ -45,7 +45,7 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 - [x] **Task 3 — Complete assessment keyboard interaction** (independent): replace or complete custom weekly day/level radio behavior using the established component and APG keyboard pattern.  
   Acceptance: Tab enters each group once; Arrow keys, Home, End, Enter/Space, checked state, and focus state work without pointer input.
 
-- [ ] **Task 4 — Respect reduced motion in routine teacher surfaces** (independent): add reduced-motion handling to dashboard transitions and remove cumulative roster entrance staggering from daily attendance/session flows.  
+- [x] **Task 4 — Respect reduced motion in routine teacher surfaces** (independent): add reduced-motion handling to dashboard transitions and remove cumulative roster entrance staggering from daily attendance/session flows.  
   Acceptance: reduced-motion renders immediate stable content and routine rosters remain scannable without per-row delay.
 
 - [ ] **Task 5 — Consolidated interface verification** (depends on Tasks 1–4): run targeted unit/component tests, between-task and end-of-cycle gates, then inspect keyboard, 320–375px, loading/empty/error, and reduced-motion states against `design-system.html` §§14–16.  
@@ -57,11 +57,13 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 - Task 1: Repair daily-flow semantics and labels — `app/teacher/attendance/page.tsx`, `app/teacher/class-attendance/page.tsx`, `app/teacher/sessions/[id]/client.tsx`, `components/teacher/leave-sheet.tsx`, `components/teacher/__tests__/leave-sheet.test.tsx` — converted the leave card to a semantic button and associated visible labels with scoped controls.
 - Task 3: Complete assessment keyboard interaction — `app/teacher/assessments/weekly/client.tsx`, `app/teacher/assessments/weekly/__tests__/client.test.tsx` — replaced click-only custom radios with native grouped inputs plus wrapping Arrow/Home/End and Enter/Space behavior while preserving visual treatment.
 - Task 2: Separate leave error recovery from empty state — `app/teacher/attendance/page.tsx`, `components/teacher/leave-sheet.tsx`, `components/portal/portal-header.tsx`, focused tests — introduced explicit loading/ready/error state, retryable recovery, and consequence-specific cancel/logout labels.
+- Task 4: Respect reduced motion in routine teacher surfaces — `app/teacher/home-client.tsx`, `app/teacher/class-attendance/page.tsx`, `app/teacher/sessions/[id]/client.tsx`, `app/teacher/__tests__/home-motion.test.tsx` — disabled dashboard entrance/interaction transforms for reduced-motion users and removed cumulative routine roster staggering.
 
 ## Verification
 
 - Task 1: focused leave-sheet tests passed (2); TypeScript passed; full gate passed after network-enabled font fetch (`npm run build`, 258 Vitest files passed / 2 skipped, 2552 tests passed / 42 todo).
 - Task 3: focused weekly-assessment tests passed (7 across client and helper suites); full build and Vitest gate covered the staged implementation and passed with Task 1.
 - Task 2: focused leave/header tests passed (10); TypeScript passed; full gate passed (`npm run build`, 259 Vitest files passed / 2 skipped, 2554 tests passed / 42 todo).
+- Task 4: focused motion/state tests passed (8); TypeScript passed; full build and Vitest gate covered the staged implementation and passed with Task 2. Motion behavior follows current official `useReducedMotion` guidance and existing `framer-motion` imports.
 
 ## Ship Notes
