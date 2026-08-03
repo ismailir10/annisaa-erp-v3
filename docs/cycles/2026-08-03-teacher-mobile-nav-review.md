@@ -126,7 +126,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Shared header and profile tests assert visible focus styling while existing link/logout behavior remains intact.
   - Dependencies: None.
 
-- [ ] **Task 13 — Align salary-detail patterns and mobile resilience.** Reuse shared date/header conventions and ensure long labels/amounts remain readable at 320–375px.
+- [x] **Task 13 — Align salary-detail patterns and mobile resilience.** Reuse shared date/header conventions and ensure long labels/amounts remain readable at 320–375px.
   - Acceptance: Focused coverage confirms shared formatting and narrow-row layout behavior without changing salary data or authorization.
   - Dependencies: Task 11.
 
@@ -149,6 +149,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 10: Center assessment now uses native keyboard radios with min-44/focus, retry and stale-request guard, API writable contract, truly read-only disabled controls/copy, and a writable-only safe-area save footer; focused client/API tests added.
 - Task 11: Salary slips now distinguish loading, fetch failure, and a successful empty response; rejected and non-OK requests show a local retry state, request IDs prevent stale results, and the retry CTA meets 44px and visible-focus requirements.
 - Task 12: Shared parent/teacher PortalHeader profile and logout controls now meet min-44/focus treatment; the teacher profile salary link has matching focus treatment; focused tests added.
+- Task 13: Salary detail now uses the shared PageHeader and formatDate with Jakarta-safe current-date handling, keeps back/PDF actions at 44px with visible focus, and keeps long labels wrapping beside non-shrinking tabular amounts; focused tests include the Jakarta date-boundary case.
 
 ## Verification
 
@@ -157,6 +158,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 10: focused Vitest 13/13 passed; full build passed; full Vitest 2,590 passed / 42 todo; review clean; design-system, portal, and security checks completed.
 - Task 9: focused Vitest 5/5 passed; full `npm run build` passed and `npx vitest run` passed (2,585 passed / 42 todo); staged review clean. Cross-checked design-system mobile targets and recovery behavior.
 - Task 11: focused Vitest 3/3 passed; full build passed; full Vitest 2,593 passed / 42 todo; staged review clean. Cross-checked design-system and portal recovery behavior.
+- Task 13: focused Vitest 3/3 passed; full build passed; full Vitest 2,598 passed / 42 todo; staged review clean. Cross-checked design-system and portal narrow-layout behavior.
 - Task 8: focused Vitest 6/6 passed; full build passed; full Vitest 2,583 passed / 42 todo; staged review clean; cross-checked `design-system.html` and portal readonly/target guidance.
 
 - Task 1: gates passed (`npm run build`; `npx vitest run` — 260 files passed, 2 skipped; 2,557 tests passed, 42 todo); focused More-sheet tests 3/3 passed; mandatory staged review clean; cross-checked `design-system.html` §14 portal shell and accessibility rules.
