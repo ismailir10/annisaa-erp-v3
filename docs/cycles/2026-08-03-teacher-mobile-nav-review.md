@@ -90,7 +90,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Dashboard priority remains stable at 320–375px, hydration never appears blank, and keyboard users can see focus on every dashboard link.
   - Dependencies: None.
 
-- [ ] **Task 4 — Add personal-attendance fetch recovery.** Distinguish a failed current-month request from an empty month and provide a visible `Coba lagi` action without turning background prefetch failures into noisy errors.
+- [x] **Task 4 — Add personal-attendance fetch recovery.** Distinguish a failed current-month request from an empty month and provide a visible `Coba lagi` action without turning background prefetch failures into noisy errors.
   - Acceptance: Focused tests prove rejected fetch, failure-not-empty rendering, retry, and successful calendar recovery.
   - Dependencies: None.
 
@@ -140,11 +140,13 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 1: Add teacher overflow sheet and focused tests — `components/teacher/more-sheet.tsx`, `components/teacher/__tests__/more-sheet.test.tsx` — added parent-consistent teacher overflow destinations with nested-route active state, safe-area layout, focus treatment, and focused interaction coverage.
 - Task 2: Replace fifth direct-link layout with selected navigation IA — `components/teacher/bottom-nav.tsx`, `components/teacher/__tests__/bottom-nav.test.tsx` — changed teacher navigation to four direct teaching destinations plus `Lainnya`, preserving nested direct and overflow active states through shared primitives.
 - Task 3: Improve teacher home hierarchy and loading feedback — `app/teacher/home-client.tsx`, `app/teacher/__tests__/home-motion.test.tsx` — replaced blank hydration with an accessible skeleton, moved current-day status beside the clock flow, and added visible keyboard focus to dashboard links.
+- Task 4: Add personal-attendance fetch recovery — `app/teacher/attendance/page.tsx`, `app/teacher/attendance/__tests__/page.test.tsx` — added explicit current-month failure/retry, kept background prefetch quiet, and prevented stale or aborted month requests from overwriting cached foreground state.
 
 ## Verification
 
 - Task 1: gates passed (`npm run build`; `npx vitest run` — 260 files passed, 2 skipped; 2,557 tests passed, 42 todo); focused More-sheet tests 3/3 passed; mandatory staged review clean; cross-checked `design-system.html` §14 portal shell and accessibility rules.
 - Task 2: gates passed (`npm run build`; `npx vitest run` — 261 files passed, 2 skipped; 2,565 tests passed, 42 todo); focused teacher/shared navigation tests 21/21 passed; mandatory staged review clean; `design-system.html` portal shell, five-slot width, focus, motion, and safe-area rules preserved.
 - Task 3: gates passed (`npm run build`; `npx vitest run` — 261 files passed, 2 skipped; 2,566 tests passed, 42 todo); focused home hierarchy/motion tests 2/2 passed; mandatory staged review clean; cross-checked `design-system.html` §14 teacher dashboard order, Shadcn Skeleton, and focus rules.
+- Task 4: gates passed after review fixes (`npm run build`; `npx vitest run` — 262 files passed, 2 skipped; 2,568 tests passed, 42 todo); focused attendance recovery/race tests 2/2 passed; first review found foreground month races, fixes re-gated, second mandatory review clean; teacher error/retry copy matches voice rules and `design-system.html` network-loss guidance.
 
 ## Ship Notes
