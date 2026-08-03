@@ -48,7 +48,7 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 - [x] **Task 4 — Respect reduced motion in routine teacher surfaces** (independent): add reduced-motion handling to dashboard transitions and remove cumulative roster entrance staggering from daily attendance/session flows.  
   Acceptance: reduced-motion renders immediate stable content and routine rosters remain scannable without per-row delay.
 
-- [ ] **Task 5 — Consolidated interface verification** (depends on Tasks 1–4): run targeted unit/component tests, between-task and end-of-cycle gates, then inspect keyboard, 320–375px, loading/empty/error, and reduced-motion states against `design-system.html` §§14–16.  
+- [x] **Task 5 — Consolidated interface verification** (depends on Tasks 1–4): run targeted unit/component tests, between-task and end-of-cycle gates, then inspect keyboard, 320–375px, loading/empty/error, and reduced-motion states against `design-system.html` §§14–16.  
   Acceptance: no actionable `HIGH`, `MEDIUM`, or scoped `LOW` `better-interface` finding remains; verification evidence and any environment-bound Playwright deferral are recorded.
 
 ## Implementation
@@ -58,6 +58,7 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 - Task 3: Complete assessment keyboard interaction — `app/teacher/assessments/weekly/client.tsx`, `app/teacher/assessments/weekly/__tests__/client.test.tsx` — replaced click-only custom radios with native grouped inputs plus wrapping Arrow/Home/End and Enter/Space behavior while preserving visual treatment.
 - Task 2: Separate leave error recovery from empty state — `app/teacher/attendance/page.tsx`, `components/teacher/leave-sheet.tsx`, `components/portal/portal-header.tsx`, focused tests — introduced explicit loading/ready/error state, retryable recovery, and consequence-specific cancel/logout labels.
 - Task 4: Respect reduced motion in routine teacher surfaces — `app/teacher/home-client.tsx`, `app/teacher/class-attendance/page.tsx`, `app/teacher/sessions/[id]/client.tsx`, `app/teacher/__tests__/home-motion.test.tsx` — disabled dashboard entrance/interaction transforms for reduced-motion users and removed cumulative routine roster staggering.
+- Task 5: Consolidated interface verification — `app/teacher/assessments/weekly/__tests__/client.test.tsx`, `e2e/teacher.spec.ts` — stabilized async radio assertions, synchronized the logout E2E contract, and verified the complete scoped interface against `design-system.html` §§14–16.
 
 ## Verification
 
@@ -65,5 +66,11 @@ Teacher portal already shares parent portal's strongest mobile shell patterns: a
 - Task 3: focused weekly-assessment tests passed (7 across client and helper suites); full build and Vitest gate covered the staged implementation and passed with Task 1.
 - Task 2: focused leave/header tests passed (10); TypeScript passed; full gate passed (`npm run build`, 259 Vitest files passed / 2 skipped, 2554 tests passed / 42 todo).
 - Task 4: focused motion/state tests passed (8); TypeScript passed; full build and Vitest gate covered the staged implementation and passed with Task 2. Motion behavior follows current official `useReducedMotion` guidance and existing `framer-motion` imports.
+- Task 5 browser: demo teacher session inspected at 375×812 and 320×720. Dashboard and class-attendance pages had zero horizontal overflow; five-slot navigation, page hierarchy, roster states, and fixed chrome remained legible.
+- Task 5 keyboard/semantics: leave trigger exposed native button semantics; rendered leave form exposed `Jenis Cuti`, `Tanggal Mulai`, `Tanggal Selesai`, and `Alasan` labels; weekly day radios moved selection with ArrowRight and End while preserving checked/focus state.
+- Task 5 states/copy: successful leave empty state rendered independently from loading/error tests; retryable error path passed focused component tests; logout alert rendered `Keluar dari akun`; reduced-motion branch passed focused component tests with all entrance states disabled.
+- Task 5 rejected candidates: teacher bottom-nav redesign rejected because shared five-slot contract already passed 320–375px checks; parent child/household patterns rejected as guardian-specific; one transient React hydration warning rejected after fresh home and class-attendance tabs reproduced zero warnings and scoped diffs did not affect hydration markup.
+- End-of-cycle gate: `npm run build` passed; `npx vitest run` passed (259 files passed / 2 skipped; 2554 tests passed / 42 todo). Initial red run was diagnosed as local-server resource contention plus a test-only async transition race; focused reruns and clean full rerun passed.
+- Playwright: local run deferred to CI because `playwright.config.ts` safely refused the non-local staging Supabase `DATABASE_URL`. Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 
 ## Ship Notes

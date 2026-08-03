@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WeeklyClient } from "../client";
@@ -47,6 +47,13 @@ describe("WeeklyClient radio groups", () => {
     refresh.mockClear();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
   });
+
+  async function expectLevelSelected(radio: HTMLElement) {
+    await waitFor(() => {
+      expect(radio).toBeChecked();
+      expect(radio).not.toBeDisabled();
+    });
+  }
 
   it("gives each native radio group one tab stop", async () => {
     const user = userEvent.setup();
@@ -110,21 +117,21 @@ describe("WeeklyClient radio groups", () => {
     expect(mampu.closest("label")).toHaveClass("has-[input:focus-visible]:ring-2");
     mampu.focus();
     await user.keyboard(" ");
-    expect(mampu).toBeChecked();
+    await expectLevelSelected(mampu);
 
     await user.keyboard("{ArrowRight}");
-    expect(belum).toBeChecked();
+    await expectLevelSelected(belum);
     expect(belum).toHaveFocus();
 
     await user.keyboard("{End}");
-    expect(perlu).toBeChecked();
+    await expectLevelSelected(perlu);
     expect(perlu).toHaveFocus();
 
     await user.keyboard("{Home}");
-    expect(mampu).toBeChecked();
+    await expectLevelSelected(mampu);
 
     belum.focus();
     await user.keyboard("{Enter}");
-    expect(belum).toBeChecked();
+    await expectLevelSelected(belum);
   });
 });
