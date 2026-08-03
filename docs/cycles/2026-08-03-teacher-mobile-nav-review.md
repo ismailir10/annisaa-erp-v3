@@ -130,7 +130,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
   - Acceptance: Focused coverage confirms shared formatting and narrow-row layout behavior without changing salary data or authorization.
   - Dependencies: Task 11.
 
-- [ ] **Task 14 — Align standards, JTBD, and end-to-end verification.** Update `.claude/standards/portal.md` to state the shared four-direct-plus-overflow principle with role-specific destinations, update only affected steps in `docs/uat/jobs/teacher.md`, add lean Playwright coverage for navigation and salary traversal, and record route dispositions against `design-system.html`.
+- [x] **Task 14 — Align standards, JTBD, and end-to-end verification.** Update `.claude/standards/portal.md` to state the shared four-direct-plus-overflow principle with role-specific destinations, update only affected steps in `docs/uat/jobs/teacher.md`, add lean Playwright coverage for navigation and salary traversal, and record route dispositions against `design-system.html`.
   - Acceptance: Playwright traverses salary list → detail → back and checks long-row and bottom-nav clearance; at 320px, 360px, and 375px, recorded checks show no overflow, truncation, overlap, dead-end state, or sub-44px target in scope; documentation changes stay limited to corrected navigation and JTBD behavior.
   - Dependencies: Tasks 2–13.
 
@@ -150,6 +150,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 11: Salary slips now distinguish loading, fetch failure, and a successful empty response; rejected and non-OK requests show a local retry state, request IDs prevent stale results, and the retry CTA meets 44px and visible-focus requirements.
 - Task 12: Shared parent/teacher PortalHeader profile and logout controls now meet min-44/focus treatment; the teacher profile salary link has matching focus treatment; focused tests added.
 - Task 13: Salary detail now uses the shared PageHeader and formatDate with Jakarta-safe current-date handling, keeps back/PDF actions at 44px with visible focus, and keeps long labels wrapping beside non-shrinking tabular amounts; focused tests include the Jakarta date-boundary case.
+- Task 14: Portal standards now codify teacher four-direct-plus-`Lainnya` overflow, active-state, and parent/teacher parity rules; affected teacher JTBDs reconcile shipped autosave, read-only, recovery, and salary flows; teacher E2E adds 320/360/375 five-slot geometry, overflow/direct active states, and `Lainnya` → `Slip Gaji` → detail → Back traversal.
 
 ## Verification
 
@@ -159,6 +160,7 @@ Teacher mobile navigation currently fits validated 320–375px widths, but five 
 - Task 9: focused Vitest 5/5 passed; full `npm run build` passed and `npx vitest run` passed (2,585 passed / 42 todo); staged review clean. Cross-checked design-system mobile targets and recovery behavior.
 - Task 11: focused Vitest 3/3 passed; full build passed; full Vitest 2,593 passed / 42 todo; staged review clean. Cross-checked design-system and portal recovery behavior.
 - Task 13: focused Vitest 3/3 passed; full build passed; full Vitest 2,598 passed / 42 todo; staged review clean. Cross-checked design-system and portal narrow-layout behavior.
+- Task 14: E2E ESLint and diff check passed; full build passed; full Vitest 2,598 passed / 42 todo; E2E and docs staged reviews clean after corrections. Local Playwright deferred because its remote-`DATABASE_URL` safety guard identified `aws-1-ap-southeast-1.pooler.supabase.com`; required CI `Playwright E2E` remains the gate. Cross-checked design-system portal shell, safe area, 44px targets, and focus behavior.
 - Task 8: focused Vitest 6/6 passed; full build passed; full Vitest 2,583 passed / 42 todo; staged review clean; cross-checked `design-system.html` and portal readonly/target guidance.
 
 - Task 1: gates passed (`npm run build`; `npx vitest run` — 260 files passed, 2 skipped; 2,557 tests passed, 42 todo); focused More-sheet tests 3/3 passed; mandatory staged review clean; cross-checked `design-system.html` §14 portal shell and accessibility rules.

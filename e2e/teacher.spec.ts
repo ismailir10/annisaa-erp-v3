@@ -246,4 +246,77 @@ test.describe("Teacher flows", () => {
     await page.waitForURL(new RegExp(`/teacher/student-journal/students/[^/?#]+\\?week=${today}`), { timeout: 10_000 });
     await expect(page.locator("text=Kembali").first()).toBeVisible({ timeout: 10_000 });
   });
+
+  // Teacher mirrors the parent portal's five-slot mobile-navigation contract:
+  // four daily-work destinations plus the personal-pages overflow. Pin the
+  // smallest supported Android widths so a longer label cannot quietly push a
+  // slot outside the viewport again.
+  test("teacher bottom nav keeps five unclipped slots at narrow mobile widths", async ({ page }) => {
+    for (const width of [320, 360, 375]) {
+      await page.setViewportSize({ width, height: 812 });
+      await page.goto("/teacher");
+      await page.waitForURL("**/teacher", { timeout: 15_000 });
+
+      const nav = page.getByRole("navigation", { name: "Navigasi utama guru" });
+      await expect(nav).toBeVisible();
+      const slots = nav.locator("a, button");
+      await expect(slots).toHaveCount(5);
+      for (const label of ["Beranda", "Kelas", "Jurnal", "Penilaian"]) {
+        await expect(nav.getByRole("link", { name: label })).toBeVisible();
+      }
+      await expect(nav.getByRole("button", { name: "Lainnya" })).toBeVisible();
+
+      const boxes = await slots.evaluateAll((elements) =>
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, width: rect.width, height: rect.height };
+        }),
+      );
+      expect(boxes).toHaveLength(5);
+      for (const [index, box] of boxes.entries()) {
+        expect(box.left).toBeGreaterThanOrEqual(-0.5);
+        expect(box.right).toBeLessThanOrEqual(width + 0.5);
+        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        if (index > 0) expect(box.left).toBeGreaterThanOrEqual(boxes[index - 1]!.right - 0.5);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+  });
+
+  test("teacher bottom nav marks direct and overflow destinations active", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/teacher/student-journal");
+    await page.waitForURL("**/teacher/student-journal", { timeout: 15_000 });
+    const nav = page.getByRole("navigation", { name: "Navigasi utama guru" });
+    await expect(nav.getByRole("link", { name: "Jurnal" })).toHaveAttribute("aria-current", "page");
+
+    await page.goto("/teacher/slips");
+    await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
+    await expect(nav.getByRole("button", { name: "Lainnya" }).locator("span").last()).toHaveClass(/text-primary/);
+  });
+
+  test("teacher reaches a salary detail through Lainnya and returns to the slip list", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/teacher");
+    const trigger = page.locator('nav[aria-label="Navigasi utama guru"] button:has-text("Lainnya")');
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await trigger.click();
+
+    const sheet = page.getByRole("navigation", { name: "Menu lainnya guru" });
+    await expect(sheet).toBeVisible({ timeout: 10_000 });
+    await sheet.getByRole("link", { name: /^Slip Gaji/ }).click();
+    await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
+
+    const detail = page.locator('a[href^="/teacher/slips/"]').first();
+    if (!(await detail.isVisible({ timeout: 10_000 }).catch(() => false))) {
+      test.skip(true, "demo seed has no available salary slip");
+      return;
+    }
+    await detail.click();
+    await page.waitForURL(/\/teacher\/slips\/[^/?#]+$/, { timeout: 15_000 });
+    await page.getByRole("link", { name: /Kembali ke Slip Gaji/ }).click();
+    await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Slip Gaji" })).toBeVisible();
+  });
 });
