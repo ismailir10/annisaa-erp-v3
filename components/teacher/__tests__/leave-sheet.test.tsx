@@ -38,7 +38,7 @@ function Harness() {
       onOpenChange={setOpen}
       prefetchedBalance={balance}
       prefetchedRequests={requests}
-      prefetchLoading={false}
+      prefetchState="ready"
     />
   );
 }

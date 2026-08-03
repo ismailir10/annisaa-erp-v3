@@ -9,11 +9,19 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("framer-motion", async () => {
   const React = await import("react");
+  type MockMotionProps = ComponentProps<"div"> & {
+    initial?: unknown;
+    animate?: unknown;
+    exit?: unknown;
+    transition?: unknown;
+    whileHover?: unknown;
+    whileTap?: unknown;
+  };
   const motion = new Proxy(
     {},
     {
       get: (_, tag: string) => {
-        return ({ initial, animate: _animate, exit: _exit, transition: _transition, whileHover: _whileHover, whileTap: _whileTap, ...props }: ComponentProps<"div"> & { initial?: unknown }) =>
+        return ({ initial, animate: _animate, exit: _exit, transition: _transition, whileHover: _whileHover, whileTap: _whileTap, ...props }: MockMotionProps) =>
           React.createElement(tag, {
             ...props,
             "data-motion-initial": initial === undefined ? undefined : String(initial),
