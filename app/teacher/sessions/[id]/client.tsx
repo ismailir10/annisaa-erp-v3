@@ -54,7 +54,7 @@ const SLOT_LABEL: Record<string, string> = {
   AFTERNOON: "Siang",
 };
 
-type RosterRow = {
+export type RosterRow = {
   studentId: string;
   name: string;
   nickname: string | null;

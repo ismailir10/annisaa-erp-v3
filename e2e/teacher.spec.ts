@@ -340,7 +340,9 @@ test.describe("Teacher flows", () => {
       ]);
       expect(contentBox).not.toBeNull();
       expect(navBox).not.toBeNull();
-      expect(contentBox!.bottom).toBeLessThanOrEqual(navBox!.y + 0.5);
+      // `boundingBox()` returns { x, y, width, height } — there is no
+      // `bottom`, so derive it.
+      expect(contentBox!.y + contentBox!.height).toBeLessThanOrEqual(navBox!.y + 0.5);
     }
 
     await page.getByRole("link", { name: /Kembali ke Slip Gaji/ }).click();

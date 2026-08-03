@@ -8,9 +8,9 @@ vi.mock("sonner", () => ({
   toast: { error: toastError, success: toastSuccess },
 }));
 
-import { SessionRosterClient } from "../client";
+import { SessionRosterClient, type RosterRow } from "../client";
 
-const roster = [
+const roster: RosterRow[] = [
   {
     studentId: "s1",
     name: "Aisyah",
