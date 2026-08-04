@@ -18,15 +18,22 @@ type PriorRow = { studentId: string; indicatorId: string; checked: boolean };
 
 const priorRows: PriorRow[] = [];
 
+// Each mock declares its argument type so `.mock.calls[0][0]` stays typed —
+// an argless `vi.fn()` infers a zero-length tuple and `tsc --noEmit` (the CI
+// typecheck, which covers test files) rejects indexing into it.
+type AuditCreateArgs = { data: Record<string, unknown> };
+type FindManyArgs = { where: Record<string, unknown> };
+type UpsertArgs = { where: Record<string, unknown> };
+
 const tx = {
   studentJournalEntry: {
-    findMany: vi.fn(async () => priorRows),
-    upsert: vi.fn(async ({ where }: { where: Record<string, never> }) => ({
+    findMany: vi.fn(async (_args: FindManyArgs) => priorRows),
+    upsert: vi.fn(async ({ where }: UpsertArgs) => ({
       id: `entry-${JSON.stringify(where).length}`,
     })),
   },
   studentJournalAudit: {
-    create: vi.fn(async () => ({ id: "audit-1" })),
+    create: vi.fn(async (_args: AuditCreateArgs) => ({ id: "audit-1" })),
   },
 };
 
@@ -49,9 +56,7 @@ const BASE = {
 };
 
 function auditPayloads() {
-  return tx.studentJournalAudit.create.mock.calls.map(
-    (c) => (c[0] as { data: Record<string, unknown> }).data,
-  );
+  return tx.studentJournalAudit.create.mock.calls.map((c) => c[0].data);
 }
 
 describe("upsertJournalEntriesWithAudit", () => {
@@ -147,11 +152,7 @@ describe("upsertJournalEntriesWithAudit", () => {
       entries: [{ studentId: "s-1", indicatorId: "i-1", checked: true }],
     });
 
-    const where = (
-      tx.studentJournalEntry.findMany.mock.calls[0]?.[0] as unknown as {
-        where: Record<string, unknown>;
-      }
-    ).where;
+    const where = tx.studentJournalEntry.findMany.mock.calls[0]?.[0].where;
     expect(where).toMatchObject({
       tenantId: "t-1",
       date: "2026-08-04",
