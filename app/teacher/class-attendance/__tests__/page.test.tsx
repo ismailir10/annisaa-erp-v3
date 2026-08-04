@@ -87,8 +87,18 @@ describe("ClassAttendancePage recovery", () => {
     render(<ClassAttendancePage />);
     await waitFor(() => expect(rosterCalls).toBe(1));
 
-    fireEvent.change(screen.getByLabelText("Tanggal kehadiran"), {
-      target: { value: "2026-08-04" },
+    // Derive the "other" date from whatever the picker currently holds. A
+    // hardcoded literal here silently stops testing anything the day the clock
+    // reaches it: the input defaults to today, so `change` to the same value is
+    // a no-op, no refetch fires, and this assertion fails. That is exactly what
+    // happened on 2026-08-04 with the previous literal "2026-08-04".
+    const dateInput = screen.getByLabelText(
+      "Tanggal kehadiran",
+    ) as HTMLInputElement;
+    const otherDay = new Date(`${dateInput.value}T00:00:00Z`);
+    otherDay.setUTCDate(otherDay.getUTCDate() - 1);
+    fireEvent.change(dateInput, {
+      target: { value: otherDay.toISOString().slice(0, 10) },
     });
     await waitFor(() => expect(rosterCalls).toBe(2));
 

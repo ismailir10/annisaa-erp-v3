@@ -286,25 +286,30 @@ export function WeeklyClient({
         >
           IKTP
         </label>
+        {/*
+          `NativeSelect` IS the <select> — passing another one as its child
+          produced `<select><select>…</select></select>`, which the parser
+          collapses: the outer select rendered zero options and the real picker
+          got a 0×0 box, so the walas could never change IKTP and every level
+          silently wrote against `indicators[0]`.
+        */}
         {indicators.length === 0 ? (
           <div className="rounded-lg border border-dashed border-input bg-muted/40 p-4 text-sm text-muted-foreground">
             Belum ada IKTP terhubung untuk tema pekan ini. Hubungi admin.
           </div>
         ) : (
-          <NativeSelect className="w-full">
-            <select
-              id="indicator-picker"
-              data-testid="indicator-picker"
-              value={activeIndicatorId}
-              onChange={(e) => setActiveIndicatorId(e.target.value)}
-              className="h-9 w-full appearance-none rounded-lg border border-input bg-transparent py-1 pr-8 pl-2.5 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              {indicators.map((ind) => (
-                <NativeSelectOption key={ind.id} value={ind.id}>
-                  {ind.objective.element} · {ind.content}
-                </NativeSelectOption>
-              ))}
-            </select>
+          <NativeSelect
+            id="indicator-picker"
+            data-testid="indicator-picker"
+            className="w-full"
+            value={activeIndicatorId}
+            onChange={(e) => setActiveIndicatorId(e.target.value)}
+          >
+            {indicators.map((ind) => (
+              <NativeSelectOption key={ind.id} value={ind.id}>
+                {ind.objective.element} · {ind.content}
+              </NativeSelectOption>
+            ))}
           </NativeSelect>
         )}
       </div>

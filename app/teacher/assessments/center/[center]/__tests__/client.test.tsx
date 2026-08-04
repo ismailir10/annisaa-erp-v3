@@ -71,7 +71,16 @@ describe("CenterSessionClient", () => {
     let calls = 0;
     vi.stubGlobal("fetch", vi.fn(() => ++calls === 1 ? first.promise : second.promise));
     renderClient();
-    fireEvent.change(screen.getByTestId("center-date"), { target: { value: "2026-08-04" } });
+    // Derive the "other" date from the picker's current value rather than
+    // hardcoding one. The input defaults to today, so a literal stops forcing a
+    // refetch the day the clock reaches it — the previous "2026-08-04" went
+    // red on 2026-08-04 and stayed red.
+    const dateInput = screen.getByTestId("center-date") as HTMLInputElement;
+    const otherDay = new Date(`${dateInput.value}T00:00:00Z`);
+    otherDay.setUTCDate(otherDay.getUTCDate() - 1);
+    fireEvent.change(dateInput, {
+      target: { value: otherDay.toISOString().slice(0, 10) },
+    });
     await waitFor(() => expect(calls).toBe(2));
     second.resolve(ok({ ...session(), indicators: [{ ...session().indicators[0], id: "indicator-new", content: "Data baru" }] }));
     await screen.findByText("Data baru");
