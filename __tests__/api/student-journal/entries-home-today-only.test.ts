@@ -32,6 +32,19 @@ vi.mock("@/lib/student-journal/guards", () => ({
 }));
 
 vi.mock("@/lib/db", () => {
+  // The route now writes through `upsertJournalEntriesWithAudit`, which uses
+  // the INTERACTIVE `$transaction(async tx => …)` form so it can read prior
+  // state and emit audit rows. The mock therefore hands the callback a `tx`
+  // client rather than mapping an array of pre-built ops.
+  const tx = {
+    studentJournalEntry: {
+      findMany: vi.fn(async () => [] as unknown[]),
+      upsert: vi.fn(async () => ({ id: "e-1" })),
+    },
+    studentJournalAudit: {
+      create: vi.fn(async () => ({ id: "a-1" })),
+    },
+  };
   const prisma = {
     studentJournalTemplate: {
       findUnique: vi.fn(async () => ({ id: "tmpl-1" })),
@@ -39,10 +52,11 @@ vi.mock("@/lib/db", () => {
     studentJournalIndicator: {
       findMany: vi.fn(async () => [{ id: "ind-1" }]),
     },
-    studentJournalEntry: {
-      upsert: vi.fn(async () => ({ id: "e-1" })),
-    },
-    $transaction: vi.fn(async (ops: unknown[]) => ops.map(() => ({ id: "e-1" }))),
+    studentJournalEntry: tx.studentJournalEntry,
+    studentJournalAudit: tx.studentJournalAudit,
+    $transaction: vi.fn(
+      async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx),
+    ),
   };
   return { prisma };
 });

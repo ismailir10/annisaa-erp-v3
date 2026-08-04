@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { entryBatchSchema } from "@/lib/validations/student-journal";
 import { requireTeacherForClass } from "@/lib/student-journal/guards";
+import { upsertJournalEntriesWithAudit } from "@/lib/student-journal/entry-writes";
 
 /**
  * POST /api/student-journal/entries/batch
@@ -99,35 +100,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Upsert all entries in a transaction
-  const results = await prisma.$transaction(
-    entries.map((entry) =>
-      prisma.studentJournalEntry.upsert({
-        where: {
-          studentId_indicatorId_date_scope: {
-            studentId: entry.studentId,
-            indicatorId: entry.indicatorId,
-            date,
-            scope: "SCHOOL",
-          },
-        },
-        update: {
-          checked: entry.checked,
-          recordedByUserId: session.id,
-        },
-        create: {
-          tenantId: session.tenantId,
-          studentId: entry.studentId,
-          classSectionId,
-          indicatorId: entry.indicatorId,
-          date,
-          scope: "SCHOOL",
-          checked: entry.checked,
-          recordedByUserId: session.id,
-        },
-      })
-    )
-  );
+  // Upsert + audit in one transaction (see lib/student-journal/entry-writes).
+  const saved = await upsertJournalEntriesWithAudit({
+    tenantId: session.tenantId,
+    actorUserId: session.id,
+    date,
+    scope: "SCHOOL",
+    classSectionId,
+    entries,
+  });
 
-  return NextResponse.json({ data: { saved: results.length } });
+  return NextResponse.json({ data: { saved } });
 }
