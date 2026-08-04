@@ -58,15 +58,37 @@ New tests: `__tests__/api/student-journal/entry-writes-audit.test.ts` (6), `__te
 ## Verification
 
 - `npm run build` — exit 0.
-- `npx vitest run` — **2 failed | 271 passed | 2 skipped (275 files)**; **2608 tests passed**.
-  The 2 failures are pre-existing and unrelated (stale-request race assertions in `app/teacher/assessments/center/[center]/__tests__/client.test.tsx` and `app/teacher/class-attendance/__tests__/page.test.tsx`). Verified independently: stashing this branch's changes and running those two files against clean `5dba30ac` reproduces `Test Files 2 failed | 1 passed`. Neither file is touched here.
+- `npm run typecheck` — exit 0, 0 errors.
+- `npm run lint` — 0 errors, 62 warnings (all pre-existing `no-unused-vars` in test fixtures).
+- `npx vitest run` — **274 passed | 2 skipped (276 files)**; **2615 tests passed, 0 failed**.
 - `npm run lint` — 0 errors, 60 warnings (all pre-existing `no-unused-vars` in test fixtures).
 - **Guards proven against the pre-fix code**, not just asserted green: reverting `weekly/client.tsx` to `HEAD` fails 3 of 5 picker tests; reverting `admin/classes/route.ts` fails 5 of 6 scope tests.
 - Regression fixed en route: switching to the interactive transaction broke `entries-home-today-only.test.ts`, whose mock encoded the array-form `$transaction` contract. Confirmed a genuine regression (it passes on clean HEAD) and updated the mock.
 - Frontend diffs cross-checked against `design-system.html` — no visual tokens changed; `NativeSelect` renders the same control, the fix only removes an invalid nested element.
 - Playwright: **deferred to the required CI `Playwright E2E` check**. This harness cannot spin the local Playwright stack; no e2e spec covers the weekly IKTP picker today, and the three new Vitest suites cover the changed behaviour deterministically.
-- Preview-verify on the Vercel preview is still owed before merge — the blocker was found in the browser and should be confirmed there.
+### Preview-verify (PR #451, deployment `dpl_3uJo1s5u…`, commit `6c65dfc0`)
+
+Chrome MCP against `annisaa-erp-v3-git-feat-jurnal-a5bab7…vercel.app`, signed in per role. All five fixes confirmed on the deployed preview:
+
+| Fix | Evidence on preview |
+|---|---|
+| **B1** | IKTP select renders its value ("RELIGIOUS_MORAL · Mengucap basmalah…") instead of blank. DOM: `selectCount: 1`, `nested: false`, `options: 9`, box `400×32` (was `0×0`). Console clean — React #418 gone. Switched to the **ART** IKTP: roster levels correctly re-keyed to that indicator, recorded "Mampu" for Abdullah Luthfi Nurhadi, and the DB row landed on **ART** — the first weekly write ever possible against anything other than `indicators[0]`. |
+| **M1** | Monitor lists **8** classes (active AY only); the 7 archived-2024/2025 sections are gone. |
+| **M2** | "Total entri minggu ini" = **4**, matching the DB. API returns `checkedCount: 4` with `completionPct: 3` — the old back-computation would still read 1. |
+| **M3** | "Siswa terdaftar aktif" = **21** distinct (was 37 enrolment rows). "Kelas sudah isi" 1/**8**, "Kelas belum isi" **7**. |
+| **M4** | Toggled an indicator as walas → first-ever `ENTRY / CREATE` audit row written (`beforeJson: null`, `afterJson: {checked: true}`). Prior to this the only ENTRY rows in the table were two admin UPDATEs from 30 Juli. |
+
+Zero blockers, zero minors found during the walk.
+
 - Local browser verification was attempted and is **not** available in this harness: the preview server cannot spawn (`getcwd: Operation not permitted` before the shell starts). Not a launch-config problem; the Vercel preview is the verification path.
+
+### Scope extension — two date-bombed tests (unblocking the required gate)
+
+CI's `Lint, Typecheck & Test` was red on two tests this cycle does not touch. Diagnosed rather than waved off as flakes:
+
+`app/teacher/class-attendance/__tests__/page.test.tsx` and `app/teacher/assessments/center/[center]/__tests__/client.test.tsx` each hardcoded `"2026-08-04"` as "a different date" to force a refetch. Both components initialise their date picker to **today**, so on 2026-08-04 `fireEvent.change` to that literal is a no-op: no refetch fires and `expect(calls).toBe(2)` fails. Staging's own run of the same commit `5dba30ac` was green on **2026-08-03**; the tests went red at the Jakarta date rollover and would have stayed red, blocking every PR — not just this one.
+
+Fixed by deriving the "other" date from the picker's current value (−1 day) instead of a literal. Confirmed: both files fail on `HEAD` before the change and pass after; the full suite is now 0-failure. This is beyond the cycle's stated scope and is recorded here deliberately.
 - `/audit-docs` — **0 fail, 0 warn.** routes 185/185, portal pages 41/13/8, components 65/65, e2e specs 33/33, all 10 standards files present, File Structure paths all resolve. This cycle adds no route, page, component or spec, so no doc counters move.
 - Test-skip delta gate: HEAD 0, `origin/staging` 0 — no new gated-out tests.
 
