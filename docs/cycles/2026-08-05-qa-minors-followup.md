@@ -119,6 +119,8 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 | `lib/academic-period-db.ts` | Swapped `$queryRaw` for `prisma.semester.findFirst` (the model exists at `schema.prisma:1080`; the docstring claiming otherwise was stale). Day resolved in `Asia/Jakarta` — boundaries are UTC midnight of the *Jakarta* day, so a UTC read is off by one for the seven hours after Jakarta midnight. Docstring now explains why the date window, not `status` alone, is what makes the answer single-valued. |
 | `app/teacher/assessments/page.tsx` | `period` reads `getCurrentPeriodFromDb(session.tenantId)` instead of the month bracket. This is the helper's first call site — it was dead code. |
 
+**Follow-up found while writing T12's SQL.** Reading the real staging rows showed the date-windowed lookup alone was not enough. Staging's `AcademicYear` 2025/2026 ends 2026-06-19 and 2026/2027 is `PLANNING` with no semesters, so once d1 is corrected **no** semester covers today (2026-08-05) and the helper would fall through to the calendar heuristic — putting the teacher on "Semester 1 2026/2027" while `/parent/perkembangan` still read "Semester 2 2025/2026". That is the same mismatch m3 reports, re-created by the fix. The helper now falls back to the newest ACTIVE semester (the parent resolver's exact rule) before the calendar, so teacher and parent cannot diverge whatever the data does.
+
 ### T3 — m4, journal `weekStart`
 
 | File | Change |
@@ -187,4 +189,3 @@ _(filled by /ship)_
 | `lib/student-journal/optimistic-save.ts` + `tests/student-journal/optimistic-save.test.ts` | `enqueuePerKey` removed — the coalescer's single ordered chain replaces per-cell queues, leaving it with zero callers. Dead code was itself a finding in this report (m10). |
 
 New test: `lib/student-journal/__tests__/coalesce-writes.test.ts` (7, fake timers).
-

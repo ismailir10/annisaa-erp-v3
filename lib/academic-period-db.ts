@@ -31,8 +31,12 @@ export async function getCurrentPeriodFromDb(
   now: Date = new Date(),
 ): Promise<string> {
   const today = new Date(`${getYmdInTimezone(now, JAKARTA_TZ)}T00:00:00.000Z`);
+  const select = {
+    number: true,
+    academicYear: { select: { name: true } },
+  } as const;
 
-  const semester = await prisma.semester.findFirst({
+  const covering = await prisma.semester.findFirst({
     where: {
       tenantId,
       status: "ACTIVE",
@@ -40,11 +44,26 @@ export async function getCurrentPeriodFromDb(
       endDate: { gte: today },
     },
     orderBy: { startDate: "desc" },
-    select: { number: true, academicYear: { select: { name: true } } },
+    select,
   });
-
-  if (semester) {
-    return `Semester ${semester.number} ${semester.academicYear.name}`;
+  if (covering) {
+    return `Semester ${covering.number} ${covering.academicYear.name}`;
   }
+
+  // Between terms — or, on staging today, a Semester row whose dates sit
+  // outside its own academic year. Fall back to the newest ACTIVE semester,
+  // which is exactly what `loadStudentPerkembangan` shows the parent. Falling
+  // straight through to the calendar here would put the teacher on
+  // "Semester 1 2026/2027" while the parent read "Semester 2 2025/2026" —
+  // reintroducing the very mismatch this helper is being adopted to fix.
+  const newestActive = await prisma.semester.findFirst({
+    where: { tenantId, status: "ACTIVE" },
+    orderBy: { startDate: "desc" },
+    select,
+  });
+  if (newestActive) {
+    return `Semester ${newestActive.number} ${newestActive.academicYear.name}`;
+  }
+
   return getCurrentPeriod(now);
 }

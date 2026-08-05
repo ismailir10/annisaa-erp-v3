@@ -60,11 +60,32 @@ describe("getCurrentPeriodFromDb", () => {
     expect(arg.where.startDate).toEqual({ lte: new Date("2026-02-11T00:00:00.000Z") });
   });
 
-  it("falls back to the calendar heuristic when no semester covers today", async () => {
+  it("falls back to the newest ACTIVE semester — what the parent portal shows", async () => {
+    // Between terms, or when a Semester row's dates sit outside its own
+    // academic year (staging today). Dropping straight to the calendar would
+    // put the teacher on "Semester 1 2026/2027" against the parent's
+    // "Semester 2 2025/2026" — the exact mismatch m3 is about.
+    semesterFindFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ number: 2, academicYear: { name: "2025/2026" } });
+
+    await expect(
+      getCurrentPeriodFromDb("t_annisaa", new Date("2026-08-05T00:00:00Z")),
+    ).resolves.toBe("Semester 2 2025/2026");
+
+    // The fallback query drops the date window but keeps status + ordering,
+    // matching loadStudentPerkembangan.
+    const fallbackArgs = semesterFindFirst.mock.calls[1]![0]!;
+    expect(fallbackArgs.where).toEqual({ tenantId: "t_annisaa", status: "ACTIVE" });
+    expect(fallbackArgs.orderBy).toEqual({ startDate: "desc" });
+  });
+
+  it("falls back to the calendar heuristic only when the tenant has no active semester", async () => {
     semesterFindFirst.mockResolvedValue(null);
 
     await expect(
       getCurrentPeriodFromDb("t_annisaa", new Date(2026, 0, 10)),
     ).resolves.toBe("Semester 2 2025/2026");
+    expect(semesterFindFirst).toHaveBeenCalledTimes(2);
   });
 });
