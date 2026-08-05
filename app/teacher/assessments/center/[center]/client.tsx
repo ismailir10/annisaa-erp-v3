@@ -7,6 +7,7 @@ import { ChevronLeft, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/portal/page-header";
@@ -144,7 +145,7 @@ export function CenterSessionClient({
           ok: false,
           status: 0,
           error:
-            err instanceof Error ? err.message : "Tidak bisa terhubung ke server.",
+            userMessage(err, "Tidak bisa terhubung ke server."),
         });
       } finally {
         if (!cancelled && requestId === loadRequestId.current) setLoading(false);
@@ -284,16 +285,16 @@ export function CenterSessionClient({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? "Gagal menyimpan sesi sentra.");
+        throw new ApiError(body.error ?? "Gagal menyimpan sesi sentra.");
       }
       const body = await res.json();
       toast.success(`Tersimpan: ${body.written} penilaian.`);
       router.refresh();
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Gagal menyimpan sesi sentra. Coba lagi sebentar ya.";
+      const message = userMessage(
+        err,
+        "Gagal menyimpan sesi sentra. Coba lagi sebentar ya.",
+      );
       toast.error(message);
     } finally {
       setSaving(false);

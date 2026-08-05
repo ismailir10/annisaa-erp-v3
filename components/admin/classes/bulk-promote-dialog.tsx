@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 
 /**
  * Naik Kelas Massal — bulk class promotion dialog. Wires the previously
@@ -48,7 +49,7 @@ async function fetchSections(yearId: string): Promise<SectionOption[]> {
     status: "ACTIVE",
   });
   const res = await fetch(`/api/admin/classes?${params}`);
-  if (!res.ok) throw new Error("Gagal memuat daftar kelas");
+  if (!res.ok) throw new ApiError("Gagal memuat daftar kelas");
   const j = await res.json().catch(() => null);
   const rows = Array.isArray(j?.data) ? j.data : [];
   return rows.map(
@@ -110,7 +111,7 @@ export function BulkPromoteDialog({
         if (!cancelled) setSourceSections(s);
       })
       .catch((e) => {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : "Gagal memuat data");
+        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
       });
     return () => {
       cancelled = true;
@@ -125,7 +126,7 @@ export function BulkPromoteDialog({
         if (!cancelled) setTargetSections(s);
       })
       .catch((e) => {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : "Gagal memuat data");
+        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
       });
     return () => {
       cancelled = true;
@@ -146,7 +147,7 @@ export function BulkPromoteDialog({
       .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Gagal memuat daftar siswa");
+          throw new ApiError(err.error || "Gagal memuat daftar siswa");
         }
         return res.json();
       })
@@ -156,7 +157,7 @@ export function BulkPromoteDialog({
         setExcluded(new Set());
       })
       .catch((e) => {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : "Gagal memuat data");
+        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
       })
       .finally(() => {
         if (!cancelled) setRosterLoading(false);

@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { formatDate, formatClassOptionLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import {
@@ -643,13 +644,13 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
       const res = await fetch(`/api/student-attendance/recap?${buildParams()}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Gagal memuat rekap");
+        throw new ApiError(err.error || "Gagal memuat rekap");
       }
       const json = await res.json();
       if (!signal.cancelled) setRows(json.data ?? []);
     } catch (e) {
       if (!signal.cancelled) {
-        toast.error(e instanceof Error ? e.message : "Gagal memuat rekap");
+        toast.error(userMessage(e, "Gagal memuat rekap"));
       }
     } finally {
       if (!signal.cancelled) setLoading(false);

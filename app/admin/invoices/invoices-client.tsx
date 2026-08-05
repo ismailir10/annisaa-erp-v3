@@ -41,6 +41,7 @@ import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { userMessage } from "@/lib/api/client-errors";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
 import {
   runBulkGenerate,
@@ -478,7 +479,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
         }, 5000);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal membuat tagihan");
+      toast.error(userMessage(e, "Gagal membuat tagihan"));
       setProgress(null);
     } finally {
       setGenerating(false);
@@ -561,7 +562,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
         }, 5000);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal mencoba ulang link");
+      toast.error(userMessage(e, "Gagal mencoba ulang link"));
       setRetryProgress(null);
     } finally {
       if (mountedRef.current) setRetrying(false);

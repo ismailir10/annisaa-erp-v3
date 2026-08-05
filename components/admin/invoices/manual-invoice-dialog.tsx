@@ -44,6 +44,7 @@ import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { userMessage } from "@/lib/api/client-errors";
 import { formatRupiah, formatMonthLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -657,7 +658,7 @@ export function ManualInvoiceDialog({
         router.push(`/admin/invoices/${created.id}`);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal membuat tagihan");
+      toast.error(userMessage(e, "Gagal membuat tagihan"));
     } finally {
       setSubmitting(false);
     }
