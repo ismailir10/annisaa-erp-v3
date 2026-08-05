@@ -154,7 +154,36 @@ New tests: `lib/__tests__/parent-greeting.test.ts` (12), `lib/__tests__/academic
 
 ## Verification
 
-_(filled by /build)_
+**Gates, run at `b1f0da32` (all twelve tasks in):**
+
+| Gate | Result |
+|---|---|
+| `npm run build` | exit 0. The `[AUTH] Session retrieval failed / Dynamic server usage` lines are Next's static-render probes against cookie-reading routes, present on `origin/staging` too — not failures. |
+| `npx vitest run` | **279 files passed, 2 skipped; 2645 tests passed, 42 todo.** Baseline before this cycle was 277 files / 2635 tests, so +2 files and +10 tests, zero regressions. |
+| `npm run lint` | **0 errors, 61 warnings** — every warning is in a file this cycle did not touch (pre-existing on `origin/staging`). |
+| `npx playwright test` | **Deferred to the required CI `Playwright E2E` check.** Cannot run in this harness: `playwright.config.ts:40` refuses to start because the worktree's `DATABASE_URL` resolves to `aws-1-ap-southeast-1.pooler.supabase.com` — the specs create and mutate data through the API and would pollute the shared staging database. Overriding with `E2E_ALLOW_REMOTE_DB=1` was deliberately **not** used. |
+| Preview-verify | `/ship` step 3 — recorded below once the preview is up. |
+
+**Design system.** Cross-checked `design-system.html` before T6: the accessible-text-on-tinted-surface pattern already exists as `--status-*-text` and `--celebration-gold-text`, so `--primary-text` follows it rather than introducing a new convention. T5's 404 mirrors the existing portal `error.tsx` layout and voice.
+
+**Contrast, measured not eyeballed** (`lib/__tests__/primary-text-contrast.test.ts` recomputes these from `globals.css` on every run):
+
+| Pair | Before | After |
+|---|---|---|
+| label on `bg-primary/10` (checked journal cell) | 2.24:1 | 4.63:1 |
+| glyph on `bg-primary/5` (parent week-grid check) | 2.31:1 | 4.80:1 |
+| on white | 2.36:1 | 5.00:1 |
+
+**Live staging reads** (read-only, via Supabase MCP against `udbivhchbizpxoryejgz`) confirming d1 and sharpening the report's figures:
+
+- `AcademicYear` 2025/2026 — ACTIVE, 2025-07-14 → 2026-06-19.
+- `Semester` 1 — ACTIVE, 2025-07-14 → 2025-12-19. Inside its year.
+- `Semester` 2 — ACTIVE, **2026-07-20 → 2026-09-11**. Entirely outside its year, and 7 months after Semester 1 ends. (The report said 2026-07-19 → 2026-09-10; the stored values are one day later.)
+- `AcademicYear` 2026/2027 — **PLANNING, no semesters at all.**
+
+That last row is what turned T2 from a one-line swap into the two-step fallback: correcting d1 alone would leave today uncovered by any semester.
+
+**Not verified here:** the QA report's own "not tested" list (HOME-scope journal entries, raport PDF download, Category-C soft-void, cross-tenant isolation) is unchanged by this cycle and still needs a fresh QA pass.
 
 ## Ship Notes
 
