@@ -713,8 +713,9 @@ function ObjectiveEditDialog({
       }
     >
       <Field>
-        <FieldLabel>Capaian Perkembangan Diri</FieldLabel>
+        <FieldLabel htmlFor="objective-competencyText">Capaian Perkembangan Diri</FieldLabel>
         <Textarea
+          id="objective-competencyText"
           rows={3}
           value={competencyText}
           onChange={(e) => setCompetencyText(e.target.value)}
@@ -722,8 +723,9 @@ function ObjectiveEditDialog({
         />
       </Field>
       <Field>
-        <FieldLabel>Tujuan Pembelajaran</FieldLabel>
+        <FieldLabel htmlFor="objective-content">Tujuan Pembelajaran</FieldLabel>
         <Textarea
+          id="objective-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -799,8 +801,9 @@ function AddIndicatorDialog({
       }
     >
       <Field>
-        <FieldLabel>Isi indikator (Indonesian)</FieldLabel>
+        <FieldLabel htmlFor="indicator-add-content">Isi indikator (Indonesian)</FieldLabel>
         <Textarea
+          id="indicator-add-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -808,8 +811,9 @@ function AddIndicatorDialog({
         />
       </Field>
       <Field>
-        <FieldLabel>Urutan</FieldLabel>
+        <FieldLabel htmlFor="indicator-add-order">Urutan</FieldLabel>
         <Input
+          id="indicator-add-order"
           type="number"
           min={1}
           max={9999}
@@ -882,8 +886,9 @@ function IndicatorEditDialog({
       }
     >
       <Field>
-        <FieldLabel>Isi indikator</FieldLabel>
+        <FieldLabel htmlFor="indicator-edit-content">Isi indikator</FieldLabel>
         <Textarea
+          id="indicator-edit-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -891,8 +896,9 @@ function IndicatorEditDialog({
         />
       </Field>
       <Field>
-        <FieldLabel>Urutan</FieldLabel>
+        <FieldLabel htmlFor="indicator-edit-order">Urutan</FieldLabel>
         <Input
+          id="indicator-edit-order"
           type="number"
           min={1}
           max={9999}

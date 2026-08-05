@@ -197,8 +197,11 @@ function GenerateInvoiceFormBody({
   return (
     <>
       <Field>
-        <FieldLabel required>Periode</FieldLabel>
+        <FieldLabel required htmlFor="invoices-generate-period">Periode</FieldLabel>
         <Input
+          id="invoices-generate-period"
+          required
+          aria-required="true"
           value={genForm.periodLabel}
           onChange={(e) => setGenForm({ ...genForm, periodLabel: e.target.value })}
           placeholder="April 2026"
@@ -206,20 +209,23 @@ function GenerateInvoiceFormBody({
         <FieldDescription>Contoh: April 2026</FieldDescription>
       </Field>
       <Field>
-        <FieldLabel required>Tanggal Jatuh Tempo</FieldLabel>
+        <FieldLabel required htmlFor="invoices-generate-due-date">Tanggal Jatuh Tempo</FieldLabel>
         <Input
+          id="invoices-generate-due-date"
+          required
+          aria-required="true"
           type="date"
           value={genForm.dueDate}
           onChange={(e) => setGenForm({ ...genForm, dueDate: e.target.value })}
         />
       </Field>
       <Field>
-        <FieldLabel required>Tahun Ajaran</FieldLabel>
+        <FieldLabel required htmlFor="invoices-generate-academic-year">Tahun Ajaran</FieldLabel>
         <Select
           value={genForm.academicYearId}
           onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
         >
-          <SelectTrigger>
+          <SelectTrigger id="invoices-generate-academic-year" aria-required="true">
             <SelectValue placeholder="Pilih tahun ajaran" />
           </SelectTrigger>
           <SelectContent>

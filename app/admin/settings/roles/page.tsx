@@ -478,8 +478,9 @@ export default function RolesPage() {
             </Field>
 
             <Field>
-              <FieldLabel>Deskripsi</FieldLabel>
+              <FieldLabel htmlFor="role-description">Deskripsi</FieldLabel>
               <Textarea
+                id="role-description"
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
                 placeholder="Deskripsi singkat peran ini..."

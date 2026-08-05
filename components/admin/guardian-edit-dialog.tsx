@@ -99,18 +99,18 @@ export function GuardianFormBody({
     <div className="space-y-field">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field>
-          <FieldLabel required>Nama</FieldLabel>
-          <Input value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder="Nama wali" />
+          <FieldLabel required htmlFor="guardian-name">Nama</FieldLabel>
+          <Input id="guardian-name" required aria-required="true" value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder="Nama wali" />
         </Field>
         {showRelationship ? (
           <Field>
-            <FieldLabel>Hubungan</FieldLabel>
+            <FieldLabel htmlFor="guardian-relationship">Hubungan</FieldLabel>
             <Select
               value={form.relationship}
               onValueChange={(v) => v && patch({ relationship: v })}
               items={REL_LABELS}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="guardian-relationship"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {RELATIONSHIP_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -120,28 +120,28 @@ export function GuardianFormBody({
           </Field>
         ) : (
           <Field>
-            <FieldLabel>NIK</FieldLabel>
-            <Input value={form.parentNik} onChange={(e) => patch({ parentNik: e.target.value })} placeholder="NIK orang tua" />
+            <FieldLabel htmlFor="guardian-nik">NIK</FieldLabel>
+            <Input id="guardian-nik" value={form.parentNik} onChange={(e) => patch({ parentNik: e.target.value })} placeholder="NIK orang tua" />
           </Field>
         )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>No. HP</FieldLabel>
-          <Input value={form.phone} onChange={(e) => patch({ phone: e.target.value })} placeholder="081234567890" />
+          <FieldLabel htmlFor="guardian-phone">No. HP</FieldLabel>
+          <Input id="guardian-phone" value={form.phone} onChange={(e) => patch({ phone: e.target.value })} placeholder="081234567890" />
         </Field>
         <Field>
-          <FieldLabel>WhatsApp</FieldLabel>
-          <Input value={form.whatsapp} onChange={(e) => patch({ whatsapp: e.target.value })} placeholder="081234567890" />
+          <FieldLabel htmlFor="guardian-whatsapp">WhatsApp</FieldLabel>
+          <Input id="guardian-whatsapp" value={form.whatsapp} onChange={(e) => patch({ whatsapp: e.target.value })} placeholder="081234567890" />
         </Field>
       </div>
       <Field>
-        <FieldLabel>Email</FieldLabel>
-        <Input type="email" value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder="email@example.com" />
+        <FieldLabel htmlFor="guardian-email">Email</FieldLabel>
+        <Input id="guardian-email" type="email" value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder="email@example.com" />
       </Field>
       <Field>
-        <FieldLabel>Alamat</FieldLabel>
-        <Input value={form.address} onChange={(e) => patch({ address: e.target.value })} placeholder="Alamat tempat tinggal" />
+        <FieldLabel htmlFor="guardian-address">Alamat</FieldLabel>
+        <Input id="guardian-address" value={form.address} onChange={(e) => patch({ address: e.target.value })} placeholder="Alamat tempat tinggal" />
       </Field>
 
       <div className="pt-2 border-t">
@@ -149,9 +149,9 @@ export function GuardianFormBody({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Pendidikan</FieldLabel>
+          <FieldLabel htmlFor="guardian-education">Pendidikan</FieldLabel>
           <Select value={form.education || undefined} onValueChange={(v) => v && patch({ education: v })}>
-            <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+            <SelectTrigger id="guardian-education"><SelectValue placeholder="Pilih" /></SelectTrigger>
             <SelectContent>
               {EDUCATION_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -160,9 +160,9 @@ export function GuardianFormBody({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Pekerjaan</FieldLabel>
+          <FieldLabel htmlFor="guardian-occupation">Pekerjaan</FieldLabel>
           <Select value={form.occupation || undefined} onValueChange={(v) => v && patch({ occupation: v })}>
-            <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+            <SelectTrigger id="guardian-occupation"><SelectValue placeholder="Pilih" /></SelectTrigger>
             <SelectContent>
               {OCCUPATION_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -173,9 +173,9 @@ export function GuardianFormBody({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Penghasilan</FieldLabel>
+          <FieldLabel htmlFor="guardian-income">Penghasilan</FieldLabel>
           <Select value={form.incomeRange || undefined} onValueChange={(v) => v && patch({ incomeRange: v })}>
-            <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+            <SelectTrigger id="guardian-income"><SelectValue placeholder="Pilih" /></SelectTrigger>
             <SelectContent>
               {INCOME_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -185,13 +185,14 @@ export function GuardianFormBody({
         </Field>
         {showRelationship ? (
           <Field>
-            <FieldLabel>NIK</FieldLabel>
-            <Input value={form.parentNik} onChange={(e) => patch({ parentNik: e.target.value })} placeholder="NIK orang tua" />
+            <FieldLabel htmlFor="guardian-nik">NIK</FieldLabel>
+            <Input id="guardian-nik" value={form.parentNik} onChange={(e) => patch({ parentNik: e.target.value })} placeholder="NIK orang tua" />
           </Field>
         ) : (
           <Field>
-            <FieldLabel>Jumlah Anak</FieldLabel>
+            <FieldLabel htmlFor="guardian-children-total">Jumlah Anak</FieldLabel>
             <Input
+              id="guardian-children-total"
               type="number"
               min={0}
               value={form.childrenTotal}
@@ -203,8 +204,9 @@ export function GuardianFormBody({
       </div>
       {showRelationship && (
         <Field>
-          <FieldLabel>Jumlah Anak</FieldLabel>
+          <FieldLabel htmlFor="guardian-children-total">Jumlah Anak</FieldLabel>
           <Input
+            id="guardian-children-total"
             type="number"
             min={0}
             value={form.childrenTotal}
@@ -214,17 +216,17 @@ export function GuardianFormBody({
         </Field>
       )}
       <Field>
-        <FieldLabel>Tempat Kerja</FieldLabel>
-        <Input value={form.employer} onChange={(e) => patch({ employer: e.target.value })} placeholder="Nama perusahaan / instansi" />
+        <FieldLabel htmlFor="guardian-employer">Tempat Kerja</FieldLabel>
+        <Input id="guardian-employer" value={form.employer} onChange={(e) => patch({ employer: e.target.value })} placeholder="Nama perusahaan / instansi" />
       </Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field>
-          <FieldLabel>Alamat Kantor</FieldLabel>
-          <Input value={form.employerAddress} onChange={(e) => patch({ employerAddress: e.target.value })} placeholder="Alamat kantor" />
+          <FieldLabel htmlFor="guardian-employer-address">Alamat Kantor</FieldLabel>
+          <Input id="guardian-employer-address" value={form.employerAddress} onChange={(e) => patch({ employerAddress: e.target.value })} placeholder="Alamat kantor" />
         </Field>
         <Field>
-          <FieldLabel>Kota/Kab</FieldLabel>
-          <Input value={form.employerCity} onChange={(e) => patch({ employerCity: e.target.value })} placeholder="Kota / Kabupaten" />
+          <FieldLabel htmlFor="guardian-employer-city">Kota/Kab</FieldLabel>
+          <Input id="guardian-employer-city" value={form.employerCity} onChange={(e) => patch({ employerCity: e.target.value })} placeholder="Kota / Kabupaten" />
         </Field>
       </div>
 
@@ -238,8 +240,9 @@ export function GuardianFormBody({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field>
-              <FieldLabel>Anak ke-</FieldLabel>
+              <FieldLabel htmlFor="guardian-child-order">Anak ke-</FieldLabel>
               <Input
+                id="guardian-child-order"
                 type="number"
                 min={1}
                 value={form.childOrder}
@@ -248,9 +251,10 @@ export function GuardianFormBody({
               />
             </Field>
             <Field>
-              <FieldLabel>Wali Utama</FieldLabel>
+              <FieldLabel htmlFor="guardian-primary">Wali Utama</FieldLabel>
               <div className="flex items-center gap-3 pt-2">
                 <Switch
+                  id="guardian-primary"
                   checked={form.isPrimary}
                   onCheckedChange={(checked) => patch({ isPrimary: checked === true })}
                   aria-label="Tandai sebagai wali utama"

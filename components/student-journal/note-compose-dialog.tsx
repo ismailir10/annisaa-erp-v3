@@ -166,13 +166,13 @@ export function NoteComposeDialog({
       }
     >
       <Field>
-        <FieldLabel>Tanggal</FieldLabel>
+        <FieldLabel htmlFor="note-date">Tanggal</FieldLabel>
         <Select
           value={date}
           onValueChange={(v) => v && setDate(v)}
           disabled={mode === "edit" || dateOptions.length === 0}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger id="note-date" className="w-full">
             <SelectValue
               placeholder={dateOptions.length > 0 ? "Pilih tanggal" : "Tidak ada tanggal tersedia"}
             />
@@ -193,8 +193,9 @@ export function NoteComposeDialog({
       </Field>
 
       <Field>
-        <FieldLabel>Isi Catatan</FieldLabel>
+        <FieldLabel htmlFor="note-body">Isi Catatan</FieldLabel>
         <Textarea
+          id="note-body"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           maxLength={MAX_LEN}

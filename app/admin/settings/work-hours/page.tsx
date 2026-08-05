@@ -91,8 +91,8 @@ export default function OrgConfigPage() {
 
       <Card className="p-card max-w-2xl space-y-field">
         {/* Working days */}
-        <Field>
-          <FieldLabel>Hari Kerja</FieldLabel>
+        <Field aria-labelledby="work-hours-days">
+          <FieldLabel id="work-hours-days">Hari Kerja</FieldLabel>
           <div className="flex flex-wrap gap-2">
             {DAYS.map((d) => (
               <label
@@ -116,36 +116,36 @@ export default function OrgConfigPage() {
         {/* Work hours */}
         <div className="grid grid-cols-2 gap-4">
           <Field>
-            <FieldLabel>Jam Mulai</FieldLabel>
-            <Input type="time" value={form.workStartTime} onChange={(e) => setForm({ ...form, workStartTime: e.target.value })} />
+            <FieldLabel htmlFor="work-hours-start-time">Jam Mulai</FieldLabel>
+            <Input id="work-hours-start-time" type="time" value={form.workStartTime} onChange={(e) => setForm({ ...form, workStartTime: e.target.value })} />
           </Field>
           <Field>
-            <FieldLabel>Jam Selesai</FieldLabel>
-            <Input type="time" value={form.workEndTime} onChange={(e) => setForm({ ...form, workEndTime: e.target.value })} />
+            <FieldLabel htmlFor="work-hours-end-time">Jam Selesai</FieldLabel>
+            <Input id="work-hours-end-time" type="time" value={form.workEndTime} onChange={(e) => setForm({ ...form, workEndTime: e.target.value })} />
           </Field>
         </div>
 
         {/* Grace period */}
         <Field>
-          <FieldLabel>Toleransi Keterlambatan (menit)</FieldLabel>
-          <Input type="number" min="0" max="60" value={form.gracePeriodMinutes} onChange={(e) => setForm({ ...form, gracePeriodMinutes: e.target.value })} />
+          <FieldLabel htmlFor="work-hours-grace-period">Toleransi Keterlambatan (menit)</FieldLabel>
+          <Input id="work-hours-grace-period" type="number" min="0" max="60" value={form.gracePeriodMinutes} onChange={(e) => setForm({ ...form, gracePeriodMinutes: e.target.value })} />
         </Field>
 
         {/* Timezone */}
         <Field>
-          <FieldLabel>Zona Waktu</FieldLabel>
-          <Input value="Asia/Jakarta" disabled />
+          <FieldLabel htmlFor="work-hours-timezone">Zona Waktu</FieldLabel>
+          <Input id="work-hours-timezone" value="Asia/Jakarta" disabled />
         </Field>
 
         {/* Payroll period */}
         <div className="grid grid-cols-2 gap-4">
           <Field>
-            <FieldLabel>Tanggal Mulai Gaji</FieldLabel>
-            <Input type="number" min="1" max="31" value={form.payrollPeriodStartDay} onChange={(e) => setForm({ ...form, payrollPeriodStartDay: e.target.value })} />
+            <FieldLabel htmlFor="work-hours-payroll-start-day">Tanggal Mulai Gaji</FieldLabel>
+            <Input id="work-hours-payroll-start-day" type="number" min="1" max="31" value={form.payrollPeriodStartDay} onChange={(e) => setForm({ ...form, payrollPeriodStartDay: e.target.value })} />
           </Field>
           <Field>
-            <FieldLabel>Tanggal Selesai Gaji</FieldLabel>
-            <Input type="number" min="1" max="31" value={form.payrollPeriodEndDay} onChange={(e) => setForm({ ...form, payrollPeriodEndDay: e.target.value })} />
+            <FieldLabel htmlFor="work-hours-payroll-end-day">Tanggal Selesai Gaji</FieldLabel>
+            <Input id="work-hours-payroll-end-day" type="number" min="1" max="31" value={form.payrollPeriodEndDay} onChange={(e) => setForm({ ...form, payrollPeriodEndDay: e.target.value })} />
           </Field>
         </div>
 

@@ -517,12 +517,12 @@ export default function StudentAttendancePage() {
         }
       >
         <Field>
-          <FieldLabel>Status Kehadiran</FieldLabel>
+          <FieldLabel htmlFor="attendance-override-status">Status Kehadiran</FieldLabel>
           <Select
             value={overrideForm.status}
             onValueChange={(v) => setOverrideForm((f) => ({ ...f, status: v ?? f.status }))}
           >
-            <SelectTrigger>
+            <SelectTrigger id="attendance-override-status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -534,8 +534,9 @@ export default function StudentAttendancePage() {
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Catatan (opsional)</FieldLabel>
+          <FieldLabel htmlFor="attendance-override-notes">Catatan (opsional)</FieldLabel>
           <Textarea
+            id="attendance-override-notes"
             value={overrideForm.notes}
             onChange={(e) => setOverrideForm((f) => ({ ...f, notes: e.target.value }))}
             placeholder="Catatan tambahan..."

@@ -252,9 +252,9 @@ export function BulkPromoteDialog({
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Tahun Ajaran Asal</FieldLabel>
+          <FieldLabel htmlFor="promote-source-year">Tahun Ajaran Asal</FieldLabel>
           <Select value={sourceYearId} onValueChange={(v) => { if (v) { setSourceYearId(v); setSourceClassId(""); } }}>
-            <SelectTrigger><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
+            <SelectTrigger id="promote-source-year"><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
             <SelectContent>
               {years.map((y) => (
                 <SelectItem key={y.id} value={y.id}>{yearLabel(y)}</SelectItem>
@@ -263,9 +263,9 @@ export function BulkPromoteDialog({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Kelas Asal</FieldLabel>
+          <FieldLabel htmlFor="promote-source-class">Kelas Asal</FieldLabel>
           <Select value={sourceClassId} onValueChange={(v) => setSourceClassId(v ?? "")}>
-            <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+            <SelectTrigger id="promote-source-class"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
             <SelectContent>
               {sourceSections.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
@@ -276,9 +276,9 @@ export function BulkPromoteDialog({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Tahun Ajaran Tujuan</FieldLabel>
+          <FieldLabel htmlFor="promote-target-year">Tahun Ajaran Tujuan</FieldLabel>
           <Select value={targetYearId} onValueChange={(v) => { if (v) { setTargetYearId(v); setTargetClassId(""); } }}>
-            <SelectTrigger><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
+            <SelectTrigger id="promote-target-year"><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
             <SelectContent>
               {years.map((y) => (
                 <SelectItem key={y.id} value={y.id}>{yearLabel(y)}</SelectItem>
@@ -287,9 +287,9 @@ export function BulkPromoteDialog({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Kelas Tujuan</FieldLabel>
+          <FieldLabel htmlFor="promote-target-class">Kelas Tujuan</FieldLabel>
           <Select value={targetClassId} onValueChange={(v) => setTargetClassId(v ?? "")}>
-            <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+            <SelectTrigger id="promote-target-class"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
             <SelectContent>
               {targetSections
                 .filter((s) => s.id !== sourceClassId)

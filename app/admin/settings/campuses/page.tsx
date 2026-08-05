@@ -256,21 +256,21 @@ export default function CampusesPage() {
           </DialogHeader>
           <div className="space-y-field py-2">
             <Field>
-              <FieldLabel required>Nama</FieldLabel>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" />
+              <FieldLabel required htmlFor="campus-name">Nama</FieldLabel>
+              <Input id="campus-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" required aria-required="true" />
             </Field>
             <Field>
-              <FieldLabel>Alamat</FieldLabel>
-              <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Jl. Contoh No.1, Bekasi" />
+              <FieldLabel htmlFor="campus-address">Alamat</FieldLabel>
+              <Input id="campus-address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Jl. Contoh No.1, Bekasi" />
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field>
-                <FieldLabel>Latitude</FieldLabel>
-                <Input value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} placeholder="-6.2234" type="number" step="any" />
+                <FieldLabel htmlFor="campus-lat">Latitude</FieldLabel>
+                <Input id="campus-lat" value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} placeholder="-6.2234" type="number" step="any" />
               </Field>
               <Field>
-                <FieldLabel>Longitude</FieldLabel>
-                <Input value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} placeholder="106.8432" type="number" step="any" />
+                <FieldLabel htmlFor="campus-lng">Longitude</FieldLabel>
+                <Input id="campus-lng" value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} placeholder="106.8432" type="number" step="any" />
               </Field>
             </div>
             <Button variant="outline" size="sm" onClick={getCurrentLocation} type="button">

@@ -393,24 +393,27 @@ export default function PayrollDetailPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field>
-              <FieldLabel>Periode Mulai</FieldLabel>
+              <FieldLabel htmlFor="payroll-period-start">Periode Mulai</FieldLabel>
               <Input
+                id="payroll-period-start"
                 type="date"
                 value={editForm.periodStart}
                 onChange={(e) => setEditForm({ ...editForm, periodStart: e.target.value })}
               />
             </Field>
             <Field>
-              <FieldLabel>Periode Akhir</FieldLabel>
+              <FieldLabel htmlFor="payroll-period-end">Periode Akhir</FieldLabel>
               <Input
+                id="payroll-period-end"
                 type="date"
                 value={editForm.periodEnd}
                 onChange={(e) => setEditForm({ ...editForm, periodEnd: e.target.value })}
               />
             </Field>
             <Field>
-              <FieldLabel>Hari Kerja Aktual</FieldLabel>
+              <FieldLabel htmlFor="payroll-actual-work-days">Hari Kerja Aktual</FieldLabel>
               <Input
+                id="payroll-actual-work-days"
                 type="number"
                 min={0}
                 value={editForm.actualWorkDays}
@@ -537,10 +540,10 @@ export default function PayrollDetailPage() {
             <DialogDescription>{varsModal?.employee.nama}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <Field><FieldLabel>Jam Lembur</FieldLabel><Input type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel>Hari Outdoor</FieldLabel><Input type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel>Hari Libur Kerja</FieldLabel><Input type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel>Hari DC</FieldLabel><Input type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel htmlFor="payroll-vars-overtime-hours">Jam Lembur</FieldLabel><Input id="payroll-vars-overtime-hours" type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel htmlFor="payroll-vars-outdoor-days">Hari Outdoor</FieldLabel><Input id="payroll-vars-outdoor-days" type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel htmlFor="payroll-vars-holiday-worked-days">Hari Libur Kerja</FieldLabel><Input id="payroll-vars-holiday-worked-days" type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel htmlFor="payroll-vars-dc-days">Hari DC</FieldLabel><Input id="payroll-vars-dc-days" type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
@@ -558,8 +561,8 @@ export default function PayrollDetailPage() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
-            <Field><FieldLabel>Penyesuaian (+ atau -)</FieldLabel><Input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
-            <Field><FieldLabel required>Catatan</FieldLabel><Textarea value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
+            <Field><FieldLabel htmlFor="payroll-line-adjustment-amount">Penyesuaian (+ atau -)</FieldLabel><Input id="payroll-line-adjustment-amount" type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
+            <Field><FieldLabel required htmlFor="payroll-line-adjustment-note">Catatan</FieldLabel><Textarea id="payroll-line-adjustment-note" required aria-required="true" value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
             <p className="text-sm">Final: <span className="font-currency font-bold text-primary">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
           </div>
           <DialogFooter>
