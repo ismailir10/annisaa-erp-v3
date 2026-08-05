@@ -187,7 +187,44 @@ That last row is what turned T2 from a one-line swap into the two-step fallback:
 
 ## Ship Notes
 
-_(filled by /ship)_
+- **Migrations:** none. No schema change in the cycle.
+- **Env vars:** none.
+- **API contract:** unchanged. `GET /api/student-journal/admin/classes` keeps its shape; only the *default* `weekStart` moves from the UTC day to the Jakarta day (T3), so a caller omitting the param during 00:00-06:59 WIB now gets the week the school is actually in.
+- **Rollback:** revert the commits. Nothing to unwind — no data migration, no schema change.
+
+### Visible behaviour changes worth watching after deploy
+
+- **Parent greeting** (T1) now reads e.g. "Assalamu'alaikum, Pak Hendra" where it read "Assalamu'alaikum, Bu Bapak", and the time-of-day word changes for anyone loading outside 07:00-18:00 WIB.
+- **Teacher "Periode"** (T2) will change on staging from "Semester 1 2025/2026" to "Semester 2 2025/2026", matching admin and parent.
+- **`/admin/raport` class picker** (T4) drops from 15 options to the active year's 8, and duplicated names gain a campus suffix. An admin mid-draft against an archived section will no longer find it in the list — intended, and the reason the finding was raised.
+- **Journal taps** (T10) now reach the server up to 500 ms later. Request volume during a full-roster session falls sharply; per-tap display is unchanged.
+
+### d1 — staging seed drift: SQL for review, NOT executed
+
+Verified live (read-only) at the values below. **Nothing was run against staging in this cycle.**
+
+`Semester` 2 (`cms8mpcr200006yx7pk4m6e4d`) is stored as 2026-07-20 → 2026-09-11 while its `AcademicYear` 2025/2026 (`cms41abnd0007i5x7woht6flt`) ends 2026-06-19. It also leaves 2025-12-19 → 2026-07-20 uncovered by any semester.
+
+The narrow correction:
+
+```sql
+-- Pull Semester 2 back inside its academic year.
+UPDATE "Semester"
+   SET "startDate" = '2026-01-05 00:00:00',
+       "endDate"   = '2026-06-19 00:00:00'
+ WHERE id = 'cms8mpcr200006yx7pk4m6e4d';
+```
+
+**Read this before running it.** Today is 2026-08-05. Once Semester 2 is pulled back inside its year, **no semester covers today** — 2025/2026 has ended and 2026/2027 is `PLANNING` with no `Semester` rows at all. Staging's real problem is not the dates on one row; it is that the year rolled over and nothing was activated behind it. Running the `UPDATE` alone moves staging from "wrong dates" to "no current term", which is arguably worse for anyone testing date-derived behaviour.
+
+The T2 fallback added in this cycle keeps the portals *consistent* either way (teacher and parent both read the newest ACTIVE semester when nothing covers today), so this is no longer urgent for correctness — it is a data-hygiene item.
+
+Recommended instead, as its own task with an explicit go-ahead: activate 2026/2027 and give it semesters, then archive 2025/2026. That is a seed decision, not a bug fix, and it belongs to whoever owns the staging fixture.
+
+### Still open from the QA report after this cycle
+
+- **m9** — the 13-15 s first-data figure. Not a missing-skeleton problem (see T11); needs bundle/hydration profiling as its own cycle.
+- The report's **"not tested"** list — HOME-scope journal entries, raport PDF download, Category-C soft-void, cross-tenant isolation. Needs a QA pass, not a code cycle.
 
 ### T7 — m7, false required marker
 
