@@ -99,8 +99,8 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 - [x] T8 — m8: surface `activity` ("Kegiatan") on the parent Capaian entry row
 - [x] T9 — m11: rewrite the rapor-published banner sentence
 - [x] T10 — m12: coalesce journal taps into one batch POST
-- [ ] T11 — m9: `loading.tsx` skeletons for the blank-body routes; measure first-data on the preview
-- [ ] T12 — d1: write the corrective staging SQL into Ship Notes; do not execute
+- [x] T11 — m9: `loading.tsx` skeletons for the blank-body routes; measure first-data on the preview
+- [x] T12 — d1: write the corrective staging SQL into Ship Notes; do not execute
 
 ## Implementation
 
@@ -189,3 +189,22 @@ _(filled by /ship)_
 | `lib/student-journal/optimistic-save.ts` + `tests/student-journal/optimistic-save.test.ts` | `enqueuePerKey` removed — the coalescer's single ordered chain replaces per-cell queues, leaving it with zero callers. Dead code was itself a finding in this report (m10). |
 
 New test: `lib/student-journal/__tests__/coalesce-writes.test.ts` (7, fake timers).
+
+### T11 — m9, slow first paint
+
+**No source change. The bounded half of this finding no longer reproduces.**
+
+Checked all four surfaces the report named:
+
+| Surface | State on `d7b1fc4d` |
+|---|---|
+| Teacher home | `app/teacher/loading.tsx` exists, **and** `home-client.tsx:197-217` returns a full skeleton gated on `!mounted` — precisely the loading phase. The reported "fully blank body" does not reproduce; #448 landed teacher-portal quick wins between the observation and the merge. |
+| `/admin/student-journal/monitoring` | Inherits `app/admin/loading.tsx`; KPI cards render `—` and the DataTable takes `loading` while fetching. |
+| `/admin/penilaian` | Same inheritance, explicit `loading` branch at `page.tsx:133`. |
+| Teacher subpages | Covered by `app/teacher/loading.tsx` (App Router segment inheritance). |
+
+Adding more skeletons would be motion without effect. The 13-15 s figure is real but is not a missing-skeleton problem: the page issues exactly one fetch on mount and its API answers in ~560 ms, so the cost is JS delivery/hydration or platform. Measured on this cycle's preview during `/ship` — see Verification. A bundle-level fix stays out of scope, as specced.
+
+### T12 — d1, staging seed drift
+
+**Nothing executed against staging.** Corrective SQL and its caveat are in Ship Notes. Read-only verification of the live rows sharpened the report's numbers and turned up the T2 interaction above.
