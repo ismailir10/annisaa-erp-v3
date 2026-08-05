@@ -126,6 +126,15 @@ export default async function ParentPerkembanganDetailPage({
                         <p className="text-sm text-foreground mt-0.5">
                           {entry.indicatorContent}
                         </p>
+                        {/* The walas types this at the sentra and it was
+                            stored but never shown to anyone — it is the one
+                            line that tells a parent what their child
+                            actually did. */}
+                        {entry.activity && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Kegiatan: {entry.activity}
+                          </p>
+                        )}
                       </div>
                       <span
                         className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}

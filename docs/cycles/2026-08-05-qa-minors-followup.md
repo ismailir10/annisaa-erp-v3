@@ -96,7 +96,7 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 - [x] T5 — m5: branded Indonesian `app/not-found.tsx`
 - [x] T6 — m6: `--primary-text` token; apply to the checked journal cell and the parent week-grid check
 - [x] T7 — m7: `NumField` optional flag; drop the asterisk on Tinggi/Berat
-- [ ] T8 — m8: surface `activity` ("Kegiatan") on the parent Capaian entry row
+- [x] T8 — m8: surface `activity` ("Kegiatan") on the parent Capaian entry row
 - [ ] T9 — m11: rewrite the rapor-published banner sentence
 - [ ] T10 — m12: coalesce journal taps into one batch POST
 - [ ] T11 — m9: `loading.tsx` skeletons for the blank-body routes; measure first-data on the preview
@@ -163,4 +163,12 @@ _(filled by /ship)_
 | File | Change |
 |---|---|
 | `app/admin/raport/raport-editor.tsx` | `NumField` gains an `optional` flag that drops the asterisk, `required` and `aria-required`. Applied to Tinggi/Berat only — the four attendance counts stay required. |
+
+### T8 — m8, surface "Kegiatan"
+
+| File | Change |
+|---|---|
+| `lib/curriculum/perkembangan-loader.ts` | `activity` added to the `latestThisWeek` select and to the `LatestEntry` type; whitespace-only values normalise to `null`. |
+| `app/parent/perkembangan/[studentId]/page.tsx` | Renders `Kegiatan: …` under the indicator when present; nothing at all when absent. |
+| `lib/curriculum/__tests__/perkembangan-loader.test.ts` | New case covering trim, blank→null and null passthrough, and asserting the field is actually *requested* — mapping it without selecting it would have been silently undefined. |
 
