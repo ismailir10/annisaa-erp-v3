@@ -207,7 +207,10 @@ export function WeekGrid({
                               aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"}`}
                             >
                               {checked ? (
-                                <Check size={16} className="text-primary" strokeWidth={2.5} />
+                                // A 16px glyph is the sole carrier of "sudah
+                                // diisi", so it needs 3:1 as a non-text
+                                // graphic; brand teal gives 2.36:1 on white.
+                                <Check size={16} className="text-primary-text" strokeWidth={2.5} />
                               ) : (
                                 <span className="w-4 h-4 rounded border border-muted-foreground/40 block" />
                               )}

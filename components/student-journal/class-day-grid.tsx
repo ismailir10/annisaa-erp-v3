@@ -175,7 +175,10 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                                 onClick={() => onToggle(student.id, indicator.id)}
                                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                                   isChecked
-                                    ? "bg-primary/10 border-primary text-primary"
+                                    ? // text-primary-text, not text-primary: the brand teal is a
+                                      // fill colour and measures 2.24:1 on this tint, which made
+                                      // the *checked* row the harder one to read.
+                                      "bg-primary/10 border-primary text-primary-text"
                                     : "bg-transparent border-border text-foreground hover:border-primary/30"
                                 } ${isPending ? "opacity-60 animate-pulse" : ""}`}
                               >

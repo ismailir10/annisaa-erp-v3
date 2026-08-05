@@ -94,7 +94,7 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 - [x] T3 — m4: journal admin `weekStart` default → `Asia/Jakarta`
 - [x] T4 — M1-half: scope the `/admin/raport` class picker to the active year; disambiguate duplicate labels by campus
 - [x] T5 — m5: branded Indonesian `app/not-found.tsx`
-- [ ] T6 — m6: `--primary-text` token; apply to the checked journal cell and the parent week-grid check
+- [x] T6 — m6: `--primary-text` token; apply to the checked journal cell and the parent week-grid check
 - [ ] T7 — m7: `NumField` optional flag; drop the asterisk on Tinggi/Berat
 - [ ] T8 — m8: surface `activity` ("Kegiatan") on the parent Capaian entry row
 - [ ] T9 — m11: rewrite the rapor-published banner sentence
@@ -140,6 +140,15 @@ New tests: `lib/__tests__/parent-greeting.test.ts` (12), `lib/__tests__/academic
 |---|---|
 | `app/not-found.tsx` *(new)* | Branded Indonesian 404 mirroring the three portal `error.tsx` boundaries. Placed at the root so every route inherits it; links to `/`, which already redirects each role to its own home, rather than guessing a portal. |
 
+
+### T6 — m6, contrast on the checked state
+
+| File | Change |
+|---|---|
+| `app/globals.css` | New `--primary-text: #2F7A7D` plus its `--color-primary-text` Tailwind alias, following the existing `--status-*-text` / `--celebration-gold-text` convention. Measured: `--primary` is 2.24:1 on `bg-primary/10` and 2.36:1 on white; the new token is 4.63:1 and 5.00:1. |
+| `components/student-journal/class-day-grid.tsx` | Checked cell label `text-primary` → `text-primary-text`. |
+| `components/portal/week-grid.tsx` | The 16px check glyph — sole carrier of "sudah diisi", so it needs 3:1 as a non-text graphic — moves to the same token. |
+| `lib/__tests__/primary-text-contrast.test.ts` *(new)* | Parses both tokens out of `globals.css`, flattens the `/10` and `/5` tints the way the browser does, and asserts WCAG ratios. Also asserts the old value *fails*, so the reason the token exists is recorded in the test rather than only in a comment.
 
 ## Verification
 
