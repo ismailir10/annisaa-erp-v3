@@ -98,7 +98,7 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 - [x] T7 — m7: `NumField` optional flag; drop the asterisk on Tinggi/Berat
 - [x] T8 — m8: surface `activity` ("Kegiatan") on the parent Capaian entry row
 - [x] T9 — m11: rewrite the rapor-published banner sentence
-- [ ] T10 — m12: coalesce journal taps into one batch POST
+- [x] T10 — m12: coalesce journal taps into one batch POST
 - [ ] T11 — m9: `loading.tsx` skeletons for the blank-body routes; measure first-data on the preview
 - [ ] T12 — d1: write the corrective staging SQL into Ship Notes; do not execute
 
@@ -177,4 +177,14 @@ _(filled by /ship)_
 | File | Change |
 |---|---|
 | `app/parent/report-cards-list.tsx` | "Rapor {nama} sudah terbit — {periode}". The no-name branch keeps the old wording rather than leaving a dangling dash. |
+
+### T10 — m12, one request per burst
+
+| File | Change |
+|---|---|
+| `lib/student-journal/coalesce-writes.ts` *(new)* | `JournalWriteCoalescer` — buffers taps for a **fixed** 500 ms window (not a debounce: continuous tapping must not starve the flush), collapses a re-tap of the same cell to its final value while keeping the *window-opening* value as the rollback target, and serialises flushes so windows reach the server in order. The stored chain is the caught promise — the timer fires with nobody awaiting it, so a rejecting flush would otherwise surface as an unhandled rejection. |
+| `app/teacher/student-journal/entry/page.tsx` | `handleToggle` buffers instead of posting; display stays immediate. A failed flush rolls back every cell it carried *except* ones retapped since, and raises one toast rather than one per cell. The coalescer is rebuilt per class-day, flushing the previous one first so buffered taps are not stranded. |
+| `lib/student-journal/optimistic-save.ts` + `tests/student-journal/optimistic-save.test.ts` | `enqueuePerKey` removed — the coalescer's single ordered chain replaces per-cell queues, leaving it with zero callers. Dead code was itself a finding in this report (m10). |
+
+New test: `lib/student-journal/__tests__/coalesce-writes.test.ts` (7, fake timers).
 
