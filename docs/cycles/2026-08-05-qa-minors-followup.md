@@ -162,7 +162,7 @@ New tests: `lib/__tests__/parent-greeting.test.ts` (12), `lib/__tests__/academic
 | `npx vitest run` | **279 files passed, 2 skipped; 2645 tests passed, 42 todo.** Baseline before this cycle was 277 files / 2635 tests, so +2 files and +10 tests, zero regressions. |
 | `npm run lint` | **0 errors, 61 warnings** — every warning is in a file this cycle did not touch (pre-existing on `origin/staging`). |
 | `npx playwright test` | **Deferred to the required CI `Playwright E2E` check.** Cannot run in this harness: `playwright.config.ts:40` refuses to start because the worktree's `DATABASE_URL` resolves to `aws-1-ap-southeast-1.pooler.supabase.com` — the specs create and mutate data through the API and would pollute the shared staging database. Overriding with `E2E_ALLOW_REMOTE_DB=1` was deliberately **not** used. |
-| Preview-verify | `/ship` step 3 — recorded below once the preview is up. |
+| Preview-verify | Clean. Chrome MCP against the PR preview, admin + parent accounts. Details below. |
 
 **Design system.** Cross-checked `design-system.html` before T6: the accessible-text-on-tinted-surface pattern already exists as `--status-*-text` and `--celebration-gold-text`, so `--primary-text` follows it rather than introducing a new convention. T5's 404 mirrors the existing portal `error.tsx` layout and voice.
 
@@ -182,6 +182,25 @@ New tests: `lib/__tests__/parent-greeting.test.ts` (12), `lib/__tests__/academic
 - `AcademicYear` 2026/2027 — **PLANNING, no semesters at all.**
 
 That last row is what turned T2 from a one-line swap into the two-step fallback: correcting d1 alone would leave today uncovered by any semester.
+
+**Preview-verify** — `annisaa-erp-v3-git-feat-qa-min-5fc6da…vercel.app`, signed in per `.claude/verify-accounts.json`. No console errors on any page visited.
+
+| Check | Result |
+|---|---|
+| **T1** parent greeting | **"Assalamu'alaikum, Bu Nurul"** — the doubled honorific is gone (was "Bu Ibu"). |
+| **T4** raport class picker | **8 options, not 15.** Archived 2024/2025 sections absent. Collisions carry the campus — "KB · … Metland Cibitung" vs "KB · … Taman Aster", same for TKIT-A and TKIT-B — while the unique "DCARE" and "KB — Panduan Contoh" stay bare. Exactly the append-only-to-collisions rule. |
+| **T3** journal week default | Week picker opened on **3 Agu – 7 Agu**, the correct Jakarta week for Wed 5 Aug. |
+| **T5** 404 | `/parent/perkembangan/does-not-exist` renders the branded Indonesian "Halaman tidak ditemukan" with a working "Kembali ke Beranda", not Next's English default. |
+| **T11 / m9** | Monitoring showed a skeleton table plus `—` KPI placeholders while loading, then data **well inside 5 s** — no blank body, and nowhere near the reported 13-15 s. Corroborates T11's read; the original figure looks like cold-start rather than a standing regression. |
+| #451 regression check | KPIs read 5 entries / 1 of 8 classes / **21** active students — the M1-M3 fixes still hold (pre-#451 these were 1 / 15 / 37). |
+
+**Could not be exercised live, covered by unit tests instead:**
+
+- **T1 timezone.** At the moment of verification UTC and WIB fell in the same greeting band, so the two are indistinguishable on screen. `lib/__tests__/parent-greeting.test.ts` asserts the split explicitly ("siang" in UTC vs "malam" in Jakarta at one instant).
+- **T1 `AYAH` → "Pak".** The only parent test login is an IBU guardian; no father account exists on staging.
+- **T2 teacher Periode, T6 contrast, T8 Kegiatan, T9 banner.** Staging has no journal entries this week, no published rapor for the test family, and no sentra entry carrying an `activity` — the parent Jurnal tab reads "Belum ada catatan minggu ini". Seeding these through the UI would have written fixture data into the shared staging DB for cosmetic verification; unit tests cover all four.
+
+**Observed in passing, not a regression from this cycle:** the monitoring table lists "KB" twice with no campus to tell the rows apart — the same ambiguity T4 fixed, in a different component (a DataTable, not the raport select). Out of this cycle's scope; noted for a follow-up.
 
 **Not verified here:** the QA report's own "not tested" list (HOME-scope journal entries, raport PDF download, Category-C soft-void, cross-tenant isolation) is unchanged by this cycle and still needs a fresh QA pass.
 
