@@ -53,8 +53,12 @@ export function ReportCardsList({ data, studentId, childName }: Props) {
             </div>
             <div>
               <p className="text-sm font-semibold text-celebration-gold-text">
-                Rapor {latest.period}
-                {childName ? ` ${childName}` : ""} sudah terbit
+                {/* Name first, period last — interpolating the child after the
+                    period read as "Rapor Triwulan 1 · Semester 2 · 2025/2026
+                    Zahra sudah terbit". */}
+                {childName
+                  ? `Rapor ${childName} sudah terbit — ${latest.period}`
+                  : `Rapor ${latest.period} sudah terbit`}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Alhamdulillah, silakan baca penilaian lengkap dari Ustadzah.
