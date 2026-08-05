@@ -11,14 +11,18 @@ import { Users } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/portal/page-header";
+import { Button } from "@/components/ui/button";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import {
   getJournalCellKey,
   applyJournalCellValue,
   shouldApplyJournalSaveResult,
-  enqueuePerKey,
   type GridState,
 } from "@/lib/student-journal/optimistic-save";
+import {
+  JournalWriteCoalescer,
+  type FlushBatch,
+} from "@/lib/student-journal/coalesce-writes";
 
 type Student = {
   id: string;
@@ -57,9 +61,11 @@ export default function StudentJournalEntryPage() {
   const [gridState, setGridState] = useState<GridState>({});
   const gridStateRef = useRef<GridState>({});
   const latestSaveRequestIds = useRef<Record<string, number | undefined>>({});
-  const saveQueues = useRef<Record<string, Promise<void> | undefined>>({});
+  const coalescerRef = useRef<JournalWriteCoalescer | null>(null);
   const [pendingCells, setPendingCells] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const loadRequestId = useRef(0);
 
   // Add-note dialog state + optimistic per-student note counter (resets each grid load)
   const [noteStudent, setNoteStudent] = useState<Student | null>(null);
@@ -71,20 +77,25 @@ export default function StudentJournalEntryPage() {
   );
 
   const loadGrid = useCallback(async () => {
-    if (!classId || !date) return;
+    const requestId = ++loadRequestId.current;
+    if (!classId || !date) { setLoading(false); return; }
     setLoading(true);
-
+    setLoadError(false);
+    try {
     const res = await fetch(
       `/api/student-journal/class-grid?classSectionId=${encodeURIComponent(classId)}&date=${encodeURIComponent(date)}`
     );
+    if (requestId !== loadRequestId.current) return;
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      if (requestId !== loadRequestId.current) return;
       toast.error(err.error || "Gagal memuat data kelas");
-      setLoading(false);
+      setLoadError(true); setLoading(false);
       return;
     }
 
     const { data } = await res.json();
+    if (requestId !== loadRequestId.current) return;
     const loadedStudents: Student[] = data.students;
     const loadedCategories: Category[] = data.categories;
     const loadedEntries: EntryRow[] = data.entries;
@@ -103,10 +114,15 @@ export default function StudentJournalEntryPage() {
     }
     gridStateRef.current = initial;
     latestSaveRequestIds.current = {};
-    saveQueues.current = {};
     setPendingCells(new Set());
     setGridState(initial);
     setLoading(false);
+    } catch {
+      if (requestId !== loadRequestId.current) return;
+      setLoadError(true);
+      toast.error("Gagal memuat data kelas. Coba lagi sebentar ya.");
+      setLoading(false);
+    }
   }, [classId, date]);
 
   useEffect(() => {
@@ -134,51 +150,82 @@ export default function StudentJournalEntryPage() {
   // Deliberately NOT aborted on unmount: an in-flight save finishing after the
   // teacher navigates away is exactly what makes taps survive navigation (T8).
   // Post-unmount setState calls are harmless no-ops in React 18+.
-  async function saveSingleEntry(
-    studentId: string,
-    indicatorId: string,
-    checked: boolean,
-    previousChecked: boolean,
-    cellKey: string,
-    requestId: number,
-  ) {
-    try {
-      const res = await fetch("/api/student-journal/entries/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classSectionId: classId,
-          date,
-          entries: [{ studentId, indicatorId, checked }],
-        }),
-      });
+  const flushBatch = useCallback(
+    async (batch: FlushBatch) => {
+      let failed = false;
+      try {
+        const res = await fetch("/api/student-journal/entries/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            classSectionId: classId,
+            date,
+            entries: batch.entries,
+          }),
+        });
+        if (!res.ok) failed = true;
+      } catch {
+        failed = true;
+      }
 
-      if (!res.ok) {
-        throw new Error("save_failed");
+      // Roll back every cell this flush carried, skipping any the teacher has
+      // retapped since — that newer tap owns the cell now and is already
+      // buffered for the next flush.
+      if (failed) {
+        let next = gridStateRef.current;
+        let rolledBack = false;
+        for (const [cellKey, w] of batch.writes) {
+          if (
+            !shouldApplyJournalSaveResult(
+              latestSaveRequestIds.current,
+              cellKey,
+              w.requestId,
+            )
+          ) {
+            continue;
+          }
+          next = applyJournalCellValue(
+            next,
+            w.studentId,
+            w.indicatorId,
+            w.previousChecked,
+          );
+          rolledBack = true;
+        }
+        if (rolledBack) {
+          setGridStateNow(next);
+          // One toast for the batch, not one per cell.
+          toast.error("Catatan belum tersimpan. Ketuk ulang ya.");
+        }
       }
-    } catch {
-      if (
-        shouldApplyJournalSaveResult(latestSaveRequestIds.current, cellKey, requestId)
-      ) {
-        setGridStateNow(
-          applyJournalCellValue(
-            gridStateRef.current,
-            studentId,
-            indicatorId,
-            previousChecked,
-          ),
-        );
-        toast.error("Catatan belum tersimpan. Ketuk ulang ya.");
+
+      for (const [cellKey, w] of batch.writes) {
+        if (
+          shouldApplyJournalSaveResult(
+            latestSaveRequestIds.current,
+            cellKey,
+            w.requestId,
+          )
+        ) {
+          delete latestSaveRequestIds.current[cellKey];
+          setCellPending(cellKey, false);
+        }
       }
-    } finally {
-      if (
-        shouldApplyJournalSaveResult(latestSaveRequestIds.current, cellKey, requestId)
-      ) {
-        delete latestSaveRequestIds.current[cellKey];
-        setCellPending(cellKey, false);
-      }
-    }
-  }
+    },
+    [classId, date],
+  );
+
+  // One coalescer per class-day. Rebuilding it on a date change would strand
+  // buffered taps, so flush the old one first.
+  useEffect(() => {
+    const previous = coalescerRef.current;
+    if (previous?.hasPending) void previous.flushNow();
+    coalescerRef.current = new JournalWriteCoalescer(flushBatch);
+    return () => {
+      const c = coalescerRef.current;
+      if (c?.hasPending) void c.flushNow();
+    };
+  }, [flushBatch]);
 
   function handleToggle(studentId: string, indicatorId: string) {
     const previousChecked = gridStateRef.current[studentId]?.[indicatorId] ?? false;
@@ -192,18 +239,15 @@ export default function StudentJournalEntryPage() {
       applyJournalCellValue(gridStateRef.current, studentId, indicatorId, checked),
     );
 
-    // Serialized per cell: guarantees the server receives this cell's writes
-    // in tap order (the requestId guard alone only orders client display).
-    void enqueuePerKey(saveQueues.current, cellKey, () =>
-      saveSingleEntry(
-        studentId,
-        indicatorId,
-        checked,
-        previousChecked,
-        cellKey,
-        requestId,
-      ),
-    );
+    // Buffered, not posted: a burst of taps folds into one batch request.
+    // Display stays immediate — only the network call is deferred.
+    coalescerRef.current?.add({
+      studentId,
+      indicatorId,
+      checked,
+      previousChecked,
+      requestId,
+    });
   }
 
   const dateLabel = date
@@ -228,10 +272,16 @@ export default function StudentJournalEntryPage() {
         <EmptyState
           icon={Users}
           title="Parameter tidak valid"
-          description="Kembali ke halaman sebelumnya dan pilih kelas serta tanggal."
+          description="Pilih kelas dan tanggal terlebih dahulu untuk mengisi penghubung."
+          actionLabel="Pilih kelas dan tanggal"
+          actionHref="/teacher/student-journal"
         />
       </div>
     );
+  }
+
+  if (loadError) {
+    return <div className="space-y-4"><EmptyState icon={Users} title="Data kelas tidak bisa dimuat" description="Periksa koneksi, lalu coba lagi." /><div className="text-center"><Button variant="outline" onClick={loadGrid}>Coba lagi</Button></div></div>;
   }
 
   if (students.length === 0) {

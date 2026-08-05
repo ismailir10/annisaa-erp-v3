@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
 import { LogIn, LogOut, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
@@ -21,6 +20,13 @@ import { formatDate, formatTime } from "@/lib/format";
 // Prisma enum values — do NOT translate in code, only display labels.
 const ROTATION = ["PRESENT", "ABSENT", "SICK", "PERMISSION"] as const;
 type Status = (typeof ROTATION)[number];
+
+const STATUS_LABEL: Record<Status, string> = {
+  PRESENT: "Hadir",
+  ABSENT: "Alpa",
+  SICK: "Sakit",
+  PERMISSION: "Izin",
+};
 
 // Mirrors .claude/standards/portal.md Daily Data Entry recipe — cycle-tap the
 // status, row-tinted by current state for a 3 m glance.
@@ -48,7 +54,7 @@ const SLOT_LABEL: Record<string, string> = {
   AFTERNOON: "Siang",
 };
 
-type RosterRow = {
+export type RosterRow = {
   studentId: string;
   name: string;
   nickname: string | null;
@@ -168,14 +174,11 @@ export function SessionRosterClient({
       ) : (
         <>
           <div className="space-y-2">
-            {rows.map((r, i) => {
+            {rows.map((r) => {
               const status = r.status as Status;
               return (
-                <motion.div
+                <div
                   key={r.studentId}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.02 }}
                   data-testid="roster-row"
                   className={`rounded-lg border border-border p-3 ${ROW_TINT[status]}`}
                 >
@@ -191,8 +194,8 @@ export function SessionRosterClient({
                     <button
                       type="button"
                       onClick={() => cycleStatus(r.studentId, r.status)}
-                      className="shrink-0"
-                      aria-label={`Ubah status ${r.name}`}
+                      className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      aria-label={`Ubah status ${r.name}, saat ini ${STATUS_LABEL[status]}. Ketuk untuk mengubah status.`}
                     >
                       <StatusBadge status={status} />
                     </button>
@@ -230,6 +233,9 @@ export function SessionRosterClient({
                       <p className="text-xs font-medium text-muted-foreground">
                         Dijemput oleh
                       </p>
+                      <label htmlFor={`pickup-relation-${r.studentId}`} className="sr-only">
+                        Hubungan penjemput {r.name}
+                      </label>
                       <Select
                         value={r.pickedUpByRelation ?? ""}
                         onValueChange={(v) =>
@@ -238,7 +244,7 @@ export function SessionRosterClient({
                           })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id={`pickup-relation-${r.studentId}`} className="w-full">
                           <SelectValue placeholder="Pilih hubungan" />
                         </SelectTrigger>
                         <SelectContent>
@@ -250,39 +256,45 @@ export function SessionRosterClient({
                         </SelectContent>
                       </Select>
                       {r.pickedUpByRelation && (
-                        <Input
-                          value={r.pickedUpByName ?? ""}
-                          onChange={(e) =>
-                            update(r.studentId, {
-                              pickedUpByName: e.target.value,
-                            })
-                          }
-                          placeholder={
-                            r.pickedUpByRelation === "OTHER"
-                              ? "Nama penjemput (wajib)"
-                              : "Nama penjemput (opsional)"
-                          }
-                          aria-invalid={
-                            r.pickedUpByRelation === "OTHER" &&
-                            !r.pickedUpByName?.trim()
-                          }
-                        />
+                        <>
+                          <label htmlFor={`pickup-name-${r.studentId}`} className="sr-only">
+                            Nama penjemput {r.name}
+                          </label>
+                          <Input
+                            id={`pickup-name-${r.studentId}`}
+                            value={r.pickedUpByName ?? ""}
+                            onChange={(e) =>
+                              update(r.studentId, {
+                                pickedUpByName: e.target.value,
+                              })
+                            }
+                            placeholder={
+                              r.pickedUpByRelation === "OTHER"
+                                ? "Nama penjemput (wajib)"
+                                : "Nama penjemput (opsional)"
+                            }
+                            aria-invalid={
+                              r.pickedUpByRelation === "OTHER" &&
+                              !r.pickedUpByName?.trim()
+                            }
+                          />
+                        </>
                       )}
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
           </div>
 
-          <div className="sticky bottom-20 mt-4">
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 mt-4 border-t border-border bg-background px-3 py-3">
             <Button
               type="button"
               className="w-full"
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan Absensi..." : `Simpan Absensi · ${rows.length} siswa`}
             </Button>
           </div>
 

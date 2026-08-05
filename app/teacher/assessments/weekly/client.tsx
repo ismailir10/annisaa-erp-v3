@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { type KeyboardEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ChevronLeft, NotebookPen } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -17,6 +16,7 @@ import {
   LEVEL_LABEL_LONG,
   LEVEL_CHIP_CLASS,
   LEVEL_CHIP_CLASS_OFF,
+  LEVEL_ORDER,
   type Level,
 } from "@/lib/curriculum/level-presentation";
 
@@ -79,6 +79,52 @@ export function pickInitialDay(
   const days = weekDays(week);
   if (days.includes(todayJakartaYmd)) return todayJakartaYmd;
   return days[0];
+}
+
+/**
+ * Native radios provide one tab stop and the expected checked semantics. This
+ * handler adds the Home/End shortcuts and makes Enter select too, while keeping
+ * arrow-key navigation consistent across browsers.
+ */
+function handleRadioGroupKeyDown<T extends string>(
+  event: KeyboardEvent<HTMLInputElement>,
+  values: readonly T[],
+  currentValue: T,
+  onSelect: (value: T) => void,
+) {
+  const currentIndex = values.indexOf(currentValue);
+  if (currentIndex === -1) return;
+
+  let nextIndex = currentIndex;
+  switch (event.key) {
+    case "ArrowRight":
+    case "ArrowDown":
+      nextIndex = (currentIndex + 1) % values.length;
+      break;
+    case "ArrowLeft":
+    case "ArrowUp":
+      nextIndex = (currentIndex - 1 + values.length) % values.length;
+      break;
+    case "Home":
+      nextIndex = 0;
+      break;
+    case "End":
+      nextIndex = values.length - 1;
+      break;
+    case "Enter":
+    case " ":
+      break;
+    default:
+      return;
+  }
+
+  event.preventDefault();
+  const nextValue = values[nextIndex]!;
+  onSelect(nextValue);
+  event.currentTarget
+    .closest('[role="radiogroup"]')
+    ?.querySelector<HTMLInputElement>(`input[value="${nextValue}"]`)
+    ?.focus();
 }
 
 export function WeeklyClient({
@@ -203,21 +249,32 @@ export function WeeklyClient({
           const dd = d.slice(8, 10);
           const isActive = d === activeDay;
           return (
-            <button
+            <label
               key={d}
-              type="button"
-              role="radio"
-              aria-checked={isActive}
-              onClick={() => setActiveDay(d)}
+              htmlFor={`weekly-day-${d}`}
               className={cn(
-                "px-3 py-2 rounded-lg border text-sm transition-colors",
+                "min-h-11 cursor-pointer rounded-lg border px-3 py-2 text-sm transition-colors",
+                "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2",
                 isActive
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-background text-foreground border-input",
               )}
             >
+              <input
+                id={`weekly-day-${d}`}
+                className="peer sr-only"
+                type="radio"
+                name="weekly-day"
+                value={d}
+                checked={isActive}
+                onChange={() => setActiveDay(d)}
+                onKeyDown={(event) =>
+                  handleRadioGroupKeyDown(event, days, d, setActiveDay)
+                }
+                aria-label={`${label} ${dd}`}
+              />
               {label} {dd}
-            </button>
+            </label>
           );
         })}
       </div>
@@ -229,25 +286,30 @@ export function WeeklyClient({
         >
           IKTP
         </label>
+        {/*
+          `NativeSelect` IS the <select> — passing another one as its child
+          produced `<select><select>…</select></select>`, which the parser
+          collapses: the outer select rendered zero options and the real picker
+          got a 0×0 box, so the walas could never change IKTP and every level
+          silently wrote against `indicators[0]`.
+        */}
         {indicators.length === 0 ? (
           <div className="rounded-lg border border-dashed border-input bg-muted/40 p-4 text-sm text-muted-foreground">
             Belum ada IKTP terhubung untuk tema pekan ini. Hubungi admin.
           </div>
         ) : (
-          <NativeSelect className="w-full">
-            <select
-              id="indicator-picker"
-              data-testid="indicator-picker"
-              value={activeIndicatorId}
-              onChange={(e) => setActiveIndicatorId(e.target.value)}
-              className="h-9 w-full appearance-none rounded-lg border border-input bg-transparent py-1 pr-8 pl-2.5 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              {indicators.map((ind) => (
-                <NativeSelectOption key={ind.id} value={ind.id}>
-                  {ind.objective.element} · {ind.content}
-                </NativeSelectOption>
-              ))}
-            </select>
+          <NativeSelect
+            id="indicator-picker"
+            data-testid="indicator-picker"
+            className="w-full"
+            value={activeIndicatorId}
+            onChange={(e) => setActiveIndicatorId(e.target.value)}
+          >
+            {indicators.map((ind) => (
+              <NativeSelectOption key={ind.id} value={ind.id}>
+                {ind.objective.element} · {ind.content}
+              </NativeSelectOption>
+            ))}
           </NativeSelect>
         )}
       </div>
@@ -283,26 +345,38 @@ export function WeeklyClient({
                   role="radiogroup"
                   aria-label={`Pilih tingkat untuk ${student.name}`}
                 >
-                  {(Object.keys(LEVEL_LABEL_SHORT) as Level[]).map((level) => {
+                  {LEVEL_ORDER.map((level) => {
                     const isActive = current === level;
                     return (
-                      <button
+                      <label
                         key={level}
-                        type="button"
-                        role="radio"
-                        aria-checked={isActive}
-                        disabled={!activeIndicatorId || pending}
-                        onClick={() => setLevel(student, level)}
-                        data-testid={`weekly-level-${student.id}-${level}`}
                         className={cn(
-                          "py-2 px-1 rounded-md border text-xs font-medium transition-colors",
+                          "cursor-pointer rounded-md border px-1 py-2 text-center text-xs font-medium transition-colors",
+                          "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2",
                           isActive ? LEVEL_CHIP_CLASS[level] : LEVEL_CHIP_CLASS_OFF[level],
                           (!activeIndicatorId || pending) &&
-                            "opacity-60 cursor-not-allowed",
+                            "cursor-not-allowed opacity-60",
                         )}
                       >
+                        <input
+                          id={`weekly-level-${student.id}-${level}`}
+                          className="peer sr-only"
+                          type="radio"
+                          name={`weekly-level-${student.id}`}
+                          value={level}
+                          checked={isActive}
+                          disabled={!activeIndicatorId || pending}
+                          onChange={() => setLevel(student, level)}
+                          onKeyDown={(event) =>
+                            handleRadioGroupKeyDown(event, LEVEL_ORDER, level, (nextLevel) =>
+                              setLevel(student, nextLevel),
+                            )
+                          }
+                          data-testid={`weekly-level-${student.id}-${level}`}
+                          aria-label={`${LEVEL_LABEL_SHORT[level]} untuk ${student.name}`}
+                        />
                         {LEVEL_LABEL_SHORT[level]}
-                      </button>
+                      </label>
                     );
                   })}
                 </div>

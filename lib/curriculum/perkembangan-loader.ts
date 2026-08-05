@@ -29,6 +29,8 @@ export type LatestEntry = {
   date: string; // Jakarta-tz YYYY-MM-DD
   source: "HOMEROOM" | "CENTER";
   center: string | null;
+  /** Free-text "Kegiatan" the walas typed at the sentra, when recorded. */
+  activity: string | null;
 };
 
 export type PerkembanganPayload = {
@@ -157,6 +159,7 @@ export async function loadStudentPerkembangan(
         date: true,
         source: true,
         center: true,
+        activity: true,
         indicator: {
           select: {
             content: true,
@@ -172,6 +175,9 @@ export async function loadStudentPerkembangan(
       date: formatJakartaYmd(e.date),
       source: e.source as "HOMEROOM" | "CENTER",
       center: e.center,
+      // Trim to null so a whitespace-only entry does not render an empty
+      // "Kegiatan:" label on the parent card.
+      activity: e.activity?.trim() ? e.activity.trim() : null,
     }));
   }
 

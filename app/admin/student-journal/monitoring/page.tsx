@@ -34,6 +34,7 @@ type ClassRow = {
   className: string;
   programName: string;
   studentCount: number;
+  checkedCount: number;
   completionPct: number;
   lastFilledAt: string | null;
 };
@@ -83,6 +84,7 @@ export default function MonitoringPage() {
   const router = useRouter();
   const [ws, setWs] = useState<string>(currentMonday);
   const [data, setData] = useState<ClassRow[]>([]);
+  const [activeStudentCount, setActiveStudentCount] = useState(0);
   const [query, setQuery] = useState("");
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize] = useState(10);
@@ -101,6 +103,7 @@ export default function MonitoringPage() {
       }
       const json = await res.json();
       setData(json.data ?? []);
+      setActiveStudentCount(json.summary?.activeStudentCount ?? 0);
     } catch {
       toast.error("Gagal memuat data kelas");
     } finally {
@@ -116,16 +119,17 @@ export default function MonitoringPage() {
     setTablePage(1);
   }, [query, ws]);
 
-  // Derived stats from the class list response
+  // Derived stats from the class list response.
+  //
+  // `totalEntries` reads the raw per-class `checkedCount`. It used to be
+  // reverse-engineered from the ROUNDED completionPct
+  // (`round(pct/100 * studentCount * 5)`), which lost the real figure at low
+  // percentages — 4 entries in a 5-student class rounded to 3% and displayed
+  // as 1. `hariKosong` was dead (computed, never rendered) and is gone.
   const stats = useMemo(() => {
-    const totalEntries = data.reduce(
-      (sum, c) => sum + Math.round((c.completionPct / 100) * c.studentCount * 5),
-      0,
-    );
+    const totalEntries = data.reduce((sum, c) => sum + c.checkedCount, 0);
     const kelasSudahIsi = data.filter((c) => c.completionPct > 0).length;
-    const siswaWithNotes = data.reduce((sum, c) => sum + c.studentCount, 0); // approximate — actual note count would need a separate query
-    const hariKosong = 5 - Math.min(5, kelasSudahIsi > 0 ? 5 : 0); // simplified: 0 if any class has entries
-    return { totalEntries, kelasSudahIsi, siswaWithNotes, hariKosong };
+    return { totalEntries, kelasSudahIsi };
   }, [data]);
 
   const columns = useMemo<ColumnDef<ClassRow>[]>(
@@ -264,7 +268,7 @@ export default function MonitoringPage() {
         />
         <StatCard
           label="Siswa terdaftar aktif"
-          value={loading ? "—" : stats.siswaWithNotes}
+          value={loading ? "—" : activeStudentCount}
           icon={MessageSquare}
           color="primary"
           index={2}

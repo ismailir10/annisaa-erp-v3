@@ -1,10 +1,12 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-06-23 in cycle `ui-shadcn-audit` (checked leave overlays and shared student-journal note compose)
+> Last audited: 2026-08-03 in cycle `teacher-mobile-nav-review` (checked mobile navigation, recovery states, and salary detail resilience)
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
 This file is the living catalog of what a teacher user can and should be able to do in this system. `/uat teacher` reads it, picks jobs scoped to the requested area, and role-plays each one via Playwright MCP. When a cycle adds, removes, or materially changes a teacher-facing capability, edit this file as part of that cycle and bump the "Last audited" date.
+
+Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `Kelas`, `Jurnal`, and `Penilaian` — while `Lainnya` opens the personal-route sheet for `Kehadiran Saya`, `Slip Gaji`, and `Profil Saya`.
 
 ---
 
@@ -40,10 +42,11 @@ This file is the living catalog of what a teacher user can and should be able to
   1. Open the teacher portal → class attendance
   2. Change the date picker to yesterday (or navigate back one day)
   3. Find the student whose parent reported they were actually sick, change status from `HADIR` → `SAKIT`
-  4. Save
-- **Done when:** Yesterday's record for that student is updated and persists on reload. No confusing "out of range" or "locked" errors for a same-week correction.
+  4. Wait for that row's `✓ Tersimpan` confirmation; there is no separate Simpan button
+  5. Reload and confirm the corrected `SAKIT` status remains
+- **Done when:** Yesterday's record for that student is updated and persists on reload, with the per-row saved confirmation after the tap. No confusing "out of range" or "locked" errors for a same-week correction.
 - **Why this job matters:** Parents call the next morning saying "my kid was actually sick yesterday, can you fix the record?" If Bu Sari can't correct it without asking admin, she either lies to the parent or stops trusting the system.
-- **Expected perf:** date-picker change + list reload <1.5s; save click-to-confirm <800ms.
+- **Expected perf:** date-picker change + list reload <1.5s; tap-to-confirm <800ms.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -56,9 +59,9 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Preconditions:** Logged in as a teacher who has ≥1 salary slip generated in seed for the current month
 - **Steps:**
   1. Open the teacher portal
-  2. Navigate to the salary slip section
+  2. Open `Lainnya` in the bottom navigation, then choose `Slip Gaji`
   3. Open the latest slip and see gross, deductions, net
-- **Done when:** User sees her slip with Rupiah-formatted amounts, breakdown of components, and a way to download or screenshot it. If the slip is not yet issued, the empty state explains when it will be.
+- **Done when:** User sees her slip with Rupiah-formatted amounts, breakdown of components, and a way to download or screenshot it. If the slip is not yet issued, the empty state explains when it will be; if loading fails, a visible `Coba lagi` action recovers rather than showing an empty list.
 - **Why this job matters:** Monthly ritual. She screenshots it to send to her husband. If the layout is awkward or mixes concerns, she loses trust.
 - **Expected perf:** slip list load <1.5s; open-slip click-to-visible <800ms.
 - **Known friction (from last UAT):** <filled by /uat reports>
@@ -70,10 +73,10 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Role:** TEACHER
 - **Preconditions:** Logged in as a teacher who has ≥1 issued salary slip this month
 - **Steps:**
-  1. Open the teacher portal → slip section
+  1. Open the teacher portal → `Lainnya` → `Slip Gaji`
   2. Open the latest slip
   3. Either (a) take a screenshot on phone, or (b) tap the download/PDF button
-- **Done when:** The visible slip layout fits the phone screen without horizontal scroll; all amounts are on-screen when screenshot is taken; the downloaded PDF (if offered) opens cleanly with full breakdown.
+- **Done when:** The visible slip layout fits the phone screen without horizontal scroll; long component labels wrap while Rupiah amounts remain readable; the downloaded PDF opens cleanly with full breakdown and Back returns to the slip list.
 - **Why this job matters:** She sends this to her husband every month. If the layout cuts off or the PDF download fails silently, the trust is broken — she either re-types amounts by hand or stops checking the app.
 - **Expected perf:** PDF/download click-to-file <3s; screenshot-ready layout must fit on one mobile viewport without scroll.
 
@@ -81,18 +84,18 @@ This file is the living catalog of what a teacher user can and should be able to
 
 ## Area: profile
 
-### JTBD-TEACHER-PROFILE-01 — Update profile photo
+### JTBD-TEACHER-PROFILE-01 — Review profile and account details
 - **Persona:** Bu Sari
 - **Role:** TEACHER
 - **Preconditions:** Logged in as a teacher, profile exists in seed
 - **Steps:**
   1. Open the teacher portal
-  2. Navigate to profile
-  3. Upload a new profile photo from phone gallery (simulated in the skill via `browser_file_upload`)
-  4. See the new photo reflected in the header/avatar
-- **Done when:** New photo is visible in both profile and header after save. Upload gives clear feedback (progress or instant).
-- **Why this job matters:** Low frequency but a common "first touch" action for new teachers. If upload silently fails she gives up.
-- **Expected perf:** upload-to-visible <3s on mid-range Android + 4G; progress indicator must appear within 500ms of file selection.
+  2. Open `Lainnya` in the bottom navigation, then choose `Profil Saya`
+  3. Review name, role, campus, contact, and bank-account details
+  4. Optionally open the visible `Slip Gaji` link to review salary information
+- **Done when:** The profile shows the teacher's available account details clearly, masks the bank account number, and provides a visible, keyboard-accessible path to `Slip Gaji`. Profile photo and account-data changes are not available in this portal; the screen directs the teacher to contact admin for changes.
+- **Why this job matters:** Bu Sari needs a trustworthy reference for the details that determine her daily role and salary transfer, without assuming she can self-edit official records.
+- **Expected perf:** profile-to-visible <1.5s on mid-range Android + 4G.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -121,6 +124,8 @@ This file is the living catalog of what a teacher user can and should be able to
   - Network drop during autosave → indicator shows "error", retry on next tap; no silent loss
   - Two browser tabs editing the same student → last write wins, but neither tab hangs
   - Tap a rubric button rapidly 5× across 200ms → exactly one autosave fires, final value is the 5th tap
+  - No active assessment week → use the available date control and `Lihat penilaian` to recover; do not leave the user at a dead end
+  - A center assessment load failure → visible `Coba lagi` recovery; a read-only assessment has no sticky save footer or writable controls
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -155,7 +160,7 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Role:** TEACHER
 - **Preconditions:** Logged in as a teacher with ≥10 attendance records this month (mix of PRESENT / LATE) and ≥1 in the prior month
 - **Steps:**
-  1. Open the teacher portal → Kehadiran Saya (`/teacher/attendance`)
+  1. Open `Lainnya` in the bottom navigation, then choose `Kehadiran Saya` (`/teacher/attendance`)
   2. See current month calendar with each day's status colored
   3. Tap prev/next to switch to last month
   4. Confirm prior-month records render
@@ -164,7 +169,7 @@ This file is the living catalog of what a teacher user can and should be able to
 - **Why this job matters:** Bu Sari uses this once per payroll cycle to verify her own attendance before slips drop. If the calendar is wrong, she disputes payroll — admin then has to dig through raw records. Trustworthy display here saves a tail-end of admin work.
 - **Expected perf:** initial load <1.5s; month-change reload <1s.
 - **Error scenarios to verify:**
-  - `/api/attendance/my` 500 → toast "Gagal memuat kehadiran. Coba lagi sebentar ya." + skeleton clears (no infinite spinner) — see `app/teacher/attendance/page.tsx` lines 31–34
+  - `/api/attendance/my` 500 → a local error state offers `Coba lagi`; it remains distinct from an empty month and clears the skeleton (no infinite spinner)
   - Future-month nav → empty calendar, not an error
 - **Known friction (from last UAT):** <filled by /uat reports>
 
@@ -220,6 +225,7 @@ This file is the living catalog of what a teacher user can and should be able to
   - Network drop on a tap → cell reverts to its pre-tap state + error toast; re-tap retries cleanly (no double-submit — requestId guard)
   - Rapid repeated taps on one cell → final visible state matches the last tap, no stale-response flicker
   - Switch class mid-entry → safe: all prior taps are already persisted
+  - Missing class/date link → picker recovery explains that class and date must be chosen; grid-fetch failure offers local `Coba lagi` rather than an empty roster
 - **Known friction (from last UAT):** Entry page is a roster list, not a cell grid — UAT must drill into individual students to reach the indicator checkboxes.
 
 ---
@@ -242,6 +248,7 @@ This file is the living catalog of what a teacher user can and should be able to
   - Body >2000 chars → server 400 + toast
   - Date in the future → absent from the shared date select; if the visible week is entirely in the future, submit stays disabled
   - Date from outside the visible week → absent from the shared date select. Server-side week-range validation is still not the trust boundary in `POST /api/student-journal/notes`, so file a follow-up cycle if API-level rejection is required.
+  - Week history load failure → visible `Coba lagi`; recovered history is explicitly labelled read-only, not styled as editable checkboxes
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

@@ -19,6 +19,7 @@ import {
   formatLearningCenter,
 } from "@/lib/format";
 import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
+import { parentGreetingName, parentHonorific } from "@/lib/parent-greeting";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import { LEVEL_LABEL_SHORT, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
@@ -191,13 +192,14 @@ export default async function ParentDashboard() {
 
   const { count: unpaidCount, total: unpaidTotal, nearestDue } = outstanding;
 
-  const greetingFirst = parent.name.split(" ")[0] ?? parent.name;
-  // Derive Bu/Pak from the guardian relationship label on the first child link.
-  // (Parent model has no gender field; relationship is MOTHER / FATHER / GUARDIAN.)
-  const firstRel = children[0]?.relationship?.toUpperCase() ?? "";
-  const honorific = firstRel === "FATHER" ? "Pak" : "Bu";
+  // `Parent.name` already carries an honorific ("Ibu Rina"), and the guardian
+  // relationship is stored in Indonesian (AYAH/IBU/WALI) — both handled in
+  // lib/parent-greeting.ts.
+  const greetingFirst = parentGreetingName(parent.name);
+  const honorific = parentHonorific(children[0]?.relationship);
   const greetingTitle = `Assalamu'alaikum, ${honorific} ${greetingFirst}`;
-  const tod = timeOfDayGreeting(now);
+  // Server component — pin the hour to WIB or Vercel's UTC clock answers.
+  const tod = timeOfDayGreeting(now, JAKARTA_TZ);
   const dateLine = formatDate(today, {
     weekday: "long",
     day: "numeric",

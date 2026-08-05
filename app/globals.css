@@ -90,6 +90,10 @@
   --color-celebration-gold-subtle: var(--celebration-gold-subtle);
   --color-celebration-gold-text: var(--celebration-gold-text);
 
+  /* Readable brand teal for text/glyphs sitting on a tinted surface.
+   * See --primary-text below for why --primary itself must not be used. */
+  --color-primary-text: var(--primary-text);
+
   /* Elevation — paired shadow tokens for resting vs primary surfaces.
    * See design-system.html §13 Overlays / §14 Page Recipes elevation rules. */
   --shadow-card-resting: var(--shadow-resting);
@@ -135,6 +139,15 @@
   /* Brand / Primary — An Nisaa teal */
   --primary: #5DB4B8;
   --primary-foreground: #FFFFFF;
+  /* Darkened brand teal for TEXT and glyphs on light/tinted surfaces.
+   * --primary is a fill colour: on white it measures 2.36:1 and on the
+   * bg-primary/10 tint 2.24:1, so `text-primary` on a tinted row fails AA
+   * outright — and in the journal grid it was the *checked* (meaningful)
+   * state that was unreadable while the unchecked state used near-black.
+   * This value is 4.63:1 on bg-primary/10 and 5.00:1 on white. Same
+   * convention as --status-*-text and --celebration-gold-text.
+   * Asserted in lib/__tests__/primary-text-contrast.test.ts. */
+  --primary-text: #2F7A7D;
 
   /* Secondary */
   --secondary: #E8F5F6;

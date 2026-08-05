@@ -207,7 +207,10 @@ export function WeekGrid({
                               aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"}`}
                             >
                               {checked ? (
-                                <Check size={16} className="text-primary" strokeWidth={2.5} />
+                                // A 16px glyph is the sole carrier of "sudah
+                                // diisi", so it needs 3:1 as a non-text
+                                // graphic; brand teal gives 2.36:1 on white.
+                                <Check size={16} className="text-primary-text" strokeWidth={2.5} />
                               ) : (
                                 <span className="w-4 h-4 rounded border border-muted-foreground/40 block" />
                               )}
@@ -230,12 +233,12 @@ export function WeekGrid({
                             </button>
                           )
                         ) : (
-                          <span className="flex items-center justify-center h-[36px]">
-                            {checked ? (
-                              <Check size={14} className="text-primary" strokeWidth={2.5} />
-                            ) : (
-                              <span className="w-3.5 h-3.5 rounded border border-muted-foreground/30 block" />
-                            )}
+                          <span
+                            className="flex h-[36px] cursor-default items-center justify-center text-sm font-semibold text-muted-foreground"
+                            role="img"
+                            aria-label={`${ind.label} ${d} — ${checked ? "diisi" : "belum diisi"} (hanya-baca)`}
+                          >
+                            {checked ? "✓" : "—"}
                           </span>
                         )}
                         {adminEdit && adminEditDateLabel ? (

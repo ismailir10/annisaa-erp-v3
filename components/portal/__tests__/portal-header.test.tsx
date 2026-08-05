@@ -29,18 +29,13 @@ describe("PortalHeader", () => {
     expect(screen.getByText("2 anak")).toBeInTheDocument();
   });
 
-  it("wraps user block in a link when profileHref provided", () => {
-    render(
-      <PortalHeader
-        userName="Bu Sari"
-        avatarFallback="BS"
-        profileHref="/teacher/profile"
-        onLogout={() => {}}
-      />,
-    );
+  it.each(["/teacher/profile", "/parent/profile"])("gives the shared %s account link a 44px focus target", (profileHref) => {
+    render(<PortalHeader userName="Bu Sari" avatarFallback="BS" profileHref={profileHref} onLogout={() => {}} />);
     const link = screen.getByRole("link");
-    expect(link).toHaveAttribute("href", "/teacher/profile");
+    expect(link).toHaveAttribute("href", profileHref);
     expect(link).toContainElement(screen.getByText("Bu"));
+    expect(link).toHaveClass("min-h-11");
+    expect(link).toHaveClass("focus-visible:ring-2");
   });
 
   it("has no profile link when profileHref is absent", () => {
@@ -58,12 +53,16 @@ describe("PortalHeader", () => {
     );
 
     // First click opens the dialog without firing onLogout.
-    await user.click(screen.getByRole("button", { name: "Keluar" }));
+    const logout = screen.getByRole("button", { name: "Keluar" });
+    expect(logout).toHaveClass("min-h-11");
+    expect(logout).toHaveClass("min-w-11");
+    expect(logout).toHaveClass("focus-visible:ring-2");
+    await user.click(logout);
     expect(onLogout).not.toHaveBeenCalled();
     expect(screen.getByText("Yakin ingin keluar?")).toBeInTheDocument();
 
-    // Clicking the dialog's "Ya, Keluar" button fires onLogout.
-    await user.click(screen.getByRole("button", { name: "Ya, Keluar" }));
+    // Clicking the dialog's explicit logout action fires onLogout.
+    await user.click(screen.getByRole("button", { name: "Keluar dari akun" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
   });
 
