@@ -90,7 +90,7 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 ## Tasks
 
 - [x] T1 — m1 + m2: Jakarta-hour greeting, strip the honorific already in `Parent.name`, map `AYAH`/`IBU`/`WALI`
-- [ ] T2 — m3: teacher "Periode" reads the DB semester; fix `getCurrentPeriodFromDb`'s UTC day + stale docstring
+- [x] T2 — m3: teacher "Periode" reads the DB semester; fix `getCurrentPeriodFromDb`'s UTC day + stale docstring
 - [ ] T3 — m4: journal admin `weekStart` default → `Asia/Jakarta`
 - [ ] T4 — M1-half: scope the `/admin/raport` class picker to the active year; disambiguate duplicate labels by campus
 - [ ] T5 — m5: branded Indonesian `app/not-found.tsx`
