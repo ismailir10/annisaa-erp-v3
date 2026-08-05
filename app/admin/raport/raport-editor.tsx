@@ -296,8 +296,10 @@ export function RaportEditor({
           <NumField id="absence-total" label="Hari sekolah" value={att.total} onChange={(v) => setAtt((p) => ({ ...p, total: v }))} />
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mt-4">
-          <NumField id="measurement-height" label="Tinggi (cm)" value={height} onChange={setHeight} step="0.1" />
-          <NumField id="measurement-weight" label="Berat (kg)" value={weight} onChange={setWeight} step="0.1" />
+          {/* StudentMeasurement.height/weight are nullable and publish
+              succeeds with both blank — the asterisk was claiming otherwise. */}
+          <NumField id="measurement-height" label="Tinggi (cm)" value={height} onChange={setHeight} step="0.1" optional />
+          <NumField id="measurement-weight" label="Berat (kg)" value={weight} onChange={setWeight} step="0.1" optional />
         </div>
         <Field className="mt-4">
           <FieldLabel htmlFor="hafalan">Hafalan (surah / hadis / doa)</FieldLabel>
@@ -443,17 +445,29 @@ function NumField({
   value,
   onChange,
   step,
+  optional = false,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   step?: string;
+  /** Drops the asterisk and the required/aria-required attributes. */
+  optional?: boolean;
 }) {
   return (
     <Field>
-      <FieldLabel htmlFor={id} required>{label}</FieldLabel>
-      <Input id={id} type="number" min="0" step={step} required aria-required="true" value={value} onChange={(e) => onChange(e.target.value)} />
+      <FieldLabel htmlFor={id} required={!optional}>{label}</FieldLabel>
+      <Input
+        id={id}
+        type="number"
+        min="0"
+        step={step}
+        required={!optional}
+        aria-required={optional ? undefined : "true"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </Field>
   );
 }

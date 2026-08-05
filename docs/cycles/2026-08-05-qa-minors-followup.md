@@ -95,7 +95,7 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 - [x] T4 — M1-half: scope the `/admin/raport` class picker to the active year; disambiguate duplicate labels by campus
 - [x] T5 — m5: branded Indonesian `app/not-found.tsx`
 - [x] T6 — m6: `--primary-text` token; apply to the checked journal cell and the parent week-grid check
-- [ ] T7 — m7: `NumField` optional flag; drop the asterisk on Tinggi/Berat
+- [x] T7 — m7: `NumField` optional flag; drop the asterisk on Tinggi/Berat
 - [ ] T8 — m8: surface `activity` ("Kegiatan") on the parent Capaian entry row
 - [ ] T9 — m11: rewrite the rapor-published banner sentence
 - [ ] T10 — m12: coalesce journal taps into one batch POST
@@ -157,3 +157,10 @@ _(filled by /build)_
 ## Ship Notes
 
 _(filled by /ship)_
+
+### T7 — m7, false required marker
+
+| File | Change |
+|---|---|
+| `app/admin/raport/raport-editor.tsx` | `NumField` gains an `optional` flag that drops the asterisk, `required` and `aria-required`. Applied to Tinggi/Berat only — the four attendance counts stay required. |
+
