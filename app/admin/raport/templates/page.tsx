@@ -193,7 +193,7 @@ export default function RaportTemplatesPage() {
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun raport siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
         actions={
           <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline" }))}>
-            Ke Raport Siswa
+            Susun Raport
           </Link>
         }
       />
@@ -227,7 +227,10 @@ export default function RaportTemplatesPage() {
           </Field>
           <div className="ml-auto flex items-center gap-3">
             <Badge variant={filledCount === TOTAL_TEMPLATE_SLOTS ? "default" : "secondary"}>
-              {filledCount}/{TOTAL_TEMPLATE_SLOTS} terisi
+              <span className="font-currency">
+                {filledCount}/{TOTAL_TEMPLATE_SLOTS}
+              </span>{" "}
+              terisi
             </Badge>
             <Button onClick={handleSave} disabled={saving || loading || !termId}>
               {saving ? "Menyimpan…" : "Simpan semua"}
@@ -241,7 +244,7 @@ export default function RaportTemplatesPage() {
           icon={FileText}
           title="Belum ada triwulan"
           description="Buat triwulan terlebih dahulu di halaman Raport sebelum menyusun kisi-kisi."
-          actionLabel="Ke Raport Siswa"
+          actionLabel="Susun Raport"
           actionHref="/admin/raport"
         />
       )}
@@ -257,7 +260,7 @@ export default function RaportTemplatesPage() {
       )}
 
       {loading && (
-        <div className="space-y-3" aria-busy>
+        <div className="space-y-3" aria-busy aria-live="polite">
           <Skeleton className="h-40 w-full" />
           <Skeleton className="h-40 w-full" />
         </div>
