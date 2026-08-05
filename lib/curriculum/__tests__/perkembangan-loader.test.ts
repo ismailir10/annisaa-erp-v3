@@ -147,6 +147,59 @@ describe("loadStudentPerkembangan", () => {
     expect(r.latestThisWeek[1].center).toBe("WORSHIP");
   });
 
+  it("carries the sentra activity through, normalising blanks to null", async () => {
+    // m8: `activity` was written by the sentra route but absent from this
+    // select, so the parent could never see what their child actually did.
+    semesterFindFirst.mockResolvedValue({
+      id: "sem1",
+      number: 1,
+      academicYear: { id: "ay1", name: "2025/2026" },
+    });
+    assessmentEntryFindMany.mockResolvedValueOnce([]);
+    weekFindFirst.mockResolvedValue({
+      id: "wk1",
+      number: 3,
+      startDate: new Date("2026-05-11T00:00:00Z"),
+      endDate: new Date("2026-05-15T00:00:00Z"),
+      subTheme: { id: "st1", name: "Sub", theme: { id: "th1", name: "Theme", semesterId: "sem1" } },
+    });
+    assessmentEntryFindMany.mockResolvedValueOnce([
+      {
+        level: "CONSISTENT",
+        date: new Date("2026-05-13T00:00:00Z"),
+        source: "CENTER",
+        center: "ART",
+        activity: "  Menggambar bebas dengan krayon  ",
+        indicator: { content: "Doa", objective: { element: "ART" } },
+      },
+      {
+        level: "EMERGING",
+        date: new Date("2026-05-12T00:00:00Z"),
+        source: "CENTER",
+        center: "ART",
+        activity: "   ",
+        indicator: { content: "Asma", objective: { element: "ART" } },
+      },
+      {
+        level: "EMERGING",
+        date: new Date("2026-05-12T00:00:00Z"),
+        source: "HOMEROOM",
+        center: null,
+        activity: null,
+        indicator: { content: "Baris", objective: { element: "MOTOR_SKILLS" } },
+      },
+    ]);
+
+    const r = await loadStudentPerkembangan("t1", "stu1");
+    expect(r.latestThisWeek[0].activity).toBe("Menggambar bebas dengan krayon");
+    expect(r.latestThisWeek[1].activity).toBeNull();
+    expect(r.latestThisWeek[2].activity).toBeNull();
+
+    // The field has to be requested, not just mapped.
+    const recentArgs = assessmentEntryFindMany.mock.calls[1]![0]!;
+    expect(recentArgs.select.activity).toBe(true);
+  });
+
   it("returns empty latestThisWeek when no active week", async () => {
     semesterFindFirst.mockResolvedValue({
       id: "sem1",

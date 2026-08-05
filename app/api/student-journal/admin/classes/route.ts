@@ -3,6 +3,8 @@ import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
 /**
  * GET /api/student-journal/admin/classes?weekStart=
@@ -41,8 +43,10 @@ export async function GET(req: NextRequest) {
     }
     ws = weekStartParam;
   } else {
-    const today = new Date().toISOString().slice(0, 10);
-    ws = weekStart(today);
+    // Jakarta, not UTC: between 00:00-06:59 WIB a UTC read still returns
+    // yesterday, and on a Monday that shifts the whole monitor a week back.
+    // Matches the sibling `admin/class-roll-up` route.
+    ws = weekStart(getTodayInTimezone(JAKARTA_TZ));
   }
 
   const dates = weekDates(ws);
