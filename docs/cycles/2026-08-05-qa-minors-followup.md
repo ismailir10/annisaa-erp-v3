@@ -93,7 +93,7 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 - [x] T2 — m3: teacher "Periode" reads the DB semester; fix `getCurrentPeriodFromDb`'s UTC day + stale docstring
 - [x] T3 — m4: journal admin `weekStart` default → `Asia/Jakarta`
 - [x] T4 — M1-half: scope the `/admin/raport` class picker to the active year; disambiguate duplicate labels by campus
-- [ ] T5 — m5: branded Indonesian `app/not-found.tsx`
+- [x] T5 — m5: branded Indonesian `app/not-found.tsx`
 - [ ] T6 — m6: `--primary-text` token; apply to the checked journal cell and the parent week-grid check
 - [ ] T7 — m7: `NumField` optional flag; drop the asterisk on Tinggi/Berat
 - [ ] T8 — m8: surface `activity` ("Kegiatan") on the parent Capaian entry row
@@ -133,6 +133,13 @@ Acceptance: **not applied in this cycle without an explicit go-ahead.** Correcti
 | `app/admin/raport/page.tsx` | Filters to `status === "ACTIVE" && academicYear.status === "ACTIVE"` (the route only applies `academicYearId` when `yearId` is passed, and the page passed none), and renders `disambiguateClassLabels` output. Client-side filter rather than a second round trip for the active year id — the payload already carries `academicYear.status`. |
 
 New tests: `lib/__tests__/parent-greeting.test.ts` (12), `lib/__tests__/academic-period-db.test.ts` (4 — the file had no coverage at all), `lib/__tests__/disambiguate-class-labels.test.ts` (4).
+
+### T5 — m5, root 404
+
+| File | Change |
+|---|---|
+| `app/not-found.tsx` *(new)* | Branded Indonesian 404 mirroring the three portal `error.tsx` boundaries. Placed at the root so every route inherits it; links to `/`, which already redirects each role to its own home, rather than guessing a portal. |
+
 
 ## Verification
 
