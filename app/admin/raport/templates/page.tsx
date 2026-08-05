@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AlertCircle, FileText, Copy } from "lucide-react";
 import {
@@ -190,7 +191,7 @@ export default function RaportTemplatesPage() {
         title="Kisi-kisi Raport"
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun raport siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
         actions={
-          <Link href="/admin/raport" className={buttonVariants({ variant: "outline" })}>
+          <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline" }))}>
             Ke Raport Siswa
           </Link>
         }

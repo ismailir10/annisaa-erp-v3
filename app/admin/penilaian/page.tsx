@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { formatLearningCenter } from "@/lib/format";
 import { ClipboardList, CalendarDays, Building2, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
@@ -95,7 +96,7 @@ export default function AdminPenilaianPage() {
             : "Pantau kelengkapan penilaian walas pekanan & sentra harian"
         }
         actions={
-          <Link href="/admin/raport" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
             <FileText className="size-4" /> Susun Raport
           </Link>
         }

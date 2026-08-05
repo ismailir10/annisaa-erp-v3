@@ -28,4 +28,21 @@ describe("isWeekGridDateEditable", () => {
     expect(screen.getByRole("img", { name: "Merapi 2026-07-30 — belum diisi (hanya-baca)" })).toHaveTextContent("—");
     expect(screen.queryByRole("button", { name: /Merapi/ })).toBeNull();
   });
+
+  it("renders the shared EmptyState (not a bare paragraph) when there are no categories", () => {
+    render(createElement(WeekGrid, {
+      categories: [],
+      entries: [],
+      dates: ["2026-07-29", "2026-07-30"],
+    }));
+
+    // Title + description come from EmptyState, not a hand-rolled <p>.
+    expect(screen.getByText("Belum ada indikator")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Indikator pemantauan belum dikonfigurasi untuk kelas ini. Hubungi admin untuk mengatur Buku Penghubung.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
 });
