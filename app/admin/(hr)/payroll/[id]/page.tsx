@@ -27,7 +27,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Download, Send, Check, Pencil, Settings2, X } from "lucide-react";
+import { ArrowLeft, Download, Check, Pencil, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 import Link from "next/link";
@@ -64,7 +64,6 @@ export default function PayrollDetailPage() {
   const [varsModal, setVarsModal] = useState<PayrollItem | null>(null);
   const [lineModal, setLineModal] = useState<{ item: PayrollItem; line: PayrollLine } | null>(null);
   const [approveModal, setApproveModal] = useState(false);
-  const [sendModal, setSendModal] = useState(false);
 
   // Vars form
   const [varsForm, setVarsForm] = useState({ overtimeHours: 0, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 });
@@ -76,7 +75,6 @@ export default function PayrollDetailPage() {
   const [adjSaving, setAdjSaving] = useState(false);
 
   const [approving, setApproving] = useState(false);
-  const [sending, setSending] = useState(false);
 
   // Edit toggle for summary card (Category B — Edit Toggle Pattern, DRAFT only)
   const [isEditing, setIsEditing] = useState(false);
@@ -225,18 +223,6 @@ export default function PayrollDetailPage() {
     setEditSaving(false);
   }
 
-  async function handleSendSlips() {
-    setSending(true);
-    const res = await fetch(`/api/payroll/${id}/send-slips`, { method: "POST" });
-    if (res.ok) {
-      const d = await res.json();
-      toast.success(`${d.sent} slip terkirim`);
-      setSendModal(false);
-      fetchData();
-    } else toast.error("Gagal mengirim");
-    setSending(false);
-  }
-
   if (loading) return <DetailPageSkeleton />;
   if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p></div>;
 
@@ -349,7 +335,6 @@ export default function PayrollDetailPage() {
             )}
             {isDraft && <Button size="sm" onClick={() => setApproveModal(true)}><Check size={14} className="mr-1.5" /> Setujui</Button>}
             {isApproved && <Button size="sm" variant="outline" onClick={handleExport}><Download size={14} className="mr-1.5" /> Ekspor BSI</Button>}
-            {isApproved && <Button size="sm" onClick={() => setSendModal(true)}><Send size={14} className="mr-1.5" /> Kirim Slip</Button>}
           </>
         }
       />
@@ -588,23 +573,6 @@ export default function PayrollDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={handleApprove} disabled={approving}>{approving ? "Menyetujui..." : "Setujui"}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Send Slips — AlertDialog: irreversible (emails sent) */}
-      <AlertDialog open={sendModal} onOpenChange={setSendModal}>
-        <AlertDialogContent className="p-card sm:max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Kirim Slip Gaji</AlertDialogTitle>
-            <AlertDialogDescription>Slip gaji PDF akan dikirim ke email setiap karyawan.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-2 text-sm">
-            <p>{data.items.length} slip akan dikirim</p>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSendSlips} disabled={sending}>{sending ? "Mengirim..." : "Kirim Semua"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

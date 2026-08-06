@@ -21,7 +21,7 @@ export async function POST(
   // pass the `status === "DRAFT"` read above before either committed, leading
   // to a double-approve. updateMany with the status predicate flips DRAFT to
   // APPROVED atomically and reports `count` so we can detect a lost race
-  // without serializable isolation. Same pattern as send-slips route.
+  // without serializable isolation.
   const flip = await prisma.payrollRun.updateMany({
     where: { id, status: "DRAFT" },
     data: {

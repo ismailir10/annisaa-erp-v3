@@ -6,6 +6,7 @@ import { submitAdmissionSchema, flattenSubmitErrors } from "@/lib/admission/subm
 import { detectSibling } from "@/lib/admission/sibling-detect";
 import { sendAdmissionSubmittedEmail } from "@/lib/email/admission-submitted";
 import { programBelongsToTenant } from "@/lib/enrollment/resolve-token";
+import { resolveAppOrigin } from "@/lib/payments/session";
 
 const RATE_LIMIT_PER_MIN = 5;
 const RATE_WINDOW_MS = 60_000;
@@ -132,11 +133,16 @@ export async function POST(req: NextRequest) {
   // even if Resend has a hiccup. Logged loudly for ops visibility.
   if (data.parentEmail) {
     try {
+      // requestOrigin (new URL(req.url).origin) is always present in a route
+      // handler, so preview/staging/prod each get their own logo host —
+      // same pattern as payment return URLs (lib/payments/session.ts).
+      const appUrl = resolveAppOrigin(new URL(req.url).origin);
       const result = await sendAdmissionSubmittedEmail({
         tenantId,
         to: data.parentEmail,
         childName: data.childName,
         parentName: data.parentName,
+        appUrl,
       });
       if (!result.sent && result.error) {
         console.error(

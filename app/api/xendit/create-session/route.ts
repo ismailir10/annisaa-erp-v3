@@ -10,7 +10,6 @@ import { createPaymentSessionSchema } from "@/lib/validations/invoice";
 /**
  * Create Xendit Checkout Sessions — single or bulk.
  * Bulk: admin clicks "Kirim Tagihan" → creates sessions for all selected invoices.
- * Mirrors the payroll "Kirim Slip" flow.
  */
 export async function POST(req: NextRequest) {
   // Rate limit: 5 Xendit session creations per minute
