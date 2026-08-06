@@ -101,6 +101,13 @@ Order: T1 → (T2, T3, T4 in parallel) → (T5, T6 after T1; T7, T8 after T2). O
 
 ## Verification
 
+### End-of-cycle
+
+- Final gates: `npm run build` clean; `npx vitest run` = **290 passed | 2 skipped (292 files), 2674 passed | 42 todo (2716 tests), 0 failures**.
+- Playwright: **local run deferred to CI** (env cannot execute it). The repo's own guard refused, verbatim: `Refusing to run e2e against non-local DATABASE_URL host "aws-1-ap-southeast-1.pooler.supabase.com". These specs create + mutate data via the API and would pollute that database (DEMO_MODE does not switch the DB — see lib/db.ts).` No local Postgres is available in this harness and overriding with `E2E_ALLOW_REMOTE_DB=1` would write test rows into the shared staging database. The required CI check `Playwright E2E` gates the merge; CTO will not merge on red. One e2e assertion was updated in this cycle (`e2e/admin.spec.ts:93`, the `/admin/penilaian` heading), so that check is the one that proves it.
+- `docs/uat/jobs/admin.md` updated: JTBD-ADMIN-RAPORT-01 gained the unsaved-changes guard (including its known sidebar gap), and the "Last audited" line was bumped to this cycle.
+- Cross-checked `.claude/standards/design-system.html` across the cycle for the sidebar group-label treatment, outline-button border, status-token families and dialog button labels — every fix stays inside the documented system; no new tokens, components, spacing or type steps were introduced.
+
 - Task 8: covered by the same gate run as Task 7 (**290 passed | 2 skipped, 2674 passed, 0 failures**) and the same `superpowers:code-reviewer` pass, which verified the hit-area arithmetic (6 + 12 + 6 = 24px) and that the enrollments header conversion preserved every handler and variant.
 - Task 7: gates passed — `npm run build` clean, `npx vitest run` = **290 passed | 2 skipped (292 files), 2674 passed | 42 todo (2716 tests), 0 failures** (covers T7 and T8). Reviewed by `superpowers:code-reviewer`: clean — it confirmed the `ABSENT` enum value is untouched by the "Alpa" relabel, that no e2e or unit test asserted the old strings, that the `DetailPageHeader` conversion preserved the transition-button logic byte-for-byte, and it re-ran all five new tests against pre-fix sources to prove they genuinely fail there.
 - Task 7 browser verification on `/admin/student-attendance`: every visible control now resolves an accessible name (Dari, Sampai, Kelas, "Cari nama siswa...", "Filter Status") — the unnamed-control list is empty, where before the class filter, search box and status filter had no name at all. Subtitle renders "0 catatan"; the empty state renders title + description.
@@ -120,4 +127,29 @@ Order: T1 → (T2, T3, T4 in parallel) → (T5, T6 after T1; T7, T8 after T2). O
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migrations:** none. No schema change, no data migration.
+- **Env vars:** none.
+- **API contract:** unchanged. Every fix is client-side presentation, copy, or accessibility wiring. `lib/finance/run-bulk-{generate,retry}.ts` changed the *class* of the error they throw (`Error` → `ApiError`) but not the message or the control flow.
+- **Rollback:** revert the commits. Nothing to unwind.
+
+### Visible changes worth watching after deploy
+
+- **`/admin/penilaian` H1 is now "Pemantauan"** (was "Penilaian"), matching its nav item and breadcrumb. Anyone who knows the page by its old title will see a different heading; the URL is unchanged. `e2e/admin.spec.ts` was updated to match.
+- **"Alpa" replaces "Tidak Hadir"** on the attendance stat tile, the status filter, the override dialog and the student detail tile — per `voice.md`'s glossary. The stored value `ABSENT` is untouched, so no data or API meaning changed. Note the **employee**-attendance override modal (`components/attendance/override-modal.tsx`) still says "Tidak Hadir"; it is a different domain and was out of this cycle's scope.
+- **"Catatan" replaces "Record"** across `/admin/student-attendance`, including the page subtitle, which now reads "N catatan".
+- **The journal note-delete dialog now says "Nonaktifkan"**, not "Hapus". The behaviour was always a soft delete — only the copy was wrong. Anyone trained on the old wording should be told the action is unchanged.
+- **Sidebar group labels are more legible** (contrast 3.64:1 → 5.01:1) and **group chevrons now rotate** to show open/closed state. Cosmetic but immediately visible on every admin page.
+- **Outline buttons rendered via `buttonVariants()` now show their border** — affects "Susun Raport" on `/admin/penilaian` and `/admin/raport/templates`.
+- **Every admin list's search box and status filter gained an accessible name** via the shared `DataTableToolbar`. No visual change; screen-reader output changes on every list page in the portal.
+
+### Known limitation shipping with this cycle
+
+The raport editor's unsaved-changes guard covers the in-editor back control and browser close/reload, but **not** sidebar or breadcrumb navigation — those are client-side route changes, and Next.js App Router offers no supported way to block one. An admin who edits a narrative and then clicks "Siswa" in the sidebar still loses the edit silently. The user reviewed this and chose to ship rather than widen the cycle into an app-shell change. Two candidate follow-ups: an app-shell dirty-state context that intercepts `<Link>` clicks, or autosave-on-blur for the editor (the better end-state, needs its own spec).
+
+### Smoke steps on the preview URL
+
+1. `/admin` — sidebar group labels readable; chevrons point down while groups are expanded.
+2. `/admin/penilaian` — H1 reads "Pemantauan"; "Susun Raport" has a visible border; the sentra line shows a formatted Indonesian date, not `YYYY-MM-DD`.
+3. `/admin/student-attendance` — filters read Dari / Sampai / Kelas / Filter Status; subtitle says "N catatan"; empty state has a description.
+4. `/admin/raport` → open a student, edit a narrative, click "Kembali ke daftar" — the confirmation appears; Batal keeps the edit, "Ya, Keluar" discards it. Save, then click back — no confirmation.
+5. `/admin/students` → "Tambah Siswa" — tab through the form and confirm each field announces its label.
