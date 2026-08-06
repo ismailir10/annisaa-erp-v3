@@ -101,6 +101,14 @@ Order: T1 → (T2, T3, T4 in parallel) → (T5, T6 after T1; T7, T8 after T2). O
 
 ## Verification
 
+### Preview-verify (PR #457)
+
+- Iteration 1 (`https://annisaa-erp-v3-git-feat-admin-dfe93a-ismails-projects-196d40d3.vercel.app`), signed in as the admin account per `.claude/verify-accounts.json`. Flows: `/admin/students` (list + create dialog), `/admin/penilaian`, `/admin/student-attendance`, `/admin/student-journal`. **blockers=0, minors=2.**
+  - Confirmed on the real preview: sidebar group labels legible with chevrons pointing down while expanded; `/admin/penilaian` H1 "Pemantauan", "Entri pada 6 Agustus 2026", table inside `[data-slot="table-container"]`, "Susun Raport" border `rgb(229,226,222)`; `/admin/student-attendance` subtitle "0 catatan", stat tile "ALPA", filters labelled Dari / Sampai / Kelas; the students create dialog resolved an accessible name for 15 of 16 controls. No console errors on any flow.
+  - Minor 1 → **fixed in this iteration, not deferred**: the DataTable footer's page-size `Select` (`components/ui/data-table-pagination.tsx:38`) was the one unnamed control — it renders only the number, so nothing named it. Given the cycle's own AC1/AC10, and that this control sits on every admin list, it got `aria-label="Baris per halaman"` rather than a PR comment.
+  - Minor 2 → not actionable: three `503`s on `/.well-known/vercel/jwe`, an `OPTIONS /`, and a `HEAD /admin/student-journal`. These are Vercel infra/deployment-protection probes; the real document navigations returned `responseStatus: 200` (checked via the Navigation Timing entry). No app route 5xx'd.
+- **Flow not exercised:** the raport editor's unsaved-changes guard. Staging currently has 0 students, so reaching the editor needs a full year → class → student → enrollment → term → assessment seed chain. Rather than write six entities into the shared staging database for one interaction, this relies on its 9 unit tests (including save-then-clean and type-then-revert). Recorded rather than silently skipped.
+
 ### /audit-docs report — 2026-08-06 (`/ship` preflight #6)
 
 | Check | Status | Detail |
