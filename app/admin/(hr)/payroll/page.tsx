@@ -355,12 +355,12 @@ function PayrollPeriodBody({
     <>
       <div className="grid grid-cols-2 gap-4">
         <Field>
-          <FieldLabel>Tanggal Mulai</FieldLabel>
-          <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          <FieldLabel htmlFor="payroll-run-period-start">Tanggal Mulai</FieldLabel>
+          <Input id="payroll-run-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
         </Field>
         <Field>
-          <FieldLabel>Tanggal Selesai</FieldLabel>
-          <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          <FieldLabel htmlFor="payroll-run-period-end">Tanggal Selesai</FieldLabel>
+          <Input id="payroll-run-period-end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
         </Field>
       </div>
       <p className="text-xs text-muted-foreground">

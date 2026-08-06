@@ -51,14 +51,14 @@ function PaymentFormBody({
   return (
     <>
       <Field>
-        <FieldLabel required>Jumlah</FieldLabel>
-        <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
+        <FieldLabel required htmlFor="invoice-payment-amount">Jumlah</FieldLabel>
+        <Input id="invoice-payment-amount" required aria-required="true" type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
         <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
       </Field>
       <Field>
-        <FieldLabel>Metode Pembayaran</FieldLabel>
+        <FieldLabel htmlFor="invoice-payment-method">Metode Pembayaran</FieldLabel>
         <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger id="invoice-payment-method"><SelectValue /></SelectTrigger>
           <SelectContent>
             {PAYMENT_METHODS.map((m) => (
               <SelectItem key={m} value={m}>
@@ -69,13 +69,13 @@ function PaymentFormBody({
         </Select>
       </Field>
       <Field>
-        <FieldLabel>Referensi</FieldLabel>
-        <Input value={payForm.reference} onChange={e => setPayForm({ ...payForm, reference: e.target.value })} placeholder="Opsional" />
+        <FieldLabel htmlFor="invoice-payment-reference">Referensi</FieldLabel>
+        <Input id="invoice-payment-reference" value={payForm.reference} onChange={e => setPayForm({ ...payForm, reference: e.target.value })} placeholder="Opsional" />
         <FieldDescription>Nomor transfer, ID transaksi, dll.</FieldDescription>
       </Field>
       <Field>
-        <FieldLabel>Catatan</FieldLabel>
-        <Input value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Opsional" />
+        <FieldLabel htmlFor="invoice-payment-notes">Catatan</FieldLabel>
+        <Input id="invoice-payment-notes" value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Opsional" />
       </Field>
     </>
   );

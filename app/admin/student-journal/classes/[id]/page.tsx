@@ -284,6 +284,7 @@ export default function ClassWeekPage({
         loading={loading}
         pagination={tablePagination}
         emptyTitle="Belum ada siswa aktif di kelas ini"
+        emptyDescription="Rekap kelengkapan akan tampil di sini setelah ada siswa terdaftar aktif di kelas ini."
       />
     </>
   );

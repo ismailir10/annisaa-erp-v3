@@ -90,7 +90,7 @@ test.describe("Admin flows", () => {
     // now the only thing standing between an old bookmark and a 404.
     await page.goto("/admin/assessments/templates");
     await expect(page).toHaveURL("/admin/penilaian");
-    await expect(page.getByRole("heading", { name: "Penilaian" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pemantauan" })).toBeVisible();
   });
 
   test("program deactivate sets status INACTIVE and hides from Aktif filter", async ({ page }) => {

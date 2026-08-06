@@ -44,6 +44,7 @@ import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { userMessage } from "@/lib/api/client-errors";
 import { formatRupiah, formatMonthLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -134,9 +135,11 @@ type FetchState =
   | { kind: "error" };
 
 function StudentPicker({
+  id,
   selected,
   onSelect,
 }: {
+  id?: string;
   selected: Student | null;
   onSelect: (s: Student | null) => void;
 }) {
@@ -213,9 +216,11 @@ function StudentPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
+        id={id}
         type="button"
         role="combobox"
         aria-expanded={open}
+        aria-required="true"
         className={cn(
           "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-hidden transition-colors hover:bg-accent/30 focus-visible:ring-3 focus-visible:ring-ring/50",
           !selected && "text-muted-foreground",
@@ -410,8 +415,9 @@ function ManualInvoiceFormBody({
   return (
     <>
       <Field>
-        <FieldLabel required>Siswa</FieldLabel>
+        <FieldLabel required htmlFor="manual-invoice-student">Siswa</FieldLabel>
         <StudentPicker
+          id="manual-invoice-student"
           selected={selectedStudent}
           onSelect={(s) => {
             setSelectedStudent(s);
@@ -424,8 +430,11 @@ function ManualInvoiceFormBody({
       </Field>
 
       <Field>
-        <FieldLabel required>Periode</FieldLabel>
+        <FieldLabel required htmlFor="manual-invoice-period">Periode</FieldLabel>
         <Input
+          id="manual-invoice-period"
+          required
+          aria-required="true"
           value={form.periodLabel}
           onChange={(e) => setForm({ ...form, periodLabel: e.target.value })}
           placeholder="April 2026"
@@ -435,16 +444,19 @@ function ManualInvoiceFormBody({
       </Field>
 
       <Field>
-        <FieldLabel required>Tanggal Jatuh Tempo</FieldLabel>
+        <FieldLabel required htmlFor="manual-invoice-due-date">Tanggal Jatuh Tempo</FieldLabel>
         <Input
+          id="manual-invoice-due-date"
+          required
+          aria-required="true"
           type="date"
           value={form.dueDate}
           onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
         />
       </Field>
 
-      <Field>
-        <FieldLabel required>Komponen Biaya</FieldLabel>
+      <Field aria-labelledby="manual-invoice-lines-label">
+        <FieldLabel required id="manual-invoice-lines-label">Komponen Biaya</FieldLabel>
         <div className="flex flex-col gap-2 rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/60 p-3">
           {form.lines.map((line, index) => (
             <div
@@ -646,7 +658,7 @@ export function ManualInvoiceDialog({
         router.push(`/admin/invoices/${created.id}`);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal membuat tagihan");
+      toast.error(userMessage(e, "Gagal membuat tagihan"));
     } finally {
       setSubmitting(false);
     }

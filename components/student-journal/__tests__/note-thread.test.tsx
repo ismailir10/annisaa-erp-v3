@@ -52,8 +52,13 @@ describe("NoteThread", () => {
     expect(screen.queryByLabelText("Edit catatan")).not.toBeInTheDocument();
   });
 
-  it("renders an empty-state message when there are no notes", () => {
+  it("renders the shared EmptyState (not a bare paragraph) when there are no notes", () => {
     render(<NoteThread notes={[]} />);
-    expect(screen.getByText("Belum ada catatan.")).toBeInTheDocument();
+
+    // Title + description come from EmptyState, not a hand-rolled <p>.
+    expect(screen.getByText("Belum ada catatan")).toBeInTheDocument();
+    expect(
+      screen.getByText("Catatan dari guru akan tampil di sini setelah dituliskan."),
+    ).toBeInTheDocument();
   });
 });

@@ -114,12 +114,13 @@ function LeaveReviewBody({
       {!viewOnly && (
         <>
           <Field>
-            <FieldLabel>
+            <FieldLabel htmlFor="leave-review-note">
               {reviewAction === "approve"
                 ? "Catatan (opsional)"
                 : "Alasan penolakan *"}
             </FieldLabel>
             <Textarea
+              id="leave-review-note"
               value={reviewNote}
               onChange={(e) => setReviewNote(e.target.value)}
               placeholder={

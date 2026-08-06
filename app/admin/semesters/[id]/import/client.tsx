@@ -24,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { userMessage } from "@/lib/api/client-errors";
 
 type Semester = {
   id: string;
@@ -185,9 +186,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
         setTimeout(() => conflictAlertRef.current?.focus(), 0);
       }
     } catch (err) {
-      setFormError(
-        err instanceof Error ? err.message : "Gangguan jaringan saat unggah.",
-      );
+      setFormError(userMessage(err, "Gangguan jaringan saat unggah."));
     } finally {
       setSubmitting(false);
     }
@@ -251,9 +250,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       router.push(`/admin/semesters/${semester.id}/themes`);
       router.refresh();
     } catch (err) {
-      setFormError(
-        err instanceof Error ? err.message : "Gangguan jaringan saat simpan.",
-      );
+      setFormError(userMessage(err, "Gangguan jaringan saat simpan."));
       setCommitting(false);
       committingRef.current = false;
     }

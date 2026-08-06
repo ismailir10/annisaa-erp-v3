@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { toast } from "sonner";
 import { AlertCircle, FileText, Copy } from "lucide-react";
 import {
@@ -83,11 +85,11 @@ export default function RaportTemplatesPage() {
         data?: { bucketed: Record<string, string>; closing: Record<string, string> };
         error?: string;
       };
-      if (!res.ok) throw new Error(body.error ?? "Gagal memuat kisi-kisi.");
+      if (!res.ok) throw new ApiError(body.error ?? "Gagal memuat kisi-kisi.");
       setBucketed(body.data?.bucketed ?? {});
       setClosing(body.data?.closing ?? {});
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memuat kisi-kisi.");
+      setError(userMessage(err, "Gagal memuat kisi-kisi."));
       setBucketed({});
       setClosing({});
     } finally {
@@ -130,7 +132,7 @@ export default function RaportTemplatesPage() {
         data?: { written: number; cleared: number };
         error?: string;
       };
-      if (!res.ok) throw new Error(body.error ?? "Gagal menyimpan kisi-kisi.");
+      if (!res.ok) throw new ApiError(body.error ?? "Gagal menyimpan kisi-kisi.");
       const written = body.data?.written ?? 0;
       const cleared = body.data?.cleared ?? 0;
       toast.success(
@@ -140,7 +142,7 @@ export default function RaportTemplatesPage() {
       );
       await loadGrid();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menyimpan kisi-kisi.");
+      toast.error(userMessage(err, "Gagal menyimpan kisi-kisi."));
     } finally {
       setSaving(false);
     }
@@ -164,7 +166,7 @@ export default function RaportTemplatesPage() {
         data?: { copied: number; skipped: number };
         error?: string;
       };
-      if (!res.ok) throw new Error(body.error ?? "Gagal menyalin kisi-kisi.");
+      if (!res.ok) throw new ApiError(body.error ?? "Gagal menyalin kisi-kisi.");
       const copied = body.data?.copied ?? 0;
       const skipped = body.data?.skipped ?? 0;
       toast.success(
@@ -174,7 +176,7 @@ export default function RaportTemplatesPage() {
       );
       await loadGrid();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menyalin kisi-kisi.");
+      toast.error(userMessage(err, "Gagal menyalin kisi-kisi."));
     } finally {
       setCloning(false);
     }
@@ -190,8 +192,8 @@ export default function RaportTemplatesPage() {
         title="Kisi-kisi Raport"
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun raport siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
         actions={
-          <Link href="/admin/raport" className={buttonVariants({ variant: "outline" })}>
-            Ke Raport Siswa
+          <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline" }))}>
+            Susun Raport
           </Link>
         }
       />
@@ -225,7 +227,10 @@ export default function RaportTemplatesPage() {
           </Field>
           <div className="ml-auto flex items-center gap-3">
             <Badge variant={filledCount === TOTAL_TEMPLATE_SLOTS ? "default" : "secondary"}>
-              {filledCount}/{TOTAL_TEMPLATE_SLOTS} terisi
+              <span className="font-currency">
+                {filledCount}/{TOTAL_TEMPLATE_SLOTS}
+              </span>{" "}
+              terisi
             </Badge>
             <Button onClick={handleSave} disabled={saving || loading || !termId}>
               {saving ? "Menyimpan…" : "Simpan semua"}
@@ -239,7 +244,7 @@ export default function RaportTemplatesPage() {
           icon={FileText}
           title="Belum ada triwulan"
           description="Buat triwulan terlebih dahulu di halaman Raport sebelum menyusun kisi-kisi."
-          actionLabel="Ke Raport Siswa"
+          actionLabel="Susun Raport"
           actionHref="/admin/raport"
         />
       )}
@@ -255,7 +260,7 @@ export default function RaportTemplatesPage() {
       )}
 
       {loading && (
-        <div className="space-y-3" aria-busy>
+        <div className="space-y-3" aria-busy aria-live="polite">
           <Skeleton className="h-40 w-full" />
           <Skeleton className="h-40 w-full" />
         </div>

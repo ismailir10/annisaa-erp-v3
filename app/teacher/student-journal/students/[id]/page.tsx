@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
@@ -87,14 +88,14 @@ export default function TeacherStudentWeekPage() {
         // Prefer server JSON body; fall back to the Indonesian remediation copy on 403
         // (UAT 2026-05-01 — raw "Forbidden" toast was unhelpful to Bu Sari).
         const fallback = res.status === 403 ? JOURNAL_FORBIDDEN_MSG : "Gagal memuat data";
-        throw new Error((err as { error?: string }).error || fallback);
+        throw new ApiError((err as { error?: string }).error || fallback);
       }
       const json = await res.json();
       if (requestId !== loadRequestId.current) return;
       setData(json.data);
     } catch (error) {
       if (requestId !== loadRequestId.current) return;
-      const message = error instanceof Error ? error.message : "Gagal memuat data";
+      const message = userMessage(error, "Gagal memuat data");
       setLoadError(message);
       toast.error(message);
     } finally {
