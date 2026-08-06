@@ -88,7 +88,7 @@ type RecapRow = {
 const STATUS_OPTIONS = [
   { value: "all", label: "Semua Status" },
   { value: "PRESENT", label: "Hadir" },
-  { value: "ABSENT", label: "Tidak Hadir" },
+  { value: "ABSENT", label: "Alpa" },
   { value: "SICK", label: "Sakit" },
   { value: "PERMISSION", label: "Izin" },
 ];
@@ -144,36 +144,48 @@ function GroupedClassSelect({
   onChange,
   classSections,
   className,
+  id,
 }: {
   value: string;
   onChange: (value: string) => void;
   classSections: ClassSection[];
   className?: string;
+  // Required, not optional: `classSectionFilter` defaults to "all", which
+  // always matches the "Semua Kelas" item, so the SelectValue placeholder
+  // never renders — the trigger has no visible or programmatic name unless
+  // an explicit <label htmlFor> supplies one. Every call site must pass a
+  // unique id (this component renders twice on the page: Harian + Rekap).
+  id: string;
 }) {
   const groups = useMemo(() => groupClassSectionsByYear(classSections), [classSections]);
   return (
-    <Select value={value} onValueChange={(v) => { if (v) onChange(v); }}>
-      <SelectTrigger className={className ?? "w-full sm:w-48 h-9"}>
-        <SelectValue placeholder="Kelas" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">Semua Kelas</SelectItem>
-        {groups.map(({ year, sections }) => (
-          <SelectGroup key={year.id}>
-            <SelectLabel>{`TA ${year.name}`}</SelectLabel>
-            {sections.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {formatClassOptionLabel({
-                  name: s.name,
-                  enrolled: s._count?.enrollments ?? 0,
-                  capacity: s.capacity ?? 0,
-                })}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex items-center gap-2">
+      <label htmlFor={id} className="text-xs text-muted-foreground whitespace-nowrap">
+        Kelas
+      </label>
+      <Select value={value} onValueChange={(v) => { if (v) onChange(v); }}>
+        <SelectTrigger id={id} className={className ?? "w-full sm:w-48 h-9"}>
+          <SelectValue placeholder="Kelas" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua Kelas</SelectItem>
+          {groups.map(({ year, sections }) => (
+            <SelectGroup key={year.id}>
+              <SelectLabel>{`TA ${year.name}`}</SelectLabel>
+              {sections.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {formatClassOptionLabel({
+                    name: s.name,
+                    enrolled: s._count?.enrollments ?? 0,
+                    capacity: s.capacity ?? 0,
+                  })}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -303,16 +315,16 @@ export default function StudentAttendancePage() {
         toast.error(message);
         throw new Error(message);
       }
-      toast.success("Record kehadiran dibatalkan");
+      toast.success("Catatan kehadiran dibatalkan");
       setVoidTarget(null);
       void fetchData();
     } catch (error) {
       if (!errorToasted) {
-        toast.error("Gagal membatalkan record kehadiran. Coba lagi.");
+        toast.error("Gagal membatalkan catatan kehadiran. Coba lagi.");
       }
       throw error instanceof Error
         ? error
-        : new Error("Gagal membatalkan record kehadiran");
+        : new Error("Gagal membatalkan catatan kehadiran");
     } finally {
       setVoiding(false);
     }
@@ -389,12 +401,12 @@ export default function StudentAttendancePage() {
     <>
       <PageHeader
         title="Kehadiran Siswa"
-        description={`${pagination.total} record`}
+        description={`${pagination.total} catatan`}
       />
 
       <StatsCardsRow cols={4}>
         <StatCard label="Hadir Hari Ini" value={stats.present} icon={CalendarCheck} color="success" index={0} />
-        <StatCard label="Tidak Hadir" value={stats.absent} icon={CalendarX} color="error" index={1} />
+        <StatCard label="Alpa" value={stats.absent} icon={CalendarX} color="error" index={1} />
         <StatCard label="Sakit" value={stats.sick} icon={Heart} color="warning" index={2} />
         <StatCard label="Izin" value={stats.permission} icon={Info} color="primary" index={3} />
       </StatsCardsRow>
@@ -410,8 +422,9 @@ export default function StudentAttendancePage() {
       {/* Date range filters (outside DataTableToolbar since they're date inputs) */}
       <div className="flex flex-wrap gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Dari</span>
+          <label htmlFor="attendance-date-from" className="text-xs text-muted-foreground whitespace-nowrap">Dari</label>
           <Input
+            id="attendance-date-from"
             type="date"
             value={dateFrom}
             onChange={(e) => {
@@ -422,8 +435,9 @@ export default function StudentAttendancePage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Sampai</span>
+          <label htmlFor="attendance-date-to" className="text-xs text-muted-foreground whitespace-nowrap">Sampai</label>
           <Input
+            id="attendance-date-to"
             type="date"
             value={dateTo}
             onChange={(e) => {
@@ -434,6 +448,7 @@ export default function StudentAttendancePage() {
           />
         </div>
         <GroupedClassSelect
+          id="attendance-class-filter-harian"
           value={classSectionFilter}
           onChange={(v) => {
             setClassSectionFilter(v);
@@ -491,7 +506,7 @@ export default function StudentAttendancePage() {
         onPageSizeChange={(pageSize) => setPagination((p) => ({ ...p, page: 1, pageSize }))}
         loading={loading}
         emptyTitle="Tidak ada catatan kehadiran"
-        emptyDescription="Record kehadiran siswa akan tampil di sini setelah guru mencatat kehadiran."
+        emptyDescription="Catatan kehadiran siswa akan tampil di sini setelah guru mencatat kehadiran."
       />
 
         </AdminTabsContent>
@@ -506,7 +521,7 @@ export default function StudentAttendancePage() {
         open={!!overrideTarget}
         onOpenChange={(o) => { if (!overriding && !o) setOverrideTarget(null); }}
         title="Override Kehadiran"
-        description={overrideTarget ? `${overrideTarget.student.name} — ${overrideTarget.date}` : undefined}
+        description={overrideTarget ? `${overrideTarget.student.name} — ${formatDate(overrideTarget.date)}` : undefined}
         size="lg"
         footer={
           <>
@@ -528,7 +543,7 @@ export default function StudentAttendancePage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="PRESENT">Hadir</SelectItem>
-              <SelectItem value="ABSENT">Tidak Hadir</SelectItem>
+              <SelectItem value="ABSENT">Alpa</SelectItem>
               <SelectItem value="SICK">Sakit</SelectItem>
               <SelectItem value="PERMISSION">Izin</SelectItem>
             </SelectContent>
@@ -550,10 +565,10 @@ export default function StudentAttendancePage() {
       <ConfirmDialog
         open={!!voidTarget}
         onOpenChange={(o) => { if (!o) setVoidTarget(null); }}
-        title="Batalkan Record Kehadiran?"
+        title="Batalkan Catatan Kehadiran?"
         description={
           voidTarget
-            ? `Record kehadiran ${voidTarget.student.name} pada ${voidTarget.date} akan dibatalkan dan tidak muncul di laporan.`
+            ? `Catatan kehadiran ${voidTarget.student.name} pada ${formatDate(voidTarget.date)} akan dibatalkan dan tidak muncul di laporan.`
             : undefined
         }
         confirmLabel="Ya, Batalkan"
@@ -692,15 +707,21 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
     <>
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Bulan</span>
+          <label htmlFor="attendance-recap-month" className="text-xs text-muted-foreground whitespace-nowrap">Bulan</label>
           <Input
+            id="attendance-recap-month"
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             className="h-9 w-44 text-sm"
           />
         </div>
-        <GroupedClassSelect value={classFilter} onChange={setClassFilter} classSections={classSections} />
+        <GroupedClassSelect
+          id="attendance-class-filter-rekap"
+          value={classFilter}
+          onChange={setClassFilter}
+          classSections={classSections}
+        />
         <Button
           variant="outline"
           size="sm"
