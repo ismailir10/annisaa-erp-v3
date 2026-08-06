@@ -501,7 +501,7 @@ function ObjectiveAccordion({
   );
 }
 
-function IndicatorRow({
+export function IndicatorRow({
   indicator,
   themes,
   canWrite,
@@ -540,6 +540,7 @@ function IndicatorRow({
             <Button
               size="sm"
               variant="ghost"
+              aria-label={`Ubah IKTP #${indicator.order}`}
               onClick={() => setEditOpen(true)}
             >
               <Pencil className="size-3.5" />
@@ -556,6 +557,7 @@ function IndicatorRow({
               <Button
                 size="sm"
                 variant="ghost"
+                aria-label={`Aktifkan IKTP #${indicator.order}`}
                 onClick={async () => {
                   const r = await mutate(
                     `/api/admin/curriculum/indicators/${indicator.id}`,
@@ -700,7 +702,7 @@ function ObjectiveEditDialog({
       footer={
         <>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
@@ -788,7 +790,7 @@ function AddIndicatorDialog({
       footer={
         <>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
@@ -873,7 +875,7 @@ function IndicatorEditDialog({
       footer={
         <>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >

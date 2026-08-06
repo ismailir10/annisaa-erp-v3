@@ -1,12 +1,13 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StatusChip } from "../status-chip";
 import {
   AGAMA_OPTIONS, KEWARGANEGARAAN_OPTIONS, LIVING_WITH_OPTIONS, BIRTH_DELIVERY_OPTIONS,
@@ -149,8 +150,16 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     }
   }
 
-  if (loading) return <p className="p-6 text-sm text-muted-foreground">Memuat…</p>;
-  if (!d) return <p className="p-6 text-sm text-muted-foreground">Formulir tidak ditemukan.</p>;
+  if (loading) return <DetailPageSkeleton />;
+  if (!d)
+    return (
+      <EmptyState
+        title="Formulir tidak ditemukan"
+        description="Formulir pendaftaran ini tidak tersedia atau telah dihapus."
+        actionLabel="Kembali ke Daftar Formulir Pendaftaran"
+        actionHref="/admin/enrollments"
+      />
+    );
 
   const s = d.studentData ?? {};
   const addr = s.address ?? {};
@@ -172,29 +181,24 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="space-y-4">
-      <Button variant="ghost" size="sm" render={<Link href="/admin/enrollments" />}>
-        <ArrowLeft size={14} /> Kembali ke daftar
-      </Button>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">{d.childName || "Tanpa nama"}</h1>
-          <div className="mt-1 flex items-center gap-2">
-            <StatusChip status={d.status} studentId={d.studentId} />
-            <span className="text-sm text-muted-foreground">
-              {d.program?.name ?? "—"}
-              {d.dcareAddon ? " + Dcare" : ""}
-            </span>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {actions.map((a) => (
-            <Button key={a.to} size="sm" variant={a.variant} disabled={busy} onClick={() => transition(a.to)}>
-              {a.label}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <DetailPageHeader
+        backHref="/admin/enrollments"
+        backLabel="Kembali ke Daftar Formulir Pendaftaran"
+        title={d.childName || "Tanpa nama"}
+        description={`${d.program?.name ?? "—"}${d.dcareAddon ? " + Dcare" : ""}`}
+        badge={<StatusChip status={d.status} studentId={d.studentId} />}
+        actions={
+          actions.length > 0 ? (
+            <>
+              {actions.map((a) => (
+                <Button key={a.to} size="sm" variant={a.variant} disabled={busy} onClick={() => transition(a.to)}>
+                  {a.label}
+                </Button>
+              ))}
+            </>
+          ) : undefined
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Data Anak">
