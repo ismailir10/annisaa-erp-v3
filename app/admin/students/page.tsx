@@ -124,8 +124,11 @@ function StudentFormBody({
       <SectionHeading label="Data Anak" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel required>Nama Lengkap</FieldLabel>
+          <FieldLabel required htmlFor="student-name">Nama Lengkap</FieldLabel>
           <Input
+            id="student-name"
+            required
+            aria-required="true"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Aisyah Putri"
@@ -133,8 +136,9 @@ function StudentFormBody({
           />
         </Field>
         <Field>
-          <FieldLabel>Nama Panggilan</FieldLabel>
+          <FieldLabel htmlFor="student-nickname">Nama Panggilan</FieldLabel>
           <Input
+            id="student-nickname"
             value={form.nickname}
             onChange={(e) => setForm({ ...form, nickname: e.target.value })}
             placeholder="Aisyah"
@@ -144,12 +148,12 @@ function StudentFormBody({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Jenis Kelamin</FieldLabel>
+          <FieldLabel htmlFor="student-gender">Jenis Kelamin</FieldLabel>
           <Select
             value={form.gender}
             onValueChange={(v) => v && setForm({ ...form, gender: v })}
           >
-            <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+            <SelectTrigger id="student-gender"><SelectValue placeholder="Pilih" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="L">Laki-laki</SelectItem>
               <SelectItem value="P">Perempuan</SelectItem>
@@ -157,8 +161,9 @@ function StudentFormBody({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Tanggal Lahir</FieldLabel>
+          <FieldLabel htmlFor="student-dob">Tanggal Lahir</FieldLabel>
           <Input
+            id="student-dob"
             type="date"
             value={form.dateOfBirth}
             onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
@@ -168,8 +173,9 @@ function StudentFormBody({
       </div>
 
       <Field>
-        <FieldLabel>Alamat</FieldLabel>
+        <FieldLabel htmlFor="student-address">Alamat</FieldLabel>
         <Textarea
+          id="student-address"
           value={form.address}
           onChange={(e) => setForm({ ...form, address: e.target.value })}
           placeholder="Alamat tempat tinggal"
@@ -178,8 +184,9 @@ function StudentFormBody({
       </Field>
 
       <Field>
-        <FieldLabel>Catatan</FieldLabel>
+        <FieldLabel htmlFor="student-notes">Catatan</FieldLabel>
         <Textarea
+          id="student-notes"
           value={form.notes}
           onChange={(e) => setForm({ ...form, notes: e.target.value })}
           placeholder="Alergi, kebutuhan khusus, dll."
@@ -190,16 +197,18 @@ function StudentFormBody({
       <div className="pt-2"><SectionHeading label="Identitas Resmi" /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>NIS</FieldLabel>
+          <FieldLabel htmlFor="student-nis">NIS</FieldLabel>
           <Input
+            id="student-nis"
             value={form.nis}
             onChange={(e) => setForm({ ...form, nis: e.target.value })}
             placeholder="Nomor Induk Siswa"
           />
         </Field>
         <Field>
-          <FieldLabel>NISN</FieldLabel>
+          <FieldLabel htmlFor="student-nisn">NISN</FieldLabel>
           <Input
+            id="student-nisn"
             value={form.nisn}
             onChange={(e) => setForm({ ...form, nisn: e.target.value })}
             placeholder="Nomor Induk Siswa Nasional"
@@ -208,16 +217,18 @@ function StudentFormBody({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Tempat Lahir</FieldLabel>
+          <FieldLabel htmlFor="student-birth-place">Tempat Lahir</FieldLabel>
           <Input
+            id="student-birth-place"
             value={form.birthPlace}
             onChange={(e) => setForm({ ...form, birthPlace: e.target.value })}
             placeholder="Kota kelahiran"
           />
         </Field>
         <Field>
-          <FieldLabel>NIK</FieldLabel>
+          <FieldLabel htmlFor="student-nik">NIK</FieldLabel>
           <Input
+            id="student-nik"
             value={form.nik}
             onChange={(e) => setForm({ ...form, nik: e.target.value })}
             placeholder="Nomor Induk Kependudukan"
@@ -226,21 +237,22 @@ function StudentFormBody({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>No. KK</FieldLabel>
+          <FieldLabel htmlFor="student-kk-number">No. KK</FieldLabel>
           <Input
+            id="student-kk-number"
             value={form.kkNumber}
             onChange={(e) => setForm({ ...form, kkNumber: e.target.value })}
             placeholder="Nomor Kartu Keluarga"
           />
         </Field>
         <Field>
-          <FieldLabel>Tinggal Dengan</FieldLabel>
+          <FieldLabel htmlFor="student-living-with">Tinggal Dengan</FieldLabel>
           <Select
             value={form.livingWith || undefined}
             onValueChange={(v) => v && setForm({ ...form, livingWith: v })}
             items={LIVING_WITH_LABELS}
           >
-            <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+            <SelectTrigger id="student-living-with"><SelectValue placeholder="Pilih" /></SelectTrigger>
             <SelectContent>
               {LIVING_WITH_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -252,13 +264,13 @@ function StudentFormBody({
 
       <div className="pt-2"><SectionHeading label="Status" /></div>
       <Field>
-        <FieldLabel>Status</FieldLabel>
+        <FieldLabel htmlFor="student-status">Status</FieldLabel>
         <Select
           value={form.status}
           onValueChange={(v) => v && setForm({ ...form, status: v })}
           disabled={lockedLifecycle}
         >
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger id="student-status"><SelectValue /></SelectTrigger>
           <SelectContent>
             {lockedLifecycle ? (
               <SelectItem value={form.status}>

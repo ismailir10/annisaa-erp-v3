@@ -147,7 +147,7 @@ export default function EnrollmentsPage() {
               setPagination((current) => ({ ...current, page: 1 }));
             },
             options: [
-              { value: "all", label: "Semua status" },
+              { value: "all", label: "Semua Status" },
               { value: "SUBMITTED", label: "Terkirim" },
               { value: "UNDER_REVIEW", label: "Ditinjau" },
               { value: "ACCEPTED", label: "Diterima" },

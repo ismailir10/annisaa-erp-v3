@@ -2,6 +2,7 @@
 
 import { Check, Pencil } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type Indicator = {
@@ -103,9 +104,10 @@ export function WeekGrid({
 
   if (categories.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
-        Belum ada indikator yang dikonfigurasi.
-      </p>
+      <EmptyState
+        title="Belum ada indikator"
+        description="Indikator pemantauan belum dikonfigurasi untuk kelas ini. Hubungi admin untuk mengatur Buku Penghubung."
+      />
     );
   }
 

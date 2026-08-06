@@ -448,9 +448,9 @@ export default function UsersPage() {
             </div>
 
             <Field>
-              <FieldLabel>Peran Kustom</FieldLabel>
+              <FieldLabel htmlFor="user-role">Peran Kustom</FieldLabel>
               <Select value={editRoleId} onValueChange={(v) => v && setEditRoleId(v)} items={[{ label: "Tanpa peran kustom", value: "none" }, ...roles.map((r) => ({ label: r.name, value: r.id }))]}>
-                <SelectTrigger>
+                <SelectTrigger id="user-role">
                   <SelectValue placeholder="Pilih peran" />
                 </SelectTrigger>
                 <SelectContent>
@@ -465,9 +465,9 @@ export default function UsersPage() {
             </Field>
 
             <Field>
-              <FieldLabel>Status</FieldLabel>
+              <FieldLabel htmlFor="user-status">Status</FieldLabel>
               <Select value={editStatus} onValueChange={(v) => v && setEditStatus(v)}>
-                <SelectTrigger>
+                <SelectTrigger id="user-status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/native-select";
 import { PageHeader } from "@/components/portal/page-header";
 import { cn } from "@/lib/utils";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 import {
   LEVEL_LABEL_SHORT,
   LEVEL_LABEL_LONG,
@@ -205,15 +206,15 @@ export function WeeklyClient({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? "Gagal menyimpan penilaian.");
+        throw new ApiError(body.error ?? "Gagal menyimpan penilaian.");
       }
       // Refresh server payload to get the persisted entry id.
       startTransition(() => router.refresh());
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Gagal menyimpan penilaian. Coba lagi sebentar ya.";
+      const message = userMessage(
+        err,
+        "Gagal menyimpan penilaian. Coba lagi sebentar ya.",
+      );
       // Restore only this cell — never blast the array. A concurrent tap
       // on a different cell stays applied; a concurrent tap on THIS cell
       // wins or rolls back independently in its own setLevel call.

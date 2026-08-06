@@ -75,6 +75,21 @@ awk '/^\| File \| Covers/{flag=1; next} /^---/{flag=0} flag && /^\|/' CLAUDE.md 
 - `ok` for every file that exists under `.claude/standards/`.
 - `fail` for any missing file.
 
+### Check 5b: Interface-craft skill existence
+
+CLAUDE.md's Interface-craft skills table (header `| Skill | Covers | Load on |`) names vendored `better-*` skills. A bad re-vendor or an upstream rename silently breaks `/build`'s frontend dispatch, so verify each named skill has a `SKILL.md` and that `link-agent-skills.sh` lists it.
+
+```bash
+awk '/^\| Skill \| Covers/{flag=1; next} /^---/{flag=0} flag && /^\|/' CLAUDE.md \
+  | grep -oE '`better-[a-z]+`' | tr -d '`' | sort -u | while read -r s; do
+      [ -f ".claude/skills/$s/SKILL.md" ] || echo "fail: .claude/skills/$s/SKILL.md missing"
+      grep -q "$s" scripts/link-agent-skills.sh || echo "fail: $s absent from link-agent-skills.sh"
+    done
+```
+
+- `ok` when the loop prints nothing.
+- `fail` for each line printed.
+
 ### Check 6: ADR archive cutoff (60 days)
 
 ```bash

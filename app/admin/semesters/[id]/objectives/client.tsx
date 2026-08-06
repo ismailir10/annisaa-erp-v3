@@ -501,7 +501,7 @@ function ObjectiveAccordion({
   );
 }
 
-function IndicatorRow({
+export function IndicatorRow({
   indicator,
   themes,
   canWrite,
@@ -540,6 +540,7 @@ function IndicatorRow({
             <Button
               size="sm"
               variant="ghost"
+              aria-label={`Ubah IKTP #${indicator.order}`}
               onClick={() => setEditOpen(true)}
             >
               <Pencil className="size-3.5" />
@@ -556,6 +557,7 @@ function IndicatorRow({
               <Button
                 size="sm"
                 variant="ghost"
+                aria-label={`Aktifkan IKTP #${indicator.order}`}
                 onClick={async () => {
                   const r = await mutate(
                     `/api/admin/curriculum/indicators/${indicator.id}`,
@@ -700,7 +702,7 @@ function ObjectiveEditDialog({
       footer={
         <>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
@@ -713,8 +715,9 @@ function ObjectiveEditDialog({
       }
     >
       <Field>
-        <FieldLabel>Capaian Perkembangan Diri</FieldLabel>
+        <FieldLabel htmlFor="objective-competencyText">Capaian Perkembangan Diri</FieldLabel>
         <Textarea
+          id="objective-competencyText"
           rows={3}
           value={competencyText}
           onChange={(e) => setCompetencyText(e.target.value)}
@@ -722,8 +725,9 @@ function ObjectiveEditDialog({
         />
       </Field>
       <Field>
-        <FieldLabel>Tujuan Pembelajaran</FieldLabel>
+        <FieldLabel htmlFor="objective-content">Tujuan Pembelajaran</FieldLabel>
         <Textarea
+          id="objective-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -786,7 +790,7 @@ function AddIndicatorDialog({
       footer={
         <>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
@@ -799,8 +803,9 @@ function AddIndicatorDialog({
       }
     >
       <Field>
-        <FieldLabel>Isi indikator (Indonesian)</FieldLabel>
+        <FieldLabel htmlFor="indicator-add-content">Isi indikator (Indonesian)</FieldLabel>
         <Textarea
+          id="indicator-add-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -808,8 +813,9 @@ function AddIndicatorDialog({
         />
       </Field>
       <Field>
-        <FieldLabel>Urutan</FieldLabel>
+        <FieldLabel htmlFor="indicator-add-order">Urutan</FieldLabel>
         <Input
+          id="indicator-add-order"
           type="number"
           min={1}
           max={9999}
@@ -869,7 +875,7 @@ function IndicatorEditDialog({
       footer={
         <>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
@@ -882,8 +888,9 @@ function IndicatorEditDialog({
       }
     >
       <Field>
-        <FieldLabel>Isi indikator</FieldLabel>
+        <FieldLabel htmlFor="indicator-edit-content">Isi indikator</FieldLabel>
         <Textarea
+          id="indicator-edit-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -891,8 +898,9 @@ function IndicatorEditDialog({
         />
       </Field>
       <Field>
-        <FieldLabel>Urutan</FieldLabel>
+        <FieldLabel htmlFor="indicator-edit-order">Urutan</FieldLabel>
         <Input
+          id="indicator-edit-order"
           type="number"
           min={1}
           max={9999}

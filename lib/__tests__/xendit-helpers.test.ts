@@ -41,7 +41,7 @@ describe("resolveAppOrigin", () => {
   });
 
   it("throws descriptive error when both requestOrigin and env are missing", () => {
-    expect(() => resolveAppOrigin()).toThrow(/No origin available/);
+    expect(() => resolveAppOrigin()).toThrow(/No app origin available/);
     expect(() => resolveAppOrigin(undefined)).toThrow(/NEXT_PUBLIC_APP_URL/);
   });
 

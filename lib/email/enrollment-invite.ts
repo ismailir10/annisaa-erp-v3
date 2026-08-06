@@ -10,6 +10,7 @@ export type SendEnrollmentInviteParams = {
   childName: string;
   parentName: string;
   formUrl: string;
+  appUrl: string;
 };
 
 /**
@@ -22,17 +23,19 @@ export type SendEnrollmentInviteParams = {
  * insert is wrapped so a logging failure never alters the return contract.
  * NOTE: formUrl carries the secret access token — it is sent to the parent's
  * inbox but never written to EmailLog or console.
+ *
+ * `appUrl` must be resolved by the caller via `resolveAppOrigin(requestOrigin)`
+ * (see lib/payments/session.ts) so preview/staging/prod each get their own
+ * logo host — never resolved here from a hardcoded prod fallback.
  */
 export async function sendEnrollmentInviteEmail(
   params: SendEnrollmentInviteParams,
 ): Promise<{ sent: boolean; error?: string }> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
-
   const html = enrollmentInviteEmailHtml({
     childName: params.childName,
     parentName: params.parentName,
     formUrl: params.formUrl,
-    appUrl,
+    appUrl: params.appUrl,
   });
 
   const subject = `Lengkapi formulir pendaftaran ananda — Talib`;

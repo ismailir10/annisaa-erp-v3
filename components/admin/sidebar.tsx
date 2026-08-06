@@ -82,12 +82,12 @@ function CollapsibleNavGroup({
       <SidebarGroup>
         <SidebarGroupLabel
           render={
-            <CollapsibleTrigger className="flex w-full items-center gap-2" />
+            <CollapsibleTrigger className="group/nav-group flex w-full items-center gap-2" />
           }
         >
           <GroupIcon className="size-4" />
           <span>{group.label}</span>
-          <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+          <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[panel-open]/nav-group:rotate-90" />
         </SidebarGroupLabel>
         <CollapsibleContent>
           <SidebarGroupContent>
@@ -210,12 +210,12 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
             <SidebarGroup>
               <SidebarGroupLabel
                 render={
-                  <CollapsibleTrigger className="flex w-full items-center gap-2" />
+                  <CollapsibleTrigger className="group/nav-group flex w-full items-center gap-2" />
                 }
               >
                 <Settings className="size-4" />
                 <span>Pengaturan</span>
-                <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[panel-open]/nav-group:rotate-90" />
               </SidebarGroupLabel>
               <CollapsibleContent>
                 <SidebarGroupContent>

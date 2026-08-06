@@ -61,6 +61,19 @@ Apply **`agent-skills:context-engineering`**. Read only the files this task need
 
 If a task touches files in multiple categories, load all matching standards files (e.g. an admin CRUD form that posts to an API route loads `ui.md` + `crud.md` + `api.md` + `security.md`).
 
+**Interface-craft skills — same on-demand rule, frontend tasks only.** For any task with a frontend diff, invoke the matching vendored `better-*` skills alongside the standards above. See CLAUDE.md **§ Standards → Interface-craft skills** for what each owns.
+
+| Frontend task touches | Also invoke |
+|---|---|
+| `components/**`, `components/ui/**`, hover/focus/active/loading/empty states, transitions or keyframes | `better-ui` |
+| Any text styling — font config, type scale, headings, number/table cells, truncation, `text-wrap` | `better-typography` |
+| `app/globals.css`, `tailwind.config.*`, arbitrary-color classNames | `better-colors` (with `colors.md`) |
+| `components/ui/**`, any Dialog/Sheet/Popover/Menu/custom widget, any form | `better-accessibility` |
+| `app/*/page.tsx`, `app/**/client.tsx`, `app/**/layout.tsx` — page/component structure | `better-layout` (with `patterns.md`) |
+| Any user-facing copy | `better-writing` (with `voice.md`) |
+
+**Conflict rule:** `.claude/standards/*` + `design-system.html` win over any `better-*` principle. Use the skill where the project standard is silent; never to contradict it. Do not edit `.claude/skills/better-*` — vendored, see `.claude/skills/VENDORED.md`.
+
 ### 2. Verify against official docs (when relevant)
 If the task uses a framework, library, or API whose current behavior you're not 100% sure of, apply **`agent-skills:source-driven-development`**:
 - Use Context7 or the project's skills (`nextjs`, `supabase`, `shadcn`, etc.) to fetch current docs.

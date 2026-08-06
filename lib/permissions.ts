@@ -26,7 +26,6 @@ export const PERMISSION_GROUPS = {
       "payroll.create": "Buat penggajian",
       "payroll.edit": "Edit komponen gaji karyawan",
       "payroll.approve": "Setujui penggajian",
-      "payroll.send_slips": "Kirim slip gaji",
     },
   },
   academic: {
