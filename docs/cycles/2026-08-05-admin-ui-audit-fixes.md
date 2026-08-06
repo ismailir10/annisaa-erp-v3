@@ -101,6 +101,26 @@ Order: T1 → (T2, T3, T4 in parallel) → (T5, T6 after T1; T7, T8 after T2). O
 
 ## Verification
 
+### /audit-docs report — 2026-08-06 (`/ship` preflight #6)
+
+| Check | Status | Detail |
+|---|---|---|
+| Route count (CLAUDE) | ok | claimed=185 actual=185 |
+| Portal page counts (CLAUDE) | ok | claimed=41/13/8 actual=41/13/8 |
+| Component count | ok | claimed=65 actual=65 |
+| E2E spec count | ok | claimed=33 actual=33 |
+| Standards-table files | ok | every referenced file present under `.claude/standards/` |
+| Interface-craft skills | ok | every `better-*` has a SKILL.md and is listed in `link-agent-skills.sh` |
+| ADR archive cutoff (60d) | warn | 2 rows older than the 2026-06-07 cutoff: 2026-05-20, 2026-06-05 — candidates for `docs/adrs/archive.md` |
+| File Structure paths | ok | all 13 paths present |
+| Workflow refs | ok | `/audit-docs` referenced 5× in CLAUDE.md, skill present |
+
+**Summary:** 8 ok, 1 warn, 0 fail → `/ship` preflight passes (only `fail` blocks).
+
+**Actions:** trim the two pre-cutoff ADR rows from README's active table into `docs/adrs/archive.md` in a future cycle — out of scope here, and this cycle added no ADR.
+
+(Recorded here rather than stdout: the skill routes to stdout once Ship Notes is filled, but the cycle doc is the single artifact for this cycle and `/ship` preflight #6 refers to this result.)
+
 ### End-of-cycle
 
 - Final gates: `npm run build` clean; `npx vitest run` = **290 passed | 2 skipped (292 files), 2674 passed | 42 todo (2716 tests), 0 failures**.
