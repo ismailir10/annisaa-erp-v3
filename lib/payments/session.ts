@@ -34,7 +34,7 @@ export function resolveAppOrigin(requestOrigin?: string): string {
   const env = process.env.NEXT_PUBLIC_APP_URL;
   if (env) return env.replace(/\/+$/, "");
   throw new Error(
-    "[XENDIT] No origin available for return URLs — pass requestOrigin or set NEXT_PUBLIC_APP_URL",
+    "No app origin available — pass requestOrigin or set NEXT_PUBLIC_APP_URL",
   );
 }
 
