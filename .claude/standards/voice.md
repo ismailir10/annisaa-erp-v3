@@ -74,8 +74,13 @@ The school is Islamic PAUD/TKIT. Arabic greetings and honorifics are first-class
 | Sakit | Sick, Ill |
 | Izin | Permission, Excused |
 | Tagihan | Invoice, Bill (use Tagihan for parent; Invoice ok in admin) |
-| Kehadiran | Attendance |
-| Rapor | Report card |
+| Kehadiran (the attendance *record* — history, recap, a parent's view) | Attendance |
+| Absensi (the *act* of taking roll — a teacher's task surface) | — (this is a real distinction, not drift: "Absensi Kelas" is the screen where a teacher marks; "Kehadiran" is what the marking produced. Do not collapse them into one word.) |
+| Rapor | Raport, Report card (Raport is a Dutch-derived misspelling; KBBI and this glossary both say Rapor. Routes and code identifiers may keep `raport` — this rule governs UI strings only) |
+| Bank Narasi (the reusable raport narrative library) | Kisi-kisi (means an *exam blueprint* in Indonesian school practice — an actively misleading name for a sentence library), Templat Narasi |
+| Lewat Tempo (invoice status: past its due date) | Jatuh Tempo, Terlambat, Menunggak ("Jatuh tempo" is the due *date* itself — reusing it as a status makes the badge and the date caption on the same row indistinguishable) |
+| Link Dibuat (invoice status: a payment link exists) | Terkirim (nothing is sent — DOKU dispatches no notification and the admin shares the link manually; "Terkirim" overclaims delivery) |
+| Perkembangan (parent-facing developmental progress) | Capaian (keep Capaian only for the per-element achievement level inside the page, never as the nav or page label) |
 | Wali | Guardian, Parent (Wali = registered guardian; Parent = audience) |
 | Kelas | Class, Classroom |
 | Ustadz / Ustadzah | Pak Guru / Bu Guru (Islamic-school context uses Ustadz/ah) |
@@ -98,6 +103,22 @@ The early-childhood assessment scale is **CONSISTENT / EMERGING / NEEDS_REINFORC
 **Voice call:** NEEDS_REINFORCEMENT renders info-blue everywhere. "Perlu Penguatan" is an honest developmental note to a parent (Ibu Nur reads it on the raport), not an alarm — red is reserved for attendance *Alpa* and destructive actions. Never recolor it absent-red or praise-teal on any surface (screen or PDF).
 
 ## Cross-cutting copy rules
+
+### Acronyms
+
+Expand on **first use per surface**, then abbreviate freely. `IKTP` reads as noise to a classroom teacher who is not a curriculum specialist; `Indikator Ketercapaian (IKTP)` costs three words once and is then free for the rest of the page. Same rule for any payroll or curriculum shorthand (`DC`, `TP`, `PROMES`). An acronym that cannot be expanded in a label needs a tooltip.
+
+### Nav label ↔ page title
+
+**The word on the tab is the word on the page.** A user who taps "Kelas" and lands on "Absensi Kelas" has to re-derive where they are; one who taps "Capaian" and lands on "Perkembangan" cannot build a map of the product at all. When a nav slot is too narrow for the full title, shorten the *title* too, or use the short form in both places — never let them diverge.
+
+### Never render a caught error
+
+Raw `err.message`, vendor payloads (Xendit, DOKU), Prisma model names, HTTP status text, and Zod defaults are **log-only**. Every user-visible error is written by us, in Indonesian, and names a next action. Route caught errors through a translate-or-generic-fallback helper — the `userMessage()` pattern in `lib/api/client-errors.ts` is the model. A clean Indonesian prefix with a raw English message spliced onto the end is still a leak.
+
+### Shared-component defaults
+
+A default string in `components/ui/**` ships to every caller that omits the prop. Defaults must satisfy these rules on their own — `emptyTitle = "Tidak ada data"` violates the Empty State Contract for every list that trusts it. Enum→label maps must cover **every** value the enum can hold, not only the ones with a current UI consumer; a missing entry renders the raw code.
 
 ### Errors
 
