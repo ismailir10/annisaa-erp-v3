@@ -69,7 +69,7 @@ test.describe("Teacher flows", () => {
     // Legacy "Penilaian lama (template)" section retired.
     await expect(
       page
-        .locator("text=Belum ada kelas mengajar")
+        .locator("text=Belum ditugaskan ke kelas")
         .or(page.getByTestId("hub-center-grid"))
         .first()
     ).toBeVisible({ timeout: 10_000 });

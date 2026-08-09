@@ -278,7 +278,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
         actions={
           !isEditing ? (
             <Button size="sm" variant="outline" onClick={startEditing}>
-              <Pencil size={14} className="mr-1" /> Edit
+              <Pencil size={14} className="mr-1" /> Ubah
             </Button>
           ) : undefined
         }

@@ -245,6 +245,21 @@ This is exactly the class of defect preview-verify exists to catch: every one pa
 
 Scope of the iteration-2 re-check, stated precisely: the four fixes are pure string substitutions, verified by grep (no user-visible `raport` or `Reset` remains outside routes and identifiers), by `npm run build` exit 0, and by 2686 passing tests. The admin surfaces carrying them were **not** re-walked in the browser after the fix — the admin flows were walked on the previous build. The substitutions are the same class already proven to render on this preview ("Bank Narasi", "Lewat Tempo", "Atur Ulang" all confirmed visually in iteration 1), so the residual risk is a string not appearing where grep says it is.
 
+### CI round 1 — Playwright E2E failed (3 tests), fixed
+
+`Docs sync`, `Lint, Typecheck & Test`, and `Build` passed. `Playwright E2E` failed with 3 tests, **all three caused by this cycle's renames**. This is precisely the gap the cycle doc flagged in advance: the seven affected specs were updated by *reading* their selectors, never by running them, because the local Playwright run is blocked by the staging-DB guard.
+
+| Failing test | Cause | Fix |
+|---|---|---|
+| `admin.spec.ts:23` dashboard loads with stats | `locator("text=Dasbor")` hit **strict mode violation: resolved to 3 elements**. Renaming the nav item `Dashboard` → `Dasbor` made the word match nav + heading + breadcrumb, where previously only the heading said "Dasbor". | Anchor on `getByRole("heading", { name: "Dasbor" })` |
+| `admin.spec.ts:319` academic-year roll-forward | Clicked a menu item named `/Gulir Kelas ke Tahun Ini/i` — renamed to "Salin". Timed out at 60s. | Updated 3 locators + the dialog name + the stale comment |
+| `teacher-assessments-weekly.spec.ts:64` | Asserted `getByText("Belum ada Pekan aktif", { exact: true })` — the mid-sentence capital was lowercased. `exact: true` made it a hard miss. | Updated to `"Belum ada pekan aktif"` |
+
+Swept the remaining 33 specs for the same class of breakage rather than waiting for a second red round, and found two more latent ones:
+
+- `admin-guardian-detail.spec.ts` asserts `button /^Edit$/`. That button is on `DetailPageHeader`, not the DataTable row actions the T3 sweep translated — so **two English "Edit" buttons were still shipping** (`app/admin/guardians/[id]/page.tsx`, `app/admin/(hr)/employees/[id]/page.tsx`). Translated both to "Ubah" and updated the spec. This was a real AC10 violation the sweep missed, surfaced only by reading the test.
+- `teacher.spec.ts:72` asserted `text=Belum ada kelas mengajar`, wording replaced when the assessments-hub empty state was split. It passed in CI only because its `.or(hub-center-grid)` fallback matched — a dead branch that would have silently stopped testing what it names. Updated.
+
 ## Ship Notes
 
 - **Migrations:** none. No schema change — this was explicitly scoped to avoid a prod migration.
