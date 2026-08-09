@@ -100,11 +100,11 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(initialPhone).first()).toBeVisible();
 
-    // ---------- Edit via the detail page Edit dialog ----------
-    // The detail page exposes an "Edit" button in the DetailPageHeader actions
+    // ---------- Edit via the detail page Ubah dialog ----------
+    // The detail page exposes an "Ubah" button in the DetailPageHeader actions
     // slot. Click → renders the inline GuardianFormBody with editForm hydrated
     // from the GET /api/parents/[id] payload.
-    await page.getByRole("button", { name: /^Edit$/ }).click();
+    await page.getByRole("button", { name: /^Ubah$/ }).click();
 
     // Wait for the form fields to mount — the address Input has a stable
     // placeholder via GuardianFormBody.

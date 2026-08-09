@@ -31,8 +31,8 @@ type Holiday = {
 
 const TYPE_LABELS: Record<string, string> = {
   NATIONAL: "Nasional",
-  ISLAMIC: "Islam",
-  SCHOOL_CLOSURE: "Sekolah",
+  ISLAMIC: "Keagamaan",
+  SCHOOL_CLOSURE: "Penutupan Sekolah",
 };
 
 export default function HolidaysPage() {
@@ -187,17 +187,17 @@ export default function HolidaysPage() {
           </DialogHeader>
           <div className="space-y-field py-2">
             <Field>
-              <FieldLabel required>Tanggal</FieldLabel>
-              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              <FieldLabel required htmlFor="holiday-date">Tanggal</FieldLabel>
+              <Input id="holiday-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required aria-required="true" />
             </Field>
             <Field>
-              <FieldLabel required>Nama</FieldLabel>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Hari Raya Idul Fitri" />
+              <FieldLabel required htmlFor="holiday-name">Nama</FieldLabel>
+              <Input id="holiday-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Hari Raya Idul Fitri" required aria-required="true" />
             </Field>
             <Field>
-              <FieldLabel>Tipe</FieldLabel>
-              <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })} items={{ NATIONAL: "Nasional", ISLAMIC: "Islam", SCHOOL_CLOSURE: "Penutupan Sekolah" }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <FieldLabel htmlFor="holiday-type">Tipe</FieldLabel>
+              <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })} items={{ NATIONAL: "Nasional", ISLAMIC: "Keagamaan", SCHOOL_CLOSURE: "Penutupan Sekolah" }}>
+                <SelectTrigger id="holiday-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="NATIONAL">Nasional</SelectItem>
                   <SelectItem value="ISLAMIC">Islam</SelectItem>

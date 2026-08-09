@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getCurrentPeriod } from "@/lib/academic-period";
+import { getCurrentPeriodFromDb } from "@/lib/academic-period-db";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClipboardList, ChevronRight, CalendarDays, Building2 } from "lucide-react";
 import Link from "next/link";
@@ -20,8 +20,8 @@ export default async function TeacherAssessmentsPage() {
       <div>
         <EmptyState
           icon={ClipboardList}
-          title="Belum ada kelas mengajar."
-          description="Hubungi admin untuk ditugaskan ke kelas."
+          title="Akun belum terhubung dengan staf"
+          description="Hubungi admin agar akun Anda dipasangkan dengan data karyawan."
           actionLabel="Kembali ke Beranda"
           actionHref="/teacher"
         />
@@ -32,8 +32,7 @@ export default async function TeacherAssessmentsPage() {
   // FIND-017: derive the periode subheader from the active AcademicYear in
   // the DB, not from a wall-clock calendar bracket. Pre-fix the calendar
   // helper hardcoded "Semester 2 2025/2026" even when the active AY was
-  // 2026/2027. The semester half still tracks the calendar month (Jul-Dec
-  // = Sem 1, Jan-Jun = Sem 2) but anchored on the active AY's `name`.
+  // 2026/2027.
   const activeAy = await prisma.academicYear.findFirst({
     where: { tenantId: session.tenantId, status: "ACTIVE" },
     select: { id: true, name: true },
@@ -47,9 +46,11 @@ export default async function TeacherAssessmentsPage() {
         activeAy.id,
       )
     : null;
-  const month = new Date().getMonth() + 1;
-  const semester = month >= 7 ? "Semester 1" : "Semester 2";
-  const period = activeAy ? `${semester} ${activeAy.name}` : getCurrentPeriod();
+  // m3: the semester half used to track the calendar month (Jul-Dec = Sem 1),
+  // which put the teacher header on "Semester 1" while /admin/raport and
+  // /parent/perkembangan both read "Semester 2" off the DB row that actually
+  // owns the Weeks this page renders. Resolve it from the same rows they do.
+  const period = await getCurrentPeriodFromDb(session.tenantId);
 
   // Does this teacher have any active class assignment? Drives the "no class"
   // empty state. Legacy AssessmentTemplate list retired — penilaian is now the
@@ -67,8 +68,8 @@ export default async function TeacherAssessmentsPage() {
         <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
         <EmptyState
           icon={ClipboardList}
-          title="Belum ada kelas mengajar."
-          description="Hubungi admin untuk ditugaskan ke kelas."
+          title="Belum ditugaskan ke kelas"
+          description="Hubungi admin untuk ditugaskan mengajar di kelas tertentu."
           actionLabel="Kembali ke Beranda"
           actionHref="/teacher"
         />
@@ -93,7 +94,7 @@ export default async function TeacherAssessmentsPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold">Penilaian Pekanan</p>
               <p className="text-xs text-muted-foreground truncate">
-                Walas {homeroom.name} · catat per pekan terhadap IKTP
+                Walas {homeroom.name} · catat per pekan terhadap Indikator Ketercapaian (IKTP)
               </p>
             </div>
             <ChevronRight size={16} className="text-muted-foreground shrink-0" />

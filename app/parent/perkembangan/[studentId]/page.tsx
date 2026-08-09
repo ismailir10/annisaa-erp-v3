@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/portal/page-header";
 import { getParentChildById } from "@/lib/parent-helpers";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import {
+  formatDate,
   formatLearningCenter,
   formatCurriculumElement,
 } from "@/lib/format";
@@ -74,6 +75,15 @@ export default async function ParentPerkembanganDetailPage({
                 Semester {data.semester.number} · {data.semester.academicYear.name}
               </span>
             </header>
+            {/* voice.md documents the intent that "Belum"/"Perlu Penguatan"
+                read as honest developmental notes rather than alarms — but
+                that intent lived only in a code comment, so a parent seeing
+                "Belum" next to their child's name could read it as a failing
+                grade. Say it where they can actually see it. */}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ini tahapan perkembangan, bukan nilai. Setiap anak berkembang di
+              waktunya masing-masing.
+            </p>
             <ul className="space-y-2" data-testid="perkembangan-elements">
               {data.elements.map((row) => (
                 <ElementProgressRow
@@ -126,6 +136,15 @@ export default async function ParentPerkembanganDetailPage({
                         <p className="text-sm text-foreground mt-0.5">
                           {entry.indicatorContent}
                         </p>
+                        {/* The walas types this at the sentra and it was
+                            stored but never shown to anyone — it is the one
+                            line that tells a parent what their child
+                            actually did. */}
+                        {entry.activity && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Kegiatan: {entry.activity}
+                          </p>
+                        )}
                       </div>
                       <span
                         className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}
@@ -134,7 +153,7 @@ export default async function ParentPerkembanganDetailPage({
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {entry.date}
+                      {formatDate(entry.date, { day: "numeric", month: "long" })}
                     </p>
                   </li>
                 ))}

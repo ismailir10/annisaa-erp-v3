@@ -5,7 +5,7 @@ import { test, expect } from "@playwright/test";
 // the new surface end-to-end.
 //
 // Coverage:
-// 1. The "Capaian" entry routes to /parent/perkembangan. As of 2026-08-01 it
+// 1. The "Perkembangan" entry routes to /parent/perkembangan. As of 2026-08-01 it
 //    lives in the bottom nav's "Lainnya" overflow sheet, not as a top-level
 //    tab — the 6-tab bar overflowed the 375px viewport (see cycle
 //    2026-08-01-parent-nav-mobile-proposal).
@@ -48,15 +48,15 @@ test.describe("Parent — Perkembangan (C6)", () => {
     ]);
   });
 
-  test("Lainnya sheet exposes the Capaian entry pointing to /parent/perkembangan", async ({
+  test("Lainnya sheet exposes the Perkembangan entry pointing to /parent/perkembangan", async ({
     page,
   }) => {
     await page.goto("/parent");
     await page.waitForURL("**/parent", { timeout: 15_000 });
 
-    // Capaian is a weekly-cadence surface, so it sits in the overflow sheet
+    // Perkembangan is a weekly-cadence surface, so it sits in the overflow sheet
     // rather than owning a permanent slot in the 5-tab bar.
-    await expect(page.getByRole("link", { name: "Capaian" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Perkembangan" })).toHaveCount(0);
 
     await page
       .getByRole("navigation", { name: "Navigasi utama orang tua" })
@@ -66,7 +66,7 @@ test.describe("Parent — Perkembangan (C6)", () => {
     const sheet = page.getByRole("navigation", { name: "Menu lainnya" });
     await expect(sheet).toBeVisible({ timeout: 10_000 });
 
-    const link = sheet.getByRole("link", { name: /Capaian/ });
+    const link = sheet.getByRole("link", { name: /Perkembangan/ });
     await expect(link).toBeVisible({ timeout: 10_000 });
     await expect(link).toHaveAttribute("href", /\/parent\/perkembangan/);
   });

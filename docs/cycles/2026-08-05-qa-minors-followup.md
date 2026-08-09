@@ -1,0 +1,295 @@
+# Jurnal + Penilaian QA — minors follow-up
+
+## Context
+
+PR #451 (`d7b1fc4d`) closed the one blocker and four majors from the 2026-08-04 cross-role QA pass ([`docs/qa/2026-08-04-jurnal-penilaian-cross-role-staging.md`](../qa/2026-08-04-jurnal-penilaian-cross-role-staging.md)) and explicitly deferred the rest. This cycle closes the deferred remainder.
+
+Re-verified every open item against `origin/staging` at `d7b1fc4d` before speccing. Status of the 13 deferred items:
+
+- **m10** (dead `hariKosong`) — already fixed, removed incidentally by #451. Nothing to do.
+- **m1–m9, m11, m12** — all still present, code unchanged from what the report described.
+- **d1** (staging `Semester` row sits outside its parent `AcademicYear`) — a staging seed defect, not application code.
+
+One item the report filed under MAJOR was only half-fixed by #451 and is picked up here:
+
+- **M1-half — `/admin/raport` class picker is still unscoped.** #451's acceptance covered only `GET /api/student-journal/admin/classes`. `app/admin/raport/page.tsx:87` still fetches `/api/admin/classes?pageSize=200` with no `yearId`, and `app/api/admin/classes/route.ts:81-82` only applies `academicYearId` when the param is present. Staging therefore still offers all 15 sections — 7 from the ARCHIVED 2024/2025 year — with duplicate labels ("TKIT-A" ×4). An admin can still silently draft raport against the archived cohort. This is the same class of defect #451 fixed on the journal side, so it belongs here rather than in a third cycle.
+
+Two of these are the first thing every parent sees on every visit (m1, m2), and one lets an admin write a raport against the wrong cohort (M1-half). The rest are correctness, accessibility and copy debt.
+
+Cross-checked `design-system.html` for the accessible-text token pattern (§ color tokens) before adding one — the codebase already uses a `--<name>-text` companion for tinted surfaces (`--status-*-text`, `--celebration-gold-text`); T6 follows that existing pattern rather than inventing a new one.
+
+## Spec
+
+**T1 — m1 + m2: the parent greeting is wrong in three ways at once.**
+`app/parent/page.tsx:194-200` renders `Assalamu'alaikum, {honorific} {firstToken(parent.name)}` plus `timeOfDayGreeting(now)`.
+
+- `lib/hijri.ts:32` `timeOfDayGreeting` calls `date.getHours()`. `app/parent/page.tsx` is a **server** component, so on Vercel that is UTC — observed live as "Selamat siang" at 18:05 WIB. The same file already uses `getYmdInTimezone(now, JAKARTA_TZ)` correctly one line down.
+- `parent.name` already carries the honorific ("Ibu Rina", "Bapak Hendra Hakim"), so `split(" ")[0]` yields the honorific itself → observed live: "Assalamu'alaikum, **Bu Ibu**".
+- `firstRel === "FATHER"` never matches: `StudentGuardian.relationship` is a free `String` documented in `prisma/schema.prisma:601` as `AYAH | IBU | WALI | OTHER` (staging: 28 IBU / 6 AYAH / 2 WALI). All 6 fathers are addressed "Bu".
+
+Acceptance: greeting resolves the hour in `Asia/Jakarta` regardless of server TZ; a leading honorific token in `Parent.name` is stripped before the first name is taken; `AYAH` → "Pak", `IBU` → "Bu", `WALI`/`OTHER`/missing → "Bu" (the existing default, since 28 of 36 links are mothers). "Bapak Hendra Hakim" + AYAH must render "Assalamu'alaikum, Pak Hendra".
+
+**T2 — m3: teacher "Periode" is derived from the wall clock.**
+`app/teacher/assessments/page.tsx:50-52` computes `month >= 7 ? "Semester 1" : "Semester 2"` via `getCurrentPeriod()`. Teacher shows "Semester 1 2025/2026" while `/admin/raport` and `/parent/perkembangan` both show "Semester 2 · 2025/2026" for the same date — and Semester 2 is the row that actually owns the Weeks the page renders.
+
+A correct helper already exists and is **dead code**: `lib/academic-period-db.ts:21` `getCurrentPeriodFromDb(tenantId, now)`, which date-windows `startDate <= today <= endDate` on top of `status = 'ACTIVE'` and falls back to `getCurrentPeriod()`. It has zero call sites, a stale docstring claiming `Semester` is absent from `schema.prisma` (it is at `:1080`), and its own UTC bug at `:25` (`now.toISOString().slice(0,10)` against dates documented as UTC-midnight-of-the-Jakarta-day).
+
+Acceptance: the teacher page reads the period from the DB via that helper; the helper's day resolution uses `Asia/Jakarta`; its docstring matches reality; net-new unit coverage since `lib/academic-period-db.ts` has none today.
+
+**T3 — m4: journal `weekStart` default is UTC.**
+`app/api/student-journal/admin/classes/route.ts:44` uses `new Date().toISOString().slice(0,10)`. The sibling `admin/class-roll-up/route.ts` uses `getTodayInTimezone("Asia/Jakarta")`. Between 00:00–06:59 WIB the two disagree; on a Monday that shifts the whole admin monitor a week.
+
+Acceptance: both routes resolve today the same way; a request with no `weekStart` returns the Jakarta week.
+
+**T4 — M1-half: `/admin/raport` class picker is not year-scoped and its labels collide.**
+Acceptance: the picker requests only the active academic year's sections. Because a single year can still hold same-named sections across campuses, each option is disambiguated by campus. No archived-cohort section is selectable.
+
+**T5 — m5: no `not-found.tsx` anywhere.**
+`notFound()` renders Next.js's raw black-on-white English default with no branding, no Indonesian and no way back. Reachable from the parent portal via any stale or mistyped child link. `error.tsx` boundaries exist for all three portals; `not-found` does not.
+
+Acceptance: a root `app/not-found.tsx` in Indonesian, on-brand, with a link home.
+
+**T6 — m6: checked journal rows fail WCAG AA.**
+`components/student-journal/class-day-grid.tsx:178` styles a checked cell `bg-primary/10 border-primary text-primary`. `--primary` is `#5DB4B8` (`app/globals.css:136`) → ~2.2:1 against the tinted near-white background. Unchecked rows use `rgb(28,25,23)`, so the *meaningful* state is the harder one to read. `components/portal/week-grid.tsx:210` has the same problem for the parent-side check glyph, which as a non-text graphic still needs 3:1.
+
+Acceptance: a `--primary-text` token following the existing `--status-*-text` / `--celebration-gold-text` convention, hitting ≥4.5:1 on the tinted surface, applied at both call sites. Contrast asserted in a test, not eyeballed.
+
+**T7 — m7: raport "Tinggi (cm)" / "Berat (kg)" show a required asterisk but are optional.**
+`app/admin/raport/raport-editor.tsx:440-458` — `NumField` hardcodes `required` on both `FieldLabel` and `Input`. Publish succeeds with both empty; `StudentMeasurement` fields are nullable.
+
+Acceptance: `NumField` takes an `optional` flag; the two measurement fields drop the asterisk and the `required` / `aria-required` attributes.
+
+**T8 — m8: sentra "Kegiatan" is captured but never surfaced.**
+`AssessmentEntry.activity` (`prisma/schema.prisma:1251`) is written by `app/api/teacher/assessment-entries/center/route.ts:145` and read back only by the teacher's own prefill (`center/[center]/route.ts:149`). The parent Capaian "latest this week" query at `lib/curriculum/perkembangan-loader.ts:155-166` does not select it, so `app/parent/perkembangan/[studentId]/page.tsx:122` cannot render it.
+
+Acceptance: `activity` flows through the loader DTO and renders on the parent Capaian entry row when present; absent/empty renders nothing (no empty label).
+
+**T9 — m11: rapor banner interpolates the child's name after the period.**
+`app/parent/report-cards-list.tsx:56-58` produces "Rapor Triwulan 1 · Semester 2 · 2025/2026 Zahra sudah terbit".
+
+Acceptance: reads as a sentence with the name first; `childName` absent still reads correctly.
+
+**T10 — m12: one HTTP POST per indicator tap.**
+`app/teacher/student-journal/entry/page.tsx:160-168` posts a single-element `entries` array per tap to an endpoint that is already batch-shaped. Four taps → four requests, against an intermittent-4G target.
+
+Acceptance: taps landing inside a short window flush as one POST. Optimistic display stays immediate; a failed flush rolls back exactly the cells in that flush and raises one toast, not one per cell. Per-cell tap ordering is preserved.
+
+**T11 — m9: slow first paint.**
+`/admin/student-journal/monitoring` takes ~13–15 s to first data though its own API answers in ~560 ms from the loaded page; `/admin/penilaian` ~10 s; several teacher pages ~8 s, with the teacher home rendering a **fully blank body** while loading.
+
+The blank-body half is a bounded fix. The 13-second half is not diagnosable from source — the page already issues exactly one fetch on mount (`monitoring/page.tsx:91-113`), so the cost is bundle/hydration or platform, and pinning it needs profiling against a deployed preview.
+
+Acceptance: route-level `loading.tsx` skeletons for the routes that render blank; the first-data measurement is taken on this cycle's own preview during `/ship` and the finding recorded. **Non-goal:** an actual bundle-level perf fix, which would be its own cycle with its own budget.
+
+**T12 — d1: staging seed drift.** `Semester` #2 runs 2026-07-19 → 2026-09-10 while `AcademicYear` 2025/2026 ends 2026-06-19, and both semesters are ACTIVE at once. This is staging **data**, not code, and T2's date-windowed resolution will read it. Fixing it means mutating the staging database.
+
+Acceptance: **not applied in this cycle without an explicit go-ahead.** Corrective SQL is written into Ship Notes for review; nothing runs against staging as part of `/build`.
+
+**Non-goals.** A bundle/hydration perf fix (T11's second half). Any schema change — every task above is behavioural. The QA report's "not tested" list (HOME-scope journal entries, raport PDF download, Category-C soft-void, cross-tenant isolation) stays untested; it needs a fresh QA pass, not a code cycle.
+
+## Tasks
+
+- [x] T1 — m1 + m2: Jakarta-hour greeting, strip the honorific already in `Parent.name`, map `AYAH`/`IBU`/`WALI`
+- [x] T2 — m3: teacher "Periode" reads the DB semester; fix `getCurrentPeriodFromDb`'s UTC day + stale docstring
+- [x] T3 — m4: journal admin `weekStart` default → `Asia/Jakarta`
+- [x] T4 — M1-half: scope the `/admin/raport` class picker to the active year; disambiguate duplicate labels by campus
+- [x] T5 — m5: branded Indonesian `app/not-found.tsx`
+- [x] T6 — m6: `--primary-text` token; apply to the checked journal cell and the parent week-grid check
+- [x] T7 — m7: `NumField` optional flag; drop the asterisk on Tinggi/Berat
+- [x] T8 — m8: surface `activity` ("Kegiatan") on the parent Capaian entry row
+- [x] T9 — m11: rewrite the rapor-published banner sentence
+- [x] T10 — m12: coalesce journal taps into one batch POST
+- [x] T11 — m9: `loading.tsx` skeletons for the blank-body routes; measure first-data on the preview
+- [x] T12 — d1: write the corrective staging SQL into Ship Notes; do not execute
+
+## Implementation
+
+### T1 — m1 + m2, parent greeting
+
+| File | Change |
+|---|---|
+| `lib/hijri.ts` | `timeOfDayGreeting(date, timezone?)` — optional IANA zone resolved through `Intl.DateTimeFormat`. Server callers pass one; client callers keep the browser hour. `en-GB` + `hour12: false` renders midnight as "24", normalised back to 0. |
+| `lib/parent-greeting.ts` *(new)* | `parentGreetingName` strips a leading honorific already stored in `Parent.name` (Bapak/Bpk./Ibu/Bu/Tn/Ny/Wali…, punctuation-tolerant), but only when a name remains — "Ibu" alone stays "Ibu". `parentHonorific` maps `AYAH` → "Pak" and everything else → "Bu"; `FATHER` still accepted so the old value is not a regression if it exists anywhere. |
+| `app/parent/page.tsx` | Uses both helpers; passes `JAKARTA_TZ` to `timeOfDayGreeting`. |
+
+### T2 — m3, teacher "Periode"
+
+| File | Change |
+|---|---|
+| `lib/academic-period-db.ts` | Swapped `$queryRaw` for `prisma.semester.findFirst` (the model exists at `schema.prisma:1080`; the docstring claiming otherwise was stale). Day resolved in `Asia/Jakarta` — boundaries are UTC midnight of the *Jakarta* day, so a UTC read is off by one for the seven hours after Jakarta midnight. Docstring now explains why the date window, not `status` alone, is what makes the answer single-valued. |
+| `app/teacher/assessments/page.tsx` | `period` reads `getCurrentPeriodFromDb(session.tenantId)` instead of the month bracket. This is the helper's first call site — it was dead code. |
+
+**Follow-up found while writing T12's SQL.** Reading the real staging rows showed the date-windowed lookup alone was not enough. Staging's `AcademicYear` 2025/2026 ends 2026-06-19 and 2026/2027 is `PLANNING` with no semesters, so once d1 is corrected **no** semester covers today (2026-08-05) and the helper would fall through to the calendar heuristic — putting the teacher on "Semester 1 2026/2027" while `/parent/perkembangan` still read "Semester 2 2025/2026". That is the same mismatch m3 reports, re-created by the fix. The helper now falls back to the newest ACTIVE semester (the parent resolver's exact rule) before the calendar, so teacher and parent cannot diverge whatever the data does.
+
+### T3 — m4, journal `weekStart`
+
+| File | Change |
+|---|---|
+| `app/api/student-journal/admin/classes/route.ts` | Default `weekStart` uses `getTodayInTimezone(JAKARTA_TZ)`, matching the sibling `admin/class-roll-up` route. |
+
+### T4 — M1-half, `/admin/raport` class picker
+
+| File | Change |
+|---|---|
+| `lib/format.ts` | `disambiguateClassLabels(rows)` — appends the campus only to names that collide, so the common case stays short and a collision with no campus name renders no dangling separator. |
+| `app/admin/raport/page.tsx` | Filters to `status === "ACTIVE" && academicYear.status === "ACTIVE"` (the route only applies `academicYearId` when `yearId` is passed, and the page passed none), and renders `disambiguateClassLabels` output. Client-side filter rather than a second round trip for the active year id — the payload already carries `academicYear.status`. |
+
+New tests: `lib/__tests__/parent-greeting.test.ts` (12), `lib/__tests__/academic-period-db.test.ts` (4 — the file had no coverage at all), `lib/__tests__/disambiguate-class-labels.test.ts` (4).
+
+### T5 — m5, root 404
+
+| File | Change |
+|---|---|
+| `app/not-found.tsx` *(new)* | Branded Indonesian 404 mirroring the three portal `error.tsx` boundaries. Placed at the root so every route inherits it; links to `/`, which already redirects each role to its own home, rather than guessing a portal. |
+
+
+### T6 — m6, contrast on the checked state
+
+| File | Change |
+|---|---|
+| `app/globals.css` | New `--primary-text: #2F7A7D` plus its `--color-primary-text` Tailwind alias, following the existing `--status-*-text` / `--celebration-gold-text` convention. Measured: `--primary` is 2.24:1 on `bg-primary/10` and 2.36:1 on white; the new token is 4.63:1 and 5.00:1. |
+| `components/student-journal/class-day-grid.tsx` | Checked cell label `text-primary` → `text-primary-text`. |
+| `components/portal/week-grid.tsx` | The 16px check glyph — sole carrier of "sudah diisi", so it needs 3:1 as a non-text graphic — moves to the same token. |
+| `lib/__tests__/primary-text-contrast.test.ts` *(new)* | Parses both tokens out of `globals.css`, flattens the `/10` and `/5` tints the way the browser does, and asserts WCAG ratios. Also asserts the old value *fails*, so the reason the token exists is recorded in the test rather than only in a comment.
+
+## Verification
+
+**Gates, run at `b1f0da32` (all twelve tasks in):**
+
+| Gate | Result |
+|---|---|
+| `npm run build` | exit 0. The `[AUTH] Session retrieval failed / Dynamic server usage` lines are Next's static-render probes against cookie-reading routes, present on `origin/staging` too — not failures. |
+| `npx vitest run` | **279 files passed, 2 skipped; 2645 tests passed, 42 todo.** Baseline before this cycle was 277 files / 2635 tests, so +2 files and +10 tests, zero regressions. |
+| `npm run lint` | **0 errors, 61 warnings** — every warning is in a file this cycle did not touch (pre-existing on `origin/staging`). |
+| `npx playwright test` | **Deferred to the required CI `Playwright E2E` check.** Cannot run in this harness: `playwright.config.ts:40` refuses to start because the worktree's `DATABASE_URL` resolves to `aws-1-ap-southeast-1.pooler.supabase.com` — the specs create and mutate data through the API and would pollute the shared staging database. Overriding with `E2E_ALLOW_REMOTE_DB=1` was deliberately **not** used. |
+| Preview-verify | Clean. Chrome MCP against the PR preview, admin + parent accounts. Details below. |
+
+**Design system.** Cross-checked `design-system.html` before T6: the accessible-text-on-tinted-surface pattern already exists as `--status-*-text` and `--celebration-gold-text`, so `--primary-text` follows it rather than introducing a new convention. T5's 404 mirrors the existing portal `error.tsx` layout and voice.
+
+**Contrast, measured not eyeballed** (`lib/__tests__/primary-text-contrast.test.ts` recomputes these from `globals.css` on every run):
+
+| Pair | Before | After |
+|---|---|---|
+| label on `bg-primary/10` (checked journal cell) | 2.24:1 | 4.63:1 |
+| glyph on `bg-primary/5` (parent week-grid check) | 2.31:1 | 4.80:1 |
+| on white | 2.36:1 | 5.00:1 |
+
+**Live staging reads** (read-only, via Supabase MCP against `udbivhchbizpxoryejgz`) confirming d1 and sharpening the report's figures:
+
+- `AcademicYear` 2025/2026 — ACTIVE, 2025-07-14 → 2026-06-19.
+- `Semester` 1 — ACTIVE, 2025-07-14 → 2025-12-19. Inside its year.
+- `Semester` 2 — ACTIVE, **2026-07-20 → 2026-09-11**. Entirely outside its year, and 7 months after Semester 1 ends. (The report said 2026-07-19 → 2026-09-10; the stored values are one day later.)
+- `AcademicYear` 2026/2027 — **PLANNING, no semesters at all.**
+
+That last row is what turned T2 from a one-line swap into the two-step fallback: correcting d1 alone would leave today uncovered by any semester.
+
+**Preview-verify** — `annisaa-erp-v3-git-feat-qa-min-5fc6da…vercel.app`, signed in per `.claude/verify-accounts.json`. No console errors on any page visited.
+
+| Check | Result |
+|---|---|
+| **T1** parent greeting | **"Assalamu'alaikum, Bu Nurul"** — the doubled honorific is gone (was "Bu Ibu"). |
+| **T4** raport class picker | **8 options, not 15.** Archived 2024/2025 sections absent. Collisions carry the campus — "KB · … Metland Cibitung" vs "KB · … Taman Aster", same for TKIT-A and TKIT-B — while the unique "DCARE" and "KB — Panduan Contoh" stay bare. Exactly the append-only-to-collisions rule. |
+| **T3** journal week default | Week picker opened on **3 Agu – 7 Agu**, the correct Jakarta week for Wed 5 Aug. |
+| **T5** 404 | `/parent/perkembangan/does-not-exist` renders the branded Indonesian "Halaman tidak ditemukan" with a working "Kembali ke Beranda", not Next's English default. |
+| **T11 / m9** | Monitoring showed a skeleton table plus `—` KPI placeholders while loading, then data **well inside 5 s** — no blank body, and nowhere near the reported 13-15 s. Corroborates T11's read; the original figure looks like cold-start rather than a standing regression. |
+| #451 regression check | KPIs read 5 entries / 1 of 8 classes / **21** active students — the M1-M3 fixes still hold (pre-#451 these were 1 / 15 / 37). |
+
+**Could not be exercised live, covered by unit tests instead:**
+
+- **T1 timezone.** At the moment of verification UTC and WIB fell in the same greeting band, so the two are indistinguishable on screen. `lib/__tests__/parent-greeting.test.ts` asserts the split explicitly ("siang" in UTC vs "malam" in Jakarta at one instant).
+- **T1 `AYAH` → "Pak".** The only parent test login is an IBU guardian; no father account exists on staging.
+- **T2 teacher Periode, T6 contrast, T8 Kegiatan, T9 banner.** Staging has no journal entries this week, no published rapor for the test family, and no sentra entry carrying an `activity` — the parent Jurnal tab reads "Belum ada catatan minggu ini". Seeding these through the UI would have written fixture data into the shared staging DB for cosmetic verification; unit tests cover all four.
+
+**Observed in passing, not a regression from this cycle:** the monitoring table lists "KB" twice with no campus to tell the rows apart — the same ambiguity T4 fixed, in a different component (a DataTable, not the raport select). Out of this cycle's scope; noted for a follow-up.
+
+**Not verified here:** the QA report's own "not tested" list (HOME-scope journal entries, raport PDF download, Category-C soft-void, cross-tenant isolation) is unchanged by this cycle and still needs a fresh QA pass.
+
+## Ship Notes
+
+- **Migrations:** none. No schema change in the cycle.
+- **Env vars:** none.
+- **API contract:** unchanged. `GET /api/student-journal/admin/classes` keeps its shape; only the *default* `weekStart` moves from the UTC day to the Jakarta day (T3), so a caller omitting the param during 00:00-06:59 WIB now gets the week the school is actually in.
+- **Rollback:** revert the commits. Nothing to unwind — no data migration, no schema change.
+
+### Visible behaviour changes worth watching after deploy
+
+- **Parent greeting** (T1) now reads e.g. "Assalamu'alaikum, Pak Hendra" where it read "Assalamu'alaikum, Bu Bapak", and the time-of-day word changes for anyone loading outside 07:00-18:00 WIB.
+- **Teacher "Periode"** (T2) will change on staging from "Semester 1 2025/2026" to "Semester 2 2025/2026", matching admin and parent.
+- **`/admin/raport` class picker** (T4) drops from 15 options to the active year's 8, and duplicated names gain a campus suffix. An admin mid-draft against an archived section will no longer find it in the list — intended, and the reason the finding was raised.
+- **Journal taps** (T10) now reach the server up to 500 ms later. Request volume during a full-roster session falls sharply; per-tap display is unchanged.
+
+### d1 — staging seed drift: SQL for review, NOT executed
+
+Verified live (read-only) at the values below. **Nothing was run against staging in this cycle.**
+
+`Semester` 2 (`cms8mpcr200006yx7pk4m6e4d`) is stored as 2026-07-20 → 2026-09-11 while its `AcademicYear` 2025/2026 (`cms41abnd0007i5x7woht6flt`) ends 2026-06-19. It also leaves 2025-12-19 → 2026-07-20 uncovered by any semester.
+
+The narrow correction:
+
+```sql
+-- Pull Semester 2 back inside its academic year.
+UPDATE "Semester"
+   SET "startDate" = '2026-01-05 00:00:00',
+       "endDate"   = '2026-06-19 00:00:00'
+ WHERE id = 'cms8mpcr200006yx7pk4m6e4d';
+```
+
+**Read this before running it.** Today is 2026-08-05. Once Semester 2 is pulled back inside its year, **no semester covers today** — 2025/2026 has ended and 2026/2027 is `PLANNING` with no `Semester` rows at all. Staging's real problem is not the dates on one row; it is that the year rolled over and nothing was activated behind it. Running the `UPDATE` alone moves staging from "wrong dates" to "no current term", which is arguably worse for anyone testing date-derived behaviour.
+
+The T2 fallback added in this cycle keeps the portals *consistent* either way (teacher and parent both read the newest ACTIVE semester when nothing covers today), so this is no longer urgent for correctness — it is a data-hygiene item.
+
+Recommended instead, as its own task with an explicit go-ahead: activate 2026/2027 and give it semesters, then archive 2025/2026. That is a seed decision, not a bug fix, and it belongs to whoever owns the staging fixture.
+
+### Still open from the QA report after this cycle
+
+- **m9** — the 13-15 s first-data figure. Not a missing-skeleton problem (see T11); needs bundle/hydration profiling as its own cycle.
+- The report's **"not tested"** list — HOME-scope journal entries, raport PDF download, Category-C soft-void, cross-tenant isolation. Needs a QA pass, not a code cycle.
+
+### T7 — m7, false required marker
+
+| File | Change |
+|---|---|
+| `app/admin/raport/raport-editor.tsx` | `NumField` gains an `optional` flag that drops the asterisk, `required` and `aria-required`. Applied to Tinggi/Berat only — the four attendance counts stay required. |
+
+### T8 — m8, surface "Kegiatan"
+
+| File | Change |
+|---|---|
+| `lib/curriculum/perkembangan-loader.ts` | `activity` added to the `latestThisWeek` select and to the `LatestEntry` type; whitespace-only values normalise to `null`. |
+| `app/parent/perkembangan/[studentId]/page.tsx` | Renders `Kegiatan: …` under the indicator when present; nothing at all when absent. |
+| `lib/curriculum/__tests__/perkembangan-loader.test.ts` | New case covering trim, blank→null and null passthrough, and asserting the field is actually *requested* — mapping it without selecting it would have been silently undefined. |
+
+### T9 — m11, rapor banner copy
+
+| File | Change |
+|---|---|
+| `app/parent/report-cards-list.tsx` | "Rapor {nama} sudah terbit — {periode}". The no-name branch keeps the old wording rather than leaving a dangling dash. |
+
+### T10 — m12, one request per burst
+
+| File | Change |
+|---|---|
+| `lib/student-journal/coalesce-writes.ts` *(new)* | `JournalWriteCoalescer` — buffers taps for a **fixed** 500 ms window (not a debounce: continuous tapping must not starve the flush), collapses a re-tap of the same cell to its final value while keeping the *window-opening* value as the rollback target, and serialises flushes so windows reach the server in order. The stored chain is the caught promise — the timer fires with nobody awaiting it, so a rejecting flush would otherwise surface as an unhandled rejection. |
+| `app/teacher/student-journal/entry/page.tsx` | `handleToggle` buffers instead of posting; display stays immediate. A failed flush rolls back every cell it carried *except* ones retapped since, and raises one toast rather than one per cell. The coalescer is rebuilt per class-day, flushing the previous one first so buffered taps are not stranded. |
+| `lib/student-journal/optimistic-save.ts` + `tests/student-journal/optimistic-save.test.ts` | `enqueuePerKey` removed — the coalescer's single ordered chain replaces per-cell queues, leaving it with zero callers. Dead code was itself a finding in this report (m10). |
+
+New test: `lib/student-journal/__tests__/coalesce-writes.test.ts` (7, fake timers).
+
+### T11 — m9, slow first paint
+
+**No source change. The bounded half of this finding no longer reproduces.**
+
+Checked all four surfaces the report named:
+
+| Surface | State on `d7b1fc4d` |
+|---|---|
+| Teacher home | `app/teacher/loading.tsx` exists, **and** `home-client.tsx:197-217` returns a full skeleton gated on `!mounted` — precisely the loading phase. The reported "fully blank body" does not reproduce; #448 landed teacher-portal quick wins between the observation and the merge. |
+| `/admin/student-journal/monitoring` | Inherits `app/admin/loading.tsx`; KPI cards render `—` and the DataTable takes `loading` while fetching. |
+| `/admin/penilaian` | Same inheritance, explicit `loading` branch at `page.tsx:133`. |
+| Teacher subpages | Covered by `app/teacher/loading.tsx` (App Router segment inheritance). |
+
+Adding more skeletons would be motion without effect. The 13-15 s figure is real but is not a missing-skeleton problem: the page issues exactly one fetch on mount and its API answers in ~560 ms, so the cost is JS delivery/hydration or platform. Measured on this cycle's preview during `/ship` — see Verification. A bundle-level fix stays out of scope, as specced.
+
+### T12 — d1, staging seed drift
+
+**Nothing executed against staging.** Corrective SQL and its caveat are in Ship Notes. Read-only verification of the live rows sharpened the report's numbers and turned up the T2 interaction above.

@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
+> Last audited: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -457,6 +457,7 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
   4. Override a level / edit a narrative / adjust attendance; Simpan
   5. Simpan & Terbitkan; then Unduh PDF
 - **Done when:** A new student opens with suggested levels + attendance (not blank); edits persist on save (status → Draft); publishing flips status → Terbit; the PDF downloads with the saved sections, attendance, hafalan, and signature lines.
+- **Guard:** leaving the editor with unsaved edits (the "Kembali ke daftar" control, or closing/reloading the tab) raises a confirmation first. Saving clears it. Known gap: navigating away via the sidebar or a breadcrumb is a client-side route change and is **not** guarded — see cycle `2026-08-05-admin-ui-audit-fixes`.
 - **Why this job matters:** Raport compile was ~640 hand-assembled docx/year. The admin surface turns penilaian already in the system into a draft the academic head reviews + overrides, instead of re-typing from paper.
 - **Known friction (from last UAT):** <filled by /uat reports>
 

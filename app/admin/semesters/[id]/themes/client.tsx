@@ -365,13 +365,11 @@ export function ThemeCard({
       <DeactivateConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(v) => !v && setDeactivateTarget(null)}
-        entityName={
-          deactivateTarget
-            ? `tema "${deactivateTarget.name}"` +
-              (deactivateTarget._count.subThemes > 0
-                ? ` — ${deactivateTarget._count.subThemes} subtema terkait tetap aktif`
-                : "")
-            : "tema"
+        entityName={deactivateTarget ? `tema ${deactivateTarget.name}` : "tema"}
+        extraWarning={
+          deactivateTarget && deactivateTarget._count.subThemes > 0
+            ? `${deactivateTarget._count.subThemes} subtema terkait tetap aktif.`
+            : undefined
         }
         onConfirm={async () => {
           if (deactivateTarget) {
@@ -604,13 +602,11 @@ export function SubThemeCard({
       <DeactivateConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(v) => !v && setDeactivateTarget(null)}
-        entityName={
-          deactivateTarget
-            ? `subtema "${deactivateTarget.name}"` +
-              (deactivateTarget._count.weeks > 0
-                ? ` — ${deactivateTarget._count.weeks} pekan terkait tetap aktif`
-                : "")
-            : "subtema"
+        entityName={deactivateTarget ? `subtema ${deactivateTarget.name}` : "subtema"}
+        extraWarning={
+          deactivateTarget && deactivateTarget._count.weeks > 0
+            ? `${deactivateTarget._count.weeks} pekan terkait tetap aktif.`
+            : undefined
         }
         onConfirm={async () => {
           if (deactivateTarget) {

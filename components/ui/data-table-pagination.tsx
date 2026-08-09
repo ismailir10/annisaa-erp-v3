@@ -35,7 +35,10 @@ export function DataTablePagination({
           value={String(pageSize)}
           onValueChange={(v) => v && onPageSizeChange?.(parseInt(v))}
         >
-          <SelectTrigger className="h-8 w-[70px] text-xs">
+          {/* Renders only the page-size number, so nothing supplies an
+              accessible name — a screen reader announces "20, combobox" with
+              no indication of what it controls. */}
+          <SelectTrigger aria-label="Baris per halaman" className="h-8 w-[70px] text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

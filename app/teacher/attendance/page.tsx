@@ -3,11 +3,14 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { AttendanceCalendar } from "@/components/attendance/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CalendarDays } from "lucide-react";
 import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "@/components/teacher/leave-sheet";
 import { PageHeader } from "@/components/portal/page-header";
 import { toast } from "sonner";
+
+type LeavePrefetchState = "loading" | "ready" | "error";
 
 type AttendanceRecord = {
   id: string;
@@ -38,6 +41,7 @@ export default function TeacherAttendancePage() {
   const [year, setYear] = useState(now.getFullYear());
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [monthError, setMonthError] = useState(false);
 
   // Client-side LRU-lite cache: keyed by cacheKey(year, month) → records[].
   const cache = useRef<Map<string, AttendanceRecord[]>>(new Map());
@@ -50,24 +54,26 @@ export default function TeacherAttendancePage() {
   // Prefetch leave data on page mount so the sheet opens with instant content.
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[] | null>(null);
-  const [leaveLoading, setLeaveLoading] = useState(true);
+  const [leavePrefetchState, setLeavePrefetchState] =
+    useState<LeavePrefetchState>("loading");
 
   const fetchLeaveData = useCallback(async () => {
-    setLeaveLoading(true);
+    setLeavePrefetchState("loading");
     try {
       const [balRes, reqRes] = await Promise.all([
         fetch("/api/leave/balance"),
         fetch("/api/leave/my"),
       ]);
-      if (balRes.ok && reqRes.ok) {
-        setLeaveBalance(await balRes.json());
-        setLeaveRequests(await reqRes.json());
+      if (!balRes.ok || !reqRes.ok) {
+        setLeavePrefetchState("error");
+        return;
       }
-      // On error: leave state null so the sheet falls back to its own fetch.
+      setLeaveBalance(await balRes.json());
+      setLeaveRequests(await reqRes.json());
+      setLeavePrefetchState("ready");
     } catch {
-      // Silent — sheet will handle its own error path on open.
+      setLeavePrefetchState("error");
     }
-    setLeaveLoading(false);
   }, []);
 
   /**
@@ -104,15 +110,9 @@ export default function TeacherAttendancePage() {
       const prefetchOne = async (py: number, pm: number) => {
         const key = cacheKey(py, pm);
         if (cache.current.has(key)) return; // already warm
-        try {
-          const data = await fetchMonth(py, pm, signal);
-          if (data !== null && !signal.aborted) {
-            cache.current.set(key, data);
-          }
-        } catch {
-          // Best-effort prefetch: surface failure so the teacher knows the
-          // monthly preview may be stale, but don't block the current view.
-          toast.error("Gagal memuat pratinjau kehadiran bulanan");
+        const data = await fetchMonth(py, pm, signal);
+        if (data !== null && !signal.aborted) {
+          cache.current.set(key, data);
         }
       };
 
@@ -163,10 +163,12 @@ export default function TeacherAttendancePage() {
 
       // Current month drives the UI.
       if (currentData === null) {
+        setMonthError(true);
         toast.error("Gagal memuat kehadiran. Coba lagi sebentar ya.");
       } else {
         cache.current.set(cacheKey(initYear, initMonth), currentData);
         setRecords(currentData);
+        setMonthError(false);
       }
       setLoading(false);
     };
@@ -194,11 +196,18 @@ export default function TeacherAttendancePage() {
     const key = cacheKey(y, m);
     const cached = cache.current.get(key);
 
+    // A foreground month change supersedes every prior foreground request.
+    // Without this, a slow response for month A can land after the teacher has
+    // already switched to month B and overwrite B's calendar.
+    abortRef.current?.abort();
+
     if (cached !== undefined) {
       // Cache hit — instant render, no loading state.
       setMonth(m);
       setYear(y);
       setRecords(cached);
+      setMonthError(false);
+      setLoading(false);
 
       // Keep the buffer warm: prefetch new adjacent months in background.
       const controller = new AbortController();
@@ -214,13 +223,16 @@ export default function TeacherAttendancePage() {
       const { signal } = controller;
 
       setLoading(true);
+      setMonthError(false);
       fetchMonth(y, m, signal).then((data) => {
         if (signal.aborted) return;
         if (data === null) {
+          setMonthError(true);
           toast.error("Gagal memuat kehadiran. Coba lagi sebentar ya.");
         } else {
           cache.current.set(key, data);
           setRecords(data);
+          setMonthError(false);
         }
         setLoading(false);
         // After rendering, prefetch adjacent months to keep buffer warm.
@@ -229,25 +241,49 @@ export default function TeacherAttendancePage() {
     }
   }
 
+  function retryCurrentMonth() {
+    const key = cacheKey(year, month);
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+
+    setLoading(true);
+    setMonthError(false);
+    fetchMonth(year, month, controller.signal).then((data) => {
+      if (controller.signal.aborted) return;
+      if (data === null) {
+        setMonthError(true);
+      } else {
+        cache.current.set(key, data);
+        setRecords(data);
+        prefetchAdjacent(year, month, controller.signal);
+      }
+      setLoading(false);
+    });
+  }
+
   return (
     <div>
       <PageHeader title="Kehadiran Saya" />
 
       {/* Cuti action card — opens Sheet instead of navigating */}
-      <Card
-        className="p-card mb-4 cursor-pointer hover:border-primary/30 transition-colors"
+      <button
+        type="button"
+        className="w-full mb-4 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         onClick={() => setLeaveSheetOpen(true)}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <CalendarDays size={20} className="text-primary" />
+        <Card className="p-card hover:border-primary/30 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <CalendarDays size={20} className="text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold">Cuti &amp; Izin</p>
+              <p className="text-xs text-muted-foreground">Lihat saldo dan ajukan cuti</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold">Cuti &amp; Izin</p>
-            <p className="text-xs text-muted-foreground">Lihat saldo dan ajukan cuti</p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </button>
 
       {loading ? (
         <div className="space-y-3">
@@ -255,6 +291,18 @@ export default function TeacherAttendancePage() {
             <Skeleton key={i} className="h-20 w-full rounded-xl" />
           ))}
         </div>
+      ) : monthError ? (
+        <Card className="p-card text-center" role="alert">
+          <p className="text-sm font-medium text-foreground">
+            Kehadiran tidak bisa dimuat
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Periksa koneksi, lalu coba lagi.
+          </p>
+          <Button className="mt-4" variant="outline" onClick={retryCurrentMonth}>
+            Coba lagi
+          </Button>
+        </Card>
       ) : (
         <AttendanceCalendar
           records={records}
@@ -269,7 +317,7 @@ export default function TeacherAttendancePage() {
         onOpenChange={setLeaveSheetOpen}
         prefetchedBalance={leaveBalance}
         prefetchedRequests={leaveRequests}
-        prefetchLoading={leaveLoading}
+        prefetchState={leavePrefetchState}
         onRefetch={fetchLeaveData}
       />
     </div>

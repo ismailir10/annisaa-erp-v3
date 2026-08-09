@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { escapeHtml } from "../escape";
-import { salarySlipEmailHtml } from "../templates/salary-slip";
 import { admissionSubmittedEmailHtml } from "../templates/admission-submitted";
 
 describe("escapeHtml", () => {
@@ -28,28 +27,6 @@ describe("escapeHtml", () => {
 
   it("passes safe text through unchanged", () => {
     expect(escapeHtml("Pak Budi")).toBe("Pak Budi");
-  });
-});
-
-describe("salarySlipEmailHtml — XSS hardening", () => {
-  it("escapes <script> in employeeName", () => {
-    const html = salarySlipEmailHtml({
-      employeeName: 'Ali <script>alert("xss")</script>',
-      period: "Januari 2026",
-      appUrl: "https://example.com",
-    });
-    expect(html).not.toContain("<script>alert");
-    expect(html).toContain("&lt;script&gt;alert");
-  });
-
-  it("escapes < in period", () => {
-    const html = salarySlipEmailHtml({
-      employeeName: "Ali",
-      period: "<img src=x onerror=alert(1)>",
-      appUrl: "https://example.com",
-    });
-    expect(html).not.toContain("<img src=x");
-    expect(html).toContain("&lt;img src=x");
   });
 });
 

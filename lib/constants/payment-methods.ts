@@ -10,8 +10,11 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: "Tunai",
   BANK_TRANSFER: "Transfer Bank",
-  XENDIT: "Virtual Account",
-  DOKU: "Virtual Account",
+  // Both gateways route through a bank Virtual Account, but they are two
+  // different gateways — an identical label made the ledger and the manual
+  // payment-method picker unable to tell them apart. voice.md.
+  XENDIT: "Virtual Account (Xendit)",
+  DOKU: "Virtual Account (DOKU)",
   OTHER: "Lainnya",
 };
 

@@ -17,6 +17,7 @@ import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { ClipboardList, AlertCircle, Pencil, Plus } from "lucide-react";
+import { disambiguateClassLabels } from "@/lib/format";
 import { RaportEditor } from "./raport-editor";
 
 type Term = {
@@ -27,7 +28,13 @@ type Term = {
   publishedAt: string | null;
   semester: { id: string; number: number; academicYear: { name: string } };
 };
-type ClassRow = { id: string; name: string; status: string };
+type ClassRow = {
+  id: string;
+  name: string;
+  status: string;
+  campus?: { id: string; name: string } | null;
+  academicYear?: { id: string; name: string; status: string } | null;
+};
 type Semester = { id: string; number: number; academicYear: { name: string } };
 type RosterRow = { studentId: string; name: string; nickname: string | null; status: string };
 
@@ -88,7 +95,16 @@ export default function AdminRaportPage() {
       fetchData<Semester>("/api/admin/curriculum/semesters?status=ACTIVE&pageSize=50"),
     ]);
     setTerms(termData);
-    setClasses(classData.filter((c) => c.status === "ACTIVE"));
+    // Active section AND active academic year. `/api/admin/classes` only
+    // filters by year when `yearId` is passed, so an unfiltered call returns
+    // every cohort ever created — staging offered 15 options, 7 of them from
+    // the archived 2024/2025 year, all sharing labels with the live ones. An
+    // admin could draft a raport against the archived cohort without a hint.
+    setClasses(
+      classData.filter(
+        (c) => c.status === "ACTIVE" && c.academicYear?.status === "ACTIVE",
+      ),
+    );
     setSemesters(semData);
   }, []);
 
@@ -128,6 +144,20 @@ export default function AdminRaportPage() {
   const currentTerm = useMemo(
     () => (terms ?? []).find((term) => term.id === termId) ?? null,
     [terms, termId],
+  );
+
+  // One year still runs the same class name on several campuses, so append
+  // the campus to colliding names only.
+  const classOptions = useMemo(
+    () =>
+      disambiguateClassLabels(
+        (classes ?? []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          campusName: c.campus?.name ?? null,
+        })),
+      ),
+    [classes],
   );
 
   const filteredRoster = useMemo(() => {
@@ -188,15 +218,15 @@ export default function AdminRaportPage() {
   return (
     <div>
       <PageHeader
-        title="Raport"
-        description="Susun & terbitkan raport triwulan — terisi otomatis dari penilaian, dapat disunting."
+        title="Rapor"
+        description="Susun & terbitkan rapor triwulan — terisi otomatis dari penilaian, dapat disunting."
       />
 
       {terms !== null && terms.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
           title="Belum ada triwulan."
-          description="Buat triwulan untuk menentukan rentang penilaian dan kehadiran yang dirangkum ke raport."
+          description="Buat triwulan untuk menentukan rentang penilaian dan kehadiran yang dirangkum ke rapor."
           actionLabel="Buat Triwulan"
           onAction={() => setTermDialog({ mode: "create" })}
         />
@@ -218,9 +248,9 @@ export default function AdminRaportPage() {
               <FieldLabel htmlFor="class">Kelas</FieldLabel>
               <NativeSelect id="class" className="w-full" value={classId} onChange={(e) => setClassId(e.target.value)}>
                 <NativeSelectOption value="">— Pilih kelas —</NativeSelectOption>
-                {(classes ?? []).map((c) => (
+                {classOptions.map((c) => (
                   <NativeSelectOption key={c.id} value={c.id}>
-                    {c.name}
+                    {c.label}
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
@@ -242,7 +272,7 @@ export default function AdminRaportPage() {
             <EmptyState
               icon={ClipboardList}
               title="Pilih triwulan & kelas."
-              description="Pilih triwulan dan kelas untuk melihat daftar siswa dan menyusun raport."
+              description="Pilih triwulan dan kelas untuk melihat daftar siswa dan menyusun rapor."
             />
           ) : rosterError ? (
             <EmptyState
@@ -295,7 +325,7 @@ export default function AdminRaportPage() {
                   totalPages: Math.max(1, Math.ceil(filteredRoster.length / 10)),
                 }}
                 emptyTitle="Tidak ada siswa sesuai filter."
-                emptyDescription="Ubah pencarian atau status raport untuk melihat daftar siswa."
+                emptyDescription="Ubah pencarian atau status rapor untuk melihat daftar siswa."
               />
             </>
           ) : null}
@@ -383,7 +413,7 @@ function TermFormDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={mode === "edit" ? "Edit Triwulan" : "Buat Triwulan"}
-      description="Triwulan menentukan rentang tanggal penilaian dan kehadiran yang dirangkum ke raport."
+      description="Triwulan menentukan rentang tanggal penilaian dan kehadiran yang dirangkum ke rapor."
       size="lg"
       footer={
         <>

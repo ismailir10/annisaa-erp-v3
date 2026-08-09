@@ -21,7 +21,7 @@ test.describe("Admin flows", () => {
   });
 
   test("dashboard loads with stats", async ({ page }) => {
-    await expect(page.locator("text=Dasbor")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dasbor" })).toBeVisible();
     await expect(page.locator("text=TOTAL KARYAWAN")).toBeVisible();
     await expect(page.locator("text=HADIR HARI INI")).toBeVisible();
   });
@@ -90,7 +90,7 @@ test.describe("Admin flows", () => {
     // now the only thing standing between an old bookmark and a 404.
     await page.goto("/admin/assessments/templates");
     await expect(page).toHaveURL("/admin/penilaian");
-    await expect(page.getByRole("heading", { name: "Penilaian" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pemantauan" })).toBeVisible();
   });
 
   test("program deactivate sets status INACTIVE and hides from Aktif filter", async ({ page }) => {
@@ -314,7 +314,7 @@ test.describe("Admin flows", () => {
   // Roll-forward smoke (academic-hierarchy-refactor Task 9). The seed ships a
   // single academic year ("2025/2026") so a meaningful roll-forward needs a
   // distinct target year — we create one via the API in setup, then trigger
-  // the "Gulir Kelas ke Tahun Ini" row action on it, picking the seed year as
+  // the "Salin Kelas ke Tahun Ini" row action on it, picking the seed year as
   // source. Focused smoke: assert the success toast, not exact counts.
   test("academic-year roll-forward clones source sections into a fresh target year", async ({ page }) => {
     // Source year — the seed's ACTIVE year with ACTIVE class sections.
@@ -350,14 +350,14 @@ test.describe("Admin flows", () => {
     const targetRow = page.getByRole("row").filter({ hasText: targetName });
     await expect(targetRow).toBeVisible({ timeout: 10_000 });
     await targetRow.getByRole("button", { name: /Buka menu/i }).click();
-    await page.getByRole("menuitem", { name: /Gulir Kelas ke Tahun Ini/i }).click();
+    await page.getByRole("menuitem", { name: /Salin Kelas ke Tahun Ini/i }).click();
 
     // Roll-forward dialog: pick the source year, submit.
-    const dialog = page.getByRole("dialog", { name: /Gulir Kelas ke Tahun Ajaran/i });
+    const dialog = page.getByRole("dialog", { name: /Salin Kelas ke Tahun Ajaran/i });
     await expect(dialog).toBeVisible({ timeout: 10_000 });
     await dialog.getByRole("combobox").click();
     await page.getByRole("option", { name: sourceYear.name }).click();
-    await dialog.getByRole("button", { name: /^Gulir Kelas$/ }).click();
+    await dialog.getByRole("button", { name: /^Salin Kelas$/ }).click();
 
     // Outcome toast. The roll-forward POST clones each source section AND
     // generates its ClassSession rows synchronously (reconcileSessions per

@@ -64,3 +64,40 @@ describe("StatusBadge", () => {
     },
   );
 });
+
+describe("STATUS_MAP enum coverage", () => {
+  // A missing entry is not a type error — StatusBadge falls back to rendering
+  // the raw status string, so an unmapped enum silently ships an English code
+  // to a user. The audit found PARTIALLY_PAID/RECORDED/REVERSED/FAILED
+  // reachable but unmapped exactly this way.
+  it.each([
+    // Invoice
+    ["DRAFT", "Draft"],
+    ["SENT", "Link Dibuat"],
+    ["PAID", "Lunas"],
+    ["OVERDUE", "Lewat Tempo"],
+    ["PARTIALLY_PAID", "Dibayar Sebagian"],
+    ["PENDING_PAYMENT_LINK", "Link Gagal"],
+    // Payment ledger
+    ["RECORDED", "Tercatat"],
+    // Email log
+    ["FAILED", "Gagal"],
+    // Attendance
+    ["PRESENT", "Hadir"],
+    ["ABSENT", "Alpa"],
+    ["SICK", "Sakit"],
+    ["PERMISSION", "Izin"],
+  ])("maps %s to an Indonesian label, never the raw code", (status, label) => {
+    render(<StatusBadge status={status} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText(status)).toBeNull();
+  });
+
+  it("never labels OVERDUE with the due-date phrase", () => {
+    // "Jatuh tempo" is the due DATE, and that exact phrase captions the date
+    // field on the same invoice row — reusing it as the status made the badge
+    // and the date indistinguishable.
+    render(<StatusBadge status="OVERDUE" />);
+    expect(screen.queryByText(/Jatuh Tempo/i)).toBeNull();
+  });
+});

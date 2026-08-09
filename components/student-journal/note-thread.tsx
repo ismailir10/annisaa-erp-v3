@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateShort, formatTime } from "@/lib/format";
 import {
   roleLabel,
@@ -40,9 +41,10 @@ export function NoteThread({
 }: NoteThreadProps) {
   if (notes.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
-        Belum ada catatan.
-      </p>
+      <EmptyState
+        title="Belum ada catatan"
+        description="Catatan dari guru akan tampil di sini setelah dituliskan."
+      />
     );
   }
 

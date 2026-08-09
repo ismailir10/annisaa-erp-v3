@@ -2,6 +2,7 @@
 
 import { Check, Pencil } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type Indicator = {
@@ -45,6 +46,13 @@ type WeekGridProps = {
    * locked for every caller (finding F5b).
    */
   disablePastDays?: boolean;
+  /**
+   * What this surface is called to the reader. Staff (admin + teacher) know it
+   * as "Buku Penghubung"; parents only ever see it called "Jurnal", so leaking
+   * the staff term into a parent-facing empty state is a jargon leak. Defaults
+   * to the staff term so existing admin/teacher call sites are unaffected.
+   */
+  featureLabel?: string;
 };
 
 // Deterministic month abbrevs — toLocaleDateString("id-ID") silently falls back
@@ -84,6 +92,7 @@ export function WeekGrid({
   editable = false,
   onToggle,
   disablePastDays = true,
+  featureLabel = "Buku Penghubung",
 }: WeekGridProps) {
   // Build lookup: `${indicatorId}|${date}` -> checked
   const lookup = new Map<string, boolean>();
@@ -103,9 +112,10 @@ export function WeekGrid({
 
   if (categories.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
-        Belum ada indikator yang dikonfigurasi.
-      </p>
+      <EmptyState
+        title="Belum ada indikator"
+        description={`Indikator pemantauan belum dikonfigurasi untuk kelas ini. Hubungi admin sekolah untuk mengatur ${featureLabel}.`}
+      />
     );
   }
 
@@ -207,7 +217,10 @@ export function WeekGrid({
                               aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"}`}
                             >
                               {checked ? (
-                                <Check size={16} className="text-primary" strokeWidth={2.5} />
+                                // A 16px glyph is the sole carrier of "sudah
+                                // diisi", so it needs 3:1 as a non-text
+                                // graphic; brand teal gives 2.36:1 on white.
+                                <Check size={16} className="text-primary-text" strokeWidth={2.5} />
                               ) : (
                                 <span className="w-4 h-4 rounded border border-muted-foreground/40 block" />
                               )}
@@ -230,12 +243,12 @@ export function WeekGrid({
                             </button>
                           )
                         ) : (
-                          <span className="flex items-center justify-center h-[36px]">
-                            {checked ? (
-                              <Check size={14} className="text-primary" strokeWidth={2.5} />
-                            ) : (
-                              <span className="w-3.5 h-3.5 rounded border border-muted-foreground/30 block" />
-                            )}
+                          <span
+                            className="flex h-[36px] cursor-default items-center justify-center text-sm font-semibold text-muted-foreground"
+                            role="img"
+                            aria-label={`${ind.label} ${d} — ${checked ? "diisi" : "belum diisi"} (hanya-baca)`}
+                          >
+                            {checked ? "✓" : "—"}
                           </span>
                         )}
                         {adminEdit && adminEditDateLabel ? (

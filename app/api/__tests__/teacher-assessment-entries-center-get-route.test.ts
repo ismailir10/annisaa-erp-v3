@@ -158,6 +158,20 @@ describe("GET /api/teacher/assessment-entries/center/[center]", () => {
     expect(body.indicators).toHaveLength(1);
     expect(body.entries[0].activity).toBe("Doa pagi");
     expect(body.lastActivity).toBe("Doa pagi");
+    expect(body.writable).toBe(true);
+  });
+
+  it("returns a read-only payload when the caller may read but not write", async () => {
+    vi.mocked(getSession).mockResolvedValue({
+      ...teacher,
+      permissions: ["assessments.read"],
+    });
+    happy();
+    const res = await GET(req() as never, {
+      params: Promise.resolve({ center: "WORSHIP" }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).writable).toBe(false);
   });
 
   it("200 entries query is scoped to source CENTER + center + date", async () => {

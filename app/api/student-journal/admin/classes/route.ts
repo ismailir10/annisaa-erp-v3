@@ -3,15 +3,27 @@ import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
 /**
  * GET /api/student-journal/admin/classes?weekStart=
  *
- * Returns all active classes for the tenant with a weekly completion summary:
+ * Returns the active academic year's classes for the tenant with a weekly
+ * completion summary:
  * - classSectionId, className, programName
  * - studentCount: active enrollments
+ * - checkedCount: checked SCHOOL entries in the week (raw, not derived)
  * - completionPct: (checkedCount / (studentCount * indicatorCount * 5)) * 100
  * - lastFilledAt: MAX(updatedAt) for entries in that class-week scope
+ *
+ * Plus a tenant-level `summary.activeStudentCount` — DISTINCT students, not a
+ * sum of per-class counts (a student may hold more than one active enrollment).
+ *
+ * Scoped to the ACTIVE AcademicYear, matching `/api/admin/penilaian`. Without
+ * that filter archived cohorts leaked into the monitor: staging listed 15
+ * classes (7 of them from the archived 2024/2025 year) and counted 37
+ * "active students" against 21 real ones.
  */
 export async function GET(req: NextRequest) {
   const guard = await requireAdmin();
@@ -31,8 +43,10 @@ export async function GET(req: NextRequest) {
     }
     ws = weekStartParam;
   } else {
-    const today = new Date().toISOString().slice(0, 10);
-    ws = weekStart(today);
+    // Jakarta, not UTC: between 00:00-06:59 WIB a UTC read still returns
+    // yesterday, and on a Monday that shifts the whole monitor a week back.
+    // Matches the sibling `admin/class-roll-up` route.
+    ws = weekStart(getTodayInTimezone(JAKARTA_TZ));
   }
 
   const dates = weekDates(ws);
@@ -58,10 +72,25 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Fetch all active class sections for the tenant
+  const activeYear = await prisma.academicYear.findFirst({
+    where: { tenantId: session.tenantId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!activeYear) {
+    return NextResponse.json(
+      {
+        error:
+          "Tahun ajaran aktif belum diset. Aktifkan tahun ajaran terlebih dahulu.",
+      },
+      { status: 422 },
+    );
+  }
+
+  // Active class sections in the active academic year
   const classSections = await prisma.classSection.findMany({
     where: {
       tenantId: session.tenantId,
+      academicYearId: activeYear.id,
       status: "ACTIVE",
     },
     include: {
@@ -71,24 +100,31 @@ export async function GET(req: NextRequest) {
   });
 
   if (classSections.length === 0) {
-    return NextResponse.json({ data: [] });
+    return NextResponse.json({
+      data: [],
+      summary: { activeStudentCount: 0 },
+    });
   }
 
   const classSectionIds = classSections.map((c) => c.id);
 
-  // Count active enrollments per class
-  const enrollmentCounts = await prisma.studentEnrollment.groupBy({
-    by: ["classSectionId"],
+  // Pull the enrollment rows themselves rather than a per-class groupBy: the
+  // same pass yields both the per-class counts and the DISTINCT student set
+  // behind `activeStudentCount`.
+  const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       classSectionId: { in: classSectionIds },
       status: "ACTIVE",
     },
-    _count: { studentId: true },
+    select: { studentId: true, classSectionId: true },
   });
 
-  const enrollmentMap = new Map<string, number>(
-    enrollmentCounts.map((e) => [e.classSectionId, e._count.studentId]),
-  );
+  const enrollmentMap = new Map<string, number>();
+  const distinctStudentIds = new Set<string>();
+  for (const e of enrollments) {
+    enrollmentMap.set(e.classSectionId, (enrollmentMap.get(e.classSectionId) ?? 0) + 1);
+    distinctStudentIds.add(e.studentId);
+  }
 
   // Count checked entries per class for the week
   const checkedCounts = await prisma.studentJournalEntry.groupBy({
@@ -140,10 +176,14 @@ export async function GET(req: NextRequest) {
       className: cs.name,
       programName: cs.program.name,
       studentCount,
+      checkedCount,
       completionPct,
       lastFilledAt: lastFilledAt ? lastFilledAt.toISOString() : null,
     };
   });
 
-  return NextResponse.json({ data });
+  return NextResponse.json({
+    data,
+    summary: { activeStudentCount: distinctStudentIds.size },
+  });
 }

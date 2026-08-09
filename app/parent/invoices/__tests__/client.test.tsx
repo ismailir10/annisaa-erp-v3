@@ -197,7 +197,7 @@ describe("InvoicesClient (cycle-4)", () => {
 
       expect(screen.getByText("Tidak ada tagihan sesuai filter")).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Reset" }));
+      await user.click(screen.getByRole("button", { name: "Atur Ulang" }));
 
       expect(search).toHaveValue("");
       expect(screen.getByText("Periode 1")).toBeInTheDocument();

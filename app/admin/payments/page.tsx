@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { formatRupiah } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-methods";
@@ -95,7 +96,7 @@ export default function PaymentsLedgerPage() {
         const res = await fetch(`/api/payments?${buildParams()}`);
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Gagal memuat penerimaan");
+          throw new ApiError(err.error || "Gagal memuat penerimaan");
         }
         const json = await res.json();
         if (!signal.cancelled) {
@@ -109,7 +110,7 @@ export default function PaymentsLedgerPage() {
           setSummary({ totalAmount: 0, totalCount: 0, byMethod: [] });
           setPagination((p) => ({ ...p, total: 0, totalPages: 1 }));
           setFetchError(true);
-          toast.error(e instanceof Error ? e.message : "Gagal memuat penerimaan");
+          toast.error(userMessage(e, "Gagal memuat penerimaan"));
         }
       } finally {
         if (!signal.cancelled) setLoading(false);

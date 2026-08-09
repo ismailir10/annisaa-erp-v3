@@ -38,7 +38,7 @@ function Harness() {
       onOpenChange={setOpen}
       prefetchedBalance={balance}
       prefetchedRequests={requests}
-      prefetchLoading={false}
+      prefetchState="ready"
     />
   );
 }
@@ -85,5 +85,41 @@ describe("LeaveSheet", () => {
       expect(screen.getByText("Pengajuan akan dikirim ke admin untuk persetujuan")).toBeInTheDocument();
       expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     }, { timeout: 1000 });
+  });
+
+  it("associates every leave-request control with its visible label", async () => {
+    const user = userEvent.setup();
+
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Ajukan Cuti" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Jenis Cuti")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Tanggal Mulai")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tanggal Selesai")).toBeInTheDocument();
+    expect(screen.getByLabelText("Alasan")).toBeInTheDocument();
+  });
+
+  it("shows a retryable error instead of an empty state when leave prefetch fails", async () => {
+    const onRefetch = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <LeaveSheet
+        open
+        onOpenChange={() => {}}
+        prefetchedBalance={null}
+        prefetchedRequests={null}
+        prefetchState="error"
+        onRefetch={onRefetch}
+      />,
+    );
+
+    expect(screen.getByText("Data cuti tidak dapat dimuat")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada pengajuan cuti")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Coba lagi" }));
+    expect(onRefetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,6 +9,7 @@ export type SendAdmissionParams = {
   to: string;
   childName: string;
   parentName: string;
+  appUrl: string;
 };
 
 /**
@@ -28,18 +29,19 @@ export type SendAdmissionParams = {
  *   - resend threw                  → FAILED / exception message
  *   - resend ok                     → SENT  / null
  *
- * Mirrors the lib/email/send-slip.ts shape — module-scope Resend client,
- * console.info simulation when key absent.
+ * Module-scope Resend client, console.info simulation when key absent.
+ *
+ * `appUrl` must be resolved by the caller via `resolveAppOrigin(requestOrigin)`
+ * (see lib/payments/session.ts) so preview/staging/prod each get their own
+ * logo host — never resolved here from a hardcoded prod fallback.
  */
 export async function sendAdmissionSubmittedEmail(
   params: SendAdmissionParams,
 ): Promise<{ sent: boolean; error?: string }> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
-
   const html = admissionSubmittedEmailHtml({
     childName: params.childName,
     parentName: params.parentName,
-    appUrl,
+    appUrl: params.appUrl,
   });
 
   const subject = `Pendaftaran ananda diterima — Talib`;

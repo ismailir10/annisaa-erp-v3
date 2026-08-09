@@ -26,7 +26,9 @@
 
 **Teacher Portal** (mobile-first, max-w-md):
 - Header: logo + school name + user name + logout button
-- Bottom nav: 5 tabs (Beranda, Kehadiran, Kelas, Jurnal, Penilaian) with icons + labels + active indicator
+- Bottom nav: exactly four direct destinations — **Beranda**, **Kelas**, **Jurnal**, **Penilaian** — plus a fifth **Lainnya** overflow trigger, with icons + labels + active indicator
+- `Lainnya` opens the teacher overflow sheet (`components/teacher/more-sheet.tsx`) and owns **Kehadiran Saya**, **Slip Gaji**, and **Profil Saya**; new teacher account/secondary destinations go into `TEACHER_MORE_ITEMS`, never into the direct tab array
+- Nested teacher routes must activate their owning direct destination or the `Lainnya` overflow state (for example, salary-slip detail → `Lainnya`); no nested route may leave the bottom navigation without an active owner
 - Content: centered `max-w-md`
 
 **Parent Portal** (mobile-first, max-w-md — MUST match teacher pattern):
@@ -38,11 +40,13 @@
 - Logout: accessible from header (same pattern as teacher)
 
 **Both portals MUST have:**
+- At most five bottom-nav slots: four direct destinations plus an overflow trigger whenever more surfaces are needed
 - Active state on current tab (teal underline + icon color)
-- Logout button in header with `title="Keluar"` for accessibility
+- Logout button in header with `aria-label="Keluar"` for accessibility (`title` is optional)
 - Framer Motion `layoutId` for smooth active indicator animation, guarded by `useReducedMotion()`
 - Safe area padding for mobile (`safe-area-bottom` on bottom nav)
 - A visible `focus-visible` ring on every tab (keyboard users get no usable default inside a fixed bar)
+- Explicit, stable labels for every tab and overflow-sheet action; icon-only navigation is forbidden
 
 ### Bottom-nav width budget — hard limit, 5 slots
 

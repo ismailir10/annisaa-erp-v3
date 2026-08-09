@@ -590,7 +590,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="class-slot-template" required>Pola slot</FieldLabel>
+            <FieldLabel htmlFor="class-slot-template" required>Pola Waktu Kelas</FieldLabel>
             <Select
               value={form.slotTemplate}
               onValueChange={(v) =>
@@ -638,13 +638,11 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       <DeactivateConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(v) => !v && setDeactivateTarget(null)}
-        entityName={
-          deactivateTarget
-            ? `kelas ${deactivateTarget.name}` +
-              (deactivateTarget.enrolledCount > 0
-                ? ` — ${deactivateTarget.enrolledCount} siswa aktif tidak akan otomatis dipindahkan`
-                : "")
-            : "kelas"
+        entityName={deactivateTarget ? `kelas ${deactivateTarget.name}` : "kelas"}
+        extraWarning={
+          deactivateTarget && deactivateTarget.enrolledCount > 0
+            ? `${deactivateTarget.enrolledCount} siswa aktif tidak akan otomatis dipindahkan.`
+            : undefined
         }
         onConfirm={async () => {
           if (deactivateTarget) {

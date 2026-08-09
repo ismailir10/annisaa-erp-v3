@@ -26,7 +26,6 @@ export const PERMISSION_GROUPS = {
       "payroll.create": "Buat penggajian",
       "payroll.edit": "Edit komponen gaji karyawan",
       "payroll.approve": "Setujui penggajian",
-      "payroll.send_slips": "Kirim slip gaji",
     },
   },
   academic: {
@@ -82,7 +81,7 @@ export const PERMISSION_GROUPS = {
       "reportCard.read": "Lihat raport triwulan",
       "reportCard.write": "Kelola raport triwulan (buat / ubah / override)",
       "reportCard.publish": "Terbitkan / tarik raport triwulan",
-      "reportCard.template": "Susun kisi-kisi narasi raport",
+      "reportCard.template": "Susun bank narasi rapor",
     },
   },
 } as const;

@@ -25,7 +25,7 @@ test.describe("Admin raport", () => {
   });
 
   test("raport surface loads", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Raport", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Rapor", exact: true })).toBeVisible();
     // Tolerate either surface: the "Buat Triwulan" create card (no Term seeded)
     // OR the "Triwulan" term selector (a Term exists). The label is exact so it
     // does not also match the "Buat Triwulan" heading.

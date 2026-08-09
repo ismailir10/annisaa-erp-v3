@@ -69,7 +69,7 @@ test.describe("Teacher flows", () => {
     // Legacy "Penilaian lama (template)" section retired.
     await expect(
       page
-        .locator("text=Belum ada kelas mengajar")
+        .locator("text=Belum ditugaskan ke kelas")
         .or(page.getByTestId("hub-center-grid"))
         .first()
     ).toBeVisible({ timeout: 10_000 });
@@ -86,7 +86,7 @@ test.describe("Teacher flows", () => {
   test("logout works", async ({ page }) => {
     // UAT 2026-05-12 — logout now opens a ConfirmDialog before signing out.
     await page.click("[aria-label='Keluar']");
-    await page.click("button:has-text('Ya, Keluar')");
+    await page.click("button:has-text('Keluar dari akun')");
     await page.waitForURL("/", { timeout: 10_000 });
     // Post-rebrand landing wordmark = TalibWordmark → renders <span>Talib</span>.
     // exact:true avoids substring match on footer "Talib by An Nisaa' Sekolahku".
@@ -245,5 +245,108 @@ test.describe("Teacher flows", () => {
     await chevron.click();
     await page.waitForURL(new RegExp(`/teacher/student-journal/students/[^/?#]+\\?week=${today}`), { timeout: 10_000 });
     await expect(page.locator("text=Kembali").first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  // Teacher mirrors the parent portal's five-slot mobile-navigation contract:
+  // four daily-work destinations plus the personal-pages overflow. Pin the
+  // smallest supported Android widths so a longer label cannot quietly push a
+  // slot outside the viewport again.
+  test("teacher bottom nav keeps five unclipped slots at narrow mobile widths", async ({ page }) => {
+    for (const width of [320, 360, 375]) {
+      await page.setViewportSize({ width, height: 812 });
+      await page.goto("/teacher");
+      await page.waitForURL("**/teacher", { timeout: 15_000 });
+
+      const nav = page.getByRole("navigation", { name: "Navigasi utama guru" });
+      await expect(nav).toBeVisible();
+      const slots = nav.locator("a, button");
+      await expect(slots).toHaveCount(5);
+      for (const label of ["Beranda", "Absensi", "Jurnal", "Penilaian"]) {
+        await expect(nav.getByRole("link", { name: label })).toBeVisible();
+      }
+      await expect(nav.getByRole("button", { name: "Lainnya" })).toBeVisible();
+
+      const boxes = await slots.evaluateAll((elements) =>
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, width: rect.width, height: rect.height };
+        }),
+      );
+      expect(boxes).toHaveLength(5);
+      for (const [index, box] of boxes.entries()) {
+        expect(box.left).toBeGreaterThanOrEqual(-0.5);
+        expect(box.right).toBeLessThanOrEqual(width + 0.5);
+        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        if (index > 0) expect(box.left).toBeGreaterThanOrEqual(boxes[index - 1]!.right - 0.5);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+  });
+
+  test("teacher bottom nav marks direct and overflow destinations active", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/teacher/student-journal");
+    await page.waitForURL("**/teacher/student-journal", { timeout: 15_000 });
+    const nav = page.getByRole("navigation", { name: "Navigasi utama guru" });
+    await expect(nav.getByRole("link", { name: "Jurnal" })).toHaveAttribute("aria-current", "page");
+
+    await page.goto("/teacher/slips");
+    await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
+    await expect(nav.getByRole("button", { name: "Lainnya" }).locator("span").last()).toHaveClass(/text-primary/);
+  });
+
+  test("teacher reaches a salary detail through Lainnya and returns to the slip list", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/teacher");
+    const trigger = page.locator('nav[aria-label="Navigasi utama guru"] button:has-text("Lainnya")');
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await trigger.click();
+
+    const sheet = page.getByRole("navigation", { name: "Menu lainnya guru" });
+    await expect(sheet).toBeVisible({ timeout: 10_000 });
+    await sheet.getByRole("link", { name: /^Slip Gaji/ }).click();
+    await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
+
+    const detail = page.locator('a[href^="/teacher/slips/"]').first();
+    await expect(detail).toBeVisible({ timeout: 10_000 });
+    const detailHref = await detail.getAttribute("href");
+    expect(detailHref).toMatch(/^\/teacher\/slips\/[^/]+$/);
+    await detail.click();
+    await page.waitForURL(/\/teacher\/slips\/[^/?#]+$/, { timeout: 15_000 });
+
+    // `Tunjangan Transport` is a stable, multi-word component in the demo
+    // payroll seed. Exercise the real line at both narrow supported widths,
+    // then check a final content row clears the fixed bottom navigation.
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 812 });
+      await page.goto(detailHref!);
+      await page.waitForURL(/\/teacher\/slips\/[^/?#]+$/, { timeout: 15_000 });
+
+      const longComponent = page.getByText("Tunjangan Transport", { exact: true });
+      await expect(longComponent).toBeVisible({ timeout: 10_000 });
+      expect(await page.evaluate(() =>
+        document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      )).toBe(true);
+
+      const bottomContent = page.getByText(
+        "Slip ini dihasilkan otomatis oleh sistem An Nisaa' ERP. Dokumen resmi.",
+        { exact: true },
+      );
+      await bottomContent.scrollIntoViewIfNeeded();
+      const [contentBox, navBox] = await Promise.all([
+        bottomContent.boundingBox(),
+        page.getByRole("navigation", { name: "Navigasi utama guru" }).boundingBox(),
+      ]);
+      expect(contentBox).not.toBeNull();
+      expect(navBox).not.toBeNull();
+      // `boundingBox()` returns { x, y, width, height } — there is no
+      // `bottom`, so derive it.
+      expect(contentBox!.y + contentBox!.height).toBeLessThanOrEqual(navBox!.y + 0.5);
+    }
+
+    await page.getByRole("link", { name: /Kembali ke Slip Gaji/ }).click();
+    await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Slip Gaji" })).toBeVisible();
   });
 });

@@ -122,7 +122,7 @@ const LEARNING_CENTER_LABELS: Record<LearningCenterKey, string> = {
   ROLE_PLAY: "Sentra Main Peran",
   BLOCKS: "Sentra Balok",
   PREPARATION: "Sentra Persiapan",
-  AREA: "AREA",
+  AREA: "Sentra Area",
 };
 
 export function formatLearningCenter(center: string): string {
@@ -206,4 +206,43 @@ export function formatClassOptionLabel({
   if (academicYearName) segments.push(`TA ${academicYearName}`);
   segments.push(`${enrolled}/${capacity}`);
   return segments.join(" · ");
+}
+
+/** Minimal row shape for `disambiguateClassLabels`. */
+export interface ClassLabelInput {
+  id: string;
+  name: string;
+  /** Campus display name, when known. */
+  campusName?: string | null;
+}
+
+/**
+ * Class-picker labels with the campus appended **only where the bare name
+ * would be ambiguous**.
+ *
+ * Within one academic year An Nisaa' runs the same class name on more than
+ * one campus, so a year-scoped picker can still show four identical "TKIT-A"
+ * options with nothing to choose between them. Appending the campus to every
+ * option would be noise; appending it only to collisions keeps the common
+ * case short.
+ *
+ * A collision whose rows carry no campus name is left as-is rather than
+ * rendering a dangling separator — nothing useful to add.
+ */
+export function disambiguateClassLabels<T extends ClassLabelInput>(
+  rows: T[],
+): Array<{ id: string; label: string }> {
+  const nameCounts = new Map<string, number>();
+  for (const r of rows) {
+    nameCounts.set(r.name, (nameCounts.get(r.name) ?? 0) + 1);
+  }
+
+  return rows.map((r) => {
+    const ambiguous = (nameCounts.get(r.name) ?? 0) > 1;
+    const campus = r.campusName?.trim();
+    return {
+      id: r.id,
+      label: ambiguous && campus ? `${r.name} · ${campus}` : r.name,
+    };
+  });
 }

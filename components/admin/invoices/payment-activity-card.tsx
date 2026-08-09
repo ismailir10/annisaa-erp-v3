@@ -105,6 +105,41 @@ function formatPaidAt(iso: string | null): string {
   return `${date} · ${time}`;
 }
 
+/**
+ * Webhook `status` and `eventType` are internal/vendor strings. They were
+ * rendered verbatim, so an admin read raw English enums ("PROCESSED",
+ * "ERROR") and gateway event names ("payment_session.completed") as badge
+ * text. Translate what we know; fall back to something Indonesian rather
+ * than to the raw code. The untranslated original stays available in the
+ * payload disclosure below for support.
+ */
+const WEBHOOK_STATUS_LABELS: Record<string, string> = {
+  PROCESSED: "Diproses",
+  ERROR: "Gagal",
+  IGNORED: "Diabaikan",
+};
+
+const WEBHOOK_EVENT_LABELS: Record<string, string> = {
+  "payment_session.completed": "Pembayaran selesai",
+  "payment_session.expired": "Sesi kedaluwarsa",
+  "manual.refresh.completed": "Perbarui manual · selesai",
+  "manual.refresh.pending": "Perbarui manual · menunggu",
+  "manual.refresh.expired": "Perbarui manual · kedaluwarsa",
+  "manual.refresh.failed": "Perbarui manual · gagal",
+  "doku.success": "DOKU · berhasil",
+  "doku.pending": "DOKU · menunggu",
+  "doku.failed": "DOKU · gagal",
+  unknown: "Tidak dikenal",
+};
+
+function webhookEventLabel(eventType: string): string {
+  if (WEBHOOK_EVENT_LABELS[eventType]) return WEBHOOK_EVENT_LABELS[eventType];
+  if (eventType.startsWith("manual.refresh.")) return "Perbarui manual";
+  if (eventType.startsWith("doku.")) return "DOKU";
+  if (eventType.startsWith("payment_session.")) return "Sesi pembayaran";
+  return "Aktivitas gateway";
+}
+
 function StatusPill({ status }: { status: string }) {
   // Use canonical status-*-subtle/-text token pairs per design-system §Status Badges
   // (matches components/ui/status-badge.tsx convention used everywhere else).
@@ -114,7 +149,7 @@ function StatusPill({ status }: { status: string }) {
         variant="outline"
         className="text-caption bg-status-present-subtle text-status-present-text border-transparent"
       >
-        PROCESSED
+        {WEBHOOK_STATUS_LABELS.PROCESSED}
       </Badge>
     );
   }
@@ -124,13 +159,13 @@ function StatusPill({ status }: { status: string }) {
         variant="outline"
         className="text-caption bg-status-absent-subtle text-status-absent-text border-transparent"
       >
-        ERROR
+        {WEBHOOK_STATUS_LABELS.ERROR}
       </Badge>
     );
   }
   return (
     <Badge variant="outline" className="text-caption text-muted-foreground">
-      {status}
+      {WEBHOOK_STATUS_LABELS[status] ?? "Tidak diproses"}
     </Badge>
   );
 }
@@ -201,8 +236,8 @@ export function PaymentActivityCard({
 
                 {/* Line 2: event-type · status · method-or-error */}
                 <div className="flex items-center flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
-                  <Badge variant="outline" className="text-xs">
-                    {evt.eventType}
+                  <Badge variant="outline" className="text-xs" title={evt.eventType}>
+                    {webhookEventLabel(evt.eventType)}
                   </Badge>
                   <StatusPill status={evt.status} />
                   {showError && evt.errorLabel ? (

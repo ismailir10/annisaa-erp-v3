@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/portal/page-header";
 import { formatRupiah, formatDate, maskBankAccount } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -105,15 +107,6 @@ function formatPeriodHeader(periodStart: string): string {
   return formatDate(periodStart, { month: "long", year: "numeric" });
 }
 
-/** Today's date formatted for the footer. */
-function todayFormatted(): string {
-  return new Date().toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function SlipDetailPage({
@@ -148,31 +141,35 @@ export default async function SlipDetailPage({
 
   const employeeName = slip.employee.formalName ?? slip.employee.nama;
   const periodHeader = formatPeriodHeader(slip.payrollRun.periodStart);
-  const periodLabel = `${slip.payrollRun.periodStart} s/d ${slip.payrollRun.periodEnd}`;
+  const periodLabel = `${formatDate(slip.payrollRun.periodStart)} s/d ${formatDate(slip.payrollRun.periodEnd)}`;
 
   return (
     <div className="space-y-4">
-      {/* Back link — matches student-journal/students/[id] back pattern */}
       <Link
         href="/teacher/slips"
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         <ArrowLeft size={16} aria-hidden="true" />
         Kembali ke Slip Gaji
       </Link>
 
-      {/* Period header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-h1 font-semibold tracking-tight text-foreground">
-            {periodHeader}
-          </h1>
-          <p className="text-small text-muted-foreground mt-0.5">{periodLabel}</p>
-        </div>
-        <div className="shrink-0 pt-1">
-          <StatusBadge status="APPROVED" label="Tersedia" />
-        </div>
-      </div>
+      <PageHeader
+        title={periodHeader}
+        subtitle={periodLabel}
+        actions={
+          <>
+            <StatusBadge status="APPROVED" label="Tersedia" />
+            <Link
+              href={`/api/slips/${slip.id}/pdf`}
+              target="_blank"
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label={`Unduh PDF slip ${periodLabel}`}
+            >
+              <Download size={16} aria-hidden="true" /> PDF
+            </Link>
+          </>
+        }
+      />
 
       {/* Employee info card */}
       <Card className="p-card">
@@ -191,7 +188,7 @@ export default async function SlipDetailPage({
             </dd>
           </div>
           <div>
-            <dt className="text-small text-muted-foreground">NIP</dt>
+            <dt className="text-small text-muted-foreground">Kode Karyawan</dt>
             <dd className="text-body font-semibold text-foreground mt-0.5">
               {slip.employee.kode}
             </dd>
@@ -221,14 +218,14 @@ export default async function SlipDetailPage({
           {incomeLines.map((line, i) => (
             <div
               key={line.id}
-              className={`flex items-center justify-between py-1.5 ${
+              className={`flex items-start gap-3 py-1.5 ${
                 i < incomeLines.length - 1
                   ? "border-b border-border"
                   : ""
               }`}
             >
-              <span className="text-body text-foreground">{line.labelSnapshot}</span>
-              <span className="text-body font-medium text-foreground tabular-nums">
+              <span className="min-w-0 flex-1 break-words text-body text-foreground">{line.labelSnapshot}</span>
+              <span className="shrink-0 whitespace-nowrap text-body font-medium text-foreground tabular-nums">
                 {formatRupiah(line.finalAmount)}
               </span>
             </div>
@@ -236,11 +233,11 @@ export default async function SlipDetailPage({
         </div>
 
         {/* Total Pendapatan */}
-        <div className="flex items-center justify-between pt-3 mt-1 border-t border-border">
-          <span className="text-body font-semibold text-foreground">
+        <div className="flex items-center gap-3 pt-3 mt-1 border-t border-border">
+          <span className="min-w-0 flex-1 text-body font-semibold text-foreground">
             Total Pendapatan
           </span>
-          <span className="text-body font-bold text-foreground tabular-nums">
+          <span className="shrink-0 whitespace-nowrap text-body font-bold text-foreground tabular-nums">
             {formatRupiah(slip.grossAmount)}
           </span>
         </div>
@@ -257,16 +254,16 @@ export default async function SlipDetailPage({
             {deductionLines.map((line, i) => (
               <div
                 key={line.id}
-                className={`flex items-center justify-between py-1.5 ${
+                className={`flex items-start gap-3 py-1.5 ${
                   i < deductionLines.length - 1
                     ? "border-b border-border"
                     : ""
                 }`}
               >
-                <span className="text-body text-foreground">
+                <span className="min-w-0 flex-1 break-words text-body text-foreground">
                   {line.labelSnapshot}
                 </span>
-                <span className="text-body font-medium text-foreground tabular-nums">
+                <span className="shrink-0 whitespace-nowrap text-body font-medium text-foreground tabular-nums">
                   {formatRupiah(line.finalAmount)}
                 </span>
               </div>
@@ -274,11 +271,11 @@ export default async function SlipDetailPage({
           </div>
 
           {/* Total Potongan */}
-          <div className="flex items-center justify-between pt-3 mt-1 border-t border-border">
-            <span className="text-body font-semibold text-foreground">
+          <div className="flex items-center gap-3 pt-3 mt-1 border-t border-border">
+            <span className="min-w-0 flex-1 text-body font-semibold text-foreground">
               Total Potongan
             </span>
-            <span className="text-body font-bold text-destructive tabular-nums">
+            <span className="shrink-0 whitespace-nowrap text-body font-bold text-destructive tabular-nums">
               {formatRupiah(slip.deductions)}
             </span>
           </div>
@@ -286,8 +283,8 @@ export default async function SlipDetailPage({
       )}
 
       {/* Take Home Pay — prominent brand highlight (matches teal netBox in PDF) */}
-      <div className="rounded-xl bg-primary p-card flex items-center justify-between">
-        <div>
+      <div className="rounded-xl bg-primary p-card flex items-center gap-3">
+        <div className="min-w-0 flex-1">
           <p className="text-small font-semibold uppercase tracking-wide text-primary-foreground opacity-80">
             Take Home Pay
           </p>
@@ -295,7 +292,7 @@ export default async function SlipDetailPage({
             Diterima ke rekening
           </p>
         </div>
-        <p className="text-h1 font-bold text-primary-foreground tabular-nums">
+        <p className="shrink-0 whitespace-nowrap text-h1 font-bold text-primary-foreground tabular-nums">
           {formatRupiah(slip.netAmount)}
         </p>
       </div>
@@ -332,7 +329,7 @@ export default async function SlipDetailPage({
       {/* Footer */}
       <div className="pt-2 pb-4 border-t border-border">
         <p className="text-caption text-muted-foreground">
-          Tanggal cetak: {todayFormatted()}
+          Tanggal cetak: {formatDate(getTodayInTimezone("Asia/Jakarta"))}
         </p>
         <p className="text-caption text-muted-foreground mt-0.5">
           Slip ini dihasilkan otomatis oleh sistem An Nisaa&apos; ERP. Dokumen resmi.
