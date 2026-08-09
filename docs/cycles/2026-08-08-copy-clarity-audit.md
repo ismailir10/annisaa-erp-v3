@@ -81,6 +81,23 @@ Goal: every string a user reads in any portal is Bahasa Indonesia, names one con
 - `.claude/standards/voice.md` — cross-portal glossary gains seven rows: `Kehadiran` vs `Absensi` (codified as a real distinction, record vs act, rather than collapsed), `Rapor` (with the explicit carve-out that routes and identifiers keep `raport`), `Bank Narasi`, `Lewat Tempo`, `Link Dibuat`, `Perkembangan`. Four new cross-cutting rule sections: **Acronyms** (expand on first use per surface), **Nav label ↔ page title** (the word on the tab is the word on the page), **Never render a caught error** (raw vendor/SDK/Zod text is log-only; `userMessage()` in `lib/api/client-errors.ts` is the model), **Shared-component defaults** (a `components/ui/**` default ships to every caller that omits the prop, so it must satisfy the contract alone; enum→label maps cover every value, not only those with a current consumer).
 - `.claude/standards/crud.md:56` — `"Timpa (Override)"` → `"Timpa"`, with a pointer to voice.md as terminology owner. Resolves the standards conflict where crud.md mandated the exact bilingual gloss voice.md lists under Avoid.
 
+### Partial landing — T2/T3/T4/T6/T7 (interrupted)
+
+Seven implementers ran in parallel with disjoint file ownership. **All seven were killed mid-task by an account session limit**, so this commit contains an incomplete but internally coherent subset. What actually landed, verified by reading the diff rather than by trusting the agents' (never delivered) reports:
+
+- `components/ui/status-badge.tsx` (driver, complete) — `SENT` → "Link Dibuat", `OVERDUE` → "Lewat Tempo", `PARTIALLY_PAID` → "Dibayar Sebagian"; new `RECORDED`/`REVERSED`/`FAILED` entries with matching icon + left-border tones so no reachable enum renders a raw code.
+- `app/page.tsx` (T2, partial) — OAuth failure-code coverage + raw Supabase message suppressed.
+- `lib/payments/{error-prefix,xendit/client,doku/client,reconcile}.ts` (T2, partial) — humanising helper added; raw `err.message` interpolations removed from reconcile.
+- `lib/payments/reconcile.ts` — **driver repair.** T2 died mid-edit having referenced an `INVOICE_STATUS_LABELS` map it never defined; the build failed with `Cannot find name 'INVOICE_STATUS_LABELS'`. Added as a local map (a lib module must not import from `components/ui/status-badge`), kept in sync with `STATUS_MAP`.
+- `lib/constants/payment-methods.ts` (T4, partial) — Xendit/DOKU virtual accounts now distinguishable.
+- `lib/validations/student-attendance.ts` (T3, partial) — one Zod message; the rest of the sweep did not run.
+- `config/admin-nav.ts` (T6 + driver) — `Dashboard`→`Dasbor`, `Kisi-kisi`→`Bank Narasi`, `Formulir Pendaftaran`→`Berkas Pendaftaran Online`, `Buku Penghubung`→`Buku Penghubung — Templat`; driver added `Raport`→`Rapor`.
+- `app/admin/**` (T6, partial) — enum/model-name leaks, `Override`→`Timpa`, reversibility phrases, monthly-attendance legend.
+- `components/teacher/bottom-nav.tsx` + `app/teacher/student-journal/page.tsx` (T7 + driver) — tab `Kelas`→`Absensi`. **Driver decision** on the nav-width question T7 died before answering: `"Penghubung"` (10 chars) overflows the 5-slot budget that `"Penilaian"` (9) already sits at, so the tab keeps `"Jurnal"` and the page title becomes `"Jurnal — Buku Penghubung"` instead — the reconciliation runs page-side, not tab-side. Reasoning recorded in the component comment.
+- Tests updated by the driver, not the agents: `config/__tests__/admin-nav.test.ts` (4 assertions), `components/teacher/__tests__/bottom-nav.test.tsx` (1).
+
+**Not yet done — carried forward:** all of T5 (Bank Narasi page/permission copy) and T8 (parent portal, including the false-notification blocker and the partial-payment state); most of T3 (validation sweep, `DataTable` default, English `aria-label`s); most of T4 (the false success-toast blocker, webhook raw enums, gateway-error wiring); the remainder of T6 and T7; all of T9.
+
 ## Verification
 
 ### T1
@@ -88,6 +105,16 @@ Goal: every string a user reads in any portal is Bahasa Indonesia, names one con
 - `npx vitest run` — **290 passed | 2 skipped (292 files); 2672 passed | 42 todo**. Green.
 - Standards-only change; no frontend diff in this task. Cross-checked `design-system.html` §18 (persona cards, copy-rule tables) as the canonical source the new voice.md sections condense — no contradiction introduced.
 - Baseline `npm run build` confirmed green on the branch before any task landed (exit 0).
+
+### Partial landing (T2/T3/T4/T6/T7)
+
+Gate run by the driver, not by the subagents — none of them survived to report, and per standing guidance subagent test claims are not taken at face value regardless.
+
+- `npm run build` — **exit 0**. (First attempt failed with `./lib/payments/reconcile.ts:303:54 Type error: Cannot find name 'INVOICE_STATUS_LABELS'`; repaired as described above, then green.)
+- `npx vitest run` — **290 passed | 2 skipped (292 files); 2672 passed | 42 todo (2714)**. Green.
+  - Intermediate run had **5 failures across 2 files**, all of them tests asserting the old copy (`Kelas`, `Dashboard`, `Kisi-kisi`, `Raport`, `Formulir Pendaftaran`, `Buku Penghubung`) that the killed agents never reached. Updated by the driver; no product code was changed to make a test pass.
+- Cross-checked `design-system.html` §18 (voice & tone) for the status-badge label changes — "Lewat Tempo" and "Dibayar Sebagian" keep their existing severity tones (absent-red, late-amber), so no color-token drift was introduced.
+- Playwright not yet run — deferred until the cycle's remaining tasks land.
 
 ## Ship Notes
 

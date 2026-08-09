@@ -33,7 +33,7 @@ export const sessionAttendanceSchema = z.object({
     .array(
       z
         .object({
-          studentId: z.string().min(1),
+          studentId: z.string().min(1, "Siswa wajib dipilih"),
           status: studentAttendanceStatusEnum,
           checkInTime: z.string().datetime().optional().nullable(),
           checkOutTime: z.string().datetime().optional().nullable(),

@@ -725,7 +725,7 @@ export default function StudentsPage() {
         open={!!deactivateTarget}
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
         title={deactivateTarget?.status === "INACTIVE" ? `Aktifkan ${deactivateTarget?.name}?` : `Nonaktifkan ${deactivateTarget?.name}?`}
-        description={deactivateTarget?.status === "INACTIVE" ? "Siswa akan dikembalikan ke status aktif." : "Siswa akan dinonaktifkan. Pendaftaran kelas aktif akan dicabut dan tagihan DRAFT/SENT akan dibatalkan."}
+        description={deactivateTarget?.status === "INACTIVE" ? "Siswa akan dikembalikan ke status aktif." : "Siswa akan dinonaktifkan. Pendaftaran kelas aktif dicabut dan tagihan yang belum dibayar dibatalkan. Siswa bisa diaktifkan kembali kapan saja."}
         confirmLabel={deactivateTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
         onConfirm={handleStatusToggle}
         destructive={deactivateTarget?.status !== "INACTIVE"}

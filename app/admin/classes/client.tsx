@@ -590,7 +590,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="class-slot-template" required>Pola slot</FieldLabel>
+            <FieldLabel htmlFor="class-slot-template" required>Pola Waktu Kelas</FieldLabel>
             <Select
               value={form.slotTemplate}
               onValueChange={(v) =>

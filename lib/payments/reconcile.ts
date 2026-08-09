@@ -7,6 +7,25 @@ import {
 } from "./webhook-processor";
 
 /**
+ * Invoice status → Indonesian label, for user-facing reconcile messages.
+ *
+ * Deliberately a local copy rather than an import of `getStatusConfig` from
+ * `components/ui/status-badge` — a lib module must not depend on a React
+ * component module. Keep in sync with STATUS_MAP there; the labels are
+ * asserted by voice.md's glossary ("Link Dibuat" not "Terkirim", "Lewat
+ * Tempo" not "Jatuh Tempo", since "jatuh tempo" is the due date itself).
+ */
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draft",
+  SENT: "Link Dibuat",
+  PAID: "Lunas",
+  OVERDUE: "Lewat Tempo",
+  PARTIALLY_PAID: "Dibayar Sebagian",
+  PENDING_PAYMENT_LINK: "Link Gagal",
+  CANCELLED: "Dibatalkan",
+};
+
+/**
  * Manual payment reconciliation — the "Perbarui pembayaran" fallback for when
  * a gateway webhook never arrived (cycle 2026-07-28-manual-payment-refresh).
  *
@@ -118,7 +137,11 @@ function gatewayErrorMessage(err: GatewayApiError): string {
   if (err.code === "5xx") {
     return "Gateway pembayaran sedang bermasalah. Coba lagi sebentar.";
   }
-  return `Gagal memeriksa status ke gateway: ${err.message}`;
+  // 422/4xx/unknown — no code branch above claims these codes, and
+  // `err.message` is raw vendor text (voice.md "Never render a caught
+  // error"). The caller already `console.error`s the raw message alongside
+  // this generic sentence.
+  return "Gagal memeriksa status ke gateway. Coba lagi atau hubungi tim teknis.";
 }
 
 function unavailableMessage(reason: string | undefined): string {
@@ -175,7 +198,10 @@ export async function reconcileInvoicePayment(
     const message =
       err instanceof GatewayApiError
         ? gatewayErrorMessage(err)
-        : `Gagal memeriksa status ke gateway: ${err instanceof Error ? err.message : String(err)}`;
+        // Non-gateway throw (e.g. a plain fetch/runtime error) — no raw
+        // exception text in the user-facing message (voice.md "Never render
+        // a caught error"); the console.error below carries the raw text.
+        : "Gagal memeriksa status ke gateway. Coba lagi atau hubungi tim teknis.";
     console.error(
       `[PAYMENT REFRESH] provider=${provider} invoice=${before.invoiceNumber} lookup failed:`,
       err instanceof Error ? err.message : String(err),
@@ -207,10 +233,14 @@ export async function reconcileInvoicePayment(
     // click that finds "still unpaid" is not an event worth persisting.
     return {
       code: "NO_CHANGE",
+      // The raw gateway status string is NOT spliced into the sentence
+      // (voice.md "Never render a caught error" — a vendor enum value is not
+      // ours to render). It is still available to the UI as a secondary
+      // caption via the `gatewayStatus` field below.
       message:
         status.state === "FAILED"
-          ? `Percobaan pembayaran terakhir gagal di gateway (status: ${status.rawStatus ?? "?"}). Tagihan tidak berubah.`
-          : `Belum ada pembayaran masuk (status gateway: ${status.rawStatus ?? "?"}).`,
+          ? "Percobaan pembayaran terakhir gagal di gateway. Tagihan tidak berubah."
+          : "Belum ada pembayaran masuk.",
       provider,
       gatewayStatus: status.rawStatus,
       statusBefore: before.status,
@@ -289,7 +319,7 @@ export async function reconcileInvoicePayment(
             ? "Pembayaran sebagian ditemukan di gateway — tagihan diperbarui."
             : statusAfter === "PENDING_PAYMENT_LINK"
               ? "Sesi pembayaran sudah kedaluwarsa. Link lama dihapus — silakan buat link baru."
-              : `Status tagihan diperbarui menjadi ${statusAfter}.`,
+              : `Status tagihan diperbarui menjadi ${INVOICE_STATUS_LABELS[statusAfter] ?? statusAfter}.`,
     };
   }
 
@@ -320,8 +350,10 @@ export async function reconcileInvoicePayment(
   return {
     ...base,
     code: "NO_CHANGE",
+    // Same rule as the NO_CHANGE branch above — no raw gateway status spliced
+    // into the sentence; `gatewayStatus` on `base` already carries it.
     message: outcome.duplicate
       ? "Status sudah sinkron dengan gateway — tidak ada perubahan."
-      : `Tidak ada perubahan status (gateway: ${status.rawStatus ?? "?"}). Cek panel Aktivitas untuk detail.`,
+      : "Tidak ada perubahan status. Cek panel Aktivitas untuk detail.",
   };
 }

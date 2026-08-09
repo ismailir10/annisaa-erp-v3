@@ -803,7 +803,7 @@ function AddIndicatorDialog({
       }
     >
       <Field>
-        <FieldLabel htmlFor="indicator-add-content">Isi indikator (Indonesian)</FieldLabel>
+        <FieldLabel htmlFor="indicator-add-content">Isi Indikator</FieldLabel>
         <Textarea
           id="indicator-add-content"
           rows={3}

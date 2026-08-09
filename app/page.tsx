@@ -26,10 +26,20 @@ type UserOption = {
 // Maps `?error=<code>` returned by /auth/callback to a user-facing message.
 // `access_denied` covers the most common failure: Google OAuth succeeds but
 // the email has no User/Employee/Parent record yet (UAT 2026-05-12 teacher
-// blocker — silent redirect with no UX).
+// blocker — silent redirect with no UX). Every code `app/auth/callback/route.ts`
+// can redirect with (`no_code`, `exchange_failed`, `no_email`, `callback_error`,
+// `auth_failed`, `access_denied`) MUST have an entry here — voice.md "Never
+// render a caught error": a missing entry must never leave the login screen
+// blank, hence `LOGIN_ERROR_FALLBACK` below for any future/unknown code.
+const LOGIN_ERROR_FALLBACK = "Login gagal. Silakan coba lagi.";
+
 const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   auth_failed: "Login gagal. Silakan coba lagi.",
   access_denied: "Akun belum terdaftar. Hubungi admin sekolah untuk akses.",
+  no_code: "Login gagal. Silakan coba lagi.",
+  exchange_failed: "Login gagal. Silakan coba lagi.",
+  no_email: "Akun Google ini tidak memiliki alamat email. Gunakan akun lain.",
+  callback_error: "Login gagal. Silakan coba lagi.",
 };
 
 export default function LoginPageWrapper() {
@@ -51,7 +61,9 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
-  const [authError, setAuthError] = useState(error ? (LOGIN_ERROR_MESSAGES[error] ?? "") : "");
+  const [authError, setAuthError] = useState(
+    error ? (LOGIN_ERROR_MESSAGES[error] ?? LOGIN_ERROR_FALLBACK) : ""
+  );
 
   // Demo mode state
   const [demoUsers, setDemoUsers] = useState<UserOption[]>([]);
@@ -80,7 +92,11 @@ function LoginPage() {
     });
 
     if (error) {
-      setAuthError(error.message);
+      // Supabase SDK messages are English and log-only (voice.md "Never
+      // render a caught error") — e.g. "Invalid login credentials" must
+      // never reach the user verbatim.
+      console.error("[login] magic link failed:", error.message);
+      setAuthError("Gagal mengirim magic link. Periksa alamat email Anda dan coba lagi.");
     } else {
       setMagicLinkSent(true);
     }
@@ -97,7 +113,9 @@ function LoginPage() {
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) {
-      setAuthError(error.message);
+      // Same rule as handleMagicLink — Supabase's raw message is log-only.
+      console.error("[login] Google OAuth failed:", error.message);
+      setAuthError("Gagal masuk dengan Google. Silakan coba lagi.");
       setLoading(false);
     }
   }

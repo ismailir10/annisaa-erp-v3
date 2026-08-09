@@ -106,7 +106,7 @@ function DocumentUploadCell({
       } else {
         const d = await res.json().catch(() => ({}));
         toast.error(d.error === "UNSUPPORTED_MEDIA_TYPE"
-          ? `Format ${label} ditolak server (magic-byte tidak cocok).`
+          ? `Format ${label} tidak sesuai isi berkas. Pastikan file JPG, PNG, atau PDF asli — bukan hasil ubah ekstensi.`
           : d.error || `Gagal mengunggah ${label}`);
       }
     } catch {
@@ -238,7 +238,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
 
     // Save via PUT /api/guardians/[guardianId] where guardianId = first StudentGuardian ID
     const guardianId = parent.guardians[0]?.id;
-    if (!guardianId) { toast.error("Tidak ada data StudentGuardian untuk diperbarui"); return; }
+    if (!guardianId) { toast.error("Wali ini belum tertaut ke siswa manapun. Tambahkan melalui halaman siswa."); return; }
 
     setSaving(true);
     try {
