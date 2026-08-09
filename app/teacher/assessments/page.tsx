@@ -20,8 +20,8 @@ export default async function TeacherAssessmentsPage() {
       <div>
         <EmptyState
           icon={ClipboardList}
-          title="Belum ada kelas mengajar."
-          description="Hubungi admin untuk ditugaskan ke kelas."
+          title="Akun belum terhubung dengan staf"
+          description="Hubungi admin agar akun Anda dipasangkan dengan data karyawan."
           actionLabel="Kembali ke Beranda"
           actionHref="/teacher"
         />
@@ -68,8 +68,8 @@ export default async function TeacherAssessmentsPage() {
         <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
         <EmptyState
           icon={ClipboardList}
-          title="Belum ada kelas mengajar."
-          description="Hubungi admin untuk ditugaskan ke kelas."
+          title="Belum ditugaskan ke kelas"
+          description="Hubungi admin untuk ditugaskan mengajar di kelas tertentu."
           actionLabel="Kembali ke Beranda"
           actionHref="/teacher"
         />

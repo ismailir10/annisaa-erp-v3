@@ -5,7 +5,7 @@ import { LogIn, LogOut, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { StatusBadge, getStatusConfig } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,12 +21,9 @@ import { formatDate, formatTime } from "@/lib/format";
 const ROTATION = ["PRESENT", "ABSENT", "SICK", "PERMISSION"] as const;
 type Status = (typeof ROTATION)[number];
 
-const STATUS_LABEL: Record<Status, string> = {
-  PRESENT: "Hadir",
-  ABSENT: "Alpa",
-  SICK: "Sakit",
-  PERMISSION: "Izin",
-};
+// Labels come from status-badge's STATUS_MAP — the single source of truth.
+// A second hand-written copy here is exactly how the historical
+// "Tidak Hadir" → "Alpa" drift happened.
 
 // Mirrors .claude/standards/portal.md Daily Data Entry recipe — cycle-tap the
 // status, row-tinted by current state for a 3 m glance.
@@ -195,7 +192,7 @@ export function SessionRosterClient({
                       type="button"
                       onClick={() => cycleStatus(r.studentId, r.status)}
                       className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      aria-label={`Ubah status ${r.name}, saat ini ${STATUS_LABEL[status]}. Ketuk untuk mengubah status.`}
+                      aria-label={`Ubah status ${r.name}, saat ini ${getStatusConfig(status).label}. Ketuk untuk mengubah status.`}
                     >
                       <StatusBadge status={status} />
                     </button>
