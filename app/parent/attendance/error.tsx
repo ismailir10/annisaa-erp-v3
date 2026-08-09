@@ -16,7 +16,9 @@ export default function ParentAttendanceError({
       </div>
       <div>
         <h2 className="text-h3 font-semibold mb-1">Gagal memuat kehadiran</h2>
-        <p className="text-sm text-muted-foreground max-w-xs">Coba lagi sebentar ya.</p>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Coba lagi sebentar ya. Kalau masih belum bisa, hubungi admin sekolah ya.
+        </p>
       </div>
       <Button onClick={reset} variant="outline" size="sm">
         Coba Lagi

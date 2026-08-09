@@ -114,6 +114,15 @@ Seven implementers ran in parallel with disjoint file ownership. **All seven wer
 - **English a11y strings in live chrome** — `sidebar.tsx` (SheetTitle, SheetDescription, `sr-only`, `aria-label`, and the visible `title` tooltip), `breadcrumb.tsx` (`aria-label`, `sr-only` "More"), `spinner.tsx`, `command.tsx`.
 - **E2E audit** — checked all 33 specs against the changed strings. Only two genuinely broke: `admin-raport.spec.ts` (heading `"Raport"`, exact) and `teacher.spec.ts` (nav label array). Both updated. The `Buku Penghubung` assertions in `admin.spec.ts` and `teacher.spec.ts` survive unchanged because one is a case-insensitive regex and the other a substring `text=` selector, and the new titles still contain the phrase — verified by reading the selectors, not assumed.
 
+### T8 — parent portal (driver)
+
+- **One feature, three names.** Nav item `Capaian` → `Perkembangan`, matching the page title and back-link it opens. "Capaian" survives only as the in-page per-element achievement level, which is what it actually means.
+- **Shared-component jargon leak.** `components/portal/week-grid.tsx` is rendered by all three portals but hardcoded the staff term "Buku Penghubung" in its empty state — a word no parent surface uses. Added a `featureLabel` prop defaulting to the staff term (so admin + teacher call sites are untouched) and passed `"Jurnal"` from the two parent call sites. Covered by a new test asserting both the parent string and the absence of the staff term.
+- **The skala was shown but never explained.** Added one framing line above the per-element list: "Ini tahapan perkembangan, bukan nilai. Setiap anak berkembang di waktunya masing-masing." voice.md already documented this intent — it just lived in a code comment instead of on screen, where a parent reading "Belum" next to their child's name could take it as a failing grade.
+- Raw ISO date (`2026-08-05`) on the perkembangan detail page now uses `formatDate()` like every other date in the portal.
+- Dead-end wording: the three parent error boundaries (`error.tsx`, `invoices/error.tsx`, `attendance/error.tsx`) now point to the school. Deliberately NOT tappable — no school phone/WhatsApp field exists on `Tenant`, `Campus`, or `OrgConfig`, and adding one was scoped out to keep a migration off this ship. No number was invented.
+- E2E updated for the nav rename: `parent.spec.ts` (overflow-sheet label list) and `parent-perkembangan.spec.ts` (5 references incl. the tab-bar absence assertion).
+
 ## Verification
 
 ### T1
@@ -145,6 +154,13 @@ Gate run by the driver, not by the subagents — none of them survived to report
 - `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2672 passed | 42 todo (2714)**.
   - Intermediate run had **3 failures**, each a test asserting copy this task changed: `data-table-toolbar.test.tsx` (`{ name: "Reset" }`), `payroll.test.ts` (asserted the literal substring `"<= periodEnd"`), `raport-editor.test.tsx` (`"Raport disimpan."`). All three updated to the new strings; no product code was bent to satisfy a test.
 - design-system: no visual tokens touched in this task — text-only, plus a11y attributes.
+
+### T8
+
+- `npm run build` — **exit 0**.
+- `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**. Test count rose by one: the new `week-grid` `featureLabel` case.
+  - Intermediate run had **1 failure**, `week-grid.test.ts` asserting the pre-change empty-state sentence. Updated.
+- design-system cross-check: the framing line reuses `text-xs text-muted-foreground`, an existing scale/token pair — no new typography or color introduced.
 
 ## Ship Notes
 
