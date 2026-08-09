@@ -42,6 +42,7 @@ import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { userMessage } from "@/lib/api/client-errors";
+import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
 import {
   runBulkGenerate,
@@ -596,8 +597,10 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
       if (out.succeeded > 0) {
         toast.success("Link pembayaran berhasil dibuat");
       } else {
-        const firstErr = out.results?.[0]?.error;
-        toast.error(`Masih gagal${firstErr ? `: ${firstErr}` : ""}`);
+        // Humanised sentence in the toast; the raw vendor string stays on
+        // the invoice detail page's "detail teknis" disclosure.
+        const parsed = parsePaymentLinkError(out.results?.[0]?.error);
+        toast.error(parsed ? `Masih gagal. ${parsed.userMessage}` : "Masih gagal membuat link pembayaran.");
       }
     } finally {
       if (!mountedRef.current) return;

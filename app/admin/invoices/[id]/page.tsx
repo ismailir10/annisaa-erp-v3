@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
+import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
@@ -175,8 +176,11 @@ export default function InvoiceDetailPage() {
       if (out.succeeded > 0) {
         toast.success("Link pembayaran berhasil dibuat");
       } else {
-        const firstErr = out.results?.[0]?.error;
-        toast.error(`Masih gagal${firstErr ? `: ${firstErr}` : ""}`);
+        // Never splice the raw "<prefix>: <vendor message>" into a toast —
+        // the humanised sentence goes here, the raw detail stays on the
+        // invoice's paymentLinkError disclosure.
+        const parsed = parsePaymentLinkError(out.results?.[0]?.error);
+        toast.error(parsed ? `Masih gagal. ${parsed.userMessage}` : "Masih gagal membuat link pembayaran.");
       }
       fetchInvoice();
     } finally {
@@ -313,7 +317,26 @@ export default function InvoiceDetailPage() {
             <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium">Link pembayaran belum berhasil dibuat</p>
-              <p className="text-xs text-muted-foreground mt-1">{invoice.paymentLinkError}</p>
+              {/* Was rendering the stored "<prefix>: <vendor message>" string
+                  verbatim — e.g. "5xx: Xendit API error: 500". The raw vendor
+                  text stays available behind the disclosure for support. */}
+              {(() => {
+                const parsed = parsePaymentLinkError(invoice.paymentLinkError);
+                if (!parsed) return null;
+                return (
+                  <>
+                    <p className="text-xs text-muted-foreground mt-1">{parsed.userMessage}</p>
+                    <details className="mt-1">
+                      <summary className="text-xs text-muted-foreground cursor-pointer">
+                        Lihat detail teknis
+                      </summary>
+                      <p className="text-xs text-muted-foreground mt-1 break-all">
+                        {parsed.code} · {parsed.detail}
+                      </p>
+                    </details>
+                  </>
+                );
+              })()}
             </div>
             <Button size="sm" onClick={handleRetryLink} disabled={retrying}>
               {retrying ? "..." : "Coba Lagi"}

@@ -123,6 +123,11 @@ Seven implementers ran in parallel with disjoint file ownership. **All seven wer
 - Dead-end wording: the three parent error boundaries (`error.tsx`, `invoices/error.tsx`, `attendance/error.tsx`) now point to the school. Deliberately NOT tappable — no school phone/WhatsApp field exists on `Tenant`, `Campus`, or `OrgConfig`, and adding one was scoped out to keep a migration off this ship. No number was invented.
 - E2E updated for the nav rename: `parent.spec.ts` (overflow-sheet label list) and `parent-perkembangan.spec.ts` (5 references incl. the tab-bar absence assertion).
 
+### T4 tail — gateway errors + webhook enums (driver)
+
+- **Gateway-error leak closed at all four surfaces.** T2 had left `parsePaymentLinkError()` in `lib/payments/error-prefix.ts` — it splits the stored `"<prefix>: <vendor message>"` into an Indonesian `userMessage` plus the raw `detail`. Wired up: the invoice-detail warning card (now shows the sentence, with the raw vendor text behind a `<details>` "Lihat detail teknis"), the retry toast on the detail page, the retry toast in `invoices-client.tsx`, and the per-row failure list in `batch-progress-card.tsx`. An admin no longer reads `"5xx: Xendit API error: 500"`.
+- **Webhook raw enums translated.** `payment-activity-card.tsx` rendered `PROCESSED` / `ERROR` / a raw fallback as the whole badge text, and `eventType` (`payment_session.completed`, `doku.success`, `manual.refresh.*`) verbatim. Added `WEBHOOK_STATUS_LABELS` and a `webhookEventLabel()` with prefix-family fallbacks so an unmapped vendor event degrades to "Aktivitas gateway" rather than to its raw string. The raw `eventType` is kept as a `title` tooltip for support.
+
 ## Verification
 
 ### T1
@@ -161,6 +166,12 @@ Gate run by the driver, not by the subagents — none of them survived to report
 - `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**. Test count rose by one: the new `week-grid` `featureLabel` case.
   - Intermediate run had **1 failure**, `week-grid.test.ts` asserting the pre-change empty-state sentence. Updated.
 - design-system cross-check: the framing line reuses `text-xs text-muted-foreground`, an existing scale/token pair — no new typography or color introduced.
+
+### T4 tail
+
+- `npm run build` — **exit 0**.
+- `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**. No failures at any point in this task.
+- design-system: the status pills keep their existing `status-present-subtle` / `status-absent-subtle` token pairs; only the text inside them changed.
 
 ## Ship Notes
 
