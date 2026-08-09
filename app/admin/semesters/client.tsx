@@ -421,11 +421,13 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
         onOpenChange={(v) => !v && setDeactivateTarget(null)}
         entityName={
           deactivateTarget
-            ? `semester ${NUMBER_LABEL[deactivateTarget.number]} (${deactivateTarget.academicYear.name})` +
-              (deactivateTarget._count.themes > 0
-                ? ` — ${deactivateTarget._count.themes} tema terkait tetap aktif`
-                : "")
+            ? `semester ${NUMBER_LABEL[deactivateTarget.number]} (${deactivateTarget.academicYear.name})`
             : "semester"
+        }
+        extraWarning={
+          deactivateTarget && deactivateTarget._count.themes > 0
+            ? `${deactivateTarget._count.themes} tema terkait tetap aktif.`
+            : undefined
         }
         onConfirm={async () => {
           if (deactivateTarget) {

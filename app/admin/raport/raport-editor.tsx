@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,11 +72,23 @@ type Payload = {
   student: { id: string; name: string; nickname: string | null };
   term: { id: string; number: number; semesterNumber: number; academicYear: string };
   ageGroup: "A" | "B" | null;
-  /** Kisi-kisi for this student's cohort; null when no active enrolment. */
+  /** Bank narasi for this student's cohort; null when no active enrolment. */
   templates: TemplateGridPayload | null;
   saved: Saved;
   measurement: { heightCm: string | null; weightKg: string | null } | null;
   draft: Draft;
+};
+
+/** Every field the admin can edit — snapshotted on load and after save so
+ * dirty-state comparison covers narratives, capaian levels, attendance,
+ * hafalan and measurements alike. */
+type EditableSnapshot = {
+  levels: Record<string, string>;
+  narratives: Record<string, string>;
+  att: { permitted: string; sick: string; unexcused: string; total: string };
+  hafalan: string;
+  height: string;
+  weight: string;
 };
 
 export function RaportEditor({
@@ -100,6 +112,42 @@ export function RaportEditor({
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  // Snapshot of the last-loaded (or last-saved) values. `null` until the
+  // first load resolves, so the editor is never dirty before there's
+  // anything to compare against.
+  const [baseline, setBaseline] = useState<EditableSnapshot | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+
+  // Structural comparison against the snapshot — every field is a string or
+  // a flat record of strings, so JSON equality is exact and order-stable
+  // (the records are always built by iterating the same fixed section/field
+  // lists, in load() and here alike).
+  const isDirty = useMemo(() => {
+    if (!baseline) return false;
+    const current: EditableSnapshot = { levels, narratives, att, hafalan, height, weight };
+    return JSON.stringify(current) !== JSON.stringify(baseline);
+  }, [baseline, levels, narratives, att, hafalan, height, weight]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Modern browsers ignore custom strings but `returnValue` is still the
+      // canonical signal that a confirm dialog should fire.
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  const handleBack = useCallback(() => {
+    if (isDirty) {
+      setConfirmLeave(true);
+      return;
+    }
+    onBack();
+  }, [isDirty, onBack]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -107,7 +155,7 @@ export function RaportEditor({
       const res = await fetch(`/api/admin/raport/${studentId}/${termId}`);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? "Gagal memuat raport.");
+        setError(body.error ?? "Gagal memuat rapor.");
         return;
       }
       const json = (await res.json()) as { data: Payload };
@@ -122,7 +170,7 @@ export function RaportEditor({
       setLevels(initLevels);
 
       // Narratives: saved text wins; otherwise fall back to the cohort's
-      // kisi-kisi for the level we just initialised. Only ever fills an EMPTY
+      // bank narasi for the level we just initialised. Only ever fills an EMPTY
       // field, so re-opening a saved raport never rewrites authored text.
       const initNarr: Record<string, string> = {};
       for (const s of [...BUCKETED_SECTIONS, ...CLOSING_SECTIONS]) {
@@ -134,18 +182,30 @@ export function RaportEditor({
       setNarratives(initNarr);
 
       const a = p.saved ?? p.draft.attendance;
-      setAtt({
+      const initAtt = {
         permitted: String(a.permittedAbsenceDays ?? 0),
         sick: String(a.sickDays ?? 0),
         unexcused: String(a.unexcusedAbsenceDays ?? 0),
         total: String(a.totalSchoolDays ?? 0),
-      });
-      setHafalan(p.saved?.memorizationNotes ?? "");
-      setHeight(p.measurement?.heightCm ?? "");
-      setWeight(p.measurement?.weightKg ?? "");
+      };
+      setAtt(initAtt);
+      const initHafalan = p.saved?.memorizationNotes ?? "";
+      const initHeight = p.measurement?.heightCm ?? "";
+      const initWeight = p.measurement?.weightKg ?? "";
+      setHafalan(initHafalan);
+      setHeight(initHeight);
+      setWeight(initWeight);
       setStatus(p.saved?.status ?? "NONE");
+      setBaseline({
+        levels: initLevels,
+        narratives: initNarr,
+        att: initAtt,
+        hafalan: initHafalan,
+        height: initHeight,
+        weight: initWeight,
+      });
     } catch {
-      setError("Gagal memuat raport.");
+      setError("Gagal memuat rapor.");
     }
   }, [studentId, termId]);
 
@@ -178,11 +238,14 @@ export function RaportEditor({
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Gagal menyimpan raport.");
+        toast.error(body.error ?? "Gagal menyimpan rapor.");
         return false;
       }
       if (status === "NONE") setStatus("DRAFT");
-      toast.success("Raport disimpan.");
+      // Re-baseline against what was just saved — a saved editor is clean
+      // even though the field states themselves haven't changed shape.
+      setBaseline({ levels, narratives, att, hafalan, height, weight });
+      toast.success("Rapor disimpan.");
       return true;
     } finally {
       setSaving(false);
@@ -204,7 +267,7 @@ export function RaportEditor({
         return;
       }
       setStatus(publish ? "PUBLISHED" : "DRAFT");
-      toast.success(publish ? "Raport diterbitkan." : "Penerbitan ditarik.");
+      toast.success(publish ? "Rapor diterbitkan." : "Penerbitan ditarik.");
     } finally {
       setPublishing(false);
     }
@@ -213,7 +276,7 @@ export function RaportEditor({
   if (error) {
     return (
       <div>
-        <BackBar onBack={onBack} />
+        <BackBar onBack={handleBack} />
         <Card className="p-card">
           <p className="text-sm text-destructive">{error}</p>
           <Button variant="outline" size="sm" className="mt-3" onClick={load}>
@@ -226,7 +289,7 @@ export function RaportEditor({
   if (!data) {
     return (
       <div>
-        <BackBar onBack={onBack} />
+        <BackBar onBack={handleBack} />
         <div className="space-y-3" aria-busy="true">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
@@ -237,9 +300,9 @@ export function RaportEditor({
 
   return (
     <div>
-      <BackBar onBack={onBack} />
+      <BackBar onBack={handleBack} />
       <PageHeader
-        title={`Raport — ${data.student.name}`}
+        title={`Rapor — ${data.student.name}`}
         description={`Triwulan ${data.term.number} · Semester ${data.term.semesterNumber} · ${data.term.academicYear}`}
       />
 
@@ -296,8 +359,10 @@ export function RaportEditor({
           <NumField id="absence-total" label="Hari sekolah" value={att.total} onChange={(v) => setAtt((p) => ({ ...p, total: v }))} />
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mt-4">
-          <NumField id="measurement-height" label="Tinggi (cm)" value={height} onChange={setHeight} step="0.1" />
-          <NumField id="measurement-weight" label="Berat (kg)" value={weight} onChange={setWeight} step="0.1" />
+          {/* StudentMeasurement.height/weight are nullable and publish
+              succeeds with both blank — the asterisk was claiming otherwise. */}
+          <NumField id="measurement-height" label="Tinggi (cm)" value={height} onChange={setHeight} step="0.1" optional />
+          <NumField id="measurement-weight" label="Berat (kg)" value={weight} onChange={setWeight} step="0.1" optional />
         </div>
         <Field className="mt-4">
           <FieldLabel htmlFor="hafalan">Hafalan (surah / hadis / doa)</FieldLabel>
@@ -327,12 +392,35 @@ export function RaportEditor({
         </Button>
       </div>
 
+      <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>
+        <AlertDialogContent className="p-card sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Keluar tanpa menyimpan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Narasi, capaian, kehadiran, hafalan, atau data lain yang belum disimpan akan hilang.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmLeave(false);
+                onBack();
+              }}
+            >
+              Ya, Keluar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={confirmUnpublish} onOpenChange={setConfirmUnpublish}>
         <AlertDialogContent className="p-card sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Tarik penerbitan raport?</AlertDialogTitle>
+            <AlertDialogTitle>Tarik penerbitan rapor?</AlertDialogTitle>
             <AlertDialogDescription>
-              Raport akan kembali menjadi draft dan tidak terlihat sebagai raport terbit sampai diterbitkan ulang.
+              Rapor akan kembali menjadi draft dan tidak terlihat sebagai rapor terbit sampai diterbitkan ulang.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -378,11 +466,11 @@ function SectionField({
   narrative: string;
   onNarrative: (v: string) => void;
   suggestion: { suggested: RaportLevel | null; counts: ElementCounts } | null;
-  /** Cohort kisi-kisi for the currently selected level, if any. */
+  /** Cohort bank narasi for the currently selected level, if any. */
   templateText: string | null;
 }) {
   // Offer the action only when it would change something — no point showing
-  // "Pakai kisi-kisi" when the field already holds exactly that text.
+  // "Pakai narasi" when the field already holds exactly that text.
   const canApplyTemplate =
     templateText !== null && templateText.trim() !== narrative.trim();
   return (
@@ -430,7 +518,7 @@ function SectionField({
           size="sm"
           onClick={() => onNarrative(templateText)}
         >
-          {narrative.trim() ? "Ganti dengan kisi-kisi" : "Pakai kisi-kisi"}
+          {narrative.trim() ? "Ganti dengan narasi" : "Pakai narasi"}
         </Button>
       ) : null}
     </div>
@@ -443,17 +531,29 @@ function NumField({
   value,
   onChange,
   step,
+  optional = false,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   step?: string;
+  /** Drops the asterisk and the required/aria-required attributes. */
+  optional?: boolean;
 }) {
   return (
     <Field>
-      <FieldLabel htmlFor={id} required>{label}</FieldLabel>
-      <Input id={id} type="number" min="0" step={step} required aria-required="true" value={value} onChange={(e) => onChange(e.target.value)} />
+      <FieldLabel htmlFor={id} required={!optional}>{label}</FieldLabel>
+      <Input
+        id={id}
+        type="number"
+        min="0"
+        step={step}
+        required={!optional}
+        aria-required={optional ? undefined : "true"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </Field>
   );
 }

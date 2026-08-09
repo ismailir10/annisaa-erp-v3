@@ -23,6 +23,8 @@
  * processing begins.
  */
 
+import { ApiError } from "@/lib/api/client-errors";
+
 export const BATCH_SIZE = 25;
 export const RETRY_BACKOFFS_MS = [1000, 3000];
 export const MAX_PENDING_FETCH = 1000;
@@ -155,7 +157,7 @@ export async function runBulkRetry(input: RunBulkRetryInput): Promise<RunBulkRet
   });
   if (!listRes.ok) {
     const err = await listRes.json().catch(() => ({}));
-    throw new Error(err?.error || "Gagal memuat tagihan tertunda");
+    throw new ApiError(err?.error || "Gagal memuat tagihan tertunda");
   }
   const pending = (await listRes.json()) as PendingResponse;
 

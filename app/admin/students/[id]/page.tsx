@@ -71,12 +71,14 @@ type AttendanceSummary = { present: number; absent: number; sick: number; permis
 // cmdk's built-in client-side filtering is enough — no server round-trip
 // per keystroke).
 function ClassSectionCombobox({
+  id,
   sections,
   value,
   onChange,
   placeholder,
   disabled,
 }: {
+  id?: string;
   sections: ClassSection[];
   value: string;
   onChange: (id: string) => void;
@@ -114,6 +116,7 @@ function ClassSectionCombobox({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
+        id={id}
         type="button"
         role="combobox"
         aria-expanded={open}
@@ -697,32 +700,32 @@ export default function StudentDetailPage() {
 
         {isEditing ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field><FieldLabel>Nama Lengkap</FieldLabel><Input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></Field>
-            <Field><FieldLabel>Nama Panggilan</FieldLabel><Input value={editForm.nickname} onChange={e => setEditForm({ ...editForm, nickname: e.target.value })} /></Field>
-            <Field><FieldLabel>Tanggal Lahir</FieldLabel><Input type="date" value={editForm.dateOfBirth} onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })} /></Field>
+            <Field><FieldLabel htmlFor="student-detail-name">Nama Lengkap</FieldLabel><Input id="student-detail-name" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></Field>
+            <Field><FieldLabel htmlFor="student-detail-nickname">Nama Panggilan</FieldLabel><Input id="student-detail-nickname" value={editForm.nickname} onChange={e => setEditForm({ ...editForm, nickname: e.target.value })} /></Field>
+            <Field><FieldLabel htmlFor="student-detail-dob">Tanggal Lahir</FieldLabel><Input id="student-detail-dob" type="date" value={editForm.dateOfBirth} onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })} /></Field>
             <Field>
-              <FieldLabel>Jenis Kelamin</FieldLabel>
+              <FieldLabel htmlFor="student-detail-gender">Jenis Kelamin</FieldLabel>
               <Select value={editForm.gender || undefined} onValueChange={v => v && setEditForm({ ...editForm, gender: v })} items={{ L: "Laki-laki", P: "Perempuan" }}>
-                <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                <SelectTrigger id="student-detail-gender"><SelectValue placeholder="Pilih" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="L">Laki-laki</SelectItem>
                   <SelectItem value="P">Perempuan</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
-            <Field className="sm:col-span-2"><FieldLabel>Alamat</FieldLabel><Textarea value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} rows={2} /></Field>
-            <Field className="sm:col-span-2"><FieldLabel>Catatan</FieldLabel><Textarea value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></Field>
+            <Field className="sm:col-span-2"><FieldLabel htmlFor="student-detail-address">Alamat</FieldLabel><Textarea id="student-detail-address" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} rows={2} /></Field>
+            <Field className="sm:col-span-2"><FieldLabel htmlFor="student-detail-notes">Catatan</FieldLabel><Textarea id="student-detail-notes" value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></Field>
 
             <div className="sm:col-span-2 mt-2"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Identitas Resmi</p></div>
-            <Field><FieldLabel>NIS</FieldLabel><Input value={editForm.nis} onChange={e => setEditForm({ ...editForm, nis: e.target.value })} placeholder="Nomor Induk Siswa" /></Field>
-            <Field><FieldLabel>NISN</FieldLabel><Input value={editForm.nisn} onChange={e => setEditForm({ ...editForm, nisn: e.target.value })} placeholder="Nomor Induk Siswa Nasional" /></Field>
-            <Field><FieldLabel>Tempat Lahir</FieldLabel><Input value={editForm.birthPlace} onChange={e => setEditForm({ ...editForm, birthPlace: e.target.value })} placeholder="Kota kelahiran" /></Field>
-            <Field><FieldLabel>NIK</FieldLabel><Input value={editForm.nik} onChange={e => setEditForm({ ...editForm, nik: e.target.value })} placeholder="Nomor Induk Kependudukan" /></Field>
-            <Field><FieldLabel>No. KK</FieldLabel><Input value={editForm.kkNumber} onChange={e => setEditForm({ ...editForm, kkNumber: e.target.value })} placeholder="Nomor Kartu Keluarga" /></Field>
+            <Field><FieldLabel htmlFor="student-detail-nis">NIS</FieldLabel><Input id="student-detail-nis" value={editForm.nis} onChange={e => setEditForm({ ...editForm, nis: e.target.value })} placeholder="Nomor Induk Siswa" /></Field>
+            <Field><FieldLabel htmlFor="student-detail-nisn">NISN</FieldLabel><Input id="student-detail-nisn" value={editForm.nisn} onChange={e => setEditForm({ ...editForm, nisn: e.target.value })} placeholder="Nomor Induk Siswa Nasional" /></Field>
+            <Field><FieldLabel htmlFor="student-detail-birth-place">Tempat Lahir</FieldLabel><Input id="student-detail-birth-place" value={editForm.birthPlace} onChange={e => setEditForm({ ...editForm, birthPlace: e.target.value })} placeholder="Kota kelahiran" /></Field>
+            <Field><FieldLabel htmlFor="student-detail-nik">NIK</FieldLabel><Input id="student-detail-nik" value={editForm.nik} onChange={e => setEditForm({ ...editForm, nik: e.target.value })} placeholder="Nomor Induk Kependudukan" /></Field>
+            <Field><FieldLabel htmlFor="student-detail-kk-number">No. KK</FieldLabel><Input id="student-detail-kk-number" value={editForm.kkNumber} onChange={e => setEditForm({ ...editForm, kkNumber: e.target.value })} placeholder="Nomor Kartu Keluarga" /></Field>
             <Field>
-              <FieldLabel>Tinggal Dengan</FieldLabel>
+              <FieldLabel htmlFor="student-detail-living-with">Tinggal Dengan</FieldLabel>
               <Select value={editForm.livingWith || undefined} onValueChange={v => v && setEditForm({ ...editForm, livingWith: v })} items={LIVING_WITH_LABELS}>
-                <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                <SelectTrigger id="student-detail-living-with"><SelectValue placeholder="Pilih" /></SelectTrigger>
                 <SelectContent>
                   {LIVING_WITH_OPTIONS.map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -973,8 +976,8 @@ export default function StudentDetailPage() {
                         {g.childOrder && <Badge variant="outline" className="text-xs">Anak ke-{g.childOrder}</Badge>}
                       </div>
                       <div className="flex gap-1">
-                        <button onClick={() => openEditGuardian(g)} aria-label={`Edit wali ${g.parent.name}`} className="p-1 rounded hover:bg-accent text-muted-foreground"><Pencil size={12} /></button>
-                        <button onClick={() => setDeleteGuardianTarget(g)} aria-label={`Nonaktifkan wali ${g.parent.name}`} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></button>
+                        <button onClick={() => openEditGuardian(g)} aria-label={`Edit wali ${g.parent.name}`} className="p-1.5 rounded hover:bg-accent text-muted-foreground"><Pencil size={12} /></button>
+                        <button onClick={() => setDeleteGuardianTarget(g)} aria-label={`Nonaktifkan wali ${g.parent.name}`} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></button>
                       </div>
                     </div>
                     <div className="mt-1 space-y-0.5">
@@ -1040,7 +1043,7 @@ export default function StudentDetailPage() {
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
                   <p className="text-lg font-bold text-status-absent">{attendanceSummary.absent}</p>
-                  <p className="text-xs text-muted-foreground">Tidak Hadir</p>
+                  <p className="text-xs text-muted-foreground">Alpa</p>
                 </div>
                 <div className="rounded-lg border p-2.5 text-center">
                   <p className="text-lg font-bold text-status-leave">{attendanceSummary.sick}</p>
@@ -1114,8 +1117,9 @@ export default function StudentDetailPage() {
       {(() => {
         const enrollBody = (
           <Field>
-            <FieldLabel required>Pilih Kelas</FieldLabel>
+            <FieldLabel required htmlFor="enroll-class-section">Pilih Kelas</FieldLabel>
             <ClassSectionCombobox
+              id="enroll-class-section"
               sections={sections}
               value={selectedSection}
               onChange={setSelectedSection}
@@ -1153,8 +1157,9 @@ export default function StudentDetailPage() {
         const promoteBody = (
           <div className="space-y-field">
             <Field>
-              <FieldLabel required>Kelas Tujuan</FieldLabel>
+              <FieldLabel required htmlFor="promote-class-section">Kelas Tujuan</FieldLabel>
               <ClassSectionCombobox
+                id="promote-class-section"
                 sections={sections}
                 value={promoteTarget}
                 onChange={setPromoteTarget}
@@ -1162,8 +1167,8 @@ export default function StudentDetailPage() {
               />
             </Field>
             <Field>
-              <FieldLabel>Catatan (opsional)</FieldLabel>
-              <Textarea value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
+              <FieldLabel htmlFor="promote-notes">Catatan (opsional)</FieldLabel>
+              <Textarea id="promote-notes" value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
             </Field>
           </div>
         );
@@ -1193,25 +1198,28 @@ export default function StudentDetailPage() {
       })()}
 
       {/* Graduate Confirm */}
-      <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi GRADUATED dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
+      <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi Lulus dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
 
       {/* ---------- Withdraw (destructive AlertDialog — reason required in body) ---------- */}
       <ConfirmDialog
         open={withdrawDialog}
         onOpenChange={setWithdrawDialog}
         title="Keluarkan Siswa"
-        description={`Mengeluarkan ${student.name} dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.`}
+        description={`Mengeluarkan ${student.name} dari sekolah. Status akan berubah menjadi Keluar dan semua pendaftaran kelas aktif akan diakhiri.`}
         confirmLabel={withdrawing ? "Memproses..." : "Keluarkan"}
         destructive
         loading={withdrawing}
         onConfirm={handleWithdraw}
       >
         <Field>
-          <FieldLabel required>Alasan Keluar</FieldLabel>
+          <FieldLabel required htmlFor="withdraw-reason">Alasan Keluar</FieldLabel>
           <Textarea
+            id="withdraw-reason"
+            required
+            aria-required="true"
             value={withdrawReason}
             onChange={(e) => setWithdrawReason(e.target.value)}
-            placeholder="Masukkan alasan pengeluaran siswa..."
+            placeholder="Masukkan alasan siswa keluar dari sekolah..."
             rows={3}
           />
         </Field>

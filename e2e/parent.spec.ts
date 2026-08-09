@@ -156,7 +156,7 @@ test.describe("Parent flows", () => {
   test("logout works", async ({ page }) => {
     // UAT 2026-05-12 — logout now opens a ConfirmDialog before signing out.
     await page.click("[aria-label='Keluar']");
-    await page.click("button:has-text('Ya, Keluar')");
+    await page.getByRole("button", { name: "Keluar dari akun", exact: true }).click();
     await page.waitForURL("/", { timeout: 10_000 });
     // Use first() — "An Nisaa" appears multiple times on login page
     await expect(page.locator("text=An Nisaa").first()).toBeVisible();
@@ -250,7 +250,7 @@ test.describe("Parent flows", () => {
     const sheet = page.getByRole("navigation", { name: "Menu lainnya" });
     await expect(sheet).toBeVisible({ timeout: 10_000 });
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    for (const label of ["Capaian", "Rapor", "Profil"]) {
+    for (const label of ["Perkembangan", "Rapor", "Profil"]) {
       await expect(sheet.getByRole("link", { name: new RegExp(label) })).toBeVisible();
     }
 

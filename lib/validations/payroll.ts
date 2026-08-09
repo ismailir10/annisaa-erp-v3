@@ -44,7 +44,7 @@ export const updatePayrollRunSchema = z
       v.periodStart === undefined ||
       v.periodEnd === undefined ||
       v.periodStart <= v.periodEnd,
-    { message: "periodStart harus <= periodEnd", path: ["periodStart"] }
+    { message: "Tanggal mulai periode harus sebelum atau sama dengan tanggal selesai", path: ["periodStart"] }
   );
 
 export type UpdatePayrollRunInput = z.infer<typeof updatePayrollRunSchema>;
@@ -60,7 +60,7 @@ export const generatePayrollSchema = z
     periodEnd: isoDateString,
   })
   .refine((v) => v.periodStart <= v.periodEnd, {
-    message: "periodStart harus <= periodEnd",
+    message: "Tanggal mulai periode harus sebelum atau sama dengan tanggal selesai",
     path: ["periodStart"],
   })
   .refine(

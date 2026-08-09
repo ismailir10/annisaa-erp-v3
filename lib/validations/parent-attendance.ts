@@ -14,11 +14,11 @@ export const parentAttendanceQuerySchema = z.object({
   status: z.enum(["PRESENT", "ABSENT", "SICK", "PERMISSION"]).optional(),
   dateFrom: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD")
     .optional(),
   dateTo: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD")
     .optional(),
   sortField: z.enum(["date", "status"]).default("date"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),

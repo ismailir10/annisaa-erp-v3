@@ -92,7 +92,7 @@ export default function StudentJournalPickerPage() {
   return (
     <div>
       <PageHeader
-        title="Buku Penghubung"
+        title="Jurnal — Buku Penghubung"
         actions={<BookHeart size={22} className="text-primary" aria-hidden />}
       />
 

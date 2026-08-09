@@ -312,13 +312,13 @@ export default function FeesPage() {
         }
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel required>Kode</FieldLabel><Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
-          <Field><FieldLabel required>Label</FieldLabel><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
+          <Field><FieldLabel required htmlFor="fee-code">Kode</FieldLabel><Input id="fee-code" required aria-required="true" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
+          <Field><FieldLabel required htmlFor="fee-label">Label</FieldLabel><Input id="fee-label" required aria-required="true" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
         </div>
         <Field>
-          <FieldLabel>Kategori</FieldLabel>
+          <FieldLabel htmlFor="fee-category">Kategori</FieldLabel>
           <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })} items={CATEGORY_LABELS}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id="fee-category"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="TUITION">SPP</SelectItem>
               <SelectItem value="REGISTRATION">Pendaftaran</SelectItem>
@@ -329,11 +329,11 @@ export default function FeesPage() {
           </Select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel>Urutan</FieldLabel><Input type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
+          <Field><FieldLabel htmlFor="fee-sort-order">Urutan</FieldLabel><Input id="fee-sort-order" type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
           <Field>
-            <FieldLabel>Tipe</FieldLabel>
+            <FieldLabel htmlFor="fee-type">Tipe</FieldLabel>
             <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })} items={{ "true": "Bulanan (berulang)", "false": "Sekali bayar" }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="fee-type"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="true">Bulanan (berulang)</SelectItem>
                 <SelectItem value="false">Sekali bayar</SelectItem>

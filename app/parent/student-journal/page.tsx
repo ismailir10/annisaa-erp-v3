@@ -314,6 +314,7 @@ export default function ParentStudentJournalPage() {
               categories={data.schoolCategories}
               entries={data.schoolEntries}
               dates={data.dates}
+              featureLabel="Jurnal"
             />
           </TabsContent>
 
@@ -323,6 +324,7 @@ export default function ParentStudentJournalPage() {
               categories={data.homeCategories}
               entries={data.homeEntries}
               dates={data.dates}
+              featureLabel="Jurnal"
               editable
               onToggle={async (indicatorId, date, next) => {
                 const res = await fetch("/api/student-journal/entries/home", {

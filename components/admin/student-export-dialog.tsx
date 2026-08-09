@@ -251,9 +251,9 @@ export function StudentExportDialog({
         <SectionHeading label="Kriteria Siswa" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
           <Field>
-            <FieldLabel>Status</FieldLabel>
+            <FieldLabel htmlFor="export-status">Status</FieldLabel>
             <Select value={status} onValueChange={(v) => setStatus(v ?? "all")}>
-              <SelectTrigger>
+              <SelectTrigger id="export-status">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -266,9 +266,9 @@ export function StudentExportDialog({
             </Select>
           </Field>
           <Field>
-            <FieldLabel>Jenis Kelamin</FieldLabel>
+            <FieldLabel htmlFor="export-gender">Jenis Kelamin</FieldLabel>
             <Select value={gender} onValueChange={(v) => setGender(v ?? "all")}>
-              <SelectTrigger>
+              <SelectTrigger id="export-gender">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -281,7 +281,7 @@ export function StudentExportDialog({
             </Select>
           </Field>
           <Field>
-            <FieldLabel>Tahun Ajaran</FieldLabel>
+            <FieldLabel htmlFor="export-academic-year">Tahun Ajaran</FieldLabel>
             <Select
               value={academicYearId}
               onValueChange={(v) => {
@@ -289,7 +289,7 @@ export function StudentExportDialog({
                 setClassSectionId("all");
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger id="export-academic-year">
                 <SelectValue placeholder="Semua Tahun Ajaran" />
               </SelectTrigger>
               <SelectContent>
@@ -303,7 +303,7 @@ export function StudentExportDialog({
             </Select>
           </Field>
           <Field>
-            <FieldLabel>Program</FieldLabel>
+            <FieldLabel htmlFor="export-program">Program</FieldLabel>
             <Select
               value={programId}
               onValueChange={(v) => {
@@ -311,7 +311,7 @@ export function StudentExportDialog({
                 setClassSectionId("all");
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger id="export-program">
                 <SelectValue placeholder="Semua Program" />
               </SelectTrigger>
               <SelectContent>
@@ -325,9 +325,9 @@ export function StudentExportDialog({
             </Select>
           </Field>
           <Field className="sm:col-span-2">
-            <FieldLabel>Kelas</FieldLabel>
+            <FieldLabel htmlFor="export-class-section">Kelas</FieldLabel>
             <Select value={classSectionId} onValueChange={(v) => setClassSectionId(v ?? "all")}>
-              <SelectTrigger>
+              <SelectTrigger id="export-class-section">
                 <SelectValue placeholder="Semua Kelas" />
               </SelectTrigger>
               <SelectContent>

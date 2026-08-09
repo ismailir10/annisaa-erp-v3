@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 
 /**
  * Naik Kelas Massal — bulk class promotion dialog. Wires the previously
@@ -48,7 +49,7 @@ async function fetchSections(yearId: string): Promise<SectionOption[]> {
     status: "ACTIVE",
   });
   const res = await fetch(`/api/admin/classes?${params}`);
-  if (!res.ok) throw new Error("Gagal memuat daftar kelas");
+  if (!res.ok) throw new ApiError("Gagal memuat daftar kelas");
   const j = await res.json().catch(() => null);
   const rows = Array.isArray(j?.data) ? j.data : [];
   return rows.map(
@@ -110,7 +111,7 @@ export function BulkPromoteDialog({
         if (!cancelled) setSourceSections(s);
       })
       .catch((e) => {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : "Gagal memuat data");
+        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
       });
     return () => {
       cancelled = true;
@@ -125,7 +126,7 @@ export function BulkPromoteDialog({
         if (!cancelled) setTargetSections(s);
       })
       .catch((e) => {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : "Gagal memuat data");
+        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
       });
     return () => {
       cancelled = true;
@@ -146,7 +147,7 @@ export function BulkPromoteDialog({
       .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Gagal memuat daftar siswa");
+          throw new ApiError(err.error || "Gagal memuat daftar siswa");
         }
         return res.json();
       })
@@ -156,7 +157,7 @@ export function BulkPromoteDialog({
         setExcluded(new Set());
       })
       .catch((e) => {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : "Gagal memuat data");
+        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
       })
       .finally(() => {
         if (!cancelled) setRosterLoading(false);
@@ -252,9 +253,9 @@ export function BulkPromoteDialog({
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
         <Field>
-          <FieldLabel>Tahun Ajaran Asal</FieldLabel>
+          <FieldLabel htmlFor="promote-source-year">Tahun Ajaran Asal</FieldLabel>
           <Select value={sourceYearId} onValueChange={(v) => { if (v) { setSourceYearId(v); setSourceClassId(""); } }}>
-            <SelectTrigger><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
+            <SelectTrigger id="promote-source-year"><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
             <SelectContent>
               {years.map((y) => (
                 <SelectItem key={y.id} value={y.id}>{yearLabel(y)}</SelectItem>
@@ -263,9 +264,9 @@ export function BulkPromoteDialog({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Kelas Asal</FieldLabel>
+          <FieldLabel htmlFor="promote-source-class">Kelas Asal</FieldLabel>
           <Select value={sourceClassId} onValueChange={(v) => setSourceClassId(v ?? "")}>
-            <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+            <SelectTrigger id="promote-source-class"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
             <SelectContent>
               {sourceSections.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
@@ -276,9 +277,9 @@ export function BulkPromoteDialog({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Tahun Ajaran Tujuan</FieldLabel>
+          <FieldLabel htmlFor="promote-target-year">Tahun Ajaran Tujuan</FieldLabel>
           <Select value={targetYearId} onValueChange={(v) => { if (v) { setTargetYearId(v); setTargetClassId(""); } }}>
-            <SelectTrigger><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
+            <SelectTrigger id="promote-target-year"><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
             <SelectContent>
               {years.map((y) => (
                 <SelectItem key={y.id} value={y.id}>{yearLabel(y)}</SelectItem>
@@ -287,9 +288,9 @@ export function BulkPromoteDialog({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Kelas Tujuan</FieldLabel>
+          <FieldLabel htmlFor="promote-target-class">Kelas Tujuan</FieldLabel>
           <Select value={targetClassId} onValueChange={(v) => setTargetClassId(v ?? "")}>
-            <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+            <SelectTrigger id="promote-target-class"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
             <SelectContent>
               {targetSections
                 .filter((s) => s.id !== sourceClassId)

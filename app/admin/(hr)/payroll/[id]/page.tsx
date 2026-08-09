@@ -27,7 +27,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Download, Send, Check, Pencil, Settings2, X } from "lucide-react";
+import { ArrowLeft, Download, Check, Pencil, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 import Link from "next/link";
@@ -64,7 +64,6 @@ export default function PayrollDetailPage() {
   const [varsModal, setVarsModal] = useState<PayrollItem | null>(null);
   const [lineModal, setLineModal] = useState<{ item: PayrollItem; line: PayrollLine } | null>(null);
   const [approveModal, setApproveModal] = useState(false);
-  const [sendModal, setSendModal] = useState(false);
 
   // Vars form
   const [varsForm, setVarsForm] = useState({ overtimeHours: 0, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 });
@@ -76,7 +75,6 @@ export default function PayrollDetailPage() {
   const [adjSaving, setAdjSaving] = useState(false);
 
   const [approving, setApproving] = useState(false);
-  const [sending, setSending] = useState(false);
 
   // Edit toggle for summary card (Category B — Edit Toggle Pattern, DRAFT only)
   const [isEditing, setIsEditing] = useState(false);
@@ -225,18 +223,6 @@ export default function PayrollDetailPage() {
     setEditSaving(false);
   }
 
-  async function handleSendSlips() {
-    setSending(true);
-    const res = await fetch(`/api/payroll/${id}/send-slips`, { method: "POST" });
-    if (res.ok) {
-      const d = await res.json();
-      toast.success(`${d.sent} slip terkirim`);
-      setSendModal(false);
-      fetchData();
-    } else toast.error("Gagal mengirim");
-    setSending(false);
-  }
-
   if (loading) return <DetailPageSkeleton />;
   if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p></div>;
 
@@ -349,7 +335,6 @@ export default function PayrollDetailPage() {
             )}
             {isDraft && <Button size="sm" onClick={() => setApproveModal(true)}><Check size={14} className="mr-1.5" /> Setujui</Button>}
             {isApproved && <Button size="sm" variant="outline" onClick={handleExport}><Download size={14} className="mr-1.5" /> Ekspor BSI</Button>}
-            {isApproved && <Button size="sm" onClick={() => setSendModal(true)}><Send size={14} className="mr-1.5" /> Kirim Slip</Button>}
           </>
         }
       />
@@ -393,24 +378,27 @@ export default function PayrollDetailPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field>
-              <FieldLabel>Periode Mulai</FieldLabel>
+              <FieldLabel htmlFor="payroll-period-start">Periode Mulai</FieldLabel>
               <Input
+                id="payroll-period-start"
                 type="date"
                 value={editForm.periodStart}
                 onChange={(e) => setEditForm({ ...editForm, periodStart: e.target.value })}
               />
             </Field>
             <Field>
-              <FieldLabel>Periode Akhir</FieldLabel>
+              <FieldLabel htmlFor="payroll-period-end">Periode Akhir</FieldLabel>
               <Input
+                id="payroll-period-end"
                 type="date"
                 value={editForm.periodEnd}
                 onChange={(e) => setEditForm({ ...editForm, periodEnd: e.target.value })}
               />
             </Field>
             <Field>
-              <FieldLabel>Hari Kerja Aktual</FieldLabel>
+              <FieldLabel htmlFor="payroll-actual-work-days">Hari Kerja Aktual</FieldLabel>
               <Input
+                id="payroll-actual-work-days"
                 type="number"
                 min={0}
                 value={editForm.actualWorkDays}
@@ -537,10 +525,10 @@ export default function PayrollDetailPage() {
             <DialogDescription>{varsModal?.employee.nama}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <Field><FieldLabel>Jam Lembur</FieldLabel><Input type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel>Hari Outdoor</FieldLabel><Input type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel>Hari Libur Kerja</FieldLabel><Input type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel>Hari DC</FieldLabel><Input type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel htmlFor="payroll-vars-overtime-hours">Jam Lembur</FieldLabel><Input id="payroll-vars-overtime-hours" type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel htmlFor="payroll-vars-outdoor-days">Hari Outdoor</FieldLabel><Input id="payroll-vars-outdoor-days" type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel htmlFor="payroll-vars-holiday-worked-days">Hari Libur Kerja</FieldLabel><Input id="payroll-vars-holiday-worked-days" type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
+            <Field><FieldLabel htmlFor="payroll-vars-dc-days">Hari DC</FieldLabel><Input id="payroll-vars-dc-days" type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
@@ -558,8 +546,8 @@ export default function PayrollDetailPage() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
-            <Field><FieldLabel>Penyesuaian (+ atau -)</FieldLabel><Input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
-            <Field><FieldLabel required>Catatan</FieldLabel><Textarea value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
+            <Field><FieldLabel htmlFor="payroll-line-adjustment-amount">Penyesuaian (+ atau -)</FieldLabel><Input id="payroll-line-adjustment-amount" type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
+            <Field><FieldLabel required htmlFor="payroll-line-adjustment-note">Catatan</FieldLabel><Textarea id="payroll-line-adjustment-note" required aria-required="true" value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
             <p className="text-sm">Final: <span className="font-currency font-bold text-primary">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
           </div>
           <DialogFooter>
@@ -585,23 +573,6 @@ export default function PayrollDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={handleApprove} disabled={approving}>{approving ? "Menyetujui..." : "Setujui"}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Send Slips — AlertDialog: irreversible (emails sent) */}
-      <AlertDialog open={sendModal} onOpenChange={setSendModal}>
-        <AlertDialogContent className="p-card sm:max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Kirim Slip Gaji</AlertDialogTitle>
-            <AlertDialogDescription>Slip gaji PDF akan dikirim ke email setiap karyawan.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-2 text-sm">
-            <p>{data.items.length} slip akan dikirim</p>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSendSlips} disabled={sending}>{sending ? "Mengirim..." : "Kirim Semua"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

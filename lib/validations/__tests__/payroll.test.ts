@@ -29,7 +29,7 @@ describe("generatePayrollSchema", () => {
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(
-        r.error.issues.some((i) => i.message.includes("<= periodEnd"))
+        r.error.issues.some((i) => i.message.includes("sebelum atau sama dengan"))
       ).toBe(true);
     }
   });

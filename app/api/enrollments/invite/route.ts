@@ -5,6 +5,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { generateAccessToken, tokenExpiryFrom } from "@/lib/enrollment/token";
 import { sendEnrollmentInviteEmail } from "@/lib/email/enrollment-invite";
+import { resolveAppOrigin } from "@/lib/payments/session";
 
 const inviteSchema = z.object({ admissionId: z.string().min(1, "admissionId wajib diisi") });
 
@@ -132,7 +133,11 @@ export async function POST(req: NextRequest) {
     select: { id: true, accessToken: true },
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
+  // requestOrigin (new URL(req.url).origin) is always present in a route
+  // handler, so preview/staging/prod each get their own host here — same
+  // pattern as payment return URLs (lib/payments/session.ts). No hardcoded
+  // prod fallback: a staging-triggered email must never link to prod.
+  const appUrl = resolveAppOrigin(new URL(req.url).origin);
   const formUrl = `${appUrl}/pendaftaran/${app.accessToken}`;
 
   let sent = false;
@@ -143,6 +148,7 @@ export async function POST(req: NextRequest) {
       childName: admission.childName,
       parentName: admission.parentName,
       formUrl,
+      appUrl,
     });
     sent = result.sent;
     if (!result.sent && result.error) {

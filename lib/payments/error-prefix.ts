@@ -62,8 +62,79 @@ export function prefixForError(
  * Format an error for persistence in `Invoice.paymentLinkError` as
  * `"<prefix>: <message>"`. The colon separator is load-bearing — the
  * breakdown endpoint splits on it. Always pair writes through this helper.
+ *
+ * The persisted string is LOG-ONLY (voice.md "Never render a caught error")
+ * — `message` is the raw vendor/SDK text (`"Xendit API error: 500"`, a joined
+ * DOKU `error_messages` array, a bare `err.message`). Never render
+ * `Invoice.paymentLinkError` to an admin directly; pass it through
+ * `parsePaymentLinkError` below and render `.userMessage`, offering `.detail`
+ * only behind an opt-in "detail teknis" disclosure.
  */
 export function formatPaymentLinkError(e: unknown): string {
   const { prefix, message } = prefixForError(e);
   return `${prefix}: ${message}`;
+}
+
+/**
+ * Indonesian, user-facing sentence for a classified payment-link error
+ * prefix. Every value in `PAYMENT_LINK_ERROR_PREFIXES` is covered so a caller
+ * can never fall through to a raw code or an empty string.
+ *
+ * Mirrors the equivalent branch in `lib/payments/reconcile.ts`'s
+ * `gatewayErrorMessage` (kept separate because that function also handles
+ * `429`/`408` distinctly for the manual-refresh flow; this one folds those
+ * into the same "coba lagi" family since the create-link flow has no
+ * retry-after UI).
+ */
+export function paymentLinkErrorMessage(prefix: PaymentLinkErrorPrefix): string {
+  switch (prefix) {
+    case "401":
+    case "403":
+      return "Gateway pembayaran menolak kredensial. Hubungi admin sistem.";
+    case "422":
+    case "4xx":
+      return "Gateway pembayaran menolak data tagihan ini. Periksa nominal dan data siswa.";
+    case "5xx":
+      return "Gateway pembayaran sedang bermasalah. Coba lagi beberapa saat.";
+    case "429":
+      return "Terlalu banyak permintaan ke gateway pembayaran. Tunggu sebentar lalu coba lagi.";
+    case "408":
+    case "network":
+      return "Gateway pembayaran tidak merespons. Coba lagi sebentar.";
+    case "untagged":
+    case "unknown":
+    default:
+      return "Gagal membuat link pembayaran. Coba lagi atau hubungi tim teknis.";
+  }
+}
+
+/**
+ * Split a persisted `Invoice.paymentLinkError` string (the
+ * `"<prefix>: <message>"` format written by `formatPaymentLinkError`) into an
+ * Indonesian user-facing message plus the raw vendor detail, so a caller can
+ * render `.userMessage` as the primary sentence and `.detail` only behind a
+ * "detail teknis" disclosure.
+ *
+ * Additive helper for `app/admin/invoices/**` (owned by another agent in this
+ * cycle) to wire up wherever `invoice.paymentLinkError` is currently rendered
+ * verbatim — e.g. `app/admin/invoices/[id]/page.tsx:300`. Does not change the
+ * stored format or `formatPaymentLinkError`'s contract, so existing writers
+ * and `lib/finance/pending-breakdown.ts`'s own prefix-splitting are
+ * unaffected.
+ *
+ * Returns `null` for a null/empty/undefined input (nothing to show). A
+ * malformed or unrecognized prefix (should not happen given every writer goes
+ * through `formatPaymentLinkError`, but defensive) falls back to `"unknown"`.
+ */
+export function parsePaymentLinkError(
+  stored: string | null | undefined,
+): { code: PaymentLinkErrorPrefix; userMessage: string; detail: string } | null {
+  if (!stored) return null;
+  const idx = stored.indexOf(": ");
+  const rawPrefix = idx === -1 ? stored : stored.slice(0, idx);
+  const detail = idx === -1 ? stored : stored.slice(idx + 2);
+  const code = (PAYMENT_LINK_ERROR_PREFIXES as readonly string[]).includes(rawPrefix)
+    ? (rawPrefix as PaymentLinkErrorPrefix)
+    : "unknown";
+  return { code, userMessage: paymentLinkErrorMessage(code), detail };
 }

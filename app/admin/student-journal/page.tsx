@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -65,6 +65,11 @@ export default function StudentJournalAdminPage() {
   const [categoryForm, setCategoryForm] = useState<CategoryFormState | null>(null);
   const [indicatorForm, setIndicatorForm] = useState<IndicatorFormState | null>(null);
   const [saving, setSaving] = useState(false);
+  // Empty-name validation is toast-only by default (voice.md), but the offending
+  // field also needs a persistent inline error + aria-invalid so the failure
+  // isn't only announced by a toast that auto-dismisses.
+  const [categoryNameError, setCategoryNameError] = useState(false);
+  const [indicatorLabelError, setIndicatorLabelError] = useState(false);
 
   const load = useCallback(async (s: Scope, st: StatusFilter) => {
     setLoading(true);
@@ -92,10 +97,12 @@ export default function StudentJournalAdminPage() {
   // ------- Category form -------
 
   function openCreateCategory() {
+    setCategoryNameError(false);
     setCategoryForm({ mode: "create", name: "", scope });
   }
 
   function openEditCategory(cat: CategoryDTO) {
+    setCategoryNameError(false);
     setCategoryForm({ mode: "edit", id: cat.id, name: cat.name, scope: cat.scope });
   }
 
@@ -103,9 +110,11 @@ export default function StudentJournalAdminPage() {
     if (!categoryForm) return;
     const trimmed = categoryForm.name.trim();
     if (!trimmed) {
+      setCategoryNameError(true);
       toast.error("Nama kategori wajib diisi");
       return;
     }
+    setCategoryNameError(false);
     setSaving(true);
     try {
       const url =
@@ -146,6 +155,7 @@ export default function StudentJournalAdminPage() {
   // ------- Indicator form -------
 
   function openCreateIndicator(cat: CategoryDTO) {
+    setIndicatorLabelError(false);
     setIndicatorForm({
       mode: "create",
       categoryId: cat.id,
@@ -155,6 +165,7 @@ export default function StudentJournalAdminPage() {
   }
 
   function openEditIndicator(ind: IndicatorDTO, cat: CategoryDTO) {
+    setIndicatorLabelError(false);
     setIndicatorForm({
       mode: "edit",
       id: ind.id,
@@ -168,9 +179,11 @@ export default function StudentJournalAdminPage() {
     if (!indicatorForm) return;
     const trimmed = indicatorForm.label.trim();
     if (!trimmed) {
+      setIndicatorLabelError(true);
       toast.error("Label indikator wajib diisi");
       return;
     }
+    setIndicatorLabelError(false);
     setSaving(true);
     try {
       const url =
@@ -211,7 +224,7 @@ export default function StudentJournalAdminPage() {
   return (
     <div className="px-page-x py-page-y space-y-section">
       <PageHeader
-        title="Buku Penghubung — Template"
+        title="Buku Penghubung — Templat"
         description="Atur kategori dan indikator untuk sekolah dan rumah."
         actions={
           <Button onClick={openCreateCategory}>
@@ -275,18 +288,23 @@ export default function StudentJournalAdminPage() {
           </DialogHeader>
           {categoryForm && (
             <div className="space-y-field">
-              <Field>
+              <Field data-invalid={categoryNameError || undefined}>
                 <FieldLabel htmlFor="journal-category-name" required>Nama Kategori</FieldLabel>
                 <Input
                   id="journal-category-name"
                   required
+                  aria-invalid={categoryNameError}
                   value={categoryForm.name}
-                  onChange={(e) =>
-                    setCategoryForm({ ...categoryForm, name: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setCategoryNameError(false);
+                    setCategoryForm({ ...categoryForm, name: e.target.value });
+                  }}
                   placeholder="Contoh: Ibadah"
                   autoFocus
                 />
+                {categoryNameError && (
+                  <FieldError>Nama kategori wajib diisi</FieldError>
+                )}
               </Field>
               <Field>
                 <FieldLabel htmlFor="journal-category-scope" required>Lingkup</FieldLabel>
@@ -338,18 +356,23 @@ export default function StudentJournalAdminPage() {
           </DialogHeader>
           {indicatorForm && (
             <div className="space-y-field">
-              <Field>
+              <Field data-invalid={indicatorLabelError || undefined}>
                 <FieldLabel htmlFor="journal-indicator-label" required>Label Indikator</FieldLabel>
                 <Input
                   id="journal-indicator-label"
                   required
+                  aria-invalid={indicatorLabelError}
                   value={indicatorForm.label}
-                  onChange={(e) =>
-                    setIndicatorForm({ ...indicatorForm, label: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setIndicatorLabelError(false);
+                    setIndicatorForm({ ...indicatorForm, label: e.target.value });
+                  }}
                   placeholder="Contoh: Tahfizul Qur'an"
                   autoFocus
                 />
+                {indicatorLabelError && (
+                  <FieldError>Label indikator wajib diisi</FieldError>
+                )}
               </Field>
             </div>
           )}

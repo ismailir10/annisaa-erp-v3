@@ -19,6 +19,7 @@
  */
 
 import { runBulkRetry } from "./run-bulk-retry";
+import { ApiError } from "@/lib/api/client-errors";
 
 export const BATCH_SIZE = 25;
 export const RETRY_BACKOFFS_MS = [1000, 3000];
@@ -168,7 +169,7 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
   });
   if (!planRes.ok) {
     const err = await planRes.json().catch(() => ({}));
-    throw new Error(err?.error || "Gagal merencanakan tagihan");
+    throw new ApiError(err?.error || "Gagal merencanakan tagihan");
   }
   const plan = (await planRes.json()) as PlanResponse;
 

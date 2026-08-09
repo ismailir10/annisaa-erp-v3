@@ -308,7 +308,7 @@ export default function AcademicPage() {
           onActivate={() => setReactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
           isActive={row.original.status === "ACTIVE"}
           extraActions={[{
-            label: "Gulir Kelas ke Tahun Ini",
+            label: "Salin Kelas ke Tahun Ini",
             icon: <ArrowRightCircle size={14} />,
             onClick: () => {
               setRollForwardTarget(row.original);
@@ -438,10 +438,10 @@ export default function AcademicPage() {
           </>
         }
       >
-        <Field><FieldLabel required>Nama</FieldLabel><Input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
+        <Field><FieldLabel required htmlFor="year-name">Nama</FieldLabel><Input id="year-name" required aria-required="true" value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel>Mulai</FieldLabel><Input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
-          <Field><FieldLabel>Selesai</FieldLabel><Input type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
+          <Field><FieldLabel htmlFor="year-startDate">Mulai</FieldLabel><Input id="year-startDate" type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
+          <Field><FieldLabel htmlFor="year-endDate">Selesai</FieldLabel><Input id="year-endDate" type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
         </div>
       </ResponsiveFormDialog>
 
@@ -459,14 +459,14 @@ export default function AcademicPage() {
         }
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel required>Kode</FieldLabel><Input value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
-          <Field><FieldLabel required>Nama</FieldLabel><Input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
+          <Field><FieldLabel required htmlFor="program-code">Kode</FieldLabel><Input id="program-code" required aria-required="true" value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
+          <Field><FieldLabel required htmlFor="program-name">Nama</FieldLabel><Input id="program-name" required aria-required="true" value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
         </div>
-        <Field><FieldLabel>Deskripsi</FieldLabel><Input value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
+        <Field><FieldLabel htmlFor="program-description">Deskripsi</FieldLabel><Input id="program-description" value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
         <Field>
-          <FieldLabel>Tipe</FieldLabel>
+          <FieldLabel htmlFor="program-type">Tipe</FieldLabel>
           <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })} items={{ SEMESTER: "Semester", YEAR_ROUND: "Sepanjang Tahun", SESSION: "Per Sesi" }}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id="program-type"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="SEMESTER">Semester</SelectItem>
               <SelectItem value="YEAR_ROUND">Sepanjang Tahun</SelectItem>
@@ -475,8 +475,8 @@ export default function AcademicPage() {
           </Select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel>Usia Min (bulan)</FieldLabel><Input type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></Field>
-          <Field><FieldLabel>Usia Max (bulan)</FieldLabel><Input type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></Field>
+          <Field><FieldLabel htmlFor="program-ageMin">Usia Min (bulan)</FieldLabel><Input id="program-ageMin" type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></Field>
+          <Field><FieldLabel htmlFor="program-ageMax">Usia Max (bulan)</FieldLabel><Input id="program-ageMax" type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></Field>
         </div>
       </ResponsiveFormDialog>
 
@@ -484,13 +484,13 @@ export default function AcademicPage() {
       <ResponsiveFormDialog
         open={!!rollForwardTarget}
         onOpenChange={(o) => { if (!o) { setRollForwardTarget(null); setRollForwardSourceId(""); } }}
-        title="Gulir Kelas ke Tahun Ajaran"
+        title="Salin Kelas ke Tahun Ajaran"
         size="lg"
         footer={
           <>
             <Button variant="ghost" onClick={() => { setRollForwardTarget(null); setRollForwardSourceId(""); }} disabled={rollingForward}>Batal</Button>
             <Button onClick={handleRollForward} disabled={rollingForward || !rollForwardSourceId}>
-              {rollingForward ? "Menggulir..." : "Gulir Kelas"}
+              {rollingForward ? "Menyalin..." : "Salin Kelas"}
             </Button>
           </>
         }
@@ -501,13 +501,13 @@ export default function AcademicPage() {
           Kelas yang sudah ada di tahun ini akan dilewati.
         </p>
         <Field>
-          <FieldLabel required>Tahun Ajaran Sumber</FieldLabel>
+          <FieldLabel required htmlFor="rollforward-sourceYear">Tahun Ajaran Sumber</FieldLabel>
           <Select
             value={rollForwardSourceId}
             onValueChange={(v) => v && setRollForwardSourceId(v)}
             items={years.filter(y => y.id !== rollForwardTarget?.id).map(y => ({ label: y.name, value: y.id }))}
           >
-            <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran sumber" /></SelectTrigger>
+            <SelectTrigger id="rollforward-sourceYear" aria-required="true"><SelectValue placeholder="Pilih tahun ajaran sumber" /></SelectTrigger>
             <SelectContent>
               {years.filter(y => y.id !== rollForwardTarget?.id).map(y => (
                 <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>

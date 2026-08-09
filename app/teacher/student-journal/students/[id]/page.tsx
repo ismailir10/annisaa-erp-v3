@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
+import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
@@ -67,28 +68,39 @@ export default function TeacherStudentWeekPage() {
   const [ws, setWs] = useState<string>(() => weekStart(initialAnchor));
   const [data, setData] = useState<WeekData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadRequestId = useRef(0);
 
   // Add-note dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [noteDate, setNoteDate] = useState(today);
 
   const loadWeek = useCallback(async (weekStartYmd: string) => {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
-    const res = await fetch(
-      `/api/student-journal/students/${studentId}/week?weekStart=${weekStartYmd}`,
-    );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({} as { error?: string }));
-      // Prefer server JSON body; fall back to the Indonesian remediation copy on 403
-      // (UAT 2026-05-01 — raw "Forbidden" toast was unhelpful to Bu Sari).
-      const fallback = res.status === 403 ? JOURNAL_FORBIDDEN_MSG : "Gagal memuat data";
-      toast.error((err as { error?: string }).error || fallback);
-      setLoading(false);
-      return;
+    setLoadError(null);
+    try {
+      const res = await fetch(
+        `/api/student-journal/students/${studentId}/week?weekStart=${weekStartYmd}`,
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { error?: string }));
+        // Prefer server JSON body; fall back to the Indonesian remediation copy on 403
+        // (UAT 2026-05-01 — raw "Forbidden" toast was unhelpful to Bu Sari).
+        const fallback = res.status === 403 ? JOURNAL_FORBIDDEN_MSG : "Gagal memuat data";
+        throw new ApiError((err as { error?: string }).error || fallback);
+      }
+      const json = await res.json();
+      if (requestId !== loadRequestId.current) return;
+      setData(json.data);
+    } catch (error) {
+      if (requestId !== loadRequestId.current) return;
+      const message = userMessage(error, "Gagal memuat data");
+      setLoadError(message);
+      toast.error(message);
+    } finally {
+      if (requestId === loadRequestId.current) setLoading(false);
     }
-    const json = await res.json();
-    setData(json.data);
-    setLoading(false);
   }, [studentId]);
 
   useEffect(() => {
@@ -111,8 +123,8 @@ export default function TeacherStudentWeekPage() {
       {/* Back link */}
       <button
         type="button"
-        onClick={() => router.back()}
-        className="flex items-center gap-1 text-sm text-muted-foreground mb-4 hover:text-foreground transition-colors"
+        onClick={() => router.push("/teacher/student-journal")}
+        className="flex min-h-11 items-center gap-1 rounded-md px-2 text-sm text-muted-foreground mb-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         <ArrowLeft size={16} />
         Kembali
@@ -123,7 +135,7 @@ export default function TeacherStudentWeekPage() {
         <button
           type="button"
           onClick={prevWeek}
-          className="p-2 rounded-md hover:bg-muted transition-colors"
+          className="grid min-h-11 min-w-11 place-items-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Minggu sebelumnya"
         >
           <ChevronLeft size={20} />
@@ -135,54 +147,57 @@ export default function TeacherStudentWeekPage() {
         <button
           type="button"
           onClick={nextWeek}
-          className="p-2 rounded-md hover:bg-muted transition-colors"
+          className="grid min-h-11 min-w-11 place-items-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Minggu berikutnya"
         >
           <ChevronRight size={20} />
         </button>
       </div>
 
-      {/* Week grid */}
       {loading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-10 w-full rounded-md" />
           ))}
         </div>
-      ) : (
-        <WeekGrid
-          categories={data?.categories ?? []}
-          entries={data?.entries ?? []}
-          dates={data?.dates ?? []}
-        />
-      )}
-
-      {/* Notes section */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-h2 font-semibold">Catatan</h2>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setNoteDate(computeDefaultNoteDate(ws, today));
-              setDialogOpen(true);
-            }}
-          >
-            <Plus size={14} className="mr-1" />
-            Tambah Catatan
+      ) : loadError ? (
+        <div className="py-8 text-center">
+          <p className="text-sm font-medium text-foreground">Data penghubung tidak bisa dimuat</p>
+          <p className="mt-1 text-xs text-muted-foreground">{loadError}. Coba lagi sebentar ya.</p>
+          <Button className="mt-4" variant="outline" onClick={() => loadWeek(ws)}>
+            Coba lagi
           </Button>
         </div>
+      ) : (
+        <>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Riwayat penghubung (hanya-baca)
+          </p>
+          <WeekGrid
+            categories={data?.categories ?? []}
+            entries={data?.entries ?? []}
+            dates={data?.dates ?? []}
+          />
 
-        {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-16 w-full rounded-md" />
-            <Skeleton className="h-16 w-full rounded-md" />
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-h2 font-semibold">Catatan</h2>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setNoteDate(computeDefaultNoteDate(ws, today));
+                  setDialogOpen(true);
+                }}
+              >
+                <Plus size={14} className="mr-1" />
+                Tambah Catatan
+              </Button>
+            </div>
+            <NoteThread notes={data?.notes ?? []} />
           </div>
-        ) : (
-          <NoteThread notes={data?.notes ?? []} />
-        )}
-      </div>
+        </>
+      )}
 
       <NoteComposeDialog
         open={dialogOpen}

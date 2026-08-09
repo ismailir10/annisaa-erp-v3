@@ -215,7 +215,7 @@ export default function StudentJournalDetailPage({
     );
 
     if (!existing?.id) {
-      toast.info("Belum diisi guru/orang tua — tidak dapat diubah admin (V1)");
+      toast.info("Belum diisi guru atau orang tua — admin tidak dapat mengubahnya.");
       return;
     }
 
@@ -428,7 +428,10 @@ export default function StudentJournalDetailPage({
         {/* Catatan tab */}
         <TabsContent value="notes">
           {!weekData || weekData.notes.length === 0 ? (
-            <EmptyState title="Belum ada catatan minggu ini" />
+            <EmptyState
+              title="Belum ada catatan minggu ini"
+              description="Catatan dari guru atau orang tua untuk minggu ini akan tampil di sini setelah dituliskan."
+            />
           ) : (
             <NoteThread
               notes={weekData.notes}
@@ -445,9 +448,9 @@ export default function StudentJournalDetailPage({
             onOpenChange={(open) => {
               if (!open) setNoteDeleteTarget(null);
             }}
-            title="Hapus catatan?"
+            title="Nonaktifkan catatan?"
             description="Catatan akan dinonaktifkan dan tidak lagi muncul di jurnal siswa."
-            confirmLabel="Ya, Hapus"
+            confirmLabel="Ya, Nonaktifkan"
             cancelLabel="Batal"
             onConfirm={handleNoteDeleteConfirm}
             destructive
@@ -464,7 +467,10 @@ export default function StudentJournalDetailPage({
               ))}
             </div>
           ) : auditRows.length === 0 ? (
-            <EmptyState title="Belum ada riwayat perubahan" />
+            <EmptyState
+              title="Belum ada riwayat perubahan"
+              description="Riwayat perubahan entri dan catatan akan tercatat di sini begitu ada perubahan yang disimpan."
+            />
           ) : (
             <div className="space-y-4">
               {auditRows.map((row) => (

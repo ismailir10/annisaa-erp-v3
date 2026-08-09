@@ -478,8 +478,9 @@ export default function RolesPage() {
             </Field>
 
             <Field>
-              <FieldLabel>Deskripsi</FieldLabel>
+              <FieldLabel htmlFor="role-description">Deskripsi</FieldLabel>
               <Textarea
+                id="role-description"
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
                 placeholder="Deskripsi singkat peran ini..."
@@ -513,6 +514,11 @@ export default function RolesPage() {
         onOpenChange={(o) => !o && setDeleteTarget(null)}
         entityName={deleteTarget?.name ?? ""}
         action="delete"
+        extraWarning={
+          deleteTarget && deleteTarget._count.users > 0
+            ? `Peran ini dipakai oleh ${deleteTarget._count.users} pengguna dan menghapusnya akan melepas izin akses mereka.`
+            : undefined
+        }
         onConfirm={handleDelete}
         pending={deleting}
       />

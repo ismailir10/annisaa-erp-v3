@@ -49,7 +49,7 @@ export function DataTable<TData, TValue>({
   onPageSizeChange,
   onSortChange,
   defaultSort,
-  emptyTitle = "Tidak ada data",
+  emptyTitle = "Belum ada data untuk ditampilkan",
   emptyDescription,
   loading = false,
 }: DataTableProps<TData, TValue>) {

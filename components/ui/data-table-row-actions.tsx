@@ -57,7 +57,7 @@ export function DataTableRowActions({
             {onEdit && (
               <DropdownMenuItem onClick={onEdit}>
                 <Pencil size={14} className="mr-2" />
-                Edit
+                Ubah
               </DropdownMenuItem>
             )}
 

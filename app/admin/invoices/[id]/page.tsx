@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
+import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
@@ -51,14 +52,14 @@ function PaymentFormBody({
   return (
     <>
       <Field>
-        <FieldLabel required>Jumlah</FieldLabel>
-        <Input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
+        <FieldLabel required htmlFor="invoice-payment-amount">Jumlah</FieldLabel>
+        <Input id="invoice-payment-amount" required aria-required="true" type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
         <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
       </Field>
       <Field>
-        <FieldLabel>Metode Pembayaran</FieldLabel>
+        <FieldLabel htmlFor="invoice-payment-method">Metode Pembayaran</FieldLabel>
         <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger id="invoice-payment-method"><SelectValue /></SelectTrigger>
           <SelectContent>
             {PAYMENT_METHODS.map((m) => (
               <SelectItem key={m} value={m}>
@@ -69,13 +70,13 @@ function PaymentFormBody({
         </Select>
       </Field>
       <Field>
-        <FieldLabel>Referensi</FieldLabel>
-        <Input value={payForm.reference} onChange={e => setPayForm({ ...payForm, reference: e.target.value })} placeholder="Opsional" />
+        <FieldLabel htmlFor="invoice-payment-reference">Referensi</FieldLabel>
+        <Input id="invoice-payment-reference" value={payForm.reference} onChange={e => setPayForm({ ...payForm, reference: e.target.value })} placeholder="Opsional" />
         <FieldDescription>Nomor transfer, ID transaksi, dll.</FieldDescription>
       </Field>
       <Field>
-        <FieldLabel>Catatan</FieldLabel>
-        <Input value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Opsional" />
+        <FieldLabel htmlFor="invoice-payment-notes">Catatan</FieldLabel>
+        <Input id="invoice-payment-notes" value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Opsional" />
       </Field>
     </>
   );
@@ -131,9 +132,25 @@ export default function InvoiceDetailPage() {
     });
     if (res.ok) {
       const d = await res.json();
-      toast.success("Link pembayaran dibuat");
-      if (d.paymentUrl) navigator.clipboard.writeText(d.paymentUrl);
-      toast.info("Link disalin ke clipboard — kirim via WhatsApp");
+      // /api/xendit/create-session is batch-shaped: it answers 200 with
+      // {created, failed, results[], errors[]} even when THIS invoice's link
+      // failed, and never returns a top-level paymentUrl. Branching on res.ok
+      // alone claimed both "link dibuat" and "disalin ke clipboard" on every
+      // call while the clipboard write silently never ran.
+      const paymentUrl: string | undefined = d.results?.[0]?.paymentUrl;
+      if (d.created > 0 && paymentUrl) {
+        toast.success("Link pembayaran dibuat");
+        try {
+          await navigator.clipboard.writeText(paymentUrl);
+          toast.info("Link disalin ke clipboard — kirim via WhatsApp");
+        } catch {
+          // Clipboard can be blocked by permissions or a non-secure context.
+          // Never claim a copy that didn't happen.
+          toast.info("Link pembayaran siap disalin dari detail tagihan.");
+        }
+      } else {
+        toast.error(d.errors?.[0] ?? "Gagal membuat link pembayaran");
+      }
       fetchInvoice();
     } else {
       const d = await res.json();
@@ -159,8 +176,11 @@ export default function InvoiceDetailPage() {
       if (out.succeeded > 0) {
         toast.success("Link pembayaran berhasil dibuat");
       } else {
-        const firstErr = out.results?.[0]?.error;
-        toast.error(`Masih gagal${firstErr ? `: ${firstErr}` : ""}`);
+        // Never splice the raw "<prefix>: <vendor message>" into a toast —
+        // the humanised sentence goes here, the raw detail stays on the
+        // invoice's paymentLinkError disclosure.
+        const parsed = parsePaymentLinkError(out.results?.[0]?.error);
+        toast.error(parsed ? `Masih gagal. ${parsed.userMessage}` : "Masih gagal membuat link pembayaran.");
       }
       fetchInvoice();
     } finally {
@@ -297,7 +317,26 @@ export default function InvoiceDetailPage() {
             <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium">Link pembayaran belum berhasil dibuat</p>
-              <p className="text-xs text-muted-foreground mt-1">{invoice.paymentLinkError}</p>
+              {/* Was rendering the stored "<prefix>: <vendor message>" string
+                  verbatim — e.g. "5xx: Xendit API error: 500". The raw vendor
+                  text stays available behind the disclosure for support. */}
+              {(() => {
+                const parsed = parsePaymentLinkError(invoice.paymentLinkError);
+                if (!parsed) return null;
+                return (
+                  <>
+                    <p className="text-xs text-muted-foreground mt-1">{parsed.userMessage}</p>
+                    <details className="mt-1">
+                      <summary className="text-xs text-muted-foreground cursor-pointer">
+                        Lihat detail teknis
+                      </summary>
+                      <p className="text-xs text-muted-foreground mt-1 break-all">
+                        {parsed.code} · {parsed.detail}
+                      </p>
+                    </details>
+                  </>
+                );
+              })()}
             </div>
             <Button size="sm" onClick={handleRetryLink} disabled={retrying}>
               {retrying ? "..." : "Coba Lagi"}

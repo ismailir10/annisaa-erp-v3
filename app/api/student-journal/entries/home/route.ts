@@ -5,6 +5,7 @@ import { requireGuardianForStudent } from "@/lib/student-journal/guards";
 import { homeEntryBatchSchema } from "@/lib/validations/student-journal";
 import { rateLimit } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { upsertJournalEntriesWithAudit } from "@/lib/student-journal/entry-writes";
 
 /**
  * Indonesian copy when the parent attempts to backfill or post-date a home
@@ -83,35 +84,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Upsert entries in a transaction
-  const saved = await prisma.$transaction(
-    entries.map((entry) =>
-      prisma.studentJournalEntry.upsert({
-        where: {
-          studentId_indicatorId_date_scope: {
-            studentId,
-            indicatorId: entry.indicatorId,
-            date,
-            scope: "HOME",
-          },
-        },
-        update: {
-          checked: entry.checked,
-          recordedByUserId: session.id,
-        },
-        create: {
-          tenantId: session.tenantId,
-          studentId,
-          classSectionId: null,
-          indicatorId: entry.indicatorId,
-          date,
-          scope: "HOME",
-          checked: entry.checked,
-          recordedByUserId: session.id,
-        },
-      }),
-    ),
-  );
+  // Upsert + audit in one transaction (see lib/student-journal/entry-writes).
+  const saved = await upsertJournalEntriesWithAudit({
+    tenantId: session.tenantId,
+    actorUserId: session.id,
+    date,
+    scope: "HOME",
+    classSectionId: null,
+    entries: entries.map((e) => ({
+      studentId,
+      indicatorId: e.indicatorId,
+      checked: e.checked,
+    })),
+  });
 
-  return NextResponse.json({ data: { saved: saved.length } });
+  return NextResponse.json({ data: { saved } });
 }

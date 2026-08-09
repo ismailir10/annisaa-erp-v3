@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,22 +21,32 @@ type SlipItem = {
 export default function TeacherSlipsPage() {
   const [slips, setSlips] = useState<SlipItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const loadRequestId = useRef(0);
+
+  const loadSlips = useCallback(async () => {
+    const requestId = ++loadRequestId.current;
+    setLoading(true);
+    setLoadError(false);
+
+    try {
+      const response = await fetch("/api/slips/my");
+      if (!response.ok) throw new Error("Slip request failed");
+      const data = await response.json();
+      if (requestId !== loadRequestId.current) return;
+      setSlips(data);
+    } catch {
+      if (requestId !== loadRequestId.current) return;
+      setLoadError(true);
+      toast.error("Slip gaji tidak bisa dimuat. Coba lagi sebentar ya.");
+    } finally {
+      if (requestId === loadRequestId.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch("/api/slips/my")
-      .then((r) => {
-        if (!r.ok) {
-          toast.error("Slip gaji tidak bisa dimuat. Coba lagi sebentar ya.");
-          setLoading(false);
-          return;
-        }
-        return r.json();
-      })
-      .then((d) => {
-        if (d) setSlips(d);
-        setLoading(false);
-      });
-  }, []);
+    void loadSlips();
+  }, [loadSlips]);
 
   const today = new Date();
   const prior = priorMonthLabel(today);
@@ -52,6 +62,20 @@ export default function TeacherSlipsPage() {
             <Skeleton key={i} className="h-20 w-full rounded-xl" />
           ))}
         </div>
+      ) : loadError ? (
+        <Card role="alert" className="p-card text-center">
+          <FileText size={24} className="mx-auto text-muted-foreground" aria-hidden="true" />
+          <p className="mt-3 text-sm font-medium text-foreground">Slip gaji tidak bisa dimuat</p>
+          <p className="mt-1 text-xs text-muted-foreground">Periksa koneksi, lalu coba lagi.</p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={loadSlips}
+            className="mt-4 min-h-11 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Coba lagi
+          </Button>
+        </Card>
       ) : slips.length === 0 && !showPlaceholder ? (
         <EmptyState
           icon={FileText}

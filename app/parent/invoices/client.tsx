@@ -423,7 +423,7 @@ export function InvoicesClient({
                 setSortMode("due-asc");
               }}
             >
-              Reset
+              Atur Ulang
             </Button>
           ) : null}
         </section>

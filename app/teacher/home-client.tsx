@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   MapPin,
   BookHeart,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
 import { formatDate, formatTime } from "@/lib/format";
 
@@ -68,6 +69,7 @@ export function TeacherHomeClient({
   todaySessions?: TodaySession[];
 }) {
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
   const [record, setRecord] = useState(initialRecord);
   const [time, setTime] = useState(new Date());
   const [loading, setLoading] = useState(false);
@@ -111,7 +113,9 @@ export function TeacherHomeClient({
       setGpsStatus("Mengambil lokasi...");
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setGpsStatus(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+          // Coordinates mean nothing to a teacher — she wants confirmation.
+          // The precise value still goes to the server with the clock-in.
+          setGpsStatus("Lokasi tercatat");
           resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         },
         () => {
@@ -156,7 +160,7 @@ export function TeacherHomeClient({
         checkInTime: data.checkInTime,
         checkOutTime: data.checkOutTime,
       });
-      setSuccess(action === "check-out" ? "Pulang tercatat" : "Clock-in tersimpan");
+      setSuccess(action === "check-out" ? "Pulang tercatat" : "Masuk tercatat");
       setTimeout(() => setSuccess(null), 2000);
       router.refresh();
     } else {
@@ -194,9 +198,22 @@ export function TeacherHomeClient({
   // initial render than after one animation tick.
   if (!mounted) {
     return (
-      <div className="min-h-[60vh]" aria-busy="true" suppressHydrationWarning>
-        {/* Reserve vertical space so the layout doesn't jump when the real
-            content mounts; the bottom-tab nav is the only persistent UI. */}
+      <div
+        className="space-y-6"
+        aria-busy="true"
+        aria-label="Memuat beranda"
+        suppressHydrationWarning
+      >
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-64 rounded-md" />
+          <Skeleton className="h-4 w-40 rounded-md" />
+        </div>
+        <div className="flex flex-col items-center gap-4 pt-2">
+          <Skeleton className="h-8 w-28 rounded-md" />
+          <Skeleton className="h-36 w-36 rounded-full" />
+          <Skeleton className="h-4 w-48 rounded-md" />
+        </div>
+        <Skeleton className="h-28 w-full rounded-xl" />
       </div>
     );
   }
@@ -205,9 +222,9 @@ export function TeacherHomeClient({
     <div>
       {/* Greeting */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: reduceMotion ? 0 : 0.4 }}
       >
         <PageHeader
           title={`Selamat ${greeting}, Ustadz/Ustadzah ${userName}`}
@@ -218,9 +235,9 @@ export function TeacherHomeClient({
 
       {/* Clock + Check-in button */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={reduceMotion ? false : { opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.15, duration: 0.4 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.15, duration: 0.4 }}
         className="mt-8 flex flex-col items-center"
       >
         <p className="font-currency text-display font-bold tracking-tight mb-6">
@@ -228,19 +245,20 @@ export function TeacherHomeClient({
         </p>
 
         <div className="relative">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={!reduceMotion}>
             {success ? (
               <motion.div
                 key="success"
-                initial={{ scale: 0.8, opacity: 0 }}
+                initial={reduceMotion ? false : { scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
+                exit={reduceMotion ? undefined : { scale: 0.8, opacity: 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.4 }}
                 className="w-36 h-36 rounded-full bg-status-present flex items-center justify-center"
               >
                 <motion.span
-                  initial={{ scale: 0 }}
+                  initial={reduceMotion ? false : { scale: 0 }}
                   animate={{ scale: [0, 1.3, 1] }}
-                  transition={{ duration: 0.4 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.4 }}
                   className="text-white text-4xl"
                 >
                   ✓
@@ -249,8 +267,8 @@ export function TeacherHomeClient({
             ) : (
               <motion.button
                 key="button"
-                whileHover={!hasCheckedOut && !loading ? { scale: 1.03 } : {}}
-                whileTap={!hasCheckedOut && !loading ? { scale: 0.95 } : {}}
+                whileHover={!reduceMotion && !hasCheckedOut && !loading ? { scale: 1.03 } : {}}
+                whileTap={!reduceMotion && !hasCheckedOut && !loading ? { scale: 0.95 } : {}}
                 onClick={handleAction}
                 disabled={hasCheckedOut || loading}
                 className={`w-36 h-36 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg transition-colors ${
@@ -282,13 +300,14 @@ export function TeacherHomeClient({
         </p>
 
         {/* Inline error (voice.md: supportive, non-blame) */}
-        <AnimatePresence>
+        <AnimatePresence initial={!reduceMotion}>
           {actionError && (
             <motion.p
               key="action-error"
-              initial={{ opacity: 0, y: -4 }}
+              initial={reduceMotion ? false : { opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.2 }}
               className="mt-3 text-xs text-status-late-text text-center px-4"
               role="alert"
             >
@@ -304,98 +323,11 @@ export function TeacherHomeClient({
         </div>
       </motion.div>
 
-      {/* Quick links */}
+      {/* Today status follows the primary clock flow, before secondary links. */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25, duration: 0.4 }}
-        className="mt-6"
-      >
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Akses Cepat
-        </p>
-        <div className="space-y-2">
-          <Link
-            href="/teacher/student-journal"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
-          >
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <BookHeart size={20} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Buku Penghubung</p>
-              <p className="text-xs text-muted-foreground">Isi catatan harian siswa</p>
-            </div>
-          </Link>
-          {homeroomClassSectionName && (
-            <Link
-              href="/teacher/assessments/weekly"
-              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
-              data-testid="home-weekly-card"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <CalendarDays size={20} className="text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Penilaian Pekanan</p>
-                <p className="text-xs text-muted-foreground">
-                  Walas {homeroomClassSectionName}
-                </p>
-              </div>
-            </Link>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Today's class sessions — additive card (academic-hierarchy-refactor
-          Task 7). Each row links to the session roster page. */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.28, duration: 0.4 }}
-        className="mt-6"
-      >
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Sesi Hari Ini
-        </p>
-        {todaySessions.length > 0 ? (
-          <div className="space-y-2">
-            {todaySessions.map((s) => (
-              <Link
-                key={s.id}
-                href={`/teacher/sessions/${s.id}`}
-                className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <ClipboardList size={20} className="text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{s.className}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {SLOT_LABEL[s.slot] ?? s.slot} • {s.rosterCount} siswa
-                  </p>
-                </div>
-                <ChevronRight
-                  size={16}
-                  className="text-muted-foreground shrink-0"
-                />
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <Card className="p-card">
-            <p className="text-sm text-muted-foreground text-center">
-              Belum ada sesi kelas terjadwal hari ini.
-            </p>
-          </Card>
-        )}
-      </motion.div>
-
-      {/* Today status */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.4 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.2, duration: 0.4 }}
         className="mt-6"
       >
         <Card className="p-card">
@@ -427,6 +359,94 @@ export function TeacherHomeClient({
           </div>
         </Card>
       </motion.div>
+
+      {/* Quick links */}
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.25, duration: 0.4 }}
+        className="mt-6"
+      >
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Akses Cepat
+        </p>
+        <div className="space-y-2">
+          <Link
+            href="/teacher/student-journal"
+            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <BookHeart size={20} className="text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Buku Penghubung</p>
+              <p className="text-xs text-muted-foreground">Isi catatan harian siswa</p>
+            </div>
+          </Link>
+          {homeroomClassSectionName && (
+            <Link
+              href="/teacher/assessments/weekly"
+              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              data-testid="home-weekly-card"
+            >
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <CalendarDays size={20} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Penilaian Pekanan</p>
+                <p className="text-xs text-muted-foreground">
+                  Walas {homeroomClassSectionName}
+                </p>
+              </div>
+            </Link>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Today's class sessions — additive card (academic-hierarchy-refactor
+          Task 7). Each row links to the session roster page. */}
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={reduceMotion ? { duration: 0 } : { delay: 0.28, duration: 0.4 }}
+        className="mt-6"
+      >
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Sesi Hari Ini
+        </p>
+        {todaySessions.length > 0 ? (
+          <div className="space-y-2">
+            {todaySessions.map((s) => (
+              <Link
+                key={s.id}
+                href={`/teacher/sessions/${s.id}`}
+                className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <ClipboardList size={20} className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{s.className}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {SLOT_LABEL[s.slot] ?? s.slot} • {s.rosterCount} siswa
+                  </p>
+                </div>
+                <ChevronRight
+                  size={16}
+                  className="text-muted-foreground shrink-0"
+                />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <Card className="p-card">
+            <p className="text-sm text-muted-foreground text-center">
+              Belum ada sesi kelas terjadwal hari ini.
+            </p>
+          </Card>
+        )}
+      </motion.div>
+
     </div>
   );
 }

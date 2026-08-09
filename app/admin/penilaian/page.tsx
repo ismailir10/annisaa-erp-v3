@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
-import { formatLearningCenter } from "@/lib/format";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { formatLearningCenter, formatDate } from "@/lib/format";
 import { ClipboardList, CalendarDays, Building2, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
 
@@ -43,10 +45,10 @@ function CompletionBadge({ assessed, enrolled }: { assessed: number; enrolled: n
   const cls = done
     ? "bg-status-present/10 text-status-present border-status-present/20"
     : started
-      ? "bg-primary/10 text-primary border-primary/20"
+      ? "bg-status-late/10 text-status-late border-status-late/20"
       : "text-muted-foreground";
   return (
-    <Badge variant="outline" className={cls}>
+    <Badge variant="outline" className={cn(cls, "font-currency")}>
       {assessed}/{enrolled} dinilai
     </Badge>
   );
@@ -88,15 +90,15 @@ export default function AdminPenilaianPage() {
   return (
     <div>
       <PageHeader
-        title="Penilaian"
+        title="Pemantauan"
         description={
           data
             ? `Pantau kelengkapan penilaian — Tahun Ajaran ${data.academicYear}`
             : "Pantau kelengkapan penilaian walas pekanan & sentra harian"
         }
         actions={
-          <Link href="/admin/raport" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            <FileText className="size-4" /> Susun Raport
+          <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            <FileText className="size-4" /> Susun Rapor
           </Link>
         }
       />
@@ -159,26 +161,26 @@ export default function AdminPenilaianPage() {
               />
             ) : (
               <Card className="overflow-hidden p-0">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 text-left">
-                    <tr>
-                      <th className="p-3 font-medium">Kelas</th>
-                      <th className="p-3 font-medium">Program</th>
-                      <th className="p-3 font-medium text-right">Kelengkapan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="h-auto p-3">Kelas</TableHead>
+                      <TableHead className="h-auto p-3">Program</TableHead>
+                      <TableHead className="h-auto p-3 text-right">Kelengkapan</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {data.walas.map((row) => (
-                      <tr key={row.classSectionId} className="border-t border-border">
-                        <td className="p-3 font-medium">{row.className}</td>
-                        <td className="p-3 text-muted-foreground">{row.programName}</td>
-                        <td className="p-3 text-right">
+                      <TableRow key={row.classSectionId}>
+                        <TableCell className="p-3 font-medium whitespace-normal">{row.className}</TableCell>
+                        <TableCell className="p-3 text-muted-foreground whitespace-normal">{row.programName}</TableCell>
+                        <TableCell className="p-3 text-right">
                           <CompletionBadge assessed={row.assessed} enrolled={row.enrolled} />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </Card>
             )}
           </section>
@@ -192,14 +194,14 @@ export default function AdminPenilaianPage() {
               </h2>
             </div>
             <p className="text-sm text-muted-foreground mb-3">
-              Entri pada {data.sentraDate}. Sentra tidak memiliki target siswa tetap (rotasi
+              Entri pada {formatDate(data.sentraDate)}. Sentra tidak memiliki target siswa tetap (rotasi
               fleksibel) — angka menunjukkan jumlah entri & siswa yang dinilai.
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {data.sentra.map((row) => (
                 <Card key={row.center} className="p-card">
                   <p className="text-sm font-semibold mb-1">{formatLearningCenter(row.center)}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground font-currency">
                     {row.entries} entri · {row.studentsAssessed} siswa dinilai
                   </p>
                 </Card>

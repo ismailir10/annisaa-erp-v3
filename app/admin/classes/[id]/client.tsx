@@ -701,7 +701,7 @@ export function ClassDetailClient({
                   onClick={() => setRemoveStudentTarget(row.original)}
                 >
                   <UserMinus size={14} className="mr-1" />
-                  <span className="text-xs">Keluarkan</span>
+                  <span className="text-xs">Keluarkan dari Kelas Ini</span>
                 </Button>
               )}
             </div>
@@ -1110,7 +1110,7 @@ export function ClassDetailClient({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="class-detail-slot-template" required>Pola slot</FieldLabel>
+            <FieldLabel htmlFor="class-detail-slot-template" required>Pola Waktu Kelas</FieldLabel>
             <Select
               value={editForm.slotTemplate}
               onValueChange={(v) =>
@@ -1197,10 +1197,10 @@ export function ClassDetailClient({
         title="Keluarkan siswa dari kelas?"
         description={
           removeStudentTarget
-            ? `${removeStudentTarget.student.name} akan dikeluarkan dari ${data.name}. Pendaftaran akan ditandai WITHDRAWN.`
+            ? `${removeStudentTarget.student.name} akan dikeluarkan dari ${data.name}. Pendaftaran akan ditandai Keluar.`
             : ""
         }
-        confirmLabel="Keluarkan"
+        confirmLabel="Keluarkan dari Kelas Ini"
         destructive
         onConfirm={removeStudent}
       />

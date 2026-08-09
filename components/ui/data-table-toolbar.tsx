@@ -93,6 +93,10 @@ export function DataTableToolbar({
         <div className="relative flex-1 max-w-sm">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
+            // The search box has no visible label by design — the magnifier
+            // icon carries the affordance. A placeholder is not an accessible
+            // name (it disappears on input), so name the control explicitly.
+            aria-label={searchPlaceholder}
             placeholder={searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -109,7 +113,13 @@ export function DataTableToolbar({
             if (v !== null) filter.onChange(v);
           }}
         >
-          <SelectTrigger className="w-full sm:w-40 h-9">
+          {/* `filter.value` always matches one of `filter.options`, so the
+              SelectValue placeholder never renders and cannot name the
+              control. Name the trigger explicitly instead. "Filter X" rather
+              than bare "X": a page often has a form field of the same name
+              (e.g. Status), and the accessible name should say which one this
+              is. */}
+          <SelectTrigger aria-label={`Filter ${filter.label}`} className="w-full sm:w-40 h-9">
             <SelectValue placeholder={filter.label} />
           </SelectTrigger>
           <SelectContent>
@@ -129,7 +139,7 @@ export function DataTableToolbar({
           disabled={!canReset}
           onClick={handleReset}
         >
-          Reset
+          Atur Ulang
         </Button>
       )}
 
