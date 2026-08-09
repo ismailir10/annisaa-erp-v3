@@ -98,6 +98,14 @@ Seven implementers ran in parallel with disjoint file ownership. **All seven wer
 
 **Not yet done — carried forward:** all of T5 (Bank Narasi page/permission copy) and T8 (parent portal, including the false-notification blocker and the partial-payment state); most of T3 (validation sweep, `DataTable` default, English `aria-label`s); most of T4 (the false success-toast blocker, webhook raw enums, gateway-error wiring); the remainder of T6 and T7; all of T9.
 
+### T5 + blockers (driver, after the subagent fleet was lost)
+
+- **T5 complete.** "Kisi-kisi" is gone from every surface a user can reach: `config/admin-nav.ts` (nav), `lib/permissions.ts` (roles screen), `app/admin/raport/templates/page.tsx` (title + 11 toasts/errors/empty-states), `app/admin/raport/raport-editor.tsx` (the per-section apply button), `app/api/admin/raport/templates/clone/route.ts` (API error), `lib/validations/raport-template.ts` (Zod message). Code comments updated too, so the next reader isn't re-taught the wrong model. Also dropped the dev word "slot" from two Zod messages ("Ada bagian narasi…"). Verified by grep: the only remaining `kisi` hits in `app/`, `config/`, `components/` are zero; `prisma/schema.prisma` and the generated Prisma client still carry it in comments, deliberately left alone (touching the schema would force a client regen for a comment).
+- **Blocker — false success toast** (`app/admin/invoices/[id]/page.tsx`). Confirmed the endpoint shape first: `results[]` carries `{studentName, invoiceNumber, paymentUrl}` and there is no top-level `paymentUrl`. Now branches on `d.created > 0 && d.results?.[0]?.paymentUrl`, awaits the clipboard write in a `try`, and reports the real failure from `d.errors[0]` otherwise. The clipboard toast can no longer claim a copy that didn't happen — including when the browser blocks it for permissions or a non-secure context.
+- **Blocker — false notification promise** (`app/parent/report-cards-list.tsx`). "Anda akan mendapat notifikasi" → "Cek kembali halaman ini secara berkala ya."
+- **Blocker — partial payments** (`app/parent/invoices/invoice-detail-sheet.tsx`). Added an `isPartiallyPaid` branch: label "Dibayar Sebagian", the amount already received shown explicitly, and the focal amount rendered in late-amber rather than absent-red. A parent who paid half no longer sees the same red "Belum Dibayar" as someone who paid nothing.
+- Billing labels aligned in `app/admin/invoices/invoices-client.tsx` (StatCards + status filter) and `CANCELLED` added to the filter — `stats.cancelled` was already being fetched and never surfaced. `"Tanggal Jatuh Tempo"` (the due-date field label) deliberately left as-is; that phrase is correct for a date and is the whole reason the status was renamed away from it.
+
 ## Verification
 
 ### T1
@@ -115,6 +123,13 @@ Gate run by the driver, not by the subagents — none of them survived to report
   - Intermediate run had **5 failures across 2 files**, all of them tests asserting the old copy (`Kelas`, `Dashboard`, `Kisi-kisi`, `Raport`, `Formulir Pendaftaran`, `Buku Penghubung`) that the killed agents never reached. Updated by the driver; no product code was changed to make a test pass.
 - Cross-checked `design-system.html` §18 (voice & tone) for the status-badge label changes — "Lewat Tempo" and "Dibayar Sebagian" keep their existing severity tones (absent-red, late-amber), so no color-token drift was introduced.
 - Playwright not yet run — deferred until the cycle's remaining tasks land.
+
+### T5 + blockers
+
+- `npm run build` — **exit 0**.
+- `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2672 passed | 42 todo (2714)**. No failures.
+- Grep-verified zero user-reachable `kisi` occurrences remain across `app/`, `components/`, `config/`.
+- design-system cross-check: "Dibayar Sebagian" uses the existing `status-late` (amber) token family already assigned to `PARTIALLY_PAID` in the status scale, so the new parent branch introduces no new color and no token drift.
 
 ## Ship Notes
 

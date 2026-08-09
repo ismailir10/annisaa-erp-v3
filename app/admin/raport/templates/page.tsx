@@ -85,11 +85,11 @@ export default function RaportTemplatesPage() {
         data?: { bucketed: Record<string, string>; closing: Record<string, string> };
         error?: string;
       };
-      if (!res.ok) throw new ApiError(body.error ?? "Gagal memuat kisi-kisi.");
+      if (!res.ok) throw new ApiError(body.error ?? "Gagal memuat bank narasi.");
       setBucketed(body.data?.bucketed ?? {});
       setClosing(body.data?.closing ?? {});
     } catch (err) {
-      setError(userMessage(err, "Gagal memuat kisi-kisi."));
+      setError(userMessage(err, "Gagal memuat bank narasi."));
       setBucketed({});
       setClosing({});
     } finally {
@@ -132,17 +132,17 @@ export default function RaportTemplatesPage() {
         data?: { written: number; cleared: number };
         error?: string;
       };
-      if (!res.ok) throw new ApiError(body.error ?? "Gagal menyimpan kisi-kisi.");
+      if (!res.ok) throw new ApiError(body.error ?? "Gagal menyimpan bank narasi.");
       const written = body.data?.written ?? 0;
       const cleared = body.data?.cleared ?? 0;
       toast.success(
         cleared > 0
-          ? `Kisi-kisi tersimpan: ${written} terisi, ${cleared} dikosongkan.`
-          : `Kisi-kisi tersimpan: ${written} terisi.`,
+          ? `Narasi tersimpan: ${written} terisi, ${cleared} dikosongkan.`
+          : `Narasi tersimpan: ${written} terisi.`,
       );
       await loadGrid();
     } catch (err) {
-      toast.error(userMessage(err, "Gagal menyimpan kisi-kisi."));
+      toast.error(userMessage(err, "Gagal menyimpan bank narasi."));
     } finally {
       setSaving(false);
     }
@@ -166,17 +166,17 @@ export default function RaportTemplatesPage() {
         data?: { copied: number; skipped: number };
         error?: string;
       };
-      if (!res.ok) throw new ApiError(body.error ?? "Gagal menyalin kisi-kisi.");
+      if (!res.ok) throw new ApiError(body.error ?? "Gagal menyalin bank narasi.");
       const copied = body.data?.copied ?? 0;
       const skipped = body.data?.skipped ?? 0;
       toast.success(
         skipped > 0
-          ? `${copied} kisi-kisi disalin, ${skipped} dilewati karena sudah terisi.`
-          : `${copied} kisi-kisi disalin.`,
+          ? `${copied} narasi disalin, ${skipped} dilewati karena sudah terisi.`
+          : `${copied} narasi disalin.`,
       );
       await loadGrid();
     } catch (err) {
-      toast.error(userMessage(err, "Gagal menyalin kisi-kisi."));
+      toast.error(userMessage(err, "Gagal menyalin bank narasi."));
     } finally {
       setCloning(false);
     }
@@ -189,7 +189,7 @@ export default function RaportTemplatesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Kisi-kisi Raport"
+        title="Bank Narasi Rapor"
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun raport siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
         actions={
           <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline" }))}>
@@ -243,7 +243,7 @@ export default function RaportTemplatesPage() {
         <EmptyState
           icon={FileText}
           title="Belum ada triwulan"
-          description="Buat triwulan terlebih dahulu di halaman Raport sebelum menyusun kisi-kisi."
+          description="Buat triwulan terlebih dahulu di halaman Rapor sebelum menyusun narasi."
           actionLabel="Susun Raport"
           actionHref="/admin/raport"
         />
@@ -252,7 +252,7 @@ export default function RaportTemplatesPage() {
       {error && (
         <EmptyState
           icon={AlertCircle}
-          title="Gagal memuat kisi-kisi"
+          title="Gagal memuat bank narasi"
           description={error}
           actionLabel="Coba lagi"
           onAction={() => void loadGrid()}
@@ -327,7 +327,7 @@ export default function RaportTemplatesPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Menyalin kisi-kisi dari triwulan lain ke triwulan ini. Slot yang
+                Menyalin narasi dari triwulan lain ke triwulan ini. Bagian yang
                 sudah terisi di sini <strong>tidak</strong> akan tertimpa.
               </p>
               <div className="flex flex-wrap items-end gap-4">

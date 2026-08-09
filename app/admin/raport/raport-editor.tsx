@@ -72,7 +72,7 @@ type Payload = {
   student: { id: string; name: string; nickname: string | null };
   term: { id: string; number: number; semesterNumber: number; academicYear: string };
   ageGroup: "A" | "B" | null;
-  /** Kisi-kisi for this student's cohort; null when no active enrolment. */
+  /** Bank narasi for this student's cohort; null when no active enrolment. */
   templates: TemplateGridPayload | null;
   saved: Saved;
   measurement: { heightCm: string | null; weightKg: string | null } | null;
@@ -170,7 +170,7 @@ export function RaportEditor({
       setLevels(initLevels);
 
       // Narratives: saved text wins; otherwise fall back to the cohort's
-      // kisi-kisi for the level we just initialised. Only ever fills an EMPTY
+      // bank narasi for the level we just initialised. Only ever fills an EMPTY
       // field, so re-opening a saved raport never rewrites authored text.
       const initNarr: Record<string, string> = {};
       for (const s of [...BUCKETED_SECTIONS, ...CLOSING_SECTIONS]) {
@@ -466,11 +466,11 @@ function SectionField({
   narrative: string;
   onNarrative: (v: string) => void;
   suggestion: { suggested: RaportLevel | null; counts: ElementCounts } | null;
-  /** Cohort kisi-kisi for the currently selected level, if any. */
+  /** Cohort bank narasi for the currently selected level, if any. */
   templateText: string | null;
 }) {
   // Offer the action only when it would change something — no point showing
-  // "Pakai kisi-kisi" when the field already holds exactly that text.
+  // "Pakai narasi" when the field already holds exactly that text.
   const canApplyTemplate =
     templateText !== null && templateText.trim() !== narrative.trim();
   return (
@@ -518,7 +518,7 @@ function SectionField({
           size="sm"
           onClick={() => onNarrative(templateText)}
         >
-          {narrative.trim() ? "Ganti dengan kisi-kisi" : "Pakai kisi-kisi"}
+          {narrative.trim() ? "Ganti dengan narasi" : "Pakai narasi"}
         </Button>
       ) : null}
     </div>

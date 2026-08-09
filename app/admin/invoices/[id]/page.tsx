@@ -131,9 +131,25 @@ export default function InvoiceDetailPage() {
     });
     if (res.ok) {
       const d = await res.json();
-      toast.success("Link pembayaran dibuat");
-      if (d.paymentUrl) navigator.clipboard.writeText(d.paymentUrl);
-      toast.info("Link disalin ke clipboard — kirim via WhatsApp");
+      // /api/xendit/create-session is batch-shaped: it answers 200 with
+      // {created, failed, results[], errors[]} even when THIS invoice's link
+      // failed, and never returns a top-level paymentUrl. Branching on res.ok
+      // alone claimed both "link dibuat" and "disalin ke clipboard" on every
+      // call while the clipboard write silently never ran.
+      const paymentUrl: string | undefined = d.results?.[0]?.paymentUrl;
+      if (d.created > 0 && paymentUrl) {
+        toast.success("Link pembayaran dibuat");
+        try {
+          await navigator.clipboard.writeText(paymentUrl);
+          toast.info("Link disalin ke clipboard — kirim via WhatsApp");
+        } catch {
+          // Clipboard can be blocked by permissions or a non-secure context.
+          // Never claim a copy that didn't happen.
+          toast.info("Link pembayaran siap disalin dari detail tagihan.");
+        }
+      } else {
+        toast.error(d.errors?.[0] ?? "Gagal membuat link pembayaran");
+      }
       fetchInvoice();
     } else {
       const d = await res.json();
