@@ -215,6 +215,32 @@ Gate run by the driver, not by the subagents — none of them survived to report
 - `npm run lint` — **exit 0** (warnings only, all pre-existing).
 - `npx playwright test` — **deferred to the required CI check**, reason above.
 
+### Preview-verify (Chrome MCP, PR #467)
+
+Preview: `https://annisaa-erp-v3-git-feat-copy-c-73d2be-ismails-projects-196d40d3.vercel.app`
+
+**Iteration 1 — flows walked: 4, blockers: 0, minors: 4 (all fixed rather than deferred).**
+
+Signed in per portal with the role-scoped Google account from `.claude/verify-accounts.json` (admin → `ismailir10@gmail.com`, parent → `rightjet.hq@gmail.com`, teacher → `ismail10rabbanii@gmail.com`), switching accounts between portals.
+
+| Flow | Verified |
+|---|---|
+| Admin → Tagihan | Status badge renders **Link Dibuat**; row caption still reads **"Jatuh tempo: 31 Jul 2026"** (the date); StatCard reads **Lewat Tempo**. The three meanings that used to collapse into one phrase are now three distinct words on the same screen. Filter lists Link Dibuat / Dibayar Sebagian / Lewat Tempo / **Dibatalkan** (previously tracked but never selectable). Toolbar shows **Atur Ulang**. |
+| Admin → Bank Narasi | Nav item, breadcrumb, and page title all read **Bank Narasi**; the term "kisi-kisi" appears nowhere. |
+| Parent → Beranda / Perkembangan | KidCard week strip now carries the legend `✓ Hadir · A Alpa · S Sakit · I Izin`. Overflow sheet reads **Perkembangan** (description "Capaian anak per elemen"), and the page it opens is titled **Perkembangan** — nav and title agree. The skala framing line renders above the element list. |
+| Teacher → nav | Tab bar reads **Beranda · Absensi · Jurnal · Penilaian · Lainnya**. Confirms the driver's width call: `Absensi` fits, and the abandoned `Penghubung` would not have. |
+
+No console errors on any surface. Only network call outside document loads was `POST /api/csp-report` → 204. No 4xx or 5xx.
+
+**Minors found and fixed** (each violated this cycle's own AC9/AC5, so leaving them as PR comments would have shipped a known spec violation):
+
+1. `app/admin/raport/templates/page.tsx` — page description still said "menyusun **raport** siswa" directly under a heading reading "Bank Narasi Rapor".
+2. `app/admin/raport/page.tsx` — subtitle + 3 further strings still said `raport`.
+3. `app/admin/raport/raport-editor.tsx` — 2 toasts + the unpublish dialog title still said `raport`.
+4. `app/admin/student-attendance/page.tsx` "Reset tanggal" and `app/parent/invoices/client.tsx` "Reset" — untranslated `Reset` the T3 sweep missed because it only looked at `data-table-toolbar`.
+
+This is exactly the class of defect preview-verify exists to catch: every one passed build, tests, and lint, and every one was visible in the first screenshot of the page.
+
 ## Ship Notes
 
 - **Migrations:** none. No schema change — this was explicitly scoped to avoid a prod migration.

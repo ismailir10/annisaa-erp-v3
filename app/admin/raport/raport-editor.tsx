@@ -155,7 +155,7 @@ export function RaportEditor({
       const res = await fetch(`/api/admin/raport/${studentId}/${termId}`);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? "Gagal memuat raport.");
+        setError(body.error ?? "Gagal memuat rapor.");
         return;
       }
       const json = (await res.json()) as { data: Payload };
@@ -205,7 +205,7 @@ export function RaportEditor({
         weight: initWeight,
       });
     } catch {
-      setError("Gagal memuat raport.");
+      setError("Gagal memuat rapor.");
     }
   }, [studentId, termId]);
 
@@ -238,7 +238,7 @@ export function RaportEditor({
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Gagal menyimpan raport.");
+        toast.error(body.error ?? "Gagal menyimpan rapor.");
         return false;
       }
       if (status === "NONE") setStatus("DRAFT");
@@ -418,7 +418,7 @@ export function RaportEditor({
       <AlertDialog open={confirmUnpublish} onOpenChange={setConfirmUnpublish}>
         <AlertDialogContent className="p-card sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Tarik penerbitan raport?</AlertDialogTitle>
+            <AlertDialogTitle>Tarik penerbitan rapor?</AlertDialogTitle>
             <AlertDialogDescription>
               Rapor akan kembali menjadi draft dan tidak terlihat sebagai rapor terbit sampai diterbitkan ulang.
             </AlertDialogDescription>

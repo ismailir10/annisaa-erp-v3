@@ -467,7 +467,7 @@ export default function StudentAttendancePage() {
               setPagination((p) => ({ ...p, page: 1 }));
             }}
           >
-            Reset tanggal
+            Atur ulang tanggal
           </Button>
         )}
       </div>

@@ -190,7 +190,7 @@ export default function RaportTemplatesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Bank Narasi Rapor"
-        description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun raport siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
+        description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun rapor siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
         actions={
           <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline" }))}>
             Susun Rapor
