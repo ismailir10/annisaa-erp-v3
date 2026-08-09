@@ -133,6 +133,11 @@ export function InvoiceDetailSheet({
   const isPaid = invoice.status === "PAID";
   const isCancelled = invoice.status === "CANCELLED";
   const isPayable = remaining > 0 && !isCancelled && !isPaid;
+  // A parent who already transferred part of the SPP was shown the identical
+  // "Belum Dibayar" treatment as someone who had paid nothing — only the
+  // amount differed. Give the state its own label so the payment they already
+  // made is visibly acknowledged.
+  const isPartiallyPaid = !isPaid && !isCancelled && invoice.totalPaid > 0;
   const hasPaymentLink = !!invoice.xenditPaymentUrl;
   const linkState = paymentLinkState(hasPaymentLink, invoice.sentAt);
   const focalAmount = isPaid ? invoice.totalDue : remaining;
@@ -157,7 +162,7 @@ export function InvoiceDetailSheet({
           {/* Focal amount card */}
           <div className="rounded-xl border border-border bg-card p-4 md:p-6">
             <p
-              className={`font-currency text-2xl sm:text-display font-bold leading-none tracking-tight ${isPaid ? "text-status-present-text" : "text-status-absent-text"}`}
+              className={`font-currency text-2xl sm:text-display font-bold leading-none tracking-tight ${isPaid ? "text-status-present-text" : isPartiallyPaid ? "text-status-late-text" : "text-status-absent-text"}`}
             >
               {formatRupiah(focalAmount)}
             </p>
@@ -175,6 +180,18 @@ export function InvoiceDetailSheet({
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Dibatalkan
                 </span>
+              ) : isPartiallyPaid ? (
+                <>
+                  <span className="text-xs font-bold uppercase tracking-wider text-status-late-text">
+                    Dibayar Sebagian
+                  </span>
+                  {" · sudah dibayar "}
+                  <b className="text-foreground">{formatRupiah(invoice.totalPaid)}</b>
+                  {" · sisa jatuh tempo "}
+                  <b className="text-foreground">
+                    {formatDate(invoice.dueDate, { day: "numeric", month: "long", year: "numeric" })}
+                  </b>
+                </>
               ) : (
                 <>
                   <span className="text-xs font-bold uppercase tracking-wider text-status-absent-text">

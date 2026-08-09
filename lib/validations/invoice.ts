@@ -2,14 +2,14 @@ import { z } from "zod";
 
 export const generatePlanSchema = z.object({
   periodLabel: z.string().min(1),
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal jatuh tempo harus YYYY-MM-DD"),
   academicYearId: z.string().min(1),
 });
 
 export const generateBatchSchema = z.object({
   studentIds: z.array(z.string().min(1)).min(1).max(25),
   periodLabel: z.string().min(1),
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal jatuh tempo harus YYYY-MM-DD"),
   academicYearId: z.string().min(1),
 });
 
@@ -51,7 +51,7 @@ export const createManualInvoiceSchema = z
   .object({
     studentId: z.string().min(1),
     periodLabel: z.string().min(1).max(64, "Maks 64 karakter"),
-    dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal jatuh tempo harus YYYY-MM-DD"),
     lines: z
       .array(
         z.object({

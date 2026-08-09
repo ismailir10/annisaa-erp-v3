@@ -16,7 +16,7 @@ import { loadTemplateGrid } from "../_shared";
 /**
  * POST /api/admin/raport/templates/clone
  *
- * Copy a cohort's kisi-kisi into another (term, ageGroup) — the "reusable
+ * Copy a cohort's bank narasi into another (term, ageGroup) — the "reusable
  * next academic year" path from the master design §2.3.
  *
  * Slots already carrying text in the target are SKIPPED, never overwritten:
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   if (source.filledCount === 0) {
     return NextResponse.json(
-      { error: "Triwulan sumber belum punya kisi-kisi untuk disalin." },
+      { error: "Triwulan sumber belum punya narasi untuk disalin." },
       { status: 422 },
     );
   }

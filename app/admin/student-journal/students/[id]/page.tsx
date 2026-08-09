@@ -215,7 +215,7 @@ export default function StudentJournalDetailPage({
     );
 
     if (!existing?.id) {
-      toast.info("Belum diisi guru/orang tua — tidak dapat diubah admin (V1)");
+      toast.info("Belum diisi guru atau orang tua — admin tidak dapat mengubahnya.");
       return;
     }
 

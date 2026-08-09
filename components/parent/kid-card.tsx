@@ -121,6 +121,13 @@ export function KidCard({ id, name, className, week, foot }: KidCardProps) {
         ))}
       </div>
 
+      {/* The attendance page shows these same glyphs with a key underneath;
+          the home screen — which is where a parent lands first — showed them
+          bare. A first-time reader had no way to decode A / S / I. */}
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        ✓ Hadir · A Alpa · S Sakit · I Izin
+      </p>
+
       <div className="mt-2 flex items-center gap-1.5 border-t border-border pt-2">
         <FootIcon size={12} className={cn("shrink-0", FOOT_TONE_CLASS[foot.tone])} />
         <span className={cn("text-xs truncate", FOOT_TONE_CLASS[foot.tone])}>

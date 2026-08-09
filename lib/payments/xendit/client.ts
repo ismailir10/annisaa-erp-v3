@@ -42,6 +42,11 @@ export function parseRetryAfter(headerValue: string | null): number | undefined 
 /**
  * Map an HTTP response (already known to be non-OK) to a typed
  * `GatewayApiError`. Body is the parsed JSON (may be `null` if parse failed).
+ *
+ * `message` here is deliberately the raw Xendit response text — it is
+ * LOG-ONLY (voice.md "Never render a caught error"). `code` is the field a
+ * caller renders from: `lib/payments/error-prefix.ts#paymentLinkErrorMessage`
+ * maps every `code` to an Indonesian sentence for user-facing display.
  */
 function classifyXenditResponse(
   response: Response,

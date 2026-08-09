@@ -139,7 +139,7 @@ export function DataTableToolbar({
           disabled={!canReset}
           onClick={handleReset}
         >
-          Reset
+          Atur Ulang
         </Button>
       )}
 

@@ -75,7 +75,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     // Today is outside the seeded curriculum weeks → empty-state branch.
     // Use exact match to avoid the description paragraph collision.
     await expect(
-      page.getByText("Belum ada Pekan aktif", { exact: true }),
+      page.getByText("Belum ada pekan aktif", { exact: true }),
     ).toBeVisible();
   });
 
@@ -97,7 +97,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
         page.locator("h1", { hasText: /^Penilaian Pekanan — .+/ }),
       ).toBeVisible({ timeout: 10_000 });
       await expect(
-        page.getByText("Belum ada Pekan aktif", { exact: true }),
+        page.getByText("Belum ada pekan aktif", { exact: true }),
       ).toBeVisible();
       return;
     }

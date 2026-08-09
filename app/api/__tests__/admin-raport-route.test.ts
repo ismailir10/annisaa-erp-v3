@@ -57,7 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(db));
   loadRaportDraft.mockResolvedValue({ sections: {}, attendance: { totalSchoolDays: 0 } });
-  // Entry GET resolves the student's cohort then loads its kisi-kisi.
+  // Entry GET resolves the student's cohort then loads its bank narasi.
   db.studentEnrollment.findFirst.mockResolvedValue(null);
   db.reportNarrativeTemplate.findMany.mockResolvedValue([]);
   db.reportClosingTemplate.findMany.mockResolvedValue([]);

@@ -27,8 +27,8 @@ export type ParentMoreItem = {
  */
 export const PARENT_MORE_ITEMS: ParentMoreItem[] = [
   {
-    label: "Capaian",
-    description: "Perkembangan anak per elemen",
+    label: "Perkembangan",
+    description: "Capaian anak per elemen",
     href: "/parent/perkembangan",
     icon: LineChart,
   },

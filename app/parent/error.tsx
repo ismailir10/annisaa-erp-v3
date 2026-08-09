@@ -18,7 +18,8 @@ export default function ParentError({
       </div>
       <h2 className="text-h2 font-semibold mb-2">Halaman belum bisa dimuat</h2>
       <p className="text-sm text-muted-foreground mb-6">
-        Koneksi terputus. Coba lagi sebentar ya.
+        Koneksi terputus. Coba lagi sebentar ya. Kalau masih belum bisa,
+        hubungi admin sekolah ya.
       </p>
       <div className="flex items-center gap-2">
         <Button onClick={reset} variant="outline">

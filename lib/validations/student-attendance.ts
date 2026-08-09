@@ -33,7 +33,7 @@ export const sessionAttendanceSchema = z.object({
     .array(
       z
         .object({
-          studentId: z.string().min(1),
+          studentId: z.string().min(1, "Siswa wajib dipilih"),
           status: studentAttendanceStatusEnum,
           checkInTime: z.string().datetime().optional().nullable(),
           checkOutTime: z.string().datetime().optional().nullable(),
@@ -78,7 +78,7 @@ export const sessionAttendanceSchema = z.object({
 
 export const markAttendanceSchema = z.object({
   classSectionId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD"),
   records: z
     .array(
       z.object({

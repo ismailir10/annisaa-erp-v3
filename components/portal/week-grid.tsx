@@ -46,6 +46,13 @@ type WeekGridProps = {
    * locked for every caller (finding F5b).
    */
   disablePastDays?: boolean;
+  /**
+   * What this surface is called to the reader. Staff (admin + teacher) know it
+   * as "Buku Penghubung"; parents only ever see it called "Jurnal", so leaking
+   * the staff term into a parent-facing empty state is a jargon leak. Defaults
+   * to the staff term so existing admin/teacher call sites are unaffected.
+   */
+  featureLabel?: string;
 };
 
 // Deterministic month abbrevs — toLocaleDateString("id-ID") silently falls back
@@ -85,6 +92,7 @@ export function WeekGrid({
   editable = false,
   onToggle,
   disablePastDays = true,
+  featureLabel = "Buku Penghubung",
 }: WeekGridProps) {
   // Build lookup: `${indicatorId}|${date}` -> checked
   const lookup = new Map<string, boolean>();
@@ -106,7 +114,7 @@ export function WeekGrid({
     return (
       <EmptyState
         title="Belum ada indikator"
-        description="Indikator pemantauan belum dikonfigurasi untuk kelas ini. Hubungi admin untuk mengatur Buku Penghubung."
+        description={`Indikator pemantauan belum dikonfigurasi untuk kelas ini. Hubungi admin sekolah untuk mengatur ${featureLabel}.`}
       />
     );
   }

@@ -271,7 +271,7 @@ describe("reportCard permissions (C8 admin-raport-mvp)", () => {
     expect(hasPermission({ role: "GUARDIAN", permissions: perms }, "reportCard.read")).toBe(false);
   });
 
-  // Kisi-kisi templates (2026-07-31). Split from reportCard.write so cycle 4
+  // Bank narasi templates (2026-07-31). Split from reportCard.write so cycle 4
   // can grant walas template authoring without per-student raport writes.
   it("ALL_PERMISSIONS includes reportCard.template", () => {
     expect(ALL_PERMISSIONS).toContain("reportCard.template");

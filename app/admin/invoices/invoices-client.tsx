@@ -42,6 +42,7 @@ import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { userMessage } from "@/lib/api/client-errors";
+import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
 import {
   runBulkGenerate,
@@ -596,8 +597,10 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
       if (out.succeeded > 0) {
         toast.success("Link pembayaran berhasil dibuat");
       } else {
-        const firstErr = out.results?.[0]?.error;
-        toast.error(`Masih gagal${firstErr ? `: ${firstErr}` : ""}`);
+        // Humanised sentence in the toast; the raw vendor string stays on
+        // the invoice detail page's "detail teknis" disclosure.
+        const parsed = parsePaymentLinkError(out.results?.[0]?.error);
+        toast.error(parsed ? `Masih gagal. ${parsed.userMessage}` : "Masih gagal membuat link pembayaran.");
       }
     } finally {
       if (!mountedRef.current) return;
@@ -742,8 +745,8 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
         <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />
         <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
         <StatCard label="Lunas" value={stats.paid} icon={CheckCircle} color="success" index={2} />
-        <StatCard label="Sebagian" value={stats.partiallyPaid} icon={CircleDashed} color="warning" index={3} />
-        <StatCard label="Jatuh Tempo" value={stats.overdue} icon={AlertTriangle} color="error" index={4} />
+        <StatCard label="Dibayar Sebagian" value={stats.partiallyPaid} icon={CircleDashed} color="warning" index={3} />
+        <StatCard label="Lewat Tempo" value={stats.overdue} icon={AlertTriangle} color="error" index={4} />
         {stats.pendingPaymentLink > 0 && (
           <StatCard label="Link Gagal" value={stats.pendingPaymentLink} icon={LinkIcon} color="warning" index={5} />
         )}
@@ -764,10 +767,10 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
             options: [
               { value: "all", label: "Semua Status" },
               { value: "DRAFT", label: "Draft" },
-              { value: "SENT", label: "Terkirim" },
+              { value: "SENT", label: "Link Dibuat" },
               { value: "PAID", label: "Lunas" },
-              { value: "PARTIALLY_PAID", label: "Sebagian" },
-              { value: "OVERDUE", label: "Jatuh Tempo" },
+              { value: "PARTIALLY_PAID", label: "Dibayar Sebagian" },
+              { value: "OVERDUE", label: "Lewat Tempo" },{ value: "CANCELLED", label: "Dibatalkan" },
               { value: "PENDING_PAYMENT_LINK", label: "Link Gagal" },
             ],
           },

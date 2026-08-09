@@ -53,7 +53,7 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     await user.click(screen.getByRole("button", { name: /Kembali ke daftar/ }));
 
     expect(onBack).toHaveBeenCalledTimes(1);
@@ -66,7 +66,7 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     await user.type(screen.getByLabelText("Hafalan (surah / hadis / doa)"), "An-Naba ayat 1-5");
 
     await user.click(screen.getByRole("button", { name: /Kembali ke daftar/ }));
@@ -81,7 +81,7 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     await user.type(screen.getByLabelText("Hafalan (surah / hadis / doa)"), "An-Naba ayat 1-5");
     await user.click(screen.getByRole("button", { name: /Kembali ke daftar/ }));
     await screen.findByText("Keluar tanpa menyimpan?");
@@ -97,7 +97,7 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     await user.type(screen.getByLabelText("Hafalan (surah / hadis / doa)"), "An-Naba ayat 1-5");
     await user.click(screen.getByRole("button", { name: /Kembali ke daftar/ }));
     await screen.findByText("Keluar tanpa menyimpan?");
@@ -114,7 +114,7 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     await user.type(screen.getByLabelText("Pembukaan"), "Ananda menunjukkan semangat belajar.");
 
     await user.click(screen.getByRole("button", { name: /Kembali ke daftar/ }));
@@ -129,7 +129,7 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     await user.selectOptions(
       screen.getByLabelText("Capaian Nilai Agama & Budi Pekerti"),
       "Mampu dan Konsisten",
@@ -147,7 +147,7 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     const sickField = screen.getByLabelText(/^Sakit/);
     await user.clear(sickField);
     await user.type(sickField, "2");
@@ -164,11 +164,11 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     await user.type(screen.getByLabelText("Hafalan (surah / hadis / doa)"), "An-Naba ayat 1-5");
 
     await user.click(screen.getByRole("button", { name: "Simpan" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Raport disimpan."));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Rapor disimpan."));
 
     await user.click(screen.getByRole("button", { name: /Kembali ke daftar/ }));
 
@@ -182,7 +182,7 @@ describe("RaportEditor unsaved-changes guard", () => {
     const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
-    await screen.findByText("Raport — Aisyah Nuraini");
+    await screen.findByText("Rapor — Aisyah Nuraini");
     const hafalanField = screen.getByLabelText("Hafalan (surah / hadis / doa)");
     await user.type(hafalanField, "An-Naba ayat 1-5");
     await user.clear(hafalanField);

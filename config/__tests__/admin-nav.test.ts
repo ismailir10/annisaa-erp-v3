@@ -76,18 +76,18 @@ describe("adminNav IA — ordering + grouping", () => {
     const labels = adminNav.groups.find((g) => g.id === "students")!.items.map((i) => i.label);
     expect(labels).toEqual([
       "Pendaftaran",
-      "Formulir Pendaftaran",
+      "Berkas Pendaftaran Online",
       "Siswa",
       "Wali Murid",
     ]);
   });
 
-  it("assessment group holds the penilaian monitor, raport, and kisi-kisi", () => {
+  it("assessment group holds the penilaian monitor, rapor, and bank narasi", () => {
     const group = adminNav.groups.find((g) => g.id === "assessment")!;
     expect(group.items.map((i) => i.label)).toEqual([
       "Pemantauan",
-      "Raport",
-      "Kisi-kisi",
+      "Rapor",
+      "Bank Narasi",
     ]);
     expect(group.items[0].href).toBe("/admin/penilaian");
     expect(group.items[0].permission).toBe("assessments.read");
@@ -101,7 +101,7 @@ describe("adminNav IA — ordering + grouping", () => {
 
   it("classroom group holds the daily teacher ops items", () => {
     const labels = adminNav.groups.find((g) => g.id === "classroom")!.items.map((i) => i.label);
-    expect(labels).toEqual(["Kehadiran Siswa", "Buku Penghubung"]);
+    expect(labels).toEqual(["Kehadiran Siswa", "Buku Penghubung — Templat"]);
   });
 
   it("hr group keeps hr.view gate and holds salary-components inline", () => {
@@ -137,7 +137,7 @@ describe("adminNav IA — ordering + grouping", () => {
 
 describe("getBreadcrumbs", () => {
   it("returns single crumb for dashboard", () => {
-    expect(getBreadcrumbs("/admin")).toEqual([{ label: "Dashboard" }]);
+    expect(getBreadcrumbs("/admin")).toEqual([{ label: "Dasbor" }]);
   });
 
   it("returns 2-level trail for an exact nav item", () => {
