@@ -245,7 +245,7 @@ export function RaportEditor({
       // Re-baseline against what was just saved — a saved editor is clean
       // even though the field states themselves haven't changed shape.
       setBaseline({ levels, narratives, att, hafalan, height, weight });
-      toast.success("Raport disimpan.");
+      toast.success("Rapor disimpan.");
       return true;
     } finally {
       setSaving(false);
@@ -267,7 +267,7 @@ export function RaportEditor({
         return;
       }
       setStatus(publish ? "PUBLISHED" : "DRAFT");
-      toast.success(publish ? "Raport diterbitkan." : "Penerbitan ditarik.");
+      toast.success(publish ? "Rapor diterbitkan." : "Penerbitan ditarik.");
     } finally {
       setPublishing(false);
     }
@@ -302,7 +302,7 @@ export function RaportEditor({
     <div>
       <BackBar onBack={handleBack} />
       <PageHeader
-        title={`Raport — ${data.student.name}`}
+        title={`Rapor — ${data.student.name}`}
         description={`Triwulan ${data.term.number} · Semester ${data.term.semesterNumber} · ${data.term.academicYear}`}
       />
 
@@ -420,7 +420,7 @@ export function RaportEditor({
           <AlertDialogHeader>
             <AlertDialogTitle>Tarik penerbitan raport?</AlertDialogTitle>
             <AlertDialogDescription>
-              Raport akan kembali menjadi draft dan tidak terlihat sebagai raport terbit sampai diterbitkan ulang.
+              Rapor akan kembali menjadi draft dan tidak terlihat sebagai rapor terbit sampai diterbitkan ulang.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

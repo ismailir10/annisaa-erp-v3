@@ -106,6 +106,14 @@ Seven implementers ran in parallel with disjoint file ownership. **All seven wer
 - **Blocker — partial payments** (`app/parent/invoices/invoice-detail-sheet.tsx`). Added an `isPartiallyPaid` branch: label "Dibayar Sebagian", the amount already received shown explicitly, and the focal amount rendered in late-amber rather than absent-red. A parent who paid half no longer sees the same red "Belum Dibayar" as someone who paid nothing.
 - Billing labels aligned in `app/admin/invoices/invoices-client.tsx` (StatCards + status filter) and `CANCELLED` added to the filter — `stats.cancelled` was already being fetched and never surfaced. `"Tanggal Jatuh Tempo"` (the due-date field label) deliberately left as-is; that phrase is correct for a date and is the whole reason the status was renamed away from it.
 
+### T3 + Rapor spelling (driver)
+
+- **Rapor spelling** — UI strings only, across `app/admin/raport/page.tsx` (page title), `templates/page.tsx` (2 CTAs), `penilaian/page.tsx` (CTA), `raport-editor.tsx` (title, 2 toasts, unpublish warning). Routes, component names, type names (`RaportLevel`, `RaportEditor`), file paths and imports deliberately untouched.
+- **Zod messages** — `student-attendance.ts` ("date must be YYYY-MM-DD" → Indonesian), `payroll.ts` ×2 (`"periodStart harus <= periodEnd"` leaked a camelCase field name and math notation), `employee-salary.ts` ×4 (`componentDefId`/`value` → "Komponen gaji"/"Nilai"), `invoice.ts` ×3 (`dueDate` regexes had no message at all, so Zod's English default reached the form), `parent-attendance.ts` ×2 (same).
+- **Shared-component defaults** — `data-table.tsx` `emptyTitle` default now satisfies the Empty State Contract instead of "Tidak ada data"; `data-table-row-actions.tsx` `Edit` → `Ubah`; `data-table-toolbar.tsx` `Reset` → `Atur Ulang`.
+- **English a11y strings in live chrome** — `sidebar.tsx` (SheetTitle, SheetDescription, `sr-only`, `aria-label`, and the visible `title` tooltip), `breadcrumb.tsx` (`aria-label`, `sr-only` "More"), `spinner.tsx`, `command.tsx`.
+- **E2E audit** — checked all 33 specs against the changed strings. Only two genuinely broke: `admin-raport.spec.ts` (heading `"Raport"`, exact) and `teacher.spec.ts` (nav label array). Both updated. The `Buku Penghubung` assertions in `admin.spec.ts` and `teacher.spec.ts` survive unchanged because one is a case-insensitive regex and the other a substring `text=` selector, and the new titles still contain the phrase — verified by reading the selectors, not assumed.
+
 ## Verification
 
 ### T1
@@ -130,6 +138,13 @@ Gate run by the driver, not by the subagents — none of them survived to report
 - `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2672 passed | 42 todo (2714)**. No failures.
 - Grep-verified zero user-reachable `kisi` occurrences remain across `app/`, `components/`, `config/`.
 - design-system cross-check: "Dibayar Sebagian" uses the existing `status-late` (amber) token family already assigned to `PARTIALLY_PAID` in the status scale, so the new parent branch introduces no new color and no token drift.
+
+### T3 + Rapor spelling
+
+- `npm run build` — **exit 0**.
+- `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2672 passed | 42 todo (2714)**.
+  - Intermediate run had **3 failures**, each a test asserting copy this task changed: `data-table-toolbar.test.tsx` (`{ name: "Reset" }`), `payroll.test.ts` (asserted the literal substring `"<= periodEnd"`), `raport-editor.test.tsx` (`"Raport disimpan."`). All three updated to the new strings; no product code was bent to satisfy a test.
+- design-system: no visual tokens touched in this task — text-only, plus a11y attributes.
 
 ## Ship Notes
 

@@ -218,7 +218,7 @@ export default function AdminRaportPage() {
   return (
     <div>
       <PageHeader
-        title="Raport"
+        title="Rapor"
         description="Susun & terbitkan raport triwulan — terisi otomatis dari penilaian, dapat disunting."
       />
 

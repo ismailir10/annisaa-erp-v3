@@ -261,7 +261,7 @@ test.describe("Teacher flows", () => {
       await expect(nav).toBeVisible();
       const slots = nav.locator("a, button");
       await expect(slots).toHaveCount(5);
-      for (const label of ["Beranda", "Kelas", "Jurnal", "Penilaian"]) {
+      for (const label of ["Beranda", "Absensi", "Jurnal", "Penilaian"]) {
         await expect(nav.getByRole("link", { name: label })).toBeVisible();
       }
       await expect(nav.getByRole("button", { name: "Lainnya" })).toBeVisible();

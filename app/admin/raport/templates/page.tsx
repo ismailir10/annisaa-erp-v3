@@ -193,7 +193,7 @@ export default function RaportTemplatesPage() {
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun raport siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
         actions={
           <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline" }))}>
-            Susun Raport
+            Susun Rapor
           </Link>
         }
       />
@@ -244,7 +244,7 @@ export default function RaportTemplatesPage() {
           icon={FileText}
           title="Belum ada triwulan"
           description="Buat triwulan terlebih dahulu di halaman Rapor sebelum menyusun narasi."
-          actionLabel="Susun Raport"
+          actionLabel="Susun Rapor"
           actionHref="/admin/raport"
         />
       )}
