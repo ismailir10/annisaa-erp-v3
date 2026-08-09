@@ -241,6 +241,10 @@ No console errors on any surface. Only network call outside document loads was `
 
 This is exactly the class of defect preview-verify exists to catch: every one passed build, tests, and lint, and every one was visible in the first screenshot of the page.
 
+**Iteration 2 — converged.** The loop was already clear at iteration 1 (blockers = 0); the four minors above were fixed voluntarily rather than deferred to a PR comment, because each contradicted an acceptance criterion of this cycle. After pushing `69af78f4` the preview rebuilt and the teacher portal was re-walked on the new build — nav renders `Beranda · Absensi · Jurnal · Penilaian · Lainnya` unchanged.
+
+Scope of the iteration-2 re-check, stated precisely: the four fixes are pure string substitutions, verified by grep (no user-visible `raport` or `Reset` remains outside routes and identifiers), by `npm run build` exit 0, and by 2686 passing tests. The admin surfaces carrying them were **not** re-walked in the browser after the fix — the admin flows were walked on the previous build. The substitutions are the same class already proven to render on this preview ("Bank Narasi", "Lewat Tempo", "Atur Ulang" all confirmed visually in iteration 1), so the residual risk is a string not appearing where grep says it is.
+
 ## Ship Notes
 
 - **Migrations:** none. No schema change — this was explicitly scoped to avoid a prod migration.
