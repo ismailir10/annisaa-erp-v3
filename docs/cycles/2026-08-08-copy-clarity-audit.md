@@ -136,6 +136,14 @@ Seven implementers ran in parallel with disjoint file ownership. **All seven wer
 - Verb parity: check-in said "Clock-in tersimpan" (mixed English) while check-out said "Pulang tercatat" → "Masuk tercatat" / "Pulang tercatat".
 - `"Parameter tidak valid"` → `"Kelas dan tanggal belum dipilih"`; `NIP` → `Kode Karyawan` (NIP formally means civil-servant registration number; this is a private school's internal code); `"Belum ada Pekan aktif"` → lowercase `pekan`, which was reading as a leaked entity name.
 
+### T6 tail — admin (driver)
+
+- **`extraWarning` prop added to `DeactivateConfirmDialog`.** Four callers were smuggling consequence clauses into `entityName`, which the component renders inside quotation marks in the title — producing broken grammar like `Nonaktifkan "semester 1 (2025/2026) — 3 tema terkait tetap aktif"?`. Consequences now render in the body; the title names the entity and nothing else. Migrated: classes, semesters, themes, subthemes.
+- **Role deletion now states its blast radius.** Deleting a role in use silently strips permissions from every assigned user; the confirm never said so. Uses the `_count.users` figure already present in the row.
+- Holidays: `SCHOOL_CLOSURE` was "Sekolah" in the list column and "Penutupan Sekolah" in the dialog — unified. Holiday type "Islam" labelled a category as a religion → "Keagamaan".
+- `(V1)` internal version tag dropped from a user-facing journal toast.
+- "Gulir Kelas" → "Salin Kelas" (3 strings): *gulir* means scroll, an odd metaphor for copying classes forward a year.
+
 ## Verification
 
 ### T1
@@ -187,6 +195,12 @@ Gate run by the driver, not by the subagents — none of them survived to report
 - `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**.
   - Intermediate run had **2 failures**: `format-learning-center.test.ts` (asserted `AREA → AREA`, the very defect being fixed) and the journal-entry recovery test (asserted "Parameter tidak valid"). Both updated to the new copy.
 - design-system: text-only; no tokens, spacing, or components touched.
+
+### T6 tail
+
+- `npm run build` — **exit 0**.
+- `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**. No failures at any point.
+- design-system cross-check: `extraWarning` prepends to the existing `ConfirmDialog` description — no new component, layout, or token; the AlertDialog structure and cancel-left/destructive-right ordering are unchanged.
 
 ## Ship Notes
 
