@@ -94,7 +94,7 @@ export default async function TeacherAssessmentsPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold">Penilaian Pekanan</p>
               <p className="text-xs text-muted-foreground truncate">
-                Walas {homeroom.name} · catat per pekan terhadap IKTP
+                Walas {homeroom.name} · catat per pekan terhadap Indikator Ketercapaian (IKTP)
               </p>
             </div>
             <ChevronRight size={16} className="text-muted-foreground shrink-0" />

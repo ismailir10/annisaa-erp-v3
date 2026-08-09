@@ -128,6 +128,14 @@ Seven implementers ran in parallel with disjoint file ownership. **All seven wer
 - **Gateway-error leak closed at all four surfaces.** T2 had left `parsePaymentLinkError()` in `lib/payments/error-prefix.ts` — it splits the stored `"<prefix>: <vendor message>"` into an Indonesian `userMessage` plus the raw `detail`. Wired up: the invoice-detail warning card (now shows the sentence, with the raw vendor text behind a `<details>` "Lihat detail teknis"), the retry toast on the detail page, the retry toast in `invoices-client.tsx`, and the per-row failure list in `batch-progress-card.tsx`. An admin no longer reads `"5xx: Xendit API error: 500"`.
 - **Webhook raw enums translated.** `payment-activity-card.tsx` rendered `PROCESSED` / `ERROR` / a raw fallback as the whole badge text, and `eventType` (`payment_session.completed`, `doku.success`, `manual.refresh.*`) verbatim. Added `WEBHOOK_STATUS_LABELS` and a `webhookEventLabel()` with prefix-family fallbacks so an unmapped vendor event degrades to "Aktivitas gateway" rather than to its raw string. The raw `eventType` is kept as a `title` tooltip for support.
 
+### T7 tail — teacher portal (driver)
+
+- **IKTP expanded on first use per surface** (voice.md's new Acronyms rule): "Indikator Ketercapaian (IKTP)" on the weekly picker label and the assessments hub, "Pilih Indikator Ketercapaian / IKTP" on the sentra picker. Later mentions on the same screen stay abbreviated. Bu Sari is a classroom teacher, not a curriculum specialist — this was the one unglossed acronym in an otherwise well de-jargoned assessment UI.
+- `lib/format.ts` — `AREA: "AREA"` was the only sentra rendering as a raw uppercase enum beside seven properly-cased Indonesian names → "Sentra Area". Shared with the parent portal, which is why T8 was told not to duplicate it.
+- Clock-in GPS status showed raw lat/lng (`-6.1751, 106.8650`) → "Lokasi tercatat". The precise coordinates still travel to the server with the clock-in; only the display changed.
+- Verb parity: check-in said "Clock-in tersimpan" (mixed English) while check-out said "Pulang tercatat" → "Masuk tercatat" / "Pulang tercatat".
+- `"Parameter tidak valid"` → `"Kelas dan tanggal belum dipilih"`; `NIP` → `Kode Karyawan` (NIP formally means civil-servant registration number; this is a private school's internal code); `"Belum ada Pekan aktif"` → lowercase `pekan`, which was reading as a leaked entity name.
+
 ## Verification
 
 ### T1
@@ -172,6 +180,13 @@ Gate run by the driver, not by the subagents — none of them survived to report
 - `npm run build` — **exit 0**.
 - `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**. No failures at any point in this task.
 - design-system: the status pills keep their existing `status-present-subtle` / `status-absent-subtle` token pairs; only the text inside them changed.
+
+### T7 tail
+
+- `npm run build` — **exit 0**.
+- `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**.
+  - Intermediate run had **2 failures**: `format-learning-center.test.ts` (asserted `AREA → AREA`, the very defect being fixed) and the journal-entry recovery test (asserted "Parameter tidak valid"). Both updated to the new copy.
+- design-system: text-only; no tokens, spacing, or components touched.
 
 ## Ship Notes
 

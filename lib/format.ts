@@ -122,7 +122,7 @@ const LEARNING_CENTER_LABELS: Record<LearningCenterKey, string> = {
   ROLE_PLAY: "Sentra Main Peran",
   BLOCKS: "Sentra Balok",
   PREPARATION: "Sentra Persiapan",
-  AREA: "AREA",
+  AREA: "Sentra Area",
 };
 
 export function formatLearningCenter(center: string): string {
