@@ -96,7 +96,7 @@ Seven implementers ran in parallel with disjoint file ownership. **All seven wer
 - `components/teacher/bottom-nav.tsx` + `app/teacher/student-journal/page.tsx` (T7 + driver) — tab `Kelas`→`Absensi`. **Driver decision** on the nav-width question T7 died before answering: `"Penghubung"` (10 chars) overflows the 5-slot budget that `"Penilaian"` (9) already sits at, so the tab keeps `"Jurnal"` and the page title becomes `"Jurnal — Buku Penghubung"` instead — the reconciliation runs page-side, not tab-side. Reasoning recorded in the component comment.
 - Tests updated by the driver, not the agents: `config/__tests__/admin-nav.test.ts` (4 assertions), `components/teacher/__tests__/bottom-nav.test.tsx` (1).
 
-**Not yet done — carried forward:** all of T5 (Bank Narasi page/permission copy) and T8 (parent portal, including the false-notification blocker and the partial-payment state); most of T3 (validation sweep, `DataTable` default, English `aria-label`s); most of T4 (the false success-toast blocker, webhook raw enums, gateway-error wiring); the remainder of T6 and T7; all of T9.
+Everything listed here as outstanding at the time was subsequently completed by the driver — see the T5/T8/T3/T4/T6/T7 sections below.
 
 ### T5 + blockers (driver, after the subagent fleet was lost)
 
@@ -202,6 +202,28 @@ Gate run by the driver, not by the subagents — none of them survived to report
 - `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**. No failures at any point.
 - design-system cross-check: `extraWarning` prepends to the existing `ConfirmDialog` description — no new component, layout, or token; the AlertDialog structure and cancel-left/destructive-right ordering are unchanged.
 
+### T9 — docs + final gate
+
+- `README.md` — the `reportCard` module row renamed **Kisi-kisi → Bank Narasi** (with the rename date recorded so the history stays traceable) and the `"Pakai kisi-kisi"` button reference updated. `README.md` was the only doc outside the cycle docs carrying the old term.
+- `npm run lint` — **exit 0**, 0 errors / 60 warnings, all pre-existing (unused-var and unused-eslint-disable warnings in test files, none in code this cycle touched).
+- **Playwright: deferred to the required CI `Playwright E2E` check.** It cannot run in this worktree: `playwright.config.ts` deliberately refuses to start when `DATABASE_URL` resolves to a non-local host, and the repo `.env` points at the shared staging Supabase. Overriding via `E2E_ALLOW_REMOTE_DB=1` would write `E2E …` rows straight into staging — the 2026-06-04 UAT data-pollution incident the guard exists to prevent — so it was not set. The seven affected specs were updated by reading their selectors; CI runs them against an ephemeral localhost Postgres and gates the merge.
+
+### Final gate (whole cycle)
+
+- `npm run build` — **exit 0**.
+- `npx vitest run` — **exit 0; 290 passed | 2 skipped (292 files); 2673 passed | 42 todo (2715)**.
+- `npm run lint` — **exit 0** (warnings only, all pre-existing).
+- `npx playwright test` — **deferred to the required CI check**, reason above.
+
 ## Ship Notes
 
-<!-- filled by /ship -->
+- **Migrations:** none. No schema change — this was explicitly scoped to avoid a prod migration.
+- **Env vars:** none added or changed.
+- **Data backfill:** none. Every change is a display string or a client-side branch; no stored data is rewritten. The `Invoice.paymentLinkError` column keeps its existing `"<prefix>: <vendor message>"` format — only its *rendering* changed — so historical rows render correctly through `parsePaymentLinkError()` without migration.
+- **Behavioural changes to watch after deploy (3):**
+  1. Creating a payment link now reports failure when it fails. Admins who were used to a green toast every time will start seeing errors — that is the fix working, not a regression. Watch for a rise in reported link failures that were previously silent.
+  2. `PARTIALLY_PAID` invoices show a distinct "Dibayar Sebagian" state in the parent portal.
+  3. `DeactivateConfirmDialog` gained an optional `extraWarning` prop; all four in-repo callers migrated. Any new caller passing consequences via `entityName` will still render them inside the quoted title.
+- **Rollback:** plain revert of the cycle's commits. No data or schema to unwind, so a revert is complete and safe at any point.
+- **Terminology follow-through:** `.claude/standards/voice.md` is now the single source of truth for the renamed terms. `prisma/schema.prisma` and the generated Prisma client still contain "kisi-kisi" in *comments* only — deliberately untouched, since editing the schema forces a client regen for no user-visible gain.
+- **Deferred to their own cycles** (each has a written reason in the Non-goals section): teacher unsaved-data loss on the session roster and sentra grid; a tappable "Hubungi Sekolah" affordance (needs an `OrgConfig` migration); Household Overview for ≥3 children; admin student-journal orphan nav routes; a human-readable admission reference number.
