@@ -9,6 +9,15 @@ updates:
     labels:
       - dependencies
       - javascript
+    groups:
+      # react + react-dom must move together — npm hard-fails ERESOLVE when the
+      # two differ (see closed PRs #426/#446, which deadlocked each other).
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
     ignore:
       # TS majors (6/7 native compiler) break Build + Lint until Next toolchain
       # supports them — see closed PR #389. Minors/patches still flow.
