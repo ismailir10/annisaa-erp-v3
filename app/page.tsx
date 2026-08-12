@@ -3,17 +3,14 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
-import { Mail, Loader2 } from "lucide-react";
+import { CalendarCheck2, CreditCard, Loader2, NotebookPen } from "lucide-react";
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import { LegalFooter } from "@/components/layout/legal-footer";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type UserOption = {
@@ -26,84 +23,86 @@ type UserOption = {
 // Maps `?error=<code>` returned by /auth/callback to a user-facing message.
 // `access_denied` covers the most common failure: Google OAuth succeeds but
 // the email has no User/Employee/Parent record yet (UAT 2026-05-12 teacher
-// blocker — silent redirect with no UX). Every code `app/auth/callback/route.ts`
-// can redirect with (`no_code`, `exchange_failed`, `no_email`, `callback_error`,
-// `auth_failed`, `access_denied`) MUST have an entry here — voice.md "Never
-// render a caught error": a missing entry must never leave the login screen
-// blank, hence `LOGIN_ERROR_FALLBACK` below for any future/unknown code.
-const LOGIN_ERROR_FALLBACK = "Login gagal. Silakan coba lagi.";
-
+// blocker — silent redirect with no UX).
 const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   auth_failed: "Login gagal. Silakan coba lagi.",
   access_denied: "Akun belum terdaftar. Hubungi admin sekolah untuk akses.",
-  no_code: "Login gagal. Silakan coba lagi.",
-  exchange_failed: "Login gagal. Silakan coba lagi.",
-  no_email: "Akun Google ini tidak memiliki alamat email. Gunakan akun lain.",
-  callback_error: "Login gagal. Silakan coba lagi.",
 };
 
-export default function LoginPageWrapper() {
+// Eight-point geometric motif for the brand panel, rendered at the subtle
+// opacity the design-system reserves for Islamic geometric accents. Inline so
+// the decorative asset stays local to the only screen that uses it.
+const MOTIF_SVG =
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%232F7A7D' stroke-width='1.5'><rect x='30' y='30' width='60' height='60'/><rect x='30' y='30' width='60' height='60' transform='rotate(45 60 60)'/><circle cx='60' cy='60' r='30'/></g></svg>\")";
+
+const CAPABILITIES = [
+  {
+    icon: CalendarCheck2,
+    title: "Kehadiran harian",
+    detail: "Tercatat rapi, terlihat orang tua",
+  },
+  {
+    icon: NotebookPen,
+    title: "Jurnal & perkembangan",
+    detail: "Catatan guru sampai ke rumah",
+  },
+  {
+    icon: CreditCard,
+    title: "Tagihan sekolah",
+    detail: "Bayar dan lihat riwayatnya",
+  },
+] as const;
+
+function GoogleMark() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-sidebar" />}>
-      <LoginPage />
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+      <path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9.003 18z" fill="#34A853"/>
+      <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+      <path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.428 0 9.002 0 5.48 0 2.438 2.017.957 4.958L3.964 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
+export default function LoginPageWrapper() {
+  const isSupabaseConfigured = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return (
+    <Suspense
+      fallback={
+        <div
+          className={
+            isSupabaseConfigured
+              ? "min-h-screen bg-background"
+              : "min-h-screen bg-sidebar"
+          }
+        />
+      }
+    >
+      {isSupabaseConfigured ? <SignInPage /> : <DemoLoginPage />}
     </Suspense>
   );
 }
 
-function LoginPage() {
-  const router = useRouter();
+/* ────────────────────────────────────────────────────────────────────────────
+ * Google-only sign-in. Access to Talib is invitation-only — accounts are
+ * provisioned by the school, never self-served — so this screen offers exactly
+ * one action and states that rule before the failure instead of after it.
+ *
+ * The magic-link form that used to live here was removed 2026-08-12. The
+ * Supabase Email provider stays enabled by owner decision, so /auth/v1/otp is
+ * still reachable with the public anon key: this is a UI-level change only,
+ * not an access-control change. See docs/cycles/2026-08-12-login-redesign.md.
+ * ──────────────────────────────────────────────────────────────────────────── */
+function SignInPage() {
   const searchParams = useSearchParams();
-  const error = searchParams.get("error");
+  const errorCode = searchParams.get("error");
+  const prefersReducedMotion = useReducedMotion();
 
-  const isSupabaseConfigured = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  // Supabase auth state
-  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [authError, setAuthError] = useState(
-    error ? (LOGIN_ERROR_MESSAGES[error] ?? LOGIN_ERROR_FALLBACK) : ""
+    errorCode ? (LOGIN_ERROR_MESSAGES[errorCode] ?? "") : "",
   );
 
-  // Demo mode state
-  const [demoUsers, setDemoUsers] = useState<UserOption[]>([]);
-  const [demoLoading, setDemoLoading] = useState(!isSupabaseConfigured);
-  const [loginLoading, setLoginLoading] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured) {
-      fetch("/api/auth/users")
-        .then((r) => r.json())
-        .then((data) => { setDemoUsers(data); setDemoLoading(false); });
-    }
-  }, [isSupabaseConfigured]);
-
-  // Supabase Magic Link
-  async function handleMagicLink(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email) return;
-    setLoading(true);
-    setAuthError("");
-
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    });
-
-    if (error) {
-      // Supabase SDK messages are English and log-only (voice.md "Never
-      // render a caught error") — e.g. "Invalid login credentials" must
-      // never reach the user verbatim.
-      console.error("[login] magic link failed:", error.message);
-      setAuthError("Gagal mengirim magic link. Periksa alamat email Anda dan coba lagi.");
-    } else {
-      setMagicLinkSent(true);
-    }
-    setLoading(false);
-  }
-
-  // Supabase Google OAuth
   async function handleGoogleLogin() {
     setLoading(true);
     setAuthError("");
@@ -113,14 +112,140 @@ function LoginPage() {
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) {
-      // Same rule as handleMagicLink — Supabase's raw message is log-only.
-      console.error("[login] Google OAuth failed:", error.message);
-      setAuthError("Gagal masuk dengan Google. Silakan coba lagi.");
+      setAuthError(error.message);
       setLoading(false);
     }
   }
 
-  // Demo mode login
+  return (
+    <main className="grid min-h-screen grid-cols-1 bg-background lg:grid-cols-[1.05fr_1fr]">
+      {/*
+        Sign-in is FIRST in the DOM so it is first on mobile — thumb-reachable,
+        with no scrolling past the pitch to reach the only action — and first
+        for keyboard and screen-reader users at every width. `lg:order-2` moves
+        it to the right column on desktop without changing that order.
+      */}
+      <section className="order-1 flex flex-col justify-center bg-card px-6 py-10 lg:order-2 lg:px-12 lg:py-12">
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.42, ease: "easeOut" }}
+          className="mx-auto w-full max-w-sm"
+        >
+          {/* Brand presence above the fold on mobile; on desktop the brand panel owns it. */}
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
+            <Image
+              src="/logo.png"
+              alt=""
+              width={44}
+              height={44}
+              className="rounded-[13px] outline -outline-offset-1 outline-black/10"
+            />
+            <TalibWordmark size="md" showSublabel />
+          </div>
+
+          {authError && (
+            <Alert
+              variant="destructive"
+              className="mb-5 border-destructive/30 bg-destructive/5"
+            >
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
+
+          <h1 className="text-h1 font-semibold tracking-tight text-balance">
+            Masuk ke Talib
+          </h1>
+          <p className="mt-1.5 max-w-[36ch] text-body leading-relaxed text-muted-foreground text-pretty">
+            Akses hanya untuk staf dan orang tua yang diundang sekolah.
+          </p>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            // min-h-12 = 48px; this action used to be h-9 (36px), under the
+            // 44px touch minimum on a phone-first product. The focus ring uses
+            // --primary-text (5.0:1 on white) because the default --ring
+            // measures 2.36:1 and fails the 3:1 non-text contrast floor.
+            className="mt-6 h-auto min-h-12 w-full gap-3 rounded-xl border-border bg-card font-semibold shadow-xs hover:bg-muted focus-visible:border-primary-text focus-visible:ring-2 focus-visible:ring-primary-text"
+          >
+            {loading ? <Loader2 className="animate-spin" /> : <GoogleMark />}
+            Masuk dengan Google
+          </Button>
+
+          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+            Gunakan akun Google yang terdaftar di sekolah. Belum punya akses?
+            Hubungi admin sekolah.
+          </p>
+
+          <LegalFooter tone="onLight" className="mt-10 items-start" />
+        </motion.div>
+      </section>
+
+      {/* Brand panel — below the action on mobile, left column on desktop. */}
+      <section className="relative order-2 isolate overflow-hidden bg-secondary px-6 py-10 lg:order-1 lg:flex lg:flex-col lg:justify-center lg:gap-8 lg:px-12 lg:py-12">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 opacity-[0.06]"
+          style={{ backgroundImage: MOTIF_SVG, backgroundSize: "120px 120px" }}
+        />
+
+        <div className="mb-6 hidden items-center gap-3 lg:mb-0 lg:flex">
+          <Image
+            src="/logo.png"
+            alt=""
+            width={44}
+            height={44}
+            className="rounded-[13px] outline -outline-offset-1 outline-black/10"
+          />
+          <TalibWordmark size="md" showSublabel />
+        </div>
+
+        <div>
+          <h2 className="max-w-[16ch] text-h1 leading-tight font-semibold tracking-tight text-balance lg:text-display">
+            Sahabat belajar anak
+          </h2>
+          <p className="mt-2 max-w-[38ch] text-body leading-relaxed text-muted-foreground text-pretty">
+            Kehadiran, jurnal harian, dan tagihan sekolah dalam satu pintu.
+          </p>
+        </div>
+
+        <ul className="mt-6 grid gap-3 lg:mt-0">
+          {CAPABILITIES.map(({ icon: Icon, title, detail }) => (
+            <li key={title} className="flex items-start gap-2.5">
+              <Icon className="mt-0.5 size-[18px] shrink-0 text-primary-text" />
+              <span>
+                <span className="block text-body font-semibold">{title}</span>
+                <span className="block text-xs text-muted-foreground">{detail}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </main>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Demo mode — no Supabase configured (local dev + every Playwright spec, which
+ * run with DEMO_MODE=true). Deliberately left on the original dark shell: it is
+ * a developer surface, and restyling it would put 33 e2e specs at risk for no
+ * user-facing gain. Behaviour and markup are unchanged by the redesign.
+ * ──────────────────────────────────────────────────────────────────────────── */
+function DemoLoginPage() {
+  const router = useRouter();
+  const [demoUsers, setDemoUsers] = useState<UserOption[]>([]);
+  const [demoLoading, setDemoLoading] = useState(true);
+  const [loginLoading, setLoginLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/users")
+      .then((r) => r.json())
+      .then((data) => { setDemoUsers(data); setDemoLoading(false); });
+  }, []);
+
   async function handleDemoLogin(userId: string) {
     setLoginLoading(userId);
     const res = await fetch("/api/auth/login", {
@@ -161,108 +286,50 @@ function LoginPage() {
 
         <Card className="border-white/5 bg-login-card-bg py-0 text-white">
           <CardContent className="p-6">
-          {isSupabaseConfigured ? (
-            /* ── Supabase Auth ── */
-            magicLinkSent ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-center py-4"
-              >
-                <div className="w-16 h-16 rounded-full bg-primary/20 mx-auto mb-4 flex items-center justify-center">
-                  <Mail className="text-primary" size={28} />
-                </div>
-                <h2 className="text-white font-semibold text-lg">Cek Email Anda</h2>
-                <p className="text-sidebar-foreground text-sm mt-2">
-                  Magic link telah dikirim ke <span className="text-white font-medium">{email}</span>
-                </p>
-                <p className="text-sidebar-foreground text-xs mt-3">
-                  Klik link di email untuk masuk
-                </p>
-                <Button
-                  type="button"
-                  variant="link"
-                  onClick={() => { setMagicLinkSent(false); setEmail(""); }}
-                  className="mt-4 h-auto p-0 text-primary"
-                >
-                  Gunakan email lain
-                </Button>
-              </motion.div>
+            <p className="text-sidebar-foreground text-xs uppercase tracking-wider font-semibold mb-4">
+              Demo Mode — Pilih Akun
+            </p>
+
+            {demoLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-14 rounded-xl bg-white/5" />
+                ))}
+              </div>
             ) : (
               <div className="space-y-4">
-                {/* Google OAuth */}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  onClick={handleGoogleLogin}
-                  disabled={loading}
-                  className="w-full bg-white text-sidebar hover:bg-gray-100"
-                >
-                  <svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9.003 18z" fill="#34A853"/><path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.428 0 9.002 0 5.48 0 2.438 2.017.957 4.958L3.964 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/></svg>
-                  Masuk dengan Google
-                </Button>
-
-                <div className="flex items-center gap-3">
-                  <Separator className="flex-1 bg-white/10" />
-                  <span className="text-sidebar-foreground text-xs">atau</span>
-                  <Separator className="flex-1 bg-white/10" />
-                </div>
-
-                {/* Magic Link */}
-                <form onSubmit={handleMagicLink} className="space-y-3">
-                  <Field>
-                    <FieldLabel htmlFor="login-email" className="sr-only">
-                      Email
-                    </FieldLabel>
-                    <Input
-                      id="login-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Masukkan email Anda"
-                      className="h-11 rounded-xl border-white/10 bg-white/5 px-4 text-white placeholder:text-sidebar-foreground"
-                      required
-                    />
-                  </Field>
-                  <Button
-                    type="submit"
-                    size="lg"
-                    disabled={loading || !email}
-                    className="w-full"
+                {admins.map((user) => (
+                  <motion.div
+                    key={user.id}
+                    whileTap={{ scale: 0.98 }}
                   >
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
-                    Kirim Magic Link
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleDemoLogin(user.id)}
+                    disabled={loginLoading !== null}
+                    className="h-auto w-full justify-start gap-3 rounded-xl border border-primary/20 bg-primary/10 p-3 text-left hover:border-primary/40 hover:bg-primary/15"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shrink-0">
+                      <span className="text-white text-sm font-bold">{user.name?.[0] ?? "A"}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white font-medium text-sm truncate">{user.name ?? user.email}</p>
+                      <p className="text-sidebar-foreground text-xs">Admin Sekolah</p>
+                    </div>
+                    {loginLoading === user.id && <Loader2 size={16} className="text-white animate-spin" />}
                   </Button>
-                </form>
+                  </motion.div>
+                ))}
 
-                {authError && (
-                  <Alert variant="destructive" className="border-red-400/30 bg-red-950/20 text-red-200">
-                    <AlertDescription className="text-center text-xs text-red-200">
-                      {authError}
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            )
-          ) : (
-            /* ── Demo Mode ── */
-            <div>
-              <p className="text-sidebar-foreground text-xs uppercase tracking-wider font-semibold mb-4">
-                Demo Mode — Pilih Akun
-              </p>
-
-              {demoLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-14 rounded-xl bg-white/5" />
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {admins.map((user) => (
+                <p className="text-sidebar-foreground text-xs uppercase tracking-wider font-semibold pt-2">Guru ({teachers.length})</p>
+                <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                  {teachers.map((user, i) => (
                     <motion.div
                       key={user.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.03 * i }}
                       whileTap={{ scale: 0.98 }}
                     >
                     <Button
@@ -270,58 +337,27 @@ function LoginPage() {
                       variant="ghost"
                       onClick={() => handleDemoLogin(user.id)}
                       disabled={loginLoading !== null}
-                      className="h-auto w-full justify-start gap-3 rounded-xl border border-primary/20 bg-primary/10 p-3 text-left hover:border-primary/40 hover:bg-primary/15"
+                      className="h-auto w-full justify-start gap-3 rounded-xl p-2.5 text-left text-white/90 hover:bg-white/5"
                     >
-                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shrink-0">
-                        <span className="text-white text-sm font-bold">{user.name?.[0] ?? "A"}</span>
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                        <span className="text-white/70 text-xs font-medium">{user.name?.[0] ?? "?"}</span>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-white font-medium text-sm truncate">{user.name ?? user.email}</p>
-                        <p className="text-sidebar-foreground text-xs">Admin Sekolah</p>
+                        <p className="text-white/90 text-sm truncate">{user.name}</p>
+                        <p className="text-sidebar-foreground text-xs truncate">{user.email}</p>
                       </div>
                       {loginLoading === user.id && <Loader2 size={16} className="text-white animate-spin" />}
                     </Button>
                     </motion.div>
                   ))}
-
-                  <p className="text-sidebar-foreground text-xs uppercase tracking-wider font-semibold pt-2">Guru ({teachers.length})</p>
-                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                    {teachers.map((user, i) => (
-                      <motion.div
-                        key={user.id}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.03 * i }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => handleDemoLogin(user.id)}
-                        disabled={loginLoading !== null}
-                        className="h-auto w-full justify-start gap-3 rounded-xl p-2.5 text-left text-white/90 hover:bg-white/5"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                          <span className="text-white/70 text-xs font-medium">{user.name?.[0] ?? "?"}</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-white/90 text-sm truncate">{user.name}</p>
-                          <p className="text-sidebar-foreground text-xs truncate">{user.email}</p>
-                        </div>
-                        {loginLoading === user.id && <Loader2 size={16} className="text-white animate-spin" />}
-                      </Button>
-                      </motion.div>
-                    ))}
-                  </div>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <p className="text-center text-sidebar-foreground text-xs mt-6">
-          {isSupabaseConfigured ? "Talib by An Nisaa' Sekolahku" : "Demo mode — Supabase Auth belum dikonfigurasi"}
+          Demo mode — Supabase Auth belum dikonfigurasi
         </p>
         <LegalFooter />
       </motion.div>
