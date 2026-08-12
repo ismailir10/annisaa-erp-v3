@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup A — Quiet Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* Tokens copied verbatim from app/globals.css :root so the mockup renders in
+   the real Talib palette. Mockup only — not a source of truth. */
+:root {
+  --background: #F7FAFA;
+  --foreground: #1C1917;
+  --card: #FFFFFF;
+  --primary: #5DB4B8;
+  --primary-text: #2F7A7D;
+  --muted-foreground: #57534E;
+  --border: #E5E2DE;
+  --secondary: #E8F5F6;
+  --destructive: #DC2626;
+  --status-absent-subtle: #FFE6E6;
+  --radius: 0.625rem;
+  --shadow-resting: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-elevated: 0 6px 16px -4px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --type-h1: 1.5rem;
+  --type-body: 0.875rem;
+  --type-small: 0.75rem;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Whisper-quiet brand wash. 3% motif opacity convention from globals.css. */
+.page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px 24px;
+  position: relative;
+  isolation: isolate;
+}
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(900px 420px at 50% -8%, rgba(93, 180, 184, 0.14), transparent 70%),
+    radial-gradient(600px 320px at 50% 108%, rgba(93, 180, 184, 0.07), transparent 70%);
+}
+
+main { width: 100%; max-width: 400px; }
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.brand img {
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  outline: 1px solid rgb(0 0 0 / 0.1);
+  outline-offset: -1px;
+}
+.wordmark { display: flex; flex-direction: column; line-height: 1; gap: 4px; }
+.wordmark b { font-size: var(--type-h1); font-weight: 600; letter-spacing: -0.02em; }
+.wordmark span { font-size: var(--type-small); font-weight: 400; color: var(--muted-foreground); }
+
+.card {
+  background: var(--card);
+  border-radius: calc(var(--radius) * 1.8);   /* --radius-2xl = 18px */
+  box-shadow: var(--shadow-elevated);
+  padding: 28px 24px;
+}
+
+h1 {
+  margin: 0 0 6px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+  text-wrap: balance;
+}
+.sub {
+  margin: 0 0 22px;
+  font-size: var(--type-body);
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  text-align: center;
+  text-wrap: pretty;
+  max-width: 34ch;
+  margin-inline: auto;
+}
+
+/* Google's light button spec: white surface, neutral 1px border, Google mark
+   at the inline start. 44px min height for touch (better-accessibility §5). */
+.google {
+  width: 100%;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 1.4);   /* concentric: 18 − 4 padding step */
+  background: #FFFFFF;
+  box-shadow: var(--shadow-resting);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer;
+  transition-property: background-color, box-shadow, border-color, scale;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+.google:hover { background: #FAFAFA; box-shadow: var(--shadow-elevated); }
+.google:active { scale: 0.98; }
+.google:focus-visible {
+  outline: 2px solid var(--primary-text);
+  outline-offset: 2px;
+}
+
+.invite {
+  margin: 18px 0 0;
+  font-size: var(--type-small);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+.invite a { color: var(--primary-text); text-decoration-thickness: from-font; text-underline-offset: 2px; }
+
+/* Trust strip — three one-word capability cues, no icons competing with the
+   single primary action. */
+.trust {
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--type-small);
+  color: var(--muted-foreground);
+}
+.trust span { white-space: nowrap; }
+.trust i { font-style: normal; color: var(--border); }
+
+.alert {
+  display: none;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--status-absent-subtle);
+  border: 1px solid rgb(220 38 38 / 0.25);
+  color: #991B1B;
+  font-size: var(--type-small);
+  line-height: 1.5;
+  text-align: start;
+}
+body.error .alert { display: block; }
+
+footer {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--type-small);
+  color: var(--muted-foreground);
+}
+.legal { display: flex; align-items: center; gap: 4px; }
+.legal a {
+  color: var(--muted-foreground);
+  padding: 6px 8px;              /* 24px+ hit area, WCAG 2.5.8 */
+  border-radius: 8px;
+  text-decoration: none;
+}
+.legal a:hover { color: var(--primary-text); text-decoration: underline; }
+
+@media (prefers-reduced-motion: no-preference) {
+  main { animation: rise 420ms cubic-bezier(0.2, 0, 0, 1) both; }
+  @keyframes rise { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <main>
+    <div class="brand">
+      <img src="../../../public/logo.png" alt="" />
+      <span class="wordmark">
+        <b>Talib</b>
+        <span>by An Nisaa&rsquo; Sekolahku</span>
+      </span>
+    </div>
+
+    <div class="card">
+      <div class="alert" role="alert">Akun belum terdaftar. Hubungi admin sekolah untuk akses.</div>
+
+      <h1>Masuk ke Talib</h1>
+      <p class="sub">Akses hanya untuk staf dan orang tua yang diundang sekolah.</p>
+
+      <button type="button" class="google">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9.003 18z" fill="#34A853"/><path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.428 0 9.002 0 5.48 0 2.438 2.017.957 4.958L3.964 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/></svg>
+        Masuk dengan Google
+      </button>
+
+      <p class="invite">Gunakan akun Google yang terdaftar di sekolah. Belum punya akses? <a href="#">Hubungi admin sekolah</a>.</p>
+
+      <div class="trust">
+        <span>Kehadiran</span><i>&middot;</i><span>Jurnal harian</span><i>&middot;</i><span>Tagihan</span>
+      </div>
+    </div>
+
+    <footer>
+      <div class="legal">
+        <a href="#">Syarat &amp; Ketentuan</a>
+        <span aria-hidden="true">&middot;</span>
+        <a href="#">Kebijakan Privasi</a>
+      </div>
+      <div>&copy; 2026 An Nisaa&rsquo; Sekolahku</div>
+    </footer>
+  </main>
+</div>
+<script>
+  if (new URLSearchParams(location.search).get("state") === "error") {
+    document.body.classList.add("error");
+  }
+</script>
+</body>
+</html>
