@@ -99,9 +99,8 @@
   --shadow-card-resting: var(--shadow-resting);
   --shadow-card-elevated: var(--shadow-elevated);
 
-  /* Login page specific */
+  /* Demo-mode login shell (dev + e2e only — the Google sign-in screen is light) */
   --color-login-card-bg: var(--login-card-bg);
-  --color-login-primary-hover: var(--login-primary-hover);
 
   /* Typography scale — see .claude/standards/design-system.html §3 */
   --text-display: var(--type-display);
@@ -252,9 +251,9 @@
    */
   --motif-opacity: 0.03;
 
-  /* Login page specific */
+  /* Demo-mode login shell only. The real (Supabase) sign-in screen is light and
+   * uses --background / --card / --secondary; see app/page.tsx#SignInPage. */
   --login-card-bg: #223838;
-  --login-primary-hover: #4A9DA1;
 
   /*
    * Typography scale — canonical page/heading ramp.

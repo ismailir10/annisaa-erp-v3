@@ -1,5 +1,13 @@
 # Login redesign — proposal for owner review
 
+> **Resolved 2026-08-12.** The owner picked a responsive variant of Direction B —
+> desktop split, mobile with the Google button first — and accepted UI-only magic-link
+> removal (the Supabase Email provider stays on). Implementation lives in
+> [`docs/cycles/2026-08-12-login-redesign.md`](../../cycles/2026-08-12-login-redesign.md);
+> the shipped screens are `login-desktop-1280.png` and `login-mobile-390.png` in this
+> folder, captured by `scripts/capture-login.mjs`. Everything below is the original
+> proposal, kept as the decision record.
+
 Status: **proposal only**. No app code changed. Branch `feat/login-redesign` contains
 this document, two static mockups, and the headless-render script that produced the
 screenshots. Nothing here ships until the owner approves a direction.
@@ -114,7 +122,7 @@ Design decisions common to both directions:
 
 ## 3. Two directions
 
-Rendered headlessly with `node scripts/capture-login-mockups.mjs`, Chromium at 2x,
+Rendered headlessly with the mockup capture script, Chromium at 2x,
 1280×860 and 390×844. Both passed the script's assertions: primary action 48px, no
 horizontal overflow.
 
