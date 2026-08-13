@@ -1,7 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { isWeekGridDateEditable, WeekGrid } from "../week-grid";
+
+// WeekGrid reads "today" via getTodayInTimezone("Asia/Jakarta") internally
+// (for the today-column highlight and the editable-cell predicate). Pin it
+// so the component tests below are deterministic regardless of wall-clock
+// time — matches the `today` constant used throughout this file.
+vi.mock("@/lib/attendance/timezone", () => ({
+  getTodayInTimezone: () => "2026-07-30",
+}));
 
 describe("isWeekGridDateEditable", () => {
   const today = "2026-07-30";
@@ -15,6 +23,32 @@ describe("isWeekGridDateEditable", () => {
   it("keeps parent anti-backfill mode limited to today", () => {
     expect(isWeekGridDateEditable("2026-07-29", today, true)).toBe(false);
     expect(isWeekGridDateEditable(today, today, true)).toBe(true);
+  });
+
+  describe("windowed backfill mode (4th arg — parent Di Rumah)", () => {
+    // today = 2026-07-30 (Thursday); floor = Monday of the previous week,
+    // matching `homeEntryEditFloor` semantics from lib/student-journal/backfill.ts.
+    const floor = "2026-07-20";
+
+    it("allows a date inside the window", () => {
+      expect(isWeekGridDateEditable("2026-07-23", today, true, floor)).toBe(true);
+    });
+
+    it("allows the date exactly on the floor", () => {
+      expect(isWeekGridDateEditable(floor, today, true, floor)).toBe(true);
+    });
+
+    it("rejects the date one day before the floor", () => {
+      expect(isWeekGridDateEditable("2026-07-19", today, true, floor)).toBe(false);
+    });
+
+    it("rejects a future date even inside disablePastDays + a floor", () => {
+      expect(isWeekGridDateEditable("2026-07-31", today, true, floor)).toBe(false);
+    });
+
+    it("allows today regardless of the floor", () => {
+      expect(isWeekGridDateEditable(today, today, true, floor)).toBe(true);
+    });
   });
 
   it("uses explicit non-editable history glyphs in readonly mode", () => {
@@ -44,6 +78,46 @@ describe("isWeekGridDateEditable", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("renders a previous-week day as tappable for the parent Di Rumah grid but locked for the teacher today-only grid", () => {
+    // today (mocked) = 2026-07-30; previousWeekDay = 2026-07-23, inside the
+    // parent's window (floor 2026-07-20) but outside teacher today-only mode.
+    const previousWeekDay = "2026-07-23";
+    const category = {
+      id: "cat",
+      name: "Ibadah",
+      scope: "HOME",
+      indicators: [{ id: "ind", label: "Sholat", order: 1 }],
+    };
+
+    const { unmount } = render(createElement(WeekGrid, {
+      categories: [category],
+      entries: [],
+      dates: [previousWeekDay, today],
+      editable: true,
+      onToggle: () => {},
+      disablePastDays: true,
+      earliestEditableDate: "2026-07-20",
+    }));
+    expect(
+      screen.getByRole("button", { name: `Sholat ${previousWeekDay} — belum diisi` }),
+    ).not.toBeDisabled();
+    unmount();
+
+    render(createElement(WeekGrid, {
+      categories: [category],
+      entries: [],
+      dates: [previousWeekDay, today],
+      editable: true,
+      onToggle: () => {},
+      // disablePastDays defaults to true, no earliestEditableDate — teacher today-only.
+    }));
+    expect(
+      screen.getByRole("button", {
+        name: `Sholat ${previousWeekDay} — belum diisi — hanya hari ini bisa diubah`,
+      }),
+    ).toBeDisabled();
   });
 
   it("names the feature the way the reader's portal names it", () => {

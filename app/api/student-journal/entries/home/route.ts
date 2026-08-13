@@ -6,13 +6,16 @@ import { homeEntryBatchSchema } from "@/lib/validations/student-journal";
 import { rateLimit } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { upsertJournalEntriesWithAudit } from "@/lib/student-journal/entry-writes";
+import { isHomeEntryDateEditable } from "@/lib/student-journal/backfill";
 
 /**
- * Indonesian copy when the parent attempts to backfill or post-date a home
- * entry. Server-side enforced (UAT 2026-05-01 cycle T4); the same string is
- * surfaced by the client toast so the rule is consistent across the boundary.
+ * Indonesian copy when the parent attempts to edit a home entry outside the
+ * backfill window (before the floor, or any future date). Server-side
+ * enforced; the same string is surfaced by the client toast so the rule is
+ * consistent across the boundary.
  */
-const HOME_TODAY_ONLY_MSG = "Hanya hari ini yang bisa diubah";
+const HOME_EDIT_WINDOW_MSG =
+  "Tanggal di luar jangkauan. Hanya bisa diubah dari Senin minggu lalu sampai hari ini.";
 
 export async function POST(req: NextRequest) {
   // Parse body first so we can extract studentId for the rate-limit key
@@ -44,14 +47,18 @@ export async function POST(req: NextRequest) {
   if (guard.error) return guard.error;
   const { session } = guard;
 
-  // Today-only edit window (UAT 2026-05-01 cycle T4). The parent's "Di Rumah"
-  // tab must reject any backfill or future-date toggle — silent past-day
-  // backfill corrupts the trust artifact. Tenant timezone is "Asia/Jakarta"
-  // (single-tenant MVP; OrgConfig.timezone defaults to it). Lift to a
-  // session-derived timezone when multi-tenant arrives.
+  // Bounded backfill window (UAT 2026-05-01 cycle T4; window widened by
+  // owner decision 13 Aug 2026 — see lib/student-journal/backfill.ts). The
+  // parent's "Di Rumah" tab may now backfill a missed day, but only inside a
+  // visible, bounded window: from the Monday of the previous week through
+  // today, inclusive. What stays forbidden is *unbounded* past-day backfill
+  // and any future date — the original defect was silent, unbounded editing,
+  // not backfill itself. Tenant timezone is "Asia/Jakarta" (single-tenant
+  // MVP; OrgConfig.timezone defaults to it). Lift to a session-derived
+  // timezone when multi-tenant arrives.
   const today = getTodayInTimezone("Asia/Jakarta");
-  if (date !== today) {
-    return NextResponse.json({ error: HOME_TODAY_ONLY_MSG }, { status: 400 });
+  if (!isHomeEntryDateEditable(date, today)) {
+    return NextResponse.json({ error: HOME_EDIT_WINDOW_MSG }, { status: 400 });
   }
 
   // Validate all indicator IDs: must be HOME-scope and belong to tenant template

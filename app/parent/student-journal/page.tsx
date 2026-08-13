@@ -24,6 +24,7 @@ import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { homeEntryEditFloor } from "@/lib/student-journal/backfill";
 import { formatDateShort } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
@@ -217,6 +218,11 @@ export default function ParentStudentJournalPage() {
 
   const selectedChild = children.find((c) => c.id === childId) ?? children[0];
   const dates = data?.dates ?? weekDates(currentWeek);
+  // Anchored to TODAY's week, not `currentWeek` (the week the parent is
+  // currently viewing) — a wali who navigates back four weeks must still see
+  // every cell there locked. `homeEntryEditFloor` is the same helper the
+  // server route enforces against, so client and server never disagree.
+  const homeEditFloor = homeEntryEditFloor(getTodayInTimezone("Asia/Jakarta"));
 
   return (
     <div className="space-y-section">
@@ -286,13 +292,12 @@ export default function ParentStudentJournalPage() {
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
-      ) : data.schoolEntries.length === 0 &&
-        data.homeEntries.length === 0 &&
-        data.notes.length === 0 ? (
+      ) : data.schoolCategories.length === 0 &&
+        data.homeCategories.length === 0 ? (
         <EmptyState
           icon={BookHeart}
-          title="Belum ada catatan minggu ini"
-          description="Catatan akan muncul saat guru atau orang tua mengisi."
+          title="Jurnal belum diatur sekolah"
+          description="Sekolah belum menambahkan indikator harian untuk Jurnal. Hubungi admin sekolah untuk informasi lebih lanjut."
         />
       ) : (
         <Tabs value={activeView} onValueChange={setActiveView}>
@@ -326,6 +331,7 @@ export default function ParentStudentJournalPage() {
               dates={data.dates}
               featureLabel="Jurnal"
               editable
+              earliestEditableDate={homeEditFloor}
               onToggle={async (indicatorId, date, next) => {
                 const res = await fetch("/api/student-journal/entries/home", {
                   method: "POST",
