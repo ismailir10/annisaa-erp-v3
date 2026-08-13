@@ -129,7 +129,7 @@ over 60 days old and not scoped to fees or invoicing.
       percentage.
       *Depends on:* T1.
 
-- [ ] **T4 — API routes.** `app/api/student-fee-adjustments/route.ts` (GET list + POST) and
+- [x] **T4 — API routes.** `app/api/student-fee-adjustments/route.ts` (GET list + POST) and
       `[id]/route.ts` (PUT). Admin guard + tenant scoping copied from `app/api/fee-components/route.ts`;
       verify `studentId`, `academicYearId`, and `feeComponentId` all belong to the tenant before writing,
       as `app/api/fee-structure/route.ts:63-71` does. GET follows the pagination contract in
@@ -233,6 +233,23 @@ over 60 days old and not scoped to fees or invoicing.
     the spec's stated gate untestable and meant a single missing `where` clause in a future call site
     would bill a family from a revoked grant or a prior year's scholarship. The resolver now
     re-checks regardless of how the caller queried.
+- Task 4: API routes — `app/api/student-fee-adjustments/route.ts` (GET paginated list + POST),
+  `app/api/student-fee-adjustments/[id]/route.ts` (PUT), `app/api/__tests__/student-fee-adjustments.test.ts`
+  — admin-gated and tenant-scoped, `studentId`/`academicYearId`/`feeComponentId` each re-verified
+  against the tenant before any write, `tenantId` and `createdBy` taken from the session. GET is
+  admin-gated rather than merely tenant-gated as `fee-components` GET is: this endpoint exposes who
+  receives a discount and how much, which is per-family financial data. No `revalidate` — the sibling
+  fee routes cache for an hour and stale keringanan would misprice an invoice.
+  Three defects were found and fixed during review rather than deferred:
+  - **PERCENT ≤ 100 could be escaped one field at a time.** `PUT { value: 150 }` against a stored
+    PERCENT row passes schema validation, since the schema cannot see the stored row. The route now
+    re-checks the *effective* mode and value.
+  - **The same hole existed on the validity window** — `PUT { validFrom }` alone could land after a
+    stored `validTo`. Same effective-value fix.
+  - **A validity bound could never be cleared once set.** The update schema had the dates as
+    `.optional()`, so `undefined` meant "leave unchanged" and there was no payload that restored
+    open-ended validity. They are now `.nullable().optional()`, and the edit form sends `null` for a
+    blanked date.
 
 ## Verification
 
@@ -254,6 +271,12 @@ over 60 days old and not scoped to fees or invoicing.
   implementation: 33% of 12345 = 4073.85 → 4074, and 1% of 50 = 0.5 → 1 (HALF_UP; banker's rounding
   would have given 0). An invariant test asserts `amount + adjustmentAmount === finalAmount` across
   a mixed batch including an over-discounted line.
+- Task 4: gates passed — `npm run build` clean, `npx vitest run` 293 files / 2758 tests passed,
+  2 skipped, 42 todo. 18 route tests; the cross-tenant and role-guard tests assert the write was
+  never attempted, not just the status code. `superpowers:code-reviewer` ran the security pass over
+  authorization, tenant scoping, mass assignment and the PERCENT-cap bypass and found no holes; its
+  two low-severity suggestions (status-filter enum validation, `not.toHaveBeenCalled()` on the role
+  tests) were both applied rather than noted.
 - `feature-dev:code-reviewer` on T2+T3 raised two findings. The resolver-gate one was accepted and
   fixed as described above. The second — that nothing yet enforces the PERCENT cap on a value-only
   update — is correct and is T4's job; it is called out in T4's acceptance criteria.

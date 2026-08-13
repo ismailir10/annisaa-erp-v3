@@ -80,8 +80,12 @@ export const updateStudentFeeAdjustmentSchema = z
     mode: modeSchema.optional(),
     value: valueSchema.optional(),
     reason: reasonSchema.optional(),
-    validFrom: dateSchema.optional(),
-    validTo: dateSchema.optional(),
+    // Nullable, not merely optional: `undefined` means "leave unchanged"
+    // (Prisma drops undefined keys), so without an explicit `null` there is
+    // no payload that can clear a validity bound back to open-ended once it
+    // has been set. Blanking the date field in the edit form sends null.
+    validFrom: dateSchema.nullable().optional(),
+    validTo: dateSchema.nullable().optional(),
     // Soft-delete toggle reuses this schema instead of a dedicated one —
     // PUT { status: "INACTIVE" } / PUT { status: "ACTIVE" } is the
     // deactivate/reactivate roundtrip.
