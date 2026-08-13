@@ -54,7 +54,7 @@ Separately, Bu Shanti asked how to run bulk billing when per-child amounts diffe
   Add `lib/student-journal/backfill.ts` exporting the window floor and an `isHomeEntryDateEditable(date, todayYmd)` predicate, reusing `weekStart` from `lib/student-journal/week.ts`. Unit-test the boundaries: today, yesterday, previous-week Monday, the Sunday before it, tomorrow.
   *Acceptance:* vitest covers all five boundary dates including a Monday-today edge case (floor is exactly 7 days back).
 
-- [ ] **T3 — Server enforcement (depends on T2)**
+- [x] **T3 — Server enforcement (depends on T2)**
   Replace the `date !== today` guard in `app/api/student-journal/entries/home/route.ts` with the T2 predicate and update `HOME_TODAY_ONLY_MSG` to name the real window.
   *Acceptance:* route test asserts 200 for previous-week Monday, 400 for the Sunday before it and for tomorrow, with the new message.
 
@@ -81,6 +81,8 @@ Frontend diffs in T1, T4 and T5 are cross-checked against `.claude/standards/des
 - Task T2: Shared backfill-window helper — `lib/student-journal/backfill.ts` (new), `lib/student-journal/__tests__/backfill.test.ts` (new) — pure `homeEntryEditFloor(todayYmd)` / `isHomeEntryDateEditable(date, todayYmd)` over `weekStart` from `week.ts`; no clock reads inside, so the server route (T3) and the React grid (T4) share one definition of the window.
 - Task T5 (rescoped): residual parent-nav copy cleanup — `components/parent/more-sheet.tsx`, `components/parent/bottom-nav.tsx`, `components/parent/__tests__/bottom-nav.test.tsx` — dropped the last "Capaian" from nav sub-label copy, corrected two stale comments, and retargeted the two test assertions that keyed off the old string. No rename, per the owner decision recorded in Tasks → T5.
 - Task T6: Billing runbook — `docs/runbooks/tagihan-serentak.md` (new) — Indonesian operator guide for the bulk-then-manual billing flow. Every UI string it tells the admin to click was verified against the code before commit: "Biaya & Tagihan", "Komponen Biaya", "Struktur per Program", "Buat Tagihan", "Tagihan Manual", "Lanjutkan", "Coba Lagi Link", "Link Gagal".
+- Task T3: Server enforcement — `app/api/student-journal/entries/home/route.ts`, `lib/validations/student-journal.ts`, `__tests__/api/student-journal/entries-home-edit-window.test.ts` (renamed from `…-today-only.test.ts`), `docs/uat/jobs/parent.md` — guard swapped to the shared predicate, `HOME_TODAY_ONLY_MSG` → `HOME_EDIT_WINDOW_MSG` with copy naming the real window, and the guard's comment rewritten (the old one claimed all backfill was rejected). Guard ordering unchanged: auth still precedes the date check, with a test pinning that.
+  **Security fix folded in.** The `superpowers:code-reviewer` pass caught a regression the widening introduced: `ymd` was shape-only (`/^\d{4}-\d{2}-\d{2}$/`), so an impossible date like `2026-07-99` passes validation, and because the window predicate compares strings lexicographically it sorts *inside* the window whenever the window straddles a month boundary (verified: today `2026-08-03` → floor `2026-07-27` → `2026-07-99` accepted). Under the old exact-equality rule this was unreachable, so the loose regex had been harmless. `ymd` now round-trips through `Date` — the same guard `lib/validations/curriculum.ts` already used — and a regression test covers it.
 
 ## Verification
 
