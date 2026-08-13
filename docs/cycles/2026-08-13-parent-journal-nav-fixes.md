@@ -68,7 +68,7 @@ Separately, Bu Shanti asked how to run bulk billing when per-child amounts diffe
   Residual cleanup actually performed: the `PARENT_MORE_ITEMS` description in `components/parent/more-sheet.tsx` still read "Capaian anak per elemen" — nav sub-label context, which the glossary bans — now "Perkembangan anak per elemen"; stale "Capaian" comments in `more-sheet.tsx` and `bottom-nav.tsx` corrected. The in-page `<h2>` "Capaian per elemen" in `app/parent/perkembangan/[studentId]/page.tsx` is **deliberately left alone** — it is the exact usage the glossary sanctions.
   *Acceptance:* no "Capaian" remains in parent nav copy; the sanctioned in-page heading and every curriculum-domain "Capaian" (admin objectives, raport editor, `lib/validations/curriculum.ts`, e2e specs) are untouched.
 
-- [ ] **T6 — Billing runbook (independent)**
+- [x] **T6 — Billing runbook (independent)**
   Write `docs/runbooks/tagihan-serentak.md`: fee-master prerequisites, bulk run for uniform SPP, manual multi-line invoices for arrears / uniforms / staggered instalments, and the `(studentId, periodLabel)` dedup trap that makes a same-label manual invoice silently exclude a child from the bulk run.
   *Acceptance:* a pilot admin can follow it without asking a follow-up question; the dedup trap is called out with a worked label example.
 
@@ -80,6 +80,7 @@ Frontend diffs in T1, T4 and T5 are cross-checked against `.claude/standards/des
 - Task T1: Unblock the parent journal grid — `app/parent/student-journal/page.tsx`, `app/parent/student-journal/__tests__/page.test.tsx` (new) — render gate moved off "no entries this week" onto "no ACTIVE categories in either scope", so a wali with configured indicators always gets the tappable Di Rumah grid; EmptyState copy rewritten to name the school as the party who configures indicators instead of implying the wali is waiting on a teacher.
 - Task T2: Shared backfill-window helper — `lib/student-journal/backfill.ts` (new), `lib/student-journal/__tests__/backfill.test.ts` (new) — pure `homeEntryEditFloor(todayYmd)` / `isHomeEntryDateEditable(date, todayYmd)` over `weekStart` from `week.ts`; no clock reads inside, so the server route (T3) and the React grid (T4) share one definition of the window.
 - Task T5 (rescoped): residual parent-nav copy cleanup — `components/parent/more-sheet.tsx`, `components/parent/bottom-nav.tsx`, `components/parent/__tests__/bottom-nav.test.tsx` — dropped the last "Capaian" from nav sub-label copy, corrected two stale comments, and retargeted the two test assertions that keyed off the old string. No rename, per the owner decision recorded in Tasks → T5.
+- Task T6: Billing runbook — `docs/runbooks/tagihan-serentak.md` (new) — Indonesian operator guide for the bulk-then-manual billing flow. Every UI string it tells the admin to click was verified against the code before commit: "Biaya & Tagihan", "Komponen Biaya", "Struktur per Program", "Buat Tagihan", "Tagihan Manual", "Lanjutkan", "Coba Lagi Link", "Link Gagal".
 
 ## Verification
 
