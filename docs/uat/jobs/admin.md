@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
+> Last audited: 2026-08-13 in cycle `keringanan-fee-adjustments` (Keringanan tab on `/admin/fees` — durable per-student fee adjustments applied automatically by bulk generation; new JTBD-ADMIN-INV-04). Prior: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -91,6 +91,23 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
   5. See the new invoice appear, status `PENDING`
 - **Done when:** Invoice exists in the list with correct amount (sum of components), correct student, correct due date, status `PENDING`. Form is not so long that it scrolls on a 1440p monitor.
 - **Why this job matters:** Manual invoice creation is the escape hatch for anything the batch system doesn't handle. Ibu Nur does this weekly.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+### JTBD-ADMIN-INV-04 — Grant a keringanan so it applies every month
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** save click-to-row-visible <1s
+- **Preconditions:** Logged in as SUPER_ADMIN, ≥1 active student, ≥1 fee component, ≥1 academic year
+- **Steps:**
+  1. Open `/admin/fees` and switch to the Keringanan tab
+  2. Add a keringanan: pick the student, the academic year, the fee component
+  3. Choose discount or surcharge, percentage or fixed amount, enter the value
+  4. Type the reason (required) and optionally a validity window
+  5. Save, then run bulk generate for the next period
+- **Done when:** The grant appears in the list, and the generated invoice for that student shows the reduced amount with the reason on the line. The confirm dialog before generation says how many students carry a keringanan.
+- **Why this job matters:** Before this existed, a sibling discount or beasiswa meant hand-building that child's invoice every single month, or editing nothing at all. This is the difference between billing 180 families in one run and billing 175 plus five by hand.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

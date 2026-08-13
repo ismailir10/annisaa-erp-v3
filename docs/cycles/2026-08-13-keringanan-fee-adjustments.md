@@ -173,12 +173,12 @@ over 60 days old and not scoped to fees or invoicing.
       `adjustmentNote`, a reduced `finalAmount`, and a `totalDue` matching the sum.
       *Depends on:* T3, T4.
 
-- [ ] **T8 — Docs.** Update `README.md` (route count, fees module capability) and correct the now-false
+- [x] **T8 — Docs.** Update `README.md` (route count, fees module capability) and correct the now-false
       claim at `docs/runbooks/module-capability-guide.md:204`.
       *Acceptance:* `/audit-docs` reports zero `fail` findings.
       *Depends on:* T1-T7.
 
-- [ ] **T9 — (Droppable) Invoice duplicate guard.** Query staging and prod via Supabase MCP for existing
+- [~] **T9 — (Droppable) Invoice duplicate guard. DROPPED — see Ship Notes.** Query staging and prod via Supabase MCP for existing
       duplicate `(tenantId, studentId, periodLabel)` rows on `Invoice`. If zero, add
       `@@unique([tenantId, studentId, periodLabel])` plus migration, and let the batch route's existing
       `P2002` handling cover the race. If any duplicates exist, **drop this task** and record the finding
@@ -188,7 +188,7 @@ over 60 days old and not scoped to fees or invoicing.
       dropped with the duplicate count recorded.
       *Depends on:* nothing. Runs last regardless.
 
-- [ ] **T10 — E2E.** One lean Playwright spec extending the admin suite: open `/admin/fees` → Keringanan
+- [x] **T10 — E2E.** One lean Playwright spec extending the admin suite: open `/admin/fees` → Keringanan
       tab → create an adjustment against a seeded student → assert it lists → deactivate → assert the
       status filter hides it. Generation-path coverage stays in vitest per the testing-gate policy — do
       not add a Playwright run of the whole bulk generate.
@@ -277,6 +277,15 @@ over 60 days old and not scoped to fees or invoicing.
   inconsistent with `skipped: 0` / `created: 0`, which are always present. The tests that actually
   protect billing amounts, in `invoices-generate-batch.test.ts` and `run-bulk-generate.test.ts`, are
   untouched and green, and those are what prove a student with no adjustments is billed identically.
+- Task 10: E2E — `e2e/admin-fees-keringanan.spec.ts` (new) — its own file rather than a block in
+  `admin.spec.ts`, matching how every other single-feature admin spec in `e2e/` is organised.
+  Creates a keringanan through the tab, asserts the row, deactivates it via the row action +
+  confirm, then asserts the "Aktif" status filter hides it. Because e2e rows leak between runs, the
+  row is located by student name plus a timestamp-derived percentage rather than by position.
+- Task 8: Docs — `README.md` (finance module capability + a 2026-08-13 ADR row), `CLAUDE.md`
+  (route count 184 → 186, e2e spec count 33 → 34), `docs/runbooks/module-capability-guide.md`
+  (the claim that waivers are manual line adjustments was true when written and is now false),
+  `docs/uat/jobs/admin.md` (new JTBD-ADMIN-INV-04, "Last audited" bumped).
 
 ## Verification
 
@@ -304,6 +313,19 @@ over 60 days old and not scoped to fees or invoicing.
   authorization, tenant scoping, mass assignment and the PERCENT-cap bypass and found no holes; its
   two low-severity suggestions (status-filter enum validation, `not.toHaveBeenCalled()` on the role
   tests) were both applied rather than noted.
+- End-of-cycle gates: `npm run build` exit 0; `npx vitest run` 293 files / 2758 tests passed,
+  2 skipped, 42 todo; `npm run lint` 0 errors, 59 warnings, all pre-existing and none in this
+  cycle's files.
+- Playwright: local run deferred to CI (env cannot execute it — `playwright.config.ts` refuses to
+  run against a non-local `DATABASE_URL`, and this worktree's points at the shared staging Supabase.
+  The guard was left in place rather than overridden with `E2E_ALLOW_REMOTE_DB=1`, since these specs
+  create and mutate rows through the API). Required CI check `Playwright E2E` gates the merge; CTO
+  will not merge on red.
+- T9 duplicate precheck, run against both databases via Supabase MCP before deciding:
+  staging (`udbivhchbizpxoryejgz`) returned 2 duplicate `(tenantId, studentId, periodLabel)` groups —
+  "Juli 2026" and "Agustus 2026", each a pair created hours apart, consistent with repeat bulk runs
+  against the shared staging DB. Prod (`vxwywmvpxetdgnxejjgk`) returned 0. Task dropped per its own
+  acceptance criterion.
 - Task 6: gates passed — `npm run build` clean (`/admin/fees` still renders `ƒ`), `npx vitest run`
   293 files / 2758 tests passed. `npm run lint` 0 errors; no warning falls in the new file.
   Cross-checked design-system.html §08 Status Badges, §09 DataTable, §10 States, §13 Overlays;
@@ -320,3 +342,30 @@ over 60 days old and not scoped to fees or invoicing.
   update — is correct and is T4's job; it is called out in T4's acceptance criteria.
 
 ## Ship Notes
+
+- **Migrations:** one, additive —
+  `prisma/migrations/20260813000000_add_student_fee_adjustment/migration.sql`. Creates one new table
+  with four `RESTRICT` FKs, three indexes, RLS enabled and a permissive `service_role` policy. No
+  `ALTER` on any existing table, no backfill, no data mutation. Safe to deploy ahead of the app code:
+  nothing reads the table until the new routes exist.
+- **Env vars:** none added, removed or renamed.
+- **Data backfill:** none. Existing invoices are untouched — adjustments affect future runs only.
+- **Supabase dashboard changes:** none.
+- **Manual smoke on the preview:** open `/admin/fees` → Keringanan tab → add a 20% discount on SPP
+  for one student → run "Buat Tagihan" for a fresh period → confirm the dialog reports "Termasuk 1
+  siswa dengan keringanan" → open that student's generated invoice and confirm the SPP line shows
+  the reduced amount with the reason, and the total matches. Then check the parent portal renders
+  the same invoice sanely, since `adjustmentAmount` is parent-visible and, until this cycle, was
+  always zero in real data.
+- **Rollback:** `git revert` the cycle's commits. The table can be left in place — it is additive and
+  nothing else references it. If it must go, drop it after the revert; no other table has an FK to it.
+- **T9 dropped — follow-up cycle needed.** There is still no DB uniqueness behind the "already
+  invoiced for this period" check, so two concurrent bulk runs can double-invoice a student. The
+  index was not added because staging currently holds 2 duplicate groups (see Verification) and an
+  asserting migration would break `prisma migrate deploy` on the staging deploy. Prod is clean. The
+  follow-up is: clean the 2 staging rows, then add `@@unique([tenantId, studentId, periodLabel])`.
+- **Known gap, deliberate:** manual invoice creation (`POST /api/invoices`,
+  `manual-invoice-dialog.tsx`) does not auto-apply keringanan. It stays a fully hand-driven escape
+  hatch this cycle — an admin creating a one-off invoice for a student who has a standing discount
+  must apply it themselves.
+- **Prod:** not shipped by this cycle. Staging only unless the owner says otherwise.
