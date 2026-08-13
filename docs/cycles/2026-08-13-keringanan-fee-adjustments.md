@@ -141,7 +141,7 @@ over 60 days old and not scoped to fees or invoicing.
       envelope, cross-tenant ids rejected, list filters and pagination, soft-delete roundtrip.
       *Depends on:* T2.
 
-- [ ] **T5 — Extract StudentPicker.** Move the module-private `StudentPicker`
+- [x] **T5 — Extract StudentPicker.** Move the module-private `StudentPicker`
       (`components/admin/invoices/manual-invoice-dialog.tsx:137-365`) into
       `components/admin/student-picker.tsx`, export it, and rewire the manual invoice dialog to import it.
       Pure refactor — no behaviour change, same props, same debounce and abort handling.
@@ -207,6 +207,11 @@ over 60 days old and not scoped to fees or invoicing.
   idempotent 20% sibling-discount seed row so demo mode and e2e have data. The subagent's
   `prisma format` had realigned 126 unrelated lines across the schema; that churn was reverted and
   the change re-applied by hand, leaving a 38-insertion / 0-deletion diff.
+- Task 5: Extract StudentPicker — `components/admin/student-picker.tsx` (new),
+  `components/admin/invoices/manual-invoice-dialog.tsx` — the async student-search control was a
+  module-private function inside the manual invoice dialog; it is now a named export so the
+  Keringanan tab can reuse it instead of duplicating it. Pure move: same props, same 250ms debounce,
+  same AbortController handling, same query params.
 
 ## Verification
 
@@ -215,5 +220,9 @@ over 60 days old and not scoped to fees or invoicing.
   `scripts/verify-rls-coverage.sh` → "RLS coverage OK: 40 / 40 tenant-scoped models have ENABLE +
   policy". `feature-dev:code-reviewer` compared the migration to the model column by column and
   found no drift.
+- Task 5: gates passed — `npm run build` clean, `npx vitest run` 290 files / 2686 tests passed.
+  Byte-fidelity of the refactor verified directly rather than by assertion: the extracted function
+  was diffed against `git show HEAD:components/admin/invoices/manual-invoice-dialog.tsx` and is
+  identical, 229 lines, zero differences.
 
 ## Ship Notes
