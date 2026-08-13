@@ -142,10 +142,10 @@ export default function MonthlyAttendancePage() {
                     </th>
                   );
                 })}
-                <th className="px-2 py-2 text-center font-semibold text-muted-foreground">H</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted-foreground">T</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted-foreground">A</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted-foreground">I</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted-foreground" title="H = Hadir">H</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted-foreground" title="T = Terlambat">T</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted-foreground" title="A = Alpa">A</th>
+                <th className="px-2 py-2 text-center font-semibold text-muted-foreground" title="I = Izin">I</th>
               </tr>
             </thead>
             <tbody>
@@ -198,7 +198,7 @@ export default function MonthlyAttendancePage() {
           {Object.entries(STATUS_COLORS).slice(0, 5).map(([key, bg]) => (
             <div key={key} className="flex items-center gap-1">
               <div className={`w-3 h-3 rounded-sm ${bg}`} />
-              <span className="text-muted-foreground">{key}</span>
+              <span className="text-muted-foreground">{STATUS_LABELS[key] ?? key}</span>
             </div>
           ))}
         </div>

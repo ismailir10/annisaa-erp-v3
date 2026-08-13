@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup B — Split brand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* Tokens copied verbatim from app/globals.css :root. Mockup only. */
+:root {
+  --background: #F7FAFA;
+  --foreground: #1C1917;
+  --card: #FFFFFF;
+  --primary: #5DB4B8;
+  --primary-text: #2F7A7D;
+  --muted-foreground: #57534E;
+  --border: #E5E2DE;
+  --secondary: #E8F5F6;
+  --status-absent-subtle: #FFE6E6;
+  --radius: 0.625rem;
+  --shadow-resting: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-elevated: 0 6px 16px -4px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --type-h1: 1.5rem;
+  --type-body: 0.875rem;
+  --type-small: 0.75rem;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.shell {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+/* ── Brand panel ─────────────────────────────────────────────────────── */
+.brand-panel {
+  position: relative;
+  isolation: isolate;
+  background: var(--secondary);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden;
+}
+/* Islamic eight-point geometric motif at the 3% opacity convention. */
+.brand-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%232F7A7D' stroke-width='1.5'><rect x='30' y='30' width='60' height='60'/><rect x='30' y='30' width='60' height='60' transform='rotate(45 60 60)'/><circle cx='60' cy='60' r='30'/></g></svg>");
+  background-size: 120px 120px;
+}
+.brand-lockup { display: flex; align-items: center; gap: 12px; }
+.brand-lockup img {
+  width: 44px; height: 44px; border-radius: 13px;
+  outline: 1px solid rgb(0 0 0 / 0.1); outline-offset: -1px;
+}
+.wordmark { display: flex; flex-direction: column; line-height: 1; gap: 4px; }
+.wordmark b { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em; }
+.wordmark span { font-size: var(--type-small); color: var(--muted-foreground); }
+
+.pitch { max-width: 26ch; }
+.pitch h2 {
+  margin: 0 0 8px;
+  font-size: var(--type-h1);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.pitch p {
+  margin: 0;
+  font-size: var(--type-body);
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+  max-width: 38ch;
+}
+
+.capabilities { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.capabilities li { display: flex; align-items: flex-start; gap: 10px; font-size: var(--type-body); line-height: 1.45; }
+.capabilities svg { flex: none; margin-top: 1px; color: var(--primary-text); }
+.capabilities b { font-weight: 600; }
+.capabilities em { font-style: normal; color: var(--muted-foreground); display: block; font-size: var(--type-small); }
+
+/* ── Sign-in panel ───────────────────────────────────────────────────── */
+.signin {
+  background: var(--card);
+  padding: 32px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+}
+.signin-inner { width: 100%; max-width: 360px; margin-inline: auto; }
+
+h1 {
+  margin: 0 0 6px;
+  font-size: var(--type-h1);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.sub {
+  margin: 0 0 24px;
+  font-size: var(--type-body);
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+  max-width: 36ch;
+}
+
+.google {
+  width: 100%;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 1.4);
+  background: #FFFFFF;
+  box-shadow: var(--shadow-resting);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer;
+  transition-property: background-color, box-shadow, border-color, scale;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+.google:hover { background: #FAFAFA; box-shadow: var(--shadow-elevated); }
+.google:active { scale: 0.98; }
+.google:focus-visible { outline: 2px solid var(--primary-text); outline-offset: 2px; }
+
+.invite {
+  margin: 16px 0 0;
+  font-size: var(--type-small);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.invite a { color: var(--primary-text); text-underline-offset: 2px; }
+
+.alert {
+  display: none;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--status-absent-subtle);
+  border: 1px solid rgb(220 38 38 / 0.25);
+  color: #991B1B;
+  font-size: var(--type-small);
+  line-height: 1.5;
+}
+body.error .alert { display: block; }
+
+footer {
+  margin-top: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--type-small);
+  color: var(--muted-foreground);
+}
+footer a { color: var(--muted-foreground); padding: 6px 8px; border-radius: 8px; text-decoration: none; }
+footer a:hover { color: var(--primary-text); text-decoration: underline; }
+footer .copy { margin-inline-start: auto; padding: 6px 0; }
+
+/* Hold the stacked layout until the two columns genuinely fit. */
+@media (min-width: 62rem) {
+  .shell { grid-template-columns: 1.05fr 1fr; }
+  .brand-panel { padding: 48px; gap: 32px; justify-content: center; }
+  .brand-lockup { position: absolute; inset-block-start: 40px; inset-inline-start: 48px; }
+  .pitch h2 { font-size: 2rem; }
+  .signin { padding: 48px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .signin-inner { animation: rise 420ms cubic-bezier(0.2, 0, 0, 1) both; }
+  @keyframes rise { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <section class="brand-panel">
+    <div class="brand-lockup">
+      <img src="../../../public/logo.png" alt="" />
+      <span class="wordmark"><b>Talib</b><span>by An Nisaa&rsquo; Sekolahku</span></span>
+    </div>
+
+    <div class="pitch">
+      <h2>Sahabat belajar anak</h2>
+      <p>Kehadiran, jurnal harian, dan tagihan sekolah dalam satu pintu.</p>
+    </div>
+
+    <ul class="capabilities">
+      <li>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg>
+        <span><b>Kehadiran harian</b><em>Tercatat rapi, terlihat orang tua</em></span>
+      </li>
+      <li>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+        <span><b>Jurnal &amp; perkembangan</b><em>Catatan guru sampai ke rumah</em></span>
+      </li>
+      <li>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg>
+        <span><b>Tagihan sekolah</b><em>Bayar dan lihat riwayatnya</em></span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="signin">
+    <div class="signin-inner">
+      <div class="alert" role="alert">Akun belum terdaftar. Hubungi admin sekolah untuk akses.</div>
+
+      <h1>Masuk ke Talib</h1>
+      <p class="sub">Akses hanya untuk staf dan orang tua yang diundang sekolah.</p>
+
+      <button type="button" class="google">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9.003 18z" fill="#34A853"/><path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.428 0 9.002 0 5.48 0 2.438 2.017.957 4.958L3.964 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/></svg>
+        Masuk dengan Google
+      </button>
+
+      <p class="invite">Gunakan akun Google yang terdaftar di sekolah. Belum punya akses? <a href="#">Hubungi admin sekolah</a>.</p>
+
+      <footer>
+        <a href="#">Syarat &amp; Ketentuan</a>
+        <span aria-hidden="true">&middot;</span>
+        <a href="#">Kebijakan Privasi</a>
+        <span class="copy">&copy; 2026 An Nisaa&rsquo; Sekolahku</span>
+      </footer>
+    </div>
+  </section>
+</div>
+<script>
+  if (new URLSearchParams(location.search).get("state") === "error") {
+    document.body.classList.add("error");
+  }
+</script>
+</body>
+</html>

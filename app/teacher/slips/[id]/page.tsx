@@ -188,7 +188,7 @@ export default async function SlipDetailPage({
             </dd>
           </div>
           <div>
-            <dt className="text-small text-muted-foreground">NIP</dt>
+            <dt className="text-small text-muted-foreground">Kode Karyawan</dt>
             <dd className="text-body font-semibold text-foreground mt-0.5">
               {slip.employee.kode}
             </dd>

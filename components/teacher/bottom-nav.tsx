@@ -8,11 +8,21 @@ import { TeacherMoreSheet, TEACHER_MORE_ITEMS } from "@/components/teacher/more-
 
 // Teacher keeps daily teaching work in the tab bar. Personal attendance (with
 // Cuti & Izin), salary, and profile share the same fifth-slot overflow pattern
-// as parent navigation. "Jurnal" is a label-only abbreviation for the existing
-// Buku Penghubung route and data model.
+// as parent navigation.
+//
+// "Jurnal" stays a label-only abbreviation for the Buku Penghubung route and
+// data model. voice.md's nav-label↔page-title rule wants the tab and the page
+// to share a word; "Penghubung" (10 chars) overflows the 5-slot width budget,
+// which the longest current label "Penilaian" (9) already sits at. So the
+// reconciliation runs the other way: the page titles itself "Jurnal — Buku
+// Penghubung" so a teacher who taps "Jurnal" lands somewhere that says Jurnal.
+//
+// "Kelas" → "Absensi": the tab now names the job (taking roll), matching its
+// destination "Absensi Kelas". Per voice.md, Absensi is the act, Kehadiran the
+// record — a teacher's task surface takes the former.
 const baseTabs: PortalBottomNavItem[] = [
   { label: "Beranda", href: "/teacher", icon: Home },
-  { label: "Kelas", href: "/teacher/class-attendance", icon: School },
+  { label: "Absensi", href: "/teacher/class-attendance", icon: School },
   { label: "Jurnal", href: "/teacher/student-journal", icon: BookHeart },
   { label: "Penilaian", href: "/teacher/assessments", icon: ClipboardCheck },
 ];

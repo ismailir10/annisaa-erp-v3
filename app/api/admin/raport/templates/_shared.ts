@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { buildTemplateGrid, type TemplateGrid } from "@/lib/raport/templates";
 
 /**
- * Load one cohort's kisi-kisi grid. Tenant-scoped; soft-deleted rows excluded
+ * Load one cohort's bank narasi grid. Tenant-scoped; soft-deleted rows excluded
  * so a cleared slot reads as empty rather than stale.
  */
 export async function loadTemplateGrid(

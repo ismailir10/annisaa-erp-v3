@@ -285,7 +285,7 @@ export function WeeklyClient({
           htmlFor="indicator-picker"
           className="block text-sm font-medium text-foreground"
         >
-          IKTP
+          Indikator Ketercapaian (IKTP)
         </label>
         {/*
           `NativeSelect` IS the <select> — passing another one as its child

@@ -72,7 +72,7 @@ type Payload = {
   student: { id: string; name: string; nickname: string | null };
   term: { id: string; number: number; semesterNumber: number; academicYear: string };
   ageGroup: "A" | "B" | null;
-  /** Kisi-kisi for this student's cohort; null when no active enrolment. */
+  /** Bank narasi for this student's cohort; null when no active enrolment. */
   templates: TemplateGridPayload | null;
   saved: Saved;
   measurement: { heightCm: string | null; weightKg: string | null } | null;
@@ -155,7 +155,7 @@ export function RaportEditor({
       const res = await fetch(`/api/admin/raport/${studentId}/${termId}`);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? "Gagal memuat raport.");
+        setError(body.error ?? "Gagal memuat rapor.");
         return;
       }
       const json = (await res.json()) as { data: Payload };
@@ -170,7 +170,7 @@ export function RaportEditor({
       setLevels(initLevels);
 
       // Narratives: saved text wins; otherwise fall back to the cohort's
-      // kisi-kisi for the level we just initialised. Only ever fills an EMPTY
+      // bank narasi for the level we just initialised. Only ever fills an EMPTY
       // field, so re-opening a saved raport never rewrites authored text.
       const initNarr: Record<string, string> = {};
       for (const s of [...BUCKETED_SECTIONS, ...CLOSING_SECTIONS]) {
@@ -205,7 +205,7 @@ export function RaportEditor({
         weight: initWeight,
       });
     } catch {
-      setError("Gagal memuat raport.");
+      setError("Gagal memuat rapor.");
     }
   }, [studentId, termId]);
 
@@ -238,14 +238,14 @@ export function RaportEditor({
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Gagal menyimpan raport.");
+        toast.error(body.error ?? "Gagal menyimpan rapor.");
         return false;
       }
       if (status === "NONE") setStatus("DRAFT");
       // Re-baseline against what was just saved — a saved editor is clean
       // even though the field states themselves haven't changed shape.
       setBaseline({ levels, narratives, att, hafalan, height, weight });
-      toast.success("Raport disimpan.");
+      toast.success("Rapor disimpan.");
       return true;
     } finally {
       setSaving(false);
@@ -267,7 +267,7 @@ export function RaportEditor({
         return;
       }
       setStatus(publish ? "PUBLISHED" : "DRAFT");
-      toast.success(publish ? "Raport diterbitkan." : "Penerbitan ditarik.");
+      toast.success(publish ? "Rapor diterbitkan." : "Penerbitan ditarik.");
     } finally {
       setPublishing(false);
     }
@@ -302,7 +302,7 @@ export function RaportEditor({
     <div>
       <BackBar onBack={handleBack} />
       <PageHeader
-        title={`Raport — ${data.student.name}`}
+        title={`Rapor — ${data.student.name}`}
         description={`Triwulan ${data.term.number} · Semester ${data.term.semesterNumber} · ${data.term.academicYear}`}
       />
 
@@ -418,9 +418,9 @@ export function RaportEditor({
       <AlertDialog open={confirmUnpublish} onOpenChange={setConfirmUnpublish}>
         <AlertDialogContent className="p-card sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Tarik penerbitan raport?</AlertDialogTitle>
+            <AlertDialogTitle>Tarik penerbitan rapor?</AlertDialogTitle>
             <AlertDialogDescription>
-              Raport akan kembali menjadi draft dan tidak terlihat sebagai raport terbit sampai diterbitkan ulang.
+              Rapor akan kembali menjadi draft dan tidak terlihat sebagai rapor terbit sampai diterbitkan ulang.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -466,11 +466,11 @@ function SectionField({
   narrative: string;
   onNarrative: (v: string) => void;
   suggestion: { suggested: RaportLevel | null; counts: ElementCounts } | null;
-  /** Cohort kisi-kisi for the currently selected level, if any. */
+  /** Cohort bank narasi for the currently selected level, if any. */
   templateText: string | null;
 }) {
   // Offer the action only when it would change something — no point showing
-  // "Pakai kisi-kisi" when the field already holds exactly that text.
+  // "Pakai narasi" when the field already holds exactly that text.
   const canApplyTemplate =
     templateText !== null && templateText.trim() !== narrative.trim();
   return (
@@ -518,7 +518,7 @@ function SectionField({
           size="sm"
           onClick={() => onNarrative(templateText)}
         >
-          {narrative.trim() ? "Ganti dengan kisi-kisi" : "Pakai kisi-kisi"}
+          {narrative.trim() ? "Ganti dengan narasi" : "Pakai narasi"}
         </Button>
       ) : null}
     </div>

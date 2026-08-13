@@ -292,12 +292,12 @@ export default function StudentAttendancePage() {
       body: JSON.stringify({ status: overrideForm.status, notes: overrideForm.notes || null }),
     });
     if (res.ok) {
-      toast.success("Kehadiran di-override");
+      toast.success("Kehadiran ditimpa");
       setOverrideTarget(null);
       fetchData();
     } else {
       const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal meng-override");
+      toast.error(d.error || "Gagal menimpa kehadiran");
     }
     setOverriding(false);
   }
@@ -384,7 +384,7 @@ export default function StudentAttendancePage() {
         <DataTableRowActions
           extraActions={[
             {
-              label: "Override",
+              label: "Timpa",
               icon: <Pencil size={14} />,
               onClick: () => openOverride(row.original),
             },
@@ -467,7 +467,7 @@ export default function StudentAttendancePage() {
               setPagination((p) => ({ ...p, page: 1 }));
             }}
           >
-            Reset tanggal
+            Atur ulang tanggal
           </Button>
         )}
       </div>
@@ -520,14 +520,14 @@ export default function StudentAttendancePage() {
       <ResponsiveFormDialog
         open={!!overrideTarget}
         onOpenChange={(o) => { if (!overriding && !o) setOverrideTarget(null); }}
-        title="Override Kehadiran"
+        title="Timpa Kehadiran"
         description={overrideTarget ? `${overrideTarget.student.name} — ${formatDate(overrideTarget.date)}` : undefined}
         size="lg"
         footer={
           <>
             <Button variant="ghost" onClick={() => setOverrideTarget(null)} disabled={overriding}>Batal</Button>
             <Button onClick={handleOverride} disabled={overriding}>
-              {overriding ? "Menyimpan..." : "Simpan Override"}
+              {overriding ? "Menyimpan..." : "Simpan"}
             </Button>
           </>
         }

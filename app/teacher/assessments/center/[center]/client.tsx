@@ -398,7 +398,7 @@ export function CenterSessionClient({
             icon={CalendarOff}
             title={
               payload.reason === "no_active_week"
-                ? "Belum ada Pekan aktif"
+                ? "Belum ada pekan aktif"
                 : "Tidak bisa memuat sentra"
             }
             description={payload.error}
@@ -419,7 +419,7 @@ export function CenterSessionClient({
           )}
           <div className="space-y-2">
             <p className="text-xs font-medium text-foreground">
-              Pilih IKTP (maks {MAX_PICKED_INDICATORS})
+              Pilih Indikator Ketercapaian / IKTP (maks {MAX_PICKED_INDICATORS})
             </p>
             {indicators.length === 0 ? (
               <div className="rounded-lg border border-dashed border-input bg-muted/40 p-4 text-sm text-muted-foreground">

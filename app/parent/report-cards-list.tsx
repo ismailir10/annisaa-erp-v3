@@ -32,7 +32,7 @@ export function ReportCardsList({ data, studentId, childName }: Props) {
         accent="warm"
         icon={Hourglass}
         title="Rapor belum terbit"
-        description="Ustadzah masih menyusun rapor. InsyaAllah siap dibuka akhir triwulan — Anda akan mendapat notifikasi."
+        description="Ustadzah masih menyusun rapor. InsyaAllah siap dibuka akhir triwulan. Cek kembali halaman ini secara berkala ya."
       />
     );
   }

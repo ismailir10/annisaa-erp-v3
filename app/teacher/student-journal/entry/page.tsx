@@ -271,7 +271,7 @@ export default function StudentJournalEntryPage() {
       <div>
         <EmptyState
           icon={Users}
-          title="Parameter tidak valid"
+          title="Kelas dan tanggal belum dipilih"
           description="Pilih kelas dan tanggal terlebih dahulu untuk mengisi penghubung."
           actionLabel="Pilih kelas dan tanggal"
           actionHref="/teacher/student-journal"

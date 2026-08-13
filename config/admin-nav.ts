@@ -50,7 +50,7 @@ export type NavConfig = {
 export const adminNav: NavConfig = {
   standalone: [
     {
-      label: "Dashboard",
+      label: "Dasbor",
       href: "/admin",
       icon: LayoutDashboard,
       matchExact: true,
@@ -64,7 +64,7 @@ export const adminNav: NavConfig = {
       icon: GraduationCap,
       items: [
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
-        { label: "Formulir Pendaftaran", href: "/admin/enrollments", icon: ClipboardList },
+        { label: "Berkas Pendaftaran Online", href: "/admin/enrollments", icon: ClipboardList },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
       ],
@@ -87,8 +87,8 @@ export const adminNav: NavConfig = {
       permission: "assessments.read",
       items: [
         { label: "Pemantauan", href: "/admin/penilaian", icon: ClipboardCheck, permission: "assessments.read" },
-        { label: "Raport", href: "/admin/raport", icon: FileText, permission: "reportCard.read" },
-        { label: "Kisi-kisi", href: "/admin/raport/templates", icon: NotebookPen, permission: "reportCard.template" },
+        { label: "Rapor", href: "/admin/raport", icon: FileText, permission: "reportCard.read" },
+        { label: "Bank Narasi", href: "/admin/raport/templates", icon: NotebookPen, permission: "reportCard.template" },
       ],
     },
     {
@@ -97,7 +97,7 @@ export const adminNav: NavConfig = {
       icon: NotebookPen,
       items: [
         { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
-        { label: "Buku Penghubung", href: "/admin/student-journal", icon: BookOpen },
+        { label: "Buku Penghubung — Templat", href: "/admin/student-journal", icon: BookOpen },
       ],
     },
     {

@@ -69,7 +69,7 @@ test.describe("Teacher flows", () => {
     // Legacy "Penilaian lama (template)" section retired.
     await expect(
       page
-        .locator("text=Belum ada kelas mengajar")
+        .locator("text=Belum ditugaskan ke kelas")
         .or(page.getByTestId("hub-center-grid"))
         .first()
     ).toBeVisible({ timeout: 10_000 });
@@ -261,7 +261,7 @@ test.describe("Teacher flows", () => {
       await expect(nav).toBeVisible();
       const slots = nav.locator("a, button");
       await expect(slots).toHaveCount(5);
-      for (const label of ["Beranda", "Kelas", "Jurnal", "Penilaian"]) {
+      for (const label of ["Beranda", "Absensi", "Jurnal", "Penilaian"]) {
         await expect(nav.getByRole("link", { name: label })).toBeVisible();
       }
       await expect(nav.getByRole("button", { name: "Lainnya" })).toBeVisible();

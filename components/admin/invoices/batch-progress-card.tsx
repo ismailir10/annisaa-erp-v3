@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import type { BatchProgressSnapshot, FailureRow } from "@/lib/finance/run-bulk-generate";
 import type { BulkRetrySnapshot, RetryFailureRow } from "@/lib/finance/run-bulk-retry";
+import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 
 /**
  * Sticky progress card shown during a bulk-generate or bulk-retry run.
@@ -79,7 +80,7 @@ function FailureDetails({ failures }: { failures: ReadonlyArray<FailureRow | Ret
         {failures.map((f, i) => (
           <li key={`${f.studentId}-${i}`} className="flex flex-col gap-0.5 py-1 border-t border-border/40 first:border-t-0">
             <span className="font-medium">{f.studentName}</span>
-            <span className="text-muted-foreground">{f.error}</span>
+            <span className="text-muted-foreground">{parsePaymentLinkError(f.error)?.userMessage ?? "Gagal membuat link pembayaran."}</span>
           </li>
         ))}
       </ul>

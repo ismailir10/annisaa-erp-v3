@@ -218,15 +218,15 @@ export default function AdminRaportPage() {
   return (
     <div>
       <PageHeader
-        title="Raport"
-        description="Susun & terbitkan raport triwulan — terisi otomatis dari penilaian, dapat disunting."
+        title="Rapor"
+        description="Susun & terbitkan rapor triwulan — terisi otomatis dari penilaian, dapat disunting."
       />
 
       {terms !== null && terms.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
           title="Belum ada triwulan."
-          description="Buat triwulan untuk menentukan rentang penilaian dan kehadiran yang dirangkum ke raport."
+          description="Buat triwulan untuk menentukan rentang penilaian dan kehadiran yang dirangkum ke rapor."
           actionLabel="Buat Triwulan"
           onAction={() => setTermDialog({ mode: "create" })}
         />
@@ -272,7 +272,7 @@ export default function AdminRaportPage() {
             <EmptyState
               icon={ClipboardList}
               title="Pilih triwulan & kelas."
-              description="Pilih triwulan dan kelas untuk melihat daftar siswa dan menyusun raport."
+              description="Pilih triwulan dan kelas untuk melihat daftar siswa dan menyusun rapor."
             />
           ) : rosterError ? (
             <EmptyState
@@ -325,7 +325,7 @@ export default function AdminRaportPage() {
                   totalPages: Math.max(1, Math.ceil(filteredRoster.length / 10)),
                 }}
                 emptyTitle="Tidak ada siswa sesuai filter."
-                emptyDescription="Ubah pencarian atau status raport untuk melihat daftar siswa."
+                emptyDescription="Ubah pencarian atau status rapor untuk melihat daftar siswa."
               />
             </>
           ) : null}
@@ -413,7 +413,7 @@ function TermFormDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={mode === "edit" ? "Edit Triwulan" : "Buat Triwulan"}
-      description="Triwulan menentukan rentang tanggal penilaian dan kehadiran yang dirangkum ke raport."
+      description="Triwulan menentukan rentang tanggal penilaian dan kehadiran yang dirangkum ke rapor."
       size="lg"
       footer={
         <>

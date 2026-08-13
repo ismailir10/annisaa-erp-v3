@@ -41,9 +41,9 @@ describe("RaportTemplatesPage header action", () => {
     stubFetch();
     render(<RaportTemplatesPage />);
 
-    const link = await screen.findByRole("link", { name: "Susun Raport" });
+    const link = await screen.findByRole("link", { name: "Susun Rapor" });
     expect(link).toHaveAttribute("href", "/admin/raport");
-    expect(screen.queryByRole("link", { name: "Ke Raport Siswa" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ke Rapor Siswa" })).not.toBeInTheDocument();
   });
 
   it("renders the filled-slot counter with tabular figures", async () => {

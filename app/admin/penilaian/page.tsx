@@ -98,7 +98,7 @@ export default function AdminPenilaianPage() {
         }
         actions={
           <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            <FileText className="size-4" /> Susun Raport
+            <FileText className="size-4" /> Susun Rapor
           </Link>
         }
       />

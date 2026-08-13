@@ -5,7 +5,7 @@ import {
 } from "./raport";
 
 /**
- * Validation for the kisi-kisi narrative templates (master design §2.3).
+ * Validation for the bank narasi narrative templates (master design §2.3).
  * User-facing copy is Indonesian; field identifiers are English.
  */
 
@@ -52,21 +52,21 @@ export const raportTemplateUpsertSchema = z
   })
   .refine(
     (v) => (v.narratives?.length ?? 0) + (v.closings?.length ?? 0) > 0,
-    { message: "Tidak ada kisi-kisi yang dikirim" },
+    { message: "Tidak ada narasi yang dikirim" },
   )
   .refine(
     (v) => {
       const keys = (v.narratives ?? []).map((n) => `${n.section}:${n.level}`);
       return new Set(keys).size === keys.length;
     },
-    { message: "Ada slot narasi yang dikirim lebih dari sekali" },
+    { message: "Ada bagian narasi yang dikirim lebih dari sekali" },
   )
   .refine(
     (v) => {
       const keys = (v.closings ?? []).map((c) => c.section);
       return new Set(keys).size === keys.length;
     },
-    { message: "Ada slot penutup yang dikirim lebih dari sekali" },
+    { message: "Ada bagian penutup yang dikirim lebih dari sekali" },
   );
 
 /**

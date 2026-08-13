@@ -250,7 +250,7 @@ test.describe("Parent flows", () => {
     const sheet = page.getByRole("navigation", { name: "Menu lainnya" });
     await expect(sheet).toBeVisible({ timeout: 10_000 });
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    for (const label of ["Capaian", "Rapor", "Profil"]) {
+    for (const label of ["Perkembangan", "Rapor", "Profil"]) {
       await expect(sheet.getByRole("link", { name: new RegExp(label) })).toBeVisible();
     }
 

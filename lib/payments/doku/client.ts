@@ -152,6 +152,12 @@ function fallbackExpiresAt(expiryDays: number): string {
  * DOKU's 400 body shape is `{ "error_messages": ["…", "…"] }` — the messages
  * are joined with `"; "` so the combined string lands in the `4xx:` pending-
  * link breakdown bucket rather than `unknown:`.
+ *
+ * `message` here is the raw, possibly Indonesian-but-vendor-authored DOKU
+ * text — it is LOG-ONLY (voice.md "Never render a caught error"), never a
+ * user-facing sentence. `code` is what a caller renders from:
+ * `lib/payments/error-prefix.ts#paymentLinkErrorMessage` maps every `code` to
+ * a sentence Talib authored for admins.
  */
 export function classifyDokuResponse(
   response: Response,

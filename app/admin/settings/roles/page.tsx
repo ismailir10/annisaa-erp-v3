@@ -514,6 +514,11 @@ export default function RolesPage() {
         onOpenChange={(o) => !o && setDeleteTarget(null)}
         entityName={deleteTarget?.name ?? ""}
         action="delete"
+        extraWarning={
+          deleteTarget && deleteTarget._count.users > 0
+            ? `Peran ini dipakai oleh ${deleteTarget._count.users} pengguna dan menghapusnya akan melepas izin akses mereka.`
+            : undefined
+        }
         onConfirm={handleDelete}
         pending={deleting}
       />

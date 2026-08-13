@@ -224,7 +224,7 @@ export default function StudentJournalAdminPage() {
   return (
     <div className="px-page-x py-page-y space-y-section">
       <PageHeader
-        title="Buku Penghubung — Template"
+        title="Buku Penghubung — Templat"
         description="Atur kategori dan indikator untuk sekolah dan rumah."
         actions={
           <Button onClick={openCreateCategory}>
