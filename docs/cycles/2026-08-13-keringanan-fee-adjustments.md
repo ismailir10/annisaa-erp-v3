@@ -100,7 +100,7 @@ over 60 days old and not scoped to fees or invoicing.
 
 ## Tasks
 
-- [ ] **T1 — Schema + migration + demo seed.** Add `StudentFeeAdjustment` to `prisma/schema.prisma` with
+- [x] **T1 — Schema + migration + demo seed.** Add `StudentFeeAdjustment` to `prisma/schema.prisma` with
       relations to `Tenant`, `Student`, `AcademicYear`, `FeeComponentDef` (all `onDelete: Restrict`) and
       indexes on `[tenantId, status]` and `[studentId, academicYearId]`. Hand-author
       `prisma/migrations/<ts>_add_student_fee_adjustment/migration.sql` including `ENABLE ROW LEVEL
@@ -198,6 +198,22 @@ over 60 days old and not scoped to fees or invoicing.
 
 ## Implementation
 
+- Subagent plan: driver=claude-opus-5, dirty-work=claude-sonnet-4-6; T1 ∥ T5 ∥ T9-precheck parallel
+  (disjoint files), then T2 ∥ T3, then T4, then T6 ∥ T7, then T10, then T8.
+- Task 1: Schema + migration + demo seed — `prisma/schema.prisma`,
+  `prisma/migrations/20260813000000_add_student_fee_adjustment/migration.sql`,
+  `app/api/admin/seed/route.ts` — `StudentFeeAdjustment` model with four `Restrict` FKs and three
+  indexes; hand-authored migration carrying RLS enable + `service_role` policy per house style; one
+  idempotent 20% sibling-discount seed row so demo mode and e2e have data. The subagent's
+  `prisma format` had realigned 126 unrelated lines across the schema; that churn was reverted and
+  the change re-applied by hand, leaving a 38-insertion / 0-deletion diff.
+
 ## Verification
+
+- Task 1: gates passed — `npm run build` clean, `npx vitest run` 290 files / 2686 tests passed,
+  2 skipped, 42 todo. `npx prisma validate` valid, `npx prisma generate` clean,
+  `scripts/verify-rls-coverage.sh` → "RLS coverage OK: 40 / 40 tenant-scoped models have ENABLE +
+  policy". `feature-dev:code-reviewer` compared the migration to the model column by column and
+  found no drift.
 
 ## Ship Notes
