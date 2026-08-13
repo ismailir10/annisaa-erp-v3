@@ -54,7 +54,7 @@ describe("ParentBottomNav", () => {
     expect(screen.queryByText("Penghubung")).toBeNull();
   });
 
-  it("does not surface Capaian, Rapor or Profil as top-level tabs", () => {
+  it("does not surface Perkembangan, Rapor or Profil as top-level tabs", () => {
     render(<ParentBottomNav />);
     for (const item of PARENT_MORE_ITEMS) {
       expect(within(bar()).queryByRole("link", { name: item.label })).toBeNull();
@@ -114,7 +114,7 @@ describe("ParentBottomNav", () => {
 
     await userEvent.click(within(bar()).getByRole("button", { name: "Lainnya" }));
     const sheet = await screen.findByRole("navigation", { name: "Menu lainnya" });
-    expect(within(sheet).getByRole("link", { name: /Capaian/ })).toHaveAttribute(
+    expect(within(sheet).getByRole("link", { name: /Perkembangan/ })).toHaveAttribute(
       "href",
       "/parent/perkembangan?child=abc123",
     );
