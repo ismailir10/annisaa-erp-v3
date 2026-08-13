@@ -286,13 +286,12 @@ export default function ParentStudentJournalPage() {
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
-      ) : data.schoolEntries.length === 0 &&
-        data.homeEntries.length === 0 &&
-        data.notes.length === 0 ? (
+      ) : data.schoolCategories.length === 0 &&
+        data.homeCategories.length === 0 ? (
         <EmptyState
           icon={BookHeart}
-          title="Belum ada catatan minggu ini"
-          description="Catatan akan muncul saat guru atau orang tua mengisi."
+          title="Jurnal belum diatur sekolah"
+          description="Sekolah belum menambahkan indikator harian untuk Jurnal. Hubungi admin sekolah untuk informasi lebih lanjut."
         />
       ) : (
         <Tabs value={activeView} onValueChange={setActiveView}>

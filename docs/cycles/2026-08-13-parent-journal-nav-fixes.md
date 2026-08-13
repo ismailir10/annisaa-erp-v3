@@ -46,7 +46,7 @@ Separately, Bu Shanti asked how to run bulk billing when per-child amounts diffe
 
 ## Tasks
 
-- [ ] **T1 — Unblock the parent journal grid (independent)**
+- [x] **T1 — Unblock the parent journal grid (independent)**
   Change the render gate in `app/parent/student-journal/page.tsx` from "no entries and no notes" to "no ACTIVE categories in either scope", and rewrite the EmptyState copy per `.claude/standards/voice.md` (the school configures indicators; the wali is not waiting on a teacher).
   *Acceptance:* with zero entries and zero notes for the week, the Di Rumah tab renders 3 categories / 13 indicators and every in-window cell is tappable.
 
@@ -77,6 +77,7 @@ Frontend diffs in T1, T4 and T5 are cross-checked against `.claude/standards/des
 ## Implementation
 
 - Subagent plan: driver=claude-opus-5, dirty-work=claude-sonnet-5; tasks [T1, T2, T5, T6] parallel (disjoint file sets), tasks [T3, T4] sequential behind T2 (T4 also serialised behind T1 — both touch `app/parent/student-journal/page.tsx`).
+- Task T1: Unblock the parent journal grid — `app/parent/student-journal/page.tsx`, `app/parent/student-journal/__tests__/page.test.tsx` (new) — render gate moved off "no entries this week" onto "no ACTIVE categories in either scope", so a wali with configured indicators always gets the tappable Di Rumah grid; EmptyState copy rewritten to name the school as the party who configures indicators instead of implying the wali is waiting on a teacher.
 - Task T2: Shared backfill-window helper — `lib/student-journal/backfill.ts` (new), `lib/student-journal/__tests__/backfill.test.ts` (new) — pure `homeEntryEditFloor(todayYmd)` / `isHomeEntryDateEditable(date, todayYmd)` over `weekStart` from `week.ts`; no clock reads inside, so the server route (T3) and the React grid (T4) share one definition of the window.
 
 ## Verification
