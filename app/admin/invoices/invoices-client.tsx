@@ -829,6 +829,9 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
               (planConfirm.plan.skippedAlreadyInvoiced > 0 || planConfirm.plan.skippedNoFeeStructure > 0
                 ? ` Dilewati: ${planConfirm.plan.skippedAlreadyInvoiced} sudah punya tagihan, ${planConfirm.plan.skippedNoFeeStructure} belum ada struktur biaya.`
                 : "") +
+              (planConfirm.plan.withAdjustments && planConfirm.plan.withAdjustments > 0
+                ? ` Termasuk ${planConfirm.plan.withAdjustments} siswa dengan keringanan.`
+                : "") +
               " Lanjutkan?"
             : ""
         }

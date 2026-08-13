@@ -3,7 +3,8 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
-import { reserveInvoiceNumbers, sumDecimals } from "@/lib/finance/invoice-numbers";
+import { reserveInvoiceNumbers } from "@/lib/finance/invoice-numbers";
+import { applyAdjustments, type AdjustmentInput, type ResolvedLine } from "@/lib/finance/apply-adjustments";
 import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
 import { generateBatchSchema } from "@/lib/validations/invoice";
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
 
   const programIds = [...new Set([...enrollmentByStudent.values()].map((e) => e.classSection.programId))];
 
-  const [feeStructures, existingInvoices, primaryGuardians] = await Promise.all([
+  const [feeStructures, existingInvoices, primaryGuardians, candidateAdjustments] = await Promise.all([
     prisma.programFeeStructure.findMany({
       where: {
         programId: { in: programIds },
@@ -109,6 +110,12 @@ export async function POST(req: NextRequest) {
       where: { studentId: { in: studentIds }, isPrimary: true },
       select: { studentId: true, parentId: true },
     }),
+    // Candidate keringanan grants for these students/year. Narrowed here for
+    // efficiency, but `applyAdjustments()` re-checks `status`/`academicYearId`/
+    // validity itself — see its doc comment for why the gate lives there too.
+    prisma.studentFeeAdjustment.findMany({
+      where: { tenantId, studentId: { in: studentIds }, academicYearId, status: "ACTIVE" },
+    }),
   ]);
 
   // Group fee structures by program — used to look up the line items per student.
@@ -122,11 +129,30 @@ export async function POST(req: NextRequest) {
   const existingStudentIds = new Set(existingInvoices.map((i) => i.studentId));
   const guardianByStudent = new Map(primaryGuardians.map((g) => [g.studentId, g.parentId]));
 
+  // Group candidate adjustments by studentId for the resolver.
+  const adjustmentsByStudent = new Map<string, AdjustmentInput[]>();
+  for (const adj of candidateAdjustments) {
+    const list = adjustmentsByStudent.get(adj.studentId) ?? [];
+    list.push({
+      id: adj.id,
+      academicYearId: adj.academicYearId,
+      feeComponentId: adj.feeComponentId,
+      type: adj.type as AdjustmentInput["type"],
+      mode: adj.mode as AdjustmentInput["mode"],
+      value: adj.value,
+      reason: adj.reason,
+      status: adj.status,
+      validFrom: adj.validFrom,
+      validTo: adj.validTo,
+    });
+    adjustmentsByStudent.set(adj.studentId, list);
+  }
+
   type InvoiceToBuild = {
     studentId: string;
     studentName: string;
     parentId: string | null;
-    programFees: typeof feeStructures;
+    resolvedLines: ResolvedLine[];
     totalDue: Prisma.Decimal;
   };
 
@@ -141,12 +167,28 @@ export async function POST(req: NextRequest) {
     const programFees = feesByProgram.get(enrollment.classSection.programId) ?? [];
     if (programFees.length === 0) continue; // No active recurring fee structure.
 
+    const { lines, totalDue } = applyAdjustments({
+      // Wrap explicitly — a genuine Prisma query returns real Decimal
+      // instances already, but `new Prisma.Decimal(x)` is a no-op clone in
+      // that case and accepts the plain number/string fixtures unit tests
+      // use, so the resolver's `.times()`/`.plus()` calls never hit a
+      // non-Decimal value regardless of caller.
+      baseLines: programFees.map((f) => ({
+        feeComponentId: f.feeComponentId,
+        labelSnapshot: f.feeComponent.label,
+        amount: new Prisma.Decimal(f.amount),
+      })),
+      adjustments: adjustmentsByStudent.get(studentId) ?? [],
+      academicYearId,
+      dueDate,
+    });
+
     invoicesToBuild.push({
       studentId,
       studentName: enrollment.student.name,
       parentId: guardianByStudent.get(studentId) ?? null,
-      programFees,
-      totalDue: sumDecimals(programFees.map((f) => f.amount)),
+      resolvedLines: lines,
+      totalDue,
     });
   }
 
@@ -207,12 +249,14 @@ export async function POST(req: NextRequest) {
 
       await tx.invoiceLine.createMany({
         data: rows.flatMap((r) =>
-          r.programFees.map((f) => ({
+          r.resolvedLines.map((l) => ({
             invoiceId: idByNumber.get(r.invoiceNumber)!,
-            feeComponentId: f.feeComponentId,
-            labelSnapshot: f.feeComponent.label,
-            amount: f.amount,
-            finalAmount: f.amount,
+            feeComponentId: l.feeComponentId,
+            labelSnapshot: l.labelSnapshot,
+            amount: l.amount,
+            adjustmentAmount: l.adjustmentAmount,
+            adjustmentNote: l.adjustmentNote,
+            finalAmount: l.finalAmount,
           }))
         ),
       });

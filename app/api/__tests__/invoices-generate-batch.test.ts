@@ -19,6 +19,10 @@ vi.mock("@/lib/db", () => ({
     programFeeStructure: { findMany: vi.fn() },
     invoice: { findMany: vi.fn(), update: vi.fn() },
     studentGuardian: { findMany: vi.fn() },
+    // T7: keringanan candidate query added to the batch route's Promise.all.
+    // Defaults to no adjustments so every pre-T7 test (which never wires
+    // this mock) exercises the byte-identical no-adjustment path.
+    studentFeeAdjustment: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(async (fn: (tx: typeof txMock) => unknown) => fn(txMock)),
   },
 }));
@@ -452,5 +456,140 @@ describe("POST /api/invoices/generate/batch — 25-student happy path", () => {
     expect(body.created).toBe(25);
     expect(body.results).toHaveLength(25);
     expect(vi.mocked(createPaymentSessionForInvoice)).toHaveBeenCalledTimes(25);
+  });
+});
+
+describe("POST /api/invoices/generate/batch — keringanan adjustments (T7)", () => {
+  it("a PERCENT discount reduces the line and totalDue, and carries adjustmentAmount/adjustmentNote", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+
+    const studentIds = ["s-1"];
+
+    vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([
+      { student: { id: "s-1", name: "Student s-1" }, classSection: { programId: "p-A" } },
+    ] as never);
+    vi.mocked(prisma.programFeeStructure.findMany).mockResolvedValue([
+      {
+        programId: "p-A",
+        feeComponentId: "fc-1",
+        amount: 500_000,
+        feeComponent: { label: "SPP" },
+      },
+    ] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.studentGuardian.findMany).mockResolvedValue([
+      { studentId: "s-1", parentId: "parent-1" },
+    ] as never);
+    vi.mocked(prisma.studentFeeAdjustment.findMany).mockResolvedValueOnce([
+      {
+        id: "adj-1",
+        studentId: "s-1",
+        academicYearId: "ay-1",
+        feeComponentId: "fc-1",
+        type: "DISCOUNT",
+        mode: "PERCENT",
+        value: "10",
+        reason: "Diskon saudara",
+        status: "ACTIVE",
+        validFrom: null,
+        validTo: null,
+      },
+    ] as never);
+
+    wireHappyTx(studentIds);
+
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
+      paymentUrl: "https://checkout.xendit.co/web/inv-s-1",
+    });
+
+    const res = await POST(makeReq({ ...validBody, studentIds }) as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.created).toBe(1);
+
+    // Invoice-level totalDue reflects the discounted line.
+    const invoiceCreateArgs = txMock.invoice.createMany.mock.calls[0][0];
+    expect(invoiceCreateArgs.data[0].totalDue.toString()).toBe("450000");
+
+    // Line carries the real adjustment figures — this is the whole point of
+    // T7: adjustmentAmount/adjustmentNote/finalAmount stop being permanently
+    // zero/null/base-amount for a student with an applicable grant.
+    const lineArgs = txMock.invoiceLine.createMany.mock.calls[0][0];
+    expect(lineArgs.data).toHaveLength(1);
+    const line = lineArgs.data[0];
+    expect(line.feeComponentId).toBe("fc-1");
+    expect(line.labelSnapshot).toBe("SPP");
+    expect(line.amount.toString()).toBe("500000");
+    expect(line.adjustmentAmount.toString()).toBe("-50000");
+    expect(line.adjustmentNote).toBe("Diskon saudara");
+    expect(line.finalAmount.toString()).toBe("450000");
+  });
+
+  it("an adjustment scoped to a different academic year is ignored — student billed the full amount", async () => {
+    // Defense-in-depth check: the batch route's own query narrows by
+    // academicYearId, but the resolver re-checks regardless (per
+    // apply-adjustments.ts's doc comment). Simulate a mismatched-year row
+    // slipping through the mock to prove the resolver — not just the query
+    // — is what keeps a stale grant from being billed.
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+
+    const studentIds = ["s-1"];
+
+    vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([
+      { student: { id: "s-1", name: "Student s-1" }, classSection: { programId: "p-A" } },
+    ] as never);
+    vi.mocked(prisma.programFeeStructure.findMany).mockResolvedValue([
+      {
+        programId: "p-A",
+        feeComponentId: "fc-1",
+        amount: 500_000,
+        feeComponent: { label: "SPP" },
+      },
+    ] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.studentGuardian.findMany).mockResolvedValue([
+      { studentId: "s-1", parentId: "parent-1" },
+    ] as never);
+    vi.mocked(prisma.studentFeeAdjustment.findMany).mockResolvedValueOnce([
+      {
+        id: "adj-stale",
+        studentId: "s-1",
+        academicYearId: "ay-2025", // validBody.academicYearId is "ay-1"
+        feeComponentId: "fc-1",
+        type: "DISCOUNT",
+        mode: "PERCENT",
+        value: "50",
+        reason: "Beasiswa tahun lalu",
+        status: "ACTIVE",
+        validFrom: null,
+        validTo: null,
+      },
+    ] as never);
+
+    wireHappyTx(studentIds);
+
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
+      paymentUrl: "https://checkout.xendit.co/web/inv-s-1",
+    });
+
+    const res = await POST(makeReq({ ...validBody, studentIds }) as never);
+    expect(res.status).toBe(200);
+
+    const invoiceCreateArgs = txMock.invoice.createMany.mock.calls[0][0];
+    expect(invoiceCreateArgs.data[0].totalDue.toString()).toBe("500000");
+
+    const lineArgs = txMock.invoiceLine.createMany.mock.calls[0][0];
+    const line = lineArgs.data[0];
+    expect(line.adjustmentAmount.toString()).toBe("0");
+    expect(line.adjustmentNote).toBeNull();
+    expect(line.finalAmount.toString()).toBe("500000");
   });
 });

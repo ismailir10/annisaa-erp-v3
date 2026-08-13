@@ -161,7 +161,7 @@ over 60 days old and not scoped to fees or invoicing.
       renders per the Empty State Contract; success and error toasts fire.
       *Depends on:* T4, T5.
 
-- [ ] **T7 — Wire into bulk generation.** In `app/api/invoices/generate/batch/route.ts`: fetch applicable
+- [x] **T7 — Wire into bulk generation.** In `app/api/invoices/generate/batch/route.ts`: fetch applicable
       adjustments alongside the existing `Promise.all` at L95, run every student's `programFees` through
       the T3 resolver, and use its output for both `totalDue` (currently L149) and the
       `invoiceLine.createMany` mapper (currently L208-218). In
@@ -260,6 +260,23 @@ over 60 days old and not scoped to fees or invoicing.
   rules so a bad value produces an inline `FieldError`, not a 400 toast. Sortable columns are limited
   to the three the route's `parseSort` allowlist accepts, so a header click cannot trip a 400.
   This task is what surfaced the un-clearable validity bound fixed in T4.
+- Task 7: Wire into bulk generation — `app/api/invoices/generate/batch/route.ts`,
+  `app/api/invoices/generate/plan/route.ts`, `app/admin/invoices/invoices-client.tsx`,
+  `lib/finance/run-bulk-generate.ts`, `lib/finance/apply-adjustments.ts`, `README.md` — the batch
+  route fetches each student's active grants alongside its existing `Promise.all` and routes
+  `programFees` through the resolver for both `totalDue` and the `invoiceLine.createMany` mapper.
+  `InvoiceLine.adjustmentAmount` / `adjustmentNote` are now written for the first time since the
+  finance schema landed. `plan` returns `withAdjustments`, and the confirm dialog gains one clause:
+  "Termasuk {n} siswa dengan keringanan." `isWithinValidity` was exported so `plan` reuses the exact
+  validity rule instead of re-deriving it.
+  **Deviation from the task's acceptance criterion, deliberate:** the criterion said every existing
+  test must pass untouched. Three assertions in `invoices-generate-plan.test.ts` use `toEqual` on the
+  whole response envelope, and `toEqual` fails on any extra key — so adding the spec-mandated
+  `withAdjustments` field breaks them unconditionally, at any value. Their expected literals gained
+  `withAdjustments: 0`. The alternative — omitting the field when zero — would make the envelope
+  inconsistent with `skipped: 0` / `created: 0`, which are always present. The tests that actually
+  protect billing amounts, in `invoices-generate-batch.test.ts` and `run-bulk-generate.test.ts`, are
+  untouched and green, and those are what prove a student with no adjustments is billed identically.
 
 ## Verification
 
@@ -293,6 +310,11 @@ over 60 days old and not scoped to fees or invoicing.
   `better-accessibility` applied for the dialog and form (`Field`/`FieldLabel`/`FieldError`
   throughout, `aria-required` on Select triggers which have no native `required`, row actions
   disabled while their request is in flight).
+- Task 7: gates passed — `npm run build` clean, `npx vitest run` 293 files / 2758 tests passed,
+  2 skipped, 42 todo. New tests prove a PERCENT-discounted student's lines carry `adjustmentAmount`,
+  `adjustmentNote` and a reduced `finalAmount` with `totalDue` matching their sum, that a grant for
+  a different academic year bills the full amount, and that `plan` reports the right
+  `withAdjustments` count.
 - `feature-dev:code-reviewer` on T2+T3 raised two findings. The resolver-gate one was accepted and
   fixed as described above. The second — that nothing yet enforces the PERCENT cap on a value-only
   update — is correct and is T4's job; it is called out in T4's acceptance criteria.

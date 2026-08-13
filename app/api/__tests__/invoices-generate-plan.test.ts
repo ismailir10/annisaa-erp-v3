@@ -5,6 +5,10 @@ vi.mock("@/lib/db", () => ({
     studentEnrollment: { findMany: vi.fn() },
     programFeeStructure: { findMany: vi.fn() },
     invoice: { findMany: vi.fn() },
+    // T7: withAdjustments count query added to the plan route's Promise.all.
+    // Defaults to no candidates so every pre-T7 test (which never wires this
+    // mock) reports withAdjustments: 0.
+    studentFeeAdjustment: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -137,6 +141,7 @@ describe("POST /api/invoices/generate/plan", () => {
       skippedAlreadyInvoiced: 1,
       skippedNoFeeStructure: 1,
       total: 3,
+      withAdjustments: 0,
       eligible: 1,
     });
 
@@ -181,6 +186,7 @@ describe("POST /api/invoices/generate/plan", () => {
       skippedAlreadyInvoiced: 0,
       skippedNoFeeStructure: 0,
       total: 1,
+      withAdjustments: 0,
       eligible: 1,
     });
   });
@@ -201,6 +207,7 @@ describe("POST /api/invoices/generate/plan", () => {
       skippedAlreadyInvoiced: 0,
       skippedNoFeeStructure: 0,
       total: 0,
+      withAdjustments: 0,
       eligible: 0,
     });
 
@@ -209,4 +216,65 @@ describe("POST /api/invoices/generate/plan", () => {
     expect(prisma.invoice.findMany).not.toHaveBeenCalled();
   });
 
+  describe("withAdjustments (T7)", () => {
+    it("counts only eligible students carrying an applicable keringanan grant", async () => {
+      const { getSession } = await import("@/lib/auth");
+      const { prisma } = await import("@/lib/db");
+      vi.mocked(getSession).mockResolvedValue(adminSession());
+
+      // s-1: eligible, has an open-ended ACTIVE grant → counts.
+      // s-2: eligible, no grant at all → does not count.
+      // s-3: eligible, has a grant but its validFrom is AFTER the run's
+      //      dueDate (2026-04-30) → out of the validity window, does not count.
+      vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([
+        { student: { id: "s-1" }, classSection: { programId: "p-A" } },
+        { student: { id: "s-2" }, classSection: { programId: "p-A" } },
+        { student: { id: "s-3" }, classSection: { programId: "p-A" } },
+      ] as never);
+
+      vi.mocked(prisma.programFeeStructure.findMany).mockResolvedValue([
+        { programId: "p-A", feeComponentId: "fc-1", amount: 100_000 },
+      ] as never);
+
+      vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+
+      vi.mocked(prisma.studentFeeAdjustment.findMany).mockResolvedValueOnce([
+        { studentId: "s-1", validFrom: null, validTo: null },
+        { studentId: "s-3", validFrom: "2026-05-01", validTo: null },
+      ] as never);
+
+      const res = await POST(makeReq(validBody) as never);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.eligible).toBe(3);
+      expect(body.total).toBe(3);
+      expect(body.withAdjustments).toBe(1);
+    });
+
+    it("does not count a grant belonging to a student who is not eligible", async () => {
+      const { getSession } = await import("@/lib/auth");
+      const { prisma } = await import("@/lib/db");
+      vi.mocked(getSession).mockResolvedValue(adminSession());
+
+      // s-1: already invoiced → skipped, NOT eligible, even though it carries a grant.
+      vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([
+        { student: { id: "s-1" }, classSection: { programId: "p-A" } },
+      ] as never);
+      vi.mocked(prisma.programFeeStructure.findMany).mockResolvedValue([
+        { programId: "p-A", feeComponentId: "fc-1", amount: 100_000 },
+      ] as never);
+      vi.mocked(prisma.invoice.findMany).mockResolvedValue([{ studentId: "s-1" }] as never);
+      vi.mocked(prisma.studentFeeAdjustment.findMany).mockResolvedValueOnce([
+        { studentId: "s-1", validFrom: null, validTo: null },
+      ] as never);
+
+      const res = await POST(makeReq(validBody) as never);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.eligible).toBe(0);
+      expect(body.withAdjustments).toBe(0);
+    });
+  });
 });

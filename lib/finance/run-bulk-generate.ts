@@ -90,6 +90,12 @@ export type PlanResponse = {
   skippedNoFeeStructure: number;
   total: number;
   eligible: number;
+  /**
+   * Count of eligible students carrying at least one applicable keringanan
+   * grant (T7). Optional so `run-bulk-generate.test.ts`'s pre-T7 `makePlan()`
+   * fixture (which never set this field) keeps typechecking unmodified.
+   */
+  withAdjustments?: number;
 };
 
 export type BatchResultRow =

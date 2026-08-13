@@ -137,8 +137,14 @@ export function applyAdjustments(args: {
   return { lines, totalDue, adjustmentApplied };
 }
 
-/** Either bound null = open-ended on that side. Inclusive on both ends. */
-function isWithinValidity(
+/**
+ * Either bound null = open-ended on that side. Inclusive on both ends.
+ * Exported so callers that only need the validity-window slice of the
+ * eligibility gate (e.g. `/api/invoices/generate/plan`'s `withAdjustments`
+ * count, which has no base lines to run through the full resolver) can
+ * reuse the exact same rule instead of re-deriving it.
+ */
+export function isWithinValidity(
   dueDate: string,
   validFrom: string | null,
   validTo: string | null
