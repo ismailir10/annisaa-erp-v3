@@ -149,7 +149,7 @@ over 60 days old and not scoped to fees or invoicing.
       manual invoice dialog still creates an invoice.
       *Depends on:* nothing. Independent of T1-T4.
 
-- [ ] **T6 — Keringanan tab UI.** New `components/admin/fees/keringanan-tab.tsx`, mounted as a third
+- [x] **T6 — Keringanan tab UI.** New `components/admin/fees/keringanan-tab.tsx`, mounted as a third
       `AdminTabsTrigger`/`AdminTabsContent` in `app/admin/fees/page.tsx`. Category A CRUD per
       `.claude/standards/crud.md`: `DataTableToolbar` → `DataTable` (student, komponen, jenis, nilai,
       berlaku, status, actions) → `DataTableRowActions` → `ResponsiveFormDialog` using `Field`/`FieldLabel`
@@ -250,6 +250,16 @@ over 60 days old and not scoped to fees or invoicing.
     `.optional()`, so `undefined` meant "leave unchanged" and there was no payload that restored
     open-ended validity. They are now `.nullable().optional()`, and the edit form sends `null` for a
     blanked date.
+- Task 6: Keringanan tab UI — `components/admin/fees/keringanan-tab.tsx` (new), `app/admin/fees/page.tsx`
+  (6 lines of tab wiring only — that page is already a 347-line all-in-one client component and this
+  cycle does not grow it), `README.md` — Category A CRUD cloned from the `salary-components` exemplar:
+  `DataTableToolbar` → `DataTable` → `DataTableRowActions`, `ResponsiveFormDialog` for create/edit,
+  `AlertDialog` before deactivate, `StatusBadge`, Empty State Contract. PERCENT renders as "20%",
+  FIXED through `formatRupiah`. On edit the four immutable fields are shown read-only rather than
+  hidden, so the admin can see what they are editing. Client-side validation mirrors the server's
+  rules so a bad value produces an inline `FieldError`, not a 400 toast. Sortable columns are limited
+  to the three the route's `parseSort` allowlist accepts, so a header click cannot trip a 400.
+  This task is what surfaced the un-clearable validity bound fixed in T4.
 
 ## Verification
 
@@ -277,6 +287,12 @@ over 60 days old and not scoped to fees or invoicing.
   authorization, tenant scoping, mass assignment and the PERCENT-cap bypass and found no holes; its
   two low-severity suggestions (status-filter enum validation, `not.toHaveBeenCalled()` on the role
   tests) were both applied rather than noted.
+- Task 6: gates passed — `npm run build` clean (`/admin/fees` still renders `ƒ`), `npx vitest run`
+  293 files / 2758 tests passed. `npm run lint` 0 errors; no warning falls in the new file.
+  Cross-checked design-system.html §08 Status Badges, §09 DataTable, §10 States, §13 Overlays;
+  `better-accessibility` applied for the dialog and form (`Field`/`FieldLabel`/`FieldError`
+  throughout, `aria-required` on Select triggers which have no native `required`, row actions
+  disabled while their request is in flight).
 - `feature-dev:code-reviewer` on T2+T3 raised two findings. The resolver-gate one was accepted and
   fixed as described above. The second — that nothing yet enforces the PERCENT cap on a value-only
   update — is correct and is T4's job; it is called out in T4's acceptance criteria.
