@@ -111,7 +111,7 @@ over 60 days old and not scoped to fees or invoicing.
       passes with the new table.
       *Depends on:* nothing.
 
-- [ ] **T2 — Validation schemas.** New `lib/validations/student-fee-adjustment.ts` exporting
+- [x] **T2 — Validation schemas.** New `lib/validations/student-fee-adjustment.ts` exporting
       `createStudentFeeAdjustmentSchema` / `updateStudentFeeAdjustmentSchema` + inferred input types,
       following the naming and Indonesian-message convention in `lib/validations/fee-component.ts`.
       `feeComponentId` required this cycle. Unit tests under `lib/validations/__tests__/`.
@@ -212,6 +212,13 @@ over 60 days old and not scoped to fees or invoicing.
   module-private function inside the manual invoice dialog; it is now a named export so the
   Keringanan tab can reuse it instead of duplicating it. Pure move: same props, same 250ms debounce,
   same AbortController handling, same query params.
+- Task 2: Validation schemas — `lib/validations/student-fee-adjustment.ts`,
+  `lib/validations/__tests__/student-fee-adjustment.test.ts` — create + update schemas following the
+  `fee-component.ts` conventions. `studentId`, `academicYearId`, `feeComponentId` and `type` are
+  deliberately immutable after creation: changing any of them re-scopes what the grant *is*, so the
+  correct move is deactivate + create-new, which preserves the audit trail. Surfaced a real hole for
+  T4: the PERCENT ≤ 100 cap cannot be enforced by the schema when a payload changes `value` without
+  resending `mode`, because the schema cannot see the stored row — the route must re-check.
 
 ## Verification
 
@@ -224,5 +231,8 @@ over 60 days old and not scoped to fees or invoicing.
   Byte-fidelity of the refactor verified directly rather than by assertion: the extracted function
   was diffed against `git show HEAD:components/admin/invoices/manual-invoice-dialog.tsx` and is
   identical, 229 lines, zero differences.
+- Task 2: gates passed — `npm run build` clean, `npx vitest run` 292 files / 2733 tests passed,
+  2 skipped, 42 todo. 28 schema tests cover each required field, both enums, value bounds, the
+  PERCENT cap, malformed and out-of-order dates, and the `{ status }`-only soft-delete payload.
 
 ## Ship Notes
