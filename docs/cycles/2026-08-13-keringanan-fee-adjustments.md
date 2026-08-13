@@ -119,7 +119,7 @@ over 60 days old and not scoped to fees or invoicing.
       malformed dates, and `validTo` earlier than `validFrom`; tests green.
       *Depends on:* T1.
 
-- [ ] **T3 — Pure resolver + tests.** New `lib/finance/apply-adjustments.ts` implementing every rule in the
+- [x] **T3 — Pure resolver + tests.** New `lib/finance/apply-adjustments.ts` implementing every rule in the
       Spec. Reuse `sumDecimals` from `lib/finance/invoice-numbers.ts:85`; add the rupiah rounding helper
       there is currently none of. No Prisma calls — takes plain inputs, returns resolved lines +
       `totalDue` + an `adjustmentApplied` flag.
@@ -219,6 +219,20 @@ over 60 days old and not scoped to fees or invoicing.
   correct move is deactivate + create-new, which preserves the audit trail. Surfaced a real hole for
   T4: the PERCENT ≤ 100 cap cannot be enforced by the schema when a payload changes `value` without
   resending `mode`, because the schema cannot see the stored row — the route must re-check.
+- Task 3: Pure resolver + tests — `lib/finance/apply-adjustments.ts`,
+  `lib/finance/__tests__/apply-adjustments.test.ts` — `applyAdjustments()` takes base lines +
+  candidate grants and returns resolved lines, `totalDue`, and an `adjustmentApplied` flag. No Prisma
+  inside, so both the batch route and Cycle B's wizard can share it. Reuses `sumDecimals`; rounds
+  each delta HALF_UP at 0 dp via `Prisma.Decimal.toDecimalPlaces`, never float math.
+  Two changes made during review, both deliberate:
+  - **The over-discount clamp now applies to `adjustmentAmount` too**, not just `finalAmount`, so
+    `amount + adjustmentAmount === finalAmount` holds on every path. Both figures are parent-visible
+    on the invoice; a line whose numbers don't add up is a support call.
+  - **The `status` and `academicYearId` gates were moved into the resolver.** The first draft
+    documented them as a caller contract and left `AdjustmentInput` without those fields. That made
+    the spec's stated gate untestable and meant a single missing `where` clause in a future call site
+    would bill a family from a revoked grant or a prior year's scholarship. The resolver now
+    re-checks regardless of how the caller queried.
 
 ## Verification
 
@@ -234,5 +248,14 @@ over 60 days old and not scoped to fees or invoicing.
 - Task 2: gates passed — `npm run build` clean, `npx vitest run` 292 files / 2733 tests passed,
   2 skipped, 42 todo. 28 schema tests cover each required field, both enums, value bounds, the
   PERCENT cap, malformed and out-of-order dates, and the `{ status }`-only soft-delete payload.
+- Task 3: gates passed — `npm run build` clean, `npx vitest run` 292 files / 2733 tests passed;
+  the resolver suite itself is 22 tests. Order-independence is proved by running two stacked
+  adjustments in both orderings and asserting equal output. Rounding was hand-verified against the
+  implementation: 33% of 12345 = 4073.85 → 4074, and 1% of 50 = 0.5 → 1 (HALF_UP; banker's rounding
+  would have given 0). An invariant test asserts `amount + adjustmentAmount === finalAmount` across
+  a mixed batch including an over-discounted line.
+- `feature-dev:code-reviewer` on T2+T3 raised two findings. The resolver-gate one was accepted and
+  fixed as described above. The second — that nothing yet enforces the PERCENT cap on a value-only
+  update — is correct and is T4's job; it is called out in T4's acceptance criteria.
 
 ## Ship Notes
