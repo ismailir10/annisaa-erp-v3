@@ -113,7 +113,9 @@ export function TeacherHomeClient({
       setGpsStatus("Mengambil lokasi...");
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setGpsStatus(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+          // Coordinates mean nothing to a teacher — she wants confirmation.
+          // The precise value still goes to the server with the clock-in.
+          setGpsStatus("Lokasi tercatat");
           resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         },
         () => {
@@ -158,7 +160,7 @@ export function TeacherHomeClient({
         checkInTime: data.checkInTime,
         checkOutTime: data.checkOutTime,
       });
-      setSuccess(action === "check-out" ? "Pulang tercatat" : "Clock-in tersimpan");
+      setSuccess(action === "check-out" ? "Pulang tercatat" : "Masuk tercatat");
       setTimeout(() => setSuccess(null), 2000);
       router.refresh();
     } else {

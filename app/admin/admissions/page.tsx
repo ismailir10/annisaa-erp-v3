@@ -403,7 +403,7 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
           </Select>
         </Field>
         <Field>
-          <FieldLabel htmlFor="admission-followUpDate">Tanggal Follow Up</FieldLabel>
+          <FieldLabel htmlFor="admission-followUpDate">Tanggal Tindak Lanjut</FieldLabel>
           <Input
             id="admission-followUpDate"
             type="date"
@@ -1042,7 +1042,7 @@ export default function AdmissionsPage() {
                 <Alert className="border-destructive/40 bg-destructive/10 text-destructive">
                   <AlertDescription>
                     {emailConflict.message}
-                    {emailConflict.conflictingParentName ? ` (Parent: ${emailConflict.conflictingParentName})` : ""}
+                    {emailConflict.conflictingParentName ? ` (Wali: ${emailConflict.conflictingParentName})` : ""}
                   </AlertDescription>
                 </Alert>
               )}

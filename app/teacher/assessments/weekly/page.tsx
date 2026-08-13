@@ -92,7 +92,7 @@ export default async function TeacherAssessmentsWeeklyPage({
         </h1>
         <EmptyState
           icon={CalendarOff}
-          title="Belum ada Pekan aktif"
+          title="Belum ada pekan aktif"
           description={data.message}
         />
         <WeeklyDateRecovery date={dateParam} />

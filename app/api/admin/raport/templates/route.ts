@@ -11,7 +11,7 @@ import { loadTemplateGrid } from "./_shared";
 /**
  * GET /api/admin/raport/templates?termId=&ageGroup=
  *
- * Returns the cohort's full 18-slot kisi-kisi grid (filled or empty) plus a
+ * Returns the cohort's full 18-slot bank narasi grid (filled or empty) plus a
  * completeness count. Gated by `reportCard.template`. Tenant-scoped.
  */
 export async function GET(req: NextRequest) {

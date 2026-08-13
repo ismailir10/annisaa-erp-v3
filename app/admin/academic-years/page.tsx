@@ -308,7 +308,7 @@ export default function AcademicPage() {
           onActivate={() => setReactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
           isActive={row.original.status === "ACTIVE"}
           extraActions={[{
-            label: "Gulir Kelas ke Tahun Ini",
+            label: "Salin Kelas ke Tahun Ini",
             icon: <ArrowRightCircle size={14} />,
             onClick: () => {
               setRollForwardTarget(row.original);
@@ -484,13 +484,13 @@ export default function AcademicPage() {
       <ResponsiveFormDialog
         open={!!rollForwardTarget}
         onOpenChange={(o) => { if (!o) { setRollForwardTarget(null); setRollForwardSourceId(""); } }}
-        title="Gulir Kelas ke Tahun Ajaran"
+        title="Salin Kelas ke Tahun Ajaran"
         size="lg"
         footer={
           <>
             <Button variant="ghost" onClick={() => { setRollForwardTarget(null); setRollForwardSourceId(""); }} disabled={rollingForward}>Batal</Button>
             <Button onClick={handleRollForward} disabled={rollingForward || !rollForwardSourceId}>
-              {rollingForward ? "Menggulir..." : "Gulir Kelas"}
+              {rollingForward ? "Menyalin..." : "Salin Kelas"}
             </Button>
           </>
         }

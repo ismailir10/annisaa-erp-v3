@@ -90,7 +90,7 @@ describe("WeeklyClient IKTP picker", () => {
   it("keeps the label wired to the control", () => {
     renderClient();
 
-    const select = screen.getByLabelText("IKTP");
+    const select = screen.getByLabelText("Indikator Ketercapaian (IKTP)");
     expect(select.tagName).toBe("SELECT");
     expect(select).toHaveAttribute("id", "indicator-picker");
   });

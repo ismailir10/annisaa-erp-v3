@@ -1198,14 +1198,14 @@ export default function StudentDetailPage() {
       })()}
 
       {/* Graduate Confirm */}
-      <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi GRADUATED dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
+      <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi Lulus dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
 
       {/* ---------- Withdraw (destructive AlertDialog — reason required in body) ---------- */}
       <ConfirmDialog
         open={withdrawDialog}
         onOpenChange={setWithdrawDialog}
         title="Keluarkan Siswa"
-        description={`Mengeluarkan ${student.name} dari sekolah. Status akan berubah menjadi WITHDRAWN dan semua pendaftaran kelas aktif akan diakhiri.`}
+        description={`Mengeluarkan ${student.name} dari sekolah. Status akan berubah menjadi Keluar dan semua pendaftaran kelas aktif akan diakhiri.`}
         confirmLabel={withdrawing ? "Memproses..." : "Keluarkan"}
         destructive
         loading={withdrawing}
@@ -1219,7 +1219,7 @@ export default function StudentDetailPage() {
             aria-required="true"
             value={withdrawReason}
             onChange={(e) => setWithdrawReason(e.target.value)}
-            placeholder="Masukkan alasan pengeluaran siswa..."
+            placeholder="Masukkan alasan siswa keluar dari sekolah..."
             rows={3}
           />
         </Field>

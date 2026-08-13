@@ -40,9 +40,28 @@ describe("isWeekGridDateEditable", () => {
     expect(screen.getByText("Belum ada indikator")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Indikator pemantauan belum dikonfigurasi untuk kelas ini. Hubungi admin untuk mengatur Buku Penghubung.",
+        "Indikator pemantauan belum dikonfigurasi untuk kelas ini. Hubungi admin sekolah untuk mengatur Buku Penghubung.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("names the feature the way the reader's portal names it", () => {
+    // Staff call this Buku Penghubung; parents only ever see "Jurnal". The
+    // default must stay the staff term so admin/teacher call sites that pass
+    // nothing are unaffected.
+    render(createElement(WeekGrid, {
+      categories: [],
+      entries: [],
+      dates: ["2026-07-29"],
+      featureLabel: "Jurnal",
+    }));
+
+    expect(
+      screen.getByText(
+        "Indikator pemantauan belum dikonfigurasi untuk kelas ini. Hubungi admin sekolah untuk mengatur Jurnal.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Buku Penghubung/)).toBeNull();
   });
 });

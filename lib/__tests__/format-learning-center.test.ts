@@ -13,7 +13,7 @@ describe("formatLearningCenter", () => {
     ["ROLE_PLAY", "Sentra Main Peran"],
     ["BLOCKS", "Sentra Balok"],
     ["PREPARATION", "Sentra Persiapan"],
-    ["AREA", "AREA"],
+    ["AREA", "Sentra Area"],
   ])("%s → %s", (input, expected) => {
     expect(formatLearningCenter(input)).toBe(expected);
   });

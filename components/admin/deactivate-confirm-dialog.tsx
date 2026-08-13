@@ -45,6 +45,7 @@ export function DeactivateConfirmDialog({
   onOpenChange,
   entityName,
   action = "deactivate",
+  extraWarning,
   onConfirm,
   pending,
 }: {
@@ -52,6 +53,17 @@ export function DeactivateConfirmDialog({
   onOpenChange: (open: boolean) => void;
   entityName: string;
   action?: Action;
+  /**
+   * Extra consequence to state before the standard description — e.g. "5 siswa
+   * aktif tidak akan otomatis dipindahkan".
+   *
+   * Exists because callers were smuggling these clauses into `entityName`,
+   * which is rendered inside quotation marks in the title. That produced
+   * titles like `Nonaktifkan "semester 1 (2025/2026) — 3 tema terkait tetap
+   * aktif"?` — broken grammar where a clear warning should be. Consequences
+   * belong in the body; the title names the entity and nothing else.
+   */
+  extraWarning?: string;
   onConfirm: () => void | Promise<void>;
   pending?: boolean;
 }) {
@@ -60,7 +72,7 @@ export function DeactivateConfirmDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`${TITLE_VERB[action]} "${entityName}"?`}
-      description={DESCRIPTION[action]}
+      description={extraWarning ? `${extraWarning} ${DESCRIPTION[action]}` : DESCRIPTION[action]}
       confirmLabel={CONFIRM_LABEL[action]}
       onConfirm={onConfirm}
       destructive={IS_DESTRUCTIVE[action]}

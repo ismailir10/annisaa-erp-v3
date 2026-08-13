@@ -81,7 +81,7 @@ export const PERMISSION_GROUPS = {
       "reportCard.read": "Lihat raport triwulan",
       "reportCard.write": "Kelola raport triwulan (buat / ubah / override)",
       "reportCard.publish": "Terbitkan / tarik raport triwulan",
-      "reportCard.template": "Susun kisi-kisi narasi raport",
+      "reportCard.template": "Susun bank narasi rapor",
     },
   },
 } as const;

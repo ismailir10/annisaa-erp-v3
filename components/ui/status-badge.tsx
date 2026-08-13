@@ -72,12 +72,28 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   INACTIVE: { label: "Tidak Aktif", className: "bg-muted text-muted-foreground" },
   PLANNING: { label: "Perencanaan", className: "bg-status-leave-subtle text-status-leave-text" },
 
-  // Invoice (future)
-  SENT: { label: "Terkirim", className: "bg-status-leave-subtle text-status-leave-text" },
+  // Invoice
+  // "Link Dibuat" not "Terkirim": SENT only means a payment-link session exists
+  // server-side. Nothing is dispatched — DOKU sends no notification and the admin
+  // still shares the link manually — so "Terkirim" overclaimed delivery.
+  SENT: { label: "Link Dibuat", className: "bg-status-leave-subtle text-status-leave-text" },
   PAID: { label: "Lunas", className: "bg-status-present-subtle text-status-present-text" },
-  OVERDUE: { label: "Jatuh Tempo", className: "bg-status-absent-subtle text-status-absent-text" },
-  PARTIALLY_PAID: { label: "Sebagian", className: "bg-status-late-subtle text-status-late-text" },
+  // "Lewat Tempo" not "Jatuh Tempo": "jatuh tempo" is the due *date*, and that exact
+  // phrase captions the due-date field on the same invoice row. Reusing it as the
+  // overdue status made the badge and the date indistinguishable. voice.md glossary.
+  OVERDUE: { label: "Lewat Tempo", className: "bg-status-absent-subtle text-status-absent-text" },
+  // "Dibayar Sebagian" not "Sebagian": a parent who has already paid part of the SPP
+  // must be able to tell this apart from an untouched invoice at a glance.
+  PARTIALLY_PAID: { label: "Dibayar Sebagian", className: "bg-status-late-subtle text-status-late-text" },
   PENDING_PAYMENT_LINK: { label: "Link Gagal", className: "bg-status-late-subtle text-status-late-text" },
+
+  // Payment ledger (Payment.status) — present in the schema, previously unmapped,
+  // so a surfaced value would have rendered the raw English enum.
+  RECORDED: { label: "Tercatat", className: "bg-status-present-subtle text-status-present-text" },
+  REVERSED: { label: "Dibatalkan", className: "bg-muted text-muted-foreground" },
+
+  // Email log (EmailLog.status) — same reason.
+  FAILED: { label: "Gagal", className: "bg-status-absent-subtle text-status-absent-text" },
 
   // Admission (future)
   INQUIRY: { label: "Pertanyaan", className: "bg-status-leave-subtle text-status-leave-text" },
@@ -164,7 +180,12 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   REJECTED: AlertTriangle,
   OVERDUE: AlertTriangle,
   UNFILLED: AlertTriangle,
+  FAILED: AlertTriangle,
   DELETE: X,
+
+  // Payment ledger
+  RECORDED: CheckCircle2,
+  REVERSED: Minus,
 
   // In-progress / pending
   PENDING: CircleDot,
@@ -220,6 +241,7 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   OVERDUE: "border-l-destructive",
   REJECTED: "border-l-destructive",
   UNFILLED: "border-l-destructive",
+  FAILED: "border-l-destructive",
 
   // Amber / warn
   SICK: "border-l-status-late",
@@ -257,6 +279,9 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   // Salary component types
   INCOME: "border-l-status-present",
   DEDUCTION: "border-l-status-absent",
+  // Payment ledger
+  RECORDED: "border-l-status-present",
+  REVERSED: "border-l-border",
 };
 
 export type StatusBadgeProps = {

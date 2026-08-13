@@ -25,7 +25,7 @@ async function loadStudent(tenantId: string, studentId: string) {
 }
 
 /**
- * Which kisi-kisi cohort this student belongs to. Read off the active
+ * Which bank narasi cohort this student belongs to. Read off the active
  * enrolment's class section (`ageGroup` is NOT NULL since the 2026-05-20
  * cycle). Null when the student has no active enrolment — the editor then
  * simply offers no templates rather than guessing a cohort.
@@ -76,7 +76,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     resolveAgeGroup(session.tenantId, studentId),
   ]);
 
-  // Kisi-kisi for this student's cohort, so the editor can pre-fill empty
+  // Bank narasi for this student's cohort, so the editor can pre-fill empty
   // narratives instead of handing the admin 8 blank textareas per child.
   const templates = ageGroup
     ? await loadTemplateGrid(session.tenantId, termId, ageGroup)

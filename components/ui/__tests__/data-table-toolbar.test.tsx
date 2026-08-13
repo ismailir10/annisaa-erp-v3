@@ -72,7 +72,7 @@ describe("DataTableToolbar", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Reset" }));
+    await user.click(screen.getByRole("button", { name: "Atur Ulang" }));
 
     expect(onValueChange).toHaveBeenCalledWith("");
     await waitFor(() => {

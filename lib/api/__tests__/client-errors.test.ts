@@ -23,15 +23,15 @@ describe("userMessage", () => {
     expect(caught).toBeInstanceOf(Error);
     expect(caught).not.toBeInstanceOf(ApiError);
 
-    const message = userMessage(caught, "Gagal memuat kisi-kisi.");
-    expect(message).toBe("Gagal memuat kisi-kisi.");
+    const message = userMessage(caught, "Gagal memuat bank narasi.");
+    expect(message).toBe("Gagal memuat bank narasi.");
     expect(message).not.toMatch(/Unexpected end of JSON input/i);
   });
 
   it("passes an API-authored ApiError message through unchanged", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const err = new ApiError("Triwulan tidak ditemukan.");
-    expect(userMessage(err, "Gagal memuat kisi-kisi.")).toBe(
+    expect(userMessage(err, "Gagal memuat bank narasi.")).toBe(
       "Triwulan tidak ditemukan.",
     );
   });

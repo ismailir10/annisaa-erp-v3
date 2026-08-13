@@ -166,7 +166,7 @@ export default function EmployeeDetailPage() {
         badge={e.status !== "ACTIVE" ? <StatusBadge status="INACTIVE" /> : undefined}
         actions={e.status === "ACTIVE" ? (
           <>
-            {!isEditing && <Button variant="outline" size="sm" onClick={startEditing}><Pencil size={14} className="mr-1" /> Edit</Button>}
+            {!isEditing && <Button variant="outline" size="sm" onClick={startEditing}><Pencil size={14} className="mr-1" /> Ubah</Button>}
             <Button variant="outline" size="sm" onClick={() => setDeactivateOpen(true)} className="text-destructive hover:text-destructive">Nonaktifkan</Button>
           </>
         ) : (

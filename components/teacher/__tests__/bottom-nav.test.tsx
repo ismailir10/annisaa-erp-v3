@@ -26,7 +26,7 @@ describe("BottomNav", () => {
     const buttons = within(bar()).getAllByRole("button");
     expect(links.map((link) => link.textContent)).toEqual([
       "Beranda",
-      "Kelas",
+      "Absensi",
       "Jurnal",
       "Penilaian",
     ]);

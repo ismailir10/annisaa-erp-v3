@@ -19,11 +19,11 @@ import { z } from "zod";
  */
 export const updateEmployeeSalarySchema = z.array(
   z.object({
-    componentDefId: z.string().min(1, "componentDefId wajib diisi"),
+    componentDefId: z.string().min(1, "Komponen gaji wajib dipilih"),
     value: z
-      .number({ message: "value harus berupa angka" })
-      .nonnegative("value harus ≥ 0")
-      .finite("value harus angka berhingga"),
+      .number({ message: "Nilai harus berupa angka" })
+      .nonnegative("Nilai tidak boleh kurang dari 0")
+      .finite("Nilai harus berupa angka yang valid"),
   })
 );
 
