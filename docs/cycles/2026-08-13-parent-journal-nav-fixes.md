@@ -89,5 +89,38 @@ Frontend diffs in T1, T4 and T5 are cross-checked against `.claude/standards/des
 
 - Pre-cycle baseline (measured on this branch before any task, after `npx prisma generate`): `Test Files 290 passed | 2 skipped (292)`, `Tests 2686 passed | 42 todo (2728)`, zero failures. Note the worktree needed `npx prisma generate` first — `lib/generated/prisma` is not checked in, and without it 26 test files fail to resolve `@/lib/generated/prisma/client`.
 - Tasks T1, T2, T5, T6: `feature-dev:code-reviewer` pass over the combined T1+T2 diff returned **no blockers and no high-confidence issues**; it independently re-derived the day-of-week for every hardcoded calendar date in the backfill tests and confirmed the new parent-page test fails against the old gate condition (i.e. it is not vacuous). Two sub-threshold nits noted and accepted: no explicit test for the single-scope-empty case (behaviour verified by reading `week-grid.tsx`), and the new empty-state copy states WHY but not what-happens-next.
+- Task T3 (security-sensitive — `app/api/**`, so both reviewers ran): `superpowers:code-reviewer` confirmed guard ordering, tenant isolation, and that `requireGuardianForStudent` resolves via `session.id → User.parentId → StudentGuardian` rather than by email, so it is not an instance of the known null-email cross-family leak class. It found the impossible-date bypass described above, which was fixed and tested before commit. Its second finding — the 60 req/60s rate limit was sized for one writable date and now covers ~13 — was accepted as known and not acted on: impact stays scoped to the guardian's own child inside their own tenant. `feature-dev:code-reviewer` separately caught the stale `docs/uat/jobs/parent.md` JTBD (fixed in the same commit) and verified the Sunday case, where `weekStart` maps Sunday back to its own week's Monday, so "Senin minggu lalu" is truthful on every weekday.
+- Task T4: `feature-dev:code-reviewer` proved the new 4-arg predicate is behaviourally identical to the old 3-arg one for the teacher and admin call sites (the added future-date guard is a no-op — the old `date < todayYmd` already excluded future dates), enumerated every mode/date combination reaching the locked branch to confirm `lockedCellReason` never contradicts the predicate, and confirmed the new component test fails if `earliestEditableDate` is ignored. One accepted sub-threshold gap: a tab left open across midnight Jakarta can render a stale floor until the next re-render; the server rejects the write and the existing `toast.error` surfaces its message, so it degrades to a toast rather than bad data.
+- Gate after every task: `npm run build` exit 0 and `npx vitest run` green, run and read by the driver rather than taken from subagent reports. Final end-of-cycle run: **`Test Files 292 passed | 2 skipped (294)`, `Tests 2711 passed | 42 todo (2753)`**, zero failures — +2 files and +25 tests over the pre-cycle baseline, all added by this cycle.
+- Cross-checked `.claude/standards/design-system.html` for the empty-state and portal-grid surfaces touched in T1 and T4; `better-accessibility` consulted for the disabled-cell affordance (verdict: the `<button disabled aria-disabled>` pattern is pre-existing and sanctioned, T4 changed only the reason text).
+- Playwright: **local run deferred to CI.** `playwright.config.ts` refuses to start because this worktree's symlinked `.env` points `DATABASE_URL` at the staging pooler (`aws-1-ap-southeast-1.pooler.supabase.com`), and the specs create and mutate real rows through the API. Verbatim: *"Refusing to run e2e against non-local DATABASE_URL host … Point DATABASE_URL at a local/ephemeral Postgres, or set E2E_ALLOW_REMOTE_DB=1 to override."* The `E2E_ALLOW_REMOTE_DB=1` override was deliberately **not** used — it would pollute the staging database. The required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 
 ## Ship Notes
+
+**Migrations:** none. No schema change — `StudentJournalEntry.date` stays a plain `String`; the impossible-date fix is Zod-level only.
+
+**Env vars:** none.
+
+**Deploy order / coupling:** T3 (server) and T4 (client) must ship together, and they do — same PR. Shipping the client alone would offer cells the server rejects; shipping the server alone is harmless but pointless. No feature flag.
+
+**Data note — existing rows.** The tightened `ymd` schema only guards writes. If any impossible date was already persisted before this cycle, it stays. Worth one read-only check against prod before merge:
+```sql
+select id, "studentId", date from "StudentJournalEntry"
+where date !~ '^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$';
+```
+Prod had `StudentJournalEntry = 0` on 13 Aug 2026, so this is expected to return nothing — run it to confirm rather than assume.
+
+**Preview smoke steps (parent portal, `/ship` Step 3):**
+1. Sign in as the parent role account (`.claude/verify-accounts.json`) → Jurnal. **The grid must render with tappable Di Rumah checkboxes even though no entry exists yet** — this is the pilot blocker being fixed. Before this cycle the same state showed "Belum ada catatan minggu ini" and nothing was tappable.
+2. Tick an indicator on a past weekday of the current week → persists, no error toast.
+3. Navigate back one week → cells still tappable. Back two weeks → every cell disabled.
+4. Confirm the disabled cell's tooltip/aria reason says the window rule, not "hanya hari ini".
+5. Lainnya sheet → the entry reads "Perkembangan" with sub-label "Perkembangan anak per elemen"; no "Capaian" in nav copy.
+6. Note: preview runs against staging data, where the journal template and entries already exist — so step 1's "empty week" state may need navigating to a future-ish or untouched week to observe.
+
+**Rollback:** all five code commits are independent reverts. Reverting `fix(portal): let the Di Rumah grid edit the whole backfill window` and `fix(api): widen parent home-entry edit window to two weeks` restores today-only without touching the blocker fix. Reverting `fix(parent): render journal grid before the first entry exists` alone restores the old gate and re-blocks every wali — do not revert that one without a replacement.
+
+**Follow-ups deliberately not in this cycle:**
+- Per-student fee overrides + automatic arrears carry-over (owner-deferred 13 Aug 2026; `docs/runbooks/tagihan-serentak.md` is the interim procedure).
+- Prod curriculum (`Theme`/`SubTheme`/`LearningObjective`/`AchievementIndicator` all 0) and prod fee master (`FeeComponentDef`/`ProgramFeeStructure` both 0) still need seeding before Bu Shanti can use Tema/IKTP or bulk billing at all.
+- Rate limit on the home-entry route (60 req/60s) was sized for a one-day window and now covers ~13; accepted for now, revisit if abuse appears.
