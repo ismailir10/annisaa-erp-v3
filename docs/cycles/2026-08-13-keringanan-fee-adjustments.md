@@ -366,6 +366,43 @@ over 60 days old and not scoped to fees or invoicing.
     returned null. Any cycle adding a table hits this: the migration only lands when the PR merges,
     but preview-verify runs before the merge.
 
+- Preview-verify iteration 2 (same preview, after the fix commit): flows=[admin Keringanan tab CRUD,
+  admin bulk generate incl. plan + confirm + commit, parent invoice list + detail], **blockers=0,
+  minors=3**. Converged.
+  - The staging DB was missing `StudentFeeAdjustment` (previews skip `prisma migrate deploy`), so
+    with the owner's approval `npx prisma migrate deploy` was run against staging before re-walking.
+    That is the correct mechanism rather than hand-applied DDL: it records `_prisma_migrations` with
+    the right checksum, so the post-merge staging deploy skips the migration instead of failing.
+    Verified after: table present, RLS enabled, 1 `service_role` policy, migration row recorded.
+  - **Tab CRUD:** create via the extracted `StudentPicker` (async search returned real students with
+    NIS), row renders "Diskon / 20% / Tidak terbatas / Aktif", success toast. Client-side PERCENT cap
+    fires as an inline `FieldError` with the label reddened and no request sent — not a 400 toast.
+  - **Year gate, end to end:** a grant on 2026/2027 with the run set to 2025/2026 produced
+    "21 siswa akan ditagih." with the keringanan clause correctly absent. After adding a 2025/2026
+    grant the same run read "Termasuk 1 siswa dengan keringanan", and a second grant took it to 2.
+  - **Generation:** 21 invoices created, 21 payment links succeeded. The granted student's invoice
+    shows `SPP Bulanan — Penyesuaian: Rp -240.000 (Diskon saudara kandung …)` → Rp 960.000, with
+    Uang Makan and Uang Kegiatan untouched and the total Rp 1.460.000 exactly equal to the sum.
+    First time these columns have ever held a non-zero value.
+  - **Parent portal** (signed in as the parent account per `.claude/verify-accounts.json`): the
+    unadjusted run shows Rp 975.000 and the adjusted run Rp 877.500 — exactly 15% of that child's SPP
+    line. The detail sheet renders `Penyesuaian: Rp -97.500 (Beasiswa prestasi …)`, SPP Rp 552.500,
+    and the three lines sum to the header total. No console errors on any page walked.
+  - Minor 1: the **admin** invoice detail prints "Penyesuaian: Rp 0" on every unadjusted line. The
+    parent sheet correctly omits it. Cosmetic noise on the admin side only.
+  - Minor 2: the Keringanan table has no Tahun Ajaran column, so two grants for the same student and
+    component differing only by year render identically. Hit this during verification — it makes
+    picking the right row to deactivate guesswork.
+  - Minor 3: **the `reason` is parent-visible.** It renders verbatim on the parent's invoice line.
+    The dialog's help text says it appears on the invoice line but not that the family reads it, so
+    an admin could write an internal note ("keluarga tidak mampu") and expose it. Copy/product call,
+    not a code defect.
+  - Preview 503s on `/.well-known/vercel/jwe`, an OPTIONS, a HEAD, and one RSC prefetch. Vercel
+    preview infra noise, not application errors — every real page GET was 200, and the prefetched
+    route was opened directly and renders fine.
+- Preview-verify converged on iteration 2 (clean): 2 iterations, 1 fix commit, final preview
+  `https://annisaa-erp-v3-git-feat-bulk-i-fc2470-ismails-projects-196d40d3.vercel.app`.
+
 ## Ship Notes
 
 - **Migrations:** one, additive —
@@ -393,4 +430,11 @@ over 60 days old and not scoped to fees or invoicing.
   `manual-invoice-dialog.tsx`) does not auto-apply keringanan. It stays a fully hand-driven escape
   hatch this cycle — an admin creating a one-off invoice for a student who has a standing discount
   must apply it themselves.
+- **The migration is already applied to staging.** It was run during preview-verify (see
+  Verification) so the preview could exercise the feature at all. `_prisma_migrations` carries the
+  row with the correct checksum, so the post-merge `prisma migrate deploy` on staging will skip it.
+  Prod is untouched and will apply it normally on the first promotion.
+- **Preview-verify left fixtures on staging** — 3 keringanan rows and 42 invoices across two junk
+  period labels ("PreviewVerify PR493 C" and "…D"). Harmless, and useful for the next cycle's
+  verification, but delete them if the staging invoice list needs to look clean.
 - **Prod:** not shipped by this cycle. Staging only unless the owner says otherwise.
